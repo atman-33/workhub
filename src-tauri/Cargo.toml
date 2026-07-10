@@ -1,0 +1,32 @@
+[package]
+name = "workhub"
+version = "0.1.0"
+edition = "2021"
+description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
+license = "MIT"
+repository = "https://github.com/atman-33/workhub"
+
+# Desktop-only: keep the default rlib. Adding cdylib (only needed for mobile
+# targets) makes the debug DLL exceed the PE export-ordinal limit on
+# windows-gnu ("export ordinal too large").
+[lib]
+name = "workhub_lib"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+# rustls-based (no schannel): avoids OS revocation-check failures seen on this network
+ureq = { version = "2", features = ["json"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

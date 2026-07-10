@@ -1,0 +1,6 @@
+/target
+/src-tauri/target
+/node_modules
+/dist
+app-icon.png
+tsconfig.tsbuildinfo
