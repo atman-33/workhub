@@ -1,0 +1,20 @@
+{
+  "name": "workhub-marketplace",
+  "owner": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33/workhub"
+  },
+  "description": "Claude Code marketplace bundled with the workhub app: skills and hooks for the shared human/AI task board backed by an Obsidian vault.",
+  "plugins": [
+    {
+      "name": "workhub",
+      "source": "./plugins/workhub",
+      "description": "Task-board skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init).",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    }
+  ]
+}
