@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Config, GitInfo, GitLog, GraphOp, UpdateInfo } from "@/types";
+import type {
+  Config,
+  CreateTaskInput,
+  GitInfo,
+  GitLog,
+  GraphOp,
+  Task,
+  UpdateInfo,
+  UpdateTaskInput,
+} from "@/types";
 
 export const api = {
   getConfig: () => invoke<Config>("get_config"),
@@ -23,7 +32,24 @@ export const api = {
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),
   restartApp: () => invoke<void>("restart_app"),
+
+  // ---- tasks (vault-backed) ----
+  listTasks: (vaultPath: string) => invoke<Task[]>("list_tasks", { vaultPath }),
+  createTask: (vaultPath: string, input: CreateTaskInput) =>
+    invoke<Task>("create_task", { vaultPath, input }),
+  updateTask: (vaultPath: string, input: UpdateTaskInput) =>
+    invoke<Task>("update_task", { vaultPath, input }),
+  initVault: (vaultPath: string, templateSource: string) =>
+    invoke<void>("init_vault", { vaultPath, templateSource }),
+  watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),
+  launchAgentForTask: (agentCmd: string, taskId: string, taskFile: string, project: string) =>
+    invoke<void>("launch_agent_for_task", { agentCmd, taskId, taskFile, project }),
 };
+
+// Dev-only default: the workhub-vault template folder shipped in this repo
+// checkout. A packaged build would resolve this from a bundled resource
+// instead — out of scope for the task-management MVP.
+export const DEV_VAULT_TEMPLATE_SOURCE = "C:/repos/workhub/vault-template";
 
 export function timeAgo(unixSecs: number): string {
   const secs = Math.max(0, Math.floor(Date.now() / 1000) - unixSecs);

@@ -37,6 +37,10 @@ pub struct Settings {
     /// Disabled by default until workhub has published releases.
     #[serde(default)]
     pub check_updates: bool,
+    /// Absolute path to the workhub Obsidian vault (task data store). Unset
+    /// until the user configures or initializes a vault.
+    #[serde(default)]
+    pub vault_path: Option<String>,
 }
 
 fn default_vscode_cmd() -> String {
@@ -56,8 +60,35 @@ impl Default for Settings {
             terminal_cmd: default_terminal_cmd(),
             agent_cmd: default_agent_cmd(),
             check_updates: false,
+            vault_path: None,
         }
     }
+}
+
+/// A task's frontmatter fields plus location and body — the app's view of
+/// one `tasks/<id> <title>.md` file in the vault.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+    pub id: String,
+    pub title: String,
+    /// inbox | todo | doing | review | done
+    pub status: String,
+    /// me | claude-code | opencode
+    pub assignee: String,
+    #[serde(default)]
+    pub project: String,
+    /// low | medium | high
+    pub priority: String,
+    #[serde(default)]
+    pub due: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub created: String,
+    pub updated: String,
+    /// Absolute path to the task's Markdown file (forward slashes).
+    pub file: String,
+    /// Full body text after the closing frontmatter delimiter, verbatim.
+    pub body: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
