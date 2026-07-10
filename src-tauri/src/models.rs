@@ -79,6 +79,11 @@ pub struct Task {
     pub project: String,
     /// low | medium | high
     pub priority: String,
+    /// Manual sort position within a status column (kanban). Fractional so a
+    /// single reorder only rewrites the moved task's file; unset on tasks
+    /// that were never manually ordered (they sort after ordered ones, by id).
+    #[serde(default)]
+    pub order: Option<f64>,
     #[serde(default)]
     pub due: String,
     #[serde(default)]

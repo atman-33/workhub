@@ -82,6 +82,8 @@ export interface Task {
   assignee: TaskAssignee;
   project: string;
   priority: TaskPriority;
+  /** Manual sort position within a status column; null when never reordered. */
+  order: number | null;
   due: string;
   tags: string[];
   created: string;
@@ -107,6 +109,7 @@ export interface UpdateTaskInput {
   assignee?: TaskAssignee;
   project?: string;
   priority?: TaskPriority;
+  order?: number;
   due?: string;
   tags?: string[];
   body?: string;

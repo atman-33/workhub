@@ -152,15 +152,30 @@ fn render_tags(tags: &[String]) -> String {
     }
 }
 
+/// Renders an `order` float without a trailing `.0` for whole numbers, so
+/// hand-edited files stay tidy (`order: 3`, not `order: 3.0`).
+fn render_order(order: f64) -> String {
+    if order.fract() == 0.0 && order.abs() < 1e15 {
+        format!("{}", order as i64)
+    } else {
+        format!("{order}")
+    }
+}
+
 fn render_frontmatter(t: &Task) -> String {
+    let order_line = t
+        .order
+        .map(|o| format!("order: {}\n", render_order(o)))
+        .unwrap_or_default();
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\ndue: {}\ntags: {}\ncreated: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}due: {}\ntags: {}\ncreated: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
         t.assignee,
         yaml_scalar(&t.project),
         t.priority,
+        order_line,
         t.due,
         render_tags(&t.tags),
         t.created,
@@ -201,6 +216,7 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
                 v
             }
         },
+        order: raw.map.get("order").and_then(|v| v.parse::<f64>().ok()),
         due: get("due"),
         tags: raw.tags,
         created: get("created"),
@@ -315,6 +331,16 @@ pub struct CreateTaskInput {
     pub tags: Option<Vec<String>>,
 }
 
+/// Next `order` value for a task appended to the end of a status column.
+fn next_order(existing: &[Task], status: &str) -> f64 {
+    existing
+        .iter()
+        .filter(|t| t.status == status)
+        .filter_map(|t| t.order)
+        .fold(0.0_f64, f64::max)
+        + 1.0
+}
+
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateTaskInput {
@@ -324,6 +350,7 @@ pub struct UpdateTaskInput {
     pub assignee: Option<String>,
     pub project: Option<String>,
     pub priority: Option<String>,
+    pub order: Option<f64>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
@@ -337,13 +364,16 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
     let filename = format!("{id} {}.md", sanitize_filename(&input.title));
     let file = dir.join(&filename);
     let now = today();
+    let status = input.status.unwrap_or_else(|| "inbox".into());
+    let order = next_order(&existing, &status);
     let task = Task {
         id,
         title: input.title,
-        status: input.status.unwrap_or_else(|| "inbox".into()),
+        status,
         assignee: input.assignee.unwrap_or_else(|| "me".into()),
         project: input.project.unwrap_or_default(),
         priority: input.priority.unwrap_or_else(|| "medium".into()),
+        order: Some(order),
         due: input.due.unwrap_or_default(),
         tags: input.tags.unwrap_or_default(),
         created: now.clone(),
@@ -389,6 +419,9 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     if let Some(v) = input.priority {
         task.priority = v;
     }
+    if let Some(v) = input.order {
+        task.order = Some(v);
+    }
     if let Some(v) = input.due {
         task.due = v;
     }
@@ -416,6 +449,7 @@ struct IndexEntry<'a> {
     assignee: &'a str,
     project: &'a str,
     priority: &'a str,
+    order: Option<f64>,
     due: &'a str,
     tags: &'a [String],
     created: &'a str,
@@ -435,6 +469,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             assignee: &t.assignee,
             project: &t.project,
             priority: &t.priority,
+            order: t.order,
             due: &t.due,
             tags: &t.tags,
             created: &t.created,
@@ -646,6 +681,7 @@ mod tests {
                     assignee: "me".into(),
                     project: String::new(),
                     priority: "medium".into(),
+                    order: None,
                     due: String::new(),
                     tags: vec![],
                     created: today(),
@@ -666,6 +702,62 @@ mod tests {
         )
         .unwrap();
         assert_eq!(t4.id, "T-0100");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn order_is_assigned_per_status_and_updatable() {
+        let vault = temp_vault("order");
+        let t1 = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "first todo".into(),
+                status: Some("todo".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let t2 = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "second todo".into(),
+                status: Some("todo".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let other = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "a doing task".into(),
+                status: Some("doing".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Appended per status column, independent across statuses.
+        assert_eq!(t1.order, Some(1.0));
+        assert_eq!(t2.order, Some(2.0));
+        assert_eq!(other.order, Some(1.0));
+
+        // A fractional midpoint (drop between neighbors) round-trips.
+        let moved = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: t2.id.clone(),
+                order: Some(0.5),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(moved.order, Some(0.5));
+        let reparsed = parse_task_file(&PathBuf::from(&moved.file)).unwrap();
+        assert_eq!(reparsed.order, Some(0.5));
+
+        // Whole numbers render without a trailing .0.
+        let raw = fs::read_to_string(&t1.file).unwrap();
+        assert!(raw.contains("order: 1\n"), "raw frontmatter: {raw}");
 
         fs::remove_dir_all(&vault).ok();
     }

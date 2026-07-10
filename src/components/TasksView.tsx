@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
 import { buildBody, parseBody } from "@/lib/taskBody";
 import { cn } from "@/lib/utils";
-import type { Config, Task, TaskAssignee, TaskStatus } from "@/types";
+import type { Config, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
 
 type ViewMode = "list" | "kanban";
 type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
@@ -121,13 +121,17 @@ export function TasksView({ configVersion }: Props) {
     [config],
   );
 
-  const changeStatus = useCallback(
-    (task: Task, next: TaskStatus) => {
+  const applyUpdates = useCallback(
+    async (updates: UpdateTaskInput[]) => {
       if (!vaultPath) return;
-      void api
-        .updateTask(vaultPath, { id: task.id, status: next })
-        .then(() => refreshTasks(vaultPath))
-        .catch((e) => setStatus(`Update failed — ${e}`));
+      try {
+        for (const u of updates) {
+          await api.updateTask(vaultPath, u);
+        }
+        refreshTasks(vaultPath);
+      } catch (e) {
+        setStatus(`Update failed — ${e}`);
+      }
     },
     [vaultPath, refreshTasks],
   );
@@ -297,7 +301,7 @@ export function TasksView({ configVersion }: Props) {
           <TaskKanban
             tasks={visible}
             onOpen={(task) => setDialog({ mode: "edit", task })}
-            onStatusChange={changeStatus}
+            onMove={(updates) => void applyUpdates(updates)}
             onLaunchAgent={launchAgent}
           />
         )}
