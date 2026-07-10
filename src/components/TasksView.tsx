@@ -17,7 +17,12 @@ type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
 const selectClass =
   "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-export function TasksView() {
+interface Props {
+  /** Bumped by the app shell after settings are saved; triggers a config reload. */
+  configVersion: number;
+}
+
+export function TasksView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
@@ -37,10 +42,10 @@ export function TasksView() {
       .catch((e) => setStatus(`Failed to load tasks — ${e}`));
   }, []);
 
-  // ---- startup: load config ----
+  // ---- startup + after app-level settings saves: load config ----
   useEffect(() => {
     void api.getConfig().then(setConfig);
-  }, []);
+  }, [configVersion]);
 
   // ---- watch + initial load once a vault is configured ----
   useEffect(() => {
@@ -252,7 +257,13 @@ export function TasksView() {
           ))}
         </select>
 
-        <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
+        <span
+          className="ml-auto max-w-64 shrink-0 truncate font-mono text-[11px] text-muted-foreground"
+          title={vaultPath}
+        >
+          {vaultPath}
+        </span>
+        <div className="flex shrink-0 items-center overflow-hidden rounded-md border">
           <button
             className={cn(
               "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",

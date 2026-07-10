@@ -10,7 +10,6 @@ import {
   Play,
   RefreshCw,
   Search,
-  Settings2,
   Star,
   Tag,
   Trash2,
@@ -19,7 +18,6 @@ import {
 import { GitGraphView } from "@/components/graph/GitGraphView";
 import { NotesDialog } from "@/components/NotesDialog";
 import { ProjectRow, type RowAction } from "@/components/ProjectRow";
-import { SettingsDialog } from "@/components/SettingsDialog";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,11 +40,16 @@ import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api, nowUnix } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Config, GitInfo, Settings, UpdateInfo } from "@/types";
+import type { Config, GitInfo, UpdateInfo } from "@/types";
 
 type View = { kind: "list" } | { kind: "graph"; path: string };
 
-export function ReposView() {
+interface Props {
+  /** Bumped by the app shell after settings are saved; triggers a config reload. */
+  configVersion: number;
+}
+
+export function ReposView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [view, setView] = useState<View>({ kind: "list" });
   const [gitMap, setGitMap] = useState<Record<string, GitInfo>>({});
@@ -58,7 +61,6 @@ export function ReposView() {
   const [status, setStatus] = useState("");
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const [notesPath, setNotesPath] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [showSavePreset, setShowSavePreset] = useState(false);
@@ -127,6 +129,15 @@ export function ReposView() {
       }
     })();
   }, [refreshAll]);
+
+  // ---- reload config after app-level settings saves ----
+  useEffect(() => {
+    if (configVersion === 0) return;
+    void api.getConfig().then((cfg) => {
+      setConfig(cfg);
+      setSelected(new Set(cfg.selected));
+    });
+  }, [configVersion]);
 
   // ---- actions ----
   const markOpened = useCallback(
@@ -328,9 +339,6 @@ export function ReposView() {
                 <Play className="size-3.5" />
                 Open{selected.size > 1 ? ` ${selected.size}` : ""} in VS Code
               </Button>
-              <Button size="icon" variant="ghost" className="size-8" onClick={() => setShowSettings(true)}>
-                <Settings2 className="size-4" />
-              </Button>
             </div>
           </header>
   
@@ -501,12 +509,6 @@ export function ReposView() {
         )}
 
         {/* dialogs */}
-        <SettingsDialog
-          open={showSettings}
-          settings={config.settings}
-          onClose={() => setShowSettings(false)}
-          onSave={(s: Settings) => mutateConfig((c) => ({ ...c, settings: s }))}
-        />
         <NotesDialog
           project={notesProject}
           onClose={() => setNotesPath(null)}
