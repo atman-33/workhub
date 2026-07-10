@@ -12,6 +12,7 @@
     "windows": [
       {
         "title": "workhub — All-in-one Dev Hub",
+        "dragDropEnabled": false,
         "width": 1020,
         "height": 700,
         "minWidth": 720,

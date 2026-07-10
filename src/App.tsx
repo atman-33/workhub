@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitBranch, ListTodo, Settings2 } from "lucide-react";
+import { GitBranch, ListTodo, Settings as SettingsIcon } from "lucide-react";
 import { ReposView } from "@/components/ReposView";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { TasksView } from "@/components/TasksView";
@@ -59,7 +59,7 @@ export default function App() {
           className="ml-auto size-7"
           onClick={() => setShowSettings(true)}
         >
-          <Settings2 className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
       </nav>
       <div className="min-h-0 flex-1">
