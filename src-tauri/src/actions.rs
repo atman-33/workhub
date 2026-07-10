@@ -88,8 +88,18 @@ pub fn launch_agent_for_task(
     task_id: &str,
     task_file: &str,
     project: &str,
+    vault_path: &str,
 ) -> Result<(), String> {
-    let repo_path = resolve_project_path(project);
+    // Tasks not tied to a repository (empty `project`) run in the vault
+    // itself — that's where knowledge/curation work happens.
+    let repo_path = if project.trim().is_empty() {
+        if vault_path.trim().is_empty() {
+            return Err("task has no project and no vault is configured".into());
+        }
+        vault_path.replace('\\', "/")
+    } else {
+        resolve_project_path(project)
+    };
     let prompt = format!(
         "タスク {task_id} を実施してください。まず task-start スキルを実行してください。タスクファイル: {task_file}"
     );

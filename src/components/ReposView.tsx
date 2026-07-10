@@ -18,7 +18,6 @@ import {
 import { GitGraphView } from "@/components/graph/GitGraphView";
 import { NotesDialog } from "@/components/NotesDialog";
 import { ProjectRow, type RowAction } from "@/components/ProjectRow";
-import { UpdateBanner } from "@/components/UpdateBanner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,7 +39,7 @@ import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api, nowUnix } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Config, GitInfo, UpdateInfo } from "@/types";
+import type { Config, GitInfo } from "@/types";
 
 type View = { kind: "list" } | { kind: "graph"; path: string };
 
@@ -59,8 +58,6 @@ export function ReposView({ configVersion }: Props) {
   const [tagFilter, setTagFilter] = useState("");
   const [favOnly, setFavOnly] = useState(false);
   const [status, setStatus] = useState("");
-  const [version, setVersion] = useState("");
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [notesPath, setNotesPath] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [showSavePreset, setShowSavePreset] = useState(false);
@@ -123,10 +120,6 @@ export function ReposView({ configVersion }: Props) {
       setConfig(cfg);
       setSelected(new Set(cfg.selected));
       refreshAll(cfg.projects.map((p) => p.path));
-      setVersion(await api.appVersion());
-      if (cfg.settings.check_updates) {
-        setUpdate(await api.checkUpdate());
-      }
     })();
   }, [refreshAll]);
 
@@ -298,10 +291,6 @@ export function ReposView({ configVersion }: Props) {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-full flex-col">
-        {update && (
-          <UpdateBanner update={update} currentVersion={version} onDismiss={() => setUpdate(null)} />
-        )}
-
         {view.kind === "graph" ? (
           <GitGraphView
             path={view.path}
@@ -317,8 +306,7 @@ export function ReposView({ configVersion }: Props) {
               <Layers className="size-4 text-primary" />
             </div>
             <div className="flex items-baseline gap-2">
-              <h1 className="text-[15px] font-bold tracking-tight">Workhub</h1>
-              <span className="text-[11px] text-muted-foreground">v{version}</span>
+              <h1 className="text-[15px] font-bold tracking-tight">Repos</h1>
             </div>
   
             <div className="ml-auto flex items-center gap-2">

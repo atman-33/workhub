@@ -42,8 +42,13 @@ export const api = {
   initVault: (vaultPath: string, templateSource: string) =>
     invoke<void>("init_vault", { vaultPath, templateSource }),
   watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),
-  launchAgentForTask: (agentCmd: string, taskId: string, taskFile: string, project: string) =>
-    invoke<void>("launch_agent_for_task", { agentCmd, taskId, taskFile, project }),
+  launchAgentForTask: (
+    agentCmd: string,
+    taskId: string,
+    taskFile: string,
+    project: string,
+    vaultPath: string,
+  ) => invoke<void>("launch_agent_for_task", { agentCmd, taskId, taskFile, project, vaultPath }),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

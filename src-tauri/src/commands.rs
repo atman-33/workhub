@@ -175,6 +175,7 @@ pub fn launch_agent_for_task(
     task_id: String,
     task_file: String,
     project: String,
+    vault_path: String,
 ) -> Result<(), String> {
-    actions::launch_agent_for_task(&agent_cmd, &task_id, &task_file, &project)
+    actions::launch_agent_for_task(&agent_cmd, &task_id, &task_file, &project, &vault_path)
 }

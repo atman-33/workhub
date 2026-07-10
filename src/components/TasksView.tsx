@@ -114,7 +114,13 @@ export function TasksView({ configVersion }: Props) {
     (task: Task) => {
       if (!config) return;
       void api
-        .launchAgentForTask(config.settings.agent_cmd, task.id, task.file, task.project)
+        .launchAgentForTask(
+          config.settings.agent_cmd,
+          task.id,
+          task.file,
+          task.project,
+          config.settings.vault_path ?? "",
+        )
         .then(() => setStatus(`Launched agent for ${task.id}`))
         .catch((e) => setStatus(`Agent launch failed — ${e}`));
     },

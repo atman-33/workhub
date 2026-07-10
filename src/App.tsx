@@ -3,10 +3,11 @@ import { GitBranch, ListTodo, Settings as SettingsIcon } from "lucide-react";
 import { ReposView } from "@/components/ReposView";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { TasksView } from "@/components/TasksView";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Settings } from "@/types";
+import type { Settings, UpdateInfo } from "@/types";
 
 type Tab = "tasks" | "repos";
 
@@ -19,11 +20,20 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("tasks");
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [version, setVersion] = useState("");
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
 
   useEffect(() => {
-    void api.getConfig().then((cfg) => setSettings(cfg.settings));
+    void (async () => {
+      const cfg = await api.getConfig();
+      setSettings(cfg.settings);
+      setVersion(await api.appVersion());
+      if (cfg.settings.check_updates) {
+        setUpdate(await api.checkUpdate());
+      }
+    })();
   }, []);
 
   const saveSettings = useCallback(async (next: Settings) => {
@@ -37,6 +47,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col">
+      {update && (
+        <UpdateBanner update={update} currentVersion={version} onDismiss={() => setUpdate(null)} />
+      )}
       <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
@@ -53,10 +66,11 @@ export default function App() {
             {label}
           </button>
         ))}
+        <span className="ml-auto text-[11px] text-muted-foreground">v{version}</span>
         <Button
           size="icon"
           variant="ghost"
-          className="ml-auto size-7"
+          className="size-7"
           onClick={() => setShowSettings(true)}
         >
           <SettingsIcon className="size-4" />

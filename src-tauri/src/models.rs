@@ -34,13 +34,16 @@ pub struct Settings {
     #[serde(default = "default_agent_cmd")]
     pub agent_cmd: String,
     /// Check GitHub Releases for a newer version on startup.
-    /// Disabled by default until workhub has published releases.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub check_updates: bool,
     /// Absolute path to the workhub Obsidian vault (task data store). Unset
     /// until the user configures or initializes a vault.
     #[serde(default)]
     pub vault_path: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_vscode_cmd() -> String {
@@ -59,7 +62,7 @@ impl Default for Settings {
             vscode_cmd: default_vscode_cmd(),
             terminal_cmd: default_terminal_cmd(),
             agent_cmd: default_agent_cmd(),
-            check_updates: false,
+            check_updates: true,
             vault_path: None,
         }
     }
