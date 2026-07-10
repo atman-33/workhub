@@ -26,6 +26,9 @@
 }
 
 .dark {
+  /* Tell the OS we're dark so native widgets (select dropdowns, scrollbars)
+     render dark instead of white-on-light. */
+  color-scheme: dark;
   /* zinc-ish dark with indigo accent — matches the previous egui palette */
   --background: oklch(0.165 0.012 265);
   --foreground: oklch(0.9 0.008 265);

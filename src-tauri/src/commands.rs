@@ -1,6 +1,8 @@
-use crate::models::{Config, GitInfo, GitLog, GraphOp};
+use crate::models::{Config, GitInfo, GitLog, GraphOp, Task};
+use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, storage, update};
 use serde::Serialize;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub fn get_config() -> Config {
@@ -113,4 +115,67 @@ pub async fn apply_update(url: String) -> Result<(), String> {
 #[tauri::command]
 pub fn restart_app(app: tauri::AppHandle) {
     app.restart();
+}
+
+// ---------------------------------------------------------------------
+// tasks (vault-backed)
+// ---------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_tasks(vault_path: String) -> Result<Vec<Task>, String> {
+    tauri::async_runtime::spawn_blocking(move || tasks::scan_and_index(&PathBuf::from(vault_path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn create_task(vault_path: String, input: CreateTaskInput) -> Result<Task, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::create_task(&PathBuf::from(vault_path), input)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn update_task(vault_path: String, input: UpdateTaskInput) -> Result<Task, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::update_task(&PathBuf::from(vault_path), input)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// `template_source` is the absolute path to a `vault-template/` folder to
+/// copy from — the frontend defaults it to the repo checkout in dev; a
+/// packaged build would point it at a bundled resource instead.
+#[tauri::command]
+pub async fn init_vault(vault_path: String, template_source: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::init_vault(&PathBuf::from(vault_path), &PathBuf::from(template_source))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// (Re)starts watching `<vault_path>/tasks` for changes. Call whenever the
+/// configured vault path is set or changes.
+#[tauri::command]
+pub fn watch_vault(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, WatcherState>,
+    vault_path: String,
+) -> Result<(), String> {
+    tasks::start_watcher(app, &state.0, PathBuf::from(vault_path))
+}
+
+#[tauri::command]
+pub fn launch_agent_for_task(
+    agent_cmd: String,
+    task_id: String,
+    task_file: String,
+    project: String,
+    vault_path: String,
+) -> Result<(), String> {
+    actions::launch_agent_for_task(&agent_cmd, &task_id, &task_file, &project, &vault_path)
 }

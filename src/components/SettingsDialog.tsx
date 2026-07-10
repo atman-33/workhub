@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { open as pickFolders } from "@tauri-apps/plugin-dialog";
+import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -17,6 +19,7 @@ const DEFAULTS: Settings = {
   terminal_cmd: "wt -d {path}",
   agent_cmd: "wt -d {path} pwsh -NoExit -Command claude",
   check_updates: true,
+  vault_path: null,
 };
 
 interface Props {
@@ -58,6 +61,30 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           {field("VS Code command", "vscode_cmd")}
           {field("Terminal command", "terminal_cmd")}
           {field("AI agent command", "agent_cmd")}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Tasks vault path</label>
+            <div className="flex gap-1.5">
+              <Input
+                value={draft.vault_path ?? ""}
+                onChange={(e) => setDraft({ ...draft, vault_path: e.target.value || null })}
+                placeholder="C:/obsidian/workhub-vault"
+                className="h-8 font-mono text-xs"
+              />
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                onClick={async () => {
+                  const picked = await pickFolders({ directory: true, title: "Choose vault folder" });
+                  if (typeof picked === "string") {
+                    setDraft({ ...draft, vault_path: picked.replaceAll("\\", "/") });
+                  }
+                }}
+              >
+                <FolderOpen className="size-3.5" />
+              </Button>
+            </div>
+          </div>
           <label className="flex items-center gap-2 pt-1 text-sm">
             <Checkbox
               checked={draft.check_updates}

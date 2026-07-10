@@ -25,6 +25,9 @@ serde_json = "1"
 dirs = "5"
 # rustls-based (no schannel): avoids OS revocation-check failures seen on this network
 ureq = { version = "2", features = ["json"] }
+# vault task-file watching (debounced manually in tasks.rs; kept to the plain
+# channel API — no extra debouncer crate needed).
+notify = "6"
 
 [profile.release]
 opt-level = 2

@@ -1,0 +1,65 @@
+# Release contract (see .claude/rules/release-process.md):
+# - triggered ONLY by pushing a tag `vX.Y.Z`
+# - the tag must equal the version in src-tauri/Cargo.toml (verified below)
+# - assets uploaded: `workhub.exe` (bare, required by the in-app self-updater)
+#   and `workhub-windows-x86_64.zip` (exe + README + LICENSE)
+# Never rename these assets — installed copies download `workhub.exe` by name.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches Cargo.toml version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") {
+            throw "tag ${{ github.ref_name }} does not match src-tauri/Cargo.toml version v$v"
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build release
+        run: npx tauri build --no-bundle
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item src-tauri/target/release/workhub.exe workhub.exe
+          Compress-Archive -Path workhub.exe, README.md, LICENSE -DestinationPath workhub-windows-x86_64.zip
+          Get-FileHash workhub.exe, workhub-windows-x86_64.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            workhub.exe
+            workhub-windows-x86_64.zip
+            SHA256SUMS.txt
+          generate_release_notes: true

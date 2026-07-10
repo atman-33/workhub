@@ -17,6 +17,7 @@ export interface Settings {
   terminal_cmd: string;
   agent_cmd: string;
   check_updates: boolean;
+  vault_path: string | null;
 }
 
 export type SortMode = "Name" | "Recent";
@@ -68,6 +69,50 @@ export interface GitLog {
   current_branch: string;
   uncommitted: number;
   has_more: boolean;
+}
+
+export type TaskStatus = "inbox" | "todo" | "doing" | "review" | "done";
+export type TaskAssignee = "me" | "claude-code" | "opencode";
+export type TaskPriority = "low" | "medium" | "high";
+
+export interface Task {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  assignee: TaskAssignee;
+  project: string;
+  priority: TaskPriority;
+  /** Manual sort position within a status column; null when never reordered. */
+  order: number | null;
+  due: string;
+  tags: string[];
+  created: string;
+  updated: string;
+  file: string;
+  body: string;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  status?: TaskStatus;
+  assignee?: TaskAssignee;
+  project?: string;
+  priority?: TaskPriority;
+  due?: string;
+  tags?: string[];
+}
+
+export interface UpdateTaskInput {
+  id: string;
+  title?: string;
+  status?: TaskStatus;
+  assignee?: TaskAssignee;
+  project?: string;
+  priority?: TaskPriority;
+  order?: number;
+  due?: string;
+  tags?: string[];
+  body?: string;
 }
 
 export type GraphOp =

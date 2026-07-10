@@ -77,6 +77,50 @@ pub fn launch_agent(template: &str, path: &str) -> Result<(), String> {
     launch(&fill_template(template, path))
 }
 
+/// Launches the configured agent in a task's target repository with an
+/// initial prompt telling it which task to work and to run the `task-start`
+/// skill first. Reuses `agent_cmd`'s template mechanism rather than adding a
+/// separate setting: the prompt is appended as one quoted trailing argument,
+/// which works because `agent_cmd` templates end in a command that accepts a
+/// free-form argument (e.g. `... -Command claude`).
+pub fn launch_agent_for_task(
+    agent_cmd: &str,
+    task_id: &str,
+    task_file: &str,
+    project: &str,
+    vault_path: &str,
+) -> Result<(), String> {
+    // Tasks not tied to a repository (empty `project`) run in the vault
+    // itself — that's where knowledge/curation work happens.
+    let repo_path = if project.trim().is_empty() {
+        if vault_path.trim().is_empty() {
+            return Err("task has no project and no vault is configured".into());
+        }
+        vault_path.replace('\\', "/")
+    } else {
+        resolve_project_path(project)
+    };
+    let prompt = format!(
+        "タスク {task_id} を実施してください。まず task-start スキルを実行してください。タスクファイル: {task_file}"
+    );
+    let quoted_prompt = format!("\"{}\"", prompt.replace('"', "\\\""));
+    let template = format!("{agent_cmd} {quoted_prompt}");
+    launch(&fill_template(&template, &repo_path))
+}
+
+/// Resolves a task's `project` field to an absolute repo path: used as-is if
+/// it already looks like a path (drive letter or leading slash), otherwise
+/// treated as a short repo name under the conventional `C:/repos/<name>`
+/// layout used across this machine's sibling repositories.
+fn resolve_project_path(project: &str) -> String {
+    let p = project.replace('\\', "/");
+    if p.contains(':') || p.starts_with('/') {
+        p
+    } else {
+        format!("C:/repos/{p}")
+    }
+}
+
 pub fn open_explorer(path: &str) -> Result<(), String> {
     Command::new("explorer")
         .arg(path)
@@ -125,6 +169,16 @@ mod tests {
         assert_eq!(
             split_command_line(r#"wt -d "C:/My Projects/app" pwsh"#),
             vec!["wt", "-d", "C:/My Projects/app", "pwsh"]
+        );
+    }
+
+    #[test]
+    fn resolves_short_project_names_under_repos_root() {
+        assert_eq!(resolve_project_path("devdeck"), "C:/repos/devdeck");
+        assert_eq!(resolve_project_path("C:/repos/workhub"), "C:/repos/workhub");
+        assert_eq!(
+            resolve_project_path("C:\\repos\\workhub"),
+            "C:/repos/workhub"
         );
     }
 

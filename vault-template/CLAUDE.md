@@ -30,6 +30,8 @@ status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
 priority: medium    # low | medium | high
+order: 2            # manual sort position within the status column (number,
+                    # may be fractional); managed by the app — leave as is
 due: 2026-07-20     # optional
 tags: []
 created: 2026-07-10
