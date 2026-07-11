@@ -126,8 +126,8 @@ pub fn restart_app(app: tauri::AppHandle) {
 /// Used by the frontend to decide whether a configured vault path is still
 /// valid or should prompt for re-selection.
 #[tauri::command]
-pub fn check_vault_path(path: String) -> bool {
-    std::path::PathBuf::from(path).is_dir()
+pub fn check_vault_path(vault_path: String) -> bool {
+    std::path::PathBuf::from(vault_path).is_dir()
 }
 
 #[tauri::command]

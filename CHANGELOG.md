@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 (2026-07-11)
+
+- Fix `check_vault_path` command argument naming so the frontend's `vaultPath`
+  is correctly received by the Rust backend.
+- Add error handling around the vault existence check so a failure shows the
+  vault selection prompt instead of leaving the Tasks view blank.
+
 ## 0.2.1 (2026-07-11)
 
 - Fix vault-path handling on startup: only prompt for a vault folder when the
