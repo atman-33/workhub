@@ -61,6 +61,16 @@ The app must:
 Design docs live in the owner's notes vault:
 `C:/obsidian/my-notes/Inbox/Projects/workhub/`.
 
+## Plugin marketplace: the repo is the plugin source
+
+This repository doubles as a Claude Code plugin marketplace
+(`.claude-plugin/marketplace.json` + `plugins/`) — the single source of
+plugins for the workhub vault harness. Skills live in plugins, never in
+`vault-template/`; the vault carries configuration only. Each plugin is
+classified required/optional and user/project scope — see
+[docs/plugins.md](docs/plugins.md) for the catalog and the placement rules
+before adding or moving a skill.
+
 ## Workflow
 
 - Do all development on a feature branch cut from `main`
