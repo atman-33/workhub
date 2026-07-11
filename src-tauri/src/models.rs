@@ -33,6 +33,8 @@ pub struct Settings {
     pub terminal_cmd: String,
     #[serde(default = "default_agent_cmd")]
     pub agent_cmd: String,
+    #[serde(default = "default_opencode_cmd")]
+    pub opencode_cmd: String,
     /// Check GitHub Releases for a newer version on startup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
@@ -55,6 +57,9 @@ fn default_terminal_cmd() -> String {
 fn default_agent_cmd() -> String {
     "wt -d {path} pwsh -NoExit -Command claude".into()
 }
+fn default_opencode_cmd() -> String {
+    "wt -d {path} pwsh -NoExit -Command opencode".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -62,6 +67,7 @@ impl Default for Settings {
             vscode_cmd: default_vscode_cmd(),
             terminal_cmd: default_terminal_cmd(),
             agent_cmd: default_agent_cmd(),
+            opencode_cmd: default_opencode_cmd(),
             check_updates: true,
             vault_path: None,
         }
