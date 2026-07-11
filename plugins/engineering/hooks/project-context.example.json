@@ -1,0 +1,25 @@
+{
+  "roleBasedDelegation": true,
+  "openspecPath": "C:/repos/workhub/openspec",
+  "postToolFormatCommands": [
+    "npm run format"
+  ],
+  "projects": [
+    {
+      "name": "workhub",
+      "path": "C:/repos/workhub",
+      "summary": "Claude Code plugin marketplace",
+      "postToolFormatCommands": [
+        "npm run format",
+        "npm run lint -- --fix"
+      ]
+    },
+    {
+      "name": "agent-harness",
+      "path": "C:/repos/agent-harness",
+      "postToolFormatCommands": [
+        "npm run format"
+      ]
+    }
+  ]
+}

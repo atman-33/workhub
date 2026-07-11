@@ -1,0 +1,8 @@
+{
+  "repos": [
+    "C:/absolute/path/to/repo-a",
+    "C:/absolute/path/to/repo-b"
+  ],
+  "outputDir": "C:/absolute/path/to/obsidian-vault/work-logs",
+  "gitAuthor": ""
+}

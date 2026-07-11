@@ -1,0 +1,9 @@
+{
+  "name": "obsidian",
+  "version": "0.2.0",
+  "description": "Helpers for working with Obsidian notes and knowledge management.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

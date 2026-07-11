@@ -4,12 +4,102 @@
     "name": "atman-33",
     "url": "https://github.com/atman-33/workhub"
   },
-  "description": "Claude Code marketplace bundled with the workhub app: skills and hooks for the shared human/AI task board backed by an Obsidian vault.",
+  "description": "Claude Code marketplace bundled with the workhub app: the single source of plugins for the workhub vault harness (task board, engineering workflows, productivity tools, and tech-stack helpers). See docs/plugins.md for the required/optional and scope policy.",
   "plugins": [
     {
       "name": "workhub",
       "source": "./plugins/workhub",
       "description": "Task-board skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init).",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "engineering",
+      "source": "./plugins/engineering",
+      "description": "Engineering utilities and helpers for software development tasks.",
+      "version": "0.20.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "openspec",
+      "source": "./plugins/openspec",
+      "description": "OpenSpec workflow skills: propose, explore, apply, and archive spec-driven changes.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "productivity",
+      "source": "./plugins/productivity",
+      "description": "Productivity helpers for administrative and daily tasks.",
+      "version": "0.18.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "scrum",
+      "source": "./plugins/scrum",
+      "description": "Helpers for scrum and agile development workflows, including monday.com backlog and Google Drive doc integration.",
+      "version": "0.16.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "obsidian",
+      "source": "./plugins/obsidian",
+      "description": "Helpers for working with Obsidian notes and knowledge management.",
+      "version": "0.2.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "stack-cloudflare",
+      "source": "./plugins/stack-cloudflare",
+      "description": "Helpers for developing on Cloudflare (Workers, Pages, R2, D1, etc.).",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "stack-dnd-kit",
+      "source": "./plugins/stack-dnd-kit",
+      "description": "Helpers for building drag-and-drop UIs with dnd kit.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "stack-opencode",
+      "source": "./plugins/stack-opencode",
+      "description": "Helpers for working with OpenCode configuration and extensions.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "stack-react-router",
+      "source": "./plugins/stack-react-router",
+      "description": "Helpers for React Router and Remix applications.",
       "version": "0.1.0",
       "author": {
         "name": "atman-33",

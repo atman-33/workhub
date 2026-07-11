@@ -1,0 +1,9 @@
+{
+  "name": "stack-cloudflare",
+  "description": "Helpers for developing on Cloudflare (Workers, Pages, R2, D1, etc.).",
+  "version": "0.1.0",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}
