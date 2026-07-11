@@ -21,15 +21,17 @@ Two complementary injection paths:
 ## Rule file format
 
 Each `*.md` here needs `paths:` front matter (REQUIRED — a rule with no `paths:`
-is skipped). Globs are resolved relative to the workspace root — walk up with
-`..` as far as needed to reach the target repo (`../other-repo/**` for sibling
-repos, or e.g. `../../repos/other-repo/**` from an Obsidian vault under
-`C:/obsidian/`). Matching is strict and root-anchored.
+is skipped). Matching is strict and root-anchored. Prefer project-name globs —
+start with the NAME of a project registered in `.claude/project-context.json`
+(e.g. `other-repo/src/**`), matched against the file's path relative to that
+project's root. Cwd-relative globs also work: walk up with `..` as far as
+needed (`../other-repo/**` for sibling repos, or e.g.
+`../../repos/other-repo/**` from an Obsidian vault under `C:/obsidian/`).
 
 ```markdown
 ---
 paths:
-  - ../other-repo/plugins/**/*.mjs
+  - other-repo/plugins/**/*.mjs
 ---
 Rule text injected into context when a matching file is touched.
 ```

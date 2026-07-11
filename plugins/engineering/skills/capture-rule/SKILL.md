@@ -59,29 +59,32 @@ paths:
 ```
 
 **`.claude/rules-ex` (extended rules, lives in the harness workspace):**
-- `paths:` is **required** (a rule without it is skipped). Globs are
-  **workspace-relative (cwd = the harness workspace root)** — walk up with `..`
-  as far as needed to reach the target repo: `../<repo>/**` when repos are
-  siblings of the workspace, or e.g. `../../repos/<repo>/**` when the workspace
-  is an Obsidian vault under `C:/obsidian/` and repos live under `C:/repos/`.
-  Matching is **strict and root-anchored** (no implicit `**/`); use `**` for any
-  depth. `*` also works as the repo-name segment itself, for an insight that
-  applies to *any* repo rather than one specific one.
+- `paths:` is **required** (a rule without it is skipped). Two glob forms:
+  **project-name globs (preferred)** — start with the NAME of a project
+  registered in `.claude/project-context.json` (`<project-name>/src/**`); the
+  rest matches the file's path relative to that project's root, independent of
+  machine layout. **Cwd-relative globs** — walk up with `..` from the workspace
+  root to reach the repo (`../<repo>/**` for sibling repos, or e.g.
+  `../../repos/<repo>/**` from an Obsidian vault under `C:/obsidian/`); use for
+  repos not registered in project-context.json. Matching is **strict and
+  root-anchored** (no implicit `**/`); use `**` for any depth. `*` also works
+  as the project/repo-name segment itself, for an insight that applies to
+  *any* repo rather than one specific one.
 
 ```markdown
 ---
 paths:
-  - ../<repo>/plugins/**/*.mjs
+  - <project-name>/plugins/**/*.mjs
 ---
 <the cross-cutting insight>
 ```
 
-Cross-repo example (applies to every sibling repo, not just one):
+Cross-repo example (applies to every registered project, not just one):
 
 ```markdown
 ---
 paths:
-  - ../*/.github/workflows/**
+  - */.github/workflows/**
 ---
 <an insight that applies to any repo's GitHub Actions workflows>
 ```

@@ -20,7 +20,7 @@
       "name": "engineering",
       "source": "./plugins/engineering",
       "description": "Engineering utilities and helpers for software development tasks.",
-      "version": "0.20.1",
+      "version": "0.21.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

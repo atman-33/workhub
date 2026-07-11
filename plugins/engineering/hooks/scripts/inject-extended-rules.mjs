@@ -12,18 +12,22 @@
  * centralised in the harness (cwd) without modifying sibling target repos.
  *
  * Folder name `rules-ex` = the *extended* form of `.claude/rules`: its `paths:`
- * globs are resolved relative to cwd and may use `..` to reach sibling repos,
- * e.g. `paths: ../workhub/plugins/**`.
+ * globs are resolved relative to cwd and may use `..` to reach other repos,
+ * e.g. `paths: ../workhub/plugins/**`. Additionally, globs may start with a
+ * project NAME registered in `<cwd>/.claude/project-context.json`
+ * (`paths: workhub/src/**`): the touched file is then matched as
+ * `<project-name>/<path relative to that project's root>`, which keeps rules
+ * independent of where the repos live on a given machine.
  *
- * Matching: the touched file is converted to a cwd-relative path (preserving `..`)
- * via path.relative, then matched against each rule's `paths:` globs with a strict,
- * root-anchored full match (no implicit leading double-star prefixing — the `../`
- * already anchors the pattern at cwd). A rule WITHOUT `paths:` is skipped
- * (cross-cutting rules must declare their scope to avoid firing on every file).
+ * Matching: the touched file is converted to a set of candidate paths — its
+ * cwd-relative path (preserving `..`) plus one `<project-name>/<rel>` candidate
+ * per registered project that contains it — then matched against each rule's
+ * `paths:` globs with a strict, root-anchored full match (no implicit leading
+ * double-star prefixing — the `../` or project-name segment already anchors the
+ * pattern). A rule WITHOUT `paths:` is skipped (cross-cutting rules must declare
+ * their scope to avoid firing on every file).
  *
  * Input (stdin JSON): `tool_input.file_path`, `cwd`, `session_id`, `agent_id`.
- * Unlike inject-target-rules.mjs this hook does NOT read project-context.json — it
- * depends only on cwd and the rules-ex folder.
  *
  * De-duplication: a per-(session_id, agent context, rule-file) sentinel under the
  * OS temp dir ensures each rule is injected at most once per agent context, same
@@ -38,6 +42,7 @@ import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
 const RULES_RELATIVE_DIR = ".claude/rules-ex";
+const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
 
 /**
  * @typedef {{
@@ -207,6 +212,42 @@ function stripQuotes(s) {
   return s.replace(/^["']/, "").replace(/["']$/, "");
 }
 
+/**
+ * Candidate paths a touched file is matched under: its cwd-relative path plus a
+ * `<project-name>/<project-root-relative-path>` candidate for every project
+ * registered in `.claude/project-context.json` whose root contains the file.
+ * Missing or malformed config just yields no extra candidates (never fatal).
+ */
+/** @param {string} cwd @param {string} filePath @param {string} relPath */
+function buildCandidatePaths(cwd, filePath, relPath) {
+  const candidates = relPath ? [relPath] : [];
+  let config;
+  try {
+    config = JSON.parse(readFileSync(join(cwd, CONFIG_RELATIVE_PATH), "utf8"));
+  } catch {
+    return candidates;
+  }
+  const projects = config && Array.isArray(config.projects) ? config.projects : [];
+  for (const project of projects) {
+    if (
+      !project ||
+      typeof project.name !== "string" ||
+      typeof project.path !== "string"
+    ) {
+      continue;
+    }
+    const name = project.name.trim();
+    const root = normalizePath(project.path);
+    if (!name || !root) {
+      continue;
+    }
+    if (filePath.startsWith(root + "/")) {
+      candidates.push(`${name}/${filePath.slice(root.length + 1)}`);
+    }
+  }
+  return candidates;
+}
+
 /** Strip the front matter block so only the rule body is injected. */
 /** @param {string} content */
 function stripFrontMatter(content) {
@@ -255,9 +296,11 @@ function main() {
     filePath = normalizePath(`${cwd}/${filePath}`);
   }
 
-  // cwd-relative path, preserving `..` for files outside the workspace tree.
+  // cwd-relative path, preserving `..` for files outside the workspace tree,
+  // plus project-name-prefixed candidates from project-context.json.
   const relPath = normalizePath(relative(cwd, filePath));
-  if (!relPath) {
+  const candidates = buildCandidatePaths(cwd, filePath, relPath);
+  if (candidates.length === 0) {
     emit(null);
     return;
   }
@@ -297,7 +340,7 @@ function main() {
     const { hasFrontMatter, paths } = parsePathsFrontMatter(content);
     // Cross-cutting rules MUST declare scope: no paths -> never applies.
     if (!hasFrontMatter || paths.length === 0) continue;
-    if (!paths.some((g) => matchesGlob(relPath, g))) continue;
+    if (!paths.some((g) => candidates.some((c) => matchesGlob(c, g)))) continue;
 
     // De-dup per (session, agent context, rule).
     const sentinel = sentinelPath(sessionId, contextId, ruleAbsPath);
