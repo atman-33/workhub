@@ -65,6 +65,30 @@ knowledge, and configuration — never application code.
 - Respond to the user in Japanese. Write documents and repository artifacts
   in English unless the user explicitly requests otherwise.
 
+### Capturing knowledge
+
+When investigation or implementation yields reusable knowledge that is
+non-obvious from code, git history, or existing instruction files (gotchas,
+build quirks, design invariants, conventions, the "why" behind a decision),
+propose capturing it **at the moment of discovery** — do not defer. Route it
+to the right home (the engineering plugin's `capture-rule` skill does the
+mechanical authoring):
+
+- **Target repo's `.claude/rules/<slug>.md`** — repo-specific technical
+  knowledge; scope with repo-relative `paths:` so it auto-injects when
+  relevant files are touched. Committed and shared with the team.
+- **Vault `.claude/rules-ex/`** — cross-cutting knowledge that must reach
+  target-repo files but lives in this vault (`paths:` required; globs are
+  cwd-relative — see that folder's README for how to reach the repos from
+  here).
+- **Vault `.claude/rules/`** — knowledge about this vault harness's own
+  machinery (grow `vault-harness.md`).
+- **Vault `knowledge/`** — reference material humans also read (research
+  results, collected information). Rule of thumb: constraints agents must
+  *follow* are rules; information humans and agents *consult* is knowledge.
+- **Auto-memory** — personal/cross-project preferences, feedback, or
+  machine-local facts (not shared).
+
 ## Rules for AI agents
 
 - **Status transitions you may perform:** `todo → doing → review` only.
