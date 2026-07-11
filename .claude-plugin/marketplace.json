@@ -10,7 +10,7 @@
       "name": "workhub",
       "source": "./plugins/workhub",
       "description": "Task-board skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init).",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -20,7 +20,7 @@
       "name": "engineering",
       "source": "./plugins/engineering",
       "description": "Engineering utilities and helpers for software development tasks.",
-      "version": "0.20.0",
+      "version": "0.20.1",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

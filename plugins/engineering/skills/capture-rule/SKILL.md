@@ -29,7 +29,7 @@ Pick exactly one:
 |---|---|
 | A specific repo's own code/tooling | that repo's `.claude/rules/<slug>.md` |
 | Target-repo files, but the rule must live in the harness workspace | harness `.claude/rules-ex/<slug>.md` |
-| The harness's own machinery | harness `.claude/rules/<slug>.md` (often grow `harness-internals.md`) |
+| The harness's own machinery | harness `.claude/rules/<slug>.md` (often grow the internals notes file, e.g. `harness-internals.md` or `vault-harness.md`) |
 | Personal/cross-project preference, feedback, or machine-local fact | auto-memory (`MEMORY.md` + `memory/`) |
 
 If the home is auto-memory, do **not** write a rule — tell the user it belongs in
@@ -60,10 +60,13 @@ paths:
 
 **`.claude/rules-ex` (extended rules, lives in the harness workspace):**
 - `paths:` is **required** (a rule without it is skipped). Globs are
-  **workspace-relative** — use `..` to reach sibling repos. Matching is **strict
-  and root-anchored** (no implicit `**/`); use `**` for any depth. `*` also works
-  as the repo-name segment itself, for an insight that applies to *any* sibling
-  repo rather than one specific one.
+  **workspace-relative (cwd = the harness workspace root)** — walk up with `..`
+  as far as needed to reach the target repo: `../<repo>/**` when repos are
+  siblings of the workspace, or e.g. `../../repos/<repo>/**` when the workspace
+  is an Obsidian vault under `C:/obsidian/` and repos live under `C:/repos/`.
+  Matching is **strict and root-anchored** (no implicit `**/`); use `**` for any
+  depth. `*` also works as the repo-name segment itself, for an insight that
+  applies to *any* repo rather than one specific one.
 
 ```markdown
 ---
@@ -83,8 +86,9 @@ paths:
 <an insight that applies to any repo's GitHub Actions workflows>
 ```
 
-If the harness has `.claude/rules/rules-ex-authoring.md` or `harness-internals.md`,
-consult them for the full extended-rules mechanics before writing there.
+If the harness has `.claude/rules/rules-ex-authoring.md` or an internals notes
+file (`harness-internals.md` / `vault-harness.md`), consult them for the full
+extended-rules mechanics before writing there.
 
 ## Step 5 — Wrap up
 

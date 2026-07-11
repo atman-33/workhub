@@ -21,8 +21,10 @@ Two complementary injection paths:
 ## Rule file format
 
 Each `*.md` here needs `paths:` front matter (REQUIRED — a rule with no `paths:`
-is skipped). Globs are resolved relative to the workspace root, so use `..` to
-reach sibling repos. Matching is strict and root-anchored.
+is skipped). Globs are resolved relative to the workspace root — walk up with
+`..` as far as needed to reach the target repo (`../other-repo/**` for sibling
+repos, or e.g. `../../repos/other-repo/**` from an Obsidian vault under
+`C:/obsidian/`). Matching is strict and root-anchored.
 
 ```markdown
 ---

@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "workhub-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "atman-33/workhub"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "workhub@workhub-marketplace": true,
+    "engineering@workhub-marketplace": true
+  }
+}
