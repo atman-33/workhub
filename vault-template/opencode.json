@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/**": "allow"
+    }
+  },
+  "watcher": {
+    "ignore": [
+      ".tmp/**",
+      ".serena/**",
+      ".obsidian/**"
+    ]
+  },
+  "mcp": {
+    "serena": {
+      "type": "local",
+      "command": [
+        "node",
+        ".opencode/mcp/serena-mcp-launcher.mjs"
+      ],
+      "enabled": true
+    },
+    "context7": {
+      "type": "local",
+      "command": [
+        "node",
+        ".opencode/mcp/context7-mcp-launcher.mjs"
+      ],
+      "enabled": true
+    }
+  }
+}

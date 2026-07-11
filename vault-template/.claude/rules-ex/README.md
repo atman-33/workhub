@@ -18,23 +18,30 @@ target repositories, via cwd-relative globs. This is the *extended* form of
 ## Rule file format
 
 Each `*.md` here needs `paths:` front matter (REQUIRED — a rule with no
-`paths:` is skipped). Globs are resolved **relative to the vault root** (the
-session cwd), and matching is strict and root-anchored (no implicit `**/`).
+`paths:` is skipped). Matching is strict and root-anchored (no implicit
+`**/`). Two glob forms are supported:
 
-The vault is usually *not* a sibling of your repositories, so walk up as far
-as needed. With the default layout (vault under `C:/obsidian/`, repos under
-`C:/repos/`), reach a repo with `../../repos/<repo>/`:
+**Project-name globs (recommended).** Start the glob with the NAME of a
+project registered in `.claude/project-context.json`; the rest is matched
+against the file's path relative to that project's root. This keeps rules
+independent of where repositories live on each machine:
 
 ```markdown
 ---
 paths:
-  - ../../repos/<repo>/src/**/*.ts
+  - workhub/src/**/*.ts
 ---
 Rule text injected into context when a matching file is touched.
 ```
 
-Use `*` as the repo-name segment for a rule that applies to every repo
-(e.g. `../../repos/*/.github/workflows/**`).
+**Cwd-relative globs.** Resolved relative to the vault root (the session
+cwd); walk up with `..` as far as needed — with the default layout (vault
+under `C:/obsidian/`, repos under `C:/repos/`), e.g.
+`../../repos/<repo>/src/**`. Useful for repos not registered in
+project-context.json.
+
+In either form, `*` works as the project/repo-name segment for a rule that
+applies to every project (e.g. `*/.github/workflows/**`).
 
 `README.md` itself has no `paths:`, so it is ignored by the hook.
 

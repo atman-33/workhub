@@ -7,3 +7,7 @@ tsconfig.tsbuildinfo
 
 # Serena is treated as a personal tool; its configuration and memories are not shared.
 /.serena/
+
+# vault-template opencode runtime: per-vault artifacts only
+vault-template/.opencode/node_modules/
+vault-template/.opencode/.claude-plugin-sync-manifest.json
