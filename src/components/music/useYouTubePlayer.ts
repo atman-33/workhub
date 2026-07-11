@@ -36,7 +36,7 @@ export const useYouTubePlayer = (elementId: string) => {
   const playerRef = useRef<YouTubePlayerLike | null>(null);
   const { setPlayerInstance, playNext, currentVideoId, loopMode, play, setPlayingStateToFalse } =
     useMusicStore();
-  const initialVideoIdRef = useRef(currentVideoId);
+  const isReadyRef = useRef(false);
 
   // Keeps the latest state/actions reachable from the stable event handlers.
   const stateRef = useRef({ playNext, loopMode, currentVideoId, play, setPlayingStateToFalse });
@@ -46,8 +46,10 @@ export const useYouTubePlayer = (elementId: string) => {
   }, [playNext, loopMode, currentVideoId, play, setPlayingStateToFalse]);
 
   const handlePlayerReady = useCallback((event: YouTubePlayerEvent) => {
-    if (initialVideoIdRef.current) {
-      event.target.cueVideoById(initialVideoIdRef.current);
+    isReadyRef.current = true;
+    const videoId = stateRef.current.currentVideoId;
+    if (videoId) {
+      event.target.cueVideoById(videoId);
     }
   }, []);
 
@@ -85,12 +87,21 @@ export const useYouTubePlayer = (elementId: string) => {
     }
 
     return () => {
+      isReadyRef.current = false;
       if (playerRef.current) {
         playerRef.current.destroy?.();
         playerRef.current = null;
       }
     };
   }, [elementId, setPlayerInstance, handlePlayerReady, handleStateChange]);
+
+  // Sync the player with the current video id after it becomes ready, or when
+  // the id changes after hydration.
+  useEffect(() => {
+    if (isReadyRef.current && playerRef.current && currentVideoId) {
+      playerRef.current.cueVideoById(currentVideoId);
+    }
+  }, [currentVideoId]);
 
   return playerRef;
 };
