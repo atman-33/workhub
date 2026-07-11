@@ -122,6 +122,14 @@ pub fn restart_app(app: tauri::AppHandle) {
 // tasks (vault-backed)
 // ---------------------------------------------------------------------
 
+/// Returns true only when the supplied path exists and is a directory.
+/// Used by the frontend to decide whether a configured vault path is still
+/// valid or should prompt for re-selection.
+#[tauri::command]
+pub fn check_vault_path(path: String) -> bool {
+    std::path::PathBuf::from(path).is_dir()
+}
+
 #[tauri::command]
 pub async fn list_tasks(vault_path: String) -> Result<Vec<Task>, String> {
     tauri::async_runtime::spawn_blocking(move || tasks::scan_and_index(&PathBuf::from(vault_path)))

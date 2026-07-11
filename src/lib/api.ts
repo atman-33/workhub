@@ -35,6 +35,8 @@ export const api = {
   restartApp: () => invoke<void>("restart_app"),
 
   // ---- tasks (vault-backed) ----
+  checkVaultPath: (vaultPath: string) =>
+    invoke<boolean>("check_vault_path", { vaultPath }),
   listTasks: (vaultPath: string) => invoke<Task[]>("list_tasks", { vaultPath }),
   createTask: (vaultPath: string, input: CreateTaskInput) =>
     invoke<Task>("create_task", { vaultPath, input }),

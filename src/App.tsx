@@ -80,7 +80,10 @@ export default function App() {
       </nav>
       <div className="min-h-0 flex-1">
         <div className={cn("h-full", tab !== "tasks" && "hidden")}>
-          <TasksView configVersion={configVersion} />
+          <TasksView
+            configVersion={configVersion}
+            onSettingsChange={(s) => setSettings(s)}
+          />
         </div>
         <div className={cn("h-full", tab !== "repos" && "hidden")}>
           <ReposView configVersion={configVersion} />

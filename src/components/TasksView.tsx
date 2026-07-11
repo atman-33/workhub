@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
 import { buildBody, parseBody } from "@/lib/taskBody";
 import { cn } from "@/lib/utils";
-import type { Config, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
+import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
 
 type ViewMode = "list" | "kanban";
 type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
@@ -20,9 +20,11 @@ const selectClass =
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
   configVersion: number;
+  /** Notifies the app shell that settings have changed so it can keep its own copy in sync. */
+  onSettingsChange?: (settings: Settings) => void;
 }
 
-export function TasksView({ configVersion }: Props) {
+export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
@@ -32,6 +34,7 @@ export function TasksView({ configVersion }: Props) {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
+  const [vaultExists, setVaultExists] = useState<boolean | null>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
 
@@ -44,24 +47,34 @@ export function TasksView({ configVersion }: Props) {
 
   // ---- startup + after app-level settings saves: load config ----
   useEffect(() => {
-    void api.getConfig().then(setConfig);
+    setVaultExists(null);
+    void (async () => {
+      const cfg = await api.getConfig();
+      setConfig(cfg);
+      const path = cfg.settings.vault_path;
+      if (path) {
+        setVaultExists(await api.checkVaultPath(path));
+      } else {
+        setVaultExists(false);
+      }
+    })();
   }, [configVersion]);
 
   // ---- watch + initial load once a vault is configured ----
   useEffect(() => {
-    if (!vaultPath) return;
+    if (!vaultPath || !vaultExists) return;
     void api.watchVault(vaultPath);
     refreshTasks(vaultPath);
-  }, [vaultPath, refreshTasks]);
+  }, [vaultPath, vaultExists, refreshTasks]);
 
   // ---- react to external vault edits ----
   useEffect(() => {
-    if (!vaultPath) return;
+    if (!vaultPath || !vaultExists) return;
     const unlisten = listen("tasks-changed", () => refreshTasks(vaultPath));
     return () => {
       void unlisten.then((fn) => fn());
     };
-  }, [vaultPath, refreshTasks]);
+  }, [vaultPath, vaultExists, refreshTasks]);
 
   const saveVaultPath = useCallback(
     async (path: string) => {
@@ -69,8 +82,10 @@ export function TasksView({ configVersion }: Props) {
       const next: Config = { ...cfg, settings: { ...cfg.settings, vault_path: path } };
       await api.saveConfig(next);
       setConfig(next);
+      setVaultExists(true);
+      onSettingsChange?.(next.settings);
     },
-    [],
+    [onSettingsChange],
   );
 
   const chooseVaultFolder = useCallback(async () => {
@@ -191,17 +206,20 @@ export function TasksView({ configVersion }: Props) {
     [vaultPath, dialog, refreshTasks],
   );
 
-  if (!config) return null;
+  if (!config || vaultExists === null) return null;
 
-  if (!vaultPath) {
+  if (!vaultPath || !vaultExists) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
         <FolderOpen className="size-10 text-muted-foreground/40" />
         <div>
-          <p className="font-semibold">No task vault configured</p>
+          <p className="font-semibold">
+            {!vaultPath ? "No task vault configured" : "Configured vault not found"}
+          </p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Tasks are stored as Markdown files in a dedicated Obsidian vault. Choose an existing
-            vault folder or an empty one to initialize.
+            {!vaultPath
+              ? "Tasks are stored as Markdown files in a dedicated Obsidian vault. Choose an existing vault folder or an empty one to initialize."
+              : `The configured vault folder no longer exists: ${vaultPath}`}
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={chooseVaultFolder}>
