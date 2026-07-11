@@ -38,18 +38,18 @@ created: 2026-07-10
 updated: 2026-07-10
 ```
 
-Body sections: `## 内容` (task description — the prompt context for AI) and
-`## 結果` (results, filled on completion, links to deliverable notes).
+Body sections: `## Description` (task description — the prompt context for AI) and
+`## Results` (results, filled on completion, links to deliverable notes).
 
 ## Rules for AI agents
 
 - **Status transitions you may perform:** `todo → doing → review` only.
   Never set `done` — a human does that in the app.
 - When updating a task file, change only `status`, `updated`, and the
-  `## 結果` section. Preserve all other frontmatter and body content.
+  `## Results` section. Preserve all other frontmatter and body content.
 - Raw work reports go to `_ai/logs/`. Polished, human-readable summaries and
   deliverables go to `projects/` or `knowledge/`, linked from the task's
-  `## 結果`.
+  `## Results`.
 - Read `_ai/index/tasks.json` first to find tasks; do not scan the whole
   vault. Fall back to reading `tasks/` frontmatter if the index is missing.
 - Do not overwrite existing human-zone notes; append or create new notes and
