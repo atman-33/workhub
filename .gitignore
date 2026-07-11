@@ -4,3 +4,6 @@
 /dist
 app-icon.png
 tsconfig.tsbuildinfo
+
+# Serena is treated as a personal tool; its configuration and memories are not shared.
+/.serena/
