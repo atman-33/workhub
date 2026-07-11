@@ -26,10 +26,14 @@ Every plugin is classified on two axes: **required vs optional** and
 
 **Placement rule for new skills:** if a skill needs the vault, the
 project-context config, or a target repository resolved through them, it
-belongs in a project-scope plugin (`engineering`, `workhub`, `openspec`, or a
-new one). If it is a personal/machine tool, it belongs in `productivity`
-(user scope). When a productivity skill grows a project-scope dependency, move
-it out of `productivity` at that point.
+belongs in a project-scope plugin (`engineering`, `workhub`, or a new one). If
+it is a personal/machine tool, it belongs in `productivity` (user scope). When
+a productivity skill grows a project-scope dependency, move it out of
+`productivity` at that point.
+
+Note: the OpenSpec workflow itself is **not** bundled here — it is an
+independent OSS project distributed via its own package/plugin install, not
+something this marketplace needs to maintain.
 
 ## Plugin catalog
 
@@ -37,7 +41,6 @@ it out of `productivity` at that point.
 |---|---|---|---|
 | `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`) and vault write-guard / task-sync hooks. Meaningless outside a vault. |
 | `engineering` | **Required** | project | Development workflow: role-based sub-agents, rule-injection hooks (`project-context.json`, `rules-ex`), serena/context7 MCP launchers, and skills (commit, PR, ADR, TDD, codebase design, bug investigation, review/test/onboarding guides, PRD/issues, …). |
-| `openspec` | Optional | project | OpenSpec spec-driven change workflow (`propose`, `explore`, `apply`, `archive`). Enable in vaults/projects that use OpenSpec. |
 | `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, skill installation. No vault or project-context dependency. |
 | `scrum` | Optional | project | Scrum workflows against monday.com and Google Drive (backlog, sprint review, retrospective). Needs per-project `scrum-context.json`. |
 | `obsidian` | Optional | user | Obsidian note/knowledge management helpers for vaults other than the workhub vault. |
@@ -55,13 +58,30 @@ Per vault: nothing to do. `vault-template/.claude/settings.json` declares the
 marketplace via `extraKnownMarketplaces` (GitHub `atman-33/workhub`) and
 enables the required project-scope plugins (`workhub`, `engineering`) — on the
 first Claude Code launch inside the vault, accept the trust prompt and the
-plugins install themselves. Toggle optional plugins with `/plugin` or by
-editing the vault's settings.
+plugins install themselves.
+
+The same setup can be done ahead of time from a terminal (no Claude Code
+session needed), using the non-interactive `claude plugin` CLI:
 
 ```powershell
-# one-time per machine (user scope)
-claude plugin install productivity@workhub-marketplace
+# one-time per machine: register the marketplace (user scope)
+claude plugin marketplace add atman-33/workhub
+
+# required plugins
+claude plugin install workhub@workhub-marketplace --scope project
+claude plugin install engineering@workhub-marketplace --scope project
+claude plugin install productivity@workhub-marketplace   # user scope (default)
+
+# optional plugins, as needed
+claude plugin install scrum@workhub-marketplace --scope project
+claude plugin install obsidian@workhub-marketplace
+claude plugin install stack-react-router@workhub-marketplace --scope project
 ```
+
+Re-run `claude plugin marketplace add atman-33/workhub` any time to pick up a
+new plugin version (or use `claude plugin marketplace update
+workhub-marketplace`). Toggle plugins for an existing vault with `/plugin`
+inside a session, or by editing `.claude/settings.json` directly.
 
 ## OpenCode
 

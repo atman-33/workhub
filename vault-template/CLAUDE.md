@@ -53,7 +53,7 @@ knowledge, and configuration — never application code.
 - Skills, hooks, and agents come from Claude Code plugins.
   `.claude/settings.json` declares the `workhub-marketplace` (the workhub
   GitHub repo) and enables the required project-scope plugins (`workhub`,
-  `engineering`). Toggle optional plugins (`openspec`, `scrum`, `stack-*`)
+  `engineering`). Toggle optional plugins (`scrum`, `obsidian`, `stack-*`)
   there or with `/plugin`. See `docs/plugins.md` in the workhub repo for the
   catalog and scope policy.
 - **Never author skills inside this vault.** New skills belong in the

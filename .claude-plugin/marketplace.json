@@ -27,16 +27,6 @@
       }
     },
     {
-      "name": "openspec",
-      "source": "./plugins/openspec",
-      "description": "OpenSpec workflow skills: propose, explore, apply, and archive spec-driven changes.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
       "name": "productivity",
       "source": "./plugins/productivity",
       "description": "Productivity helpers for administrative and daily tasks.",
