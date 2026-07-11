@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0 (2026-07-12)
+
+- Fix shadcn/ui animations: `tw-animate-css` was never imported, so the
+  commit-graph sheet now actually slides in/out and dialogs fade/zoom.
+- The task dialog's model suggestions for opencode-assigned tasks are now
+  fetched from the `opencode models` CLI (cached per app run) instead of a
+  hardcoded list; claude-code keeps haiku/sonnet/opus.
+- New `task-cli.mjs` script in the workhub plugin (list/start/update/report)
+  so agents no longer hand-edit task frontmatter; it preserves bodies
+  byte-for-byte, regenerates `_ai/index/tasks.json` on every write, and
+  prefers the current directory when it is a vault. The task skills now use
+  it as their primary path (plugin 0.6.0).
+- Task board polish: tag badges on list rows and kanban cards, due dates
+  shown on kanban cards and colored red/amber when overdue/due today, a tag
+  filter in the toolbar, and Project suggestions now include repositories
+  registered in the Repos view.
+
 ## 0.9.1 (2026-07-12)
 
 - Remove leftover references to `agent-harness` (workhub's predecessor

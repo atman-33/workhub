@@ -7,6 +7,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { dueTone } from "@/lib/taskDue";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -57,6 +58,15 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onArchive, onDelete }: 
                 </Badge>
               )}
               <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
+              {task.tags.map((t) => (
+                <Badge
+                  key={t}
+                  variant="secondary"
+                  className="hidden h-5 shrink-0 px-1.5 text-[10px] text-primary/90 lg:inline-flex"
+                >
+                  #{t}
+                </Badge>
+              ))}
               {task.project && (
                 <span className="shrink-0 text-xs text-muted-foreground">{task.project}</span>
               )}
@@ -64,7 +74,11 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onArchive, onDelete }: 
               <Badge variant={priorityVariant[task.priority]} className="shrink-0">
                 {task.priority}
               </Badge>
-              {task.due && <span className="shrink-0 text-xs text-muted-foreground">{task.due}</span>}
+              {task.due && (
+                <span className={cn("shrink-0 text-xs", dueTone(task.due, task.status))}>
+                  {task.due}
+                </span>
+              )}
               {(task.assignee === "claude-code" || task.assignee === "opencode") && (
                 <Button
                   size="xs"

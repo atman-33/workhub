@@ -37,6 +37,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [statusFilter, setStatusFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
@@ -122,8 +123,21 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     }
   }, [vaultPath, refreshTasks]);
 
+  // Suggestions for the Project field: projects already used on tasks plus
+  // the repositories registered in the Repos view.
   const knownProjects = useMemo(
-    () => Array.from(new Set(tasks.map((t) => t.project).filter(Boolean))).sort(),
+    () =>
+      Array.from(
+        new Set([
+          ...tasks.map((t) => t.project).filter(Boolean),
+          ...(config?.projects.map((p) => p.name) ?? []),
+        ]),
+      ).sort(),
+    [tasks, config],
+  );
+
+  const knownTags = useMemo(
+    () => Array.from(new Set(tasks.flatMap((t) => t.tags))).sort(),
     [tasks],
   );
 
@@ -134,9 +148,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         if (statusFilter && t.status !== statusFilter) return false;
         if (assigneeFilter && t.assignee !== assigneeFilter) return false;
         if (projectFilter && t.project !== projectFilter) return false;
+        if (tagFilter && !t.tags.includes(tagFilter)) return false;
         return true;
       }),
-    [tasks, statusFilter, assigneeFilter, projectFilter, showArchived],
+    [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived],
   );
 
   const launchAgent = useCallback(
@@ -330,6 +345,19 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             {knownProjects.map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tagFilter} onValueChange={setTagFilter}>
+          <SelectTrigger size="sm" className="min-w-[6.5rem]">
+            <SelectValue placeholder="All tags" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All tags</SelectItem>
+            {knownTags.map((t) => (
+              <SelectItem key={t} value={t}>
+                #{t}
               </SelectItem>
             ))}
           </SelectContent>
