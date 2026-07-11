@@ -36,11 +36,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { api, nowUnix } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Config, GitInfo } from "@/types";
-
-type View = { kind: "list" } | { kind: "graph"; path: string };
 
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
@@ -49,7 +48,7 @@ interface Props {
 
 export function ReposView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
-  const [view, setView] = useState<View>({ kind: "list" });
+  const [graphPath, setGraphPath] = useState<string | null>(null);
   const [gitMap, setGitMap] = useState<Record<string, GitInfo>>({});
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -227,7 +226,7 @@ export function ReposView({ configVersion }: Props) {
           runGitOp(path, "switch", action.branch);
           break;
         case "graph":
-          setView({ kind: "graph", path });
+          setGraphPath(path);
           break;
         case "notes":
           setNotesPath(path);
@@ -289,15 +288,7 @@ export function ReposView({ configVersion }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {view.kind === "graph" ? (
-        <GitGraphView
-          path={view.path}
-          name={config.projects.find((p) => p.path === view.path)?.name ?? view.path}
-          onClose={() => setView({ kind: "list" })}
-          onRepoChanged={refreshStatus}
-        />
-      ) : (
-        <>
+      <>
         {/* header */}
         <header className="flex items-center gap-3 border-b px-4 py-2.5">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary/15">
@@ -491,8 +482,27 @@ export function ReposView({ configVersion }: Props) {
             {config.projects.length} projects · {selected.size} selected
           </span>
         </footer>
-        </>
-      )}
+      </>
+
+      {/* git graph sheet */}
+      <Sheet open={graphPath !== null} onOpenChange={(open) => !open && setGraphPath(null)}>
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="w-[90vw] gap-0 p-0 sm:max-w-4xl"
+          aria-describedby={undefined}
+        >
+          <SheetTitle className="sr-only">Commit graph</SheetTitle>
+          {graphPath !== null && (
+            <GitGraphView
+              path={graphPath}
+              name={config.projects.find((p) => p.path === graphPath)?.name ?? graphPath}
+              onClose={() => setGraphPath(null)}
+              onRepoChanged={refreshStatus}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* dialogs */}
       <NotesDialog

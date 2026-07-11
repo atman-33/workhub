@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
-  ArrowLeft,
   Download,
   GitBranch,
   Loader2,
   RefreshCw,
   Upload,
+  X,
 } from "lucide-react";
 import { CommitRow, type DialogRequest } from "@/components/graph/CommitRow";
 import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
@@ -173,7 +173,7 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
       {/* header */}
       <header className="flex items-center gap-2 border-b px-3 py-2">
         <Button size="icon" variant="ghost" className="size-8" onClick={onClose}>
-          <ArrowLeft className="size-4" />
+          <X className="size-4" />
         </Button>
         <span className="text-[13px] font-semibold">{name}</span>
         <Badge

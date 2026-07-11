@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 (2026-07-12)
+
+- The commit graph now opens in a slide-in sheet over the Repos list instead
+  of replacing the whole view, and each repository row gains an inline commit
+  graph icon button (in addition to the existing context-menu entry).
+
 ## 0.5.1 (2026-07-11)
 
 - Bundle the previously externally-installed recommended skills directly in the
