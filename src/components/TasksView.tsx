@@ -142,14 +142,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const launchAgent = useCallback(
     (task: Task) => {
       if (!config) return;
+      const agentCmd =
+        task.assignee === "opencode" ? config.settings.opencode_cmd : config.settings.agent_cmd;
       void api
-        .launchAgentForTask(
-          config.settings.agent_cmd,
-          task.id,
-          task.file,
-          task.project,
-          config.settings.vault_path ?? "",
-        )
+        .launchAgentForTask(agentCmd, task.id, task.file, task.project, config.settings.vault_path ?? "")
         .then(() => setStatus(`Launched agent for ${task.id}`))
         .catch((e) => setStatus(`Agent launch failed — ${e}`));
     },

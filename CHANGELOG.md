@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 (2026-07-11)
+
+- Fix task agent launches ignoring the task's `assignee`: OpenCode-assigned
+  tasks now launch the configured OpenCode command instead of always launching
+  Claude Code. A separate "OpenCode command" setting is added to Settings; the
+  existing "AI agent command" is now labeled "Claude Code command".
+
 ## 0.4.0 (2026-07-11)
 
 - Tasks can now be archived and deleted from a right-click context menu on

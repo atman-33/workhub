@@ -16,6 +16,7 @@ export interface Settings {
   vscode_cmd: string;
   terminal_cmd: string;
   agent_cmd: string;
+  opencode_cmd: string;
   check_updates: boolean;
   vault_path: string | null;
 }
