@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import type { Task, TaskStatus, UpdateTaskInput } from "@/types";
 
@@ -49,9 +56,11 @@ interface Props {
   /** Applies one or more frontmatter updates (order and/or status), then refreshes. */
   onMove: (updates: UpdateTaskInput[]) => void;
   onLaunchAgent: (task: Task) => void;
+  onArchive: (task: Task, archived: boolean) => void;
+  onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -154,6 +163,8 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent }: Props) {
             {col.items.map((task, i) => (
               <div key={task.id}>
                 {dropPos?.col === col.key && dropPos.index === i && indicator}
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
                 <div
                   draggable
                   onDragStart={(e) => {
@@ -173,15 +184,16 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent }: Props) {
                   }}
                   className={cn(
                     "cursor-grab space-y-1.5 rounded-md border bg-background p-2.5 shadow-xs hover:border-ring active:cursor-grabbing",
-                    draggedId === task.id && "opacity-50",
+                    (draggedId === task.id || task.archived) && "opacity-50",
                   )}
                   onClick={() => onOpen(task)}
                 >
                   <div className="flex items-start justify-between gap-1">
                     <span className="text-xs font-medium leading-tight">{task.title}</span>
-                    <Badge variant={priorityVariant[task.priority]} className="shrink-0">
-                      {task.priority}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {task.archived && <Badge variant="outline">archived</Badge>}
+                      <Badge variant={priorityVariant[task.priority]}>{task.priority}</Badge>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                     <span>{task.id}</span>
@@ -201,6 +213,17 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent }: Props) {
                     </div>
                   )}
                 </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
+                      {task.archived ? "Unarchive" : "Archive"}
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem variant="destructive" onSelect={() => onDelete(task)}>
+                      Delete…
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               </div>
             ))}
             {dropPos?.col === col.key && dropPos.index === col.items.length && indicator}

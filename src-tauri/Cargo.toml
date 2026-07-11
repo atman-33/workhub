@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -28,6 +28,8 @@ ureq = { version = "2", features = ["json"] }
 # vault task-file watching (debounced manually in tasks.rs; kept to the plain
 # channel API — no extra debouncer crate needed).
 notify = "6"
+# task deletion goes to the OS recycle bin (restorable), never a hard delete
+trash = "5"
 
 [profile.release]
 opt-level = 2

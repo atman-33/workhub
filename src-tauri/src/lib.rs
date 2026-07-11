@@ -49,6 +49,7 @@ pub fn run() {
             commands::list_tasks,
             commands::create_task,
             commands::update_task,
+            commands::delete_task,
             commands::init_vault,
             commands::watch_vault,
             commands::launch_agent_for_task,

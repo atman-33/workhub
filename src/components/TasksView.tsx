@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
+import { Archive, FolderOpen, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
+import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
 import { TaskDialog, type TaskDraft } from "@/components/TaskDialog";
 import { TaskKanban } from "@/components/TaskKanban";
 import { TaskList } from "@/components/TaskList";
@@ -36,7 +37,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [statusFilter, setStatusFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
@@ -127,12 +130,13 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const visible = useMemo(
     () =>
       tasks.filter((t) => {
+        if (!showArchived && t.archived) return false;
         if (statusFilter && t.status !== statusFilter) return false;
         if (assigneeFilter && t.assignee !== assigneeFilter) return false;
         if (projectFilter && t.project !== projectFilter) return false;
         return true;
       }),
-    [tasks, statusFilter, assigneeFilter, projectFilter],
+    [tasks, statusFilter, assigneeFilter, projectFilter, showArchived],
   );
 
   const launchAgent = useCallback(
@@ -166,6 +170,26 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     },
     [vaultPath, refreshTasks],
   );
+
+  const setArchived = useCallback(
+    (task: Task, archived: boolean) => {
+      void applyUpdates([{ id: task.id, archived }]);
+    },
+    [applyUpdates],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (!vaultPath || !deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await api.deleteTask(vaultPath, target.id);
+      setStatus(`Deleted ${target.id} (moved to recycle bin)`);
+      refreshTasks(vaultPath);
+    } catch (e) {
+      setStatus(`Delete failed — ${e}`);
+    }
+  }, [vaultPath, deleteTarget, refreshTasks]);
 
   const submitDialog = useCallback(
     async (draft: TaskDraft) => {
@@ -303,6 +327,17 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           </SelectContent>
         </Select>
 
+        <button
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
+            showArchived ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent/50",
+          )}
+          title={showArchived ? "Hide archived tasks" : "Show archived tasks"}
+          onClick={() => setShowArchived((v) => !v)}
+        >
+          <Archive className="size-3.5" /> Archived
+        </button>
+
         <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
           <button
             className={cn(
@@ -332,6 +367,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             tasks={visible}
             onOpen={(task) => setDialog({ mode: "edit", task })}
             onLaunchAgent={launchAgent}
+            onArchive={setArchived}
+            onDelete={setDeleteTarget}
           />
         ) : (
           <TaskKanban
@@ -339,6 +376,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             onOpen={(task) => setDialog({ mode: "edit", task })}
             onMove={(updates) => void applyUpdates(updates)}
             onLaunchAgent={launchAgent}
+            onArchive={setArchived}
+            onDelete={setDeleteTarget}
           />
         )}
       </main>
@@ -350,6 +389,20 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           {tasks.length} tasks · {visible.length} shown
         </span>
       </footer>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete task"
+        description={
+          deleteTarget
+            ? `Move "${deleteTarget.id} ${deleteTarget.title}" to the recycle bin?`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setDeleteTarget(null)}
+      />
 
       <TaskDialog
         open={dialog !== null}

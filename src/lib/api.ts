@@ -42,6 +42,8 @@ export const api = {
     invoke<Task>("create_task", { vaultPath, input }),
   updateTask: (vaultPath: string, input: UpdateTaskInput) =>
     invoke<Task>("update_task", { vaultPath, input }),
+  deleteTask: (vaultPath: string, id: string) =>
+    invoke<void>("delete_task", { vaultPath, id }),
   initVault: (vaultPath: string, templateSource: string) =>
     invoke<void>("init_vault", { vaultPath, templateSource }),
   watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),

@@ -86,6 +86,8 @@ export interface Task {
   order: number | null;
   due: string;
   tags: string[];
+  /** Hidden from the board by default; toggled via the task context menu. */
+  archived: boolean;
   created: string;
   updated: string;
   file: string;
@@ -113,6 +115,7 @@ export interface UpdateTaskInput {
   order?: number;
   due?: string;
   tags?: string[];
+  archived?: boolean;
   body?: string;
 }
 

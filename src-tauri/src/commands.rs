@@ -162,6 +162,16 @@ pub async fn update_task(vault_path: String, input: UpdateTaskInput) -> Result<T
     .map_err(|e| e.to_string())?
 }
 
+/// Moves the task's Markdown file to the OS recycle bin.
+#[tauri::command]
+pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::delete_task(&PathBuf::from(vault_path), &id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// `template_source` is the absolute path to a `vault-template/` folder to
 /// copy from — the frontend defaults it to the repo checkout in dev; a
 /// packaged build would point it at a bundled resource instead.
