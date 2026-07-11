@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 (2026-07-12)
+
+- New `vault-setup` skill in the `workhub` plugin: one-shot machine
+  onboarding for a workhub vault — checks/installs required software (git,
+  Node.js, Claude Code, optionally OpenCode/Obsidian), initializes the vault
+  via `vault-init` when missing, walks through the Claude plugin trust setup,
+  and runs the OpenCode sync/check scripts.
+
 ## 0.8.0 (2026-07-12)
 
 - Tasks gain an optional `model` frontmatter field, editable in the task

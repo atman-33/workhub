@@ -39,7 +39,7 @@ something this marketplace needs to maintain.
 
 | Plugin | Required | Scope | Contents |
 |---|---|---|---|
-| `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
+| `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`, `vault-setup`), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
 | `engineering` | **Required** | project | Development workflow: role-based sub-agents, rule-injection hooks (`project-context.json`, `rules-ex`), serena/context7 MCP launchers, and skills (commit, PR, ADR, TDD, codebase design, bug investigation, review/test/onboarding guides, PRD/issues, …). |
 | `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, Zenn blog writing (`zenn-blog-writing`, `zenn-markdown`), and skill-writing helpers (`grilling`, `handoff`, `writing-great-skills`). No vault or project-context dependency. |
 | `scrum` | Optional | project | Scrum workflows against monday.com and Google Drive (backlog, sprint review, retrospective). Needs per-project `scrum-context.json`. |
