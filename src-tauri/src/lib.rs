@@ -38,6 +38,8 @@ pub fn run() {
             commands::git_op,
             commands::git_log,
             commands::git_graph_op,
+            commands::git_commit_files,
+            commands::git_commit_file_diff,
             commands::git_remote_url,
             commands::open_in_vscode,
             commands::open_terminal,

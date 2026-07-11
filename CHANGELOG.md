@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 (2026-07-12)
+
+- Selecting a commit in the commit graph now opens a diff panel showing the
+  files changed by that commit (with added/removed line counts) and, per file,
+  the unified diff with syntax-highlighted additions and deletions. The
+  uncommitted-changes row shows the worktree diff against HEAD the same way.
+
 ## 0.6.0 (2026-07-12)
 
 - The commit graph now opens in a slide-in sheet over the Repos list instead

@@ -8,6 +8,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { CommitDiffPanel } from "@/components/graph/CommitDiffPanel";
 import { CommitRow, type DialogRequest } from "@/components/graph/CommitRow";
 import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
 import { NameDialog } from "@/components/graph/NameDialog";
@@ -33,6 +34,7 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
   const [opBusy, setOpBusy] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
+  const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(600);
 
@@ -165,6 +167,11 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
 
   const layout = useMemo(() => computeGraphLayout(rows), [rows]);
 
+  const selectedEntry = useMemo(
+    () => rows.find((r) => r.hash === selectedHash) ?? null,
+    [rows, selectedHash],
+  );
+
   const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 20);
   const end = Math.min(rows.length, start + Math.ceil(viewportH / ROW_H) + 40);
 
@@ -250,11 +257,15 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
                 isWorktree={entry.hash === WORKTREE_HASH}
                 detached={detached}
                 currentBranch={log?.current_branch ?? ""}
+                selected={entry.hash === selectedHash}
                 opBusy={opBusy}
                 onOp={(label, op) => void runOp(label, op)}
                 onCopy={copy}
                 onRequestDialog={setDialog}
                 onDeleteBranch={(b) => void deleteBranch(b)}
+                onSelect={() =>
+                  setSelectedHash((prev) => (prev === entry.hash ? null : entry.hash))
+                }
               />
             ))}
             <div style={{ height: (rows.length - end) * ROW_H }} />
@@ -274,6 +285,17 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
           </>
         )}
       </div>
+
+      {/* diff panel */}
+      {selectedEntry && (
+        <div className="h-[45%] shrink-0">
+          <CommitDiffPanel
+            path={path}
+            entry={selectedEntry}
+            onClose={() => setSelectedHash(null)}
+          />
+        </div>
+      )}
 
       {/* status bar */}
       <footer className="flex items-center border-t px-4 py-1.5 text-[11px] text-muted-foreground">

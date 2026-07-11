@@ -49,11 +49,13 @@ interface Props {
   isWorktree: boolean;
   detached: boolean;
   currentBranch: string;
+  selected: boolean;
   opBusy: string | null;
   onOp: (label: string, op: GraphOp) => void;
   onCopy: (text: string, what: string) => void;
   onRequestDialog: (dialog: DialogRequest) => void;
   onDeleteBranch: (name: string) => void;
+  onSelect: () => void;
 }
 
 function refTone(kind: CommitRef["kind"]) {
@@ -248,16 +250,22 @@ export const CommitRow = memo(function CommitRow({
   isWorktree,
   detached,
   currentBranch,
+  selected,
   opBusy,
   onOp,
   onCopy,
   onRequestDialog,
   onDeleteBranch,
+  onSelect,
 }: Props) {
   const rowContent = (
     <div
-      className="flex h-7 items-center gap-2 rounded px-1.5 hover:bg-accent/30"
+      className={cn(
+        "flex h-7 cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-accent/30",
+        selected && "bg-accent/60 hover:bg-accent/60",
+      )}
       style={{ height: ROW_H }}
+      onClick={onSelect}
     >
       <LaneGraphic layout={layout} isHead={isHead} isWorktree={isWorktree} />
       {entry.refs.map((r) => (

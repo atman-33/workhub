@@ -66,6 +66,17 @@ export interface CommitEntry {
   subject: string;
 }
 
+export interface CommitFileChange {
+  path: string;
+  /** Original path for renames/copies. */
+  old_path: string | null;
+  /** Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?". */
+  status: string;
+  /** Added/removed line counts; null for binary files. */
+  additions: number | null;
+  deletions: number | null;
+}
+
 export interface GitLog {
   commits: CommitEntry[];
   head: string;

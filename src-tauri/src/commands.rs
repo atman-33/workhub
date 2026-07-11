@@ -1,4 +1,4 @@
-use crate::models::{Config, GitInfo, GitLog, GraphOp, Task};
+use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
@@ -57,6 +57,29 @@ pub async fn git_graph_op(path: String, op: GraphOp) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || git::graph_op(&path, op))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// List the files changed by a commit (or the uncommitted worktree).
+#[tauri::command]
+pub async fn git_commit_files(path: String, hash: String) -> Result<Vec<CommitFileChange>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::commit_files(&path, &hash))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Unified diff of a single file within a commit (or the worktree).
+#[tauri::command]
+pub async fn git_commit_file_diff(
+    path: String,
+    hash: String,
+    file: String,
+    old_file: Option<String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git::commit_file_diff(&path, &hash, &file, old_file.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

@@ -179,6 +179,19 @@ pub struct CommitEntry {
     pub subject: String,
 }
 
+/// One changed file within a commit, for the graph view's diff panel.
+#[derive(Debug, Clone, Serialize)]
+pub struct CommitFileChange {
+    pub path: String,
+    /// Original path for renames/copies.
+    pub old_path: Option<String>,
+    /// Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?".
+    pub status: String,
+    /// Added/removed line counts; `None` for binary files.
+    pub additions: Option<u32>,
+    pub deletions: Option<u32>,
+}
+
 /// A page of commit history plus repo-level context for the graph view.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct GitLog {

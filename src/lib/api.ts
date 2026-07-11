@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
 import type {
+  CommitFileChange,
   Config,
   CreateTaskInput,
   GitInfo,
@@ -22,6 +23,10 @@ export const api = {
     invoke<GitLog>("git_log", { path, limit, skip }),
   gitGraphOp: (path: string, op: GraphOp) =>
     invoke<string>("git_graph_op", { path, op }),
+  gitCommitFiles: (path: string, hash: string) =>
+    invoke<CommitFileChange[]>("git_commit_files", { path, hash }),
+  gitCommitFileDiff: (path: string, hash: string, file: string, oldFile?: string | null) =>
+    invoke<string>("git_commit_file_diff", { path, hash, file, oldFile: oldFile ?? null }),
   openInVscode: (vscodeCmd: string, paths: string[]) =>
     invoke<void>("open_in_vscode", { vscodeCmd, paths }),
   openTerminal: (template: string, path: string) =>
