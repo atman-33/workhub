@@ -89,10 +89,9 @@ both are present, mark "already configured"; otherwise run:
 herdr integration install claude
 ```
 
-**OpenCode integration** (WSL/Linux/macOS only — **not supported on Windows**; mark the
-Windows environment "N/A" and don't attempt it there): check whether
-`~/.config/opencode/plugins/herdr-agent-state.js` exists. If so, mark "already
-configured"; otherwise run:
+**OpenCode integration** (Windows, WSL, Linux, and macOS): check whether
+`~/.config/opencode/plugins/herdr-agent-state.js` exists in the target
+environment. If so, mark "already configured"; otherwise run:
 ```bash
 herdr integration install opencode
 ```
@@ -166,7 +165,7 @@ Also remove any existing `# Auto-start herdr` block if present (from a previous
 | Environment | herdr install | Claude Code integration | OpenCode integration |
 |---------------|------------------|----------------------------|-------------------------|
 | WSL/Linux      | <Installed / Already installed / Skipped (declined)> | <Installed / Already configured> | <Installed / Already configured> |
-| Windows        | <Installed (beta) / Already installed / Skipped (declined)> | <Installed / Already configured> | N/A (not supported on Windows) |
+| Windows        | <Installed (beta) / Already installed / Skipped (declined)> | <Installed / Already configured> | <Installed / Already configured> |
 
 | Profile             | Zellij autostart removed                                                   | Profile Path |
 |-----------------------|-----------------------------------------------------------------------------|--------------|

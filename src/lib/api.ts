@@ -58,10 +58,23 @@ export const api = {
   launchAgentForTask: (
     agentCmd: string,
     taskId: string,
+    taskTitle: string,
     taskFile: string,
     project: string,
     vaultPath: string,
-  ) => invoke<void>("launch_agent_for_task", { agentCmd, taskId, taskFile, project, vaultPath }),
+    useHerdr: boolean,
+    herdrCmd: string,
+  ) =>
+    invoke<void>("launch_agent_for_task", {
+      agentCmd,
+      taskId,
+      taskTitle,
+      taskFile,
+      project,
+      vaultPath,
+      useHerdr,
+      herdrCmd,
+    }),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

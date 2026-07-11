@@ -1,3 +1,4 @@
+use crate::herdr;
 use crate::storage;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -77,6 +78,18 @@ pub fn launch_agent(template: &str, path: &str) -> Result<(), String> {
     launch(&fill_template(template, path))
 }
 
+/// Parameters for launching an agent for a task.
+pub struct LaunchAgentForTaskParams<'a> {
+    pub agent_cmd: &'a str,
+    pub task_id: &'a str,
+    pub task_title: &'a str,
+    pub task_file: &'a str,
+    pub project: &'a str,
+    pub vault_path: &'a str,
+    pub use_herdr: bool,
+    pub herdr_cmd: &'a str,
+}
+
 /// Launches the configured agent for a task with an initial prompt telling it
 /// which task to work and to run the `task-start` skill first. Reuses
 /// `agent_cmd`'s template mechanism rather than adding a separate setting: the
@@ -88,28 +101,61 @@ pub fn launch_agent(template: &str, path: &str) -> Result<(), String> {
 /// the task's repository: the vault carries the plugin/rules configuration,
 /// and the `task-start` skill resolves the task's `project` field to a
 /// repository through the vault's `.claude/project-context.json`.
-pub fn launch_agent_for_task(
-    agent_cmd: &str,
-    task_id: &str,
-    task_file: &str,
-    project: &str,
-    vault_path: &str,
-) -> Result<(), String> {
-    if vault_path.trim().is_empty() {
+///
+/// When `use_herdr` is true and herdr is installed, the agent is started in a
+/// fresh herdr workspace labelled with the task id and title. If herdr is not
+/// available, this falls back to the plain terminal launch.
+pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<(), String> {
+    if params.vault_path.trim().is_empty() {
         return Err("no vault is configured".into());
     }
-    let vault = vault_path.replace('\\', "/");
-    let project_note = if project.trim().is_empty() {
+    let vault = params.vault_path.replace('\\', "/");
+    let project_note = if params.project.trim().is_empty() {
         String::new()
     } else {
-        format!("対象プロジェクト: {project}。")
+        format!("対象プロジェクト: {}。", params.project)
     };
     let prompt = format!(
-        "タスク {task_id} を実施してください。まず task-start スキルを実行してください。{project_note}タスクファイル: {task_file}"
+        "タスク {} を実施してください。まず task-start スキルを実行してください。{}タスクファイル: {}",
+        params.task_id, project_note, params.task_file
     );
     let quoted_prompt = format!("\"{}\"", prompt.replace('"', "\\\""));
-    let template = format!("{agent_cmd} {quoted_prompt}");
-    launch(&fill_template(&template, &vault))
+    let template = format!("{} {quoted_prompt}", params.agent_cmd);
+    let command_line = fill_template(&template, &vault);
+
+    if params.use_herdr && herdr::is_installed(params.herdr_cmd) {
+        let label = format!("{} {}", params.task_id, params.task_title);
+        match herdr::create_workspace(params.herdr_cmd, &vault, &label) {
+            Ok(workspace_id) => {
+                let argv = agent_argv_from_command_line(&command_line);
+                return herdr::start_agent(
+                    params.herdr_cmd,
+                    &workspace_id,
+                    params.task_id,
+                    &vault,
+                    &argv,
+                );
+            }
+            Err(e) => {
+                // Fall back to terminal launch so a herdr hiccup never blocks work.
+                eprintln!("herdr workspace creation failed, falling back to terminal: {e}");
+            }
+        }
+    }
+
+    launch(&command_line)
+}
+
+/// Extracts the agent argv from a filled command line, stripping a leading
+/// Windows Terminal wrapper (`wt -d <path>`) so the agent can run directly
+/// inside a herdr pane.
+fn agent_argv_from_command_line(command_line: &str) -> Vec<String> {
+    let tokens = split_command_line(command_line);
+    if tokens.len() >= 3 && tokens[0].eq_ignore_ascii_case("wt") && tokens[1] == "-d" {
+        tokens.into_iter().skip(3).collect()
+    } else {
+        tokens
+    }
 }
 
 pub fn open_explorer(path: &str) -> Result<(), String> {
@@ -165,7 +211,35 @@ mod tests {
 
     #[test]
     fn task_agent_requires_a_vault() {
-        assert!(launch_agent_for_task("echo {path}", "T-1", "tasks/T-1.md", "proj", " ").is_err());
+        assert!(launch_agent_for_task(LaunchAgentForTaskParams {
+            agent_cmd: "echo {path}",
+            task_id: "T-1",
+            task_title: "title",
+            task_file: "tasks/T-1.md",
+            project: "proj",
+            vault_path: " ",
+            use_herdr: false,
+            herdr_cmd: "herdr",
+        })
+        .is_err());
+    }
+
+    #[test]
+    fn strips_wt_wrapper_for_herdr() {
+        assert_eq!(
+            agent_argv_from_command_line(
+                r#"wt -d "C:/My Vault" pwsh -NoExit -Command claude "prompt""#
+            ),
+            vec!["pwsh", "-NoExit", "-Command", "claude", "prompt"]
+        );
+        assert_eq!(
+            agent_argv_from_command_line("wt -d C:/vault pwsh -NoExit -Command opencode"),
+            vec!["pwsh", "-NoExit", "-Command", "opencode"]
+        );
+        assert_eq!(
+            agent_argv_from_command_line("claude {path}"),
+            vec!["claude", "{path}"]
+        );
     }
 
     #[test]

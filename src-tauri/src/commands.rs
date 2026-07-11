@@ -230,12 +230,25 @@ pub async fn fetch_youtube_title(video_id: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn launch_agent_for_task(
     agent_cmd: String,
     task_id: String,
+    task_title: String,
     task_file: String,
     project: String,
     vault_path: String,
+    use_herdr: bool,
+    herdr_cmd: String,
 ) -> Result<(), String> {
-    actions::launch_agent_for_task(&agent_cmd, &task_id, &task_file, &project, &vault_path)
+    actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
+        agent_cmd: &agent_cmd,
+        task_id: &task_id,
+        task_title: &task_title,
+        task_file: &task_file,
+        project: &project,
+        vault_path: &vault_path,
+        use_herdr,
+        herdr_cmd: &herdr_cmd,
+    })
 }

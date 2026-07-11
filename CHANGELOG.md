@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 (2026-07-11)
+
+- AI task launches can now open a fresh herdr workspace instead of a plain
+  terminal window. A new "Open AI tasks in a fresh herdr workspace" setting is
+  enabled by default; when herdr is not installed or workspace creation fails,
+  the launch falls back to the legacy terminal command automatically.
+
 ## 0.4.2 (2026-07-11)
 
 - Fix task agent launches ignoring the task's `assignee`: OpenCode-assigned
