@@ -11,6 +11,6 @@ created:
 updated:
 ---
 
-## 内容
+## Description
 
-## 結果
+## Results

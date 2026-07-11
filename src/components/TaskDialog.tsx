@@ -191,7 +191,7 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
             />,
           )}
           {field(
-            "内容",
+            "Description",
             <Textarea
               value={draft.content}
               onChange={(e) => setDraft({ ...draft, content: e.target.value })}

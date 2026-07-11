@@ -61,7 +61,7 @@ disabled in ⚙ Settings.
 
 Tasks live in a dedicated Obsidian vault. On first launch the Tasks tab asks
 you to choose a folder — pick an empty one (e.g. `C:/obsidian/workhub-vault`)
-and press **初期化** to expand the bundled template
+and press **Init vault** to expand the bundled template
 ([`vault-template/`](vault-template)) into it. You can also change the vault
 later in ⚙ Settings → *Tasks vault path*.
 
@@ -89,7 +89,7 @@ per-repository configuration is needed.
 1. Create a task in the app and set `assignee` to `claude-code` (or
    `opencode`) and `project` to the target repository (short name under
    `C:/repos/<name>` or an absolute path; leave empty to run in the vault).
-2. Press **AI で実行** on the task card. Claude Code starts in the target
+2. Press **Launch agent** on the task card. Claude Code starts in the target
    repository with the task file as context, runs `task-start` (status →
    `doing`), does the work, then `task-report` (results into the vault,
    status → `review`).

@@ -6,6 +6,7 @@ import { TaskDialog, type TaskDraft } from "@/components/TaskDialog";
 import { TaskKanban } from "@/components/TaskKanban";
 import { TaskList } from "@/components/TaskList";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -253,9 +254,17 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         >
           <RefreshCw className="size-3.5" /> Refresh
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
-          {initializing ? "Initializing…" : "初期化"}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
+              {initializing ? "Initializing…" : "Init vault"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Copy the default vault template into the configured vault folder. Existing files are never
+            overwritten.
+          </TooltipContent>
+        </Tooltip>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger size="sm" className="min-w-[7rem]">

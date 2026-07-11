@@ -196,7 +196,7 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent }: Props) {
                         className="w-full"
                         onClick={() => onLaunchAgent(task)}
                       >
-                        AI で実行
+                        Launch agent
                       </Button>
                     </div>
                   )}

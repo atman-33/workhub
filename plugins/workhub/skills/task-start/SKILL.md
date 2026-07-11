@@ -20,8 +20,8 @@ argument-hint: "<task-id>"
 5. **Record the active task** for the stop-hook reminder: write
    `<vault>/_ai/memory/active-task.json` with
    `{ "id", "file", "started": "<ISO timestamp>" }`.
-6. **Load context.** Read the task body — `## 内容` is the task description
-   and acts as the prompt/spec. Follow links it contains.
+6. **Load context.** Read the task body — `## Description` is the task
+    description and acts as the prompt/spec. Follow links it contains.
 7. **Resolve the target repository** from the `project` frontmatter key:
    - If it's an absolute path, use it directly.
    - Otherwise look for `C:/repos/<project>`.
@@ -33,4 +33,4 @@ argument-hint: "<task-id>"
 
 - Allowed status transitions for AI: `inbox/todo → doing` only.
 - When the work is finished, always finish with the `task-report` skill —
-  do not edit the task's `## 結果` or status directly here.
+  do not edit the task's `## Results` or status directly here.
