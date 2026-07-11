@@ -569,12 +569,22 @@ fn copy_template_dir(src: &Path, dst: &Path, template_root: &Path) -> Result<(),
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
 
         if file_type.is_dir() {
+            // Dev-machine artifacts inside the template working copy (e.g.
+            // node_modules from checking vault-template/.opencode) must never
+            // reach a vault.
+            if entry.file_name() == "node_modules" {
+                continue;
+            }
             fs::create_dir_all(&dst_path).map_err(|e| e.to_string())?;
             copy_template_dir(&src_path, &dst_path, template_root)?;
             continue;
         }
 
         let name = src_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name == ".claude-plugin-sync-manifest.json" {
+            // Per-vault sync baseline, never part of the template.
+            continue;
+        }
         if name == ".gitkeep" {
             // Ensure the directory exists; the keepfile itself is only a placeholder.
             if !dst_path.exists() {
@@ -976,6 +986,39 @@ mod tests {
         assert!(fs::read_to_string(vault.join("knowledge/_index.md"))
             .unwrap()
             .contains("# Custom knowledge"));
+
+        fs::remove_dir_all(&vault).ok();
+        fs::remove_dir_all(&template).ok();
+    }
+
+    #[test]
+    fn init_vault_skips_dev_artifacts() {
+        let template = temp_template_dir();
+        write_template(&template);
+        // Simulate a repo working copy where the opencode runtime was
+        // typechecked (node_modules) and a sync was run (manifest).
+        fs::create_dir_all(template.join(".opencode/node_modules/pkg")).unwrap();
+        fs::write(template.join(".opencode/node_modules/pkg/index.js"), "x").unwrap();
+        fs::write(template.join(".opencode/plugins.txt"), "runtime file").unwrap();
+        fs::write(
+            template.join(".opencode/.claude-plugin-sync-manifest.json"),
+            "{}",
+        )
+        .unwrap();
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let vault = std::env::temp_dir().join(format!("workhub-init-skip-{nanos}"));
+
+        init_vault(&vault, &template).unwrap();
+
+        assert!(vault.join(".opencode/plugins.txt").exists());
+        assert!(!vault.join(".opencode/node_modules").exists());
+        assert!(!vault
+            .join(".opencode/.claude-plugin-sync-manifest.json")
+            .exists());
 
         fs::remove_dir_all(&vault).ok();
         fs::remove_dir_all(&template).ok();
