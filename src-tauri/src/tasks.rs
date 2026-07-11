@@ -167,8 +167,11 @@ fn render_frontmatter(t: &Task) -> String {
         .order
         .map(|o| format!("order: {}\n", render_order(o)))
         .unwrap_or_default();
+    // Emitted only when set, like `order`, so files never archived stay
+    // byte-identical on round-trip.
+    let archived_line = if t.archived { "archived: true\n" } else { "" };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}due: {}\ntags: {}\ncreated: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}due: {}\ntags: {}\n{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
@@ -178,6 +181,7 @@ fn render_frontmatter(t: &Task) -> String {
         order_line,
         t.due,
         render_tags(&t.tags),
+        archived_line,
         t.created,
         t.updated,
     )
@@ -219,6 +223,11 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
         order: raw.map.get("order").and_then(|v| v.parse::<f64>().ok()),
         due: get("due"),
         tags: raw.tags,
+        archived: raw
+            .map
+            .get("archived")
+            .map(|v| v == "true")
+            .unwrap_or(false),
         created: get("created"),
         updated: get("updated"),
         file: path.to_string_lossy().replace('\\', "/"),
@@ -354,6 +363,7 @@ pub struct UpdateTaskInput {
     pub order: Option<f64>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub archived: Option<bool>,
     pub body: Option<String>,
 }
 
@@ -377,6 +387,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         order: Some(order),
         due: input.due.unwrap_or_default(),
         tags: input.tags.unwrap_or_default(),
+        archived: false,
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
@@ -431,6 +442,9 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     if let Some(v) = input.tags {
         task.tags = v;
     }
+    if let Some(v) = input.archived {
+        task.archived = v;
+    }
     if let Some(v) = input.body {
         task.body = v;
     }
@@ -438,6 +452,21 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     write_task_file(&task)?;
     regenerate_index(vault)?;
     Ok(task)
+}
+
+/// Moves the task's file to the OS recycle bin (never a hard delete) and
+/// refreshes the index. When the task can't be found the index is still
+/// regenerated best-effort so a stale entry self-heals.
+pub fn delete_task(vault: &Path, id: &str) -> Result<(), String> {
+    let task = match find_task_by_id(vault, id) {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = regenerate_index(vault);
+            return Err(e);
+        }
+    };
+    trash::delete(&task.file).map_err(|e| e.to_string())?;
+    regenerate_index(vault)
 }
 
 // ---------------------------------------------------------------------
@@ -455,6 +484,7 @@ struct IndexEntry<'a> {
     order: Option<f64>,
     due: &'a str,
     tags: &'a [String],
+    archived: bool,
     created: &'a str,
     updated: &'a str,
     file: String,
@@ -475,6 +505,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             order: t.order,
             due: &t.due,
             tags: &t.tags,
+            archived: t.archived,
             created: &t.created,
             updated: &t.updated,
             file: t
@@ -768,6 +799,7 @@ mod tests {
                     order: None,
                     due: String::new(),
                     tags: vec![],
+                    archived: false,
                     created: today(),
                     updated: today(),
                     file: t3_path.to_string_lossy().replace('\\', "/"),
@@ -868,6 +900,115 @@ mod tests {
         assert_eq!(arr[0]["id"], "T-0001");
         assert_eq!(arr[0]["file"], "tasks/T-0001 indexed task.md");
         assert_eq!(arr[0]["tags"][0], "feature");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn archived_flag_round_trips_and_is_omitted_when_false() {
+        let vault = temp_vault("archived");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "archivable".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Never-archived files carry no `archived:` line at all.
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("archived:"), "raw frontmatter: {raw}");
+
+        let archived = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                archived: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(archived.archived);
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(raw.contains("archived: true\n"), "raw frontmatter: {raw}");
+
+        // Re-scan sees the flag; index carries it too.
+        let scanned = scan_tasks(&vault).unwrap();
+        assert!(scanned[0].archived);
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index[0]["archived"], true);
+
+        // Unarchiving removes the line again.
+        let unarchived = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                archived: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(!unarchived.archived);
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("archived:"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_task_removes_file_and_index_entry() {
+        let vault = temp_vault("delete");
+        let keep = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "keep me".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let doomed = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "delete me".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        delete_task(&vault, &doomed.id).unwrap();
+        assert!(!PathBuf::from(&doomed.file).exists());
+
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        let arr = index.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["id"], keep.id);
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_task_missing_file_errors_without_touching_others() {
+        let vault = temp_vault("delete-missing");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "vanishes".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        fs::remove_file(&task.file).unwrap();
+
+        let err = delete_task(&vault, &task.id).unwrap_err();
+        assert!(err.contains("not found"), "error: {err}");
+
+        // Best-effort index regen ran and no longer lists the ghost task.
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index.as_array().unwrap().len(), 0);
 
         fs::remove_dir_all(&vault).ok();
     }

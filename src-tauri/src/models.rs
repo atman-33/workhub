@@ -91,6 +91,9 @@ pub struct Task {
     pub due: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Hidden from the board by default; absent in frontmatter means false.
+    #[serde(default)]
+    pub archived: bool,
     pub created: String,
     pub updated: String,
     /// Absolute path to the task's Markdown file (forward slashes).
