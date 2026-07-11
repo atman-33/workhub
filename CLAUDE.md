@@ -47,7 +47,7 @@ Blocking work (git calls, vault scans) runs via
 ## Data model: the vault is the source of truth
 
 Task data lives as Markdown + YAML frontmatter in a dedicated Obsidian vault
-(dev vault: `C:/obsidian/workhub-vault`, template: `vault-template/`).
+(dev vault: `C:/repos/workhub-vault`, template: `vault-template/`).
 The app must:
 
 - treat frontmatter as the schema (`id`, `title`, `status`, `assignee`,
@@ -59,7 +59,7 @@ The app must:
   `knowledge/`, `_ai/`).
 
 Design docs live in the owner's vault:
-`C:/obsidian/workhub-vault/projects/workhub/`.
+`C:/repos/workhub-vault/projects/workhub/`.
 
 ## Plugin marketplace: the repo is the plugin source
 

@@ -16,6 +16,7 @@ workhub Obsidian vault.
 | `kb-query` | Search the vault and synthesize answers across notes, citing sources with wikilinks |
 | `kb-lint` | Health check: orphan notes, broken links, index drift, tag issues, stale content |
 | `kb-index` | Update the zone `_index.md` files (smart diff by default, `--full` rebuild) |
+| `vault-migrate` | Migrate another Obsidian vault into the workhub vault — copy-only, with scripted delta-zero verification (user-invoked only) |
 
 ## Hooks
 
