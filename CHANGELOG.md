@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0 (2026-07-12)
+
+- Each repository row in the Repos list gains an inline "Open terminal" icon
+  button next to the commit graph button (the context-menu entry remains).
+
 ## 0.8.1 (2026-07-12)
 
 - New `vault-setup` skill in the `workhub` plugin: one-shot machine
