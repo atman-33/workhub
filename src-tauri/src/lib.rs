@@ -20,14 +20,18 @@ pub fn run() {
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
             if let Some(vault_path) = cfg.settings.vault_path {
-                let state = app.state::<tasks::WatcherState>();
-                let _ = tasks::start_watcher(app.handle().clone(), &state.0, vault_path.into());
+                let path = std::path::PathBuf::from(&vault_path);
+                if path.is_dir() {
+                    let state = app.state::<tasks::WatcherState>();
+                    let _ = tasks::start_watcher(app.handle().clone(), &state.0, path);
+                }
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
+            commands::check_vault_path,
             commands::git_status,
             commands::git_op,
             commands::git_log,

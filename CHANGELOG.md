@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 (2026-07-11)
+
+- Fix vault-path handling on startup: only prompt for a vault folder when the
+  configured path is missing or no longer exists; otherwise load tasks
+  immediately.
+- Keep the app-level Settings dialog in sync when a vault folder is chosen from
+  the Tasks view, preventing accidental overwrite of the vault path on the next
+  Settings save.
+- Skip starting the file watcher on startup when the configured vault path does
+  not exist.
+
 ## 0.2.0 (2026-07-11)
 
 - Music player (new Music tab), ported from
