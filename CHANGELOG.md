@@ -4,6 +4,8 @@
 
 - Replace native `<select>` elements in the Tasks view and task dialog with
   shadcn/ui `Select` for consistent theming and better readability.
+- Unify Tasks screen labels and vault headers to English for consistent UI
+  copy.
 
 ## 0.2.2 (2026-07-11)
 
