@@ -13,8 +13,9 @@ argument-hint: "<task-id>"
 2. **Locate the task file** in `<vault>/tasks/` by the `id` in its
    frontmatter (use `_ai/index/tasks.json` to find the file quickly).
 3. **Validate the transition.** Only `inbox`, `todo` (or already `doing`)
-   tasks can be started. Never touch a `review` or `done` task; report and
-   stop instead.
+   tasks can be started. Never touch a `review` or `done` task, and never
+   start a task with `archived: true` in its frontmatter; report and stop
+   instead.
 4. **Update frontmatter** — set `status: doing` and `updated: <today>`.
    Change nothing else; preserve the body byte-for-byte.
 5. **Record the active task** for the stop-hook reminder: write

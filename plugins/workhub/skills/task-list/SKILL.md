@@ -22,9 +22,11 @@ argument-hint: "[status] [assignee] [project]"
 ## Filter and present
 
 - Apply any filters given in the arguments (`status`, `assignee`, `project`).
-- Default view: everything not `done`, grouped by `status` in board order
-  (`inbox`, `todo`, `doing`, `review`), sorted by `priority` (high first)
-  then `due`.
+- Default view: everything not `done` and not `archived` (the optional
+  `archived` boolean field; absent = false), grouped by `status` in board
+  order (`inbox`, `todo`, `doing`, `review`), sorted by `priority` (high
+  first) then `due`. Include archived tasks only when the user explicitly
+  asks for them.
 - Present as a compact table: `id | title | status | assignee | project | due`.
 - Mention tasks assigned to `claude-code` explicitly — those are candidates
   for `task-start`.

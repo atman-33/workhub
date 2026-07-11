@@ -48,6 +48,8 @@ order: 2            # manual sort position within the status column (number,
                     # may be fractional); managed by the app — leave as is
 due: 2026-07-20     # optional
 tags: []
+archived: true      # optional; absent = false. Archived tasks are hidden from
+                    # the app board by default and excluded from AI task listings
 created: 2026-07-10
 updated: 2026-07-10
 ```
