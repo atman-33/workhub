@@ -49,12 +49,17 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   useEffect(() => {
     setVaultExists(null);
     void (async () => {
-      const cfg = await api.getConfig();
-      setConfig(cfg);
-      const path = cfg.settings.vault_path;
-      if (path) {
-        setVaultExists(await api.checkVaultPath(path));
-      } else {
+      try {
+        const cfg = await api.getConfig();
+        setConfig(cfg);
+        const path = cfg.settings.vault_path;
+        if (path) {
+          setVaultExists(await api.checkVaultPath(path));
+        } else {
+          setVaultExists(false);
+        }
+      } catch (e) {
+        setStatus(`Vault check failed — ${e}`);
         setVaultExists(false);
       }
     })();
