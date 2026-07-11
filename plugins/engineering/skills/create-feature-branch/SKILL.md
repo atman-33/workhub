@@ -41,7 +41,7 @@ Create a new feature branch for the user's next task in the intended repository.
 
 ## Notes
 
-- Never run git against `agent-harness` unless that repository is intentionally the target.
+- Never run git against the workspace working directory (e.g. the workhub vault) unless it is intentionally the target.
 - Use non-interactive git commands.
 - Do not invent a branch name when the requested feature is still ambiguous.
 - Only perform the git steps when the user has explicitly asked for branch creation.

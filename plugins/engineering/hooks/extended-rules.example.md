@@ -8,7 +8,7 @@ paths:
 
 This file documents the format consumed by `inject-extended-rules.mjs`. Place real
 rules in your WORKSPACE at `<cwd>/.claude/rules-ex/*.md` (e.g.
-`C:/repos/agent-harness/.claude/rules-ex/`). They are a complement to a target
+`C:/obsidian/workhub-vault/.claude/rules-ex/`). They are a complement to a target
 repo's own `.claude/rules` (handled by `inject-target-rules.mjs`):
 
 - `.claude/rules` — rules that live WITH the repo they govern.

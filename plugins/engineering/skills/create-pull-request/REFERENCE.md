@@ -1,6 +1,6 @@
 # Create Pull Request Reference
 
-This reference expands the `create-pull-request` workflow for `agent-harness`.
+This reference expands the `create-pull-request` workflow.
 
 ## Core philosophy
 
@@ -12,7 +12,8 @@ This reference expands the `create-pull-request` workflow for `agent-harness`.
 
 Every step below that touches `scripts/`, `assets/templates/`, or `.tmp/` resolves
 those paths against `$SkillRoot` — this skill's own actual base directory, as the runtime
-reports it at invocation time. Never hardcode a path to this skill under `agent-harness`,
+reports it at invocation time. Never hardcode a path to this skill under the workspace
+working directory,
 the target repository, or any other fixed location: this skill is installed as a plugin and
 its real location is not guaranteed to sit inside any particular repository.
 

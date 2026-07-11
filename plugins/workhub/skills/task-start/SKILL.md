@@ -8,26 +8,32 @@ argument-hint: "<task-id>"
 
 ## Steps
 
-1. **Resolve the vault path** (same order as `task-list`: `WORKHUB_VAULT` env
-   var, then `vault_path` in `%APPDATA%\workhub\config.json`).
-2. **Locate the task file** in `<vault>/tasks/` by the `id` in its
-   frontmatter (use `_ai/index/tasks.json` to find the file quickly).
-3. **Validate the transition.** Only `inbox`, `todo` (or already `doing`)
-   tasks can be started. Never touch a `review` or `done` task, and never
-   start a task with `archived: true` in its frontmatter; report and stop
-   instead.
-4. **Update frontmatter** — set `status: doing` and `updated: <today>`.
-   Change nothing else; preserve the body byte-for-byte.
-5. **Record the active task** for the stop-hook reminder: write
-   `<vault>/_ai/memory/active-task.json` with
+1. **Mark the task as started** with the bundled CLI (preferred — it
+   validates the status transition, sets `status: doing` + `updated`,
+   writes the active-task marker, and refreshes the index in one step):
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" start <task-id>
+   ```
+
+   Vault resolution order (pass `--vault <path>` to override):
+   `WORKHUB_VAULT` env var → the current directory if it is a vault (has
+   `tasks/` and `_ai/`) → `vault_path` in `%APPDATA%\workhub\config.json`.
+   The CLI refuses `review`/`done` tasks — report and stop in that case.
+
+   *Fallback (no node, or script missing):* edit the task file by hand —
+   set `status: doing` and `updated: <today>` in the frontmatter (preserve
+   the body byte-for-byte; never start `review`/`done`/`archived` tasks),
+   and write `<vault>/_ai/memory/active-task.json` with
    `{ "id", "file", "started": "<ISO timestamp>" }`.
-6. **Load context.** Read the task body — `## Description` is the task
-    description and acts as the prompt/spec. Follow links it contains.
-7. **Resolve the target repository** from the `project` frontmatter key:
+
+2. **Load context.** Read the task body — `## Description` is the task
+   description and acts as the prompt/spec. Follow links it contains.
+3. **Resolve the target repository** from the `project` frontmatter key:
    - If it's an absolute path, use it directly.
    - Otherwise look for `C:/repos/<project>`.
    - If it cannot be resolved, ask the user.
-8. **Begin the work** in the target repository, following that repo's own
+4. **Begin the work** in the target repository, following that repo's own
    instructions (CLAUDE.md etc.).
 
 ## Rules

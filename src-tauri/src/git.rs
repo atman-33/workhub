@@ -1,4 +1,4 @@
-use crate::models::{CommitEntry, CommitRef, GitInfo, GitLog, GraphOp};
+use crate::models::{CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp};
 use std::process::Command;
 
 #[cfg(windows)]
@@ -206,6 +206,97 @@ fn parse_decorations(raw: &str) -> Vec<CommitRef> {
             }
         })
         .collect()
+}
+
+/// The frontend's pseudo-hash for the uncommitted-changes row.
+const WORKTREE_HASH: &str = "WORKTREE";
+
+/// Hash of git's well-known empty tree, used as the diff base for root commits.
+const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+/// Diff range for a commit (or the worktree pseudo-commit): first parent vs
+/// the commit itself, the empty tree for a root commit, HEAD vs the worktree.
+fn diff_range(path: &str, hash: &str) -> Result<Vec<String>, String> {
+    if hash == WORKTREE_HASH {
+        return Ok(vec!["HEAD".into()]);
+    }
+    let out = git(path, &["rev-list", "--parents", "-n", "1", hash])?;
+    let mut ids = out.split_whitespace();
+    ids.next(); // the commit itself
+    let base = ids.next().unwrap_or(EMPTY_TREE).to_string();
+    Ok(vec![base, hash.to_string()])
+}
+
+/// List the files changed by a commit (or by the uncommitted worktree).
+pub fn commit_files(path: &str, hash: &str) -> Result<Vec<CommitFileChange>, String> {
+    let range = diff_range(path, hash)?;
+    let mut name_status_args = vec!["diff", "--name-status", "-M"];
+    name_status_args.extend(range.iter().map(String::as_str));
+    let name_status = git(path, &name_status_args)?;
+
+    let mut numstat_args = vec!["diff", "--numstat", "-M"];
+    numstat_args.extend(range.iter().map(String::as_str));
+    let numstat = git(path, &numstat_args)?;
+
+    Ok(parse_commit_files(&name_status, &numstat))
+}
+
+/// Parse paired `git diff --name-status` / `--numstat` output (same flags →
+/// same file order, so rows are joined by index).
+fn parse_commit_files(name_status: &str, numstat: &str) -> Vec<CommitFileChange> {
+    let counts: Vec<(Option<u32>, Option<u32>)> = numstat
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| {
+            let mut f = l.splitn(3, '\t');
+            let a = f.next().unwrap_or("-").trim().parse().ok();
+            let d = f.next().unwrap_or("-").trim().parse().ok();
+            (a, d)
+        })
+        .collect();
+
+    name_status
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .enumerate()
+        .map(|(i, l)| {
+            let mut f = l.split('\t');
+            let status_raw = f.next().unwrap_or("").trim();
+            let status_char = status_raw.chars().next().unwrap_or('?');
+            let first = f.next().unwrap_or("").to_string();
+            let second = f.next().map(str::to_string);
+            let (old_path, file_path) = match (status_char, second) {
+                ('R' | 'C', Some(new_path)) => (Some(first), new_path),
+                (_, _) => (None, first),
+            };
+            let (additions, deletions) = counts.get(i).copied().unwrap_or((None, None));
+            CommitFileChange {
+                path: file_path,
+                old_path,
+                status: status_char.to_string(),
+                additions,
+                deletions,
+            }
+        })
+        .collect()
+}
+
+/// Unified diff of a single file within a commit (or the worktree).
+pub fn commit_file_diff(
+    path: &str,
+    hash: &str,
+    file: &str,
+    old_file: Option<&str>,
+) -> Result<String, String> {
+    let range = diff_range(path, hash)?;
+    let mut args = vec!["diff", "-M"];
+    args.extend(range.iter().map(String::as_str));
+    args.push("--");
+    if let Some(old) = old_file {
+        args.push(old);
+    }
+    args.push(file);
+    git(path, &args)
 }
 
 pub fn create_branch(path: &str, name: &str, hash: &str, checkout: bool) -> Result<String, String> {
@@ -582,6 +673,43 @@ aaa2\x1fbbb2 ccc2\x1fBob\x1f2000\x1f\x1fMerge branch 'feature'\x1e
     #[test]
     fn parses_empty_decoration_as_no_refs() {
         assert!(parse_decorations("").is_empty());
+    }
+
+    #[test]
+    fn parses_commit_files_with_rename_and_binary() {
+        let name_status =
+            "M\tsrc/app.rs\nR100\told/name.rs\tnew/name.rs\nA\tassets/icon.png\nD\tREADME.md\n";
+        let numstat =
+            "10\t2\tsrc/app.rs\n0\t0\t{old => new}/name.rs\n-\t-\tassets/icon.png\n0\t5\tREADME.md\n";
+        let files = parse_commit_files(name_status, numstat);
+        assert_eq!(files.len(), 4);
+
+        assert_eq!(files[0].path, "src/app.rs");
+        assert_eq!(files[0].status, "M");
+        assert_eq!(files[0].old_path, None);
+        assert_eq!(files[0].additions, Some(10));
+        assert_eq!(files[0].deletions, Some(2));
+
+        assert_eq!(files[1].path, "new/name.rs");
+        assert_eq!(files[1].status, "R");
+        assert_eq!(files[1].old_path.as_deref(), Some("old/name.rs"));
+
+        assert_eq!(files[2].path, "assets/icon.png");
+        assert_eq!(files[2].status, "A");
+        assert_eq!(files[2].additions, None);
+        assert_eq!(files[2].deletions, None);
+
+        assert_eq!(files[3].path, "README.md");
+        assert_eq!(files[3].status, "D");
+        assert_eq!(files[3].deletions, Some(5));
+    }
+
+    #[test]
+    fn parses_commit_files_tolerates_count_mismatch() {
+        let files = parse_commit_files("M\ta.txt\n", "");
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].additions, None);
+        assert_eq!(files[0].deletions, None);
     }
 
     #[test]

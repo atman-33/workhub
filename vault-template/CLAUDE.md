@@ -44,6 +44,9 @@ status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
 priority: medium    # low | medium | high
+model: sonnet       # optional; AI model passed as `--model` when the app
+                    # launches an agent for this task (e.g. opus, sonnet,
+                    # anthropic/claude-sonnet-4-5). Absent = agent default
 order: 2            # manual sort position within the status column (number,
                     # may be fractional); managed by the app — leave as is
 due: 2026-07-20     # optional

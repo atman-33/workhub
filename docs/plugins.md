@@ -39,7 +39,7 @@ something this marketplace needs to maintain.
 
 | Plugin | Required | Scope | Contents |
 |---|---|---|---|
-| `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
+| `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`, `vault-setup`), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
 | `engineering` | **Required** | project | Development workflow: role-based sub-agents, rule-injection hooks (`project-context.json`, `rules-ex`), serena/context7 MCP launchers, and skills (commit, PR, ADR, TDD, codebase design, bug investigation, review/test/onboarding guides, PRD/issues, …). |
 | `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, Zenn blog writing (`zenn-blog-writing`, `zenn-markdown`), and skill-writing helpers (`grilling`, `handoff`, `writing-great-skills`). No vault or project-context dependency. |
 | `scrum` | Optional | project | Scrum workflows against monday.com and Google Drive (backlog, sprint review, retrospective). Needs per-project `scrum-context.json`. |
@@ -90,5 +90,6 @@ OpenCode cannot consume Claude Code plugins directly. The vault's
 materializes skills from the enabled Claude plugins, records hashes in a
 manifest, and a session-start reminder plugin reports drift (missing / stale /
 diverged / orphan). Never hand-edit synced skills on the OpenCode side; edit
-the plugin source here and re-sync. (Tooling arrives in Phase 3 of the
-harness-consolidation plan, ported from `agent-harness/.opencode/`.)
+the plugin source here and re-sync. (The tooling lives in
+`vault-template/.opencode/scripts/`, ported from workhub's predecessor
+repository.)

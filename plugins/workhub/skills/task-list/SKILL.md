@@ -6,22 +6,30 @@ argument-hint: "[status] [assignee] [project]"
 
 # task-list — List tasks from the workhub vault
 
-## Resolve the vault path
+## Preferred: run the task CLI
 
-1. If the `WORKHUB_VAULT` environment variable is set, use it.
-2. Otherwise read `vault_path` from `%APPDATA%\workhub\config.json`.
-3. If neither exists, ask the user for the vault path.
+Run the bundled CLI — it resolves the vault, scans the task frontmatter
+directly (never a stale index), refreshes `_ai/index/tasks.json`, and prints
+a table:
 
-## Read tasks
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" list [--status s] [--assignee a] [--project p] [--json]
+```
 
-1. Prefer the machine index: `<vault>/_ai/index/tasks.json` — a JSON array of
-   all task frontmatter objects plus `file` (path relative to the vault).
-2. If the index is missing or stale (parse error), fall back to reading the
-   YAML frontmatter of every `*.md` under `<vault>/tasks/` (skip `_index.md`).
+Vault resolution order (built into the CLI; pass `--vault <path>` to
+override): `WORKHUB_VAULT` env var → **the current directory if it is a
+vault** (has `tasks/` and `_ai/`) → `vault_path` in
+`%APPDATA%\workhub\config.json`. If none resolves, ask the user.
 
-## Filter and present
+## Fallback: manual read (no node, or script missing)
 
-- Apply any filters given in the arguments (`status`, `assignee`, `project`).
+1. Resolve the vault with the same order as above.
+2. Read the YAML frontmatter of every `*.md` under `<vault>/tasks/`
+   (skip `_index.md`). Do not trust `_ai/index/tasks.json` blindly — it can
+   be stale when files were hand-edited without the app running.
+
+## Present
+
 - Default view: everything not `done` and not `archived` (the optional
   `archived` boolean field; absent = false), grouped by `status` in board
   order (`inbox`, `todo`, `doing`, `review`), sorted by `priority` (high
@@ -31,4 +39,4 @@ argument-hint: "[status] [assignee] [project]"
 - Mention tasks assigned to `claude-code` explicitly — those are candidates
   for `task-start`.
 
-Read-only: this skill never modifies the vault.
+Read-only apart from the index refresh: this skill never modifies task files.

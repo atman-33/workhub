@@ -99,6 +99,11 @@ pub struct Task {
     pub project: String,
     /// low | medium | high
     pub priority: String,
+    /// AI model passed to the agent CLI via `--model` on task launches
+    /// (e.g. "opus", "sonnet", "anthropic/claude-sonnet-4-5"); empty = the
+    /// agent's own default.
+    #[serde(default)]
+    pub model: String,
     /// Manual sort position within a status column (kanban). Fractional so a
     /// single reorder only rewrites the moved task's file; unset on tasks
     /// that were never manually ordered (they sort after ordered ones, by id).
@@ -177,6 +182,19 @@ pub struct CommitEntry {
     pub date: i64,
     pub refs: Vec<CommitRef>,
     pub subject: String,
+}
+
+/// One changed file within a commit, for the graph view's diff panel.
+#[derive(Debug, Clone, Serialize)]
+pub struct CommitFileChange {
+    pub path: String,
+    /// Original path for renames/copies.
+    pub old_path: Option<String>,
+    /// Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?".
+    pub status: String,
+    /// Added/removed line counts; `None` for binary files.
+    pub additions: Option<u32>,
+    pub deletions: Option<u32>,
 }
 
 /// A page of commit history plus repo-level context for the graph view.

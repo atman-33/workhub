@@ -66,6 +66,17 @@ export interface CommitEntry {
   subject: string;
 }
 
+export interface CommitFileChange {
+  path: string;
+  /** Original path for renames/copies. */
+  old_path: string | null;
+  /** Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?". */
+  status: string;
+  /** Added/removed line counts; null for binary files. */
+  additions: number | null;
+  deletions: number | null;
+}
+
 export interface GitLog {
   commits: CommitEntry[];
   head: string;
@@ -85,6 +96,8 @@ export interface Task {
   assignee: TaskAssignee;
   project: string;
   priority: TaskPriority;
+  /** AI model passed as `--model` on task launches; empty = agent default. */
+  model: string;
   /** Manual sort position within a status column; null when never reordered. */
   order: number | null;
   due: string;
@@ -103,6 +116,7 @@ export interface CreateTaskInput {
   assignee?: TaskAssignee;
   project?: string;
   priority?: TaskPriority;
+  model?: string;
   due?: string;
   tags?: string[];
   body?: string;
@@ -115,6 +129,7 @@ export interface UpdateTaskInput {
   assignee?: TaskAssignee;
   project?: string;
   priority?: TaskPriority;
+  model?: string;
   order?: number;
   due?: string;
   tags?: string[];

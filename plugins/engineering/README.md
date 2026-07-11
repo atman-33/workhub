@@ -119,8 +119,8 @@ Create `.claude/project-context.json` in the project root (run the
       ]
     },
     {
-      "name": "agent-harness",
-      "path": "C:/repos/agent-harness",
+      "name": "my-app",
+      "path": "C:/repos/my-app",
       "postToolFormatCommands": ["npm run format"]
     }
   ]
@@ -160,7 +160,7 @@ This produces:
     <project name="workhub" path="C:/repos/workhub">
       <summary>Claude Code plugin marketplace</summary>
     </project>
-    <project name="agent-harness" path="C:/repos/agent-harness" />
+    <project name="my-app" path="C:/repos/my-app" />
   </registered-projects>
 </project-context>
 ```
@@ -217,7 +217,8 @@ cwd-local files, unregistered paths, or repos without the relevant files.
 
 ### PostToolUse hook: target-project formatting
 
-When you launch Claude Code in one repo (for example `agent-harness`) and edit a
+When you launch Claude Code in one working directory (for example the workhub
+vault) and edit a
 registered sibling repo, that sibling repo's own Claude hook config does not run.
 The engineering plugin closes that gap with a `PostToolUse` hook
 ([`hooks/scripts/post-format-project.mjs`](hooks/scripts/post-format-project.mjs))

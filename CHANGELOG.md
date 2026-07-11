@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.10.0 (2026-07-12)
+
+- Fix shadcn/ui animations: `tw-animate-css` was never imported, so the
+  commit-graph sheet now actually slides in/out and dialogs fade/zoom.
+- The task dialog's model suggestions for opencode-assigned tasks are now
+  fetched from the `opencode models` CLI (cached per app run) instead of a
+  hardcoded list; claude-code keeps haiku/sonnet/opus.
+- New `task-cli.mjs` script in the workhub plugin (list/start/update/report)
+  so agents no longer hand-edit task frontmatter; it preserves bodies
+  byte-for-byte, regenerates `_ai/index/tasks.json` on every write, and
+  prefers the current directory when it is a vault. The task skills now use
+  it as their primary path (plugin 0.6.0).
+- Task board polish: tag badges on list rows and kanban cards, due dates
+  shown on kanban cards and colored red/amber when overdue/due today, a tag
+  filter in the toolbar, and Project suggestions now include repositories
+  registered in the Repos view.
+
+## 0.9.1 (2026-07-12)
+
+- Remove leftover references to `agent-harness` (workhub's predecessor
+  repository) from plugin docs, skills, and hook examples; examples now use
+  neutral project names or refer to "the workspace working directory / vault"
+  instead of a fixed repo.
+
+## 0.9.0 (2026-07-12)
+
+- Each repository row in the Repos list gains an inline "Open terminal" icon
+  button next to the commit graph button (the context-menu entry remains).
+
+## 0.8.1 (2026-07-12)
+
+- New `vault-setup` skill in the `workhub` plugin: one-shot machine
+  onboarding for a workhub vault — checks/installs required software (git,
+  Node.js, Claude Code, optionally OpenCode/Obsidian), initializes the vault
+  via `vault-init` when missing, walks through the Claude plugin trust setup,
+  and runs the OpenCode sync/check scripts.
+
+## 0.8.0 (2026-07-12)
+
+- Tasks gain an optional `model` frontmatter field, editable in the task
+  dialog. When set, AI agent launches for the task pass `--model <model>` to
+  the agent CLI (works for both Claude Code and OpenCode); when empty the
+  agent's own default model is used. Files without the field are unchanged.
+
+## 0.7.0 (2026-07-12)
+
+- Selecting a commit in the commit graph now opens a diff panel showing the
+  files changed by that commit (with added/removed line counts) and, per file,
+  the unified diff with syntax-highlighted additions and deletions. The
+  uncommitted-changes row shows the worktree diff against HEAD the same way.
+
+## 0.6.0 (2026-07-12)
+
+- The commit graph now opens in a slide-in sheet over the Repos list instead
+  of replacing the whole view, and each repository row gains an inline commit
+  graph icon button (in addition to the existing context-menu entry).
+
 ## 0.5.1 (2026-07-11)
 
 - Bundle the previously externally-installed recommended skills directly in the

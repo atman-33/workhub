@@ -85,6 +85,8 @@ pub struct LaunchAgentForTaskParams<'a> {
     pub task_title: &'a str,
     pub task_file: &'a str,
     pub project: &'a str,
+    /// Passed to the agent CLI as `--model <model>`; empty = agent default.
+    pub model: &'a str,
     pub vault_path: &'a str,
     pub use_herdr: bool,
     pub herdr_cmd: &'a str,
@@ -120,7 +122,11 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<(),
         params.task_id, project_note, params.task_file
     );
     let quoted_prompt = format!("\"{}\"", prompt.replace('"', "\\\""));
-    let template = format!("{} {quoted_prompt}", params.agent_cmd);
+    let template = format!(
+        "{}{} {quoted_prompt}",
+        params.agent_cmd,
+        model_arg(params.model)
+    );
     let command_line = fill_template(&template, &vault);
 
     if params.use_herdr && herdr::is_installed(params.herdr_cmd) {
@@ -146,6 +152,20 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<(),
     launch(&command_line)
 }
 
+/// Renders the ` --model <model>` fragment inserted between the agent command
+/// and the trailing prompt. Both claude and opencode accept `--model`; an
+/// empty model means "use the agent's own default" and adds nothing.
+fn model_arg(model: &str) -> String {
+    let model = model.trim();
+    if model.is_empty() {
+        String::new()
+    } else if model.contains(char::is_whitespace) {
+        format!(" --model \"{model}\"")
+    } else {
+        format!(" --model {model}")
+    }
+}
+
 /// Extracts the agent argv from a filled command line, stripping a leading
 /// Windows Terminal wrapper (`wt -d <path>`) so the agent can run directly
 /// inside a herdr pane.
@@ -156,6 +176,52 @@ fn agent_argv_from_command_line(command_line: &str) -> Vec<String> {
     } else {
         tokens
     }
+}
+
+/// List models available to the opencode CLI via `opencode models` — one
+/// `provider/model` id per line. Used to populate the task dialog's model
+/// suggestions for opencode-assigned tasks.
+pub fn opencode_models() -> Result<Vec<String>, String> {
+    // Go through `cmd /C` on Windows: a Node-installed opencode is a .cmd
+    // shim that std::process::Command cannot spawn directly (same reason
+    // `launch()` above wraps command lines in cmd /C).
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg("opencode models");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut cmd = {
+        let mut c = Command::new("opencode");
+        c.arg("models");
+        c
+    };
+    let out = cmd
+        .output()
+        .map_err(|e| format!("failed to run opencode: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let err = err.trim();
+        return Err(if err.is_empty() {
+            "opencode models failed".into()
+        } else {
+            err.to_string()
+        });
+    }
+    Ok(parse_opencode_models(&String::from_utf8_lossy(&out.stdout)))
+}
+
+/// Keep only lines that look like `provider/model` ids, dropping blank lines
+/// and any log/progress noise the CLI may print.
+fn parse_opencode_models(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && l.contains('/') && !l.contains(char::is_whitespace))
+        .map(str::to_string)
+        .collect()
 }
 
 pub fn open_explorer(path: &str) -> Result<(), String> {
@@ -217,6 +283,7 @@ mod tests {
             task_title: "title",
             task_file: "tasks/T-1.md",
             project: "proj",
+            model: "",
             vault_path: " ",
             use_herdr: false,
             herdr_cmd: "herdr",
@@ -240,6 +307,38 @@ mod tests {
             agent_argv_from_command_line("claude {path}"),
             vec!["claude", "{path}"]
         );
+    }
+
+    #[test]
+    fn parses_opencode_models_output() {
+        let stdout = "\
+anthropic/claude-sonnet-4-5
+opencode-go/glm-5.2
+
+checking models...
+opencode-go/kimi-k2.7-code
+";
+        assert_eq!(
+            parse_opencode_models(stdout),
+            vec![
+                "anthropic/claude-sonnet-4-5",
+                "opencode-go/glm-5.2",
+                "opencode-go/kimi-k2.7-code"
+            ]
+        );
+        assert!(parse_opencode_models("").is_empty());
+    }
+
+    #[test]
+    fn model_arg_is_inserted_only_when_set() {
+        assert_eq!(model_arg(""), "");
+        assert_eq!(model_arg("   "), "");
+        assert_eq!(model_arg("opus"), " --model opus");
+        assert_eq!(
+            model_arg("anthropic/claude-sonnet-4-5"),
+            " --model anthropic/claude-sonnet-4-5"
+        );
+        assert_eq!(model_arg("my model"), " --model \"my model\"");
     }
 
     #[test]

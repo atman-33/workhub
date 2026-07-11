@@ -226,6 +226,42 @@ export const ProjectRow = memo(function ProjectRow({
         {project.last_opened ? timeAgo(project.last_opened) : ""}
       </span>
 
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-7 opacity-60 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction({ kind: "terminal" });
+            }}
+          >
+            <SquareTerminal className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Open terminal</TooltipContent>
+      </Tooltip>
+
+      {info?.is_repo && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7 opacity-60 group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction({ kind: "graph" });
+              }}
+            >
+              <GitCommitHorizontal className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Commit graph</TooltipContent>
+        </Tooltip>
+      )}
+
       <Button
         size="sm"
         variant="secondary"

@@ -27,7 +27,7 @@ argument-hint: "<target-path>"
      target (create the key if missing, preserving all other content).
    - Otherwise tell the user to set the vault path in the workhub app's
      settings (or export `WORKHUB_VAULT`).
-6. **Explain the agent-harness setup** baked into the copied `.claude/`:
+6. **Explain the vault harness setup** baked into the copied `.claude/`:
     - `settings.json` declares the `workhub-marketplace` (GitHub
       `atman-33/workhub`) via `extraKnownMarketplaces` and enables the
       required project-scope plugins (`workhub`, `engineering`). On the first

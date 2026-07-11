@@ -1,4 +1,4 @@
-use crate::models::{Config, GitInfo, GitLog, GraphOp, Task};
+use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
@@ -59,6 +59,29 @@ pub async fn git_graph_op(path: String, op: GraphOp) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// List the files changed by a commit (or the uncommitted worktree).
+#[tauri::command]
+pub async fn git_commit_files(path: String, hash: String) -> Result<Vec<CommitFileChange>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::commit_files(&path, &hash))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Unified diff of a single file within a commit (or the worktree).
+#[tauri::command]
+pub async fn git_commit_file_diff(
+    path: String,
+    hash: String,
+    file: String,
+    old_file: Option<String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git::commit_file_diff(&path, &hash, &file, old_file.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn git_remote_url(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || git::remote_url(&path))
@@ -79,6 +102,15 @@ pub fn open_terminal(template: String, path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn launch_agent(template: String, path: String) -> Result<(), String> {
     actions::launch_agent(&template, &path)
+}
+
+/// Models available to the opencode CLI (`opencode models`), as
+/// `provider/model` ids for the task dialog's suggestions.
+#[tauri::command]
+pub async fn opencode_models() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(actions::opencode_models)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -237,6 +269,7 @@ pub fn launch_agent_for_task(
     task_title: String,
     task_file: String,
     project: String,
+    model: String,
     vault_path: String,
     use_herdr: bool,
     herdr_cmd: String,
@@ -247,6 +280,7 @@ pub fn launch_agent_for_task(
         task_title: &task_title,
         task_file: &task_file,
         project: &project,
+        model: &model,
         vault_path: &vault_path,
         use_herdr,
         herdr_cmd: &herdr_cmd,

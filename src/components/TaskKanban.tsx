@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { dueTone } from "@/lib/taskDue";
 import { cn } from "@/lib/utils";
 import type { Task, TaskStatus, UpdateTaskInput } from "@/types";
 
@@ -199,7 +200,23 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, on
                     <span>{task.id}</span>
                     {task.project && <span>· {task.project}</span>}
                     <span>· {task.assignee}</span>
+                    {task.due && (
+                      <span className={dueTone(task.due, task.status)}>· {task.due}</span>
+                    )}
                   </div>
+                  {task.tags.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {task.tags.map((t) => (
+                        <Badge
+                          key={t}
+                          variant="secondary"
+                          className="h-4 px-1 text-[10px] text-primary/90"
+                        >
+                          #{t}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   {(task.assignee === "claude-code" || task.assignee === "opencode") && (
                     <div className="pt-1" onClick={(e) => e.stopPropagation()}>
                       <Button
