@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 (2026-07-11)
+
+- Task AI sessions now always start in the vault (the agent-harness home)
+  instead of the task's repository; the `task-start` skill resolves the
+  target repository via the vault's `.claude/project-context.json`. The
+  hardcoded `C:/repos/<name>` project-path convention is removed.
+- Registered projects are synced into the vault's
+  `.claude/project-context.json` on every config save and on vault init
+  (merge-safe: hand-edited fields and manually registered entries are
+  preserved).
+- Vault init skips dev artifacts in the template working copy
+  (`node_modules/`, `.claude-plugin-sync-manifest.json`).
+
 ## 0.2.5 (2026-07-11)
 
 - Move the configured vault path indicator from the Tasks toolbar to the top

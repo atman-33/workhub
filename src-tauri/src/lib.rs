@@ -1,6 +1,7 @@
 mod actions;
 mod commands;
 mod git;
+mod harness;
 mod models;
 mod music;
 mod storage;

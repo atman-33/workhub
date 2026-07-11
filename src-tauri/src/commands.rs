@@ -1,7 +1,7 @@
 use crate::models::{Config, GitInfo, GitLog, GraphOp, Task};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
-use crate::{actions, git, storage, update};
+use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -13,6 +13,13 @@ pub fn get_config() -> Config {
 #[tauri::command]
 pub fn save_config(config: Config) {
     storage::save(&config);
+    // Best-effort: keep the vault's .claude/project-context.json aligned with
+    // the registered projects so agent sessions see them (harness contract).
+    if let Some(vault) = config.settings.vault_path.as_deref() {
+        if !vault.trim().is_empty() {
+            let _ = harness::sync_project_context(std::path::Path::new(vault), &config.projects);
+        }
+    }
 }
 
 #[tauri::command]
@@ -161,7 +168,13 @@ pub async fn update_task(vault_path: String, input: UpdateTaskInput) -> Result<T
 #[tauri::command]
 pub async fn init_vault(vault_path: String, template_source: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::init_vault(&PathBuf::from(vault_path), &PathBuf::from(template_source))
+        let vault = PathBuf::from(vault_path);
+        tasks::init_vault(&vault, &PathBuf::from(template_source))?;
+        // Seed the harness config with the currently registered projects
+        // (best-effort — a fresh vault already has the template default).
+        let config = storage::load();
+        let _ = harness::sync_project_context(&vault, &config.projects);
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
