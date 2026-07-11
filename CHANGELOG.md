@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5 (2026-07-11)
+
+- Move the configured vault path indicator from the Tasks toolbar to the top
+  app bar so it is visible from every tab.
+
 ## 0.2.4 (2026-07-11)
 
 - Fix task description not appearing after creation: align the Rust task

@@ -303,13 +303,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           </SelectContent>
         </Select>
 
-        <span
-          className="ml-auto max-w-64 shrink-0 truncate font-mono text-[11px] text-muted-foreground"
-          title={vaultPath}
-        >
-          {vaultPath}
-        </span>
-        <div className="flex shrink-0 items-center overflow-hidden rounded-md border">
+        <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
           <button
             className={cn(
               "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",

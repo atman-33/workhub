@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitBranch, ListTodo, Music, Settings as SettingsIcon } from "lucide-react";
+import { FolderOpen, GitBranch, ListTodo, Music, Settings as SettingsIcon } from "lucide-react";
 import { MusicView } from "@/components/music/MusicView";
 import { ReposView } from "@/components/ReposView";
 import { SettingsDialog } from "@/components/SettingsDialog";
@@ -70,7 +70,16 @@ export default function App() {
               {label}
             </button>
           ))}
-          <span className="ml-auto text-[11px] text-muted-foreground">v{version}</span>
+          {settings?.vault_path && (
+            <span
+              className="ml-auto flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground"
+              title={settings.vault_path}
+            >
+              <FolderOpen className="size-3 shrink-0" />
+              {settings.vault_path}
+            </span>
+          )}
+          <span className="text-[11px] text-muted-foreground">v{version}</span>
           <Button
             size="icon"
             variant="ghost"
