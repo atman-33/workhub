@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 (2026-07-12)
+
+- Tasks gain an optional `model` frontmatter field, editable in the task
+  dialog. When set, AI agent launches for the task pass `--model <model>` to
+  the agent CLI (works for both Claude Code and OpenCode); when empty the
+  agent's own default model is used. Files without the field are unchanged.
+
 ## 0.7.0 (2026-07-12)
 
 - Selecting a commit in the commit graph now opens a diff panel showing the

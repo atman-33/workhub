@@ -96,6 +96,8 @@ export interface Task {
   assignee: TaskAssignee;
   project: string;
   priority: TaskPriority;
+  /** AI model passed as `--model` on task launches; empty = agent default. */
+  model: string;
   /** Manual sort position within a status column; null when never reordered. */
   order: number | null;
   due: string;
@@ -114,6 +116,7 @@ export interface CreateTaskInput {
   assignee?: TaskAssignee;
   project?: string;
   priority?: TaskPriority;
+  model?: string;
   due?: string;
   tags?: string[];
   body?: string;
@@ -126,6 +129,7 @@ export interface UpdateTaskInput {
   assignee?: TaskAssignee;
   project?: string;
   priority?: TaskPriority;
+  model?: string;
   order?: number;
   due?: string;
   tags?: string[];

@@ -25,6 +25,7 @@ export interface TaskDraft {
   assignee: TaskAssignee;
   project: string;
   priority: TaskPriority;
+  model: string;
   due: string;
   tags: string; // comma-separated for editing
   content: string;
@@ -36,6 +37,7 @@ const EMPTY_DRAFT: TaskDraft = {
   assignee: "me",
   project: "",
   priority: "medium",
+  model: "",
   due: "",
   tags: "",
   content: "",
@@ -48,6 +50,7 @@ function draftFromTask(task: Task): TaskDraft {
     assignee: task.assignee,
     project: task.project,
     priority: task.priority,
+    model: task.model,
     due: task.due,
     tags: task.tags.join(", "),
     content: parseBody(task.body).content,
@@ -181,15 +184,35 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
               <option key={p} value={p} />
             ))}
           </datalist>
-          {field(
-            "Tags (comma separated)",
-            <Input
-              value={draft.tags}
-              onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
-              className="h-8 text-xs"
-              placeholder="feature, bug"
-            />,
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            {field(
+              "Tags (comma separated)",
+              <Input
+                value={draft.tags}
+                onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+                className="h-8 text-xs"
+                placeholder="feature, bug"
+              />,
+            )}
+            {field(
+              "Model (AI launches)",
+              <Input
+                list="task-known-models"
+                value={draft.model}
+                onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                className="h-8 text-xs"
+                placeholder="agent default"
+              />,
+            )}
+          </div>
+          <datalist id="task-known-models">
+            {(draft.assignee === "opencode"
+              ? ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5"]
+              : ["opus", "sonnet", "haiku"]
+            ).map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           {field(
             "Description",
             <Textarea

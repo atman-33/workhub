@@ -170,14 +170,21 @@ fn render_frontmatter(t: &Task) -> String {
     // Emitted only when set, like `order`, so files never archived stay
     // byte-identical on round-trip.
     let archived_line = if t.archived { "archived: true\n" } else { "" };
+    // Same policy: only tasks that specify a model carry the line.
+    let model_line = if t.model.is_empty() {
+        String::new()
+    } else {
+        format!("model: {}\n", yaml_scalar(&t.model))
+    };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}due: {}\ntags: {}\n{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
         t.assignee,
         yaml_scalar(&t.project),
         t.priority,
+        model_line,
         order_line,
         t.due,
         render_tags(&t.tags),
@@ -220,6 +227,7 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
                 v
             }
         },
+        model: get("model"),
         order: raw.map.get("order").and_then(|v| v.parse::<f64>().ok()),
         due: get("due"),
         tags: raw.tags,
@@ -336,6 +344,7 @@ pub struct CreateTaskInput {
     pub assignee: Option<String>,
     pub project: Option<String>,
     pub priority: Option<String>,
+    pub model: Option<String>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
@@ -360,6 +369,7 @@ pub struct UpdateTaskInput {
     pub assignee: Option<String>,
     pub project: Option<String>,
     pub priority: Option<String>,
+    pub model: Option<String>,
     pub order: Option<f64>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
@@ -384,6 +394,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         assignee: input.assignee.unwrap_or_else(|| "me".into()),
         project: input.project.unwrap_or_default(),
         priority: input.priority.unwrap_or_else(|| "medium".into()),
+        model: input.model.unwrap_or_default(),
         order: Some(order),
         due: input.due.unwrap_or_default(),
         tags: input.tags.unwrap_or_default(),
@@ -433,6 +444,9 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     if let Some(v) = input.priority {
         task.priority = v;
     }
+    if let Some(v) = input.model {
+        task.model = v;
+    }
     if let Some(v) = input.order {
         task.order = Some(v);
     }
@@ -481,6 +495,7 @@ struct IndexEntry<'a> {
     assignee: &'a str,
     project: &'a str,
     priority: &'a str,
+    model: &'a str,
     order: Option<f64>,
     due: &'a str,
     tags: &'a [String],
@@ -502,6 +517,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             assignee: &t.assignee,
             project: &t.project,
             priority: &t.priority,
+            model: &t.model,
             order: t.order,
             due: &t.due,
             tags: &t.tags,
@@ -796,6 +812,7 @@ mod tests {
                     assignee: "me".into(),
                     project: String::new(),
                     priority: "medium".into(),
+                    model: String::new(),
                     order: None,
                     due: String::new(),
                     tags: vec![],
@@ -953,6 +970,62 @@ mod tests {
         assert!(!unarchived.archived);
         let raw = fs::read_to_string(&task.file).unwrap();
         assert!(!raw.contains("archived:"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn model_round_trips_and_is_omitted_when_empty() {
+        let vault = temp_vault("model");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "model task".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Tasks without a model carry no `model:` line at all.
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("model:"), "raw frontmatter: {raw}");
+
+        let with_model = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                model: Some("anthropic/claude-sonnet-4-5".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(with_model.model, "anthropic/claude-sonnet-4-5");
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(
+            raw.contains("model: anthropic/claude-sonnet-4-5\n"),
+            "raw frontmatter: {raw}"
+        );
+
+        // Re-scan sees the field; index carries it too.
+        let scanned = scan_tasks(&vault).unwrap();
+        assert_eq!(scanned[0].model, "anthropic/claude-sonnet-4-5");
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index[0]["model"], "anthropic/claude-sonnet-4-5");
+
+        // Clearing the model removes the line again.
+        let cleared = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                model: Some(String::new()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(cleared.model.is_empty());
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("model:"), "raw frontmatter: {raw}");
 
         fs::remove_dir_all(&vault).ok();
     }

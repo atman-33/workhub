@@ -99,6 +99,11 @@ pub struct Task {
     pub project: String,
     /// low | medium | high
     pub priority: String,
+    /// AI model passed to the agent CLI via `--model` on task launches
+    /// (e.g. "opus", "sonnet", "anthropic/claude-sonnet-4-5"); empty = the
+    /// agent's own default.
+    #[serde(default)]
+    pub model: String,
     /// Manual sort position within a status column (kanban). Fractional so a
     /// single reorder only rewrites the moved task's file; unset on tasks
     /// that were never manually ordered (they sort after ordered ones, by id).

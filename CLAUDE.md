@@ -51,7 +51,7 @@ Task data lives as Markdown + YAML frontmatter in a dedicated Obsidian vault
 The app must:
 
 - treat frontmatter as the schema (`id`, `title`, `status`, `assignee`,
-  `project`, `priority`, `due`, `tags`, `created`, `updated`);
+  `project`, `priority`, `model`, `due`, `tags`, `created`, `updated`);
 - rewrite only the frontmatter keys it manages and **preserve the body** of
   task files (human/AI-written prose);
 - pick up external edits (Obsidian, AI agents) via file watching;
