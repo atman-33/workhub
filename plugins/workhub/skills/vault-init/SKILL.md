@@ -28,16 +28,20 @@ argument-hint: "<target-path>"
    - Otherwise tell the user to set the vault path in the workhub app's
      settings (or export `WORKHUB_VAULT`).
 6. **Explain the agent-harness setup** baked into the copied `.claude/`:
-   - `settings.json` declares the `workhub-marketplace` (GitHub
-     `atman-33/workhub`) via `extraKnownMarketplaces` and enables the
-     required project-scope plugins (`workhub`, `engineering`). On the first
-     Claude Code launch inside the vault the user just accepts the
-     marketplace/plugin trust prompt — no manual install commands needed.
-   - Recommend installing the user-scope plugin once per machine:
-     `claude plugin install productivity@workhub-marketplace`.
-   - Tell the user to register target repositories in
-     `.claude/project-context.json` (`projects[]` entries with
-     `name`/`path`, optional `summary`/`postToolFormatCommands`).
+    - `settings.json` declares the `workhub-marketplace` (GitHub
+      `atman-33/workhub`) via `extraKnownMarketplaces` and enables the
+      required project-scope plugins (`workhub`, `engineering`). On the first
+      Claude Code launch inside the vault the user just accepts the
+      marketplace/plugin trust prompt — no manual install commands needed.
+    - Recommend installing the user-scope plugin once per machine:
+      `claude plugin install productivity@workhub-marketplace`.
+    - Tell the user to register target repositories in
+      `.claude/project-context.json` (`projects[]` entries with
+      `name`/`path`, optional `summary`/`postToolFormatCommands`).
+    - Mention that the workhub app launches AI tasks in a fresh herdr
+      workspace by default; if they use herdr, run `setup-herdr` from the
+      `productivity` plugin to install it and wire up the Claude Code /
+      OpenCode integrations.
 7. **Suggest next steps**: open the folder as a vault in Obsidian, then
    create a first task in the workhub app or via `templates/task.md`, and
    start AI agent sessions with the vault as the working directory. For

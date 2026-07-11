@@ -79,6 +79,14 @@ knowledge, and configuration — never application code.
 - Respond to the user in Japanese. Write documents and repository artifacts
   in English unless the user explicitly requests otherwise.
 
+### herdr workspace integration
+
+The workhub app can launch each AI task in a fresh [herdr](https://herdr.dev)
+workspace. This is enabled by default in the app settings. To use it, install
+herdr and its Claude Code / OpenCode integrations by running the
+`setup-herdr` skill from the `productivity` plugin. If herdr is not installed,
+the app automatically falls back to the configured terminal command.
+
 ### Capturing knowledge
 
 When investigation or implementation yields reusable knowledge that is

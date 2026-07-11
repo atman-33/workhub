@@ -35,6 +35,12 @@ pub struct Settings {
     pub agent_cmd: String,
     #[serde(default = "default_opencode_cmd")]
     pub opencode_cmd: String,
+    /// Launch AI agents in a fresh herdr workspace instead of a plain terminal.
+    #[serde(default = "default_true")]
+    pub use_herdr: bool,
+    /// Path or command name for the herdr CLI.
+    #[serde(default = "default_herdr_cmd")]
+    pub herdr_cmd: String,
     /// Check GitHub Releases for a newer version on startup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
@@ -60,6 +66,9 @@ fn default_agent_cmd() -> String {
 fn default_opencode_cmd() -> String {
     "wt -d {path} pwsh -NoExit -Command opencode".into()
 }
+fn default_herdr_cmd() -> String {
+    "herdr".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -68,6 +77,8 @@ impl Default for Settings {
             terminal_cmd: default_terminal_cmd(),
             agent_cmd: default_agent_cmd(),
             opencode_cmd: default_opencode_cmd(),
+            use_herdr: true,
+            herdr_cmd: default_herdr_cmd(),
             check_updates: true,
             vault_path: None,
         }

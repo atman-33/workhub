@@ -2,6 +2,7 @@ mod actions;
 mod commands;
 mod git;
 mod harness;
+mod herdr;
 mod models;
 mod music;
 mod storage;

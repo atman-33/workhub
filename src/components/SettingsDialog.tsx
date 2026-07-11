@@ -19,6 +19,8 @@ const DEFAULTS: Settings = {
   terminal_cmd: "wt -d {path}",
   agent_cmd: "wt -d {path} pwsh -NoExit -Command claude",
   opencode_cmd: "wt -d {path} pwsh -NoExit -Command opencode",
+  use_herdr: true,
+  herdr_cmd: "herdr",
   check_updates: true,
   vault_path: null,
 };
@@ -37,7 +39,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     if (open) setDraft(settings);
   }, [open, settings]);
 
-  const field = (label: string, key: "vscode_cmd" | "terminal_cmd" | "agent_cmd" | "opencode_cmd") => (
+  const field = (label: string, key: "vscode_cmd" | "terminal_cmd" | "agent_cmd" | "opencode_cmd" | "herdr_cmd") => (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       <Input
@@ -63,6 +65,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           {field("Terminal command", "terminal_cmd")}
           {field("Claude Code command", "agent_cmd")}
           {field("OpenCode command", "opencode_cmd")}
+          <label className="flex items-center gap-2 pt-1 text-sm">
+            <Checkbox
+              checked={draft.use_herdr}
+              onCheckedChange={(v) => setDraft({ ...draft, use_herdr: v === true })}
+            />
+            Open AI tasks in a fresh herdr workspace
+          </label>
+          {draft.use_herdr && field("herdr command", "herdr_cmd")}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Tasks vault path</label>
             <div className="flex gap-1.5">

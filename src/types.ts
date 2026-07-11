@@ -17,6 +17,8 @@ export interface Settings {
   terminal_cmd: string;
   agent_cmd: string;
   opencode_cmd: string;
+  use_herdr: boolean;
+  herdr_cmd: string;
   check_updates: boolean;
   vault_path: string | null;
 }
