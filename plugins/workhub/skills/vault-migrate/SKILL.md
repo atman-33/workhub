@@ -76,7 +76,7 @@ table. Do not copy anything before approval.
 Run the bundled checker:
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/skills/vault-migrate/scripts/verify.py" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/vault-migrate/scripts/verify.mjs" \
   --mapping mapping.json <source-vault> <dest-vault>
 ```
 

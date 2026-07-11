@@ -20,6 +20,11 @@ paths:
   scope + placement rationale). Follow the scope policy there — vault or
   project-context dependent → project scope; personal/machine tool →
   `productivity` (user scope).
+- **Plugin scripts are Node ESM (`.mjs`), run with `node`** — never Python,
+  bash, or PowerShell. Node is the only runtime the plugin ecosystem already
+  guarantees (all hooks are `.mjs`); other runtimes reintroduce per-machine
+  environment dependencies. This covers hooks and any `scripts/` shipped
+  inside a skill.
 - Skills live only in plugins, never in `vault-template/`. The exception is
   `.claude/rules` / `.claude/rules-ex` content, which plugins cannot ship —
   those seeds belong in `vault-template/.claude/`.
