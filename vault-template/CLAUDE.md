@@ -1,11 +1,11 @@
-<!-- workhub-template: version=1 -->
+<!-- workhub-template: version=2 -->
 
 # workhub vault
 
-This Obsidian vault is the data store of the workhub app. It is the single
-source of truth for tasks and knowledge shared between humans and AI agents.
-The workhub desktop app, Obsidian, humans, and AI agents all read and write
-the same files.
+This Obsidian vault is the data store of the workhub app and the owner's
+personal knowledge base. It is the single source of truth for tasks and
+knowledge shared between humans and AI agents. The workhub desktop app,
+Obsidian, humans, and AI agents all read and write the same files.
 
 ## Structure
 
@@ -13,12 +13,24 @@ the same files.
 |--------|------|----------|
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes and task deliverables |
-| `knowledge/` | human + AI | shared knowledge (research results, collected info) |
-| `templates/` | human | note templates (`task.md`) |
-| `_ai/` | **AI only** | `index/` machine-readable indexes, `logs/` raw agent reports, `memory/` agent working memory |
+| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
+| `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
+| `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
+| `archive/` | human + AI | completed or inactive material |
+| `templates/` | human | note templates (`task.md`, `_index.md.template`) |
+| `_ai/` | **AI only** | `index/` machine-readable indexes, `logs/` raw agent reports + KB activity log, `memory/` agent working memory |
 | `attachments/` | human + AI | images and other binary assets |
 
-English folder names are lowercase kebab-case.
+English folder names are lowercase kebab-case. Topic folders under
+`knowledge/` follow the same convention (e.g. `knowledge/infra/`).
+
+## Knowledge workflow
+
+Humans drop raw notes into `inbox/`; `/kb-ingest` classifies them into
+`projects/` / `knowledge/` / `archive/`, proposes tasks for actionable items,
+and maintains the zone `_index.md` files. `/kb-query` searches and
+synthesizes, `/kb-lint` health-checks, `/kb-index` repairs indexes. The KB
+activity log is `_ai/logs/kb-log.md`.
 
 ## Task schema
 
@@ -53,9 +65,9 @@ knowledge, and configuration — never application code.
 - Skills, hooks, and agents come from Claude Code plugins.
   `.claude/settings.json` declares the `workhub-marketplace` (the workhub
   GitHub repo) and enables the required project-scope plugins (`workhub`,
-  `engineering`). Toggle optional plugins (`scrum`, `obsidian`, `stack-*`)
-  there or with `/plugin`. See `docs/plugins.md` in the workhub repo for the
-  catalog and scope policy.
+  `engineering`) plus `obsidian` (generic Obsidian format helpers). Toggle
+  optional plugins (`scrum`, `stack-*`) there or with `/plugin`. See
+  `docs/plugins.md` in the workhub repo for the catalog and scope policy.
 - **Never author skills inside this vault.** New skills belong in the
   workhub repo's `plugins/`; personal/machine tools go to the user-scope
   `productivity` plugin.

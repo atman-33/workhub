@@ -58,8 +58,8 @@ The app must:
 - English folder names in the vault are lowercase kebab-case (`tasks/`,
   `knowledge/`, `_ai/`).
 
-Design docs live in the owner's notes vault:
-`C:/obsidian/my-notes/Inbox/Projects/workhub/`.
+Design docs live in the owner's vault:
+`C:/obsidian/workhub-vault/projects/workhub/`.
 
 ## Plugin marketplace: the repo is the plugin source
 

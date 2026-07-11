@@ -1,7 +1,7 @@
 // PreToolUse (Write) hook: overwriting an EXISTING note in the vault's human
-// zone (tasks/, projects/, knowledge/) with a full-file Write is destructive
-// to hand-written content — ask the user first. New files, edits, and
-// anything under _ai/ pass through untouched.
+// zone (tasks/, projects/, knowledge/, inbox/, journal/, archive/) with a
+// full-file Write is destructive to hand-written content — ask the user
+// first. New files, edits, and anything under _ai/ pass through untouched.
 import { existsSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import { resolveVault, readPayload } from "./lib.mjs";
@@ -18,7 +18,14 @@ const root = resolve(vault);
 if (!target.toLowerCase().startsWith(root.toLowerCase() + sep)) process.exit(0);
 
 const rel = target.slice(root.length + 1).replaceAll("\\", "/");
-const humanZones = ["tasks/", "projects/", "knowledge/"];
+const humanZones = [
+  "tasks/",
+  "projects/",
+  "knowledge/",
+  "inbox/",
+  "journal/",
+  "archive/",
+];
 if (!humanZones.some((z) => rel.toLowerCase().startsWith(z))) process.exit(0);
 if (!existsSync(target)) process.exit(0);
 

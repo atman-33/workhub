@@ -9,8 +9,8 @@
     {
       "name": "workhub",
       "source": "./plugins/workhub",
-      "description": "Task-board skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init).",
-      "version": "0.2.0",
+      "description": "Task-board and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init, kb-ingest, kb-query, kb-lint, kb-index).",
+      "version": "0.3.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -29,8 +29,8 @@
     {
       "name": "productivity",
       "source": "./plugins/productivity",
-      "description": "Productivity helpers for administrative and daily tasks.",
-      "version": "0.18.0",
+      "description": "Productivity helpers for administrative and daily tasks, including Zenn blog writing.",
+      "version": "0.19.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -49,8 +49,8 @@
     {
       "name": "obsidian",
       "source": "./plugins/obsidian",
-      "description": "Helpers for working with Obsidian notes and knowledge management.",
-      "version": "0.2.0",
+      "description": "Generic Obsidian format helpers: Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, and Defuddle web clipping.",
+      "version": "0.3.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

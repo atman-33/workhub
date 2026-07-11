@@ -1,0 +1,13 @@
+---
+title: {{CATEGORY}} index
+updated: {{DATE}}
+type: index
+tags:
+  - index
+---
+
+# {{CATEGORY}} index
+
+{{SUMMARY_LINE}}
+
+{{ENTRIES}}
