@@ -100,6 +100,7 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   due?: string;
   tags?: string[];
+  body?: string;
 }
 
 export interface UpdateTaskInput {

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
-import { buildBody, parseBody } from "@/lib/taskBody";
+import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/taskBody";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
 
@@ -191,7 +191,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
           });
         } else {
-          const created = await api.createTask(vaultPath, {
+          const body = draft.content.trim()
+            ? buildBody(parseBody(DEFAULT_BODY), draft.content)
+            : undefined;
+          await api.createTask(vaultPath, {
             title: draft.title,
             status: draft.status,
             assignee: draft.assignee,
@@ -199,14 +202,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             priority: draft.priority,
             due: draft.due,
             tags,
+            body,
           });
-          if (draft.content.trim()) {
-            const parsed = parseBody(created.body);
-            await api.updateTask(vaultPath, {
-              id: created.id,
-              body: buildBody(parsed, draft.content),
-            });
-          }
         }
         refreshTasks(vaultPath);
       } catch (e) {

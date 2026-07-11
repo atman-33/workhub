@@ -7,6 +7,9 @@
 const CONTENT_HEADER = "## Description";
 const RESULT_HEADER = "## Results";
 
+/** Default empty task body matching vault-template/templates/task.md. */
+export const DEFAULT_BODY = "\n## Description\n\n## Results\n";
+
 export interface ParsedBody {
   /** Everything before the content header, verbatim (usually a blank line). */
   before: string;

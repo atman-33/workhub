@@ -329,6 +329,7 @@ pub struct CreateTaskInput {
     pub priority: Option<String>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub body: Option<String>,
 }
 
 /// Next `order` value for a task appended to the end of a status column.
@@ -379,7 +380,9 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
-        body: "\n## 内容\n\n## 結果\n".to_string(),
+        body: input
+            .body
+            .unwrap_or_else(|| "\n## Description\n\n## Results\n".to_string()),
     };
     write_task_file(&task)?;
     regenerate_index(vault)?;
@@ -620,7 +623,7 @@ mod tests {
 
         // Simulate a human/AI hand-editing the body after creation.
         let hand_written_body =
-            "\n## 内容\n\nSome hand-written prose.\nLine two.\n\n## 結果\n\n- [[some note]]\n";
+            "\n## Description\n\nSome hand-written prose.\nLine two.\n\n## Results\n\n- [[some note]]\n";
         let content_before = format!("{}{}", render_frontmatter(&task), hand_written_body);
         fs::write(&task.file, &content_before).unwrap();
 
@@ -673,7 +676,7 @@ mod tests {
         fs::write(
             &t3_path,
             format!(
-                "{}\n## 内容\n\n## 結果\n",
+                "{}\n## Description\n\n## Results\n",
                 render_frontmatter(&Task {
                     id: "T-0099".into(),
                     title: "injected".into(),
