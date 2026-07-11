@@ -248,7 +248,7 @@ export function parseUserScopePluginList(output) {
   const warnings = [];
   let current = null;
   for (const line of lines) {
-    const pluginMatch = line.match(/^\s*❯\s+([^@\s]+)@([^\s]+)\s*$/u);
+    const pluginMatch = line.match(/^\s*[❯>]\s+([^@\s]+)@([^\s]+)\s*$/u);
     if (pluginMatch) {
       if (current) plugins.push(current);
       current = {
