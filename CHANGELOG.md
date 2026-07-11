@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 (2026-07-11)
+
+- Bundle the previously externally-installed recommended skills directly in the
+  workhub marketplace. `productivity` now ships `grilling`, `handoff`, and
+  `writing-great-skills`; `engineering` already contained its recommended set,
+  so its `install-recommended-skills` wrapper is removed. Both plugins' own
+  `install-recommended-skills` skills are deleted, removing the dependency on
+  the upstream `mattpocock/skills` repository remaining available.
+
 ## 0.5.0 (2026-07-11)
 
 - AI task launches can now open a fresh herdr workspace instead of a plain

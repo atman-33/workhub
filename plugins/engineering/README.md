@@ -13,17 +13,15 @@ Engineering utilities and helpers for software development tasks.
 - `create-adr` — record an architecture decision as a numbered ADR in the target repo's `docs/adr/` (context, decision, alternatives, consequences).
 - `investigate-bug-report` — diagnose a reported bug to its root cause with evidence (reproduce/trace, blast radius, fix candidates) without changing code.
 - `develop-small-feature` — implement a small, well-scoped feature/fix end-to-end (branch → TDD → static checks → user verification → commit → PR).
-- `install-recommended-skills` — install the mattpocock/skills engineering set.
 - `setup-openspec` — install the OpenSpec CLI and run `openspec init --tools claude`.
 - `setup-project-context` — scaffold or show `.claude/project-context.json` (see below).
 - `set-openspec-path` — switch `openspecPath` by picking a registered project from a menu (see below).
 - `setup-all` — run all of the setup skills above in sequence.
 - `setup-rules-ex` — scaffold the `rules-ex` extended-rules infrastructure (see below).
 
-`develop-small-feature`, `install-recommended-skills`, `setup-openspec`,
-`setup-project-context`, `set-openspec-path`, `setup-all`, and `setup-rules-ex`
-are explicit-invocation only (`disable-model-invocation: true`) — type the
-skill name to run them.
+`develop-small-feature`, `setup-openspec`, `setup-project-context`,
+`set-openspec-path`, `setup-all`, and `setup-rules-ex` are explicit-invocation
+only (`disable-model-invocation: true`) — type the skill name to run them.
 
 ### Sub-agents
 
