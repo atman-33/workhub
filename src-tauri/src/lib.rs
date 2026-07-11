@@ -2,6 +2,7 @@ mod actions;
 mod commands;
 mod git;
 mod models;
+mod music;
 mod storage;
 mod tasks;
 mod update;
@@ -46,6 +47,9 @@ pub fn run() {
             commands::init_vault,
             commands::watch_vault,
             commands::launch_agent_for_task,
+            commands::load_music_data,
+            commands::save_music_data,
+            commands::fetch_youtube_title,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

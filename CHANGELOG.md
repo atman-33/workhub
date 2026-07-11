@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-07-11)
+
+- Music player (new Music tab), ported from
+  [tube-loop-player](https://github.com/atman-33/tube-loop-player): add
+  YouTube videos by URL (title fetched via oEmbed), multiple playlists
+  (create/rename/delete/clear, drag & drop reordering), loop all/one and
+  shuffle playback. Playback keeps running while switching tabs.
+- Playlists are persisted in the vault at `_ai/music/playlists.json`
+  (no cloud sync; the vault is the source of truth).
+
 ## 0.1.0 (2026-07-11)
 
 - Initial release, scaffolded from [devdeck](https://github.com/atman-33/devdeck)

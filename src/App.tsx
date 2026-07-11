@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitBranch, ListTodo, Settings as SettingsIcon } from "lucide-react";
+import { GitBranch, ListTodo, Music, Settings as SettingsIcon } from "lucide-react";
+import { MusicView } from "@/components/music/MusicView";
 import { ReposView } from "@/components/ReposView";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { TasksView } from "@/components/TasksView";
@@ -9,11 +10,12 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Settings, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos";
+type Tab = "tasks" | "repos" | "music";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "repos", label: "Repos", icon: GitBranch },
+  { key: "music", label: "Music", icon: Music },
 ];
 
 export default function App() {
@@ -82,6 +84,9 @@ export default function App() {
         </div>
         <div className={cn("h-full", tab !== "repos" && "hidden")}>
           <ReposView configVersion={configVersion} />
+        </div>
+        <div className={cn("h-full", tab !== "music" && "hidden")}>
+          <MusicView configVersion={configVersion} />
         </div>
       </div>
       {settings && (

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { MusicData } from "@/lib/music/types";
 import type {
   Config,
   CreateTaskInput,
@@ -42,6 +43,14 @@ export const api = {
   initVault: (vaultPath: string, templateSource: string) =>
     invoke<void>("init_vault", { vaultPath, templateSource }),
   watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),
+  // ---- music player (vault-backed) ----
+  loadMusicData: (vaultPath: string) =>
+    invoke<MusicData | null>("load_music_data", { vaultPath }),
+  saveMusicData: (vaultPath: string, data: MusicData) =>
+    invoke<void>("save_music_data", { vaultPath, data }),
+  fetchYoutubeTitle: (videoId: string) =>
+    invoke<string>("fetch_youtube_title", { videoId }),
+
   launchAgentForTask: (
     agentCmd: string,
     taskId: string,

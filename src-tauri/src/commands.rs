@@ -1,4 +1,5 @@
 use crate::models::{Config, GitInfo, GitLog, GraphOp, Task};
+use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, storage, update};
 use serde::Serialize;
@@ -167,6 +168,34 @@ pub fn watch_vault(
     vault_path: String,
 ) -> Result<(), String> {
     tasks::start_watcher(app, &state.0, PathBuf::from(vault_path))
+}
+
+// ---------------------------------------------------------------------
+// music player (vault-backed)
+// ---------------------------------------------------------------------
+
+/// Returns None until the first save so the frontend can seed defaults.
+#[tauri::command]
+pub async fn load_music_data(vault_path: String) -> Result<Option<MusicData>, String> {
+    tauri::async_runtime::spawn_blocking(move || music::load(&PathBuf::from(vault_path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn save_music_data(vault_path: String, data: MusicData) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || music::save(&PathBuf::from(vault_path), &data))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// YouTube oEmbed lookup; runs in Rust because the webview blocks the
+/// cross-origin fetch.
+#[tauri::command]
+pub async fn fetch_youtube_title(video_id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || music::fetch_title(&video_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
