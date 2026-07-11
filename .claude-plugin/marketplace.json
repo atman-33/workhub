@@ -10,7 +10,7 @@
       "name": "workhub",
       "source": "./plugins/workhub",
       "description": "Task-board skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init).",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

@@ -43,6 +43,28 @@ updated: 2026-07-10
 Body sections: `## Description` (task description — the prompt context for AI) and
 `## Results` (results, filled on completion, links to deliverable notes).
 
+## Agent harness
+
+This vault is the **default working directory for AI agent sessions**
+(Claude Code / OpenCode). Development work targets external repositories
+registered in `.claude/project-context.json`; the vault itself holds tasks,
+knowledge, and configuration — never application code.
+
+- Skills, hooks, and agents come from Claude Code plugins.
+  `.claude/settings.json` declares the `workhub-marketplace` (the workhub
+  GitHub repo) and enables the required project-scope plugins (`workhub`,
+  `engineering`). Toggle optional plugins (`openspec`, `scrum`, `stack-*`)
+  there or with `/plugin`. See `docs/plugins.md` in the workhub repo for the
+  catalog and scope policy.
+- **Never author skills inside this vault.** New skills belong in the
+  workhub repo's `plugins/`; personal/machine tools go to the user-scope
+  `productivity` plugin.
+- `.opencode/skills/` (when present) is a generated artifact synced from the
+  enabled Claude plugins — edit the plugin source and re-sync, never the
+  copies.
+- Respond to the user in Japanese. Write documents and repository artifacts
+  in English unless the user explicitly requests otherwise.
+
 ## Rules for AI agents
 
 - **Status transitions you may perform:** `todo → doing → review` only.

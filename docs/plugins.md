@@ -51,14 +51,16 @@ the active target repositories.
 
 ## Setup summary
 
-```powershell
-# one-time per machine
-claude plugin marketplace add C:/repos/workhub   # or the GitHub repo URL
-claude plugin install productivity@workhub-marketplace   # user scope
+Per vault: nothing to do. `vault-template/.claude/settings.json` declares the
+marketplace via `extraKnownMarketplaces` (GitHub `atman-33/workhub`) and
+enables the required project-scope plugins (`workhub`, `engineering`) — on the
+first Claude Code launch inside the vault, accept the trust prompt and the
+plugins install themselves. Toggle optional plugins with `/plugin` or by
+editing the vault's settings.
 
-# per vault: nothing to do — vault-template/.claude/settings.json enables the
-# required project-scope plugins (workhub, engineering). Toggle optional ones
-# with /plugin inside a session or by editing the vault's settings.
+```powershell
+# one-time per machine (user scope)
+claude plugin install productivity@workhub-marketplace
 ```
 
 ## OpenCode
