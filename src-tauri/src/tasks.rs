@@ -967,17 +967,15 @@ mod tests {
         fs::write(vault.join("tasks/_index.md"), "# Custom tasks\n").unwrap();
         fs::write(vault.join("knowledge/_index.md"), "# Custom knowledge\n").unwrap();
         init_vault(&vault, &template).unwrap();
-        assert!(fs::read_to_string(vault.join("home.md")).unwrap().contains("# Custom home"));
-        assert!(
-            fs::read_to_string(vault.join("tasks/_index.md"))
-                .unwrap()
-                .contains("# Custom tasks")
-        );
-        assert!(
-            fs::read_to_string(vault.join("knowledge/_index.md"))
-                .unwrap()
-                .contains("# Custom knowledge")
-        );
+        assert!(fs::read_to_string(vault.join("home.md"))
+            .unwrap()
+            .contains("# Custom home"));
+        assert!(fs::read_to_string(vault.join("tasks/_index.md"))
+            .unwrap()
+            .contains("# Custom tasks"));
+        assert!(fs::read_to_string(vault.join("knowledge/_index.md"))
+            .unwrap()
+            .contains("# Custom knowledge"));
 
         fs::remove_dir_all(&vault).ok();
         fs::remove_dir_all(&template).ok();
