@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 (2026-07-11)
+
+- Tasks can now be archived and deleted from a right-click context menu on
+  Kanban cards and list rows. Archiving sets an `archived: true` frontmatter
+  flag (the file stays in `tasks/`); archived tasks are hidden from the board
+  by default and excluded from AI task listings. A new "Archived" toolbar
+  toggle shows them (dimmed, with an `archived` badge) and offers Unarchive.
+- Deleting a task moves its Markdown file to the OS recycle bin (restorable,
+  never a hard delete) after a confirmation dialog, via the new `delete_task`
+  command.
+- The `_ai/index/tasks.json` index now carries the `archived` field; the
+  `task-list` skill excludes archived tasks by default and `task-start`
+  refuses to start them. Existing vaults keep working unchanged — an absent
+  flag means not archived (re-run vault init to refresh the template docs).
+
 ## 0.3.0 (2026-07-11)
 
 - Task AI sessions now always start in the vault (the agent-harness home)
