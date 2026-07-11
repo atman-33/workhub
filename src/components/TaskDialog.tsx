@@ -8,6 +8,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { parseBody } from "@/lib/taskBody";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
@@ -50,9 +57,6 @@ function draftFromTask(task: Task): TaskDraft {
 const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
-
-const selectClass =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 interface Props {
   open: boolean;
@@ -98,45 +102,57 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
           <div className="grid grid-cols-3 gap-3">
             {field(
               "Status",
-              <select
-                className={selectClass}
+              <Select
                 value={draft.status}
-                onChange={(e) => setDraft({ ...draft, status: e.target.value as TaskStatus })}
+                onValueChange={(v) => setDraft({ ...draft, status: v as TaskStatus })}
               >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>,
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>,
             )}
             {field(
               "Assignee",
-              <select
-                className={selectClass}
+              <Select
                 value={draft.assignee}
-                onChange={(e) => setDraft({ ...draft, assignee: e.target.value as TaskAssignee })}
+                onValueChange={(v) => setDraft({ ...draft, assignee: v as TaskAssignee })}
               >
-                {ASSIGNEES.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>,
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSIGNEES.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>,
             )}
             {field(
               "Priority",
-              <select
-                className={selectClass}
+              <Select
                 value={draft.priority}
-                onChange={(e) => setDraft({ ...draft, priority: e.target.value as TaskPriority })}
+                onValueChange={(v) => setDraft({ ...draft, priority: v as TaskPriority })}
               >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>,
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>,
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">

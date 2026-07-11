@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 (2026-07-11)
+
+- Replace native `<select>` elements in the Tasks view and task dialog with
+  shadcn/ui `Select` for consistent theming and better readability.
+
 ## 0.2.2 (2026-07-11)
 
 - Fix `check_vault_path` command argument naming so the frontend's `vaultPath`
