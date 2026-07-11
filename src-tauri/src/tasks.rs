@@ -329,6 +329,7 @@ pub struct CreateTaskInput {
     pub priority: Option<String>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub body: Option<String>,
 }
 
 /// Next `order` value for a task appended to the end of a status column.
@@ -379,7 +380,9 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
-        body: "\n## 内容\n\n## 結果\n".to_string(),
+        body: input
+            .body
+            .unwrap_or_else(|| "\n## Description\n\n## Results\n".to_string()),
     };
     write_task_file(&task)?;
     regenerate_index(vault)?;
@@ -502,9 +505,51 @@ pub fn scan_and_index(vault: &Path) -> Result<Vec<Task>, String> {
 // vault init (copy vault-template/)
 // ---------------------------------------------------------------------
 
-/// Copies `template_source` into `vault_path`, creating directories as
-/// needed. Never overwrites a file that already exists at the destination,
-/// so re-running init on an existing vault is safe.
+const TEMPLATE_MARKER: &str = "workhub-template:";
+const TEMPLATE_VERSION: &str = "version=1";
+
+/// Returns true for files that should be overwritten on init when they still
+/// carry the official template marker. These files define AI behavior or task
+/// schemas and must stay in sync with the app version.
+fn is_template_managed(src_path: &Path, template_root: &Path) -> bool {
+    let Ok(rel) = src_path.strip_prefix(template_root) else {
+        return false;
+    };
+    rel == Path::new("CLAUDE.md") || rel == Path::new("templates/task.md")
+}
+
+/// Returns true for files that should be copied only on first init. User edits
+/// are preserved across re-runs.
+fn is_initial_only(src_path: &Path, template_root: &Path) -> bool {
+    let Ok(rel) = src_path.strip_prefix(template_root) else {
+        return false;
+    };
+    rel == Path::new("home.md")
+        || rel == Path::new("tasks/_index.md")
+        || rel == Path::new("knowledge/_index.md")
+}
+
+/// Checks whether a file still contains the official template marker, meaning
+/// it has not been hand-edited and is safe to overwrite with a newer template.
+fn has_template_marker(content: &str) -> bool {
+    content.lines().any(|line| {
+        let trimmed = line.trim();
+        trimmed.starts_with("<!--")
+            && trimmed.contains(TEMPLATE_MARKER)
+            && trimmed.contains(TEMPLATE_VERSION)
+            && trimmed.ends_with("-->")
+    })
+}
+
+/// Copies `template_source` into `vault_path`, creating directories as needed.
+///
+/// Policy by file type:
+/// - `CLAUDE.md` and `templates/task.md`: overwrite only when the destination
+///   does not exist or still contains the official `workhub-template` marker.
+/// - `home.md`, `tasks/_index.md`, and `knowledge/_index.md`: copy only when the
+///   destination does not exist (first init only).
+/// - `.gitkeep`: create only if missing; content is irrelevant.
+/// - Other files: copy only when the destination does not exist.
 pub fn init_vault(vault: &Path, template_source: &Path) -> Result<(), String> {
     if !template_source.exists() {
         return Err(format!(
@@ -513,18 +558,47 @@ pub fn init_vault(vault: &Path, template_source: &Path) -> Result<(), String> {
         ));
     }
     fs::create_dir_all(vault).map_err(|e| e.to_string())?;
-    copy_dir_non_destructive(template_source, vault)
+    copy_template_dir(template_source, vault, template_source)
 }
 
-fn copy_dir_non_destructive(src: &Path, dst: &Path) -> Result<(), String> {
+fn copy_template_dir(src: &Path, dst: &Path, template_root: &Path) -> Result<(), String> {
     for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
+
         if file_type.is_dir() {
             fs::create_dir_all(&dst_path).map_err(|e| e.to_string())?;
-            copy_dir_non_destructive(&src_path, &dst_path)?;
+            copy_template_dir(&src_path, &dst_path, template_root)?;
+            continue;
+        }
+
+        let name = src_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name == ".gitkeep" {
+            // Ensure the directory exists; the keepfile itself is only a placeholder.
+            if !dst_path.exists() {
+                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
+            }
+            continue;
+        }
+
+        if is_template_managed(&src_path, template_root) {
+            let should_copy = if !dst_path.exists() {
+                true
+            } else {
+                match fs::read_to_string(&dst_path) {
+                    Ok(content) => has_template_marker(&content),
+                    Err(_) => false, // unreadable or binary: leave untouched to be safe
+                }
+            };
+            if should_copy {
+                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
+            }
+        } else if is_initial_only(&src_path, template_root) {
+            if !dst_path.exists() {
+                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
+            }
         } else if !dst_path.exists() {
             fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
         }
@@ -620,7 +694,7 @@ mod tests {
 
         // Simulate a human/AI hand-editing the body after creation.
         let hand_written_body =
-            "\n## 内容\n\nSome hand-written prose.\nLine two.\n\n## 結果\n\n- [[some note]]\n";
+            "\n## Description\n\nSome hand-written prose.\nLine two.\n\n## Results\n\n- [[some note]]\n";
         let content_before = format!("{}{}", render_frontmatter(&task), hand_written_body);
         fs::write(&task.file, &content_before).unwrap();
 
@@ -673,7 +747,7 @@ mod tests {
         fs::write(
             &t3_path,
             format!(
-                "{}\n## 内容\n\n## 結果\n",
+                "{}\n## Description\n\n## Results\n",
                 render_frontmatter(&Task {
                     id: "T-0099".into(),
                     title: "injected".into(),
@@ -786,5 +860,126 @@ mod tests {
         assert_eq!(arr[0]["tags"][0], "feature");
 
         fs::remove_dir_all(&vault).ok();
+    }
+
+    fn temp_template_dir() -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("workhub-template-{nanos}"))
+    }
+
+    fn write_template(template: &Path) {
+        fs::create_dir_all(template.join("tasks")).unwrap();
+        fs::create_dir_all(template.join("knowledge")).unwrap();
+        fs::create_dir_all(template.join("templates")).unwrap();
+        fs::create_dir_all(template.join("projects")).unwrap();
+        fs::create_dir_all(template.join("_ai/index")).unwrap();
+        fs::create_dir_all(template.join("attachments")).unwrap();
+
+        fs::write(
+            template.join("CLAUDE.md"),
+            "<!-- workhub-template: version=1 -->\n# workhub vault\n",
+        )
+        .unwrap();
+        fs::write(
+            template.join("templates/task.md"),
+            "---\nid:\ntitle:\n---\n\n<!-- workhub-template: version=1 -->\n\n## Description\n",
+        )
+        .unwrap();
+        fs::write(template.join("home.md"), "# Home\n").unwrap();
+        fs::write(template.join("tasks/_index.md"), "# Tasks index\n").unwrap();
+        fs::write(template.join("knowledge/_index.md"), "# Knowledge index\n").unwrap();
+        fs::write(template.join("projects/.gitkeep"), "").unwrap();
+        fs::write(template.join("_ai/index/.gitkeep"), "").unwrap();
+    }
+
+    #[test]
+    fn init_vault_copies_all_template_files() {
+        let template = temp_template_dir();
+        write_template(&template);
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let vault = std::env::temp_dir().join(format!("workhub-init-{nanos}"));
+
+        init_vault(&vault, &template).unwrap();
+
+        assert!(vault.join("CLAUDE.md").exists());
+        assert!(vault.join("templates/task.md").exists());
+        assert!(vault.join("home.md").exists());
+        assert!(vault.join("tasks/_index.md").exists());
+        assert!(vault.join("knowledge/_index.md").exists());
+        assert!(vault.join("projects/.gitkeep").exists());
+
+        fs::remove_dir_all(&vault).ok();
+        fs::remove_dir_all(&template).ok();
+    }
+
+    #[test]
+    fn init_vault_overwrites_managed_files_only_when_unedited() {
+        let template = temp_template_dir();
+        write_template(&template);
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let vault = std::env::temp_dir().join(format!("workhub-init-overwrite-{nanos}"));
+
+        init_vault(&vault, &template).unwrap();
+
+        // User edits a managed file.
+        fs::write(vault.join("CLAUDE.md"), "# Custom rules\n").unwrap();
+
+        // The template is updated (marker stays intact, content changes).
+        fs::write(
+            template.join("CLAUDE.md"),
+            "<!-- workhub-template: version=1 -->\n# Updated rules\n",
+        )
+        .unwrap();
+
+        init_vault(&vault, &template).unwrap();
+        let claude = fs::read_to_string(vault.join("CLAUDE.md")).unwrap();
+        assert!(
+            claude.contains("# Custom rules"),
+            "user-edited CLAUDE.md should be preserved"
+        );
+
+        // Unedited managed file is overwritten with the latest template.
+        fs::write(
+            template.join("templates/task.md"),
+            "---\nid:\ntitle:\nnew-field: x\n---\n\n<!-- workhub-template: version=1 -->\n\n## Description\n",
+        )
+        .unwrap();
+        init_vault(&vault, &template).unwrap();
+        let task = fs::read_to_string(vault.join("templates/task.md")).unwrap();
+        assert!(
+            task.contains("new-field: x"),
+            "unedited managed template should be updated"
+        );
+
+        // Initial-only files are never overwritten.
+        fs::write(vault.join("home.md"), "# Custom home\n").unwrap();
+        fs::write(vault.join("tasks/_index.md"), "# Custom tasks\n").unwrap();
+        fs::write(vault.join("knowledge/_index.md"), "# Custom knowledge\n").unwrap();
+        init_vault(&vault, &template).unwrap();
+        assert!(fs::read_to_string(vault.join("home.md")).unwrap().contains("# Custom home"));
+        assert!(
+            fs::read_to_string(vault.join("tasks/_index.md"))
+                .unwrap()
+                .contains("# Custom tasks")
+        );
+        assert!(
+            fs::read_to_string(vault.join("knowledge/_index.md"))
+                .unwrap()
+                .contains("# Custom knowledge")
+        );
+
+        fs::remove_dir_all(&vault).ok();
+        fs::remove_dir_all(&template).ok();
     }
 }

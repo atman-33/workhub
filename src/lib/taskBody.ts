@@ -1,17 +1,21 @@
-// Task file bodies always have a "## 内容" and "## 結果" section (see
+// Task file bodies always have a "## Description" and "## Results" section (see
 // vault-template/templates/task.md). The edit dialog only exposes the
-// "## 内容" text; "## 結果" (and anything before "## 内容") is preserved
-// byte-for-byte so AI/human writeups there are never clobbered by the app.
+// "## Description" text; "## Results" (and anything before "## Description") is
+// preserved byte-for-byte so AI/human writeups there are never clobbered by the
+// app.
 
-const CONTENT_HEADER = "## 内容";
-const RESULT_HEADER = "## 結果";
+const CONTENT_HEADER = "## Description";
+const RESULT_HEADER = "## Results";
+
+/** Default empty task body matching vault-template/templates/task.md. */
+export const DEFAULT_BODY = "\n## Description\n\n## Results\n";
 
 export interface ParsedBody {
-  /** Everything before the "## 内容" header, verbatim (usually a blank line). */
+  /** Everything before the content header, verbatim (usually a blank line). */
   before: string;
-  /** Trimmed text of the "## 内容" section, for editing. */
+  /** Trimmed text of the content section, for editing. */
   content: string;
-  /** The "## 結果" header onward, verbatim — never edited by the dialog. */
+  /** The results header onward, verbatim — never edited by the dialog. */
   resultRaw: string;
   /** Whether both expected headers were found. */
   hasSections: boolean;

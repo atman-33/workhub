@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.5 (2026-07-11)
+
+- Move the configured vault path indicator from the Tasks toolbar to the top
+  app bar so it is visible from every tab.
+
+## 0.2.4 (2026-07-11)
+
+- Fix task description not appearing after creation: align the Rust task
+  creation body with the vault template parser (`## Description / ## Results`)
+  and pass the description body in a single `create_task` call instead of a
+  separate follow-up update.
+
+## 0.2.3 (2026-07-11)
+
+- Replace native `<select>` elements in the Tasks view and task dialog with
+  shadcn/ui `Select` for consistent theming and better readability.
+- Unify Tasks screen labels and vault headers to English for consistent UI
+  copy.
+
 ## 0.2.2 (2026-07-11)
 
 - Fix `check_vault_path` command argument naming so the frontend's `vaultPath`

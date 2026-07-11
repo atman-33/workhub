@@ -6,16 +6,21 @@ import { TaskDialog, type TaskDraft } from "@/components/TaskDialog";
 import { TaskKanban } from "@/components/TaskKanban";
 import { TaskList } from "@/components/TaskList";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
-import { buildBody, parseBody } from "@/lib/taskBody";
+import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/taskBody";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
 
 type ViewMode = "list" | "kanban";
 type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
-
-const selectClass =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
@@ -186,7 +191,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
           });
         } else {
-          const created = await api.createTask(vaultPath, {
+          const body = draft.content.trim()
+            ? buildBody(parseBody(DEFAULT_BODY), draft.content)
+            : undefined;
+          await api.createTask(vaultPath, {
             title: draft.title,
             status: draft.status,
             assignee: draft.assignee,
@@ -194,14 +202,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             priority: draft.priority,
             due: draft.due,
             tags,
+            body,
           });
-          if (draft.content.trim()) {
-            const parsed = parseBody(created.body);
-            await api.updateTask(vaultPath, {
-              id: created.id,
-              body: buildBody(parsed, draft.content),
-            });
-          }
         }
         refreshTasks(vaultPath);
       } catch (e) {
@@ -249,54 +251,59 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         >
           <RefreshCw className="size-3.5" /> Refresh
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
-          {initializing ? "Initializing…" : "初期化"}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
+              {initializing ? "Initializing…" : "Init vault"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Copy the default vault template into the configured vault folder. Existing files are never
+            overwritten.
+          </TooltipContent>
+        </Tooltip>
 
-        <select
-          className={selectClass}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          {(["inbox", "todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          className={selectClass}
-          value={assigneeFilter}
-          onChange={(e) => setAssigneeFilter(e.target.value)}
-        >
-          <option value="">All assignees</option>
-          {(["me", "claude-code", "opencode"] as TaskAssignee[]).map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
-        <select
-          className={selectClass}
-          value={projectFilter}
-          onChange={(e) => setProjectFilter(e.target.value)}
-        >
-          <option value="">All projects</option>
-          {knownProjects.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger size="sm" className="min-w-[7rem]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All statuses</SelectItem>
+            {(["inbox", "todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger size="sm" className="min-w-[7.5rem]">
+            <SelectValue placeholder="All assignees" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All assignees</SelectItem>
+            {(["me", "claude-code", "opencode"] as TaskAssignee[]).map((a) => (
+              <SelectItem key={a} value={a}>
+                {a}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <SelectTrigger size="sm" className="min-w-[7rem]">
+            <SelectValue placeholder="All projects" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All projects</SelectItem>
+            {knownProjects.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <span
-          className="ml-auto max-w-64 shrink-0 truncate font-mono text-[11px] text-muted-foreground"
-          title={vaultPath}
-        >
-          {vaultPath}
-        </span>
-        <div className="flex shrink-0 items-center overflow-hidden rounded-md border">
+        <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
           <button
             className={cn(
               "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",

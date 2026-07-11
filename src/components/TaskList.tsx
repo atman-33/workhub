@@ -56,7 +56,7 @@ export function TaskList({ tasks, onOpen, onLaunchAgent }: Props) {
                 onLaunchAgent(task);
               }}
             >
-              AI で実行
+              Launch agent
             </Button>
           )}
         </div>
