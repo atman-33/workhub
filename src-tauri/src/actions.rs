@@ -178,6 +178,52 @@ fn agent_argv_from_command_line(command_line: &str) -> Vec<String> {
     }
 }
 
+/// List models available to the opencode CLI via `opencode models` — one
+/// `provider/model` id per line. Used to populate the task dialog's model
+/// suggestions for opencode-assigned tasks.
+pub fn opencode_models() -> Result<Vec<String>, String> {
+    // Go through `cmd /C` on Windows: a Node-installed opencode is a .cmd
+    // shim that std::process::Command cannot spawn directly (same reason
+    // `launch()` above wraps command lines in cmd /C).
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg("opencode models");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut cmd = {
+        let mut c = Command::new("opencode");
+        c.arg("models");
+        c
+    };
+    let out = cmd
+        .output()
+        .map_err(|e| format!("failed to run opencode: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let err = err.trim();
+        return Err(if err.is_empty() {
+            "opencode models failed".into()
+        } else {
+            err.to_string()
+        });
+    }
+    Ok(parse_opencode_models(&String::from_utf8_lossy(&out.stdout)))
+}
+
+/// Keep only lines that look like `provider/model` ids, dropping blank lines
+/// and any log/progress noise the CLI may print.
+fn parse_opencode_models(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && l.contains('/') && !l.contains(char::is_whitespace))
+        .map(str::to_string)
+        .collect()
+}
+
 pub fn open_explorer(path: &str) -> Result<(), String> {
     Command::new("explorer")
         .arg(path)
@@ -261,6 +307,26 @@ mod tests {
             agent_argv_from_command_line("claude {path}"),
             vec!["claude", "{path}"]
         );
+    }
+
+    #[test]
+    fn parses_opencode_models_output() {
+        let stdout = "\
+anthropic/claude-sonnet-4-5
+opencode-go/glm-5.2
+
+checking models...
+opencode-go/kimi-k2.7-code
+";
+        assert_eq!(
+            parse_opencode_models(stdout),
+            vec![
+                "anthropic/claude-sonnet-4-5",
+                "opencode-go/glm-5.2",
+                "opencode-go/kimi-k2.7-code"
+            ]
+        );
+        assert!(parse_opencode_models("").is_empty());
     }
 
     #[test]

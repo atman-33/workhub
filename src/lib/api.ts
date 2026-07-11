@@ -33,6 +33,7 @@ export const api = {
     invoke<void>("open_terminal", { template, path }),
   launchAgent: (template: string, path: string) =>
     invoke<void>("launch_agent", { template, path }),
+  opencodeModels: () => invoke<string[]>("opencode_models"),
   openExplorer: (path: string) => invoke<void>("open_explorer", { path }),
   appVersion: () => invoke<string>("app_version"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),

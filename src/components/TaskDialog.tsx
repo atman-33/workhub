@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,6 +62,13 @@ const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 
+const CLAUDE_MODELS = ["haiku", "sonnet", "opus"];
+
+// `opencode models` is a CLI spawn; fetch once per app run and share the
+// result across dialog opens.
+let opencodeModelsCache: string[] | null = null;
+let opencodeModelsErrorCache: string | null = null;
+
 interface Props {
   open: boolean;
   mode: "create" | "edit";
@@ -72,11 +80,39 @@ interface Props {
 
 export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit }: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
+  const [opencodeModels, setOpencodeModels] = useState<string[]>(opencodeModelsCache ?? []);
+  const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
+    opencodeModelsErrorCache,
+  );
 
   useEffect(() => {
     if (!open) return;
     setDraft(task ? draftFromTask(task) : EMPTY_DRAFT);
   }, [open, task]);
+
+  // Lazily fetch the opencode model catalog the first time an opencode task
+  // is edited; later opens reuse the module-level cache.
+  useEffect(() => {
+    if (!open || draft.assignee !== "opencode" || opencodeModelsCache !== null) return;
+    let cancelled = false;
+    void api
+      .opencodeModels()
+      .then((models) => {
+        opencodeModelsCache = models;
+        opencodeModelsErrorCache = null;
+        if (!cancelled) {
+          setOpencodeModels(models);
+          setOpencodeModelsError(null);
+        }
+      })
+      .catch((e) => {
+        opencodeModelsErrorCache = String(e);
+        if (!cancelled) setOpencodeModelsError(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, draft.assignee]);
 
   const field = (label: string, node: ReactNode) => (
     <div className="space-y-1.5">
@@ -196,20 +232,24 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
             )}
             {field(
               "Model (AI launches)",
-              <Input
-                list="task-known-models"
-                value={draft.model}
-                onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="agent default"
-              />,
+              <div className="space-y-1">
+                <Input
+                  list="task-known-models"
+                  value={draft.model}
+                  onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="agent default"
+                />
+                {draft.assignee === "opencode" && opencodeModelsError && (
+                  <p className="text-[10px] text-destructive/80">
+                    opencode model list unavailable — {opencodeModelsError}
+                  </p>
+                )}
+              </div>,
             )}
           </div>
           <datalist id="task-known-models">
-            {(draft.assignee === "opencode"
-              ? ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5"]
-              : ["opus", "sonnet", "haiku"]
-            ).map((m) => (
+            {(draft.assignee === "opencode" ? opencodeModels : CLAUDE_MODELS).map((m) => (
               <option key={m} value={m} />
             ))}
           </datalist>

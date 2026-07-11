@@ -104,6 +104,15 @@ pub fn launch_agent(template: String, path: String) -> Result<(), String> {
     actions::launch_agent(&template, &path)
 }
 
+/// Models available to the opencode CLI (`opencode models`), as
+/// `provider/model` ids for the task dialog's suggestions.
+#[tauri::command]
+pub async fn opencode_models() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(actions::opencode_models)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn open_explorer(path: String) -> Result<(), String> {
     actions::open_explorer(&path.replace('/', "\\"))
