@@ -10,7 +10,7 @@
       "name": "workhub",
       "source": "./plugins/workhub",
       "description": "Task-board and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index).",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -20,7 +20,7 @@
       "name": "engineering",
       "source": "./plugins/engineering",
       "description": "Engineering utilities and helpers for software development tasks.",
-      "version": "0.22.0",
+      "version": "0.22.1",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -80,7 +80,7 @@
       "name": "stack-opencode",
       "source": "./plugins/stack-opencode",
       "description": "Helpers for working with OpenCode configuration and extensions.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

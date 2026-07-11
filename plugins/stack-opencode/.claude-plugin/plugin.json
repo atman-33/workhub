@@ -1,7 +1,7 @@
 {
   "name": "stack-opencode",
   "description": "Helpers for working with OpenCode configuration and extensions.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "atman-33",
     "url": "https://github.com/atman-33"

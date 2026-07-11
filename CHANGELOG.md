@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1 (2026-07-12)
+
+- Remove leftover references to `agent-harness` (workhub's predecessor
+  repository) from plugin docs, skills, and hook examples; examples now use
+  neutral project names or refer to "the workspace working directory / vault"
+  instead of a fixed repo.
+
 ## 0.9.0 (2026-07-12)
 
 - Each repository row in the Repos list gains an inline "Open terminal" icon

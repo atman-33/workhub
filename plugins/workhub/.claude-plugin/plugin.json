@@ -1,6 +1,6 @@
 {
   "name": "workhub",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Task-board and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index).",
   "author": {
     "name": "atman-33",

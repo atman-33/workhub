@@ -39,7 +39,7 @@
 
 **Plugin `console.error` / `console.log` does NOT go to the OpenCode log.**
 
-The OpenCode log file captures the main process output. If a plugin (like `agent-harness-plugin.ts`) prints errors, they appear in the terminal session where OpenCode runs, not in the log file. To debug plugin shell commands:
+The OpenCode log file captures the main process output. If a plugin (like `inject-project-context-plugin.ts`) prints errors, they appear in the terminal session where OpenCode runs, not in the log file. To debug plugin shell commands:
 
 1. Run the suspect command manually in the terminal.
 2. Or write the error to a temp file inside the plugin:

@@ -1,18 +1,18 @@
 ---
 name: create-pull-request
-description: Analyzes git changes, drafts localized PR titles and bodies, and assists with creating or updating GitHub pull requests for the active agent-harness project repository. Use when working from agent-harness and the user wants to create a PR, review branch changes, draft or update a PR description, or check whether a branch is ready for review.
+description: Analyzes git changes, drafts localized PR titles and bodies, and assists with creating or updating GitHub pull requests for the active target project repository. Use when working from the harness workspace (e.g. the workhub vault) and the user wants to create a PR, review branch changes, draft or update a PR description, or check whether a branch is ready for review.
 compatibility: Requires Node 18.3+, git, and GitHub CLI. PowerShell examples assume Windows.
 ---
 
 # Create Pull Request
 
-Creates reviewer-friendly PR drafts for a repository selected from the active agent-harness project.
+Creates reviewer-friendly PR drafts for a repository selected from the active workspace's registered projects.
 
 ## Quick start
 
 1. Pick the target repository using this order: a repository already resolved by a calling workflow; otherwise the repo named by the user; otherwise the repo owning the current file if it is unambiguous; otherwise a repository already surfaced in the current session's context (e.g. a registered-project list); otherwise ask one narrow question. Never assume a specific harness config file layout — it can change independently of this skill.
-2. Run git and gh commands in the target repository root, not in the `agent-harness` repository root.
-3. Save generated analysis and PR body files only under this skill's own `.tmp/` directory (resolve this skill's actual base directory at runtime; never write into `agent-harness` or the target repository).
+2. Run git and gh commands in the target repository root, not in the workspace working directory.
+3. Save generated analysis and PR body files only under this skill's own `.tmp/` directory (resolve this skill's actual base directory at runtime; never write into the workspace working directory or the target repository).
 4. Draft first and ask for approval before creating or updating the PR, unless the user explicitly asked for immediate creation.
 
 ## Workflow
@@ -26,7 +26,7 @@ Creates reviewer-friendly PR drafts for a repository selected from the active ag
 
 ## Guardrails
 
-- Never run git or gh against the `agent-harness` repository unless the PR is intentionally for `agent-harness` itself.
+- Never run git or gh against the workspace working directory (e.g. the workhub vault) unless the PR is intentionally for that repository itself.
 - Keep all temporary PR artifacts inside `.tmp/` in this skill directory.
 - Treat a requested output language as binding for the final PR title and body.
 - Preserve issue references, but only emit closing keywords when the PR targets the repository default branch.

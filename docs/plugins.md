@@ -90,5 +90,6 @@ OpenCode cannot consume Claude Code plugins directly. The vault's
 materializes skills from the enabled Claude plugins, records hashes in a
 manifest, and a session-start reminder plugin reports drift (missing / stale /
 diverged / orphan). Never hand-edit synced skills on the OpenCode side; edit
-the plugin source here and re-sync. (Tooling arrives in Phase 3 of the
-harness-consolidation plan, ported from `agent-harness/.opencode/`.)
+the plugin source here and re-sync. (The tooling lives in
+`vault-template/.opencode/scripts/`, ported from workhub's predecessor
+repository.)

@@ -15,8 +15,8 @@
       ]
     },
     {
-      "name": "agent-harness",
-      "path": "C:/repos/agent-harness",
+      "name": "my-app",
+      "path": "C:/repos/my-app",
       "postToolFormatCommands": [
         "npm run format"
       ]
