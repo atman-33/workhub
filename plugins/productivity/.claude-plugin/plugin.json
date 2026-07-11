@@ -1,0 +1,9 @@
+{
+  "name": "productivity",
+  "version": "0.18.0",
+  "description": "Productivity helpers for administrative and daily tasks. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

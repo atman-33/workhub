@@ -1,0 +1,9 @@
+{
+  "name": "stack-react-router",
+  "description": "Helpers for React Router and Remix applications.",
+  "version": "0.1.0",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

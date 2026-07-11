@@ -1,0 +1,9 @@
+{
+  "name": "openspec",
+  "version": "0.1.0",
+  "description": "OpenSpec workflow skills: propose, explore, apply, and archive spec-driven changes.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}
