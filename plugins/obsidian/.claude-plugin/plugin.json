@@ -1,7 +1,7 @@
 {
   "name": "obsidian",
-  "version": "0.2.0",
-  "description": "Helpers for working with Obsidian notes and knowledge management.",
+  "version": "0.3.0",
+  "description": "Generic Obsidian format helpers: Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, and Defuddle web clipping.",
   "author": {
     "name": "atman-33",
     "url": "https://github.com/atman-33"

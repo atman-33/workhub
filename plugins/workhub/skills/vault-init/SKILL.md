@@ -17,8 +17,9 @@ argument-hint: "<target-path>"
    content, stop and ask — never overwrite an existing vault.
 3. **Copy** the entire `vault-template/` tree to the target (including
    `CLAUDE.md`, `AGENTS.md`, `.claude/` (settings.json,
-   project-context.json), `home.md`, `tasks/`, `projects/`, `knowledge/`,
-   `templates/`, `_ai/`, `attachments/`).
+   project-context.json, rules), `home.md`, `tasks/`, `projects/`,
+   `knowledge/`, `inbox/`, `journal/`, `archive/`, `templates/`, `_ai/`,
+   `attachments/`).
 4. **Fix dates.** Replace the `created:` values in the copied `home.md` and
    `_index.md` files with today's date.
 5. **Register the vault** so the app and skills can find it:
@@ -39,4 +40,7 @@ argument-hint: "<target-path>"
      `name`/`path`, optional `summary`/`postToolFormatCommands`).
 7. **Suggest next steps**: open the folder as a vault in Obsidian, then
    create a first task in the workhub app or via `templates/task.md`, and
-   start AI agent sessions with the vault as the working directory.
+   start AI agent sessions with the vault as the working directory. For
+   knowledge management, drop raw notes into `inbox/` and run `/kb-ingest`;
+   `/kb-query`, `/kb-lint`, and `/kb-index` maintain and search the
+   knowledge base.
