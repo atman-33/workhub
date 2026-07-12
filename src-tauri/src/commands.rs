@@ -1,4 +1,4 @@
-use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task};
+use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
@@ -85,6 +85,53 @@ pub async fn git_commit_file_diff(
 #[tauri::command]
 pub async fn git_remote_url(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || git::remote_url(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// List the task worktrees across the given repos. Non-repos and errors are
+/// skipped so one bad path doesn't fail the whole aggregate. The repo's main
+/// working tree is included (flagged `is_main`); the frontend filters it out.
+#[tauri::command]
+pub async fn list_worktrees(paths: Vec<String>) -> Vec<Worktree> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut all = Vec::new();
+        for p in &paths {
+            let name = p.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or(p);
+            if let Ok(mut ws) = git::list_worktrees(p, name) {
+                all.append(&mut ws);
+            }
+        }
+        all
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Remove a linked worktree (`git worktree remove`). `force` is required to
+/// remove a worktree with uncommitted/untracked changes.
+#[tauri::command]
+pub async fn remove_worktree(
+    repo_path: String,
+    worktree_path: String,
+    force: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git::remove_worktree(&repo_path, &worktree_path, force)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Delete a task branch (`git branch -d/-D`), separate from removing its
+/// worktree. `force` uses `-D` to drop an unmerged branch.
+#[tauri::command]
+pub async fn delete_worktree_branch(
+    repo_path: String,
+    branch: String,
+    force: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || git::delete_branch(&repo_path, &branch, force))
         .await
         .map_err(|e| e.to_string())?
 }

@@ -23,6 +23,7 @@ const DEFAULTS: Settings = {
   herdr_cmd: "herdr",
   check_updates: true,
   vault_path: null,
+  worktree_root: "C:/repos/.worktrees",
 };
 
 interface Props {
@@ -39,7 +40,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     if (open) setDraft(settings);
   }, [open, settings]);
 
-  const field = (label: string, key: "vscode_cmd" | "terminal_cmd" | "agent_cmd" | "opencode_cmd" | "herdr_cmd") => (
+  const field = (
+    label: string,
+    key: "vscode_cmd" | "terminal_cmd" | "agent_cmd" | "opencode_cmd" | "herdr_cmd" | "worktree_root",
+  ) => (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       <Input
@@ -73,6 +77,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             Open AI tasks in a fresh herdr workspace
           </label>
           {draft.use_herdr && field("herdr command", "herdr_cmd")}
+          {field("Worktree root", "worktree_root")}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Tasks vault path</label>
             <div className="flex gap-1.5">

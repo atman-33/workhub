@@ -10,6 +10,7 @@ import type {
   Task,
   UpdateInfo,
   UpdateTaskInput,
+  Worktree,
 } from "@/types";
 
 export const api = {
@@ -19,6 +20,12 @@ export const api = {
   gitOp: (path: string, op: "fetch" | "pull" | "switch", branch?: string) =>
     invoke<string>("git_op", { path, op, branch: branch ?? null }),
   gitRemoteUrl: (path: string) => invoke<string>("git_remote_url", { path }),
+  listWorktrees: (paths: string[]) =>
+    invoke<Worktree[]>("list_worktrees", { paths }),
+  removeWorktree: (repoPath: string, worktreePath: string, force: boolean) =>
+    invoke<string>("remove_worktree", { repoPath, worktreePath, force }),
+  deleteWorktreeBranch: (repoPath: string, branch: string, force: boolean) =>
+    invoke<string>("delete_worktree_branch", { repoPath, branch, force }),
   gitLog: (path: string, limit: number, skip: number) =>
     invoke<GitLog>("git_log", { path, limit, skip }),
   gitGraphOp: (path: string, op: GraphOp) =>

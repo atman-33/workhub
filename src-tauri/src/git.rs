@@ -534,6 +534,123 @@ fn normalize_remote_url(raw: &str) -> Option<String> {
     Some(format!("https://{host}/{path}"))
 }
 
+/// One entry parsed from `git worktree list --porcelain`, before enrichment.
+struct RawWorktree {
+    path: String,
+    head: String,
+    /// Short branch name (`refs/heads/` stripped); empty when detached/bare.
+    branch: String,
+    locked: bool,
+    bare: bool,
+    detached: bool,
+}
+
+/// Parse `git worktree list --porcelain` output into per-worktree records.
+/// Entries are separated by blank lines; the first entry is always the repo's
+/// main working tree.
+fn parse_worktrees(porcelain: &str) -> Vec<RawWorktree> {
+    let mut out: Vec<RawWorktree> = Vec::new();
+    let mut cur: Option<RawWorktree> = None;
+    for line in porcelain.lines() {
+        let line = line.trim_end();
+        if let Some(rest) = line.strip_prefix("worktree ") {
+            if let Some(w) = cur.take() {
+                out.push(w);
+            }
+            cur = Some(RawWorktree {
+                path: rest.replace('\\', "/"),
+                head: String::new(),
+                branch: String::new(),
+                locked: false,
+                bare: false,
+                detached: false,
+            });
+        } else if let Some(rest) = line.strip_prefix("HEAD ") {
+            if let Some(w) = cur.as_mut() {
+                w.head = rest.to_string();
+            }
+        } else if let Some(rest) = line.strip_prefix("branch ") {
+            if let Some(w) = cur.as_mut() {
+                w.branch = rest.strip_prefix("refs/heads/").unwrap_or(rest).to_string();
+            }
+        } else if line == "detached" {
+            if let Some(w) = cur.as_mut() {
+                w.detached = true;
+            }
+        } else if line == "bare" {
+            if let Some(w) = cur.as_mut() {
+                w.bare = true;
+            }
+        } else if line == "locked" || line.starts_with("locked ") {
+            if let Some(w) = cur.as_mut() {
+                w.locked = true;
+            }
+        }
+    }
+    if let Some(w) = cur.take() {
+        out.push(w);
+    }
+    out
+}
+
+/// List the git worktrees of `repo_path`, enriched with the owning repo's
+/// name, a derived task id (from a `task/<id>` branch), and a per-worktree
+/// dirty flag. The first worktree (the repo's main working tree) is flagged
+/// `is_main` and left un-enriched with a dirty check.
+pub fn list_worktrees(
+    repo_path: &str,
+    repo_name: &str,
+) -> Result<Vec<crate::models::Worktree>, String> {
+    let raw = git(repo_path, &["worktree", "list", "--porcelain"])?;
+    let parsed = parse_worktrees(&raw);
+    let out = parsed
+        .into_iter()
+        .enumerate()
+        .map(|(i, w)| {
+            let is_main = i == 0;
+            let task_id = w.branch.strip_prefix("task/").map(str::to_string);
+            // Only linked (non-main) worktrees are cleanup candidates, so only
+            // they pay for a status check.
+            let dirty = if is_main || w.bare {
+                false
+            } else {
+                git(&w.path, &["status", "--porcelain"])
+                    .map(|s| s.lines().any(|l| !l.trim().is_empty()))
+                    .unwrap_or(false)
+            };
+            crate::models::Worktree {
+                path: w.path,
+                repo_path: repo_path.to_string(),
+                repo_name: repo_name.to_string(),
+                branch: w.branch,
+                head: w.head,
+                is_main,
+                bare: w.bare,
+                locked: w.locked,
+                detached: w.detached,
+                dirty,
+                task_id,
+            }
+        })
+        .collect();
+    Ok(out)
+}
+
+/// Remove a linked worktree. `git worktree remove` refuses a worktree with
+/// uncommitted or untracked changes unless `force` is set.
+pub fn remove_worktree(
+    repo_path: &str,
+    worktree_path: &str,
+    force: bool,
+) -> Result<String, String> {
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(worktree_path);
+    git(repo_path, &args).map(|_| format!("removed worktree {worktree_path}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -777,5 +894,24 @@ aaa2\x1fbbb2 ccc2\x1fBob\x1f2000\x1f\x1fMerge branch 'feature'\x1e
     fn reset_rejects_invalid_mode() {
         let err = reset("C:/does/not/matter", "abc123", "nope").unwrap_err();
         assert!(err.contains("invalid reset mode"));
+    }
+
+    #[test]
+    fn parses_worktree_porcelain() {
+        let porcelain = "worktree C:/repos/workhub\nHEAD aaaa\nbranch refs/heads/main\n\nworktree C:/repos/.worktrees/T-0018/workhub\nHEAD bbbb\nbranch refs/heads/task/T-0018\n\nworktree C:/repos/.worktrees/detached\nHEAD cccc\ndetached\nlocked\n";
+        let ws = parse_worktrees(porcelain);
+        assert_eq!(ws.len(), 3);
+
+        assert_eq!(ws[0].path, "C:/repos/workhub");
+        assert_eq!(ws[0].branch, "main");
+        assert!(!ws[0].detached);
+
+        assert_eq!(ws[1].path, "C:/repos/.worktrees/T-0018/workhub");
+        assert_eq!(ws[1].branch, "task/T-0018");
+        assert_eq!(ws[1].head, "bbbb");
+
+        assert!(ws[2].branch.is_empty());
+        assert!(ws[2].detached);
+        assert!(ws[2].locked);
     }
 }

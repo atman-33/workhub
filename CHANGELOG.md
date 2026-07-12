@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.17.0 (2026-07-12)
+
+- Repos: new **Worktrees** panel (toolbar button). Lists the git worktrees of
+  your registered repos via `git worktree list`, grouped by task id, so you
+  can see every task worktree at a glance without asking an agent. Each row
+  opens in VS Code / Explorer / a terminal, or is removed in place
+  (`git worktree remove`) with a confirmation dialog — force is required for a
+  dirty worktree, and deleting the `task/<id>` branch is a separate opt-in with
+  an unmerged-loss warning. A multi-repo task's worktrees open together as one
+  VS Code workspace.
+- Settings: new **Worktree root** setting (default `C:/repos/.worktrees`) — the
+  directory task worktrees live under.
+- Tasks: task worktrees are now laid out task-first as
+  `<root>/<task-id>/<repo-name>` (previously `<root>/<repo-name>/<task-id>`),
+  so a multi-repo task keeps all its worktrees under one `<task-id>/` folder.
+  Applies to newly created worktrees; the Worktrees panel lists existing ones
+  regardless of layout. (Requires the `workhub` plugin 0.8.0 for the matching
+  `task-start` instruction.)
+
 ## 0.16.1 (2026-07-12)
 
 - Repos: the checked-out branch is now obvious in the Git Graph. Its ref badge

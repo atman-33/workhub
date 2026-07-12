@@ -21,6 +21,25 @@ export interface Settings {
   herdr_cmd: string;
   check_updates: boolean;
   vault_path: string | null;
+  /** Root dir for task worktrees, laid out as `<root>/<task-id>/<repo-name>`. */
+  worktree_root: string;
+}
+
+export interface Worktree {
+  path: string;
+  repo_path: string;
+  repo_name: string;
+  branch: string;
+  head: string;
+  /** True for the repo's primary working tree (not a task worktree). */
+  is_main: boolean;
+  bare: boolean;
+  locked: boolean;
+  detached: boolean;
+  /** Has uncommitted or untracked changes. */
+  dirty: boolean;
+  /** Task id parsed from a `task/<id>` branch, if any. */
+  task_id: string | null;
 }
 
 export type SortMode = "Name" | "Recent";
