@@ -16,11 +16,12 @@
   list, toggled with an icon button. The tree compacts single-child folders
   (e.g. `src/components/repos`) and starts fully expanded; the view choice
   persists across the app.
-- Git Graph: branch/remote ref right-click menus gain a **Copy name** item;
-  hovering any ref badge (and the header's current-branch badge) now shows the
-  full name in a tooltip when it's truncated; and right-clicking empty space
-  to dismiss a context menu no longer closes the graph panel (only a left
-  click outside does).
+- Git Graph: branch/remote ref right-click menus gain a **Copy branch name**
+  item; hovering any ref badge (and the header's current-branch badge) now
+  shows the full name in a tooltip when it's truncated; and the click that
+  dismisses a commit context menu — whether a right-click or a left-click
+  outside the panel — no longer closes the graph panel (a plain left-click
+  outside, with no menu open, still does).
 
 ## 0.18.0 (2026-07-12)
 

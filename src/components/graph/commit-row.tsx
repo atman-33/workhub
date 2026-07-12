@@ -186,7 +186,7 @@ function RefBadge({
         <ContextMenuPortal>
           <ContextMenuContent>
             <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy name
+              <Copy /> Copy branch name
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
@@ -243,7 +243,7 @@ function RefBadge({
         <ContextMenuPortal>
           <ContextMenuContent>
             <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy name
+              <Copy /> Copy branch name
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
