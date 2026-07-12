@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { FolderOpen, GitBranch, ListTodo, Music, Settings as SettingsIcon } from "lucide-react";
+import {
+  FolderOpen,
+  GitBranch,
+  ListTodo,
+  Music,
+  Settings as SettingsIcon,
+  Timer,
+} from "lucide-react";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
+import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,12 +19,13 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Settings, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos" | "music";
+type Tab = "tasks" | "repos" | "music" | "timer";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "music", label: "Music", icon: Music },
+  { key: "timer", label: "Timer", icon: Timer },
 ];
 
 export default function App() {
@@ -101,6 +110,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "music" && "hidden")}>
             <MusicView configVersion={configVersion} />
+          </div>
+          <div className={cn("h-full", tab !== "timer" && "hidden")}>
+            <TimerView />
           </div>
         </div>
         {settings && (

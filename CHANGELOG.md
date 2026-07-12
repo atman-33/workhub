@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0 (2026-07-12)
+
+- New **Timer** tab (right of Music): a countdown timer for focused work
+  sessions. Pick 5 / 15 / 30 / 60 minutes or type any duration, then
+  start / pause / resume / reset. The countdown keeps running while you work in
+  other tabs.
+- When it hits zero, the timer plays an alarm (beeps synthesized with the Web
+  Audio API — no bundled audio file) and raises a desktop notification. Both
+  are individually switchable and the volume is adjustable; the sound, volume,
+  notification and last-used duration settings persist across restarts.
+
 ## 0.17.0 (2026-07-12)
 
 - Repos: new **Worktrees** panel (toolbar button). Lists the git worktrees of
