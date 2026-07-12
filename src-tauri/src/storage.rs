@@ -23,9 +23,26 @@ pub fn workspaces_dir() -> PathBuf {
 }
 
 pub fn load() -> Config {
-    match std::fs::read_to_string(config_file()) {
+    let mut cfg = match std::fs::read_to_string(config_file()) {
         Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
         Err(_) => Config::default(),
+    };
+    migrate_default_templates(&mut cfg);
+    cfg
+}
+
+/// Rewrites saved command templates that still exactly match a previous
+/// default to the current default (pwsh → Windows PowerShell). Customized
+/// templates are left untouched.
+fn migrate_default_templates(cfg: &mut Config) {
+    const OLD_AGENT_CMD: &str = "wt -d {path} pwsh -NoExit -Command claude";
+    const OLD_OPENCODE_CMD: &str = "wt -d {path} pwsh -NoExit -Command opencode";
+    let defaults = crate::models::Settings::default();
+    if cfg.settings.agent_cmd == OLD_AGENT_CMD {
+        cfg.settings.agent_cmd = defaults.agent_cmd;
+    }
+    if cfg.settings.opencode_cmd == OLD_OPENCODE_CMD {
+        cfg.settings.opencode_cmd = defaults.opencode_cmd;
     }
 }
 

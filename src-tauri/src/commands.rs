@@ -265,6 +265,7 @@ pub async fn fetch_youtube_title(video_id: String) -> Result<String, String> {
 #[allow(clippy::too_many_arguments)]
 pub fn launch_agent_for_task(
     agent_cmd: String,
+    assignee: String,
     task_id: String,
     task_title: String,
     task_file: String,
@@ -273,9 +274,10 @@ pub fn launch_agent_for_task(
     vault_path: String,
     use_herdr: bool,
     herdr_cmd: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
         agent_cmd: &agent_cmd,
+        assignee: &assignee,
         task_id: &task_id,
         task_title: &task_title,
         task_file: &task_file,

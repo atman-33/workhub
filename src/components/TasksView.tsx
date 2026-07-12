@@ -162,6 +162,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
       void api
         .launchAgentForTask(
           agentCmd,
+          task.assignee,
           task.id,
           task.title,
           task.file,
@@ -171,7 +172,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           config.settings.use_herdr,
           config.settings.herdr_cmd,
         )
-        .then(() => setStatus(`Launched agent for ${task.id}`))
+        .then((message) => setStatus(message))
         .catch((e) => setStatus(`Agent launch failed — ${e}`));
     },
     [config],
