@@ -2,7 +2,7 @@ import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lu
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMusicStore } from "@/stores/music";
-import { useYouTubePlayer } from "./useYouTubePlayer";
+import { useYouTubePlayer } from "./use-youtube-player";
 
 const PLAYER_ELEMENT_ID = "workhub-youtube-player";
 

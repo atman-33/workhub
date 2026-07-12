@@ -7,7 +7,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { dueTone } from "@/lib/taskDue";
+import { dueTone } from "@/lib/task-due";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 

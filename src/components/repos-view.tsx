@@ -15,9 +15,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { GitGraphView } from "@/components/graph/GitGraphView";
-import { NotesDialog } from "@/components/NotesDialog";
-import { ProjectRow, type RowAction } from "@/components/ProjectRow";
+import { GitGraphView } from "@/components/graph/git-graph-view";
+import { NotesDialog } from "@/components/notes-dialog";
+import { ProjectRow, type RowAction } from "@/components/project-row";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

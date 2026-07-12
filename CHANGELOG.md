@@ -6,6 +6,12 @@
   and Tags) into an expandable "Optional details" accordion. Existing values
   are summarized on the collapsed trigger and the section opens automatically
   when any optional detail is set.
+- Standardize all component, custom-hook, and utility filenames under `src/`
+  to lowercase kebab-case (e.g., `TaskDialog.tsx` → `task-dialog.tsx`,
+  `useYouTubePlayer.ts` → `use-youtube-player.ts`, `taskBody.ts` →
+  `task-body.ts`) and update every import path accordingly.
+- Add `.claude/rules/file-naming.md` to enforce the lowercase-kebab-case rule
+  for future files under `src/`.
 
 ## 0.11.0 (2026-07-12)
 
