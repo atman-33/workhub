@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.0 (2026-07-12)
+
+- Music: playlist tabs can now be reordered by dragging them.
+- Music: right-clicking a song in the playlist opens a context menu with
+  "Move to playlist" (moves the song to another playlist) and "Remove from
+  playlist". A move is refused if the song already exists in the target
+  playlist.
+
 ## 0.13.0 (2026-07-12)
 
 - Task edit dialog now saves directly to the task file as the user edits,
