@@ -360,7 +360,7 @@ pub fn tag_delete(path: &str, name: &str) -> Result<String, String> {
 /// Dispatch a graph-view git operation.
 pub fn graph_op(path: &str, op: GraphOp) -> Result<String, String> {
     match op {
-        GraphOp::Checkout { branch } => switch(path, &branch),
+        GraphOp::Checkout { branch } => checkout(path, &branch),
         GraphOp::CreateBranch {
             name,
             hash,
@@ -452,6 +452,38 @@ pub fn pull(path: &str) -> Result<String, String> {
 
 pub fn switch(path: &str, branch: &str) -> Result<String, String> {
     git(path, &["switch", branch]).map(|_| format!("switched to {branch}"))
+}
+
+/// Check out a ref selected in the graph view. When `branch` names a
+/// remote-tracking ref (e.g. `origin/main`), switch to the local branch that
+/// tracks it, creating it if necessary — this is git's `--guess` (DWIM)
+/// behavior. `git switch` refuses a bare remote ref, so we strip the remote
+/// prefix and let git resolve the local branch.
+pub fn checkout(path: &str, branch: &str) -> Result<String, String> {
+    let remotes = git(path, &["remote"]).unwrap_or_default();
+    let remote_names: Vec<&str> = remotes
+        .lines()
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .collect();
+    let local = strip_remote_prefix(&remote_names, branch).unwrap_or_else(|| branch.to_string());
+    git(path, &["switch", "--guess", &local]).map(|_| format!("switched to {local}"))
+}
+
+/// If `branch` begins with a known remote name (`<remote>/<name>`), return the
+/// name with that remote prefix stripped so it can be resolved as a local
+/// branch. Returns `None` for a local branch, or for a remote's `HEAD` symref
+/// (which is not checkoutable).
+fn strip_remote_prefix(remotes: &[&str], branch: &str) -> Option<String> {
+    for remote in remotes {
+        if let Some(rest) = branch.strip_prefix(&format!("{remote}/")) {
+            if rest.is_empty() || rest == "HEAD" {
+                return None;
+            }
+            return Some(rest.to_string());
+        }
+    }
+    None
 }
 
 /// Get the `origin` remote URL, normalized to an `https://` web URL.
@@ -601,6 +633,35 @@ mod tests {
         assert_eq!(normalize_remote_url(""), None);
         assert_eq!(normalize_remote_url("not a url"), None);
         assert_eq!(normalize_remote_url("ftp://example.com/owner/repo"), None);
+    }
+
+    #[test]
+    fn strips_remote_prefix_for_remote_tracking_ref() {
+        let remotes = ["origin", "upstream"];
+        assert_eq!(
+            strip_remote_prefix(&remotes, "origin/main"),
+            Some("main".to_string())
+        );
+        // Nested branch names keep everything after the remote.
+        assert_eq!(
+            strip_remote_prefix(&remotes, "origin/feature/x"),
+            Some("feature/x".to_string())
+        );
+        assert_eq!(
+            strip_remote_prefix(&remotes, "upstream/dev"),
+            Some("dev".to_string())
+        );
+    }
+
+    #[test]
+    fn strip_remote_prefix_ignores_local_and_head() {
+        let remotes = ["origin"];
+        // A local branch name is returned untouched (None -> caller keeps it).
+        assert_eq!(strip_remote_prefix(&remotes, "main"), None);
+        // A remote HEAD symref is not checkoutable.
+        assert_eq!(strip_remote_prefix(&remotes, "origin/HEAD"), None);
+        // A branch that merely shares a prefix but no `/` is not a remote ref.
+        assert_eq!(strip_remote_prefix(&remotes, "origin-mirror"), None);
     }
 
     #[test]
