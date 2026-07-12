@@ -253,7 +253,8 @@ fn tracked_files(path: &str, range: &[String]) -> Result<Vec<CommitFileChange>, 
 /// Uncommitted worktree changes: tracked modifications (staged + unstaged vs
 /// HEAD) plus untracked files, so an in-progress repo — including brand-new
 /// files an agent just created — is fully represented. `git diff HEAD` alone
-/// omits untracked files, so they are listed separately with a `?` status.
+/// omits untracked files, so they are listed separately and reported as "U"
+/// (untracked), kept distinct from a tracked "A" (added) change.
 fn worktree_files(path: &str) -> Result<Vec<CommitFileChange>, String> {
     let has_head = git(path, &["rev-parse", "--verify", "-q", "HEAD"]).is_ok();
     let mut files = if has_head {
@@ -266,7 +267,9 @@ fn worktree_files(path: &str) -> Result<Vec<CommitFileChange>, String> {
         files.push(CommitFileChange {
             path: line.to_string(),
             old_path: None,
-            status: "?".into(),
+            // Untracked file — reported as "U" (VS Code's Untracked marker) to
+            // keep it distinct from a tracked "A" (added) change.
+            status: "U".into(),
             additions: None,
             deletions: None,
         });

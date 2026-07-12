@@ -8,6 +8,7 @@ export function statusTone(status: string) {
     case "R":
     case "C":
       return "border-sky-500/30 bg-sky-500/10 text-sky-400";
+    case "U":
     case "?":
       return "border-violet-500/30 bg-violet-500/10 text-violet-300";
     default:

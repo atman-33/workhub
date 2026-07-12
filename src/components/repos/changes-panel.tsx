@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileDiff, FolderGit2, Loader2, RefreshCw, X } from "lucide-react";
 import { useDefaultLayout } from "react-resizable-panels";
+import { ChangeFileList } from "@/components/change-file-list";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { diffLineClass, statusTone } from "@/lib/diff-format";
+import { diffLineClass } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
 import type { CommitFileChange } from "@/types";
 
@@ -176,51 +176,18 @@ export function ChangesPanel({ path, name, onClose }: Props) {
         >
           {/* file list */}
           <ResizablePanel id="files" defaultSize="32%" minSize="18%" className="min-w-0">
-            <div className="h-full overflow-y-auto py-1">
-              {files === null && !error && (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                </div>
-              )}
-              {error && <p className="px-3 py-2 text-[11px] text-red-400">{error}</p>}
-              {files?.length === 0 && !error && (
-                <p className="px-3 py-2 text-[11px] text-muted-foreground">
-                  Working tree clean.
-                </p>
-              )}
-              {files?.map((f) => (
-                <button
-                  key={f.path}
-                  className={cn(
-                    "flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-accent/40",
-                    selectedPath === f.path && "bg-accent/60",
-                  )}
-                  onClick={() => setSelectedPath(f.path)}
-                >
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "h-4 w-5 shrink-0 justify-center px-0 text-[10px]",
-                      statusTone(f.status),
-                    )}
-                  >
-                    {f.status}
-                  </Badge>
-                  <span className="min-w-0 flex-1 truncate text-[11px]" title={f.path}>
-                    {f.path}
-                  </span>
-                  {f.additions !== null && (
-                    <span className="shrink-0 text-[10px] text-emerald-400">+{f.additions}</span>
-                  )}
-                  {f.deletions !== null && (
-                    <span className="shrink-0 text-[10px] text-red-400">−{f.deletions}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <ChangeFileList
+              files={files}
+              loading
+              error={error || undefined}
+              emptyLabel="Working tree clean."
+              selectedPath={selectedPath}
+              onSelect={setSelectedPath}
+              resetKey={path ?? undefined}
+            />
           </ResizablePanel>
 
-          <ResizableHandle withHandle />
+          <ResizableHandle />
 
           {/* diff view */}
           <ResizablePanel id="diff" defaultSize="68%" className="min-w-0">

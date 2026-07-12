@@ -89,7 +89,7 @@ export interface CommitFileChange {
   path: string;
   /** Original path for renames/copies. */
   old_path: string | null;
-  /** Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?". */
+  /** Single-letter status: "A" | "M" | "D" | "R" | "C" | "T" | "U" (untracked). */
   status: string;
   /** Added/removed line counts; null for binary files. */
   additions: number | null;

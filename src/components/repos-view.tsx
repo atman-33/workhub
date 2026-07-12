@@ -532,7 +532,7 @@ export function ReposView({ configVersion }: Props) {
             <ResizablePanel id="list" defaultSize="62%" minSize="20%" className="min-h-0">
               <div className="h-full overflow-y-auto px-3 py-2">{listContent}</div>
             </ResizablePanel>
-            <ResizableHandle withHandle />
+            <ResizableHandle />
             <ResizablePanel id="changes" defaultSize="38%" minSize="15%" className="min-h-0">
               <ChangesPanel
                 path={activePath}

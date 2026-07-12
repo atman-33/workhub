@@ -11,6 +11,11 @@
   file renders its full contents as additions. The list/diff split and the
   panel's own left/right split are resizable (shadcn `resizable`) and their
   sizes persist across restarts.
+- Repos: the changed-file list (both the new Changes panel and the Git Graph
+  diff panel) can now be shown as a **folder tree** (default) or a flat path
+  list, toggled with an icon button. The tree compacts single-child folders
+  (e.g. `src/components/repos`) and starts fully expanded; the view choice
+  persists across the app.
 
 ## 0.18.0 (2026-07-12)
 

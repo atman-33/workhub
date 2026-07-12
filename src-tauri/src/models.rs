@@ -235,7 +235,7 @@ pub struct CommitFileChange {
     pub path: String,
     /// Original path for renames/copies.
     pub old_path: Option<String>,
-    /// Single-letter git status: "A" | "M" | "D" | "R" | "C" | "T" | "?".
+    /// Single-letter status: "A" | "M" | "D" | "R" | "C" | "T" | "U" (untracked).
     pub status: String,
     /// Added/removed line counts; `None` for binary files.
     pub additions: Option<u32>,

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileDiff, Loader2, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ChangeFileList } from "@/components/change-file-list";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { diffLineClass, statusTone } from "@/lib/diff-format";
+import { diffLineClass } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitFileChange } from "@/types";
 
@@ -85,44 +85,16 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
 
       <div className="flex min-h-0 flex-1">
         {/* file list */}
-        <div className="w-72 shrink-0 overflow-y-auto border-r py-1">
-          {files === null && !filesError && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {filesError && (
-            <p className="px-3 py-2 text-[11px] text-red-400">{filesError}</p>
-          )}
-          {files?.length === 0 && (
-            <p className="px-3 py-2 text-[11px] text-muted-foreground">No file changes.</p>
-          )}
-          {files?.map((f) => (
-            <button
-              key={f.path}
-              className={cn(
-                "flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-accent/40",
-                selected?.path === f.path && "bg-accent/60",
-              )}
-              onClick={() => setSelected(f)}
-            >
-              <Badge
-                variant="outline"
-                className={cn("h-4 w-5 shrink-0 justify-center px-0 text-[10px]", statusTone(f.status))}
-              >
-                {f.status}
-              </Badge>
-              <span className="min-w-0 flex-1 truncate text-[11px]" title={f.path}>
-                {f.path}
-              </span>
-              {f.additions !== null && (
-                <span className="shrink-0 text-[10px] text-emerald-400">+{f.additions}</span>
-              )}
-              {f.deletions !== null && (
-                <span className="shrink-0 text-[10px] text-red-400">−{f.deletions}</span>
-              )}
-            </button>
-          ))}
+        <div className="w-72 shrink-0 border-r">
+          <ChangeFileList
+            files={files}
+            loading
+            error={filesError || undefined}
+            emptyLabel="No file changes."
+            selectedPath={selected?.path ?? null}
+            onSelect={(p) => setSelected(files?.find((f) => f.path === p) ?? null)}
+            resetKey={`${path}@${entry.hash}`}
+          />
         </div>
 
         {/* diff view */}
