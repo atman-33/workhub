@@ -20,6 +20,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/git-graph";
 import { timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -133,7 +134,7 @@ function RefBadge({
   detached,
   opBusy,
   onOp,
-  onCopy: _onCopy,
+  onCopy,
   onRequestDialog,
   onDeleteBranch,
 }: {
@@ -161,19 +162,33 @@ function RefBadge({
     </Badge>
   );
 
-  if (commitRef.kind === "head") return badge;
+  // Reveal the full ref name on hover, since the badge truncates long names.
+  const withTooltip = (trigger: React.ReactElement) => (
+    <Tooltip>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent>{commitRef.name}</TooltipContent>
+    </Tooltip>
+  );
+
+  if (commitRef.kind === "head") return withTooltip(badge);
 
   const stopRowMenu = (e: React.MouseEvent) => e.stopPropagation();
 
   if (commitRef.kind === "branch") {
-    if (commitRef.is_head) return badge;
+    if (commitRef.is_head) return withTooltip(badge);
     return (
       <ContextMenu>
-        <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
-          {badge}
-        </ContextMenuTrigger>
+        {withTooltip(
+          <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
+            {badge}
+          </ContextMenuTrigger>,
+        )}
         <ContextMenuPortal>
           <ContextMenuContent>
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
+              <Copy /> Copy branch name
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem
               disabled={!!opBusy}
               onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
@@ -217,14 +232,20 @@ function RefBadge({
 
   if (commitRef.kind === "remote") {
     // `origin/HEAD` is a symref alias, not a checkoutable branch.
-    if (commitRef.name.endsWith("/HEAD")) return badge;
+    if (commitRef.name.endsWith("/HEAD")) return withTooltip(badge);
     return (
       <ContextMenu>
-        <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
-          {badge}
-        </ContextMenuTrigger>
+        {withTooltip(
+          <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
+            {badge}
+          </ContextMenuTrigger>,
+        )}
         <ContextMenuPortal>
           <ContextMenuContent>
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
+              <Copy /> Copy branch name
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem
               disabled={!!opBusy}
               onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
@@ -239,9 +260,11 @@ function RefBadge({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
-        {badge}
-      </ContextMenuTrigger>
+      {withTooltip(
+        <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>
+          {badge}
+        </ContextMenuTrigger>,
+      )}
       <ContextMenuPortal>
         <ContextMenuContent>
           <ContextMenuItem

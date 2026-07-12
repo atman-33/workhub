@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileDiff, Loader2, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ChangeFileList } from "@/components/change-file-list";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { diffLineClass } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitFileChange } from "@/types";
 
@@ -10,39 +11,6 @@ interface Props {
   path: string;
   entry: CommitEntry;
   onClose: () => void;
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "A":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
-    case "D":
-      return "border-red-500/30 bg-red-500/10 text-red-400";
-    case "R":
-    case "C":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-400";
-    default:
-      return "border-amber-500/30 bg-amber-500/10 text-amber-400";
-  }
-}
-
-function diffLineClass(line: string) {
-  if (line.startsWith("@@")) return "text-sky-400";
-  if (
-    line.startsWith("diff --git") ||
-    line.startsWith("index ") ||
-    line.startsWith("+++") ||
-    line.startsWith("---") ||
-    line.startsWith("new file") ||
-    line.startsWith("deleted file") ||
-    line.startsWith("rename ") ||
-    line.startsWith("similarity ") ||
-    line.startsWith("Binary files")
-  )
-    return "text-muted-foreground";
-  if (line.startsWith("+")) return "bg-emerald-500/10 text-emerald-300";
-  if (line.startsWith("-")) return "bg-red-500/10 text-red-300";
-  return "text-foreground/80";
 }
 
 export function CommitDiffPanel({ path, entry, onClose }: Props) {
@@ -117,44 +85,16 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
 
       <div className="flex min-h-0 flex-1">
         {/* file list */}
-        <div className="w-72 shrink-0 overflow-y-auto border-r py-1">
-          {files === null && !filesError && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {filesError && (
-            <p className="px-3 py-2 text-[11px] text-red-400">{filesError}</p>
-          )}
-          {files?.length === 0 && (
-            <p className="px-3 py-2 text-[11px] text-muted-foreground">No file changes.</p>
-          )}
-          {files?.map((f) => (
-            <button
-              key={f.path}
-              className={cn(
-                "flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-accent/40",
-                selected?.path === f.path && "bg-accent/60",
-              )}
-              onClick={() => setSelected(f)}
-            >
-              <Badge
-                variant="outline"
-                className={cn("h-4 w-5 shrink-0 justify-center px-0 text-[10px]", statusTone(f.status))}
-              >
-                {f.status}
-              </Badge>
-              <span className="min-w-0 flex-1 truncate text-[11px]" title={f.path}>
-                {f.path}
-              </span>
-              {f.additions !== null && (
-                <span className="shrink-0 text-[10px] text-emerald-400">+{f.additions}</span>
-              )}
-              {f.deletions !== null && (
-                <span className="shrink-0 text-[10px] text-red-400">−{f.deletions}</span>
-              )}
-            </button>
-          ))}
+        <div className="w-72 shrink-0 border-r">
+          <ChangeFileList
+            files={files}
+            loading
+            error={filesError || undefined}
+            emptyLabel="No file changes."
+            selectedPath={selected?.path ?? null}
+            onSelect={(p) => setSelected(files?.find((f) => f.path === p) ?? null)}
+            resetKey={`${path}@${entry.hash}`}
+          />
         </div>
 
         {/* diff view */}

@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
 import { cn } from "@/lib/utils";
@@ -205,18 +206,25 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
         <span className="text-[13px] font-semibold">{name}</span>
         {/* Same solid tone as the checked-out ref badge in the graph, so the
             header tells you what to look for and the graph shows you where. */}
-        <Badge
-          variant="outline"
-          className={cn(
-            "h-5 gap-1 px-1.5 text-[11px] font-bold",
-            refTone(detached ? "head" : "branch", true),
-          )}
-        >
-          <GitBranch className="size-3" />
-          <span className="max-w-40 truncate">
-            {detached ? "detached HEAD" : log?.current_branch}
-          </span>
-        </Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-5 gap-1 px-1.5 text-[11px] font-bold",
+                refTone(detached ? "head" : "branch", true),
+              )}
+            >
+              <GitBranch className="size-3" />
+              <span className="max-w-40 truncate">
+                {detached ? "detached HEAD" : log?.current_branch}
+              </span>
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
+          </TooltipContent>
+        </Tooltip>
         {(loading || opBusy) && <Loader2 className="size-3.5 animate-spin text-primary" />}
         {opBusy && <span className="text-[11px] text-muted-foreground">{opBusy}…</span>}
 

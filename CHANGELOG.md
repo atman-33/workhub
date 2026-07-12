@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.19.0 (2026-07-12)
+
+- Repos: new **Changes** panel (toolbar toggle) — a built-in, VS Code-style
+  view of a repository's uncommitted work without leaving Workhub. Click a
+  repo row to show its working-tree changes as a file list with a unified
+  diff; the panel auto-refreshes every few seconds while the window is
+  focused, so an agent's edits appear as they happen. Untracked (brand-new)
+  files are now included alongside tracked modifications — the diff for a new
+  file renders its full contents as additions. The list/diff split and the
+  panel's own left/right split are resizable (shadcn `resizable`) and their
+  sizes persist across restarts.
+- Repos: the changed-file list (both the new Changes panel and the Git Graph
+  diff panel) can now be shown as a **folder tree** (default) or a flat path
+  list, toggled with an icon button. The tree compacts single-child folders
+  (e.g. `src/components/repos`) and starts fully expanded; the view choice
+  persists across the app.
+- Repos: the project list now **auto-refreshes git status** every 5 seconds
+  while the Repos tab is visible and the window is focused, so branch,
+  ahead/behind, and uncommitted-change badges stay current as an agent works.
+  It reads local status only (no network fetch), updates quietly without the
+  per-row refresh spinner, and skips repos with an in-flight git operation.
+- Git Graph: branch/remote ref right-click menus gain a **Copy branch name**
+  item; hovering any ref badge (and the header's current-branch badge) now
+  shows the full name in a tooltip when it's truncated; and the panel no
+  longer closes on an outside click (which could fire unexpectedly while a
+  commit context menu was open) — close it with the header's × button or
+  Escape.
+
 ## 0.18.0 (2026-07-12)
 
 - New **Timer** tab (right of Music): a countdown timer for focused work

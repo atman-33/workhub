@@ -3,9 +3,8 @@
 # workhub vault
 
 This Obsidian vault is the data store of the workhub app and the owner's
-personal knowledge base. It is the single source of truth for tasks and
-knowledge shared between humans and AI agents. The workhub desktop app,
-Obsidian, humans, and AI agents all read and write the same files.
+personal knowledge base. Humans and AI agents read and write the same Markdown
+files; it is the single source of truth for tasks and shared knowledge.
 
 ## Structure
 
@@ -18,19 +17,19 @@ Obsidian, humans, and AI agents all read and write the same files.
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
 | `templates/` | human | note templates (`task.md`, `_index.md.template`) |
-| `_ai/` | **AI only** | `index/` machine-readable indexes, `logs/` raw agent reports + KB activity log, `memory/` agent working memory |
+| `_ai/` | **AI only** | `index/` indexes, `logs/` agent reports + KB activity log, `memory/` working memory |
 | `attachments/` | human + AI | images and other binary assets |
 
-English folder names are lowercase kebab-case. Topic folders under
-`knowledge/` follow the same convention (e.g. `knowledge/infra/`).
+English folder names are lowercase kebab-case. Topic folders under `knowledge/`
+follow the same convention (e.g. `knowledge/infra/`).
 
 ## Knowledge workflow
 
 Humans drop raw notes into `inbox/`; `/kb-ingest` classifies them into
 `projects/` / `knowledge/` / `archive/`, proposes tasks for actionable items,
-and maintains the zone `_index.md` files. `/kb-query` searches and
-synthesizes, `/kb-lint` health-checks, `/kb-index` repairs indexes. The KB
-activity log is `_ai/logs/kb-log.md`.
+and maintains the zone `_index.md` files. `/kb-query` searches and synthesizes,
+`/kb-lint` health-checks, `/kb-index` repairs indexes. The KB activity log is
+`_ai/logs/kb-log.md`.
 
 ## Task schema
 
@@ -45,46 +44,38 @@ assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
 priority: medium    # low | medium | high
 model: sonnet       # optional; AI model passed as `--model` when the app
-                    # launches an agent for this task (e.g. opus, sonnet,
-                    # anthropic/claude-sonnet-4-5). Absent = agent default
-order: 2            # manual sort position within the status column (number,
-                    # may be fractional); managed by the app — leave as is
+                    # launches an agent for this task. Absent = agent default.
+order: 2            # manual sort position; managed by the app — leave as is
 due: 2026-07-20     # optional
 tags: []
-archived: true      # optional; absent = false. Archived tasks are hidden from
-                    # the app board by default and excluded from AI task listings
-confirm: true       # optional; absent = false. When true, an agent launched
-                    # for this task drafts a plan and waits for the user's
-                    # approval before executing (instead of running autonomously)
-worktree: true      # optional; absent = false. When true, a launched agent
-                    # works in a dedicated git worktree (task-start creates it)
-                    # so parallel tasks on the same repo don't collide
+archived: true      # optional; absent = false. Hidden from the board by default
+confirm: true       # optional; absent = false. Plan-first approval before executing
+worktree: true      # optional; absent = false. Work in a dedicated git worktree
 created: 2026-07-10
 updated: 2026-07-10
 ```
 
-Body sections: `## Description` (task description — the prompt context for AI) and
-`## Results` (results, filled on completion, links to deliverable notes).
+Body sections: `## Description` (prompt/spec for AI) and `## Results`
+(deliverables, filled on completion, links to deliverable notes).
 
 ## Agent harness
 
-This vault is the **default working directory for AI agent sessions**
+This vault is the default working directory for AI agent sessions
 (Claude Code / OpenCode). Development work targets external repositories
 registered in `.claude/project-context.json`; the vault itself holds tasks,
 knowledge, and configuration — never application code.
 
 - Skills, hooks, and agents come from Claude Code plugins.
   `.claude/settings.json` declares the `workhub-marketplace` (the workhub
-  GitHub repo) and enables the required project-scope plugins (`workhub`,
-  `engineering`) plus `obsidian` (generic Obsidian format helpers). Toggle
-  optional plugins (`scrum`, `stack-*`) there or with `/plugin`. See
-  `docs/plugins.md` in the workhub repo for the catalog and scope policy.
+  GitHub repo) and enables required project-scope plugins (`workhub`,
+  `engineering`) plus `obsidian`. Toggle optional plugins (`scrum`,
+  `stack-*`) there or with `/plugin`. See `docs/plugins.md` in the workhub
+  repo for the catalog and scope policy.
 - **Never author skills inside this vault.** New skills belong in the
   workhub repo's `plugins/`; personal/machine tools go to the user-scope
   `productivity` plugin.
 - `.opencode/skills/` (when present) is a generated artifact synced from the
-  enabled Claude plugins — edit the plugin source and re-sync, never the
-  copies.
+  enabled Claude plugins — edit the plugin source and re-sync, never the copies.
 - Respond to the user in Japanese. Write documents and repository artifacts
   in English unless the user explicitly requests otherwise.
 
@@ -95,6 +86,38 @@ workspace. This is enabled by default in the app settings. To use it, install
 herdr and its Claude Code / OpenCode integrations by running the
 `setup-herdr` skill from the `productivity` plugin. If herdr is not installed,
 the app automatically falls back to the configured terminal command.
+
+### Git worktree mode
+
+Set `worktree: true` in the task frontmatter to have the agent work in a
+dedicated git worktree instead of the repository's main working tree. The
+workhub app places worktrees in a `.worktrees/` folder at the same level as the
+registered repositories. Relative to a repo root, the layout is:
+
+```text
+../.worktrees/<task-id>/<repo-name>
+```
+
+For example, from the repository root:
+
+```bash
+# create a new worktree and branch
+git worktree add ../.worktrees/T-0042/workhub -b task/T-0042
+
+# reuse an existing branch
+git worktree add ../.worktrees/T-0042/workhub task/T-0042
+
+# remove the worktree when it is no longer needed
+git worktree remove ../.worktrees/T-0042/workhub
+```
+
+Do all task work inside the worktree path. If the worktree or branch already
+exists (e.g. resuming a task), reuse it instead of recreating. Never delete the
+worktree folder directly — that leaves stale git metadata. `task-report` offers
+this cleanup when the task is finished.
+
+For a multi-repo task, put each repo's worktree under the same
+`.worktrees/<task-id>/` folder.
 
 ### Capturing knowledge
 
@@ -133,3 +156,10 @@ mechanical authoring):
   vault. Fall back to reading `tasks/` frontmatter if the index is missing.
 - Do not overwrite existing human-zone notes; append or create new notes and
   link them. `_ai/` is yours to manage freely.
+
+<important>
+- Never set a task's `status` to `done`. Only humans mark tasks done in the app.
+- Never delete a worktree folder directly; always use `git worktree remove`.
+- Do not author skills inside this vault; keep skill source in the workhub repo.
+- Respond to the user in Japanese; write repository artifacts in English.
+</important>
