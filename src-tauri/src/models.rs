@@ -48,6 +48,11 @@ pub struct Settings {
     /// until the user configures or initializes a vault.
     #[serde(default)]
     pub vault_path: Option<String>,
+    /// Root directory under which task worktrees are created, laid out as
+    /// `<worktree_root>/<task-id>/<repo-name>`. Used by the worktree panel to
+    /// locate task worktrees; the agent's task-start also follows this layout.
+    #[serde(default = "default_worktree_root")]
+    pub worktree_root: String,
 }
 
 fn default_true() -> bool {
@@ -69,6 +74,9 @@ fn default_opencode_cmd() -> String {
 fn default_herdr_cmd() -> String {
     "herdr".into()
 }
+fn default_worktree_root() -> String {
+    "C:/repos/.worktrees".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -81,6 +89,7 @@ impl Default for Settings {
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
             vault_path: None,
+            worktree_root: default_worktree_root(),
         }
     }
 }
@@ -173,6 +182,31 @@ pub struct GitInfo {
     pub changes: u32,
     pub branches: Vec<String>,
     pub error: Option<String>,
+}
+
+/// One git worktree of a registered repo (not persisted). Task worktrees are
+/// created by agents on a `task/<id>` branch; `task_id` is derived from that
+/// branch name.
+#[derive(Debug, Clone, Serialize)]
+pub struct Worktree {
+    /// Absolute path of the worktree (forward slashes).
+    pub path: String,
+    /// Absolute path of the owning repo (the registered project path).
+    pub repo_path: String,
+    /// Display name of the owning repo.
+    pub repo_name: String,
+    /// Checked-out branch (short name); empty when detached or bare.
+    pub branch: String,
+    pub head: String,
+    /// True for the repo's primary working tree (not a task worktree).
+    pub is_main: bool,
+    pub bare: bool,
+    pub locked: bool,
+    pub detached: bool,
+    /// Has uncommitted or untracked changes (only computed for linked worktrees).
+    pub dirty: bool,
+    /// Task id parsed from a `task/<id>` branch, if any.
+    pub task_id: Option<String>,
 }
 
 /// A branch/remote/tag/HEAD decoration attached to a commit.

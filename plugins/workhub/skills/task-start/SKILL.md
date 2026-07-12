@@ -38,14 +38,16 @@ argument-hint: "<task-id>"
    Isolating parallel tasks in their own worktree keeps them from colliding
    on one working tree. When enabled:
    - Create the worktree under the repository's parent directory, grouped by
-     repo name and keyed by task id, on a task branch:
+     task id and keyed by repo name, on a task branch:
 
      ```bash
-     git -C <repo> worktree add "<repo>/../.worktrees/<repo-name>/<task-id>" -b task/<task-id>
+     git -C <repo> worktree add "<repo>/../.worktrees/<task-id>/<repo-name>" -b task/<task-id>
      ```
 
      e.g. for repo `C:/repos/workhub` and task `T-0017` →
-     `C:/repos/.worktrees/workhub/T-0017` on branch `task/T-0017`.
+     `C:/repos/.worktrees/T-0017/workhub` on branch `task/T-0017`.
+     Grouping by task id keeps a multi-repo task's worktrees together under
+     one `.worktrees/<task-id>/` folder (one sub-folder per repo).
    - If the worktree or branch already exists (a resumed task), reuse it
      instead of recreating (`git -C <repo> worktree list` to check; drop the
      `-b` flag and point at the existing path/branch).

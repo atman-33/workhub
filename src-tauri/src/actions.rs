@@ -219,7 +219,7 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
     // creates the worktree there, so this only has to tell it where and how.
     let worktree_note = if params.worktree {
         format!(
-            "このタスクは git worktree モードです。task-start では対象リポジトリの作業ツリーを直接変更せず、リポジトリの親ディレクトリ配下の `.worktrees/<リポジトリ名>/{0}` に `git worktree add`（ブランチ `task/{0}`）で新しい worktree を作成し、その中で作業してください。",
+            "このタスクは git worktree モードです。task-start では対象リポジトリの作業ツリーを直接変更せず、リポジトリの親ディレクトリ配下の `.worktrees/{0}/<リポジトリ名>` に `git worktree add`（ブランチ `task/{0}`）で新しい worktree を作成し、その中で作業してください。複数リポジトリを扱う場合は同じ `.worktrees/{0}/` 配下にリポジトリ名ごとの worktree を作成してください。",
             params.task_id
         )
     } else {
@@ -442,7 +442,7 @@ mod tests {
         params.worktree = true;
         let template = agent_command_template(&params);
         assert!(template.contains("git worktree モード"));
-        assert!(template.contains(".worktrees/<リポジトリ名>/T-1"));
+        assert!(template.contains(".worktrees/T-1/<リポジトリ名>"));
         assert!(template.contains("task/T-1"));
     }
 

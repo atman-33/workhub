@@ -13,11 +13,13 @@ import {
   Star,
   Tag,
   Trash2,
+  TreeDeciduous,
   X,
 } from "lucide-react";
 import { GitGraphView } from "@/components/graph/git-graph-view";
 import { NotesDialog } from "@/components/notes-dialog";
 import { ProjectRow, type RowAction } from "@/components/project-row";
+import { WorktreesPanel } from "@/components/worktrees-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +51,7 @@ interface Props {
 export function ReposView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
+  const [showWorktrees, setShowWorktrees] = useState(false);
   const [gitMap, setGitMap] = useState<Record<string, GitInfo>>({});
   const [busy, setBusy] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -340,6 +343,14 @@ export function ReposView({ configVersion }: Props) {
           >
             <ArrowDownToLine className="size-3.5" /> Fetch all
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setShowWorktrees(true)}
+          >
+            <TreeDeciduous className="size-3.5" /> Worktrees
+          </Button>
   
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -499,6 +510,25 @@ export function ReposView({ configVersion }: Props) {
               name={config.projects.find((p) => p.path === graphPath)?.name ?? graphPath}
               onClose={() => setGraphPath(null)}
               onRepoChanged={refreshStatus}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* worktrees sheet */}
+      <Sheet open={showWorktrees} onOpenChange={setShowWorktrees}>
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="w-[90vw] gap-0 p-0 sm:max-w-2xl"
+          aria-describedby={undefined}
+        >
+          <SheetTitle className="sr-only">Worktrees</SheetTitle>
+          {showWorktrees && (
+            <WorktreesPanel
+              projectPaths={config.projects.map((p) => p.path)}
+              settings={config.settings}
+              onClose={() => setShowWorktrees(false)}
             />
           )}
         </SheetContent>
