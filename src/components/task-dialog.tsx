@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +72,37 @@ const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 
 const CLAUDE_MODELS = ["haiku", "sonnet", "opus"];
 
+const DRAFT_STORAGE_KEY = "workhub:task-draft";
+
+function draftStorageKey(mode: "create" | "edit", task: Task | null): string {
+  return mode === "edit" && task ? `${DRAFT_STORAGE_KEY}:${task.id}` : `${DRAFT_STORAGE_KEY}:create`;
+}
+
+function loadDraft(key: string): TaskDraft | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as TaskDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(key: string, draft: TaskDraft): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Storage can be unavailable or full; ignore silently.
+  }
+}
+
+function clearDraft(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 // `opencode models` is a CLI spawn; fetch once per app run and share the
 // result across dialog opens.
 let opencodeModelsCache: string[] | null = null;
@@ -93,10 +124,33 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
     opencodeModelsErrorCache,
   );
 
+  const draftKey = useMemo(() => draftStorageKey(mode, task), [mode, task]);
+  const skipNextSaveRef = useRef(false);
+
+  // On open, restore a persisted draft if one exists so an accidental close
+  // does not lose in-progress input. Fall back to the task or empty state.
   useEffect(() => {
     if (!open) return;
+    const saved = loadDraft(draftKey);
+    setDraft(saved ?? (task ? draftFromTask(task) : EMPTY_DRAFT));
+  }, [open, task, draftKey]);
+
+  // Auto-save the draft shortly after the user stops editing.
+  useEffect(() => {
+    if (!open) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => saveDraft(draftKey, draft), 500);
+    return () => clearTimeout(timer);
+  }, [draft, draftKey, open]);
+
+  const resetDraft = useCallback(() => {
+    skipNextSaveRef.current = true;
+    clearDraft(draftKey);
     setDraft(task ? draftFromTask(task) : EMPTY_DRAFT);
-  }, [open, task]);
+  }, [draftKey, task]);
 
   // Lazily fetch the opencode model catalog the first time an opencode task
   // is edited; later opens reuse the module-level cache.
@@ -304,9 +358,13 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
           )}
         </div>
         <DialogFooter>
+          <Button variant="outline" size="sm" onClick={resetDraft}>
+            Reset
+          </Button>
           <Button
             disabled={!draft.title.trim()}
             onClick={() => {
+              clearDraft(draftKey);
               onSubmit(draft);
               onClose();
             }}

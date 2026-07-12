@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 (2026-07-12)
+
+- Auto-save task dialog drafts to `localStorage` as the user types. If the
+  dialog is accidentally closed while creating or editing a task, the in-progress
+  input is restored the next time the dialog opens. Drafts are cleared on
+  successful save and can be discarded with the new "Reset" button.
+
 ## 0.11.1 (2026-07-12)
 
 - Simplify the task dialog by moving infrequently-used fields (Priority, Due,
