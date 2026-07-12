@@ -129,6 +129,14 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
   const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
     opencodeModelsErrorCache,
   );
+  // Keep the rendered mode stable while the dialog is closing so the footer
+  // (e.g. the Create button) does not flash during the exit animation.
+  const [displayMode, setDisplayMode] = useState<"create" | "edit">(mode);
+  useEffect(() => {
+    if (open) {
+      setDisplayMode(mode);
+    }
+  }, [open, mode]);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef(draft);
@@ -256,7 +264,7 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "New task" : `${task?.id} — Edit task`}</DialogTitle>
+          <DialogTitle>{displayMode === "create" ? "New task" : `${task?.id} — Edit task`}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           {field(
@@ -432,7 +440,7 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
             />,
           )}
         </div>
-        {mode === "create" && (
+        {displayMode === "create" && (
           <DialogFooter>
             <Button
               disabled={!draft.title.trim()}

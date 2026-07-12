@@ -10,6 +10,10 @@
   Audio API — no bundled audio file) and raises a desktop notification. Both
   are individually switchable and the volume is adjustable; the sound, volume,
   notification and last-used duration settings persist across restarts.
+- Tasks: fixed the Create button flashing briefly when closing an Edit Task
+  dialog. The rendered dialog mode is now held stable during the exit
+  animation so the footer does not switch from Edit to Create while the dialog
+  is still visible.
 
 ## 0.17.0 (2026-07-12)
 
