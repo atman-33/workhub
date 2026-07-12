@@ -561,6 +561,12 @@ export function ReposView({ configVersion }: Props) {
           showCloseButton={false}
           className="w-[90vw] gap-0 p-0 sm:max-w-4xl"
           aria-describedby={undefined}
+          // Keep the sheet open when a right-click (e.g. dismissing a commit's
+          // context menu over empty space) lands outside it; only a left-click
+          // outside should close it.
+          onPointerDownOutside={(e) => {
+            if ((e.detail.originalEvent as PointerEvent).button === 2) e.preventDefault();
+          }}
         >
           <SheetTitle className="sr-only">Commit graph</SheetTitle>
           {graphPath !== null && (
