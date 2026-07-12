@@ -104,6 +104,12 @@ export interface Task {
   tags: string[];
   /** Hidden from the board by default; toggled via the task context menu. */
   archived: boolean;
+  /** Confirm/plan-first mode: a launched agent drafts a plan and waits for
+   * approval before executing, instead of running autonomously. */
+  confirm: boolean;
+  /** git worktree mode: a launched agent works in a dedicated worktree so
+   * parallel tasks on the same repo don't collide. */
+  worktree: boolean;
   created: string;
   updated: string;
   file: string;
@@ -117,6 +123,8 @@ export interface CreateTaskInput {
   project?: string;
   priority?: TaskPriority;
   model?: string;
+  confirm?: boolean;
+  worktree?: boolean;
   due?: string;
   tags?: string[];
   body?: string;
@@ -134,6 +142,8 @@ export interface UpdateTaskInput {
   due?: string;
   tags?: string[];
   archived?: boolean;
+  confirm?: boolean;
+  worktree?: boolean;
   body?: string;
 }
 

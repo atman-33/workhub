@@ -116,6 +116,17 @@ pub struct Task {
     /// Hidden from the board by default; absent in frontmatter means false.
     #[serde(default)]
     pub archived: bool,
+    /// Confirm/plan-first mode: when true, an agent launched for this task is
+    /// told to draft a plan and get the user's approval before executing
+    /// (rather than running autonomously), and the CLI is started without
+    /// auto-approve flags. Absent in frontmatter means false.
+    #[serde(default)]
+    pub confirm: bool,
+    /// git worktree mode: when true, an agent launched for this task works in a
+    /// dedicated git worktree instead of the repository's main working tree, so
+    /// parallel tasks don't collide. Absent in frontmatter means false.
+    #[serde(default)]
+    pub worktree: bool,
     pub created: String,
     pub updated: String,
     /// Absolute path to the task's Markdown file (forward slashes).

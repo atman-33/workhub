@@ -93,4 +93,12 @@
     user-select: text;
     cursor: text;
   }
+  /* Body sets `cursor: default`, so enabled clickable controls must opt back
+     into the pointer cursor. Covers raw <button>s and role=button elements;
+     the Button/Switch components also carry `cursor-pointer` for their
+     asChild (non-<button>) render paths. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }

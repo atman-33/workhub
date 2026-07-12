@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
+import { Switch } from "@/components/ui/switch";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -35,6 +36,8 @@ export interface TaskDraft {
   project: string;
   priority: TaskPriority;
   model: string;
+  confirm: boolean;
+  worktree: boolean;
   due: string;
   tags: string; // comma-separated for editing
   content: string;
@@ -47,6 +50,8 @@ const EMPTY_DRAFT: TaskDraft = {
   project: "",
   priority: "medium",
   model: "",
+  confirm: false,
+  worktree: false,
   due: "",
   tags: "",
   content: "",
@@ -60,6 +65,8 @@ function draftFromTask(task: Task): TaskDraft {
     project: task.project,
     priority: task.priority,
     model: task.model,
+    confirm: task.confirm,
+    worktree: task.worktree,
     due: task.due,
     tags: task.tags.join(", "),
     content: parseBody(task.body).content,
@@ -193,6 +200,32 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
     </div>
   );
 
+  // Launch-mode toggles (confirm / worktree) only affect AI agent launches, so
+  // they are disabled for "me" tasks, which spawn no agent.
+  const toggle = (
+    label: string,
+    description: string,
+    checked: boolean,
+    onCheckedChange: (v: boolean) => void,
+    disabled: boolean,
+  ) => (
+    <div
+      className="flex items-start justify-between gap-2 rounded-md border px-3 py-2"
+      data-disabled={disabled || undefined}
+    >
+      <div className="space-y-0.5">
+        <label className="text-xs font-medium text-muted-foreground">{label}</label>
+        <p className="text-[10px] leading-tight text-muted-foreground/70">{description}</p>
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        disabled={disabled}
+        className="mt-0.5"
+      />
+    </div>
+  );
+
   const hasOptionalDetails =
     draft.priority !== "medium" || draft.due || draft.tags.trim();
   const optionalSummary = [
@@ -311,6 +344,22 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
                   </p>
                 )}
               </div>,
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {toggle(
+              "Confirm mode",
+              "Agent drafts a plan and waits for your approval before executing.",
+              draft.confirm,
+              (v) => setDraft({ ...draft, confirm: v }),
+              draft.assignee === "me",
+            )}
+            {toggle(
+              "Git worktree",
+              "Agent works in a dedicated worktree so parallel tasks don't collide.",
+              draft.worktree,
+              (v) => setDraft({ ...draft, worktree: v }),
+              draft.assignee === "me",
             )}
           </div>
           <Accordion

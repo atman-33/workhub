@@ -35,6 +35,16 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
    delete `<vault>/_ai/memory/active-task.json` if it refers to this task.
+6. **Offer to clean up the worktree — only for worktree-mode tasks**
+   (`worktree: true`). Once the work is committed/pushed and no longer needed,
+   **propose** removing the task's worktree (do not delete it automatically —
+   the user may still want to inspect it):
+
+   ```bash
+   git -C <repo> worktree remove "<repo>/../.worktrees/<repo-name>/<task-id>"
+   ```
+
+   Mention the branch `task/<task-id>` is left in place for the PR/merge.
 
 ## Rules
 

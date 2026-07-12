@@ -170,6 +170,10 @@ fn render_frontmatter(t: &Task) -> String {
     // Emitted only when set, like `order`, so files never archived stay
     // byte-identical on round-trip.
     let archived_line = if t.archived { "archived: true\n" } else { "" };
+    // Same policy for the per-task launch flags: only emitted when enabled, so
+    // files that never opt in stay byte-identical on round-trip.
+    let confirm_line = if t.confirm { "confirm: true\n" } else { "" };
+    let worktree_line = if t.worktree { "worktree: true\n" } else { "" };
     // Same policy: only tasks that specify a model carry the line.
     let model_line = if t.model.is_empty() {
         String::new()
@@ -177,7 +181,7 @@ fn render_frontmatter(t: &Task) -> String {
         format!("model: {}\n", yaml_scalar(&t.model))
     };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}{}{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
@@ -189,6 +193,8 @@ fn render_frontmatter(t: &Task) -> String {
         t.due,
         render_tags(&t.tags),
         archived_line,
+        confirm_line,
+        worktree_line,
         t.created,
         t.updated,
     )
@@ -234,6 +240,12 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
         archived: raw
             .map
             .get("archived")
+            .map(|v| v == "true")
+            .unwrap_or(false),
+        confirm: raw.map.get("confirm").map(|v| v == "true").unwrap_or(false),
+        worktree: raw
+            .map
+            .get("worktree")
             .map(|v| v == "true")
             .unwrap_or(false),
         created: get("created"),
@@ -345,6 +357,8 @@ pub struct CreateTaskInput {
     pub project: Option<String>,
     pub priority: Option<String>,
     pub model: Option<String>,
+    pub confirm: Option<bool>,
+    pub worktree: Option<bool>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
@@ -374,6 +388,8 @@ pub struct UpdateTaskInput {
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub archived: Option<bool>,
+    pub confirm: Option<bool>,
+    pub worktree: Option<bool>,
     pub body: Option<String>,
 }
 
@@ -399,6 +415,8 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         due: input.due.unwrap_or_default(),
         tags: input.tags.unwrap_or_default(),
         archived: false,
+        confirm: input.confirm.unwrap_or(false),
+        worktree: input.worktree.unwrap_or(false),
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
@@ -459,6 +477,12 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     if let Some(v) = input.archived {
         task.archived = v;
     }
+    if let Some(v) = input.confirm {
+        task.confirm = v;
+    }
+    if let Some(v) = input.worktree {
+        task.worktree = v;
+    }
     if let Some(v) = input.body {
         task.body = v;
     }
@@ -500,6 +524,8 @@ struct IndexEntry<'a> {
     due: &'a str,
     tags: &'a [String],
     archived: bool,
+    confirm: bool,
+    worktree: bool,
     created: &'a str,
     updated: &'a str,
     file: String,
@@ -522,6 +548,8 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             due: &t.due,
             tags: &t.tags,
             archived: t.archived,
+            confirm: t.confirm,
+            worktree: t.worktree,
             created: &t.created,
             updated: &t.updated,
             file: t
@@ -817,6 +845,8 @@ mod tests {
                     due: String::new(),
                     tags: vec![],
                     archived: false,
+                    confirm: false,
+                    worktree: false,
                     created: today(),
                     updated: today(),
                     file: t3_path.to_string_lossy().replace('\\', "/"),
@@ -970,6 +1000,64 @@ mod tests {
         assert!(!unarchived.archived);
         let raw = fs::read_to_string(&task.file).unwrap();
         assert!(!raw.contains("archived:"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn confirm_and_worktree_flags_round_trip_and_are_omitted_when_false() {
+        let vault = temp_vault("flags");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "flagged".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Absent by default: no lines emitted.
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("confirm:"), "raw frontmatter: {raw}");
+        assert!(!raw.contains("worktree:"), "raw frontmatter: {raw}");
+
+        let updated = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                confirm: Some(true),
+                worktree: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(updated.confirm && updated.worktree);
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(raw.contains("confirm: true\n"), "raw frontmatter: {raw}");
+        assert!(raw.contains("worktree: true\n"), "raw frontmatter: {raw}");
+
+        // Re-scan and index carry the flags.
+        let scanned = scan_tasks(&vault).unwrap();
+        assert!(scanned[0].confirm && scanned[0].worktree);
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index[0]["confirm"], true);
+        assert_eq!(index[0]["worktree"], true);
+
+        // Turning them off removes the lines again.
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                confirm: Some(false),
+                worktree: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("confirm:"), "raw frontmatter: {raw}");
+        assert!(!raw.contains("worktree:"), "raw frontmatter: {raw}");
 
         fs::remove_dir_all(&vault).ok();
     }
