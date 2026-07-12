@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.11.0 (2026-07-12)
+
+- Task dialog controls now use shadcn/ui throughout: Project and Model are
+  editable comboboxes (pick a known value or type an arbitrary one) and Due is
+  a Popover + Calendar date picker, replacing the native `<input list>` and
+  `<input type="date">`. The calendar renders in English regardless of OS
+  locale.
+- Changing a task's Assignee now clears the Model field, so a stale selection
+  from another agent no longer carries over.
+- Fix Music continuous playback: when a track ended, the player advanced to the
+  next video but stopped immediately. The `currentVideoId` sync effect re-cued
+  every id change (`cueVideoById` loads without playing), clobbering the
+  load+play that `playNext`/`play` had just done. It now cues only when the
+  player is idle (async vault hydration), leaving active playback alone.
+
 ## 0.10.0 (2026-07-12)
 
 - Fix shadcn/ui animations: `tw-animate-css` was never imported, so the

@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { parseBody } from "@/lib/taskBody";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
@@ -161,7 +163,11 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
               "Assignee",
               <Select
                 value={draft.assignee}
-                onValueChange={(v) => setDraft({ ...draft, assignee: v as TaskAssignee })}
+                onValueChange={(v) =>
+                  // Clear the model when the assignee changes — model catalogs
+                  // differ per agent, so a stale carry-over is never valid.
+                  setDraft({ ...draft, assignee: v as TaskAssignee, model: "" })
+                }
               >
                 <SelectTrigger size="sm">
                   <SelectValue />
@@ -197,29 +203,23 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
           <div className="grid grid-cols-2 gap-3">
             {field(
               "Project",
-              <Input
-                list="task-known-projects"
+              <Combobox
                 value={draft.project}
-                onChange={(e) => setDraft({ ...draft, project: e.target.value })}
-                className="h-8 text-xs"
+                onChange={(v) => setDraft({ ...draft, project: v })}
+                options={knownProjects}
+                allowCustom
                 placeholder="repo name or path"
+                emptyText="No known projects."
               />,
             )}
             {field(
               "Due",
-              <Input
-                type="date"
+              <DatePicker
                 value={draft.due}
-                onChange={(e) => setDraft({ ...draft, due: e.target.value })}
-                className="h-8 text-xs"
+                onChange={(v) => setDraft({ ...draft, due: v })}
               />,
             )}
           </div>
-          <datalist id="task-known-projects">
-            {knownProjects.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
           <div className="grid grid-cols-2 gap-3">
             {field(
               "Tags (comma separated)",
@@ -233,12 +233,13 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
             {field(
               "Model (AI launches)",
               <div className="space-y-1">
-                <Input
-                  list="task-known-models"
+                <Combobox
                   value={draft.model}
-                  onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-                  className="h-8 text-xs"
+                  onChange={(v) => setDraft({ ...draft, model: v })}
+                  options={draft.assignee === "opencode" ? opencodeModels : CLAUDE_MODELS}
+                  allowCustom
                   placeholder="agent default"
+                  emptyText="No models."
                 />
                 {draft.assignee === "opencode" && opencodeModelsError && (
                   <p className="text-[10px] text-destructive/80">
@@ -248,11 +249,6 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
               </div>,
             )}
           </div>
-          <datalist id="task-known-models">
-            {(draft.assignee === "opencode" ? opencodeModels : CLAUDE_MODELS).map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
           {field(
             "Description",
             <Textarea
