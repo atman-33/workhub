@@ -106,7 +106,7 @@ export default function App() {
             />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
-            <ReposView configVersion={configVersion} />
+            <ReposView configVersion={configVersion} active={tab === "repos"} />
           </div>
           <div className={cn("h-full", tab !== "music" && "hidden")}>
             <MusicView configVersion={configVersion} />

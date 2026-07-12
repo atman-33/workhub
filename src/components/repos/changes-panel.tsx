@@ -22,6 +22,8 @@ interface Props {
   /** Active repo path, or null when no repo row is selected for viewing. */
   path: string | null;
   name: string;
+  /** Whether the Repos tab is the visible one; pauses polling when false. */
+  active: boolean;
   onClose: () => void;
 }
 
@@ -31,7 +33,7 @@ interface Props {
  * edits appear as they happen. File list on the left, unified diff on the
  * right. Read-only — no staging/discard.
  */
-export function ChangesPanel({ path, name, onClose }: Props) {
+export function ChangesPanel({ path, name, active, onClose }: Props) {
   const [files, setFiles] = useState<CommitFileChange[] | null>(null);
   const [error, setError] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -68,32 +70,32 @@ export function ChangesPanel({ path, name, onClose }: Props) {
     }
   }, [path]);
 
-  // Reset and load when the active repo changes.
+  // Clear state when the active repo changes; loading is handled by the poll
+  // effect below (which also fires an immediate load).
   useEffect(() => {
     setFiles(null);
     setError("");
     setSelectedPath(null);
     setDiff(null);
-    if (path) void loadFiles();
-  }, [path, loadFiles]);
+  }, [path]);
 
-  // Poll the active repo while the panel is visible and the window is focused.
+  // Poll the active repo while the Repos tab is shown and the window is
+  // focused; also refresh immediately on (re)activation and on regaining focus.
   useEffect(() => {
-    if (!path) return;
-    let timer: number | undefined;
-    const tick = () => {
+    if (!path || !active) return;
+    void loadFiles();
+    const timer = window.setInterval(() => {
       if (!document.hidden) void loadFiles();
-    };
-    timer = window.setInterval(tick, POLL_MS);
+    }, POLL_MS);
     const onVisible = () => {
       if (!document.hidden) void loadFiles();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      if (timer) window.clearInterval(timer);
+      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [path, loadFiles]);
+  }, [path, active, loadFiles]);
 
   const selected = useMemo(
     () => files?.find((f) => f.path === selectedPath) ?? null,

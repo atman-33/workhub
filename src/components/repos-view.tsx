@@ -54,9 +54,14 @@ import type { Config, GitInfo } from "@/types";
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
   configVersion: number;
+  /** Whether the Repos tab is the visible one; gates background polling. */
+  active: boolean;
 }
 
-export function ReposView({ configVersion }: Props) {
+/** How often the visible Repos list re-reads each repo's git status, in ms. */
+const STATUS_POLL_MS = 5000;
+
+export function ReposView({ configVersion, active }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
   const [showWorktrees, setShowWorktrees] = useState(false);
@@ -87,6 +92,8 @@ export function ReposView({ configVersion }: Props) {
   configRef.current = config;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
 
   // ---- persistence: keep rust-side config.json in sync ----
   const persist = useCallback((cfg: Config, sel: Set<string>) => {
@@ -134,6 +141,12 @@ export function ReposView({ configVersion }: Props) {
     [refreshStatus],
   );
 
+  // Quiet variant for background polling: refresh git status without the
+  // per-row busy spinner (which would flicker on every tick).
+  const quietRefresh = useCallback((path: string) => {
+    void api.gitStatus(path).then((info) => setGitMap((m) => ({ ...m, [path]: info })));
+  }, []);
+
   // ---- startup ----
   useEffect(() => {
     void (async () => {
@@ -152,6 +165,30 @@ export function ReposView({ configVersion }: Props) {
       setSelected(new Set(cfg.selected));
     });
   }, [configVersion]);
+
+  // ---- periodic git-status refresh (only while the Repos tab is visible) ----
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => {
+      if (document.hidden) return;
+      const cfg = configRef.current;
+      if (!cfg) return;
+      // Skip repos with an in-flight git op to avoid racing its status update.
+      cfg.projects.forEach((p) => {
+        if (!busyRef.current[p.path]) quietRefresh(p.path);
+      });
+    };
+    tick(); // refresh immediately on (re)entering the tab
+    const id = window.setInterval(tick, STATUS_POLL_MS);
+    const onVisible = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [active, quietRefresh]);
 
   // ---- actions ----
   const markOpened = useCallback(
@@ -537,6 +574,7 @@ export function ReposView({ configVersion }: Props) {
               <ChangesPanel
                 path={activePath}
                 name={config.projects.find((p) => p.path === activePath)?.name ?? ""}
+                active={active}
                 onClose={() => setShowChanges(false)}
               />
             </ResizablePanel>

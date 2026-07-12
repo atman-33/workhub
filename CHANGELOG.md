@@ -16,6 +16,11 @@
   list, toggled with an icon button. The tree compacts single-child folders
   (e.g. `src/components/repos`) and starts fully expanded; the view choice
   persists across the app.
+- Repos: the project list now **auto-refreshes git status** every 5 seconds
+  while the Repos tab is visible and the window is focused, so branch,
+  ahead/behind, and uncommitted-change badges stay current as an agent works.
+  It reads local status only (no network fetch), updates quietly without the
+  per-row refresh spinner, and skips repos with an in-flight git operation.
 - Git Graph: branch/remote ref right-click menus gain a **Copy branch name**
   item; hovering any ref badge (and the header's current-branch badge) now
   shows the full name in a tooltip when it's truncated; and the panel no
