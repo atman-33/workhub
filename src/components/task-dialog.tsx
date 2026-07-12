@@ -19,6 +19,12 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -123,6 +129,16 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
     </div>
   );
 
+  const hasOptionalDetails =
+    draft.priority !== "medium" || draft.due || draft.tags.trim();
+  const optionalSummary = [
+    draft.priority !== "medium" ? `Priority: ${draft.priority}` : "",
+    draft.due ? `Due: ${draft.due}` : "",
+    draft.tags.trim() ? `Tags: ${draft.tags.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ") || "None set";
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg">
@@ -140,7 +156,7 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
               placeholder="Task title"
             />,
           )}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {field(
               "Status",
               <Select
@@ -181,24 +197,6 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
                 </SelectContent>
               </Select>,
             )}
-            {field(
-              "Priority",
-              <Select
-                value={draft.priority}
-                onValueChange={(v) => setDraft({ ...draft, priority: v as TaskPriority })}
-              >
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>,
-            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             {field(
@@ -210,24 +208,6 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
                 allowCustom
                 placeholder="repo name or path"
                 emptyText="No known projects."
-              />,
-            )}
-            {field(
-              "Due",
-              <DatePicker
-                value={draft.due}
-                onChange={(v) => setDraft({ ...draft, due: v })}
-              />,
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {field(
-              "Tags (comma separated)",
-              <Input
-                value={draft.tags}
-                onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="feature, bug"
               />,
             )}
             {field(
@@ -253,6 +233,66 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
               </div>,
             )}
           </div>
+          <Accordion
+            type="single"
+            collapsible
+            defaultValue={hasOptionalDetails ? "optional" : undefined}
+          >
+            <AccordionItem value="optional">
+              <AccordionTrigger>
+                <span className="flex flex-col items-start">
+                  <span>Optional details</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {optionalSummary}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {field(
+                      "Priority",
+                      <Select
+                        value={draft.priority}
+                        onValueChange={(v) =>
+                          setDraft({ ...draft, priority: v as TaskPriority })
+                        }
+                      >
+                        <SelectTrigger size="sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRIORITIES.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>,
+                    )}
+                    {field(
+                      "Due",
+                      <DatePicker
+                        value={draft.due}
+                        onChange={(v) => setDraft({ ...draft, due: v })}
+                      />,
+                    )}
+                    {field(
+                      "Tags (comma separated)",
+                      <Input
+                        value={draft.tags}
+                        onChange={(e) =>
+                          setDraft({ ...draft, tags: e.target.value })
+                        }
+                        className="h-8 text-xs"
+                        placeholder="feature, bug"
+                      />,
+                    )}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
           {field(
             "Description",
             <Textarea
