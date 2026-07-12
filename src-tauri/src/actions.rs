@@ -90,6 +90,15 @@ pub struct LaunchAgentForTaskParams<'a> {
     pub project: &'a str,
     /// Passed to the agent CLI as `--model <model>`; empty = agent default.
     pub model: &'a str,
+    /// Confirm/plan-first mode. When true, the initial prompt tells the agent
+    /// to draft a plan and get the user's approval before executing, and the
+    /// CLI is launched without auto-approve flags (claude uses
+    /// `--permission-mode plan`; opencode drops `--auto`).
+    pub confirm: bool,
+    /// git worktree mode. When true, the initial prompt tells the agent to
+    /// create and work inside a dedicated git worktree for the task rather than
+    /// the repository's main working tree.
+    pub worktree: bool,
     pub vault_path: &'a str,
     pub use_herdr: bool,
     pub herdr_cmd: &'a str,
@@ -197,18 +206,45 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
     } else {
         format!("対象プロジェクト: {}。", params.project)
     };
+    // Execution clause: autonomous by default; plan-first when the task opts
+    // into confirm mode (T-0016 — a task Description asking for confirmation is
+    // otherwise overridden by the "run without asking" instruction below).
+    let execution = if params.confirm {
+        "、Description を理解した上で実装計画（Plan）を作成し、ユーザーの承認を得てから実施してください。承認されるまでコードを変更しないでください"
+    } else {
+        "、確認を求めずに完了まで自動で実施してください"
+    };
+    // Worktree clause: only when the task opts into git worktree mode (T-0017).
+    // The agent session starts in the vault; task-start resolves the repo and
+    // creates the worktree there, so this only has to tell it where and how.
+    let worktree_note = if params.worktree {
+        format!(
+            "このタスクは git worktree モードです。task-start では対象リポジトリの作業ツリーを直接変更せず、リポジトリの親ディレクトリ配下の `.worktrees/<リポジトリ名>/{0}` に `git worktree add`（ブランチ `task/{0}`）で新しい worktree を作成し、その中で作業してください。",
+            params.task_id
+        )
+    } else {
+        String::new()
+    };
     let prompt = format!(
-        "タスク {} を実施してください。まず task-start スキルを実行し、確認を求めずに完了まで自動で実施してください。完了したら task-report スキルを実行してステータスを更新してください。{}タスクファイル: {}",
-        params.task_id, project_note, params.task_file
+        "タスク {} を実施してください。まず task-start スキルを実行し{}。完了したら task-report スキルを実行してステータスを更新してください。{}{}タスクファイル: {}",
+        params.task_id, execution, worktree_note, project_note, params.task_file
     );
     let quoted_prompt = format!("\"'{}'\"", prompt.replace('\'', "''"));
 
     // opencode's positional argument is a project path, not a prompt, so the
     // prompt must go through --prompt; claude takes it as the positional arg.
-    let (auto_flag, prompt_arg) = if params.assignee == "opencode" {
-        (" --auto", format!(" --prompt {quoted_prompt}"))
+    // In confirm mode the auto-approve flag is dropped so the agent actually
+    // stops for the user (claude switches to its plan permission mode).
+    let (auto_flag, prompt_arg): (&str, String) = if params.assignee == "opencode" {
+        let flag = if params.confirm { "" } else { " --auto" };
+        (flag, format!(" --prompt {quoted_prompt}"))
     } else {
-        (" --permission-mode auto", format!(" {quoted_prompt}"))
+        let flag = if params.confirm {
+            " --permission-mode plan"
+        } else {
+            " --permission-mode auto"
+        };
+        (flag, format!(" {quoted_prompt}"))
     };
     format!(
         "{}{}{auto_flag}{prompt_arg}",
@@ -349,6 +385,8 @@ mod tests {
             task_file: "tasks/T-1.md",
             project: "proj",
             model,
+            confirm: false,
+            worktree: false,
             vault_path: "C:/vault",
             use_herdr: false,
             herdr_cmd: "herdr",
@@ -373,6 +411,45 @@ mod tests {
         assert!(template.contains("対象プロジェクト: proj。"));
         assert!(template.ends_with("タスクファイル: tasks/T-1.md'\""));
         assert!(!template.contains("--prompt"));
+    }
+
+    #[test]
+    fn confirm_mode_uses_plan_permission_and_plan_first_prompt() {
+        let mut params = test_params("claude-code", "");
+        params.confirm = true;
+        let template = agent_command_template(&params);
+        // Plan permission mode instead of the autonomous auto mode.
+        assert!(template.contains(" --permission-mode plan "));
+        assert!(!template.contains("--permission-mode auto"));
+        // Prompt asks for a plan + approval, not "run without asking".
+        assert!(template.contains("実装計画（Plan）を作成し、ユーザーの承認を得てから"));
+        assert!(!template.contains("確認を求めずに完了まで自動で実施"));
+    }
+
+    #[test]
+    fn confirm_mode_drops_opencode_auto_flag() {
+        let mut params = test_params("opencode", "");
+        params.agent_cmd = "wt -d {path} powershell -NoExit -Command opencode";
+        params.confirm = true;
+        let template = agent_command_template(&params);
+        assert!(!template.contains("--auto"));
+        assert!(template.contains(" --prompt "));
+    }
+
+    #[test]
+    fn worktree_mode_injects_worktree_instruction() {
+        let mut params = test_params("claude-code", "");
+        params.worktree = true;
+        let template = agent_command_template(&params);
+        assert!(template.contains("git worktree モード"));
+        assert!(template.contains(".worktrees/<リポジトリ名>/T-1"));
+        assert!(template.contains("task/T-1"));
+    }
+
+    #[test]
+    fn default_mode_has_no_worktree_instruction() {
+        let template = agent_command_template(&test_params("claude-code", ""));
+        assert!(!template.contains("git worktree モード"));
     }
 
     #[test]

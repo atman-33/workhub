@@ -53,6 +53,12 @@ due: 2026-07-20     # optional
 tags: []
 archived: true      # optional; absent = false. Archived tasks are hidden from
                     # the app board by default and excluded from AI task listings
+confirm: true       # optional; absent = false. When true, an agent launched
+                    # for this task drafts a plan and waits for the user's
+                    # approval before executing (instead of running autonomously)
+worktree: true      # optional; absent = false. When true, a launched agent
+                    # works in a dedicated git worktree (task-start creates it)
+                    # so parallel tasks on the same repo don't collide
 created: 2026-07-10
 updated: 2026-07-10
 ```

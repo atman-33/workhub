@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.16.0 (2026-07-12)
+
+- Tasks: every button now shows a pointer cursor on hover (previously the
+  default arrow), so clickable controls read as clickable.
+- Tasks: new per-task **Confirm mode** toggle in the task dialog. When on, an
+  agent launched for the task drafts a plan and waits for your approval before
+  executing instead of running autonomously — claude starts in plan permission
+  mode and opencode drops `--auto`. This fixes task Descriptions that ask the
+  agent to confirm being ignored because the launch prompt hard-coded "run
+  without asking".
+- Tasks: new per-task **Git worktree** toggle in the task dialog. When on, a
+  launched agent works in a dedicated git worktree
+  (`<repo>/../.worktrees/<repo>/<task-id>` on branch `task/<task-id>`) so
+  parallel tasks on the same repository don't collide. Off by default. The
+  `task-start`/`task-report` skills create and (on request) clean up the
+  worktree.
+
 ## 0.15.0 (2026-07-12)
 
 - Fix "Checkout" on a remote branch in the Repos git graph doing nothing.
