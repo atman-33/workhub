@@ -58,7 +58,10 @@ interface Props {
   info?: GitInfo;
   busy?: string;
   selected: boolean;
+  /** Row whose working-tree changes are shown in the Changes panel. */
+  active?: boolean;
   onToggle: () => void;
+  onActivate: () => void;
   onAction: (action: RowAction) => void;
 }
 
@@ -107,7 +110,9 @@ export const ProjectRow = memo(function ProjectRow({
   info,
   busy,
   selected,
+  active,
   onToggle,
+  onActivate,
   onAction,
 }: Props) {
   const tags = project.tags
@@ -123,8 +128,9 @@ export const ProjectRow = memo(function ProjectRow({
         selected
           ? "border-primary/60 bg-primary/10"
           : "border-transparent hover:border-border hover:bg-accent/40",
+        active && "ring-1 ring-inset ring-primary/70",
       )}
-      onClick={onToggle}
+      onClick={onActivate}
     >
       <Checkbox
         checked={selected}

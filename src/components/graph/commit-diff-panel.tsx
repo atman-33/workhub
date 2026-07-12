@@ -3,6 +3,7 @@ import { FileDiff, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { diffLineClass, statusTone } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitFileChange } from "@/types";
 
@@ -10,39 +11,6 @@ interface Props {
   path: string;
   entry: CommitEntry;
   onClose: () => void;
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "A":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
-    case "D":
-      return "border-red-500/30 bg-red-500/10 text-red-400";
-    case "R":
-    case "C":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-400";
-    default:
-      return "border-amber-500/30 bg-amber-500/10 text-amber-400";
-  }
-}
-
-function diffLineClass(line: string) {
-  if (line.startsWith("@@")) return "text-sky-400";
-  if (
-    line.startsWith("diff --git") ||
-    line.startsWith("index ") ||
-    line.startsWith("+++") ||
-    line.startsWith("---") ||
-    line.startsWith("new file") ||
-    line.startsWith("deleted file") ||
-    line.startsWith("rename ") ||
-    line.startsWith("similarity ") ||
-    line.startsWith("Binary files")
-  )
-    return "text-muted-foreground";
-  if (line.startsWith("+")) return "bg-emerald-500/10 text-emerald-300";
-  if (line.startsWith("-")) return "bg-red-500/10 text-red-300";
-  return "text-foreground/80";
 }
 
 export function CommitDiffPanel({ path, entry, onClose }: Props) {

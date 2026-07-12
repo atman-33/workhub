@@ -227,9 +227,18 @@ fn diff_range(path: &str, hash: &str) -> Result<Vec<String>, String> {
     Ok(vec![base, hash.to_string()])
 }
 
-/// List the files changed by a commit (or by the uncommitted worktree).
+/// List the files changed by a commit (or by the uncommitted worktree,
+/// including untracked files).
 pub fn commit_files(path: &str, hash: &str) -> Result<Vec<CommitFileChange>, String> {
+    if hash == WORKTREE_HASH {
+        return worktree_files(path);
+    }
     let range = diff_range(path, hash)?;
+    tracked_files(path, &range)
+}
+
+/// Changed files for a diff range via paired `--name-status` / `--numstat`.
+fn tracked_files(path: &str, range: &[String]) -> Result<Vec<CommitFileChange>, String> {
     let mut name_status_args = vec!["diff", "--name-status", "-M"];
     name_status_args.extend(range.iter().map(String::as_str));
     let name_status = git(path, &name_status_args)?;
@@ -239,6 +248,30 @@ pub fn commit_files(path: &str, hash: &str) -> Result<Vec<CommitFileChange>, Str
     let numstat = git(path, &numstat_args)?;
 
     Ok(parse_commit_files(&name_status, &numstat))
+}
+
+/// Uncommitted worktree changes: tracked modifications (staged + unstaged vs
+/// HEAD) plus untracked files, so an in-progress repo — including brand-new
+/// files an agent just created — is fully represented. `git diff HEAD` alone
+/// omits untracked files, so they are listed separately with a `?` status.
+fn worktree_files(path: &str) -> Result<Vec<CommitFileChange>, String> {
+    let has_head = git(path, &["rev-parse", "--verify", "-q", "HEAD"]).is_ok();
+    let mut files = if has_head {
+        tracked_files(path, &["HEAD".to_string()])?
+    } else {
+        Vec::new()
+    };
+    let others = git(path, &["ls-files", "--others", "--exclude-standard"])?;
+    for line in others.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        files.push(CommitFileChange {
+            path: line.to_string(),
+            old_path: None,
+            status: "?".into(),
+            additions: None,
+            deletions: None,
+        });
+    }
+    Ok(files)
 }
 
 /// Parse paired `git diff --name-status` / `--numstat` output (same flags →
@@ -281,13 +314,24 @@ fn parse_commit_files(name_status: &str, numstat: &str) -> Vec<CommitFileChange>
         .collect()
 }
 
-/// Unified diff of a single file within a commit (or the worktree).
+/// Unified diff of a single file within a commit (or the worktree). For an
+/// untracked worktree file there is no HEAD blob to diff against, so it is
+/// diffed against the empty file to render its full contents as additions.
 pub fn commit_file_diff(
     path: &str,
     hash: &str,
     file: &str,
     old_file: Option<&str>,
 ) -> Result<String, String> {
+    if hash == WORKTREE_HASH {
+        let others = git(
+            path,
+            &["ls-files", "--others", "--exclude-standard", "--", file],
+        )?;
+        if !others.trim().is_empty() {
+            return untracked_diff(path, file);
+        }
+    }
     let range = diff_range(path, hash)?;
     let mut args = vec!["diff", "-M"];
     args.extend(range.iter().map(String::as_str));
@@ -297,6 +341,22 @@ pub fn commit_file_diff(
     }
     args.push(file);
     git(path, &args)
+}
+
+/// Diff an untracked file against the empty file. `git diff --no-index` exits
+/// with status 1 when the inputs differ (as `diff(1)` does), which is the
+/// normal case here, so its stdout is taken rather than treated as an error.
+fn untracked_diff(path: &str, file: &str) -> Result<String, String> {
+    match git_out_err(path, &["diff", "--no-index", "--", "/dev/null", file]) {
+        Ok(out) => Ok(out),
+        Err((stdout, stderr)) => {
+            if stdout.is_empty() {
+                Err(stderr.trim().to_string())
+            } else {
+                Ok(stdout)
+            }
+        }
+    }
 }
 
 pub fn create_branch(path: &str, name: &str, hash: &str, checkout: bool) -> Result<String, String> {

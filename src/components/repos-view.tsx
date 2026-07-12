@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -7,6 +8,7 @@ import {
   FolderPlus,
   Layers,
   Package,
+  PanelBottom,
   Play,
   RefreshCw,
   Search,
@@ -19,8 +21,14 @@ import {
 import { GitGraphView } from "@/components/graph/git-graph-view";
 import { NotesDialog } from "@/components/notes-dialog";
 import { ProjectRow, type RowAction } from "@/components/project-row";
+import { ChangesPanel } from "@/components/repos/changes-panel";
 import { WorktreesPanel } from "@/components/worktrees-panel";
 import { Button } from "@/components/ui/button";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +70,18 @@ export function ReposView({ configVersion }: Props) {
   const [notesPath, setNotesPath] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [showSavePreset, setShowSavePreset] = useState(false);
+  // Repo whose working-tree changes are shown in the Changes panel.
+  const [activePath, setActivePath] = useState<string | null>(null);
+  const [showChanges, setShowChanges] = useState(
+    () => localStorage.getItem("repos.showChanges") === "1",
+  );
+
+  useEffect(() => {
+    localStorage.setItem("repos.showChanges", showChanges ? "1" : "0");
+  }, [showChanges]);
+
+  // Persist the list / changes-panel split across restarts (localStorage-backed).
+  const verticalLayout = useDefaultLayout({ id: "repos-vertical", storage: localStorage });
 
   const configRef = useRef(config);
   configRef.current = config;
@@ -165,6 +185,12 @@ export function ReposView({ configVersion }: Props) {
     [refreshStatus],
   );
 
+  // Show a repo's working-tree changes: reveal the panel and target that repo.
+  const activateRepo = useCallback((path: string) => {
+    setActivePath(path);
+    setShowChanges(true);
+  }, []);
+
   const openSelected = useCallback(() => {
     const cfg = configRef.current;
     if (!cfg) return;
@@ -258,6 +284,7 @@ export function ReposView({ configVersion }: Props) {
             next.delete(path);
             return next;
           });
+          setActivePath((cur) => (cur === path ? null : cur));
           break;
       }
     },
@@ -288,6 +315,49 @@ export function ReposView({ configVersion }: Props) {
   const notesProject = config?.projects.find((p) => p.path === notesPath) ?? null;
 
   if (!config) return null;
+
+  const listContent =
+    config.projects.length === 0 ? (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <Layers className="size-10 text-muted-foreground/40" />
+        <div>
+          <p className="font-semibold">No projects yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Register local repositories to see their git status at a glance.
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={addProjects}>
+          <FolderPlus className="size-3.5" /> Add projects
+        </Button>
+      </div>
+    ) : visible.length === 0 ? (
+      <p className="mt-16 text-center text-sm text-muted-foreground">
+        No projects match the current filter.
+      </p>
+    ) : (
+      <div className="space-y-0.5">
+        {visible.map((p) => (
+          <ProjectRow
+            key={p.path}
+            project={p}
+            info={gitMap[p.path]}
+            busy={busy[p.path]}
+            selected={selected.has(p.path)}
+            active={activePath === p.path}
+            onToggle={() =>
+              updateSelection((sel) => {
+                const next = new Set(sel);
+                if (next.has(p.path)) next.delete(p.path);
+                else next.add(p.path);
+                return next;
+              })
+            }
+            onActivate={() => activateRepo(p.path)}
+            onAction={(a) => handleRowAction(p.path, a)}
+          />
+        ))}
+      </div>
+    );
 
   return (
     <div className="flex h-full flex-col">
@@ -350,6 +420,15 @@ export function ReposView({ configVersion }: Props) {
             onClick={() => setShowWorktrees(true)}
           >
             <TreeDeciduous className="size-3.5" /> Worktrees
+          </Button>
+          <Button
+            size="sm"
+            variant={showChanges ? "secondary" : "outline"}
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setShowChanges((v) => !v)}
+            title="Toggle the working-tree changes panel"
+          >
+            <PanelBottom className="size-3.5" /> Changes
           </Button>
   
           <DropdownMenu>
@@ -443,49 +522,29 @@ export function ReposView({ configVersion }: Props) {
           </div>
         </div>
   
-        {/* project list */}
-        <main className="flex-1 overflow-y-auto px-3 py-2">
-          {config.projects.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <Layers className="size-10 text-muted-foreground/40" />
-              <div>
-                <p className="font-semibold">No projects yet</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Register local repositories to see their git status at a glance.
-                </p>
-              </div>
-              <Button size="sm" className="gap-1.5" onClick={addProjects}>
-                <FolderPlus className="size-3.5" /> Add projects
-              </Button>
-            </div>
-          ) : visible.length === 0 ? (
-            <p className="mt-16 text-center text-sm text-muted-foreground">
-              No projects match the current filter.
-            </p>
-          ) : (
-            <div className="space-y-0.5">
-              {visible.map((p) => (
-                <ProjectRow
-                  key={p.path}
-                  project={p}
-                  info={gitMap[p.path]}
-                  busy={busy[p.path]}
-                  selected={selected.has(p.path)}
-                  onToggle={() =>
-                    updateSelection((sel) => {
-                      const next = new Set(sel);
-                      if (next.has(p.path)) next.delete(p.path);
-                      else next.add(p.path);
-                      return next;
-                    })
-                  }
-                  onAction={(a) => handleRowAction(p.path, a)}
-                />
-              ))}
-            </div>
-          )}
-        </main>
-  
+        {/* project list — optionally split with the working-tree changes panel */}
+        {showChanges ? (
+          <ResizablePanelGroup
+            orientation="vertical"
+            className="min-h-0 flex-1"
+            {...verticalLayout}
+          >
+            <ResizablePanel id="list" defaultSize="62%" minSize="20%" className="min-h-0">
+              <div className="h-full overflow-y-auto px-3 py-2">{listContent}</div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel id="changes" defaultSize="38%" minSize="15%" className="min-h-0">
+              <ChangesPanel
+                path={activePath}
+                name={config.projects.find((p) => p.path === activePath)?.name ?? ""}
+                onClose={() => setShowChanges(false)}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        ) : (
+          <main className="flex-1 overflow-y-auto px-3 py-2">{listContent}</main>
+        )}
+
         {/* status bar */}
         <footer className="flex items-center border-t px-4 py-1.5 text-[11px] text-muted-foreground">
           <span className="truncate">{status}</span>

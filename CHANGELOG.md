@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 (2026-07-12)
+
+- Repos: new **Changes** panel (toolbar toggle) — a built-in, VS Code-style
+  view of a repository's uncommitted work without leaving Workhub. Click a
+  repo row to show its working-tree changes as a file list with a unified
+  diff; the panel auto-refreshes every few seconds while the window is
+  focused, so an agent's edits appear as they happen. Untracked (brand-new)
+  files are now included alongside tracked modifications — the diff for a new
+  file renders its full contents as additions. The list/diff split and the
+  panel's own left/right split are resizable (shadcn `resizable`) and their
+  sizes persist across restarts.
+
 ## 0.18.0 (2026-07-12)
 
 - New **Timer** tab (right of Music): a countdown timer for focused work
