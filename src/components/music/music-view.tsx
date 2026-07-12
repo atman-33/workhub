@@ -3,10 +3,10 @@ import { Music } from "lucide-react";
 import { api } from "@/lib/api";
 import { toMusicData, useMusicStore } from "@/stores/music";
 import type { Config } from "@/types";
-import { AddUrlForm } from "./AddUrlForm";
-import { PlayerPane } from "./PlayerPane";
-import { PlaylistItems } from "./PlaylistItems";
-import { PlaylistTabs } from "./PlaylistTabs";
+import { AddUrlForm } from "./add-url-form";
+import { PlayerPane } from "./player-pane";
+import { PlaylistItems } from "./playlist-items";
+import { PlaylistTabs } from "./playlist-tabs";
 
 const SAVE_DEBOUNCE_MS = 1000;
 

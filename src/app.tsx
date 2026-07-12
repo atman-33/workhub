@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderOpen, GitBranch, ListTodo, Music, Settings as SettingsIcon } from "lucide-react";
-import { MusicView } from "@/components/music/MusicView";
-import { ReposView } from "@/components/ReposView";
-import { SettingsDialog } from "@/components/SettingsDialog";
-import { TasksView } from "@/components/TasksView";
-import { UpdateBanner } from "@/components/UpdateBanner";
+import { MusicView } from "@/components/music/music-view";
+import { ReposView } from "@/components/repos-view";
+import { SettingsDialog } from "@/components/settings-dialog";
+import { TasksView } from "@/components/tasks-view";
+import { UpdateBanner } from "@/components/update-banner";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";

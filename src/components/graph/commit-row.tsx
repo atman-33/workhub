@@ -20,7 +20,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/gitGraph";
+import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/git-graph";
 import { timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitRef, GraphOp } from "@/types";

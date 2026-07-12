@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1 (2026-07-12)
+
+- Standardize all component and custom-hook filenames under `src/` to lowercase
+  kebab-case (e.g., `TaskDialog.tsx` → `task-dialog.tsx`, `useYouTubePlayer.ts`
+  → `use-youtube-player.ts`) and update every import path accordingly.
+- Add `.claude/rules/file-naming.md` to enforce the lowercase-kebab-case rule
+  for future files under `src/`.
+
 ## 0.11.0 (2026-07-12)
 
 - Task dialog controls now use shadcn/ui throughout: Project and Model are

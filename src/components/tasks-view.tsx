@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
 import { Archive, FolderOpen, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
-import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
-import { TaskDialog, type TaskDraft } from "@/components/TaskDialog";
-import { TaskKanban } from "@/components/TaskKanban";
-import { TaskList } from "@/components/TaskList";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { TaskDialog, type TaskDraft } from "@/components/task-dialog";
+import { TaskKanban } from "@/components/task-kanban";
+import { TaskList } from "@/components/task-list";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
-import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/taskBody";
+import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
 

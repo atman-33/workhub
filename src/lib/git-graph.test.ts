@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeGraphLayout, PALETTE } from "./gitGraph";
+import { computeGraphLayout, PALETTE } from "./git-graph";
 
 describe("computeGraphLayout", () => {
   it("keeps a linear history in a single column with straight edges", () => {

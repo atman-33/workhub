@@ -8,14 +8,14 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { CommitDiffPanel } from "@/components/graph/CommitDiffPanel";
-import { CommitRow, type DialogRequest } from "@/components/graph/CommitRow";
-import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
-import { NameDialog } from "@/components/graph/NameDialog";
+import { CommitDiffPanel } from "@/components/graph/commit-diff-panel";
+import { CommitRow, type DialogRequest } from "@/components/graph/commit-row";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { computeGraphLayout, ROW_H } from "@/lib/gitGraph";
+import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
 import type { CommitEntry, GitLog, GraphOp } from "@/types";
 
 const PAGE = 500;
