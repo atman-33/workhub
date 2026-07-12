@@ -9,13 +9,18 @@ import {
   X,
 } from "lucide-react";
 import { CommitDiffPanel } from "@/components/graph/commit-diff-panel";
-import { CommitRow, type DialogRequest } from "@/components/graph/commit-row";
+import {
+  CommitRow,
+  type DialogRequest,
+  refTone,
+} from "@/components/graph/commit-row";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
+import { cn } from "@/lib/utils";
 import type { CommitEntry, GitLog, GraphOp } from "@/types";
 
 const PAGE = 500;
@@ -198,9 +203,14 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
           <X className="size-4" />
         </Button>
         <span className="text-[13px] font-semibold">{name}</span>
+        {/* Same solid tone as the checked-out ref badge in the graph, so the
+            header tells you what to look for and the graph shows you where. */}
         <Badge
           variant="outline"
-          className="h-5 gap-1 border-violet-500/30 bg-violet-500/10 px-1.5 text-[11px] font-medium text-violet-300"
+          className={cn(
+            "h-5 gap-1 px-1.5 text-[11px] font-bold",
+            refTone(detached ? "head" : "branch", true),
+          )}
         >
           <GitBranch className="size-3" />
           <span className="max-w-40 truncate">
