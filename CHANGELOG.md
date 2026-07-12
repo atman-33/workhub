@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.1 (2026-07-12)
+
+- Repos: the checked-out branch is now obvious in the Git Graph. Its ref badge
+  is filled instead of outlined (a detached `HEAD` badge likewise), the HEAD
+  commit's row gets a tint and a left accent, and the HEAD dot's ring is drawn
+  in the foreground color so it stays visible on every lane hue.
+
 ## 0.16.0 (2026-07-12)
 
 - Tasks: every button now shows a pointer cursor on hover (previously the

@@ -58,16 +58,26 @@ interface Props {
   onSelect: () => void;
 }
 
-function refTone(kind: CommitRef["kind"]) {
+/**
+ * Tone for a ref badge. The checked-out ref (`isCurrent`) gets a solid fill so
+ * it stands out among the outlined refs sharing the same hue — a bold 11px
+ * label alone is not enough to spot at a glance.
+ */
+export function refTone(kind: CommitRef["kind"], isCurrent = false) {
   switch (kind) {
     case "branch":
-      return "border-violet-500/30 bg-violet-500/10 text-violet-300";
+      return isCurrent
+        ? "border-violet-400 bg-violet-500 text-white ring-1 ring-violet-300/40"
+        : "border-violet-500/30 bg-violet-500/10 text-violet-300";
     case "remote":
       return "border-sky-500/30 bg-sky-500/10 text-sky-400";
     case "tag":
       return "border-amber-500/30 bg-amber-500/10 text-amber-400";
     case "head":
-      return "border-border bg-muted/60 text-muted-foreground";
+      // Only ever rendered for a detached HEAD.
+      return isCurrent
+        ? "border-amber-400 bg-amber-500 text-zinc-950 ring-1 ring-amber-300/40"
+        : "border-border bg-muted/60 text-muted-foreground";
   }
 }
 
@@ -101,7 +111,18 @@ function LaneGraphic({ layout, isHead, isWorktree }: { layout: RowLayout; isHead
       ) : (
         <circle cx={cx} cy={cy} r={3.5} fill={layout.color} />
       )}
-      {isHead && <circle cx={cx} cy={cy} r={6} fill="none" stroke={layout.color} strokeWidth={1.5} />}
+      {/* The HEAD ring is drawn in the foreground color, not the lane color, so
+          it reads equally strongly on top of any of the 10 lane hues. */}
+      {isHead && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={6}
+          fill="none"
+          className="stroke-foreground"
+          strokeWidth={1.5}
+        />
+      )}
     </svg>
   );
 }
@@ -130,8 +151,8 @@ function RefBadge({
       variant="outline"
       className={cn(
         "h-5 gap-1 px-1.5 text-[11px] font-medium",
-        refTone(commitRef.kind),
-        commitRef.is_head && commitRef.kind === "branch" && "font-bold",
+        refTone(commitRef.kind, commitRef.is_head),
+        commitRef.is_head && "font-bold",
       )}
     >
       {commitRef.kind === "branch" && <GitBranch className="size-3" />}
@@ -264,6 +285,11 @@ export const CommitRow = memo(function CommitRow({
     <div
       className={cn(
         "flex h-7 cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-accent/30",
+        // Tint + left accent on the checked-out commit. Uses an inset shadow
+        // rather than a border/padding so the row keeps its exact ROW_H height,
+        // which the virtualized scroll offsets depend on.
+        isHead &&
+          "bg-violet-500/[0.07] shadow-[inset_2px_0_0_0_var(--color-violet-400)]",
         selected && "bg-accent/60 hover:bg-accent/60",
       )}
       style={{ height: ROW_H }}
