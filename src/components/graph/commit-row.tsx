@@ -195,6 +195,8 @@ function RefBadge({
   }
 
   if (commitRef.kind === "remote") {
+    // `origin/HEAD` is a symref alias, not a checkoutable branch.
+    if (commitRef.name.endsWith("/HEAD")) return badge;
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild onContextMenu={stopRowMenu}>

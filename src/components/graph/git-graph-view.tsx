@@ -86,6 +86,21 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
       try {
         const msg = await api.gitGraphOp(path, op);
         setStatus(`${label} ok — ${msg}`);
+        // After switching to a branch, offer to pull if it trails its upstream
+        // (mirrors VS Code's Git Graph checkout flow).
+        if (op.kind === "checkout") {
+          const info = await api.gitStatus(path);
+          if (info.has_upstream && info.behind > 0) {
+            const n = info.behind;
+            setDialog({
+              kind: "confirm",
+              title: "Pull changes",
+              description: `${info.branch} is ${n} commit${n > 1 ? "s" : ""} behind its upstream. Pull now?`,
+              confirmLabel: "Pull",
+              onConfirm: () => void runOp("Pull", { kind: "pull" }),
+            });
+          }
+        }
       } catch (e) {
         setStatus(`${label} failed — ${e}`);
       } finally {

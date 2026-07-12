@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.0 (2026-07-12)
+
+- Fix "Checkout" on a remote branch in the Repos git graph doing nothing.
+  Checking out a remote-tracking ref (e.g. `origin/main`) now switches to the
+  local branch that tracks it, creating it if it does not exist yet (git's
+  `--guess`/DWIM behavior). Previously it ran `git switch origin/main`, which
+  git rejects, so the branch never changed.
+- After checking out a branch, if the local branch trails its upstream, a
+  confirmation dialog offers to pull (`--ff-only`) — mirroring the VS Code Git
+  Graph flow.
+- The `origin/HEAD` symref alias no longer offers a (non-functional) Checkout
+  action in the graph context menu.
+
 ## 0.13.0 (2026-07-12)
 
 - Task edit dialog now saves directly to the task file as the user edits,
