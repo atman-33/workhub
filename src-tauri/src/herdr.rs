@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -29,6 +30,61 @@ pub fn is_installed(cmd: &str) -> bool {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+}
+
+/// Returns true when a herdr server is running (the socket API is reachable).
+/// `herdr --version` alone is not enough: the CLI works without a running
+/// server, but every workspace/agent command needs one.
+///
+/// `herdr status server` always exits 0 whether or not a server is up — it
+/// reports the state in its output text (`status: running` vs
+/// `status: not running`), so the exit code cannot be used and the output must
+/// be parsed instead.
+pub fn is_server_running(cmd: &str) -> bool {
+    match run_herdr(cmd, &["status", "server"]) {
+        Ok(o) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&o.stdout),
+                String::from_utf8_lossy(&o.stderr)
+            );
+            parse_server_running(&text)
+        }
+        Err(_) => false,
+    }
+}
+
+/// Parses `herdr status server` output. `status: running` marks a live server;
+/// `status: not running` (which also contains the substring "running") does
+/// not, so match the full `status: running` line.
+fn parse_server_running(status_output: &str) -> bool {
+    status_output.contains("status: running")
+}
+
+/// Makes sure a herdr server is running, launching the herdr client in a new
+/// Windows Terminal window when it is not (the client starts the server).
+/// Polls the server status until it comes up or the timeout expires.
+pub fn ensure_server(cmd: &str) -> Result<(), String> {
+    if is_server_running(cmd) {
+        return Ok(());
+    }
+
+    let mut launcher = Command::new("cmd");
+    launcher.arg("/C").arg("wt").arg(cmd);
+    #[cfg(windows)]
+    launcher.creation_flags(CREATE_NO_WINDOW);
+    launcher
+        .spawn()
+        .map_err(|e| format!("failed to launch herdr via Windows Terminal: {e}"))?;
+
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(500));
+        if is_server_running(cmd) {
+            return Ok(());
+        }
+    }
+    Err("herdr server did not start within 15 seconds".into())
 }
 
 /// Creates a herdr workspace and returns its workspace id.
@@ -137,6 +193,18 @@ fn sanitize_label(label: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detects_running_server_from_status_output() {
+        // `herdr status server` exits 0 in both states; only the text differs.
+        assert!(parse_server_running(
+            "status: running\nversion: 0.7.2\nprotocol: 16\n"
+        ));
+        assert!(!parse_server_running(
+            "status: not running\nsocket: C:/x/herdr.sock\n"
+        ));
+        assert!(!parse_server_running(""));
+    }
 
     #[test]
     fn sanitizes_labels() {

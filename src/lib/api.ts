@@ -63,6 +63,7 @@ export const api = {
 
   launchAgentForTask: (
     agentCmd: string,
+    assignee: string,
     taskId: string,
     taskTitle: string,
     taskFile: string,
@@ -72,8 +73,9 @@ export const api = {
     useHerdr: boolean,
     herdrCmd: string,
   ) =>
-    invoke<void>("launch_agent_for_task", {
+    invoke<string>("launch_agent_for_task", {
       agentCmd,
+      assignee,
       taskId,
       taskTitle,
       taskFile,

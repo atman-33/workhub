@@ -61,10 +61,10 @@ fn default_terminal_cmd() -> String {
     "wt -d {path}".into()
 }
 fn default_agent_cmd() -> String {
-    "wt -d {path} pwsh -NoExit -Command claude".into()
+    "wt -d {path} powershell -NoExit -Command claude".into()
 }
 fn default_opencode_cmd() -> String {
-    "wt -d {path} pwsh -NoExit -Command opencode".into()
+    "wt -d {path} powershell -NoExit -Command opencode".into()
 }
 fn default_herdr_cmd() -> String {
     "herdr".into()
