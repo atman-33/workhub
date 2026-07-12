@@ -22,6 +22,7 @@ interface ComboboxProps {
    * repo name or model id). */
   allowCustom?: boolean;
   emptyText?: string;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -37,6 +38,7 @@ export function Combobox({
   placeholder = "Select…",
   allowCustom = false,
   emptyText = "No results.",
+  disabled = false,
   className,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
@@ -68,6 +70,7 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={cn(
             "h-8 w-full justify-between px-2 text-xs font-normal",
             !value && "text-muted-foreground",

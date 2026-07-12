@@ -8,7 +8,8 @@
   `<input type="date">`. The calendar renders in English regardless of OS
   locale.
 - Changing a task's Assignee now clears the Model field, so a stale selection
-  from another agent no longer carries over.
+  from another agent no longer carries over. The Model field is disabled for
+  `me` (human) tasks, which launch no AI agent.
 - Fix Music continuous playback: when a track ended, the player advanced to the
   next video but stopped immediately. The `currentVideoId` sync effect re-cued
   every id change (`cueVideoById` loads without playing), clobbering the

@@ -238,7 +238,11 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
                   onChange={(v) => setDraft({ ...draft, model: v })}
                   options={draft.assignee === "opencode" ? opencodeModels : CLAUDE_MODELS}
                   allowCustom
-                  placeholder="agent default"
+                  // A "me" (human) task launches no AI agent, so a model is
+                  // meaningless — disable the field. Assignee changes already
+                  // clear draft.model, so nothing stale lingers here.
+                  disabled={draft.assignee === "me"}
+                  placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
                   emptyText="No models."
                 />
                 {draft.assignee === "opencode" && opencodeModelsError && (
