@@ -95,12 +95,19 @@ export const useYouTubePlayer = (elementId: string) => {
     };
   }, [elementId, setPlayerInstance, handlePlayerReady, handleStateChange]);
 
-  // Sync the player with the current video id after it becomes ready, or when
-  // the id changes after hydration.
+  // Cue the current video once the player is ready and an id arrives from async
+  // vault hydration (the persisted "resume here" track, loaded but paused).
+  //
+  // Guard against clobbering active playback: play()/playNext() already
+  // load+play the next video and set isPlaying=true, so a cue here would stop
+  // the freshly-started song — the reported "switches track but doesn't play"
+  // bug. Only cue when idle. isPlaying is read via getState() rather than as an
+  // effect dependency so pause/resume (which keep currentVideoId unchanged)
+  // never re-cue and restart the track from the beginning.
   useEffect(() => {
-    if (isReadyRef.current && playerRef.current && currentVideoId) {
-      playerRef.current.cueVideoById(currentVideoId);
-    }
+    if (!isReadyRef.current || !playerRef.current || !currentVideoId) return;
+    if (useMusicStore.getState().isPlaying) return;
+    playerRef.current.cueVideoById(currentVideoId);
   }, [currentVideoId]);
 
   return playerRef;
