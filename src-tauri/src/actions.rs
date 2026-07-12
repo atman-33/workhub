@@ -141,7 +141,12 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<Str
 }
 
 /// Starts the herdr server if needed, creates a workspace for the task, and
-/// starts the agent inside it.
+/// launches the agent directly in the workspace's root pane.
+///
+/// This keeps the workspace a single pane: instead of `agent start` (which
+/// always splits off a new pane and leaves the root shell empty), the agent is
+/// run in the root pane with `pane run`. herdr still auto-detects it as an
+/// agent, so its status tracking is unaffected.
 fn launch_in_herdr(
     params: &LaunchAgentForTaskParams<'_>,
     vault: &str,
@@ -149,9 +154,32 @@ fn launch_in_herdr(
 ) -> Result<(), String> {
     herdr::ensure_server(params.herdr_cmd)?;
     let label = format!("{} {}", params.task_id, params.task_title);
-    let workspace_id = herdr::create_workspace(params.herdr_cmd, vault, &label)?;
+    let workspace = herdr::create_workspace(params.herdr_cmd, vault, &label)?;
+    let pane_command = in_pane_command(command_line);
+    herdr::run_in_pane(params.herdr_cmd, &workspace.root_pane_id, &pane_command)
+}
+
+/// Builds the command to run inside a herdr root pane from a filled terminal
+/// command line.
+///
+/// The root pane already is a PowerShell shell, so the outer terminal wrapper
+/// must be dropped and only the agent invocation kept. Given e.g.
+/// `wt -d C:/vault powershell -NoExit -Command claude --permission-mode auto '…'`,
+/// this strips the `wt -d <path>` wrapper and everything up to and including the
+/// `-Command` token, leaving `claude --permission-mode auto '…'` — ready to run
+/// directly in the pane's shell.
+///
+/// The prompt keeps its single quotes: `agent_command_template` wraps it as
+/// `"'…'"`, and `split_command_line` peels the outer double quotes off, leaving
+/// the single-quoted string the pane's PowerShell needs. Templates without a
+/// `-Command` token fall back to the full stripped argv.
+fn in_pane_command(command_line: &str) -> String {
     let argv = agent_argv_from_command_line(command_line);
-    herdr::start_agent(params.herdr_cmd, &workspace_id, params.task_id, vault, &argv)
+    let rest = match argv.iter().position(|t| t.eq_ignore_ascii_case("-command")) {
+        Some(i) => &argv[i + 1..],
+        None => &argv[..],
+    };
+    rest.join(" ")
 }
 
 /// Builds the full agent command template: agent_cmd + model + auto-run flags
@@ -392,6 +420,38 @@ mod tests {
         assert_eq!(
             agent_argv_from_command_line("claude {path}"),
             vec!["claude", "{path}"]
+        );
+    }
+
+    #[test]
+    fn in_pane_command_extracts_claude_invocation() {
+        let params = test_params("claude-code", "opus");
+        let command_line = fill_template(&agent_command_template(&params), "C:/vault");
+        let pane_cmd = in_pane_command(&command_line);
+        // wt -d <path> and `powershell -NoExit -Command` all stripped.
+        assert!(pane_cmd.starts_with("claude --model opus --permission-mode auto '"));
+        assert!(pane_cmd.ends_with("tasks/T-1.md'"));
+        // Prompt keeps single quotes, outer double quotes gone.
+        assert!(!pane_cmd.contains('"'));
+    }
+
+    #[test]
+    fn in_pane_command_extracts_opencode_invocation() {
+        let mut params = test_params("opencode", "");
+        params.agent_cmd = "wt -d {path} powershell -NoExit -Command opencode";
+        let command_line = fill_template(&agent_command_template(&params), "C:/vault");
+        let pane_cmd = in_pane_command(&command_line);
+        assert!(pane_cmd.starts_with("opencode --auto --prompt '"));
+        assert!(pane_cmd.ends_with("tasks/T-1.md'"));
+        assert!(!pane_cmd.contains('"'));
+    }
+
+    #[test]
+    fn in_pane_command_falls_back_without_command_token() {
+        // No `-Command` token: keep the whole stripped argv.
+        assert_eq!(
+            in_pane_command("wt -d C:/vault claude --permission-mode auto"),
+            "claude --permission-mode auto"
         );
     }
 

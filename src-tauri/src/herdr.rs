@@ -16,11 +16,27 @@ struct WorkspaceCreateResult {
 #[derive(Debug, Deserialize)]
 struct WorkspaceCreatePayload {
     workspace: WorkspaceInfo,
+    root_pane: PaneInfo,
 }
 
 #[derive(Debug, Deserialize)]
 struct WorkspaceInfo {
     workspace_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PaneInfo {
+    pane_id: String,
+}
+
+/// A freshly created herdr workspace: its id plus the id of the root shell pane
+/// that `workspace create` opens. The agent is launched directly in this root
+/// pane (via `run_in_pane`) so the workspace stays a single pane instead of
+/// splitting off a second one with `agent start`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatedWorkspace {
+    pub workspace_id: String,
+    pub root_pane_id: String,
 }
 
 /// Returns true when the configured herdr CLI is on PATH.
@@ -87,10 +103,11 @@ pub fn ensure_server(cmd: &str) -> Result<(), String> {
     Err("herdr server did not start within 15 seconds".into())
 }
 
-/// Creates a herdr workspace and returns its workspace id.
+/// Creates a herdr workspace and returns its id together with the id of the
+/// root shell pane that was opened.
 ///
 /// `label` is sanitized to avoid shell/meta-character issues.
-pub fn create_workspace(cmd: &str, cwd: &str, label: &str) -> Result<String, String> {
+pub fn create_workspace(cmd: &str, cwd: &str, label: &str) -> Result<CreatedWorkspace, String> {
     let safe_label = sanitize_label(label);
     let output = run_herdr(
         cmd,
@@ -119,36 +136,26 @@ pub fn create_workspace(cmd: &str, cwd: &str, label: &str) -> Result<String, Str
         )
     })?;
 
-    Ok(parsed.result.workspace.workspace_id)
+    Ok(CreatedWorkspace {
+        workspace_id: parsed.result.workspace.workspace_id,
+        root_pane_id: parsed.result.root_pane.pane_id,
+    })
 }
 
-/// Starts an agent in the given herdr workspace.
-pub fn start_agent(
-    cmd: &str,
-    workspace_id: &str,
-    name: &str,
-    cwd: &str,
-    argv: &[String],
-) -> Result<(), String> {
-    let safe_name = sanitize_label(name);
-    let mut args: Vec<String> = vec![
-        "agent".into(),
-        "start".into(),
-        safe_name,
-        "--workspace".into(),
-        workspace_id.into(),
-        "--cwd".into(),
-        cwd.into(),
-        "--focus".into(),
-        "--".into(),
-    ];
-    args.extend(argv.iter().cloned());
-
-    let output = run_herdr(cmd, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+/// Runs a command in an existing herdr pane. Used to launch the agent directly
+/// in a workspace's root pane (keeping it a single pane) instead of splitting a
+/// new one with `agent start`. herdr still auto-detects the started agent, so
+/// its working/done status tracking keeps working.
+///
+/// `command` is passed as one argument; the herdr CLI forwards it to the pane's
+/// shell. No manual escaping is needed here — `std::process::Command` quotes the
+/// argument for us.
+pub fn run_in_pane(cmd: &str, pane_id: &str, command: &str) -> Result<(), String> {
+    let output = run_herdr(cmd, &["pane", "run", pane_id, command])?;
 
     if !output.status.success() {
         return Err(format!(
-            "herdr agent start failed: {}",
+            "herdr pane run failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }
@@ -204,6 +211,20 @@ mod tests {
             "status: not running\nsocket: C:/x/herdr.sock\n"
         ));
         assert!(!parse_server_running(""));
+    }
+
+    #[test]
+    fn parses_workspace_create_root_pane() {
+        // Real `herdr workspace create` shape: result.workspace + result.root_pane.
+        let json = r#"{
+            "result": {
+                "workspace": { "workspace_id": "wV", "label": "T-1 title" },
+                "root_pane": { "pane_id": "wV:p1" }
+            }
+        }"#;
+        let parsed: WorkspaceCreateResult = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.result.workspace.workspace_id, "wV");
+        assert_eq!(parsed.result.root_pane.pane_id, "wV:p1");
     }
 
     #[test]
