@@ -213,52 +213,66 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     }
   }, [vaultPath, deleteTarget, refreshTasks]);
 
-  const submitDialog = useCallback(
+  const createTask = useCallback(
     async (draft: TaskDraft) => {
       if (!vaultPath) return;
       const tags = draft.tags
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
+      const body = draft.content.trim()
+        ? buildBody(parseBody(DEFAULT_BODY), draft.content)
+        : undefined;
       try {
-        if (dialog?.mode === "edit") {
-          const original = dialog.task;
-          const parsed = parseBody(original.body);
-          const bodyChanged = draft.content !== parsed.content;
-          await api.updateTask(vaultPath, {
-            id: original.id,
-            title: draft.title,
-            status: draft.status,
-            assignee: draft.assignee,
-            project: draft.project,
-            priority: draft.priority,
-            model: draft.model.trim(),
-            due: draft.due,
-            tags,
-            body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
-          });
-        } else {
-          const body = draft.content.trim()
-            ? buildBody(parseBody(DEFAULT_BODY), draft.content)
-            : undefined;
-          await api.createTask(vaultPath, {
-            title: draft.title,
-            status: draft.status,
-            assignee: draft.assignee,
-            project: draft.project,
-            priority: draft.priority,
-            model: draft.model.trim(),
-            due: draft.due,
-            tags,
-            body,
-          });
-        }
+        await api.createTask(vaultPath, {
+          title: draft.title,
+          status: draft.status,
+          assignee: draft.assignee,
+          project: draft.project,
+          priority: draft.priority,
+          model: draft.model.trim(),
+          due: draft.due,
+          tags,
+          body,
+        });
         refreshTasks(vaultPath);
       } catch (e) {
-        setStatus(`Save failed — ${e}`);
+        setStatus(`Create failed — ${e}`);
       }
     },
-    [vaultPath, dialog, refreshTasks],
+    [vaultPath, refreshTasks],
+  );
+
+  const editingTask = dialog?.mode === "edit" ? dialog.task : null;
+
+  const autoSaveTask = useCallback(
+    async (draft: TaskDraft) => {
+      if (!vaultPath || !editingTask) return;
+      const tags = draft.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      try {
+        const parsed = parseBody(editingTask.body);
+        const bodyChanged = draft.content !== parsed.content;
+        await api.updateTask(vaultPath, {
+          id: editingTask.id,
+          title: draft.title,
+          status: draft.status,
+          assignee: draft.assignee,
+          project: draft.project,
+          priority: draft.priority,
+          model: draft.model.trim(),
+          due: draft.due,
+          tags,
+          body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
+        });
+        refreshTasks(vaultPath);
+      } catch (e) {
+        setStatus(`Auto-save failed — ${e}`);
+      }
+    },
+    [vaultPath, editingTask, refreshTasks],
   );
 
   if (!config || vaultExists === null) return null;
@@ -444,10 +458,11 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
       <TaskDialog
         open={dialog !== null}
         mode={dialog?.mode ?? "create"}
-        task={dialog?.mode === "edit" ? dialog.task : null}
+        task={editingTask}
         knownProjects={knownProjects}
         onClose={() => setDialog(null)}
-        onSubmit={(draft) => void submitDialog(draft)}
+        onCreate={dialog?.mode === "create" ? (draft) => void createTask(draft) : undefined}
+        onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
       />
     </div>
   );

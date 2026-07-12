@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0 (2026-07-12)
+
+- Task edit dialog now saves directly to the task file as the user edits,
+  removing the explicit Save and Reset buttons. Changes persist on a 1s
+  debounce and again immediately when the dialog closes. Errors are shown in
+  the status bar (Plan A / option 1).
+- New task creation keeps a single "Create" button; the pre-creation draft is
+  still restored from `localStorage` if the dialog is accidentally closed.
+
+## 0.12.0 (2026-07-12)
+
+- Auto-save task dialog drafts to `localStorage` as the user types. If the
+  dialog is accidentally closed while creating or editing a task, the in-progress
+  input is restored the next time the dialog opens. Drafts are cleared on
+  successful save and can be discarded with the new "Reset" button.
+
 ## 0.11.1 (2026-07-12)
 
 - Simplify the task dialog by moving infrequently-used fields (Priority, Due,

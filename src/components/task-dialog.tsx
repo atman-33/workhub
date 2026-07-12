@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +72,33 @@ const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 
 const CLAUDE_MODELS = ["haiku", "sonnet", "opus"];
 
+const CREATE_DRAFT_KEY = "workhub:task-draft:create";
+
+function loadCreateDraft(): TaskDraft | null {
+  try {
+    const raw = localStorage.getItem(CREATE_DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as TaskDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCreateDraft(draft: TaskDraft): void {
+  try {
+    localStorage.setItem(CREATE_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Storage can be unavailable or full; ignore silently.
+  }
+}
+
+function clearCreateDraft(): void {
+  try {
+    localStorage.removeItem(CREATE_DRAFT_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 // `opencode models` is a CLI spawn; fetch once per app run and share the
 // result across dialog opens.
 let opencodeModelsCache: string[] | null = null;
@@ -83,20 +110,57 @@ interface Props {
   task: Task | null;
   knownProjects: string[];
   onClose: () => void;
-  onSubmit: (draft: TaskDraft) => void;
+  /** Called once when the user confirms creation of a new task. */
+  onCreate?: (draft: TaskDraft) => void;
+  /** Called while editing an existing task, both on idle and on close. */
+  onAutoSave?: (draft: TaskDraft) => Promise<void>;
 }
 
-export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit }: Props) {
+export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate, onAutoSave }: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
   const [opencodeModels, setOpencodeModels] = useState<string[]>(opencodeModelsCache ?? []);
   const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
     opencodeModelsErrorCache,
   );
 
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  // On open, initialize the form. Edit mode uses the task file as the source
+  // of truth; create mode restores a localStorage draft so an accidental close
+  // before creation does not lose input.
   useEffect(() => {
     if (!open) return;
-    setDraft(task ? draftFromTask(task) : EMPTY_DRAFT);
-  }, [open, task]);
+    if (mode === "edit" && task) {
+      setDraft(draftFromTask(task));
+    } else {
+      setDraft(loadCreateDraft() ?? EMPTY_DRAFT);
+    }
+  }, [open, mode, task]);
+
+  // Create mode: persist the draft to localStorage until the user confirms.
+  useEffect(() => {
+    if (!open || mode !== "create") return;
+    const timer = setTimeout(() => saveCreateDraft(draft), 500);
+    return () => clearTimeout(timer);
+  }, [draft, mode, open]);
+
+  // Edit mode: auto-save to the task file shortly after the user stops editing.
+  useEffect(() => {
+    if (!open || mode !== "edit" || !onAutoSave || !draft.title.trim()) return;
+    autoSaveTimerRef.current = setTimeout(() => {
+      void onAutoSave(draft);
+    }, 1000);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [draft, mode, onAutoSave, open]);
 
   // Lazily fetch the opencode model catalog the first time an opencode task
   // is edited; later opens reuse the module-level cache.
@@ -139,8 +203,24 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
     .filter(Boolean)
     .join(" · ") || "None set";
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) return;
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      if (mode === "edit" && onAutoSave && draftRef.current.title.trim()) {
+        void onAutoSave(draftRef.current).finally(() => onClose());
+      } else {
+        onClose();
+      }
+    },
+    [mode, onAutoSave, onClose],
+  );
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New task" : `${task?.id} — Edit task`}</DialogTitle>
@@ -303,17 +383,20 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onSubmit 
             />,
           )}
         </div>
-        <DialogFooter>
-          <Button
-            disabled={!draft.title.trim()}
-            onClick={() => {
-              onSubmit(draft);
-              onClose();
-            }}
-          >
-            {mode === "create" ? "Create" : "Save"}
-          </Button>
-        </DialogFooter>
+        {mode === "create" && (
+          <DialogFooter>
+            <Button
+              disabled={!draft.title.trim()}
+              onClick={() => {
+                clearCreateDraft();
+                onCreate?.(draft);
+                onClose();
+              }}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
