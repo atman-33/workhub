@@ -18,10 +18,10 @@
   persists across the app.
 - Git Graph: branch/remote ref right-click menus gain a **Copy branch name**
   item; hovering any ref badge (and the header's current-branch badge) now
-  shows the full name in a tooltip when it's truncated; and the click that
-  dismisses a commit context menu — whether a right-click or a left-click
-  outside the panel — no longer closes the graph panel (a plain left-click
-  outside, with no menu open, still does).
+  shows the full name in a tooltip when it's truncated; and the panel no
+  longer closes on an outside click (which could fire unexpectedly while a
+  commit context menu was open) — close it with the header's × button or
+  Escape.
 
 ## 0.18.0 (2026-07-12)
 

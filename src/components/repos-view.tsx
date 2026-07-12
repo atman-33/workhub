@@ -561,18 +561,11 @@ export function ReposView({ configVersion }: Props) {
           showCloseButton={false}
           className="w-[90vw] gap-0 p-0 sm:max-w-4xl"
           aria-describedby={undefined}
-          // Don't close the sheet on a right-click outside, nor on the click
-          // that dismisses an open commit context menu — only a plain
-          // left-click outside (with no menu open) should close it.
-          onPointerDownOutside={(e) => {
-            const oe = e.detail.originalEvent as PointerEvent;
-            if (oe.button === 2) {
-              e.preventDefault();
-              return;
-            }
-            if (document.querySelector('[data-slot="context-menu-content"][data-state="open"]'))
-              e.preventDefault();
-          }}
+          // Never close on an outside interaction. While a commit context menu
+          // is open it uses `disableOutsidePointerEvents`, which makes Radix
+          // treat even clicks inside the sheet as "outside" and close it. Close
+          // is via the graph header's × button or Escape instead.
+          onInteractOutside={(e) => e.preventDefault()}
         >
           <SheetTitle className="sr-only">Commit graph</SheetTitle>
           {graphPath !== null && (
