@@ -108,6 +108,88 @@ export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) =>
       };
     });
   },
+  reorderPlaylists: (fromIndex, toIndex) =>
+    set((state) => {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= state.playlists.length ||
+        toIndex >= state.playlists.length ||
+        fromIndex === toIndex
+      ) {
+        return {};
+      }
+      const newPlaylists = [...state.playlists];
+      const [removed] = newPlaylists.splice(fromIndex, 1);
+      newPlaylists.splice(toIndex, 0, removed);
+      // Reordering the tabs changes no playback state — the active playlist is
+      // tracked by id, not by position.
+      return { playlists: newPlaylists };
+    }),
+  moveItemBetweenPlaylists: (itemIndex, fromPlaylistId, toPlaylistId) => {
+    const state = get();
+    if (fromPlaylistId === toPlaylistId) {
+      return false;
+    }
+
+    const fromPlaylist = state.playlists.find((playlist) => playlist.id === fromPlaylistId);
+    const toPlaylist = state.playlists.find((playlist) => playlist.id === toPlaylistId);
+
+    if (!fromPlaylist || !toPlaylist || itemIndex < 0 || itemIndex >= fromPlaylist.items.length) {
+      return false;
+    }
+
+    const itemToMove = fromPlaylist.items[itemIndex];
+    if (toPlaylist.items.some((existingItem) => existingItem.id === itemToMove.id)) {
+      return false;
+    }
+
+    set((currentState) => {
+      const updatedPlaylists = currentState.playlists.map((playlist) => {
+        if (playlist.id === fromPlaylistId) {
+          const newItems = [...playlist.items];
+          newItems.splice(itemIndex, 1);
+          return { ...playlist, items: newItems };
+        }
+        if (playlist.id === toPlaylistId) {
+          return { ...playlist, items: [...playlist.items, itemToMove] };
+        }
+        return playlist;
+      });
+
+      // Only removal from the *active* playlist shifts the current index; the
+      // target playlist always receives the item at the end.
+      let newCurrentIndex: number | null = currentState.currentIndex;
+      if (fromPlaylistId === currentState.activePlaylistId && newCurrentIndex !== null) {
+        const remaining = fromPlaylist.items.length - 1;
+        if (remaining === 0) {
+          newCurrentIndex = null;
+        } else if (itemIndex < newCurrentIndex) {
+          newCurrentIndex -= 1;
+        } else if (newCurrentIndex > remaining - 1) {
+          newCurrentIndex = remaining - 1;
+        }
+      }
+
+      let nextShuffleQueue = currentState.shuffleQueue;
+      if (currentState.isShuffle) {
+        if (fromPlaylistId === currentState.activePlaylistId) {
+          nextShuffleQueue = resetQueueForPlaylist(nextShuffleQueue, fromPlaylistId);
+        }
+        if (toPlaylistId === currentState.activePlaylistId) {
+          nextShuffleQueue = resetQueueForPlaylist(nextShuffleQueue, toPlaylistId);
+        }
+      }
+
+      return {
+        playlists: updatedPlaylists,
+        currentIndex: newCurrentIndex,
+        shuffleQueue: nextShuffleQueue,
+      };
+    });
+
+    return true;
+  },
   clearPlaylist: (playlistId) =>
     set((state) => {
       const targetPlaylistId = playlistId || state.activePlaylistId;

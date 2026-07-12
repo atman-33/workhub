@@ -38,6 +38,15 @@ export interface PlaylistSlice {
   addToPlaylist: (item: PlaylistItem, playlistId?: string) => boolean;
   removeFromPlaylist: (index: number, playlistId?: string) => void;
   reorderPlaylist: (fromIndex: number, toIndex: number, playlistId?: string) => void;
+  /** Reorders the playlists themselves (tab order). */
+  reorderPlaylists: (fromIndex: number, toIndex: number) => void;
+  /** Moves one item from one playlist to another. False if the move is impossible
+   *  (unknown playlist, bad index, or the item already exists in the target). */
+  moveItemBetweenPlaylists: (
+    itemIndex: number,
+    fromPlaylistId: string,
+    toPlaylistId: string,
+  ) => boolean;
   clearPlaylist: (playlistId?: string) => void;
   nextPlaylistName: () => string;
   createPlaylist: () => string | null;

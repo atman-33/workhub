@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Plus } from "lucide-react";
 import {
   ContextMenu,
@@ -9,6 +20,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { Playlist } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
 
 function TabRenameInput({
@@ -42,6 +54,68 @@ function TabRenameInput({
   );
 }
 
+function SortablePlaylistTab({
+  playlist,
+  isActive,
+  canDelete,
+  onSelect,
+  onStartRename,
+  onClear,
+  onDelete,
+}: {
+  playlist: Playlist;
+  isActive: boolean;
+  canDelete: boolean;
+  onSelect: () => void;
+  onStartRename: () => void;
+  onClear: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: playlist.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1000 : 0,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          ref={setNodeRef}
+          style={style}
+          onClick={onSelect}
+          onDoubleClick={onStartRename}
+          className={cn(
+            "touch-none rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            isDragging ? "cursor-grabbing" : "cursor-grab",
+            isActive
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          {...attributes}
+          {...listeners}
+        >
+          {playlist.name}
+          <span className="ml-1.5 text-[10px] text-muted-foreground">{playlist.items.length}</span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={onStartRename}>Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={onClear}>Clear items</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
+          Delete playlist
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 export function PlaylistTabs() {
   const {
     playlists,
@@ -52,59 +126,63 @@ export function PlaylistTabs() {
     renamePlaylist,
     removePlaylist,
     clearPlaylist,
+    reorderPlaylists,
   } = useMusicStore();
   const [renamingId, setRenamingId] = useState<string | null>(null);
 
+  // A small distance threshold keeps plain clicks (select) and double-clicks
+  // (rename) working on tabs that are themselves the drag handle.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromIndex = playlists.findIndex((playlist) => playlist.id === active.id);
+    const toIndex = playlists.findIndex((playlist) => playlist.id === over.id);
+    if (fromIndex >= 0 && toIndex >= 0) {
+      reorderPlaylists(fromIndex, toIndex);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {playlists.map((playlist) =>
-        renamingId === playlist.id ? (
-          <TabRenameInput
-            key={playlist.id}
-            initialName={playlist.name}
-            onCommit={(name) => {
-              renamePlaylist(playlist.id, name);
-              setRenamingId(null);
-            }}
-          />
-        ) : (
-          <ContextMenu key={playlist.id}>
-            <ContextMenuTrigger asChild>
-              <button
-                onClick={() => {
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={playlists.map((playlist) => playlist.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          {playlists.map((playlist) =>
+            renamingId === playlist.id ? (
+              <TabRenameInput
+                key={playlist.id}
+                initialName={playlist.name}
+                onCommit={(name) => {
+                  renamePlaylist(playlist.id, name);
+                  setRenamingId(null);
+                }}
+              />
+            ) : (
+              <SortablePlaylistTab
+                key={playlist.id}
+                playlist={playlist}
+                isActive={playlist.id === activePlaylistId}
+                canDelete={playlists.length > 1}
+                onSelect={() => {
                   if (playlist.id !== activePlaylistId) setActivePlaylist(playlist.id);
                 }}
-                onDoubleClick={() => setRenamingId(playlist.id)}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                  playlist.id === activePlaylistId
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {playlist.name}
-                <span className="ml-1.5 text-[10px] text-muted-foreground">
-                  {playlist.items.length}
-                </span>
-              </button>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem onSelect={() => setRenamingId(playlist.id)}>Rename</ContextMenuItem>
-              <ContextMenuItem onSelect={() => clearPlaylist(playlist.id)}>
-                Clear items
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem
-                variant="destructive"
-                disabled={playlists.length <= 1}
-                onSelect={() => removePlaylist(playlist.id)}
-              >
-                Delete playlist
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        ),
-      )}
+                onStartRename={() => setRenamingId(playlist.id)}
+                onClear={() => clearPlaylist(playlist.id)}
+                onDelete={() => removePlaylist(playlist.id)}
+              />
+            ),
+          )}
+        </SortableContext>
+      </DndContext>
       <Button
         variant="ghost"
         size="icon"

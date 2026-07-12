@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   closestCenter,
   DndContext,
@@ -9,7 +10,17 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, ListMusic, Trash2 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PlaylistItem } from "@/lib/music/types";
@@ -21,15 +32,27 @@ function SortableItem({
   item,
   index,
   isCurrent,
+  onMoveFailed,
 }: {
   item: PlaylistItem;
   index: number;
   isCurrent: boolean;
+  onMoveFailed: (message: string | null) => void;
 }) {
-  const { play, removeFromPlaylist } = useMusicStore();
+  const { play, removeFromPlaylist, playlists, activePlaylistId, moveItemBetweenPlaylists } =
+    useMusicStore();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
   });
+
+  const targetPlaylists = playlists.filter((playlist) => playlist.id !== activePlaylistId);
+
+  const handleMove = (targetPlaylistId: string) => {
+    const moved = moveItemBetweenPlaylists(index, activePlaylistId, targetPlaylistId);
+    onMoveFailed(
+      moved ? null : "Could not move the item — it already exists in the target playlist.",
+    );
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -39,58 +62,87 @@ function SortableItem({
   };
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center rounded-md border text-sm",
-        isCurrent ? "border-primary/50 bg-primary/10" : "border-transparent hover:bg-muted/50",
-        isDragging && "ring-2 ring-primary/50",
-      )}
-      {...attributes}
-    >
-      <button
-        type="button"
-        className={cn(
-          "p-2 text-muted-foreground hover:text-foreground",
-          isDragging ? "cursor-grabbing" : "cursor-grab",
-        )}
-        {...listeners}
-      >
-        <GripVertical className="size-4" />
-        <span className="sr-only">Drag to reorder</span>
-      </button>
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 text-left"
-        onClick={() => play(item.id)}
-        title={item.title}
-      >
-        <img
-          src={getThumbnailUrl(item.id)}
-          alt=""
-          className="h-9 w-16 shrink-0 rounded object-cover"
-          loading="lazy"
-        />
-        <span className="min-w-0 flex-1 truncate text-xs">
-          {item.title || `Video ${index + 1}`}
-        </span>
-      </button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
-        onClick={() => removeFromPlaylist(index)}
-      >
-        <Trash2 className="size-3.5" />
-        <span className="sr-only">Remove</span>
-      </Button>
-    </li>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <li
+          ref={setNodeRef}
+          style={style}
+          className={cn(
+            "flex items-center rounded-md border text-sm",
+            isCurrent ? "border-primary/50 bg-primary/10" : "border-transparent hover:bg-muted/50",
+            isDragging && "ring-2 ring-primary/50",
+          )}
+          {...attributes}
+        >
+          <button
+            type="button"
+            className={cn(
+              "p-2 text-muted-foreground hover:text-foreground",
+              isDragging ? "cursor-grabbing" : "cursor-grab",
+            )}
+            {...listeners}
+          >
+            <GripVertical className="size-4" />
+            <span className="sr-only">Drag to reorder</span>
+          </button>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 text-left"
+            onClick={() => play(item.id)}
+            title={item.title}
+          >
+            <img
+              src={getThumbnailUrl(item.id)}
+              alt=""
+              className="h-9 w-16 shrink-0 rounded object-cover"
+              loading="lazy"
+            />
+            <span className="min-w-0 flex-1 truncate text-xs">
+              {item.title || `Video ${index + 1}`}
+            </span>
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={() => removeFromPlaylist(index)}
+          >
+            <Trash2 className="size-3.5" />
+            <span className="sr-only">Remove</span>
+          </Button>
+        </li>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <ListMusic className="size-4" />
+            Move to playlist
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-48">
+            {targetPlaylists.length === 0 ? (
+              <ContextMenuItem disabled>No other playlists</ContextMenuItem>
+            ) : (
+              targetPlaylists.map((playlist) => (
+                <ContextMenuItem key={playlist.id} onSelect={() => handleMove(playlist.id)}>
+                  <span className="truncate">{playlist.name}</span>
+                </ContextMenuItem>
+              ))
+            )}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onSelect={() => removeFromPlaylist(index)}>
+          <Trash2 className="size-4" />
+          Remove from playlist
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
 export function PlaylistItems() {
   const { currentIndex, reorderPlaylist, getActivePlaylist } = useMusicStore();
+  const [moveError, setMoveError] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -122,6 +174,7 @@ export function PlaylistItems() {
       modifiers={[restrictToVerticalAxis]}
       onDragEnd={handleDragEnd}
     >
+      {moveError && <p className="mb-1 text-xs text-destructive">{moveError}</p>}
       <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
         <ul className="flex flex-col gap-1">
           {items.map((item, index) => (
@@ -130,6 +183,7 @@ export function PlaylistItems() {
               item={item}
               index={index}
               isCurrent={currentIndex === index}
+              onMoveFailed={setMoveError}
             />
           ))}
         </ul>
