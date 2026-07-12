@@ -1,7 +1,15 @@
 # Changelog
 
-## 0.17.1 (2026-07-12)
+## 0.18.0 (2026-07-12)
 
+- New **Timer** tab (right of Music): a countdown timer for focused work
+  sessions. Pick 5 / 15 / 30 / 60 minutes or type any duration, then
+  start / pause / resume / reset. The countdown keeps running while you work in
+  other tabs.
+- When it hits zero, the timer plays an alarm (beeps synthesized with the Web
+  Audio API — no bundled audio file) and raises a desktop notification. Both
+  are individually switchable and the volume is adjustable; the sound, volume,
+  notification and last-used duration settings persist across restarts.
 - Tasks: fixed the Create button flashing briefly when closing an Edit Task
   dialog. The rendered dialog mode is now held stable during the exit
   animation so the footer does not switch from Edit to Create while the dialog
