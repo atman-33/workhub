@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1 (2026-07-12)
+
+- Simplify the task dialog by moving infrequently-used fields (Priority, Due,
+  and Tags) into an expandable "Optional details" accordion. Existing values
+  are summarized on the collapsed trigger and the section opens automatically
+  when any optional detail is set.
+
 ## 0.11.0 (2026-07-12)
 
 - Task dialog controls now use shadcn/ui throughout: Project and Model are
