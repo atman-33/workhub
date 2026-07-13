@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { LaunchAgentButton } from "@/components/launch-agent-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -56,7 +56,7 @@ interface Props {
   onOpen: (task: Task) => void;
   /** Applies one or more frontmatter updates (order and/or status), then refreshes. */
   onMove: (updates: UpdateTaskInput[]) => void;
-  onLaunchAgent: (task: Task) => void;
+  onLaunchAgent: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
@@ -203,6 +203,11 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, on
                     {task.due && (
                       <span className={dueTone(task.due, task.status)}>· {task.due}</span>
                     )}
+                    {(task.assignee === "claude-code" || task.assignee === "opencode") && (
+                      <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                        <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />
+                      </span>
+                    )}
                   </div>
                   {task.tags.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1">
@@ -215,18 +220,6 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, on
                           #{t}
                         </Badge>
                       ))}
-                    </div>
-                  )}
-                  {(task.assignee === "claude-code" || task.assignee === "opencode") && (
-                    <div className="pt-1" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => onLaunchAgent(task)}
-                      >
-                        Launch agent
-                      </Button>
                     </div>
                   )}
                 </div>

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.21.0 (2026-07-14)
+
+- Tasks: the **Launch agent** control is now a compact icon button (a robot)
+  instead of a text button, with a tooltip for discoverability. On the list it
+  sits at the row's end; on kanban cards it tucks into the meta line so the card
+  no longer carries a full-width button. Clicking it plays a "launching"
+  animation that holds for a couple of seconds and then flashes a success
+  check — because spawning the terminal returns before its window is visible,
+  this bridges the previously confusing gap where a click seemed to do nothing.
+- Tasks: the edit dialog header gains a **Launch agent** icon button for
+  `claude-code` / `opencode` tasks, so you can start an agent without leaving
+  the editor. It flushes your pending edits to disk first, so the agent always
+  reads the current task content.
+
 ## 0.20.0 (2026-07-13)
 
 - Tasks: the task **Description** now renders as markdown when you're not
