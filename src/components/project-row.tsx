@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   Code2,
   Copy,
@@ -24,15 +24,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BranchCombobox } from "@/components/ui/branch-combobox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -115,6 +110,7 @@ export const ProjectRow = memo(function ProjectRow({
   onActivate,
   onAction,
 }: Props) {
+  const [switchOpen, setSwitchOpen] = useState(false);
   const tags = project.tags
     .split(",")
     .map((t) => t.trim())
@@ -323,28 +319,13 @@ export const ProjectRow = memo(function ProjectRow({
               <DropdownMenuItem disabled={!!busy} onClick={() => onAction({ kind: "pull" })}>
                 <Download className="size-4" /> Pull (ff-only)
               </DropdownMenuItem>
-              {info.branches.length > 0 && !info.detached && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger disabled={!!busy}>
-                    <GitBranch className="mr-2 size-4" /> Switch branch
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
-                      <DropdownMenuRadioGroup
-                        value={info.branch}
-                        onValueChange={(b) => {
-                          if (b !== info.branch) onAction({ kind: "switch", branch: b });
-                        }}
-                      >
-                        {info.branches.map((b) => (
-                          <DropdownMenuRadioItem key={b} value={b}>
-                            {b}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
+              {!info.detached && (
+                <DropdownMenuItem
+                  disabled={!!busy}
+                  onSelect={() => setSwitchOpen(true)}
+                >
+                  <GitBranch className="size-4" /> Switch branch…
+                </DropdownMenuItem>
               )}
             </>
           )}
@@ -358,6 +339,19 @@ export const ProjectRow = memo(function ProjectRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Filterable branch switcher opened from the menu's "Switch branch…".
+          Anchors to its own position here (next to the menu button). */}
+      {info?.is_repo && (
+        <BranchCombobox
+          path={project.path}
+          current={info.branch}
+          open={switchOpen}
+          onOpenChange={setSwitchOpen}
+          align="end"
+          onSwitch={(branch) => onAction({ kind: "switch", branch })}
+        />
+      )}
     </div>
   );
 });

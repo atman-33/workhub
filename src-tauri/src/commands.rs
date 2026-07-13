@@ -45,7 +45,10 @@ pub async fn git_op(path: String, op: String, branch: Option<String>) -> Result<
     tauri::async_runtime::spawn_blocking(move || match op.as_str() {
         "fetch" => git::fetch(&path),
         "pull" => git::pull(&path),
-        "switch" => git::switch(&path, branch.as_deref().unwrap_or_default()),
+        // DWIM checkout: a remote-tracking ref (e.g. `origin/foo`) resolves to
+        // its local tracking branch, creating it if needed — so the inline
+        // switcher can target remote branches too.
+        "switch" => git::checkout(&path, branch.as_deref().unwrap_or_default()),
         other => Err(format!("unknown git op: {other}")),
     })
     .await

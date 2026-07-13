@@ -488,7 +488,10 @@ pub fn list_branches(path: &str) -> BranchList {
         list.remote = remote
             .lines()
             .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty() && !l.ends_with("/HEAD"))
+            // Keep only `<remote>/<branch>` names. A remote's HEAD symref shows
+            // up as the bare remote name (e.g. `origin`, no slash) or as
+            // `<remote>/HEAD`; neither is a checkoutable branch.
+            .filter(|l| l.contains('/') && !l.ends_with("/HEAD"))
             .collect();
     }
     list
@@ -538,10 +541,6 @@ pub fn pull(path: &str) -> Result<String, String> {
             first
         }
     })
-}
-
-pub fn switch(path: &str, branch: &str) -> Result<String, String> {
-    git(path, &["switch", branch]).map(|_| format!("switched to {branch}"))
 }
 
 /// Check out a ref selected in the graph view. When `branch` names a

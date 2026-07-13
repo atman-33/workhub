@@ -12,9 +12,13 @@
   code blocks get a hover **copy** button. The Results section is read-only —
   the app never rewrites it.
 - Git Graph: the header gains a **branch switcher combobox** listing every
-  local and remote branch. Type to filter (handy when a repo has many
-  branches) and select one to check it out — remote branches are checked out
-  via git's DWIM, creating the local tracking branch as needed.
+  local and remote branch, split into **Local / Remote** groups. Type to filter
+  (handy when a repo has many branches) and select one to check it out — remote
+  branches are checked out via git's DWIM, creating the local tracking branch as
+  needed.
+- Repos: the row menu's **Switch branch** is now the same filterable, grouped
+  branch picker as the Git Graph (replacing the plain submenu list) and can
+  switch to remote branches too, not just local ones.
 
 - Repos: new **Changes** panel (toolbar toggle) — a built-in, VS Code-style
   view of a repository's uncommitted work without leaving Workhub. Click a
