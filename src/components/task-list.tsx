@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { LaunchAgentButton } from "@/components/launch-agent-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -20,7 +20,7 @@ const priorityVariant: Record<Task["priority"], "outline" | "secondary" | "destr
 interface Props {
   tasks: Task[];
   onOpen: (task: Task) => void;
-  onLaunchAgent: (task: Task) => void;
+  onLaunchAgent: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
@@ -80,17 +80,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onArchive, onDelete }: 
                 </span>
               )}
               {(task.assignee === "claude-code" || task.assignee === "opencode") && (
-                <Button
-                  size="xs"
-                  variant="outline"
+                <LaunchAgentButton
                   className="shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLaunchAgent(task);
-                  }}
-                >
-                  Launch agent
-                </Button>
+                  onLaunch={() => onLaunchAgent(task)}
+                />
               )}
             </div>
           </ContextMenuTrigger>

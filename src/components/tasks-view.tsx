@@ -154,13 +154,15 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived],
   );
 
+  // Returns the launch promise so callers (the animated LaunchAgentButton) can
+  // sync their feedback to it; still surfaces the outcome in the status bar.
   const launchAgent = useCallback(
-    (task: Task) => {
+    async (task: Task) => {
       if (!config) return;
       const agentCmd =
         task.assignee === "opencode" ? config.settings.opencode_cmd : config.settings.agent_cmd;
-      void api
-        .launchAgentForTask(
+      try {
+        const message = await api.launchAgentForTask(
           agentCmd,
           task.assignee,
           task.id,
@@ -173,9 +175,12 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           config.settings.vault_path ?? "",
           config.settings.use_herdr,
           config.settings.herdr_cmd,
-        )
-        .then((message) => setStatus(message))
-        .catch((e) => setStatus(`Agent launch failed — ${e}`));
+        );
+        setStatus(message);
+      } catch (e) {
+        setStatus(`Agent launch failed — ${e}`);
+        throw e;
+      }
     },
     [config],
   );
@@ -469,6 +474,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         onClose={() => setDialog(null)}
         onCreate={dialog?.mode === "create" ? (draft) => void createTask(draft) : undefined}
         onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
+        onLaunchAgent={dialog?.mode === "edit" ? launchAgent : undefined}
       />
     </div>
   );

@@ -35,6 +35,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -130,9 +131,20 @@ interface Props {
   onCreate?: (draft: TaskDraft) => void;
   /** Called while editing an existing task, both on idle and on close. */
   onAutoSave?: (draft: TaskDraft) => Promise<void>;
+  /** Launches an agent for the edited task; flushed edits are read from disk. */
+  onLaunchAgent?: (task: Task) => Promise<unknown>;
 }
 
-export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate, onAutoSave }: Props) {
+export function TaskDialog({
+  open,
+  mode,
+  task,
+  knownProjects,
+  onClose,
+  onCreate,
+  onAutoSave,
+  onLaunchAgent,
+}: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
   const [opencodeModels, setOpencodeModels] = useState<string[]>(opencodeModelsCache ?? []);
   const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
@@ -286,6 +298,30 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
     [mode, onAutoSave, onClose],
   );
 
+  // Launch from the editor: flush the debounced autosave first so the agent
+  // reads current content, and pass the draft's launch fields so a not-yet-
+  // refreshed `task` prop can't leak stale title/model/flags into the launch.
+  const handleLaunch = useCallback(async () => {
+    if (!task || !onLaunchAgent) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const d = draftRef.current;
+    if (onAutoSave && d.title.trim()) {
+      await onAutoSave(d);
+    }
+    await onLaunchAgent({
+      ...task,
+      title: d.title,
+      assignee: d.assignee,
+      project: d.project,
+      model: d.model,
+      confirm: d.confirm,
+      worktree: d.worktree,
+    });
+  }, [task, onAutoSave, onLaunchAgent]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -295,15 +331,22 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
               {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
             </DialogTitle>
             {displayMode === "edit" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={() => setResultsOpen(true)}
-              >
-                <FileText className="size-3.5" /> Results
-              </Button>
+              <div className="flex items-center gap-2">
+                {onLaunchAgent &&
+                  task &&
+                  (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
+                    <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
+                  )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => setResultsOpen(true)}
+                >
+                  <FileText className="size-3.5" /> Results
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>
