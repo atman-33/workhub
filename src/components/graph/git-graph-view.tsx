@@ -252,6 +252,10 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
           }}
           options={[...branches.local, ...branches.remote]}
           disabled={!!opBusy}
+          // The graph lives inside a modal Sheet; a modal popover keeps wheel
+          // and click working (otherwise the Sheet's scroll/pointer guard eats
+          // them on the portaled popup).
+          modal
           placeholder="Switch branch…"
           emptyText="No branches."
           className="h-7 w-52"

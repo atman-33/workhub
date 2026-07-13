@@ -24,6 +24,12 @@ interface ComboboxProps {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Render the popover as its own modal layer. Needed when the combobox lives
+   * inside a modal Radix Dialog/Sheet — otherwise the parent's scroll-lock and
+   * pointer-events guard swallow wheel and click on the portaled popup.
+   */
+  modal?: boolean;
 }
 
 /**
@@ -40,6 +46,7 @@ export function Combobox({
   emptyText = "No results.",
   disabled = false,
   className,
+  modal = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -58,6 +65,7 @@ export function Combobox({
 
   return (
     <Popover
+      modal={modal}
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
