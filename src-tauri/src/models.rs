@@ -252,6 +252,14 @@ pub struct GitLog {
     pub has_more: bool,
 }
 
+/// Local and remote branch names for the graph-view branch switcher.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct BranchList {
+    pub local: Vec<String>,
+    pub remote: Vec<String>,
+    pub current: String,
+}
+
 /// A graph-view git operation. Parameters vary per kind, so this is dispatched
 /// via a tagged enum rather than a free-form op string (see `git_op`).
 #[derive(Debug, Clone, Deserialize)]

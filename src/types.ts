@@ -70,6 +70,12 @@ export interface UpdateInfo {
   url: string;
 }
 
+export interface BranchList {
+  local: string[];
+  remote: string[];
+  current: string;
+}
+
 export interface CommitRef {
   name: string;
   kind: "branch" | "remote" | "tag" | "head";

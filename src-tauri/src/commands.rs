@@ -1,4 +1,6 @@
-use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree};
+use crate::models::{
+    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree,
+};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
@@ -25,6 +27,14 @@ pub fn save_config(config: Config) {
 #[tauri::command]
 pub async fn git_status(path: String) -> GitInfo {
     tauri::async_runtime::spawn_blocking(move || git::read_status(&path))
+        .await
+        .unwrap_or_default()
+}
+
+/// List local and remote branches for the graph-view branch switcher.
+#[tauri::command]
+pub async fn list_branches(path: String) -> BranchList {
+    tauri::async_runtime::spawn_blocking(move || git::list_branches(&path))
         .await
         .unwrap_or_default()
 }

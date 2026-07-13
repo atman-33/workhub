@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
@@ -43,6 +44,10 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(600);
+  const [branches, setBranches] = useState<{ local: string[]; remote: string[] }>({
+    local: [],
+    remote: [],
+  });
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef(0);
@@ -66,9 +71,19 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
     [path],
   );
 
+  const loadBranches = useCallback(async () => {
+    try {
+      const b = await api.listBranches(path);
+      setBranches({ local: b.local, remote: b.remote });
+    } catch {
+      // Non-fatal: the switcher just stays empty; ref-badge checkout still works.
+    }
+  }, [path]);
+
   useEffect(() => {
     void load(PAGE, 0, false);
-  }, [load]);
+    void loadBranches();
+  }, [load, loadBranches]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -112,10 +127,11 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
       } finally {
         setOpBusy(null);
         await reload();
+        void loadBranches();
         onRepoChanged(path);
       }
     },
-    [path, reload, onRepoChanged],
+    [path, reload, loadBranches, onRepoChanged],
   );
 
   const deleteBranch = useCallback(
@@ -225,6 +241,21 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
             {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
           </TooltipContent>
         </Tooltip>
+        {/* Switch to any local or remote branch, filterable by typing — handy
+            when a repo has many branches that aren't decorated in the graph. */}
+        <Combobox
+          value={detached ? "" : (log?.current_branch ?? "")}
+          onChange={(branch) => {
+            if (branch && branch !== log?.current_branch) {
+              void runOp("Checkout", { kind: "checkout", branch });
+            }
+          }}
+          options={[...branches.local, ...branches.remote]}
+          disabled={!!opBusy}
+          placeholder="Switch branch…"
+          emptyText="No branches."
+          className="h-7 w-52"
+        />
         {(loading || opBusy) && <Loader2 className="size-3.5 animate-spin text-primary" />}
         {opBusy && <span className="text-[11px] text-muted-foreground">{opBusy}…</span>}
 
