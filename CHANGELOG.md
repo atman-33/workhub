@@ -16,9 +16,9 @@
   (handy when a repo has many branches) and select one to check it out — remote
   branches are checked out via git's DWIM, creating the local tracking branch as
   needed.
-- Repos: the row menu's **Switch branch** is now the same filterable, grouped
-  branch picker as the Git Graph (replacing the plain submenu list) and can
-  switch to remote branches too, not just local ones.
+- Repos: the row menu's **Switch branch** submenu gains a filter box and
+  **Local / Remote** groups, and can switch to remote branches too (not just
+  local) — the remote is checked out via git's DWIM.
 
 - Repos: new **Changes** panel (toolbar toggle) — a built-in, VS Code-style
   view of a repository's uncommitted work without leaving Workhub. Click a

@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import {
+  Check,
   Code2,
   Copy,
   Download,
@@ -24,12 +25,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BranchCombobox } from "@/components/ui/branch-combobox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { timeAgo } from "@/lib/api";
+import { api, timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { GitInfo, Project } from "@/types";
 
@@ -110,7 +114,30 @@ export const ProjectRow = memo(function ProjectRow({
   onActivate,
   onAction,
 }: Props) {
-  const [switchOpen, setSwitchOpen] = useState(false);
+  const [branches, setBranches] = useState<{ local: string[]; remote: string[] }>({
+    local: [],
+    remote: [],
+  });
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchFilter, setBranchFilter] = useState("");
+
+  // Fetch branches (local + remote) each time the Switch-branch submenu opens.
+  const onSwitchOpenChange = (open: boolean) => {
+    if (!open) return;
+    setBranchFilter("");
+    setBranchesLoading(true);
+    void api
+      .listBranches(project.path)
+      .then((b) => setBranches({ local: b.local, remote: b.remote }))
+      .catch(() => setBranches({ local: [], remote: [] }))
+      .finally(() => setBranchesLoading(false));
+  };
+
+  const matchesFilter = (b: string) =>
+    b.toLowerCase().includes(branchFilter.trim().toLowerCase());
+  const filteredLocal = branches.local.filter(matchesFilter);
+  const filteredRemote = branches.remote.filter(matchesFilter);
+
   const tags = project.tags
     .split(",")
     .map((t) => t.trim())
@@ -320,12 +347,84 @@ export const ProjectRow = memo(function ProjectRow({
                 <Download className="size-4" /> Pull (ff-only)
               </DropdownMenuItem>
               {!info.detached && (
-                <DropdownMenuItem
-                  disabled={!!busy}
-                  onSelect={() => setSwitchOpen(true)}
-                >
-                  <GitBranch className="size-4" /> Switch branch…
-                </DropdownMenuItem>
+                <DropdownMenuSub onOpenChange={onSwitchOpenChange}>
+                  <DropdownMenuSubTrigger disabled={!!busy}>
+                    <GitBranch className="mr-2 size-4" /> Switch branch
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="w-60 p-0">
+                      <input
+                        autoFocus
+                        value={branchFilter}
+                        onChange={(e) => setBranchFilter(e.target.value)}
+                        // Keep printable keys in the input instead of letting the
+                        // menu's first-letter typeahead steal them; leave arrows/
+                        // enter/escape to Radix for navigation and close.
+                        onKeyDown={(e) => {
+                          if (e.key.length === 1 || e.key === "Backspace") {
+                            e.stopPropagation();
+                          }
+                        }}
+                        placeholder="Filter branches…"
+                        className="w-full border-b bg-transparent px-2 py-1.5 text-xs outline-none placeholder:text-muted-foreground"
+                      />
+                      <div className="max-h-72 overflow-y-auto p-1">
+                        {branchesLoading ? (
+                          <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+                            <Loader2 className="size-3.5 animate-spin" /> Loading…
+                          </div>
+                        ) : filteredLocal.length === 0 && filteredRemote.length === 0 ? (
+                          <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                            No branches.
+                          </p>
+                        ) : (
+                          <>
+                            {filteredLocal.length > 0 && (
+                              <>
+                                <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
+                                  Local
+                                </DropdownMenuLabel>
+                                {filteredLocal.map((b) => (
+                                  <DropdownMenuItem
+                                    key={`l:${b}`}
+                                    onSelect={() => {
+                                      if (b !== info.branch)
+                                        onAction({ kind: "switch", branch: b });
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "size-3.5",
+                                        b === info.branch ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    <span className="truncate">{b}</span>
+                                  </DropdownMenuItem>
+                                ))}
+                              </>
+                            )}
+                            {filteredRemote.length > 0 && (
+                              <>
+                                <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
+                                  Remote
+                                </DropdownMenuLabel>
+                                {filteredRemote.map((b) => (
+                                  <DropdownMenuItem
+                                    key={`r:${b}`}
+                                    onSelect={() => onAction({ kind: "switch", branch: b })}
+                                  >
+                                    <Check className="size-3.5 opacity-0" />
+                                    <span className="truncate">{b}</span>
+                                  </DropdownMenuItem>
+                                ))}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
               )}
             </>
           )}
@@ -339,19 +438,6 @@ export const ProjectRow = memo(function ProjectRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Filterable branch switcher opened from the menu's "Switch branch…".
-          Anchors to its own position here (next to the menu button). */}
-      {info?.is_repo && (
-        <BranchCombobox
-          path={project.path}
-          current={info.branch}
-          open={switchOpen}
-          onOpenChange={setSwitchOpen}
-          align="end"
-          onSwitch={(branch) => onAction({ kind: "switch", branch })}
-        />
-      )}
     </div>
   );
 });
