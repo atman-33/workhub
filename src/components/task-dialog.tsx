@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { FileText } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Markdown } from "@/components/ui/markdown";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -138,6 +147,23 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
     }
   }, [open, mode]);
 
+  // Description shows a rendered markdown preview (URLs clickable) until the
+  // user clicks into it to edit — an Obsidian-like reading/editing toggle.
+  const [descEditing, setDescEditing] = useState(false);
+  // Results are read-only; they open in a slide-over sheet from the header.
+  const [resultsOpen, setResultsOpen] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setDescEditing(false);
+      setResultsOpen(false);
+    }
+  }, [open]);
+
+  const resultRaw = task ? parseBody(task.body).resultRaw : "";
+  // resultRaw always starts with the "## Results" header; treat "header only"
+  // (nothing after it) as empty so the sheet can show a placeholder instead.
+  const hasResults = resultRaw.replace(/^##\s*Results\s*/i, "").trim().length > 0;
+
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -264,7 +290,22 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{displayMode === "create" ? "New task" : `${task?.id} — Edit task`}</DialogTitle>
+          <div className="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle>
+              {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
+            </DialogTitle>
+            {displayMode === "edit" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => setResultsOpen(true)}
+              >
+                <FileText className="size-3.5" /> Results
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         <div className="space-y-3">
           {field(
@@ -432,12 +473,38 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
           </Accordion>
           {field(
             "Description",
-            <Textarea
-              value={draft.content}
-              onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-              rows={6}
-              placeholder="Task description — this is the prompt context handed to AI agents."
-            />,
+            descEditing ? (
+              <Textarea
+                autoFocus
+                value={draft.content}
+                onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                onBlur={() => setDescEditing(false)}
+                rows={6}
+                placeholder="Task description — this is the prompt context handed to AI agents."
+              />
+            ) : (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setDescEditing(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setDescEditing(true);
+                  }
+                }}
+                className="min-h-[8.5rem] cursor-text rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50"
+                title="Click to edit"
+              >
+                {draft.content.trim() ? (
+                  <Markdown>{draft.content}</Markdown>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Task description — this is the prompt context handed to AI agents.
+                  </span>
+                )}
+              </div>
+            ),
           )}
         </div>
         {displayMode === "create" && (
@@ -455,6 +522,28 @@ export function TaskDialog({ open, mode, task, knownProjects, onClose, onCreate,
           </DialogFooter>
         )}
       </DialogContent>
+
+      {/* Read-only Results preview. Rendered markdown with copyable code blocks;
+          the app never writes this section (see task-body.ts). */}
+      <Sheet open={resultsOpen} onOpenChange={setResultsOpen}>
+        <SheetContent side="right" className="w-[90vw] gap-0 sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{task?.id ? `${task.id} — Results` : "Results"}</SheetTitle>
+            <SheetDescription className="sr-only">
+              Rendered results for this task.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            {hasResults ? (
+              <Markdown>{resultRaw}</Markdown>
+            ) : (
+              <p className="mt-8 text-center text-sm text-muted-foreground">
+                No results recorded yet.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </Dialog>
   );
 }

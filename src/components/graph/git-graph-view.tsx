@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
+  ChevronsUpDown,
   Download,
   GitBranch,
   Loader2,
@@ -18,6 +19,7 @@ import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BranchCombobox } from "@/components/ui/branch-combobox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
@@ -225,6 +227,28 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
             {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
           </TooltipContent>
         </Tooltip>
+        {/* Switch to any local or remote branch, filterable by typing — handy
+            when a repo has many branches that aren't decorated in the graph.
+            Lives inside a modal Sheet, so the popover is modal too (otherwise
+            the Sheet's scroll/pointer guard eats wheel and click). */}
+        <BranchCombobox
+          path={path}
+          current={detached ? "" : (log?.current_branch ?? "")}
+          onSwitch={(branch) => void runOp("Checkout", { kind: "checkout", branch })}
+          disabled={!!opBusy}
+          modal
+          trigger={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 w-52 justify-between px-2 text-xs font-normal"
+            >
+              <span className="truncate">Switch branch…</span>
+              <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
+            </Button>
+          }
+        />
         {(loading || opBusy) && <Loader2 className="size-3.5 animate-spin text-primary" />}
         {opBusy && <span className="text-[11px] text-muted-foreground">{opBusy}…</span>}
 

@@ -1,6 +1,24 @@
 # Changelog
 
-## 0.19.0 (2026-07-12)
+## 0.20.0 (2026-07-13)
+
+- Tasks: the task **Description** now renders as markdown when you're not
+  editing it — URLs become clickable links that open in your browser, and
+  formatting (lists, headings, code) is shown inline. Click the description to
+  switch back to raw-markdown editing; blur to return to the preview. This is a
+  lightweight step toward an Obsidian-style reading/editing experience.
+- Tasks: a new **Results** button in the edit dialog header opens a slide-over
+  sheet showing the task's `## Results` section as rendered markdown. Fenced
+  code blocks get a hover **copy** button. The Results section is read-only —
+  the app never rewrites it.
+- Git Graph: the header gains a **branch switcher combobox** listing every
+  local and remote branch, split into **Local / Remote** groups. Type to filter
+  (handy when a repo has many branches) and select one to check it out — remote
+  branches are checked out via git's DWIM, creating the local tracking branch as
+  needed.
+- Repos: the row menu's **Switch branch** submenu gains a filter box and
+  **Local / Remote** groups, and can switch to remote branches too (not just
+  local) — the remote is checked out via git's DWIM.
 
 - Repos: new **Changes** panel (toolbar toggle) — a built-in, VS Code-style
   view of a repository's uncommitted work without leaving Workhub. Click a

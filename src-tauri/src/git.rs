@@ -1,4 +1,6 @@
-use crate::models::{CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp};
+use crate::models::{
+    BranchList, CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp,
+};
 use std::process::Command;
 
 #[cfg(windows)]
@@ -467,6 +469,34 @@ pub fn read_status(path: &str) -> GitInfo {
     info
 }
 
+/// List local and remote branch names for the branch switcher, plus the
+/// currently checked-out branch. Remote `*/HEAD` symrefs are excluded — they
+/// are aliases, not checkoutable branches.
+pub fn list_branches(path: &str) -> BranchList {
+    let mut list = BranchList {
+        current: read_status(path).branch,
+        ..Default::default()
+    };
+    if let Ok(local) = git(path, &["branch", "--format=%(refname:short)"]) {
+        list.local = local
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    }
+    if let Ok(remote) = git(path, &["branch", "-r", "--format=%(refname:short)"]) {
+        list.remote = remote
+            .lines()
+            .map(|l| l.trim().to_string())
+            // Keep only `<remote>/<branch>` names. A remote's HEAD symref shows
+            // up as the bare remote name (e.g. `origin`, no slash) or as
+            // `<remote>/HEAD`; neither is a checkoutable branch.
+            .filter(|l| l.contains('/') && !l.ends_with("/HEAD"))
+            .collect();
+    }
+    list
+}
+
 /// Parse `git status --porcelain=v2 --branch` output.
 fn parse_status(out: &str) -> GitInfo {
     let mut info = GitInfo {
@@ -511,10 +541,6 @@ pub fn pull(path: &str) -> Result<String, String> {
             first
         }
     })
-}
-
-pub fn switch(path: &str, branch: &str) -> Result<String, String> {
-    git(path, &["switch", branch]).map(|_| format!("switched to {branch}"))
 }
 
 /// Check out a ref selected in the graph view. When `branch` names a

@@ -36,6 +36,7 @@ pub fn run() {
             commands::save_config,
             commands::check_vault_path,
             commands::git_status,
+            commands::list_branches,
             commands::git_op,
             commands::git_log,
             commands::git_graph_op,

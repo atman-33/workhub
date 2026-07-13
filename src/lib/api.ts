@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
 import type {
+  BranchList,
   CommitFileChange,
   Config,
   CreateTaskInput,
@@ -17,6 +18,7 @@ export const api = {
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
   gitStatus: (path: string) => invoke<GitInfo>("git_status", { path }),
+  listBranches: (path: string) => invoke<BranchList>("list_branches", { path }),
   gitOp: (path: string, op: "fetch" | "pull" | "switch", branch?: string) =>
     invoke<string>("git_op", { path, op, branch: branch ?? null }),
   gitRemoteUrl: (path: string) => invoke<string>("git_remote_url", { path }),

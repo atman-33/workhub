@@ -1,4 +1,6 @@
-use crate::models::{CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree};
+use crate::models::{
+    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree,
+};
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
@@ -29,13 +31,24 @@ pub async fn git_status(path: String) -> GitInfo {
         .unwrap_or_default()
 }
 
+/// List local and remote branches for the graph-view branch switcher.
+#[tauri::command]
+pub async fn list_branches(path: String) -> BranchList {
+    tauri::async_runtime::spawn_blocking(move || git::list_branches(&path))
+        .await
+        .unwrap_or_default()
+}
+
 /// op: "fetch" | "pull" | "switch" (switch requires `branch`)
 #[tauri::command]
 pub async fn git_op(path: String, op: String, branch: Option<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || match op.as_str() {
         "fetch" => git::fetch(&path),
         "pull" => git::pull(&path),
-        "switch" => git::switch(&path, branch.as_deref().unwrap_or_default()),
+        // DWIM checkout: a remote-tracking ref (e.g. `origin/foo`) resolves to
+        // its local tracking branch, creating it if needed — so the inline
+        // switcher can target remote branches too.
+        "switch" => git::checkout(&path, branch.as_deref().unwrap_or_default()),
         other => Err(format!("unknown git op: {other}")),
     })
     .await
