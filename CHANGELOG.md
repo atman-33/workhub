@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.25.0 (2026-07-14)
+
+- Tasks: add **fable** to the Claude Code model dropdown in the task editor,
+  alongside haiku / sonnet / opus.
+
 ## 0.24.0 (2026-07-14)
 
 - Tasks (kanban): the column headers (Inbox / Todo / Doing / Review / Done) now
