@@ -88,7 +88,7 @@ const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 
-const CLAUDE_MODELS = ["haiku", "sonnet", "opus"];
+const CLAUDE_MODELS = ["haiku", "sonnet", "opus", "fable"];
 
 const CREATE_DRAFT_KEY = "workhub:task-draft:create";
 
