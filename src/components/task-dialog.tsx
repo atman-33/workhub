@@ -216,6 +216,7 @@ export function TaskDialog({
     if (open) {
       setDescEditing(false);
       setResultsOpen(false);
+      skipAutoSaveOnCloseRef.current = false;
     }
   }, [open]);
 
@@ -229,6 +230,11 @@ export function TaskDialog({
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+  // After a successful agent launch we close the dialog so the user does not
+  // later dismiss it and flush a stale draft (e.g. the old status) back to disk,
+  // overwriting the agent's own edits. This ref suppresses the autosave-on-close
+  // path in that specific case.
+  const skipAutoSaveOnCloseRef = useRef(false);
 
   // On open, initialize the form. Edit mode uses the task file as the source
   // of truth; create mode restores a localStorage draft so an accidental close
@@ -372,7 +378,7 @@ export function TaskDialog({
         clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;
       }
-      if (mode === "edit" && onAutoSave && draftRef.current.title.trim()) {
+      if (mode === "edit" && onAutoSave && draftRef.current.title.trim() && !skipAutoSaveOnCloseRef.current) {
         void onAutoSave(draftRef.current).finally(() => onClose());
       } else {
         onClose();
@@ -382,8 +388,9 @@ export function TaskDialog({
   );
 
   // Launch from the editor: flush the debounced autosave first so the agent
-  // reads current content, and pass the draft's launch fields so a not-yet-
-  // refreshed `task` prop can't leak stale title/model/flags into the launch.
+  // reads current content, pass the draft's launch fields so a not-yet-
+  // refreshed `task` prop can't leak stale title/model/flags into the launch,
+  // and close the dialog so a later dismiss cannot overwrite the agent's edits.
   const handleLaunch = useCallback(async () => {
     if (!task || !onLaunchAgent) return;
     if (autoSaveTimerRef.current) {
@@ -403,7 +410,9 @@ export function TaskDialog({
       confirm: d.confirm,
       worktree: d.worktree,
     });
-  }, [task, onAutoSave, onLaunchAgent]);
+    skipAutoSaveOnCloseRef.current = true;
+    onClose();
+  }, [task, onAutoSave, onLaunchAgent, onClose]);
 
   // Copy the prompt from the editor using the draft's current launch fields.
   const handleCopyPrompt = useCallback(async () => {
