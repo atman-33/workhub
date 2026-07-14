@@ -39,6 +39,12 @@ interface ComboboxProps {
   /** Heading for the `leadingOptions` group (defaults to "Recent"). */
   leadingHeading?: string;
   /**
+   * Heading for the main `options` group. Only rendered when `leadingOptions`
+   * is non-empty, so the main list is visually separated from the Recent
+   * group instead of looking like its continuation. Ignored otherwise.
+   */
+  mainHeading?: string;
+  /**
    * When true, the dropdown renders a spinner with "Loading…" instead of an
    * empty list — making a pending async fetch visible while the popover is
    * open. Has no effect once `options` or `leadingOptions` are non-empty.
@@ -63,6 +69,7 @@ export function Combobox({
   modal = false,
   leadingOptions = [],
   leadingHeading = "Recent",
+  mainHeading,
   loading = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
@@ -151,7 +158,7 @@ export function Combobox({
                 ))}
               </CommandGroup>
             )}
-            <CommandGroup>
+            <CommandGroup heading={leadingOptions.length > 0 ? mainHeading : undefined}>
               {dedupedOptions.map((option) => (
                 <CommandItem key={option} value={option} onSelect={() => commit(option)}>
                   <CheckIcon

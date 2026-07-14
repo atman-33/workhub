@@ -515,6 +515,11 @@ export function TaskDialog({
                 onChange={(v) => setDraft({ ...draft, project: v })}
                 options={knownProjects}
                 allowCustom
+                // Lives inside a modal Radix Dialog; without `modal` the
+                // dialog's scroll/pointer guard eats wheel scrolls on the
+                // portaled popover (same bug fixed for BranchCombobox in
+                // ce4ea2c).
+                modal
                 placeholder="repo name or path"
                 emptyText="No known projects."
               />,
@@ -531,12 +536,21 @@ export function TaskDialog({
                       ? visibleRecentOpencodeModels
                       : []
                   }
+                  // Heading for the main options group once recents are shown,
+                  // so the rest of the catalog doesn't read as a continuation
+                  // of the "Recent" group.
+                  mainHeading="All models"
                   // An opening dropdown before the catalog arrives shows a
                   // spinner so the wait state is visible instead of a blank
                   // list; loading is only meaningful for opencode (claude's
                   // catalog is a hard-coded array).
                   loading={draft.assignee === "opencode" && opencodeModelsLoading}
                   allowCustom
+                  // Lives inside a modal Radix Dialog; without `modal` the
+                  // dialog's scroll/pointer guard eats wheel scrolls on the
+                  // portaled popover (same bug fixed for BranchCombobox in
+                  // ce4ea2c).
+                  modal
                   // A "me" (human) task launches no AI agent, so a model is
                   // meaningless — disable the field. Assignee changes already
                   // clear draft.model, so nothing stale lingers here.
