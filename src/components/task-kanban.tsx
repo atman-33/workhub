@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -60,10 +61,12 @@ interface Props {
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
+  /** Archives every non-archived task in the Done column in one action. */
+  onArchiveDone: () => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -128,12 +131,12 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
   const indicator = <div className="h-0.5 rounded bg-ring" />;
 
   return (
-    <div className="grid h-full grid-cols-5 gap-3 overflow-x-auto p-3">
+    <div className="grid h-full min-h-0 grid-cols-5 gap-3 overflow-x-auto overflow-y-hidden p-3">
       {columns.map((col) => (
         <div
           key={col.key}
           className={cn(
-            "flex min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
+            "flex min-h-0 min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
             dropPos?.col === col.key && "border-ring",
           )}
           onDragOver={(e) => {
@@ -152,10 +155,21 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
         >
           <div className="flex items-center justify-between border-b px-2.5 py-2">
             <span className="text-xs font-semibold">{col.label}</span>
-            <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
+            <div className="flex items-center gap-1.5">
+              {col.key === "done" && col.items.some((t) => !t.archived) && (
+                <button
+                  className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  title="Archive all Done tasks"
+                  onClick={onArchiveDone}
+                >
+                  <Archive className="size-3.5" />
+                </button>
+              )}
+              <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
+            </div>
           </div>
           <div
-            className="flex-1 space-y-2 overflow-y-auto p-2"
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";

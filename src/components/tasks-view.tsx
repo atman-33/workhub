@@ -41,6 +41,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
+  const [archiveDoneOpen, setArchiveDoneOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
@@ -230,6 +231,18 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     },
     [applyUpdates],
   );
+
+  // Non-archived Done tasks currently visible — the targets of a bulk archive.
+  const doneToArchive = useMemo(
+    () => visible.filter((t) => t.status === "done" && !t.archived),
+    [visible],
+  );
+
+  const confirmArchiveDone = useCallback(() => {
+    setArchiveDoneOpen(false);
+    if (doneToArchive.length === 0) return;
+    void applyUpdates(doneToArchive.map((t) => ({ id: t.id, archived: true })));
+  }, [doneToArchive, applyUpdates]);
 
   const confirmDelete = useCallback(async () => {
     if (!vaultPath || !deleteTarget) return;
@@ -465,6 +478,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             onLaunchAgent={launchAgent}
             onCopyTaskPrompt={copyTaskPrompt}
             onArchive={setArchived}
+            onArchiveDone={() => setArchiveDoneOpen(true)}
             onDelete={setDeleteTarget}
           />
         )}
@@ -490,6 +504,19 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         destructive
         onConfirm={() => void confirmDelete()}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={archiveDoneOpen}
+        title="Archive all Done tasks"
+        description={
+          doneToArchive.length === 1
+            ? "Archive the 1 task in the Done column?"
+            : `Archive all ${doneToArchive.length} tasks in the Done column?`
+        }
+        confirmLabel="Archive"
+        onConfirm={confirmArchiveDone}
+        onClose={() => setArchiveDoneOpen(false)}
       />
 
       <TaskDialog
