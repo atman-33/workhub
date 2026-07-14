@@ -121,6 +121,44 @@ function clearCreateDraft(): void {
 // result across dialog opens.
 let opencodeModelsCache: string[] | null = null;
 let opencodeModelsErrorCache: string | null = null;
+// `true` only while the very first fetch is in flight; reused across dialog
+// opens (like the cache), so a second open after success is instant.
+let opencodeModelsLoadingCache = false;
+
+// Recently-chosen opencode models (per provider/model id), most-recent first.
+// Surfaced at the top of the model picker so frequently used models are one
+// click away instead of scrolling the full catalog every time.
+const RECENT_OPENCODE_MODELS_KEY = "workhub:opencode-recent-models";
+const RECENT_OPENCODE_MODELS_MAX = 5;
+
+function loadRecentOpencodeModels(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_OPENCODE_MODELS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((m): m is string => typeof m === "string" && !!m.trim())
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentOpencodeModels(models: string[]): void {
+  try {
+    localStorage.setItem(RECENT_OPENCODE_MODELS_KEY, JSON.stringify(models));
+  } catch {
+    // localStorage may be unavailable/full — recent-models is a nicety.
+  }
+}
+
+/** Move `model` to the front of the list, cap length, no duplicates. */
+function bumpRecentModel(prev: string[], model: string): string[] {
+  const trimmed = model.trim();
+  if (!trimmed) return prev;
+  const next = [trimmed, ...prev.filter((m) => m !== trimmed)];
+  return next.slice(0, RECENT_OPENCODE_MODELS_MAX);
+}
 
 interface Props {
   open: boolean;
@@ -153,6 +191,12 @@ export function TaskDialog({
   const [opencodeModels, setOpencodeModels] = useState<string[]>(opencodeModelsCache ?? []);
   const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
     opencodeModelsErrorCache,
+  );
+  const [opencodeModelsLoading, setOpencodeModelsLoading] = useState<boolean>(
+    opencodeModelsLoadingCache,
+  );
+  const [recentOpencodeModels, setRecentOpencodeModels] = useState<string[]>(() =>
+    loadRecentOpencodeModels(),
   );
   // Keep the rendered mode stable while the dialog is closing so the footer
   // (e.g. the Create button) does not flash during the exit animation.
@@ -224,19 +268,27 @@ export function TaskDialog({
   useEffect(() => {
     if (!open || draft.assignee !== "opencode" || opencodeModelsCache !== null) return;
     let cancelled = false;
+    opencodeModelsLoadingCache = true;
+    setOpencodeModelsLoading(true);
     void api
       .opencodeModels()
       .then((models) => {
         opencodeModelsCache = models;
         opencodeModelsErrorCache = null;
+        opencodeModelsLoadingCache = false;
         if (!cancelled) {
           setOpencodeModels(models);
           setOpencodeModelsError(null);
+          setOpencodeModelsLoading(false);
         }
       })
       .catch((e) => {
         opencodeModelsErrorCache = String(e);
-        if (!cancelled) setOpencodeModelsError(String(e));
+        opencodeModelsLoadingCache = false;
+        if (!cancelled) {
+          setOpencodeModelsError(String(e));
+          setOpencodeModelsLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -248,6 +300,33 @@ export function TaskDialog({
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       {node}
     </div>
+  );
+
+  // Filter the recent-models list down to what the current opencode catalog
+  // still advertises, so a renamed/removed model doesn't linger at the top.
+  // While the catalog is still loading we surface all known recents, so the
+  // quick-access entry points appear immediately instead of waiting for the
+  // CLI spawn to finish.
+  const visibleRecentOpencodeModels =
+    opencodeModels.length === 0 && opencodeModelsLoading
+      ? recentOpencodeModels
+      : recentOpencodeModels.filter((m) => opencodeModels.some((o) => o === m));
+
+  // Record an opencode model pick as recent (most-recent-first, deduped,
+  // persisted to localStorage). "me" / claude-code picks are unaffected.
+  const handleModelChange = useCallback(
+    (nextModel: string) => {
+      setDraft((prev) => ({ ...prev, model: nextModel }));
+      if (draft.assignee !== "opencode") return;
+      const trimmed = nextModel.trim();
+      if (!trimmed) return;
+      setRecentOpencodeModels((prev) => {
+        const updated = bumpRecentModel(prev, trimmed);
+        if (updated !== prev) saveRecentOpencodeModels(updated);
+        return updated;
+      });
+    },
+    [draft.assignee],
   );
 
   // Launch-mode toggles (confirm / worktree) only affect AI agent launches, so
@@ -436,6 +515,11 @@ export function TaskDialog({
                 onChange={(v) => setDraft({ ...draft, project: v })}
                 options={knownProjects}
                 allowCustom
+                // Lives inside a modal Radix Dialog; without `modal` the
+                // dialog's scroll/pointer guard eats wheel scrolls on the
+                // portaled popover (same bug fixed for BranchCombobox in
+                // ce4ea2c).
+                modal
                 placeholder="repo name or path"
                 emptyText="No known projects."
               />,
@@ -445,9 +529,28 @@ export function TaskDialog({
               <div className="space-y-1">
                 <Combobox
                   value={draft.model}
-                  onChange={(v) => setDraft({ ...draft, model: v })}
+                  onChange={handleModelChange}
                   options={draft.assignee === "opencode" ? opencodeModels : CLAUDE_MODELS}
+                  leadingOptions={
+                    draft.assignee === "opencode"
+                      ? visibleRecentOpencodeModels
+                      : []
+                  }
+                  // Heading for the main options group once recents are shown,
+                  // so the rest of the catalog doesn't read as a continuation
+                  // of the "Recent" group.
+                  mainHeading="All models"
+                  // An opening dropdown before the catalog arrives shows a
+                  // spinner so the wait state is visible instead of a blank
+                  // list; loading is only meaningful for opencode (claude's
+                  // catalog is a hard-coded array).
+                  loading={draft.assignee === "opencode" && opencodeModelsLoading}
                   allowCustom
+                  // Lives inside a modal Radix Dialog; without `modal` the
+                  // dialog's scroll/pointer guard eats wheel scrolls on the
+                  // portaled popover (same bug fixed for BranchCombobox in
+                  // ce4ea2c).
+                  modal
                   // A "me" (human) task launches no AI agent, so a model is
                   // meaningless — disable the field. Assignee changes already
                   // clear draft.model, so nothing stale lingers here.

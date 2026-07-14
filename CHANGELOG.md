@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.27.0 (2026-07-14)
+
+- Tasks: the opencode (and project) combobox dropdowns inside the task
+  editor dialog now scroll with the mouse wheel again. They lived inside a
+  modal Radix Dialog, and without the combobox's own `modal` popover layer
+  the dialog's scroll-lock swallowed wheel events on the portaled dropdown —
+  the catalog rendered but wouldn't scroll. Setting it makes the popover its
+  own modal layer so wheel and click both work (same fix previously applied
+  to the branch switcher in the Git Graph sheet).
+- Tasks: when the opencode model dropdown shows a **Recent** group, the
+  rest of the catalog now appears under a separate **All models** heading
+  instead of continuing the Recent section without a label, so the two
+  groups are visually distinguishable.
+
+## 0.26.0 (2026-07-14)
+
+- Tasks: the opencode model picker now shows a **spinner with "Loading…"**
+  while the model catalog is still being fetched from the `opencode models`
+  CLI, instead of presenting a blank dropdown until the spawn finishes.
+- Tasks: opencode model picks are now remembered per app install and surfaced
+  at the top of the dropdown in a **Recent** group, so frequently used models
+  are one click away instead of re-typed each time. The list is capped at
+  five entries (most-recent first) and stale entries are filtered out once the
+  catalog is available.
+
 ## 0.25.0 (2026-07-14)
 
 - Tasks: add **fable** to the Claude Code model dropdown in the task editor,
