@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0 (2026-07-14)
+
+- Settings: add a manual **Check for updates** section so you can see the current
+  version and download/install the latest release from the Settings dialog. After
+  the update downloads, a **Restart now** button swaps to the new version without
+  leaving the app.
+
 ## 0.21.0 (2026-07-14)
 
 - Tasks: the **Launch agent** control is now a compact icon button (a robot)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
-import { FolderOpen } from "lucide-react";
+import { Check, FolderOpen, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { Settings } from "@/types";
+import type { Settings, UpdateInfo } from "@/types";
 
 const DEFAULTS: Settings = {
   vscode_cmd: "code",
@@ -35,10 +36,47 @@ interface Props {
 
 export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
+  const [version, setVersion] = useState("");
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [phase, setPhase] = useState<
+    "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "failed"
+  >("idle");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (open) setDraft(settings);
+    if (open) {
+      setDraft(settings);
+      setUpdate(null);
+      setPhase("idle");
+      setError("");
+      void api.appVersion().then(setVersion);
+    }
   }, [open, settings]);
+
+  const check = async () => {
+    setPhase("checking");
+    setError("");
+    const info = await api.checkUpdate();
+    if (info) {
+      setUpdate(info);
+      setPhase("available");
+    } else {
+      setUpdate(null);
+      setPhase("uptodate");
+    }
+  };
+
+  const install = async () => {
+    if (!update) return;
+    setPhase("downloading");
+    try {
+      await api.applyUpdate(update.url);
+      setPhase("ready");
+    } catch (e) {
+      setError(String(e));
+      setPhase("failed");
+    }
+  };
 
   const field = (
     label: string,
@@ -109,6 +147,64 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             />
             Check for updates on startup
           </label>
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">App update</p>
+                <p className="text-xs text-muted-foreground">Current version: v{version}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={check}
+                disabled={phase === "checking" || phase === "downloading"}
+              >
+                {phase === "checking" && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                {phase === "checking" ? "Checking…" : "Check for updates"}
+              </Button>
+            </div>
+            {phase === "ready" && (
+              <div className="flex items-center justify-between gap-3 rounded-md bg-muted p-2">
+                <span className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3.5 text-green-500" />
+                  Update installed
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => api.restartApp()}
+                >
+                  Restart now
+                </Button>
+              </div>
+            )}
+            {update && phase !== "ready" && (
+              <div className="flex items-center justify-between gap-3 rounded-md bg-muted p-2">
+                <span className="text-xs">
+                  New version <span className="font-medium">{update.tag}</span> is available
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={install}
+                  disabled={phase === "downloading"}
+                >
+                  {phase === "downloading" && (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  )}
+                  {phase === "downloading" ? "Downloading…" : "Download & install"}
+                </Button>
+              </div>
+            )}
+            {phase === "uptodate" && (
+              <p className="text-xs text-muted-foreground">You are up to date.</p>
+            )}
+            {phase === "failed" && (
+              <p className="text-xs text-destructive">Update failed: {error}</p>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setDraft(DEFAULTS)}>
