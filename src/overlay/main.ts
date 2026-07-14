@@ -22,12 +22,36 @@ const LINE_WIDTH = 3;
 
 const canvas = document.getElementById("ink") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
+const palette = document.getElementById("palette")!;
 
 let strokes: Stroke[] = [];
 let active: Stroke | null = null;
 let colorIndex = 0;
 /** True while the last point of the active stroke is a Shift-snapped point. */
 let snapped = false;
+
+/** Crosshair cursor in the current pen color (white outline for contrast). */
+function crosshairCursor(color: string): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">` +
+    `<g stroke="#ffffff" stroke-width="4" stroke-linecap="round">` +
+    `<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/></g>` +
+    `<g stroke="${color}" stroke-width="2" stroke-linecap="round">` +
+    `<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/></g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
+}
+
+/** Reflect the current pen color in the cursor and the edge badge. */
+function renderColorIndicator() {
+  canvas.style.cursor = crosshairCursor(COLORS[colorIndex]);
+  palette.innerHTML = "";
+  COLORS.forEach((color, i) => {
+    const dot = document.createElement("span");
+    dot.className = i === colorIndex ? "dot active" : "dot";
+    dot.style.background = color;
+    palette.appendChild(dot);
+  });
+}
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -110,12 +134,14 @@ canvas.addEventListener("pointercancel", endStroke);
 
 window.addEventListener("resize", resize);
 resize();
+renderColorIndicator();
 
 void listen("ink://activate", () => {
   strokes = [];
   active = null;
   snapped = false;
   resize();
+  renderColorIndicator();
 });
 
 void listen("ink://deactivate", () => {
@@ -127,4 +153,5 @@ void listen("ink://deactivate", () => {
 
 void listen("ink://cycle-color", () => {
   colorIndex = (colorIndex + 1) % COLORS.length;
+  renderColorIndicator();
 });

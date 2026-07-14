@@ -35,7 +35,7 @@ Backend (`src-tauri/src/`):
 | `git.rs` | git CLI integration (kept from devdeck for the repos module) |
 | `actions.rs` | external launches (VS Code, terminal, AI agent with task context) |
 | `storage.rs` | JSON persistence (`%APPDATA%\workhub\config.json`) |
-| `ink/` | screen-annotation overlay: WH_KEYBOARD_LL Alt double-press hook + transparent draw window (`overlay.html` / `src/overlay/main.ts`) |
+| `ink/` | screen-annotation overlay: Raw Input Alt double-press listener + transparent draw window (`overlay.html` / `src/overlay/main.ts`) |
 | `update.rs` | self-update against GitHub Releases (disabled by default; no releases yet) |
 
 Frontend (`src/`): React 19 + Tailwind v4 + shadcn/ui. `lib/api.ts` wraps

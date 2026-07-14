@@ -7,8 +7,15 @@
   monitor under the cursor; releasing Alt clears them and restores
   click-through. While drawing, **Alt+S** cycles the pen color
   (red → blue → green) and holding **Shift** snaps the stroke to a horizontal
-  or vertical line. The feature (including its low-level keyboard hook) can be
+  or vertical line. The feature (including its global key listener) can be
   toggled in Settings — **"Screen annotation"**, enabled by default.
+- Ink: Alt detection uses the **Raw Input API** (`RIDEV_INPUTSINK`) instead of
+  a `WH_KEYBOARD_LL` hook — low-level hook delivery silently stops when the
+  app's own webview holds keyboard focus, which made the gesture dead while
+  workhub itself was focused.
+- Ink: the current pen color is now visible while drawing — the crosshair
+  cursor is tinted with the pen color and a small semi-transparent palette
+  badge at the bottom center of the screen highlights the active color.
 
 ## 0.28.0 (2026-07-15)
 
