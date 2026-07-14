@@ -33,8 +33,10 @@ and maintains the zone `_index.md` files. `/kb-query` searches and synthesizes,
 
 ## Task schema
 
-Task files live flat in `tasks/`, named `<id> <title>.md` (e.g.
-`T-0042 Improve sort order.md`). Frontmatter:
+Active task files live flat in `tasks/`, named `<id> <title>.md` (e.g.
+`T-0042 Improve sort order.md`); archived tasks are moved into the
+`tasks/archive/` subfolder (same filename) to keep the flat listing tidy.
+Frontmatter:
 
 ```yaml
 id: T-0042          # assigned by the app, never change
@@ -48,7 +50,8 @@ model: sonnet       # optional; AI model passed as `--model` when the app
 order: 2            # manual sort position; managed by the app — leave as is
 due: 2026-07-20     # optional
 tags: []
-archived: true      # optional; absent = false. Hidden from the board by default
+archived: true      # optional; absent = false. Hidden from the board by
+                    # default; the app files it under tasks/archive/
 confirm: true       # optional; absent = false. Plan-first approval before executing
 worktree: true      # optional; absent = false. Work in a dedicated git worktree
 created: 2026-07-10

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.23.0 (2026-07-14)
+
+- Tasks: archiving a task now moves its file into a `tasks/archive/` subfolder
+  (and unarchiving moves it back), so the flat `tasks/` listing stays
+  uncluttered in Obsidian/Explorer as archived tasks accumulate. The
+  `archived: true` frontmatter flag remains the source of truth; the folder is
+  kept in sync with it. Archived tasks still reserve their id, stay in the
+  index, and remain findable — existing vaults migrate their already-archived
+  tasks automatically on load.
+
 ## 0.22.0 (2026-07-14)
 
 - Tasks: add a **Copy prompt** button next to the **Launch agent** button on
