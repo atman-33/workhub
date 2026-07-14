@@ -23,6 +23,7 @@ const DEFAULTS: Settings = {
   use_herdr: true,
   herdr_cmd: "herdr",
   check_updates: true,
+  ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
 };
@@ -146,6 +147,13 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               onCheckedChange={(v) => setDraft({ ...draft, check_updates: v === true })}
             />
             Check for updates on startup
+          </label>
+          <label className="flex items-center gap-2 pt-1 text-sm">
+            <Checkbox
+              checked={draft.ink_enabled}
+              onCheckedChange={(v) => setDraft({ ...draft, ink_enabled: v === true })}
+            />
+            Screen annotation (double-press and hold Alt to draw)
           </label>
           <div className="space-y-2 rounded-md border p-3">
             <div className="flex items-center justify-between gap-3">

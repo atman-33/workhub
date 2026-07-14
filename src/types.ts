@@ -20,6 +20,8 @@ export interface Settings {
   use_herdr: boolean;
   herdr_cmd: string;
   check_updates: boolean;
+  /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
+  ink_enabled: boolean;
   vault_path: string | null;
   /** Root dir for task worktrees, laid out as `<root>/<task-id>/<repo-name>`. */
   worktree_root: string;

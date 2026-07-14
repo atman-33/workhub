@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.28.0"
+version = "0.29.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -31,6 +31,15 @@ notify = "6"
 # task deletion goes to the OS recycle bin (restorable), never a hard delete
 trash = "5"
 tauri-plugin-notification = "2.3.3"
+
+# ink overlay: WH_KEYBOARD_LL hook for the double-Alt temporary draw mode
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_Threading",
+] }
 
 [profile.release]
 opt-level = 2

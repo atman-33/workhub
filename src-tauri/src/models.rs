@@ -44,6 +44,10 @@ pub struct Settings {
     /// Check GitHub Releases for a newer version on startup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
+    /// Screen-annotation overlay (double-press-and-hold Alt to draw),
+    /// including its low-level keyboard hook.
+    #[serde(default = "default_true")]
+    pub ink_enabled: bool,
     /// Absolute path to the workhub Obsidian vault (task data store). Unset
     /// until the user configures or initializes a vault.
     #[serde(default)]
@@ -88,6 +92,7 @@ impl Default for Settings {
             use_herdr: true,
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
+            ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),
         }

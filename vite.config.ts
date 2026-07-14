@@ -12,6 +12,15 @@ export default defineConfig({
     },
   },
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        // Ink screen-annotation overlay window (see src-tauri/src/ink/).
+        overlay: path.resolve(__dirname, "overlay.html"),
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

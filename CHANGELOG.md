@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.0 (2026-07-15)
+
+- New **screen annotation (ink) overlay**, ported from the Desktop Ink app:
+  double-press Alt and hold the second press to draw temporary strokes on the
+  monitor under the cursor; releasing Alt clears them and restores
+  click-through. While drawing, **Alt+S** cycles the pen color
+  (red → blue → green) and holding **Shift** snaps the stroke to a horizontal
+  or vertical line. The feature (including its low-level keyboard hook) can be
+  toggled in Settings — **"Screen annotation"**, enabled by default.
+
 ## 0.28.0 (2026-07-15)
 
 - Tasks: the **Edit Task** dialog now closes automatically after launching an
