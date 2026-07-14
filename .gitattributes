@@ -1,0 +1,10 @@
+# Default: let Git decide whether a file is text.
+* text=auto
+
+# This file itself must be LF so Git reads consistent rules across platforms.
+.gitattributes text eol=lf
+
+# Rust source and Cargo metadata must always use LF, even on Windows.
+*.rs text eol=lf
+Cargo.toml text eol=lf
+Cargo.lock text eol=lf
