@@ -128,12 +128,12 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
   const indicator = <div className="h-0.5 rounded bg-ring" />;
 
   return (
-    <div className="grid h-full grid-cols-5 gap-3 overflow-x-auto p-3">
+    <div className="grid h-full min-h-0 grid-cols-5 gap-3 overflow-x-auto overflow-y-hidden p-3">
       {columns.map((col) => (
         <div
           key={col.key}
           className={cn(
-            "flex min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
+            "flex min-h-0 min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
             dropPos?.col === col.key && "border-ring",
           )}
           onDragOver={(e) => {
@@ -155,7 +155,7 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
             <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
           </div>
           <div
-            className="flex-1 space-y-2 overflow-y-auto p-2"
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
