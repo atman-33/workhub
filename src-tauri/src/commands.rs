@@ -6,6 +6,7 @@ use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[tauri::command]
 pub fn get_config() -> Config {
@@ -162,6 +163,41 @@ pub fn open_terminal(template: String, path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn launch_agent(template: String, path: String) -> Result<(), String> {
     actions::launch_agent(&template, &path)
+}
+
+/// Copies the agent prompt for a task to the system clipboard so the user can
+/// paste it into another AI terminal manually.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn copy_task_prompt(
+    app: tauri::AppHandle,
+    assignee: String,
+    task_id: String,
+    task_title: String,
+    task_file: String,
+    project: String,
+    model: String,
+    confirm: bool,
+    worktree: bool,
+    vault_path: String,
+) -> Result<(), String> {
+    let prompt = actions::build_agent_prompt(&actions::LaunchAgentForTaskParams {
+        agent_cmd: "",
+        assignee: &assignee,
+        task_id: &task_id,
+        task_title: &task_title,
+        task_file: &task_file,
+        project: &project,
+        model: &model,
+        confirm,
+        worktree,
+        vault_path: &vault_path,
+        use_herdr: false,
+        herdr_cmd: "",
+    });
+    app.clipboard()
+        .write_text(prompt)
+        .map_err(|e| format!("failed to copy prompt: {e}"))
 }
 
 /// Models available to the opencode CLI (`opencode models`), as

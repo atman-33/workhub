@@ -35,6 +35,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
@@ -133,6 +134,8 @@ interface Props {
   onAutoSave?: (draft: TaskDraft) => Promise<void>;
   /** Launches an agent for the edited task; flushed edits are read from disk. */
   onLaunchAgent?: (task: Task) => Promise<unknown>;
+  /** Copies the agent prompt for the edited task to the clipboard. */
+  onCopyTaskPrompt?: (task: Task) => Promise<unknown>;
 }
 
 export function TaskDialog({
@@ -144,6 +147,7 @@ export function TaskDialog({
   onCreate,
   onAutoSave,
   onLaunchAgent,
+  onCopyTaskPrompt,
 }: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
   const [opencodeModels, setOpencodeModels] = useState<string[]>(opencodeModelsCache ?? []);
@@ -322,6 +326,21 @@ export function TaskDialog({
     });
   }, [task, onAutoSave, onLaunchAgent]);
 
+  // Copy the prompt from the editor using the draft's current launch fields.
+  const handleCopyPrompt = useCallback(async () => {
+    if (!task || !onCopyTaskPrompt) return;
+    const d = draftRef.current;
+    await onCopyTaskPrompt({
+      ...task,
+      title: d.title,
+      assignee: d.assignee,
+      project: d.project,
+      model: d.model,
+      confirm: d.confirm,
+      worktree: d.worktree,
+    });
+  }, [task, onCopyTaskPrompt]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -332,10 +351,16 @@ export function TaskDialog({
             </DialogTitle>
             {displayMode === "edit" && (
               <div className="flex items-center gap-2">
-                {onLaunchAgent &&
-                  task &&
+                {task &&
                   (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
-                    <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
+                    <>
+                      {onCopyTaskPrompt && (
+                        <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
+                      )}
+                      {onLaunchAgent && (
+                        <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
+                      )}
+                    </>
                   )}
                 <Button
                   type="button"

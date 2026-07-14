@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import {
   ContextMenu,
@@ -57,11 +58,12 @@ interface Props {
   /** Applies one or more frontmatter updates (order and/or status), then refreshes. */
   onMove: (updates: UpdateTaskInput[]) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
+  onCopyTaskPrompt: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -204,7 +206,8 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onArchive, on
                       <span className={dueTone(task.due, task.status)}>· {task.due}</span>
                     )}
                     {(task.assignee === "claude-code" || task.assignee === "opencode") && (
-                      <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                      <span className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <CopyPromptButton onCopy={() => onCopyTaskPrompt(task)} />
                         <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />
                       </span>
                     )}

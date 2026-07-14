@@ -98,6 +98,29 @@ export const api = {
       useHerdr,
       herdrCmd,
     }),
+
+  copyTaskPrompt: (
+    assignee: string,
+    taskId: string,
+    taskTitle: string,
+    taskFile: string,
+    project: string,
+    model: string,
+    confirm: boolean,
+    worktree: boolean,
+    vaultPath: string,
+  ) =>
+    invoke<void>("copy_task_prompt", {
+      assignee,
+      taskId,
+      taskTitle,
+      taskFile,
+      project,
+      model,
+      confirm,
+      worktree,
+      vaultPath,
+    }),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

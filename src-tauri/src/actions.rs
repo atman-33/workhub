@@ -191,6 +191,42 @@ fn in_pane_command(command_line: &str) -> String {
     rest.join(" ")
 }
 
+/// Builds the plain agent prompt text (without CLI wrapping) that tells an
+/// agent which task to work, how to execute it, and where to report results.
+/// This is the same text that `agent_command_template` embeds into the
+/// launch command line, exposed separately so the UI can copy it to the
+/// clipboard for manual pasting into another terminal.
+pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
+    let project_note = if params.project.trim().is_empty() {
+        String::new()
+    } else {
+        format!(" Target project: {}.", params.project)
+    };
+    // Execution clause: autonomous by default; plan-first when the task opts
+    // into confirm mode (T-0016 — a task Description asking for confirmation is
+    // otherwise overridden by the "run without asking" instruction below).
+    let execution = if params.confirm {
+        ". Understand the Description, create an implementation plan, and get the user's approval before proceeding. Do not change code until approved"
+    } else {
+        ", then complete it automatically without asking for confirmation"
+    };
+    // Worktree clause: only when the task opts into git worktree mode (T-0017).
+    // The agent session starts in the vault; task-start resolves the repo and
+    // creates the worktree there, so this only has to tell it where and how.
+    let worktree_note = if params.worktree {
+        format!(
+            " This task uses git worktree mode. In task-start, do not modify the repository's working tree directly; instead create a new worktree with `git worktree add` under `.worktrees/{0}/<repository-name>` (branch `task/{0}`) and work there. For multiple repositories, create each repository's worktree under the same `.worktrees/{0}/` folder.",
+            params.task_id
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{} Task file: {}",
+        params.task_id, execution, worktree_note, project_note, params.task_file
+    )
+}
+
 /// Builds the full agent command template: agent_cmd + model + auto-run flags
 /// + the initial prompt.
 ///
@@ -201,34 +237,7 @@ fn in_pane_command(command_line: &str) -> String {
 /// reassembling the command line, which previously truncated the prompt to its
 /// first word). Inner single quotes are doubled per PowerShell escaping rules.
 fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
-    let project_note = if params.project.trim().is_empty() {
-        String::new()
-    } else {
-        format!("対象プロジェクト: {}。", params.project)
-    };
-    // Execution clause: autonomous by default; plan-first when the task opts
-    // into confirm mode (T-0016 — a task Description asking for confirmation is
-    // otherwise overridden by the "run without asking" instruction below).
-    let execution = if params.confirm {
-        "、Description を理解した上で実装計画（Plan）を作成し、ユーザーの承認を得てから実施してください。承認されるまでコードを変更しないでください"
-    } else {
-        "、確認を求めずに完了まで自動で実施してください"
-    };
-    // Worktree clause: only when the task opts into git worktree mode (T-0017).
-    // The agent session starts in the vault; task-start resolves the repo and
-    // creates the worktree there, so this only has to tell it where and how.
-    let worktree_note = if params.worktree {
-        format!(
-            "このタスクは git worktree モードです。task-start では対象リポジトリの作業ツリーを直接変更せず、リポジトリの親ディレクトリ配下の `.worktrees/{0}/<リポジトリ名>` に `git worktree add`（ブランチ `task/{0}`）で新しい worktree を作成し、その中で作業してください。複数リポジトリを扱う場合は同じ `.worktrees/{0}/` 配下にリポジトリ名ごとの worktree を作成してください。",
-            params.task_id
-        )
-    } else {
-        String::new()
-    };
-    let prompt = format!(
-        "タスク {} を実施してください。まず task-start スキルを実行し{}。完了したら task-report スキルを実行してステータスを更新してください。{}{}タスクファイル: {}",
-        params.task_id, execution, worktree_note, project_note, params.task_file
-    );
+    let prompt = build_agent_prompt(params);
     let quoted_prompt = format!("\"'{}'\"", prompt.replace('\'', "''"));
 
     // opencode's positional argument is a project path, not a prompt, so the
@@ -404,12 +413,12 @@ mod tests {
     fn claude_template_uses_auto_permission_mode_and_positional_prompt() {
         let template = agent_command_template(&test_params("claude-code", "opus"));
         assert!(template.starts_with(
-            "wt -d {path} powershell -NoExit -Command claude --model opus --permission-mode auto \"'タスク T-1 を実施してください。"
+            "wt -d {path} powershell -NoExit -Command claude --model opus --permission-mode auto \"'Please implement task T-1."
         ));
         assert!(template.contains("task-start"));
         assert!(template.contains("task-report"));
-        assert!(template.contains("対象プロジェクト: proj。"));
-        assert!(template.ends_with("タスクファイル: tasks/T-1.md'\""));
+        assert!(template.contains("Target project: proj."));
+        assert!(template.ends_with("Task file: tasks/T-1.md'\""));
         assert!(!template.contains("--prompt"));
     }
 
@@ -422,8 +431,9 @@ mod tests {
         assert!(template.contains(" --permission-mode plan "));
         assert!(!template.contains("--permission-mode auto"));
         // Prompt asks for a plan + approval, not "run without asking".
-        assert!(template.contains("実装計画（Plan）を作成し、ユーザーの承認を得てから"));
-        assert!(!template.contains("確認を求めずに完了まで自動で実施"));
+        // Single quotes inside the prompt are doubled for PowerShell escaping.
+        assert!(template.contains("create an implementation plan, and get the user"));
+        assert!(!template.contains("complete it automatically without asking for confirmation"));
     }
 
     #[test]
@@ -441,15 +451,15 @@ mod tests {
         let mut params = test_params("claude-code", "");
         params.worktree = true;
         let template = agent_command_template(&params);
-        assert!(template.contains("git worktree モード"));
-        assert!(template.contains(".worktrees/T-1/<リポジトリ名>"));
+        assert!(template.contains("This task uses git worktree mode"));
+        assert!(template.contains(".worktrees/T-1/<repository-name>"));
         assert!(template.contains("task/T-1"));
     }
 
     #[test]
     fn default_mode_has_no_worktree_instruction() {
         let template = agent_command_template(&test_params("claude-code", ""));
-        assert!(!template.contains("git worktree モード"));
+        assert!(!template.contains("This task uses git worktree mode"));
     }
 
     #[test]
@@ -457,7 +467,7 @@ mod tests {
         let mut params = test_params("opencode", "");
         params.agent_cmd = "wt -d {path} powershell -NoExit -Command opencode";
         let template = agent_command_template(&params);
-        assert!(template.contains(" opencode --auto --prompt \"'タスク T-1 "));
+        assert!(template.contains(" opencode --auto --prompt \"'Please implement task T-1."));
         assert!(!template.contains("--model"));
         assert!(!template.contains("--permission-mode"));
     }
@@ -470,7 +480,7 @@ mod tests {
         // wt -d <path> stripped; prompt is the last token, one single-quoted string.
         assert_eq!(argv[0], "powershell");
         let prompt = argv.last().unwrap();
-        assert!(prompt.starts_with("'タスク T-1 "));
+        assert!(prompt.starts_with("'Please implement task T-1."));
         assert!(prompt.ends_with("tasks/T-1.md'"));
     }
 
