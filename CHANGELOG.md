@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.28.0 (2026-07-15)
+
+- Tasks: the **Edit Task** dialog now closes automatically after launching an
+  AI agent from it. Keeping the dialog open let a subsequent close trigger an
+  auto-save that wrote the stale draft (including the old `status`) back to
+  disk, overwriting the agent's own changes such as `todo` → `doing`.
+
 ## 0.27.0 (2026-07-14)
 
 - Tasks: the opencode (and project) combobox dropdowns inside the task
