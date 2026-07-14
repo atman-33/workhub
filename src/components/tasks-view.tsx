@@ -185,6 +185,30 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [config],
   );
 
+  const copyTaskPrompt = useCallback(
+    async (task: Task) => {
+      if (!config) return;
+      try {
+        await api.copyTaskPrompt(
+          task.assignee,
+          task.id,
+          task.title,
+          task.file,
+          task.project,
+          task.model,
+          task.confirm,
+          task.worktree,
+          config.settings.vault_path ?? "",
+        );
+        setStatus(`Copied prompt for ${task.id}`);
+      } catch (e) {
+        setStatus(`Copy prompt failed — ${e}`);
+        throw e;
+      }
+    },
+    [config],
+  );
+
   const applyUpdates = useCallback(
     async (updates: UpdateTaskInput[]) => {
       if (!vaultPath) return;
@@ -429,6 +453,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             tasks={visible}
             onOpen={(task) => setDialog({ mode: "edit", task })}
             onLaunchAgent={launchAgent}
+            onCopyTaskPrompt={copyTaskPrompt}
             onArchive={setArchived}
             onDelete={setDeleteTarget}
           />
@@ -438,6 +463,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             onOpen={(task) => setDialog({ mode: "edit", task })}
             onMove={(updates) => void applyUpdates(updates)}
             onLaunchAgent={launchAgent}
+            onCopyTaskPrompt={copyTaskPrompt}
             onArchive={setArchived}
             onDelete={setDeleteTarget}
           />
@@ -475,6 +501,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         onCreate={dialog?.mode === "create" ? (draft) => void createTask(draft) : undefined}
         onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
         onLaunchAgent={dialog?.mode === "edit" ? launchAgent : undefined}
+        onCopyTaskPrompt={dialog?.mode === "edit" ? copyTaskPrompt : undefined}
       />
     </div>
   );

@@ -49,6 +49,7 @@ pub fn run() {
             commands::open_in_vscode,
             commands::open_terminal,
             commands::launch_agent,
+            commands::copy_task_prompt,
             commands::opencode_models,
             commands::open_explorer,
             commands::app_version,

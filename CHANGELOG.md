@@ -2,6 +2,12 @@
 
 ## 0.22.0 (2026-07-14)
 
+- Tasks: add a **Copy prompt** button next to the **Launch agent** button on
+  task list rows, kanban cards, and in the task edit dialog. It copies the
+  exact agent prompt (task id, execution mode, worktree/confirm flags, project,
+  and task file) to the clipboard in English so you can paste it into another
+  AI terminal manually. The button shows a brief "Copied" check animation for
+  feedback.
 - Settings: add a manual **Check for updates** section so you can see the current
   version and download/install the latest release from the Settings dialog. After
   the update downloads, a **Restart now** button swaps to the new version without
