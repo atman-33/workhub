@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.0 (2026-07-14)
+
+- Tasks (kanban): the column headers (Inbox / Todo / Doing / Review / Done) now
+  stay pinned at the top while a column's cards scroll. Previously a tall column
+  scrolled the whole board and pushed the status headers out of view; each
+  column now scrolls independently with its header fixed.
+- Tasks (kanban): add an **Archive** button to the Done column header that
+  archives every task in the column in one action, so you no longer have to
+  archive finished tasks one by one. It appears only when the column holds at
+  least one non-archived task and asks for confirmation first.
+
 ## 0.23.0 (2026-07-14)
 
 - Tasks: archiving a task now moves its file into a `tasks/archive/` subfolder

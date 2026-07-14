@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -60,10 +61,12 @@ interface Props {
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
+  /** Archives every non-archived task in the Done column in one action. */
+  onArchiveDone: () => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -152,7 +155,18 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
         >
           <div className="flex items-center justify-between border-b px-2.5 py-2">
             <span className="text-xs font-semibold">{col.label}</span>
-            <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
+            <div className="flex items-center gap-1.5">
+              {col.key === "done" && col.items.some((t) => !t.archived) && (
+                <button
+                  className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  title="Archive all Done tasks"
+                  onClick={onArchiveDone}
+                >
+                  <Archive className="size-3.5" />
+                </button>
+              )}
+              <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
+            </div>
           </div>
           <div
             className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
