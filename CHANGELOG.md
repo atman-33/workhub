@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.26.0 (2026-07-14)
+
+- Tasks: the opencode model picker now shows a **spinner with "Loading…"**
+  while the model catalog is still being fetched from the `opencode models`
+  CLI, instead of presenting a blank dropdown until the spawn finishes.
+- Tasks: opencode model picks are now remembered per app install and surfaced
+  at the top of the dropdown in a **Recent** group, so frequently used models
+  are one click away instead of re-typed each time. The list is capped at
+  five entries (most-recent first) and stale entries are filtered out once the
+  catalog is available.
+
 ## 0.25.0 (2026-07-14)
 
 - Tasks: add **fable** to the Claude Code model dropdown in the task editor,
