@@ -215,9 +215,19 @@ function writeTaskFile(task) {
 // ---------------------------------------------------------------------
 
 function scanTasks(vault) {
-  const dir = path.join(vault, "tasks");
-  if (!fs.existsSync(dir)) return [];
   const out = [];
+  // Active tasks live in tasks/, archived ones in tasks/archive/. Scanning
+  // both keeps archived tasks in the index and reserves their ids. Reading
+  // tasks/ non-recursively skips the archive/ subdir (no .md extension), so
+  // the two passes never double-count. Mirrors src-tauri/src/tasks.rs.
+  scanDirInto(path.join(vault, "tasks"), out);
+  scanDirInto(path.join(vault, "tasks", "archive"), out);
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
+function scanDirInto(dir, out) {
+  if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
     if (!name.endsWith(".md") || name === "_index.md") continue;
     try {
@@ -226,8 +236,6 @@ function scanTasks(vault) {
       /* skip unparsable files, like the app does */
     }
   }
-  out.sort((a, b) => a.id.localeCompare(b.id));
-  return out;
 }
 
 function regenerateIndex(vault) {
@@ -257,14 +265,17 @@ function regenerateIndex(vault) {
 }
 
 function findTask(vault, id) {
-  const dir = path.join(vault, "tasks");
   const prefix = `${id} `;
-  for (const name of fs.readdirSync(dir)) {
-    if (name.startsWith(prefix) && name.endsWith(".md")) {
-      return parseTaskFile(path.join(dir, name));
+  // An archived task lives under tasks/archive/, so search both directories.
+  for (const dir of [path.join(vault, "tasks"), path.join(vault, "tasks", "archive")]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      if (name.startsWith(prefix) && name.endsWith(".md")) {
+        return parseTaskFile(path.join(dir, name));
+      }
     }
   }
-  fail(`task ${id} not found in ${dir}`);
+  fail(`task ${id} not found in ${path.join(vault, "tasks")}`);
 }
 
 function today() {

@@ -28,8 +28,25 @@ fn tasks_dir(vault: &Path) -> PathBuf {
     vault.join("tasks")
 }
 
+/// Archived tasks are relocated here (a subfolder of `tasks/`) so the flat
+/// `tasks/` listing stays uncluttered in Obsidian/Explorer. The `archived:
+/// true` frontmatter flag remains the logical source of truth; the folder is
+/// kept in sync with it on every write (see `relocate_for_archive_state`).
+const ARCHIVE_SUBDIR: &str = "archive";
+
+fn archive_dir(vault: &Path) -> PathBuf {
+    tasks_dir(vault).join(ARCHIVE_SUBDIR)
+}
+
 fn index_file(vault: &Path) -> PathBuf {
     vault.join("_ai").join("index").join("tasks.json")
+}
+
+/// Normalizes a path to forward slashes for cross-separator comparison
+/// (`Task.file` is always stored with `/`, while `Path::join` yields `\` on
+/// Windows).
+fn norm_path(p: &Path) -> String {
+    p.to_string_lossy().replace('\\', "/")
 }
 
 // ---------------------------------------------------------------------
@@ -269,12 +286,26 @@ fn write_task_file(task: &Task) -> Result<(), String> {
 // ---------------------------------------------------------------------
 
 pub fn scan_tasks(vault: &Path) -> Result<Vec<Task>, String> {
-    let dir = tasks_dir(vault);
-    if !dir.exists() {
-        return Ok(Vec::new());
-    }
     let mut out = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+    // `tasks/` holds active tasks; `tasks/archive/` holds archived ones. Both
+    // are scanned so archived tasks still reserve their id (see `next_id`),
+    // stay in the index, and remain findable for unarchiving. Reading `tasks/`
+    // non-recursively skips the `archive/` subdirectory itself (it has no `.md`
+    // extension), so the two passes never double-count.
+    scan_dir_into(&tasks_dir(vault), &mut out)?;
+    scan_dir_into(&archive_dir(vault), &mut out)?;
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(out)
+}
+
+/// Parses every `*.md` task file directly inside `dir` (non-recursive) and
+/// appends them to `out`. Missing directories and unparsable files are skipped
+/// rather than failing the whole scan.
+fn scan_dir_into(dir: &Path, out: &mut Vec<Task>) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("md") {
@@ -288,8 +319,7 @@ pub fn scan_tasks(vault: &Path) -> Result<Vec<Task>, String> {
             Err(_) => continue, // skip unparsable/non-task files rather than fail the whole scan
         }
     }
-    out.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(out)
+    Ok(())
 }
 
 fn next_id(existing: &[Task]) -> String {
@@ -430,16 +460,22 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
 }
 
 fn find_task_by_id(vault: &Path, id: &str) -> Result<Task, String> {
-    let dir = tasks_dir(vault);
     let prefix = format!("{id} ");
-    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+    // An archived task lives under `tasks/archive/`, so both directories must
+    // be searched (e.g. to unarchive it or edit it while archived).
+    for dir in [tasks_dir(vault), archive_dir(vault)] {
+        if !dir.exists() {
             continue;
-        };
-        if name.starts_with(&prefix) && name.ends_with(".md") {
-            return parse_task_file(&path);
+        }
+        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if name.starts_with(&prefix) && name.ends_with(".md") {
+                return parse_task_file(&path);
+            }
         }
     }
     Err(format!("task {id} not found"))
@@ -487,9 +523,61 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
         task.body = v;
     }
     task.updated = today();
+    // Keep the file's folder in sync with its archived state before writing,
+    // so archived tasks move into `tasks/archive/` and unarchived ones move
+    // back to `tasks/`.
+    relocate_for_archive_state(vault, &mut task)?;
     write_task_file(&task)?;
     regenerate_index(vault)?;
     Ok(task)
+}
+
+/// Ensures `task.file` sits in the directory matching its archived state
+/// (`tasks/archive/` when archived, `tasks/` otherwise), moving the file on
+/// disk and updating `task.file` when they disagree. The basename is
+/// preserved. A no-op when the file is already in the right place, so it is
+/// safe to call on every update.
+fn relocate_for_archive_state(vault: &Path, task: &mut Task) -> Result<(), String> {
+    let current = PathBuf::from(&task.file);
+    let Some(file_name) = current.file_name().map(|n| n.to_owned()) else {
+        return Ok(());
+    };
+    let target_dir = if task.archived {
+        archive_dir(vault)
+    } else {
+        tasks_dir(vault)
+    };
+    let target = target_dir.join(&file_name);
+    if norm_path(&target) == norm_path(&current) {
+        return Ok(());
+    }
+    fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+    if current.exists() {
+        fs::rename(&current, &target).map_err(|e| e.to_string())?;
+    }
+    task.file = norm_path(&target);
+    Ok(())
+}
+
+/// One-shot, idempotent migration that relocates any task whose on-disk folder
+/// no longer matches its archived state — archived files still sitting flat in
+/// `tasks/`, or (rarely) unarchived files stranded in `tasks/archive/`. The
+/// frontmatter is untouched; only the file moves. Best-effort and safe to run
+/// on every vault load, so existing vaults heal without a manual step.
+pub fn migrate_archived_layout(vault: &Path) -> Result<(), String> {
+    let tasks = scan_tasks(vault)?;
+    let mut moved = false;
+    for mut task in tasks {
+        let before = task.file.clone();
+        relocate_for_archive_state(vault, &mut task)?;
+        if task.file != before {
+            moved = true;
+        }
+    }
+    if moved {
+        regenerate_index(vault)?;
+    }
+    Ok(())
 }
 
 /// Moves the task's file to the OS recycle bin (never a hard delete) and
@@ -720,10 +808,16 @@ pub fn start_watcher(
     let dir = tasks_dir(&vault);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
+    // Heal the archived-task layout once per vault load, before the index is
+    // (re)generated below, so existing vaults migrate without a manual step.
+    let _ = migrate_archived_layout(&vault);
+
     let (tx, rx) = std::sync::mpsc::channel::<Result<Event, notify::Error>>();
     let mut watcher = notify::recommended_watcher(tx).map_err(|e| e.to_string())?;
+    // Recursive so moves into/out of `tasks/archive/` (and edits inside it)
+    // are picked up, including the subfolder being created after this point.
     watcher
-        .watch(&dir, RecursiveMode::NonRecursive)
+        .watch(&dir, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
 
     let vault_for_thread = vault.clone();
@@ -977,7 +1071,8 @@ mod tests {
         )
         .unwrap();
         assert!(archived.archived);
-        let raw = fs::read_to_string(&task.file).unwrap();
+        // Archiving relocates the file under tasks/archive/, so read the new path.
+        let raw = fs::read_to_string(&archived.file).unwrap();
         assert!(raw.contains("archived: true\n"), "raw frontmatter: {raw}");
 
         // Re-scan sees the flag; index carries it too.
@@ -998,7 +1093,8 @@ mod tests {
         )
         .unwrap();
         assert!(!unarchived.archived);
-        let raw = fs::read_to_string(&task.file).unwrap();
+        // Unarchiving moves it back to tasks/.
+        let raw = fs::read_to_string(&unarchived.file).unwrap();
         assert!(!raw.contains("archived:"), "raw frontmatter: {raw}");
 
         fs::remove_dir_all(&vault).ok();
@@ -1170,6 +1266,144 @@ mod tests {
         let index: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
         assert_eq!(index.as_array().unwrap().len(), 0);
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn archiving_moves_file_into_archive_subfolder_and_back() {
+        let vault = temp_vault("archive-move");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "movable".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Created active: the file lives flat in tasks/.
+        assert_eq!(
+            norm_path(PathBuf::from(&task.file).parent().unwrap()),
+            norm_path(&tasks_dir(&vault))
+        );
+
+        let archived = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                archived: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Moved under tasks/archive/: new path present with the flag, old gone.
+        let new_path = PathBuf::from(&archived.file);
+        assert_eq!(
+            norm_path(new_path.parent().unwrap()),
+            norm_path(&archive_dir(&vault))
+        );
+        assert!(new_path.exists());
+        assert!(!PathBuf::from(&task.file).exists());
+        assert!(fs::read_to_string(&new_path)
+            .unwrap()
+            .contains("archived: true"));
+
+        // Still scanned/indexed while archived.
+        let scanned = scan_tasks(&vault).unwrap();
+        assert_eq!(scanned.len(), 1);
+        assert!(scanned[0].archived);
+
+        // Unarchiving moves it back to tasks/.
+        let restored = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                archived: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let restored_path = PathBuf::from(&restored.file);
+        assert_eq!(
+            norm_path(restored_path.parent().unwrap()),
+            norm_path(&tasks_dir(&vault))
+        );
+        assert!(restored_path.exists());
+        assert!(!new_path.exists());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn next_id_reserves_ids_of_archived_tasks() {
+        let vault = temp_vault("archive-id");
+        let t1 = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "first".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(t1.id, "T-0001");
+
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: t1.id.clone(),
+                archived: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // T-0001 now lives under tasks/archive/; the next id must not reuse it.
+        let t2 = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "second".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(t2.id, "T-0002");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn migrate_relocates_flagged_files_left_flat() {
+        let vault = temp_vault("archive-migrate");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "legacy archived".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Simulate a pre-migration vault: the archived flag was written without
+        // moving the file (the old app behavior), so it still sits flat.
+        let mut t = parse_task_file(&PathBuf::from(&task.file)).unwrap();
+        t.archived = true;
+        write_task_file(&t).unwrap();
+        assert_eq!(
+            norm_path(PathBuf::from(&task.file).parent().unwrap()),
+            norm_path(&tasks_dir(&vault))
+        );
+
+        migrate_archived_layout(&vault).unwrap();
+
+        // Relocated under tasks/archive/; the flat file is gone.
+        assert!(!PathBuf::from(&task.file).exists());
+        let moved = archive_dir(&vault).join(PathBuf::from(&task.file).file_name().unwrap());
+        assert!(moved.exists());
+
+        // Idempotent: a second run is a no-op and doesn't error.
+        migrate_archived_layout(&vault).unwrap();
+        assert!(moved.exists());
 
         fs::remove_dir_all(&vault).ok();
     }
