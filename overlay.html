@@ -17,32 +17,6 @@
       canvas {
         display: block;
       }
-      /* Current pen-color indicator (non-interactive). */
-      #palette {
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 14px;
-        border-radius: 9999px;
-        background: rgba(0, 0, 0, 0.45);
-        pointer-events: none;
-      }
-      #palette .dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        opacity: 0.55;
-      }
-      #palette .dot.active {
-        width: 16px;
-        height: 16px;
-        opacity: 1;
-        box-shadow: 0 0 0 2px #ffffff;
-      }
       /* Pen-color chip following the pointer (offset to its lower right). */
       #chip {
         position: fixed;
@@ -61,7 +35,6 @@
   </head>
   <body>
     <canvas id="ink"></canvas>
-    <div id="palette"></div>
     <div id="chip"></div>
     <script type="module" src="/src/overlay/main.ts"></script>
   </body>

@@ -14,12 +14,10 @@
   app's own webview holds keyboard focus, which made the gesture dead while
   workhub itself was focused.
 - Ink: the current pen color is now visible while drawing — a small
-  pen-color chip follows the cursor at its lower right (updating instantly on
-  Alt+S) and a semi-transparent palette badge at the bottom center of the
-  screen highlights the active color. (The chip is a DOM element rather than
-  a tinted OS cursor: WebView2 caches the visible cursor and ignores CSS
-  cursor changes until a real pointer interaction, so a colored cursor could
-  not be refreshed reliably.)
+  pen-color chip follows the cursor at its lower right, updating instantly on
+  Alt+S. (The chip is a DOM element rather than a tinted OS cursor: WebView2
+  caches the visible cursor and ignores CSS cursor changes until a real
+  pointer interaction, so a colored cursor could not be refreshed reliably.)
 
 ## 0.28.0 (2026-07-15)
 

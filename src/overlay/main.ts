@@ -22,7 +22,6 @@ const LINE_WIDTH = 3;
 
 const canvas = document.getElementById("ink") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
-const palette = document.getElementById("palette")!;
 const chip = document.getElementById("chip") as HTMLDivElement;
 
 let strokes: Stroke[] = [];
@@ -55,17 +54,6 @@ function renderChip() {
   chip.style.display = "block";
 }
 
-/** Reflect the current pen color in the chip and the bottom palette badge. */
-function renderColorIndicator() {
-  renderChip();
-  palette.innerHTML = "";
-  COLORS.forEach((color, i) => {
-    const dot = document.createElement("span");
-    dot.className = i === colorIndex ? "dot active" : "dot";
-    dot.style.background = color;
-    palette.appendChild(dot);
-  });
-}
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -159,7 +147,7 @@ canvas.addEventListener("pointercancel", endStroke);
 
 window.addEventListener("resize", resize);
 resize();
-renderColorIndicator();
+renderChip();
 
 void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
   strokes = [];
@@ -175,7 +163,7 @@ void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
     pointerPos = null;
   }
   resize();
-  renderColorIndicator();
+  renderChip();
 });
 
 void listen("ink://deactivate", () => {
@@ -189,5 +177,5 @@ void listen("ink://deactivate", () => {
 
 void listen("ink://cycle-color", () => {
   colorIndex = (colorIndex + 1) % COLORS.length;
-  renderColorIndicator();
+  renderChip();
 });
