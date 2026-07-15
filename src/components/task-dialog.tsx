@@ -712,8 +712,8 @@ export function TaskDialog({
                   }
                 }}
                 className={cn(
-                  "min-h-[8.5rem] min-w-0 cursor-text rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50",
-                  maximized && "flex-1",
+                  "min-h-[8.5rem] max-h-[12rem] min-w-0 cursor-text overflow-y-auto rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50",
+                  maximized && "max-h-none flex-1",
                 )}
                 title="Click to edit"
               >

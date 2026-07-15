@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.1 (2026-07-16)
+
+- Tasks: long descriptions in the **Edit Task** dialog no longer overflow the
+  Description preview box. The preview now stops at a fixed maximum height and
+  scrolls internally, matching the user's request.
+
 ## 0.30.0 (2026-07-15)
 
 - Tasks: the **Edit Task** dialog gained a **full-screen toggle** in the
