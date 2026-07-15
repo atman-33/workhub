@@ -426,6 +426,8 @@ pub fn tag_delete(path: &str, name: &str) -> Result<String, String> {
 pub fn graph_op(path: &str, op: GraphOp) -> Result<String, String> {
     match op {
         GraphOp::Checkout { branch } => checkout(path, &branch),
+        GraphOp::CheckoutCommit { hash } => checkout_commit(path, &hash),
+        GraphOp::DiscardChanges { include_untracked } => discard_changes(path, include_untracked),
         GraphOp::CreateBranch {
             name,
             hash,
@@ -557,6 +559,32 @@ pub fn checkout(path: &str, branch: &str) -> Result<String, String> {
         .collect();
     let local = strip_remote_prefix(&remote_names, branch).unwrap_or_else(|| branch.to_string());
     git(path, &["switch", "--guess", &local]).map(|_| format!("switched to {local}"))
+}
+
+/// Check out an arbitrary commit, leaving the repository on a detached HEAD.
+pub fn checkout_commit(path: &str, hash: &str) -> Result<String, String> {
+    git(path, &["checkout", "--detach", hash])
+        .map(|_| format!("checked out {} (detached HEAD)", short_hash(hash)))
+}
+
+/// Discard all uncommitted changes (staged and unstaged). With
+/// `include_untracked`, also delete untracked files and directories.
+pub fn discard_changes(path: &str, include_untracked: bool) -> Result<String, String> {
+    git(path, &["reset", "--hard", "HEAD"])?;
+    if include_untracked {
+        git(path, &["clean", "-fd"])?;
+        return Ok("discarded all changes including untracked files".into());
+    }
+    Ok("discarded changes to tracked files".into())
+}
+
+/// Abbreviate a full commit hash for status messages.
+fn short_hash(hash: &str) -> &str {
+    if hash.len() > 7 {
+        &hash[..7]
+    } else {
+        hash
+    }
 }
 
 /// If `branch` begins with a known remote name (`<remote>/<name>`), return the
@@ -839,6 +867,13 @@ mod tests {
         assert_eq!(normalize_remote_url(""), None);
         assert_eq!(normalize_remote_url("not a url"), None);
         assert_eq!(normalize_remote_url("ftp://example.com/owner/repo"), None);
+    }
+
+    #[test]
+    fn short_hash_abbreviates_long_hashes_only() {
+        assert_eq!(short_hash("0123456789abcdef"), "0123456");
+        assert_eq!(short_hash("0123456"), "0123456");
+        assert_eq!(short_hash("abc"), "abc");
     }
 
     #[test]

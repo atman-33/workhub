@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.31.0 (2026-07-16)
+
+- Repos: git graph context menus reordered by frequency of use — checkout
+  actions first, copy actions last, destructive actions at the bottom.
+- Repos: any commit can now be checked out from its context menu
+  (**Checkout this commit…**), detaching HEAD after a confirmation.
+- Repos: the "uncommitted changes" row gained a **Discard changes** menu —
+  discard tracked-file changes only, or also delete untracked files, each
+  behind a confirmation dialog.
+
 ## 0.30.1 (2026-07-16)
 
 - Tasks: long descriptions in the **Edit Task** dialog no longer overflow the

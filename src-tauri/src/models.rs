@@ -273,6 +273,12 @@ pub enum GraphOp {
     Checkout {
         branch: String,
     },
+    CheckoutCommit {
+        hash: String,
+    },
+    DiscardChanges {
+        include_untracked: bool,
+    },
     CreateBranch {
         name: String,
         hash: String,
