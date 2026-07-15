@@ -1,5 +1,6 @@
 import * as React from "react";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -52,6 +53,8 @@ interface MarkdownProps {
  * Minimal markdown renderer shared by the task Description preview and the
  * Results sheet. Links open in the external browser (never navigate the
  * webview); fenced code blocks get a hover copy button. No syntax highlighting.
+ * Single newlines render as hard breaks (remark-breaks) to match how the same
+ * files read in Obsidian.
  */
 export function Markdown({ children, className }: MarkdownProps) {
   return (
@@ -74,7 +77,7 @@ export function Markdown({ children, className }: MarkdownProps) {
       )}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           a({ href, children, ...props }) {
             return (

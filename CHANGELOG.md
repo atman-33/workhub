@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.0 (2026-07-15)
+
+- Tasks: the **Edit Task** dialog gained a **full-screen toggle** in the
+  header — the dialog expands to nearly the whole window and the Description
+  field absorbs the extra space, for writing long task specs comfortably.
+- Tasks: wide content in the Description preview (e.g. fenced code blocks)
+  no longer stretches past the dialog edge; code blocks scroll horizontally
+  inside the dialog, and a long description scrolls the form instead of
+  growing the dialog past the viewport.
+- Tasks: markdown previews (Description and Results) now render single
+  newlines as line breaks, matching how the same files read in Obsidian —
+  previously consecutive lines collapsed into one paragraph.
+
 ## 0.29.0 (2026-07-15)
 
 - New **screen annotation (ink) overlay**, ported from the Desktop Ink app:
