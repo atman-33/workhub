@@ -23,33 +23,41 @@ const LINE_WIDTH = 3;
 const canvas = document.getElementById("ink") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 const palette = document.getElementById("palette")!;
+const chip = document.getElementById("chip") as HTMLDivElement;
 
 let strokes: Stroke[] = [];
 let active: Stroke | null = null;
 let colorIndex = 0;
 /** True while the last point of the active stroke is a Shift-snapped point. */
 let snapped = false;
+/** Last known pointer position (CSS px); null = chip hidden. */
+let pointerPos: Point | null = null;
 
-/** Crosshair cursor in the current pen color (white outline for contrast). */
-function crosshairCursor(color: string): string {
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">` +
-    `<g stroke="#ffffff" stroke-width="4" stroke-linecap="round">` +
-    `<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/></g>` +
-    `<g stroke="${color}" stroke-width="2" stroke-linecap="round">` +
-    `<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/></g></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
+/** Chip offset from the pointer hotspot, toward the lower right. */
+const CHIP_OFFSET = 16;
+const CHIP_SIZE = 18; // 14px + 2*2px border
+
+/**
+ * Pen-color chip next to the pointer. A plain DOM element, deliberately NOT
+ * the OS cursor: WebView2/Windows cache the visible cursor and ignore CSS
+ * cursor changes until a real pointer interaction, so a pen-colored cursor
+ * could not be refreshed reliably on Alt+S. DOM rendering always updates.
+ */
+function renderChip() {
+  if (!pointerPos) {
+    chip.style.display = "none";
+    return;
+  }
+  const x = Math.min(pointerPos.x + CHIP_OFFSET, window.innerWidth - CHIP_SIZE);
+  const y = Math.min(pointerPos.y + CHIP_OFFSET, window.innerHeight - CHIP_SIZE);
+  chip.style.transform = `translate(${x}px, ${y}px)`;
+  chip.style.background = COLORS[colorIndex];
+  chip.style.display = "block";
 }
 
-/** Reflect the current pen color in the cursor and the edge badge. */
+/** Reflect the current pen color in the chip and the bottom palette badge. */
 function renderColorIndicator() {
-  // Two-step cursor swap: without pointer movement Chromium sometimes skips
-  // the cursor update; routing through an intermediate builtin cursor forces
-  // a change notification (paired with the backend's cursor jiggle).
-  canvas.style.cursor = "wait";
-  requestAnimationFrame(() => {
-    canvas.style.cursor = crosshairCursor(COLORS[colorIndex]);
-  });
+  renderChip();
   palette.innerHTML = "";
   COLORS.forEach((color, i) => {
     const dot = document.createElement("span");
@@ -127,6 +135,17 @@ canvas.addEventListener("pointermove", (e) => {
   if (e.buttons & 1) addPoint(e);
 });
 
+// Track the pointer at window level so the chip follows during hover and
+// drawing alike; hide it when the pointer leaves the overlay.
+window.addEventListener("pointermove", (e) => {
+  pointerPos = { x: e.clientX, y: e.clientY };
+  renderChip();
+});
+document.addEventListener("pointerleave", () => {
+  pointerPos = null;
+  renderChip();
+});
+
 function endStroke() {
   if (!active) return;
   if (active.points.length > 1) strokes.push(active);
@@ -142,10 +161,19 @@ window.addEventListener("resize", resize);
 resize();
 renderColorIndicator();
 
-void listen("ink://activate", () => {
+void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
   strokes = [];
   active = null;
   snapped = false;
+  // Initial chip position: the backend sends the cursor position (physical
+  // px, relative to the overlay's monitor) so the chip shows immediately,
+  // before the first pointermove.
+  if (event.payload) {
+    const dpr = window.devicePixelRatio || 1;
+    pointerPos = { x: event.payload.x / dpr, y: event.payload.y / dpr };
+  } else {
+    pointerPos = null;
+  }
   resize();
   renderColorIndicator();
 });
@@ -154,6 +182,8 @@ void listen("ink://deactivate", () => {
   strokes = [];
   active = null;
   snapped = false;
+  pointerPos = null;
+  renderChip();
   redraw();
 });
 

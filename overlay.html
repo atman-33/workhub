@@ -43,11 +43,26 @@
         opacity: 1;
         box-shadow: 0 0 0 2px #ffffff;
       }
+      /* Pen-color chip following the pointer (offset to its lower right). */
+      #chip {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #ffffff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+        display: none;
+        will-change: transform;
+      }
     </style>
   </head>
   <body>
     <canvas id="ink"></canvas>
     <div id="palette"></div>
+    <div id="chip"></div>
     <script type="module" src="/src/overlay/main.ts"></script>
   </body>
 </html>
