@@ -11,7 +11,13 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// Run `git -C <path> <args>` without flashing a console window.
 fn git(path: &str, args: &[&str]) -> Result<String, String> {
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(path).args(args);
+    // `core.quotepath=false` keeps non-ASCII paths (e.g. Japanese filenames)
+    // as raw UTF-8 in output instead of octal-escaping them (`\343\201\256`).
+    cmd.arg("-c")
+        .arg("core.quotepath=false")
+        .arg("-C")
+        .arg(path)
+        .args(args);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     match cmd.output() {
@@ -38,7 +44,12 @@ fn git(path: &str, args: &[&str]) -> Result<String, String> {
 /// conflicts must inspect both streams.
 fn git_out_err(path: &str, args: &[&str]) -> Result<String, (String, String)> {
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(path).args(args);
+    // See `git()`: keep non-ASCII paths as raw UTF-8 rather than octal-escaped.
+    cmd.arg("-c")
+        .arg("core.quotepath=false")
+        .arg("-C")
+        .arg(path)
+        .args(args);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     match cmd.output() {
@@ -1004,6 +1015,20 @@ aaa2\x1fbbb2 ccc2\x1fBob\x1f2000\x1f\x1fMerge branch 'feature'\x1e
         assert_eq!(files[3].path, "README.md");
         assert_eq!(files[3].status, "D");
         assert_eq!(files[3].deletions, Some(5));
+    }
+
+    #[test]
+    fn parses_commit_files_preserves_non_ascii_path() {
+        // With `core.quotepath=false`, git emits Japanese paths as raw UTF-8
+        // (no octal escaping, no surrounding quotes), so the path round-trips.
+        let name_status = "M\ttasks/T-0042 repos の git graph 改善.md\n";
+        let numstat = "3\t1\ttasks/T-0042 repos の git graph 改善.md\n";
+        let files = parse_commit_files(name_status, numstat);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "tasks/T-0042 repos の git graph 改善.md");
+        assert_eq!(files[0].status, "M");
+        assert_eq!(files[0].additions, Some(3));
+        assert_eq!(files[0].deletions, Some(1));
     }
 
     #[test]
