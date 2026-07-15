@@ -48,6 +48,8 @@ pub fn activate(app: &AppHandle) {
     let _ = win.show();
     let _ = win.set_ignore_cursor_events(false);
     let _ = app.emit_to(OVERLAY_LABEL, "ink://activate", ());
+    // Make the pen-color crosshair appear immediately, not on first move.
+    nudge_cursor();
 }
 
 /// Clear all strokes, hide the overlay, and restore click-through.
@@ -61,4 +63,29 @@ pub fn deactivate(app: &AppHandle) {
 /// Cycle the pen color for new strokes (red → blue → green).
 pub fn cycle_color(app: &AppHandle) {
     let _ = app.emit_to(OVERLAY_LABEL, "ink://cycle-color", ());
+    // Nudge after the webview had time to apply the new CSS cursor; twice,
+    // in case the first fires before the style landed.
+    std::thread::spawn(|| {
+        for delay in [80, 250] {
+            std::thread::sleep(std::time::Duration::from_millis(delay));
+            nudge_cursor();
+        }
+    });
+}
+
+/// Jiggle the cursor by one pixel and back so real `WM_MOUSEMOVE`s fire and
+/// Windows/Chromium re-evaluate the cursor (`WM_SETCURSOR`). Without this, a
+/// CSS cursor change (pen-color cursor on Alt+S) only becomes visible once
+/// the user physically moves the mouse. A zero-distance injected move is not
+/// enough — it gets discarded before reaching the cursor re-evaluation.
+pub fn nudge_cursor() {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, SetCursorPos};
+    unsafe {
+        let mut pt = POINT::default();
+        if GetCursorPos(&mut pt).is_ok() {
+            let _ = SetCursorPos(pt.x + 1, pt.y);
+            let _ = SetCursorPos(pt.x, pt.y);
+        }
+    }
 }

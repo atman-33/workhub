@@ -3,7 +3,7 @@
 //! the monitor under the cursor; releasing Alt clears them. Alt+S cycles the
 //! pen color; Shift snaps strokes to horizontal/vertical.
 //!
-//! Windows-only (low-level keyboard hook); no-op stubs elsewhere.
+//! Windows-only (Raw Input keyboard listener); no-op stubs elsewhere.
 
 #[cfg(windows)]
 mod state;
