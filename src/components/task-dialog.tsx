@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -212,10 +213,14 @@ export function TaskDialog({
   const [descEditing, setDescEditing] = useState(false);
   // Results are read-only; they open in a slide-over sheet from the header.
   const [resultsOpen, setResultsOpen] = useState(false);
+  // Near-fullscreen mode for long descriptions; the description field absorbs
+  // the extra space.
+  const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     if (open) {
       setDescEditing(false);
       setResultsOpen(false);
+      setMaximized(false);
       skipAutoSaveOnCloseRef.current = false;
     }
   }, [open]);
@@ -301,8 +306,8 @@ export function TaskDialog({
     };
   }, [open, draft.assignee]);
 
-  const field = (label: string, node: ReactNode) => (
-    <div className="space-y-1.5">
+  const field = (label: string, node: ReactNode, className?: string) => (
+    <div className={cn("space-y-1.5", className)}>
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       {node}
     </div>
@@ -431,39 +436,67 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Flex column (overrides the default grid) so the form area can shrink
+          and scroll instead of growing the dialog past the viewport. */}
+      <DialogContent
+        className={cn(
+          "flex max-h-[calc(100vh-3rem)] flex-col",
+          maximized
+            ? "h-[calc(100vh-3rem)] sm:max-w-[calc(100vw-3rem)]"
+            : "sm:max-w-lg",
+        )}
+      >
         <DialogHeader>
           <div className="flex items-center justify-between gap-2 pr-6">
             <DialogTitle>
               {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
             </DialogTitle>
-            {displayMode === "edit" && (
-              <div className="flex items-center gap-2">
-                {task &&
-                  (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
-                    <>
-                      {onCopyTaskPrompt && (
-                        <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
-                      )}
-                      {onLaunchAgent && (
-                        <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
-                      )}
-                    </>
-                  )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => setResultsOpen(true)}
-                >
-                  <FileText className="size-3.5" /> Results
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {displayMode === "edit" && (
+                <>
+                  {task &&
+                    (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
+                      <>
+                        {onCopyTaskPrompt && (
+                          <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
+                        )}
+                        {onLaunchAgent && (
+                          <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
+                        )}
+                      </>
+                    )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setResultsOpen(true)}
+                  >
+                    <FileText className="size-3.5" /> Results
+                  </Button>
+                </>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label={maximized ? "Exit full screen" : "Full screen"}
+                title={maximized ? "Exit full screen" : "Full screen"}
+                onClick={() => setMaximized((m) => !m)}
+              >
+                {maximized ? (
+                  <Minimize2 className="size-3.5" />
+                ) : (
+                  <Maximize2 className="size-3.5" />
+                )}
+              </Button>
+            </div>
           </div>
         </DialogHeader>
-        <div className="space-y-3">
+        {/* min-w-0 keeps wide content (e.g. code blocks) from stretching the
+            dialog; the pre's own overflow-x handles horizontal scrolling. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
           {field(
             "Title",
             <Input
@@ -660,6 +693,11 @@ export function TaskDialog({
                 onChange={(e) => setDraft({ ...draft, content: e.target.value })}
                 onBlur={() => setDescEditing(false)}
                 rows={6}
+                // Maximized: fill the freed space with a fixed-size scrolling
+                // editor instead of the default grow-with-content sizing.
+                className={
+                  maximized ? "min-h-0 flex-1 field-sizing-fixed resize-none" : undefined
+                }
                 placeholder="Task description — this is the prompt context handed to AI agents."
               />
             ) : (
@@ -673,7 +711,10 @@ export function TaskDialog({
                     setDescEditing(true);
                   }
                 }}
-                className="min-h-[8.5rem] cursor-text rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50"
+                className={cn(
+                  "min-h-[8.5rem] min-w-0 cursor-text rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50",
+                  maximized && "flex-1",
+                )}
                 title="Click to edit"
               >
                 {draft.content.trim() ? (
@@ -685,6 +726,7 @@ export function TaskDialog({
                 )}
               </div>
             ),
+            maximized ? "flex min-h-0 flex-1 flex-col" : undefined,
           )}
         </div>
         {displayMode === "create" && (
