@@ -1,7 +1,9 @@
 import { memo } from "react";
 import {
   Copy,
+  Eraser,
   GitBranch,
+  GitCommitHorizontal,
   GitMerge,
   History,
   Redo2,
@@ -185,10 +187,6 @@ function RefBadge({
         )}
         <ContextMenuPortal>
           <ContextMenuContent>
-            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy branch name
-            </ContextMenuItem>
-            <ContextMenuSeparator />
             <ContextMenuItem
               disabled={!!opBusy}
               onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
@@ -206,6 +204,10 @@ function RefBadge({
               onClick={() => onOp(`Rebase onto ${commitRef.name}`, { kind: "rebase", branch: commitRef.name })}
             >
               <Redo2 /> Rebase {currentBranch || "current"} onto this
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
+              <Copy /> Copy branch name
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
@@ -242,15 +244,15 @@ function RefBadge({
         )}
         <ContextMenuPortal>
           <ContextMenuContent>
-            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy branch name
-            </ContextMenuItem>
-            <ContextMenuSeparator />
             <ContextMenuItem
               disabled={!!opBusy}
               onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
             >
               <GitBranch /> Checkout
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
+              <Copy /> Copy branch name
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenuPortal>
@@ -341,18 +343,87 @@ export const CommitRow = memo(function CommitRow({
     </div>
   );
 
-  if (isWorktree) return rowContent;
+  if (isWorktree) {
+    // The synthetic uncommitted-changes row: its only action is discarding
+    // the work-tree changes it represents.
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
+        <ContextMenuPortal>
+          <ContextMenuContent>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger disabled={!!opBusy}>
+                <Eraser /> Discard changes
+              </ContextMenuSubTrigger>
+              <ContextMenuPortal>
+                <ContextMenuSubContent>
+                  <ContextMenuItem
+                    onClick={() =>
+                      onRequestDialog({
+                        kind: "confirm",
+                        title: "Discard changes",
+                        description:
+                          "Discard all staged and unstaged changes to tracked files? Untracked files are kept. This cannot be undone.",
+                        confirmLabel: "Discard",
+                        destructive: true,
+                        onConfirm: () =>
+                          onOp("Discard changes", {
+                            kind: "discard_changes",
+                            include_untracked: false,
+                          }),
+                      })
+                    }
+                  >
+                    Tracked files only
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    variant="destructive"
+                    onClick={() =>
+                      onRequestDialog({
+                        kind: "confirm",
+                        title: "Discard all changes",
+                        description:
+                          "Discard all staged and unstaged changes AND delete untracked files and directories? This cannot be undone.",
+                        confirmLabel: "Discard all",
+                        destructive: true,
+                        onConfirm: () =>
+                          onOp("Discard all changes", {
+                            kind: "discard_changes",
+                            include_untracked: true,
+                          }),
+                      })
+                    }
+                  >
+                    Include untracked files
+                  </ContextMenuItem>
+                </ContextMenuSubContent>
+              </ContextMenuPortal>
+            </ContextMenuSub>
+          </ContextMenuContent>
+        </ContextMenuPortal>
+      </ContextMenu>
+    );
+  }
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
       <ContextMenuPortal>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => onCopy(entry.hash, "hash")}>
-            <Copy /> Copy hash
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => onCopy(entry.subject, "message")}>
-            <Copy /> Copy message
+          <ContextMenuItem
+            disabled={!!opBusy || isHead}
+            onClick={() =>
+              onRequestDialog({
+                kind: "confirm",
+                title: "Checkout commit",
+                description: `Check out commit ${entry.hash.slice(0, 7)}? HEAD will be detached from any branch.`,
+                confirmLabel: "Checkout",
+                onConfirm: () =>
+                  onOp("Checkout commit", { kind: "checkout_commit", hash: entry.hash }),
+              })
+            }
+          >
+            <GitCommitHorizontal /> Checkout this commit…
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
@@ -417,6 +488,13 @@ export const CommitRow = memo(function CommitRow({
               </ContextMenuSubContent>
             </ContextMenuPortal>
           </ContextMenuSub>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={() => onCopy(entry.hash, "hash")}>
+            <Copy /> Copy hash
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => onCopy(entry.subject, "message")}>
+            <Copy /> Copy message
+          </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenuPortal>
     </ContextMenu>

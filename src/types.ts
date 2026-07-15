@@ -176,6 +176,8 @@ export interface UpdateTaskInput {
 
 export type GraphOp =
   | { kind: "checkout"; branch: string }
+  | { kind: "checkout_commit"; hash: string }
+  | { kind: "discard_changes"; include_untracked: boolean }
   | { kind: "create_branch"; name: string; hash: string; checkout: boolean }
   | { kind: "delete_branch"; name: string; force: boolean }
   | { kind: "merge"; branch: string }
