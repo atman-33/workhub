@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>workhub ink overlay</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        cursor: crosshair;
+      }
+      canvas {
+        display: block;
+      }
+      /* Pen-color chip following the pointer (offset to its lower right). */
+      #chip {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #ffffff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+        display: none;
+        will-change: transform;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="ink"></canvas>
+    <div id="chip"></div>
+    <script type="module" src="/src/overlay/main.ts"></script>
+  </body>
+</html>

@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod harness;
 mod herdr;
+mod ink;
 mod models;
 mod music;
 mod storage;
@@ -19,9 +20,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .manage(tasks::WatcherState::default())
+        .manage(ink::InkState::default())
         .setup(|app| {
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
+            if cfg.settings.ink_enabled {
+                ink::start(app.handle());
+            }
             if let Some(vault_path) = cfg.settings.vault_path {
                 let path = std::path::PathBuf::from(&vault_path);
                 if path.is_dir() {

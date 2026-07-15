@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.29.0 (2026-07-15)
+
+- New **screen annotation (ink) overlay**, ported from the Desktop Ink app:
+  double-press Alt and hold the second press to draw temporary strokes on the
+  monitor under the cursor; releasing Alt clears them and restores
+  click-through. While drawing, **Alt+S** cycles the pen color
+  (red → blue → green) and holding **Shift** snaps the stroke to a horizontal
+  or vertical line. The feature (including its global key listener) can be
+  toggled in Settings — **"Screen annotation"**, enabled by default.
+- Ink: Alt detection uses the **Raw Input API** (`RIDEV_INPUTSINK`) instead of
+  a `WH_KEYBOARD_LL` hook — low-level hook delivery silently stops when the
+  app's own webview holds keyboard focus, which made the gesture dead while
+  workhub itself was focused.
+- Ink: the current pen color is now visible while drawing — a small
+  pen-color chip follows the cursor at its lower right, updating instantly on
+  Alt+S. (The chip is a DOM element rather than a tinted OS cursor: WebView2
+  caches the visible cursor and ignores CSS cursor changes until a real
+  pointer interaction, so a colored cursor could not be refreshed reliably.)
+
 ## 0.28.0 (2026-07-15)
 
 - Tasks: the **Edit Task** dialog now closes automatically after launching an

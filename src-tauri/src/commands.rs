@@ -14,8 +14,17 @@ pub fn get_config() -> Config {
 }
 
 #[tauri::command]
-pub fn save_config(config: Config) {
+pub fn save_config(app: tauri::AppHandle, config: Config) {
+    let ink_was_enabled = storage::load().settings.ink_enabled;
     storage::save(&config);
+    // Start/stop the ink keyboard hook when the setting is toggled.
+    if config.settings.ink_enabled != ink_was_enabled {
+        if config.settings.ink_enabled {
+            crate::ink::start(&app);
+        } else {
+            crate::ink::stop(&app);
+        }
+    }
     // Best-effort: keep the vault's .claude/project-context.json aligned with
     // the registered projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
