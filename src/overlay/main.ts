@@ -43,7 +43,13 @@ function crosshairCursor(color: string): string {
 
 /** Reflect the current pen color in the cursor and the edge badge. */
 function renderColorIndicator() {
-  canvas.style.cursor = crosshairCursor(COLORS[colorIndex]);
+  // Two-step cursor swap: without pointer movement Chromium sometimes skips
+  // the cursor update; routing through an intermediate builtin cursor forces
+  // a change notification (paired with the backend's cursor jiggle).
+  canvas.style.cursor = "wait";
+  requestAnimationFrame(() => {
+    canvas.style.cursor = crosshairCursor(COLORS[colorIndex]);
+  });
   palette.innerHTML = "";
   COLORS.forEach((color, i) => {
     const dot = document.createElement("span");

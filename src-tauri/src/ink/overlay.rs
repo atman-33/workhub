@@ -49,7 +49,15 @@ pub fn activate(app: &AppHandle) {
     let _ = win.set_ignore_cursor_events(false);
     let _ = app.emit_to(OVERLAY_LABEL, "ink://activate", ());
     // Make the pen-color crosshair appear immediately, not on first move.
-    std::thread::spawn(jiggle_cursor);
+    // Twice, with a delay: right after show() the webview may not be
+    // hit-testable yet, and after a hide/show cycle Chromium needs fresh
+    // pointer-over state before it honors cursor changes.
+    std::thread::spawn(|| {
+        for delay in [120, 300] {
+            std::thread::sleep(std::time::Duration::from_millis(delay));
+            jiggle_cursor();
+        }
+    });
 }
 
 /// Clear all strokes, hide the overlay, and restore click-through.
@@ -73,14 +81,15 @@ pub fn cycle_color(app: &AppHandle) {
     });
 }
 
-/// Move the cursor one pixel out and back via `SendInput` so the webview
+/// Walk the cursor a tiny square (net zero) via `SendInput` so the webview
 /// re-evaluates its CSS cursor. Without this, a cursor change (pen-color
 /// crosshair on activate / Alt+S) only becomes visible once the user
-/// physically moves the mouse. `SetCursorPos` is NOT sufficient here: it
-/// bypasses the input pipeline, and Chromium ignores its WM_MOUSEMOVE for
-/// cursor re-evaluation until the page has seen a real pointer interaction
-/// (which is why it appeared to work after the first stroke but not before).
-/// `SendInput` relative moves travel the same path as physical mouse motion.
+/// physically moves the mouse. `SetCursorPos` is NOT sufficient: it bypasses
+/// the input pipeline and Chromium ignores its WM_MOUSEMOVE for cursor
+/// re-evaluation until the page has seen a real pointer interaction. A single
+/// ±1px `SendInput` pair also proved unreliable right after a hide/show cycle
+/// (pointer-over state lost, moves coalesced away); a spaced multi-step walk
+/// resembles physical motion closely enough to re-establish it.
 fn jiggle_cursor() {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT,
@@ -101,8 +110,9 @@ fn jiggle_cursor() {
         }
     }
     unsafe {
-        SendInput(&[mouse_move(1, 0)], std::mem::size_of::<INPUT>() as i32);
-        std::thread::sleep(std::time::Duration::from_millis(15));
-        SendInput(&[mouse_move(-1, 0)], std::mem::size_of::<INPUT>() as i32);
+        for (dx, dy) in [(3, 0), (0, 3), (-3, 0), (0, -3)] {
+            SendInput(&[mouse_move(dx, dy)], std::mem::size_of::<INPUT>() as i32);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 }
