@@ -408,6 +408,7 @@ pub fn launch_agent_for_task(
 
 /// Opens (or reuses) a PTY session running the configured herdr client and
 /// starts forwarding its output to `terminal-output:{id}` events.
+/// Returns `true` when an existing session was reused.
 #[tauri::command]
 pub fn terminal_open(
     app: tauri::AppHandle,
@@ -415,7 +416,7 @@ pub fn terminal_open(
     id: String,
     cols: u16,
     rows: u16,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     terminal::open(app, &state, id, cols, rows)
 }
 

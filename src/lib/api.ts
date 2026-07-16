@@ -125,8 +125,9 @@ export const api = {
     }),
 
   // ---- embedded terminal (xterm.js + ConPTY running the herdr client) ----
+  /** Returns true when an already-running PTY session was reused. */
   terminalOpen: (id: string, cols: number, rows: number) =>
-    invoke<void>("terminal_open", { id, cols, rows }),
+    invoke<boolean>("terminal_open", { id, cols, rows }),
   terminalWrite: (id: string, data: string) =>
     invoke<void>("terminal_write", { id, data }),
   terminalResize: (id: string, cols: number, rows: number) =>

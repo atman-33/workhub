@@ -37,17 +37,21 @@ fn exit_event(id: &str) -> String {
 /// Spawns a background reader thread that forwards PTY output to the
 /// frontend via `terminal-output:{id}` events and emits `terminal-exit:{id}`
 /// (removing the session) when the child exits.
+///
+/// Returns `true` when an already-running session was reused — the caller
+/// should then force a full repaint (the new xterm attaches blank and only
+/// sees output deltas from that point on).
 pub fn open(
     app: AppHandle,
     state: &TerminalState,
     id: String,
     cols: u16,
     rows: u16,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     {
         let sessions = state.0.lock().map_err(|e| e.to_string())?;
         if sessions.contains_key(&id) {
-            return Ok(());
+            return Ok(true);
         }
     }
 
@@ -135,7 +139,7 @@ pub fn open(
         let _ = app.emit(&exit_event(&id), ());
     });
 
-    Ok(())
+    Ok(false)
 }
 
 /// Drains the longest valid-UTF-8 prefix of `pending` into a `String`,
