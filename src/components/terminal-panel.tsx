@@ -5,7 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
+import { Maximize2, Minimize2, RefreshCw, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -67,12 +67,43 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
     }
   };
 
-  // Lazy init: create and wire up xterm the first time the panel is shown,
-  // while the container is actually visible and measurable.
-  useEffect(() => {
-    if (!visible || termRef.current) return;
+  /** Soft recovery: wipe xterm's screen state and make herdr repaint the
+   * whole screen (via a PTY size jiggle). Fixes most display corruption
+   * without touching the running client. */
+  const redraw = async () => {
+    const term = termRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!term || !fitAddon) return;
+    term.reset();
+    fitAddon.fit();
+    try {
+      await api.terminalResize(TERMINAL_ID, term.cols, Math.max(1, term.rows - 1));
+      await api.terminalResize(TERMINAL_ID, term.cols, term.rows);
+    } catch {
+      // No session (process exited): nothing to repaint.
+    }
+  };
+
+  /** Hard recovery: kill the PTY + herdr client and rebuild the xterm
+   * instance from scratch, then reattach. herdr is client/server, so the
+   * server-side workspaces and running agents are unaffected. */
+  const restart = async () => {
+    try {
+      await api.terminalClose(TERMINAL_ID);
+    } catch {
+      // Session already gone — still rebuild the frontend side.
+    }
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    initTerminal();
+  };
+
+  /** Creates and wires up the xterm instance. Idempotent: no-op while an
+   * instance exists. Must only run while the container is visible and
+   * measurable (see `visible` prop docs). */
+  const initTerminal = () => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || termRef.current) return;
 
     // No `convertEol`: the backend is a real PTY (ConPTY), so line endings and
     // cursor movement arrive as exact escape sequences — injecting CRs would
@@ -131,6 +162,13 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       termRef.current = null;
       fitAddonRef.current = null;
     };
+  };
+
+  // Lazy init: create and wire up xterm the first time the panel is shown,
+  // while the container is actually visible and measurable.
+  useEffect(() => {
+    if (!visible) return;
+    initTerminal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -164,7 +202,25 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <div ref={containerRef} className="h-full w-full px-2 py-1" />
-      <div className="absolute right-2 top-1 z-10">
+      <div className="absolute right-2 top-1 z-10 flex items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground hover:text-foreground"
+          onClick={() => void redraw()}
+          title="Redraw the screen (fixes most display corruption)"
+        >
+          <RefreshCw className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground hover:text-foreground"
+          onClick={() => void restart()}
+          title="Restart the terminal (herdr workspaces and agents keep running)"
+        >
+          <RotateCcw className="size-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -178,7 +234,7 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       {exited && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">
           <p>herdr process exited</p>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openSession()}>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void restart()}>
             <RotateCcw className="size-3.5" /> Reopen
           </Button>
         </div>
