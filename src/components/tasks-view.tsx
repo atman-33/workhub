@@ -67,13 +67,28 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [terminalMaximized, setTerminalMaximized] = useState(false);
   const terminalPanelRef = useRef<PanelImperativeHandle>(null);
   const boardPanelRef = useRef<PanelImperativeHandle>(null);
+  // Last user-chosen terminal height (percent); open/restore return to it
+  // instead of the default split. Mirrors `terminalMaximized` in a ref so the
+  // panel's onResize callback (which fires during our own collapse/expand
+  // calls) can tell user drags apart from the maximize transition.
+  const lastTerminalSizeRef = useRef(TERMINAL_PANEL_SIZE);
+  const terminalMaximizedRef = useRef(false);
 
   const vaultPath = config?.settings.vault_path ?? null;
   const terminalEnabled = config?.settings.terminal_embed ?? false;
 
+  const restoreTerminalSize = useCallback(() => {
+    terminalMaximizedRef.current = false;
+    setTerminalMaximized(false);
+    // The board may be collapsed by a maximized terminal; it must be expanded
+    // explicitly — resizing the neighbor does not un-collapse it.
+    boardPanelRef.current?.expand();
+    terminalPanelRef.current?.resize(`${lastTerminalSizeRef.current}%`);
+  }, []);
+
   const openTerminalPanel = useCallback(() => {
     setTerminalOpen((prev) => {
-      if (!prev) terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
+      if (!prev) terminalPanelRef.current?.resize(`${lastTerminalSizeRef.current}%`);
       return true;
     });
   }, []);
@@ -82,12 +97,11 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     setTerminalOpen((prev) => {
       const next = !prev;
       if (next) {
-        terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
+        terminalPanelRef.current?.resize(`${lastTerminalSizeRef.current}%`);
       } else {
-        // The board may be collapsed by a maximized terminal; restore it
-        // before collapsing the terminal so the layout stays valid.
+        terminalMaximizedRef.current = false;
         setTerminalMaximized(false);
-        boardPanelRef.current?.resize("100%");
+        boardPanelRef.current?.expand();
         terminalPanelRef.current?.collapse();
       }
       return next;
@@ -95,13 +109,14 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   }, []);
 
   const toggleTerminalMaximize = useCallback(() => {
-    setTerminalMaximized((prev) => {
-      const next = !prev;
-      if (next) boardPanelRef.current?.collapse();
-      else terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
-      return next;
-    });
-  }, []);
+    if (terminalMaximizedRef.current) {
+      restoreTerminalSize();
+    } else {
+      terminalMaximizedRef.current = true;
+      setTerminalMaximized(true);
+      boardPanelRef.current?.collapse();
+    }
+  }, [restoreTerminalSize]);
 
   const refreshTasks = useCallback((path: string) => {
     void api
@@ -586,6 +601,13 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 collapsible
                 minSize="15%"
                 className="min-h-0"
+                onResize={(size) => {
+                  // Remember the height the user actually dragged the panel
+                  // to; skip the collapse (0) and maximize (100) transitions.
+                  if (!terminalMaximizedRef.current && size.asPercentage > 0) {
+                    lastTerminalSizeRef.current = size.asPercentage;
+                  }
+                }}
               >
                 <TerminalPanel
                   visible={terminalOpen}
