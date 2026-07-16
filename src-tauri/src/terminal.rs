@@ -58,6 +58,12 @@ pub fn open(
     for arg in tokens {
         cmd.arg(arg);
     }
+    // herdr refuses to start when it thinks it is nested inside another herdr
+    // pane (HERDR_ENV is its recursion guard). workhub inherits that variable
+    // when the app itself was launched from a herdr pane (e.g. `npm run tauri
+    // dev` during development), but the embedded panel is an independent
+    // terminal surface, not a nested pane — so drop the guard for the child.
+    cmd.env_remove("HERDR_ENV");
     if let Some(vault) = cfg
         .settings
         .vault_path

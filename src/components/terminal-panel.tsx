@@ -36,6 +36,9 @@ export function TerminalPanel({ visible }: Props) {
     const fitAddon = fitAddonRef.current;
     if (!term || !fitAddon) return;
     setExited(false);
+    // Reopening spawns a fresh herdr client; clear any output left over from
+    // the previous process (e.g. its exit error message) before reattaching.
+    term.reset();
     fitAddon.fit();
     void api.terminalOpen(TERMINAL_ID, term.cols, term.rows).catch((e) => {
       term.writeln(`\r\n\x1b[31mfailed to open terminal: ${e}\x1b[0m`);
