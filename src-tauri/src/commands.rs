@@ -7,6 +7,7 @@ use crate::terminal::{self, TerminalState};
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[tauri::command]
@@ -440,7 +441,14 @@ pub fn terminal_resize(
     terminal::resize(&state, &id, cols, rows)
 }
 
+/// Async + spawn_blocking: close waits for the child process to fully exit
+/// (see `terminal::close`), which must not run on the UI thread.
 #[tauri::command]
-pub fn terminal_close(state: tauri::State<'_, TerminalState>, id: String) -> Result<(), String> {
-    terminal::close(&state, &id)
+pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<TerminalState>();
+        terminal::close(&state, &id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

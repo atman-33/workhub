@@ -229,9 +229,17 @@ pub fn resize(state: &TerminalState, id: &str, cols: u16, rows: u16) -> Result<(
 }
 
 pub fn close(state: &TerminalState, id: &str) -> Result<(), String> {
-    let mut sessions = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(mut session) = sessions.remove(id) {
+    let session = {
+        let mut sessions = state.0.lock().map_err(|e| e.to_string())?;
+        sessions.remove(id)
+    };
+    if let Some(mut session) = session {
         let _ = session.child.kill();
+        // Block (outside the sessions lock) until the process is fully gone:
+        // a close-then-reopen must not overlap the dying client's ConPTY
+        // teardown with the new client's startup, or the two interleave
+        // non-deterministically in the fresh xterm.
+        let _ = session.child.wait();
     }
     Ok(())
 }

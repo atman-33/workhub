@@ -36,7 +36,9 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const restartingRef = useRef(false);
   const [exited, setExited] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   const openSession = async () => {
     const term = termRef.current;
@@ -58,10 +60,20 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       await api.terminalOpen(TERMINAL_ID, term.cols, term.rows, onOutput);
       // Re-measure on the next frame — a freshly (re)created xterm's first
       // fit() can be slightly off while the container is still settling —
-      // then jiggle the PTY size so herdr repaints the full screen at the
-      // true dimensions. Also covers reattach, where the new xterm starts
-      // blank and would otherwise only see output deltas.
+      // and hand the corrected size to the PTY before herdr draws much.
       requestAnimationFrame(() => {
+        const t = termRef.current;
+        const f = fitAddonRef.current;
+        if (!t || !f) return;
+        f.fit();
+        void api.terminalResize(TERMINAL_ID, t.cols, t.rows).catch(() => {});
+      });
+      // Force one full repaint AFTER herdr's startup burst has settled: a
+      // size jiggle interleaved with the initial draw makes ConPTY reflow
+      // mid-frame and corrupts the screen non-deterministically. One late
+      // jiggle also covers reattach, where the new xterm starts blank and
+      // would otherwise only see output deltas.
+      window.setTimeout(() => {
         const t = termRef.current;
         const f = fitAddonRef.current;
         if (!t || !f) return;
@@ -70,7 +82,7 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
           .terminalResize(TERMINAL_ID, t.cols, Math.max(1, t.rows - 1))
           .then(() => api.terminalResize(TERMINAL_ID, t.cols, t.rows))
           .catch(() => {});
-      });
+      }, 300);
     } catch (e) {
       term.writeln(`\r\n\x1b[31mfailed to open terminal: ${e}\x1b[0m`);
     }
@@ -80,20 +92,32 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
    * instance from scratch, then reattach. herdr is client/server, so the
    * server-side workspaces and running agents are unaffected. */
   const restart = async () => {
+    // Not reentrant: overlapping restarts would close each other's freshly
+    // spawned sessions and race the teardown/rebuild non-deterministically.
+    if (restartingRef.current) return;
+    restartingRef.current = true;
+    setRestarting(true);
     try {
-      await api.terminalClose(TERMINAL_ID);
-    } catch {
-      // Session already gone — still rebuild the frontend side.
+      try {
+        // Resolves only after the old client process has fully exited.
+        await api.terminalClose(TERMINAL_ID);
+      } catch {
+        // Session already gone — still rebuild the frontend side.
+      }
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+      await initTerminal();
+    } finally {
+      restartingRef.current = false;
+      setRestarting(false);
     }
-    cleanupRef.current?.();
-    cleanupRef.current = null;
-    initTerminal();
   };
 
   /** Creates and wires up the xterm instance. Idempotent: no-op while an
    * instance exists. Must only run while the container is visible and
-   * measurable (see `visible` prop docs). */
-  const initTerminal = () => {
+   * measurable (see `visible` prop docs). Resolves once the PTY session is
+   * (re)opened, so restart can hold its reentrancy guard until then. */
+  const initTerminal = async () => {
     const container = containerRef.current;
     if (!container || termRef.current) return;
 
@@ -144,8 +168,6 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
     });
     resizeObserver.observe(container);
 
-    void openSession();
-
     cleanupRef.current = () => {
       dataDisposable.dispose();
       void unlistenExit.then((fn) => fn());
@@ -154,13 +176,15 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       termRef.current = null;
       fitAddonRef.current = null;
     };
+
+    await openSession();
   };
 
   // Lazy init: create and wire up xterm the first time the panel is shown,
   // while the container is actually visible and measurable.
   useEffect(() => {
     if (!visible) return;
-    initTerminal();
+    void initTerminal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -200,9 +224,10 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
           size="icon"
           className="size-6 text-muted-foreground hover:text-foreground"
           onClick={() => void restart()}
+          disabled={restarting}
           title="Restart the terminal (herdr workspaces and agents keep running)"
         >
-          <RotateCcw className="size-3.5" />
+          <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} />
         </Button>
         <Button
           variant="ghost"
@@ -217,8 +242,14 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       {exited && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">
           <p>herdr process exited</p>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void restart()}>
-            <RotateCcw className="size-3.5" /> Reopen
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => void restart()}
+            disabled={restarting}
+          >
+            <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} /> Reopen
           </Button>
         </div>
       )}
