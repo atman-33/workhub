@@ -64,7 +64,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [initializing, setInitializing] = useState(false);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalMaximized, setTerminalMaximized] = useState(false);
   const terminalPanelRef = useRef<PanelImperativeHandle>(null);
+  const boardPanelRef = useRef<PanelImperativeHandle>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
   const terminalEnabled = config?.settings.terminal_embed ?? false;
@@ -79,8 +81,24 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const toggleTerminalPanel = useCallback(() => {
     setTerminalOpen((prev) => {
       const next = !prev;
-      if (next) terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
-      else terminalPanelRef.current?.collapse();
+      if (next) {
+        terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
+      } else {
+        // The board may be collapsed by a maximized terminal; restore it
+        // before collapsing the terminal so the layout stays valid.
+        setTerminalMaximized(false);
+        boardPanelRef.current?.resize("100%");
+        terminalPanelRef.current?.collapse();
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleTerminalMaximize = useCallback(() => {
+    setTerminalMaximized((prev) => {
+      const next = !prev;
+      if (next) boardPanelRef.current?.collapse();
+      else terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
       return next;
     });
   }, []);
@@ -549,7 +567,14 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           // only the panel's size and CSS visibility toggle.
           return (
             <ResizablePanelGroup orientation="vertical" className="h-full">
-              <ResizablePanel id="board" minSize="20%" className="min-h-0">
+              <ResizablePanel
+                id="board"
+                panelRef={boardPanelRef}
+                minSize="20%"
+                collapsedSize={0}
+                collapsible
+                className="min-h-0"
+              >
                 {boardContent}
               </ResizablePanel>
               <ResizableHandle />
@@ -560,10 +585,13 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 collapsedSize={0}
                 collapsible
                 minSize="15%"
-                maxSize="80%"
                 className="min-h-0"
               >
-                <TerminalPanel visible={terminalOpen} />
+                <TerminalPanel
+                  visible={terminalOpen}
+                  maximized={terminalMaximized}
+                  onToggleMaximize={toggleTerminalMaximize}
+                />
               </ResizablePanel>
             </ResizablePanelGroup>
           );

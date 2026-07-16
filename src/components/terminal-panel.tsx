@@ -5,7 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { RotateCcw } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,9 @@ interface Props {
    * `display:none` container yields broken metrics that corrupt all later
    * rendering. Once created, hiding only toggles CSS. */
   visible: boolean;
+  /** Whether the panel currently fills the whole view (board collapsed). */
+  maximized: boolean;
+  onToggleMaximize: () => void;
 }
 
 /** Embedded terminal running the herdr client over a native PTY (ConPTY on
@@ -28,7 +31,7 @@ interface Props {
  * first show and kept alive across hide/show — the PTY session also persists
  * on the Rust side, since `terminal_open` reuses an existing session for the
  * same id. */
-export function TerminalPanel({ visible }: Props) {
+export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -153,8 +156,25 @@ export function TerminalPanel({ visible }: Props) {
   }, [visible]);
 
   return (
-    <div className={cn("relative h-full min-h-0 bg-[#161a22]", !visible && "hidden")}>
+    <div
+      className={cn("relative h-full min-h-0 bg-[#161a22]", !visible && "hidden")}
+      // Suppress the WebView's native context menu over the terminal: herdr
+      // receives the right-click through the PTY mouse protocol and shows its
+      // own menu, which the browser menu would otherwise cover.
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <div ref={containerRef} className="h-full w-full px-2 py-1" />
+      <div className="absolute right-2 top-1 z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground hover:text-foreground"
+          onClick={onToggleMaximize}
+          title={maximized ? "Restore terminal size" : "Maximize terminal"}
+        >
+          {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+        </Button>
+      </div>
       {exited && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">
           <p>herdr process exited</p>
