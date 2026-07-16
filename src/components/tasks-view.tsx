@@ -552,7 +552,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
               <ResizablePanel id="board" minSize="20%" className="min-h-0">
                 {boardContent}
               </ResizablePanel>
-              <ResizableHandle withHandle />
+              <ResizableHandle />
               <ResizablePanel
                 id="terminal"
                 panelRef={terminalPanelRef}
