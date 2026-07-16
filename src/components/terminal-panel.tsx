@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { RotateCcw } from "lucide-react";
@@ -42,8 +44,15 @@ export function TerminalPanel({ visible }: Props) {
     // before reattaching.
     term.reset();
     fitAddon.fit();
+    // A fresh channel per (re)open: on reuse the backend re-routes the PTY
+    // stream to it. Channels deliver in order even under heavy TUI redraw
+    // traffic, unlike events.
+    const onOutput = new Channel<string>();
+    onOutput.onmessage = (data) => {
+      term.write(data);
+    };
     try {
-      const reused = await api.terminalOpen(TERMINAL_ID, term.cols, term.rows);
+      const reused = await api.terminalOpen(TERMINAL_ID, term.cols, term.rows, onOutput);
       if (reused) {
         // A reattached xterm starts blank and would only show output deltas.
         // Jiggle the PTY size so herdr repaints the whole screen.
@@ -77,6 +86,19 @@ export function TerminalPanel({ visible }: Props) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
+    // GPU renderer: much more reliable than the DOM renderer under rapid
+    // full-screen TUI redraws. Fall back silently if WebGL is unavailable.
+    let webglAddon: WebglAddon | null = null;
+    try {
+      webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon?.dispose();
+        webglAddon = null;
+      });
+      term.loadAddon(webglAddon);
+    } catch {
+      webglAddon = null;
+    }
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -84,9 +106,6 @@ export function TerminalPanel({ visible }: Props) {
       void api.terminalWrite(TERMINAL_ID, data);
     });
 
-    const unlistenOutput = listen<string>(`terminal-output:${TERMINAL_ID}`, (event) => {
-      term.write(event.payload);
-    });
     const unlistenExit = listen(`terminal-exit:${TERMINAL_ID}`, () => {
       setExited(true);
     });
@@ -103,7 +122,6 @@ export function TerminalPanel({ visible }: Props) {
 
     cleanupRef.current = () => {
       dataDisposable.dispose();
-      void unlistenOutput.then((fn) => fn());
       void unlistenExit.then((fn) => fn());
       resizeObserver.disconnect();
       term.dispose();

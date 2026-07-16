@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { type Channel, invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
 import type {
   BranchList,
@@ -125,9 +125,11 @@ export const api = {
     }),
 
   // ---- embedded terminal (xterm.js + ConPTY running the herdr client) ----
-  /** Returns true when an already-running PTY session was reused. */
-  terminalOpen: (id: string, cols: number, rows: number) =>
-    invoke<boolean>("terminal_open", { id, cols, rows }),
+  /** Returns true when an already-running PTY session was reused. Output is
+   * streamed over `onOutput` (an ordered IPC channel — unlike events, safe
+   * for high-throughput TUI redraws). */
+  terminalOpen: (id: string, cols: number, rows: number, onOutput: Channel<string>) =>
+    invoke<boolean>("terminal_open", { id, cols, rows, onOutput }),
   terminalWrite: (id: string, data: string) =>
     invoke<void>("terminal_write", { id, data }),
   terminalResize: (id: string, cols: number, rows: number) =>

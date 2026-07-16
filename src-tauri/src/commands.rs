@@ -407,7 +407,7 @@ pub fn launch_agent_for_task(
 // ---------------------------------------------------------------------
 
 /// Opens (or reuses) a PTY session running the configured herdr client and
-/// starts forwarding its output to `terminal-output:{id}` events.
+/// streams its output over the ordered `on_output` IPC channel.
 /// Returns `true` when an existing session was reused.
 #[tauri::command]
 pub fn terminal_open(
@@ -416,8 +416,9 @@ pub fn terminal_open(
     id: String,
     cols: u16,
     rows: u16,
+    on_output: tauri::ipc::Channel<String>,
 ) -> Result<bool, String> {
-    terminal::open(app, &state, id, cols, rows)
+    terminal::open(app, &state, id, cols, rows, on_output)
 }
 
 #[tauri::command]

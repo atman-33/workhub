@@ -10,7 +10,8 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::storage;
@@ -19,38 +20,43 @@ pub(crate) struct TerminalSession {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
+    /// Where PTY output goes. Swappable so a reattaching frontend (remount,
+    /// reopen) can re-route the stream to its fresh channel; shared with the
+    /// reader thread. Channels — unlike events — guarantee ordered delivery
+    /// and are the intended IPC primitive for high-throughput streaming,
+    /// which full-screen TUI redraws are.
+    output: Arc<Mutex<Channel<String>>>,
 }
 
 /// Active PTY sessions, keyed by the frontend-chosen terminal id.
 #[derive(Default)]
 pub struct TerminalState(pub(crate) Mutex<HashMap<String, TerminalSession>>);
 
-fn output_event(id: &str) -> String {
-    format!("terminal-output:{id}")
-}
-
 fn exit_event(id: &str) -> String {
     format!("terminal-exit:{id}")
 }
 
 /// Opens (or reuses) a PTY session running the configured herdr client.
-/// Spawns a background reader thread that forwards PTY output to the
-/// frontend via `terminal-output:{id}` events and emits `terminal-exit:{id}`
+/// Spawns a background reader thread that streams PTY output to the frontend
+/// over `on_output` (an ordered IPC channel) and emits `terminal-exit:{id}`
 /// (removing the session) when the child exits.
 ///
-/// Returns `true` when an already-running session was reused — the caller
-/// should then force a full repaint (the new xterm attaches blank and only
-/// sees output deltas from that point on).
+/// Returns `true` when an already-running session was reused — its output is
+/// re-routed to the given channel, and the caller should force a full repaint
+/// (the new xterm attaches blank and only sees output deltas from that point
+/// on).
 pub fn open(
     app: AppHandle,
     state: &TerminalState,
     id: String,
     cols: u16,
     rows: u16,
+    on_output: Channel<String>,
 ) -> Result<bool, String> {
     {
         let sessions = state.0.lock().map_err(|e| e.to_string())?;
-        if sessions.contains_key(&id) {
+        if let Some(session) = sessions.get(&id) {
+            *session.output.lock().map_err(|e| e.to_string())? = on_output;
             return Ok(true);
         }
     }
@@ -95,10 +101,14 @@ pub fn open(
     let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
+    let output = Arc::new(Mutex::new(on_output));
+    let thread_output = Arc::clone(&output);
+
     let session = TerminalSession {
         master: pair.master,
         writer,
         child,
+        output,
     };
     state
         .0
@@ -122,14 +132,18 @@ pub fn open(
                     pending.extend_from_slice(&buf[..n]);
                     let text = take_complete_utf8(&mut pending);
                     if !text.is_empty() {
-                        let _ = app.emit(&output_event(&id), text);
+                        if let Ok(channel) = thread_output.lock() {
+                            let _ = channel.send(text);
+                        }
                     }
                 }
             }
         }
         if !pending.is_empty() {
             let text = String::from_utf8_lossy(&pending).into_owned();
-            let _ = app.emit(&output_event(&id), text);
+            if let Ok(channel) = thread_output.lock() {
+                let _ = channel.send(text);
+            }
         }
         if let Some(term_state) = app.try_state::<TerminalState>() {
             if let Ok(mut sessions) = term_state.0.lock() {
