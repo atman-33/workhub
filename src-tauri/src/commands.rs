@@ -3,9 +3,11 @@ use crate::models::{
 };
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
+use crate::terminal::{self, TerminalState};
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[tauri::command]
@@ -203,6 +205,7 @@ pub fn copy_task_prompt(
         vault_path: &vault_path,
         use_herdr: false,
         herdr_cmd: "",
+        terminal_embed: false,
     });
     app.clipboard()
         .write_text(prompt)
@@ -381,6 +384,7 @@ pub fn launch_agent_for_task(
     vault_path: String,
     use_herdr: bool,
     herdr_cmd: String,
+    terminal_embed: bool,
 ) -> Result<String, String> {
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
         agent_cmd: &agent_cmd,
@@ -395,5 +399,56 @@ pub fn launch_agent_for_task(
         vault_path: &vault_path,
         use_herdr,
         herdr_cmd: &herdr_cmd,
+        terminal_embed,
     })
+}
+
+// ---------------------------------------------------------------------
+// embedded terminal (xterm.js + ConPTY running the herdr client)
+// ---------------------------------------------------------------------
+
+/// Opens (or reuses) a PTY session running the configured herdr client and
+/// streams its output over the ordered `on_output` IPC channel.
+/// Returns `true` when an existing session was reused.
+#[tauri::command]
+pub fn terminal_open(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    cols: u16,
+    rows: u16,
+    on_output: tauri::ipc::Channel<String>,
+) -> Result<bool, String> {
+    terminal::open(app, &state, id, cols, rows, on_output)
+}
+
+#[tauri::command]
+pub fn terminal_write(
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    data: String,
+) -> Result<(), String> {
+    terminal::write(&state, &id, &data)
+}
+
+#[tauri::command]
+pub fn terminal_resize(
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    terminal::resize(&state, &id, cols, rows)
+}
+
+/// Async + spawn_blocking: close waits for the child process to fully exit
+/// (see `terminal::close`), which must not run on the UI thread.
+#[tauri::command]
+pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<TerminalState>();
+        terminal::close(&state, &id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

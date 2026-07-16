@@ -26,6 +26,7 @@ const DEFAULTS: Settings = {
   ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
+  terminal_embed: false,
 };
 
 interface Props {
@@ -116,6 +117,15 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             Open AI tasks in a fresh herdr workspace
           </label>
           {draft.use_herdr && field("herdr command", "herdr_cmd")}
+          {draft.use_herdr && (
+            <label className="flex items-center gap-2 pt-1 text-sm">
+              <Checkbox
+                checked={draft.terminal_embed}
+                onCheckedChange={(v) => setDraft({ ...draft, terminal_embed: v === true })}
+              />
+              Embed terminal (show herdr inside the app)
+            </label>
+          )}
           {field("Worktree root", "worktree_root")}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Tasks vault path</label>

@@ -8,6 +8,7 @@ mod models;
 mod music;
 mod storage;
 mod tasks;
+mod terminal;
 mod update;
 
 use tauri::Manager;
@@ -21,6 +22,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(tasks::WatcherState::default())
         .manage(ink::InkState::default())
+        .manage(terminal::TerminalState::default())
         .setup(|app| {
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
@@ -71,6 +73,10 @@ pub fn run() {
             commands::load_music_data,
             commands::save_music_data,
             commands::fetch_youtube_title,
+            commands::terminal_open,
+            commands::terminal_write,
+            commands::terminal_resize,
+            commands::terminal_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

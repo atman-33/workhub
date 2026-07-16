@@ -80,9 +80,19 @@ fn parse_server_running(status_output: &str) -> bool {
 /// Makes sure a herdr server is running, launching the herdr client in a new
 /// Windows Terminal window when it is not (the client starts the server).
 /// Polls the server status until it comes up or the timeout expires.
-pub fn ensure_server(cmd: &str) -> Result<(), String> {
+///
+/// In embedded-terminal mode (`terminal_embed` on), an external `wt` window
+/// would fight with the embedded panel for the role of "the" herdr client, so
+/// no window is spawned here: the frontend opens the embedded terminal panel
+/// (which starts its own herdr client, and with it the server) before calling
+/// the launch command, and this just polls for the server to come up.
+pub fn ensure_server(cmd: &str, terminal_embed: bool) -> Result<(), String> {
     if is_server_running(cmd) {
         return Ok(());
+    }
+
+    if terminal_embed {
+        return poll_for_server(cmd, Duration::from_secs(10));
     }
 
     let mut launcher = Command::new("cmd");
@@ -93,14 +103,22 @@ pub fn ensure_server(cmd: &str) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("failed to launch herdr via Windows Terminal: {e}"))?;
 
-    let deadline = Instant::now() + Duration::from_secs(15);
+    poll_for_server(cmd, Duration::from_secs(15))
+}
+
+/// Polls `is_server_running` every 500ms until it succeeds or `timeout` elapses.
+fn poll_for_server(cmd: &str, timeout: Duration) -> Result<(), String> {
+    let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(500));
         if is_server_running(cmd) {
             return Ok(());
         }
     }
-    Err("herdr server did not start within 15 seconds".into())
+    Err(format!(
+        "herdr server did not start within {} seconds",
+        timeout.as_secs()
+    ))
 }
 
 /// Creates a herdr workspace and returns its id together with the id of the

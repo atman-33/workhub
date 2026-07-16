@@ -102,6 +102,9 @@ pub struct LaunchAgentForTaskParams<'a> {
     pub vault_path: &'a str,
     pub use_herdr: bool,
     pub herdr_cmd: &'a str,
+    /// When true, herdr runs in the Tasks view's embedded terminal panel
+    /// instead of an external Windows Terminal window (see `herdr::ensure_server`).
+    pub terminal_embed: bool,
 }
 
 /// Launches the configured agent for a task with an initial prompt telling it
@@ -161,7 +164,7 @@ fn launch_in_herdr(
     vault: &str,
     command_line: &str,
 ) -> Result<(), String> {
-    herdr::ensure_server(params.herdr_cmd)?;
+    herdr::ensure_server(params.herdr_cmd, params.terminal_embed)?;
     let label = format!("{} {}", params.task_id, params.task_title);
     let workspace = herdr::create_workspace(params.herdr_cmd, vault, &label)?;
     let pane_command = in_pane_command(command_line);
@@ -399,6 +402,7 @@ mod tests {
             vault_path: "C:/vault",
             use_herdr: false,
             herdr_cmd: "herdr",
+            terminal_embed: false,
         }
     }
 

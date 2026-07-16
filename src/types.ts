@@ -25,6 +25,9 @@ export interface Settings {
   vault_path: string | null;
   /** Root dir for task worktrees, laid out as `<root>/<task-id>/<repo-name>`. */
   worktree_root: string;
+  /** Show the herdr client in an embedded terminal panel (xterm.js + ConPTY)
+   * in the Tasks view instead of an external Windows Terminal window. */
+  terminal_embed: boolean;
 }
 
 export interface Worktree {
