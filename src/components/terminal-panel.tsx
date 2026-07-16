@@ -5,7 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Maximize2, Minimize2, RefreshCw, RotateCcw } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -55,32 +55,24 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       term.write(data);
     };
     try {
-      const reused = await api.terminalOpen(TERMINAL_ID, term.cols, term.rows, onOutput);
-      if (reused) {
-        // A reattached xterm starts blank and would only show output deltas.
-        // Jiggle the PTY size so herdr repaints the whole screen.
-        await api.terminalResize(TERMINAL_ID, term.cols, Math.max(1, term.rows - 1));
-        await api.terminalResize(TERMINAL_ID, term.cols, term.rows);
-      }
+      await api.terminalOpen(TERMINAL_ID, term.cols, term.rows, onOutput);
+      // Re-measure on the next frame — a freshly (re)created xterm's first
+      // fit() can be slightly off while the container is still settling —
+      // then jiggle the PTY size so herdr repaints the full screen at the
+      // true dimensions. Also covers reattach, where the new xterm starts
+      // blank and would otherwise only see output deltas.
+      requestAnimationFrame(() => {
+        const t = termRef.current;
+        const f = fitAddonRef.current;
+        if (!t || !f) return;
+        f.fit();
+        void api
+          .terminalResize(TERMINAL_ID, t.cols, Math.max(1, t.rows - 1))
+          .then(() => api.terminalResize(TERMINAL_ID, t.cols, t.rows))
+          .catch(() => {});
+      });
     } catch (e) {
       term.writeln(`\r\n\x1b[31mfailed to open terminal: ${e}\x1b[0m`);
-    }
-  };
-
-  /** Soft recovery: wipe xterm's screen state and make herdr repaint the
-   * whole screen (via a PTY size jiggle). Fixes most display corruption
-   * without touching the running client. */
-  const redraw = async () => {
-    const term = termRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!term || !fitAddon) return;
-    term.reset();
-    fitAddon.fit();
-    try {
-      await api.terminalResize(TERMINAL_ID, term.cols, Math.max(1, term.rows - 1));
-      await api.terminalResize(TERMINAL_ID, term.cols, term.rows);
-    } catch {
-      // No session (process exited): nothing to repaint.
     }
   };
 
@@ -203,15 +195,6 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
     >
       <div ref={containerRef} className="h-full w-full px-2 py-1" />
       <div className="absolute right-2 top-1 z-10 flex items-center gap-0.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          onClick={() => void redraw()}
-          title="Redraw the screen (fixes most display corruption)"
-        >
-          <RefreshCw className="size-3.5" />
-        </Button>
         <Button
           variant="ghost"
           size="icon"

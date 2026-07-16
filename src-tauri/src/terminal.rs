@@ -10,6 +10,7 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
@@ -26,7 +27,13 @@ pub(crate) struct TerminalSession {
     /// and are the intended IPC primitive for high-throughput streaming,
     /// which full-screen TUI redraws are.
     output: Arc<Mutex<Channel<String>>>,
+    /// Distinguishes this session from a successor reusing the same id: a
+    /// close-then-reopen races the old reader thread's cleanup, which must
+    /// not remove (or report the exit of) the replacement session.
+    generation: u64,
 }
+
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Active PTY sessions, keyed by the frontend-chosen terminal id.
 #[derive(Default)]
@@ -103,12 +110,14 @@ pub fn open(
 
     let output = Arc::new(Mutex::new(on_output));
     let thread_output = Arc::clone(&output);
+    let generation = NEXT_GENERATION.fetch_add(1, Ordering::Relaxed);
 
     let session = TerminalSession {
         master: pair.master,
         writer,
         child,
         output,
+        generation,
     };
     state
         .0
@@ -145,12 +154,24 @@ pub fn open(
                 let _ = channel.send(text);
             }
         }
+        // Only clean up / report the exit of OUR session: a close-then-reopen
+        // may already have registered a replacement under the same id, which
+        // this (older) thread must leave untouched.
+        let mut removed_own_session = false;
         if let Some(term_state) = app.try_state::<TerminalState>() {
             if let Ok(mut sessions) = term_state.0.lock() {
-                sessions.remove(&id);
+                if sessions
+                    .get(&id)
+                    .is_some_and(|s| s.generation == generation)
+                {
+                    sessions.remove(&id);
+                    removed_own_session = true;
+                }
             }
         }
-        let _ = app.emit(&exit_event(&id), ());
+        if removed_own_session {
+            let _ = app.emit(&exit_event(&id), ());
+        }
     });
 
     Ok(false)
