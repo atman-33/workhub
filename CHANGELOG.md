@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.32.0 (2026-07-16)
+
+- Tasks: the view gained a toggleable, resizable **embedded terminal panel**
+  (xterm.js + ConPTY) running the herdr client, so agent progress can be
+  watched in-app instead of switching to an external Windows Terminal window.
+  New `terminal_embed` setting (Settings dialog, under "Open AI tasks in a
+  fresh herdr workspace"): when enabled, launching an agent opens the panel
+  and Rust polls briefly for the herdr server instead of spawning `wt`.
+
 ## 0.31.1 (2026-07-16)
 
 - Repos: file names containing non-ASCII characters (e.g. Japanese) now

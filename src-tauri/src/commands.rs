@@ -3,6 +3,7 @@ use crate::models::{
 };
 use crate::music::{self, MusicData};
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
+use crate::terminal::{self, TerminalState};
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -203,6 +204,7 @@ pub fn copy_task_prompt(
         vault_path: &vault_path,
         use_herdr: false,
         herdr_cmd: "",
+        terminal_embed: false,
     });
     app.clipboard()
         .write_text(prompt)
@@ -381,6 +383,7 @@ pub fn launch_agent_for_task(
     vault_path: String,
     use_herdr: bool,
     herdr_cmd: String,
+    terminal_embed: bool,
 ) -> Result<String, String> {
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
         agent_cmd: &agent_cmd,
@@ -395,5 +398,47 @@ pub fn launch_agent_for_task(
         vault_path: &vault_path,
         use_herdr,
         herdr_cmd: &herdr_cmd,
+        terminal_embed,
     })
+}
+
+// ---------------------------------------------------------------------
+// embedded terminal (xterm.js + ConPTY running the herdr client)
+// ---------------------------------------------------------------------
+
+/// Opens (or reuses) a PTY session running the configured herdr client and
+/// starts forwarding its output to `terminal-output:{id}` events.
+#[tauri::command]
+pub fn terminal_open(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    terminal::open(app, &state, id, cols, rows)
+}
+
+#[tauri::command]
+pub fn terminal_write(
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    data: String,
+) -> Result<(), String> {
+    terminal::write(&state, &id, &data)
+}
+
+#[tauri::command]
+pub fn terminal_resize(
+    state: tauri::State<'_, TerminalState>,
+    id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    terminal::resize(&state, &id, cols, rows)
+}
+
+#[tauri::command]
+pub fn terminal_close(state: tauri::State<'_, TerminalState>, id: String) -> Result<(), String> {
+    terminal::close(&state, &id)
 }

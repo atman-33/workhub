@@ -83,6 +83,7 @@ export const api = {
     vaultPath: string,
     useHerdr: boolean,
     herdrCmd: string,
+    terminalEmbed: boolean,
   ) =>
     invoke<string>("launch_agent_for_task", {
       agentCmd,
@@ -97,6 +98,7 @@ export const api = {
       vaultPath,
       useHerdr,
       herdrCmd,
+      terminalEmbed,
     }),
 
   copyTaskPrompt: (
@@ -121,6 +123,15 @@ export const api = {
       worktree,
       vaultPath,
     }),
+
+  // ---- embedded terminal (xterm.js + ConPTY running the herdr client) ----
+  terminalOpen: (id: string, cols: number, rows: number) =>
+    invoke<void>("terminal_open", { id, cols, rows }),
+  terminalWrite: (id: string, data: string) =>
+    invoke<void>("terminal_write", { id, data }),
+  terminalResize: (id: string, cols: number, rows: number) =>
+    invoke<void>("terminal_resize", { id, cols, rows }),
+  terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

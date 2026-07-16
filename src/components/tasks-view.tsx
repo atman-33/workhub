@@ -1,12 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
-import { Archive, FolderOpen, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
+import {
+  Archive,
+  FolderOpen,
+  LayoutGrid,
+  List,
+  Plus,
+  RefreshCw,
+  Terminal as TerminalIcon,
+} from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { TaskDialog, type TaskDraft } from "@/components/task-dialog";
 import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
+import { TerminalPanel } from "@/components/terminal-panel";
 import { Button } from "@/components/ui/button";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -19,6 +34,9 @@ import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
+
+/** Height the bottom terminal panel snaps to when opened. */
+const TERMINAL_PANEL_SIZE = 35;
 
 type ViewMode = "list" | "kanban";
 type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
@@ -45,8 +63,27 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const terminalPanelRef = useRef<PanelImperativeHandle>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
+  const terminalEnabled = config?.settings.terminal_embed ?? false;
+
+  const openTerminalPanel = useCallback(() => {
+    setTerminalOpen((prev) => {
+      if (!prev) terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
+      return true;
+    });
+  }, []);
+
+  const toggleTerminalPanel = useCallback(() => {
+    setTerminalOpen((prev) => {
+      const next = !prev;
+      if (next) terminalPanelRef.current?.resize(`${TERMINAL_PANEL_SIZE}%`);
+      else terminalPanelRef.current?.collapse();
+      return next;
+    });
+  }, []);
 
   const refreshTasks = useCallback((path: string) => {
     void api
@@ -162,6 +199,12 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
       if (!config) return;
       const agentCmd =
         task.assignee === "opencode" ? config.settings.opencode_cmd : config.settings.agent_cmd;
+      // In embedded mode, open the panel (which starts the herdr client) before
+      // asking Rust to launch — Rust polls briefly for the server to come up
+      // instead of spawning an external `wt` window (see herdr::ensure_server).
+      if (config.settings.terminal_embed && config.settings.use_herdr) {
+        openTerminalPanel();
+      }
       try {
         const message = await api.launchAgentForTask(
           agentCmd,
@@ -176,6 +219,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           config.settings.vault_path ?? "",
           config.settings.use_herdr,
           config.settings.herdr_cmd,
+          config.settings.terminal_embed,
         );
         setStatus(message);
       } catch (e) {
@@ -183,7 +227,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         throw e;
       }
     },
-    [config],
+    [config, openTerminalPanel],
   );
 
   const copyTaskPrompt = useCallback(
@@ -437,6 +481,18 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           <Archive className="size-3.5" /> Archived
         </button>
 
+        {terminalEnabled && (
+          <Button
+            size="sm"
+            variant={terminalOpen ? "secondary" : "outline"}
+            className="h-8 gap-1.5 text-xs"
+            onClick={toggleTerminalPanel}
+            title="Toggle the embedded terminal (herdr)"
+          >
+            <TerminalIcon className="size-3.5" /> Terminal
+          </Button>
+        )}
+
         <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
           <button
             className={cn(
@@ -461,27 +517,57 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
 
       {/* body */}
       <main className="min-h-0 flex-1 overflow-hidden">
-        {viewMode === "list" ? (
-          <TaskList
-            tasks={visible}
-            onOpen={(task) => setDialog({ mode: "edit", task })}
-            onLaunchAgent={launchAgent}
-            onCopyTaskPrompt={copyTaskPrompt}
-            onArchive={setArchived}
-            onDelete={setDeleteTarget}
-          />
-        ) : (
-          <TaskKanban
-            tasks={visible}
-            onOpen={(task) => setDialog({ mode: "edit", task })}
-            onMove={(updates) => void applyUpdates(updates)}
-            onLaunchAgent={launchAgent}
-            onCopyTaskPrompt={copyTaskPrompt}
-            onArchive={setArchived}
-            onArchiveDone={() => setArchiveDoneOpen(true)}
-            onDelete={setDeleteTarget}
-          />
-        )}
+        {(() => {
+          const boardContent =
+            viewMode === "list" ? (
+              <TaskList
+                tasks={visible}
+                onOpen={(task) => setDialog({ mode: "edit", task })}
+                onLaunchAgent={launchAgent}
+                onCopyTaskPrompt={copyTaskPrompt}
+                onArchive={setArchived}
+                onDelete={setDeleteTarget}
+              />
+            ) : (
+              <TaskKanban
+                tasks={visible}
+                onOpen={(task) => setDialog({ mode: "edit", task })}
+                onMove={(updates) => void applyUpdates(updates)}
+                onLaunchAgent={launchAgent}
+                onCopyTaskPrompt={copyTaskPrompt}
+                onArchive={setArchived}
+                onArchiveDone={() => setArchiveDoneOpen(true)}
+                onDelete={setDeleteTarget}
+              />
+            );
+
+          if (!terminalEnabled) return boardContent;
+
+          // The terminal panel stays mounted (via a collapsible ResizablePanel,
+          // collapsedSize 0) even while hidden, so the herdr client's PTY
+          // session and its Tauri event subscriptions survive show/hide —
+          // only the panel's size and CSS visibility toggle.
+          return (
+            <ResizablePanelGroup orientation="vertical" className="h-full">
+              <ResizablePanel id="board" minSize="20%" className="min-h-0">
+                {boardContent}
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+              <ResizablePanel
+                id="terminal"
+                panelRef={terminalPanelRef}
+                defaultSize={0}
+                collapsedSize={0}
+                collapsible
+                minSize="15%"
+                maxSize="80%"
+                className="min-h-0"
+              >
+                <TerminalPanel visible={terminalOpen} />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          );
+        })()}
       </main>
 
       {/* status bar */}

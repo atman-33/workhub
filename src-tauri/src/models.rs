@@ -57,6 +57,11 @@ pub struct Settings {
     /// locate task worktrees; the agent's task-start also follows this layout.
     #[serde(default = "default_worktree_root")]
     pub worktree_root: String,
+    /// Show the herdr client inside an embedded terminal panel (xterm.js +
+    /// ConPTY) in the Tasks view instead of relying on an external Windows
+    /// Terminal window. Only meaningful together with `use_herdr`.
+    #[serde(default)]
+    pub terminal_embed: bool,
 }
 
 fn default_true() -> bool {
@@ -95,6 +100,7 @@ impl Default for Settings {
             ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),
+            terminal_embed: false,
         }
     }
 }
