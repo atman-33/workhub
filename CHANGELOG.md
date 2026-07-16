@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.1 (2026-07-16)
+
+- Repos: file names containing non-ASCII characters (e.g. Japanese) now
+  display correctly in the changes/diff views. git was octal-escaping such
+  paths (`\343\201\256`); all git calls now run with `core.quotepath=false`
+  so paths are emitted as raw UTF-8.
+
 ## 0.31.0 (2026-07-16)
 
 - Repos: git graph context menus reordered by frequency of use — checkout
