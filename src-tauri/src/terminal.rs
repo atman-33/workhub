@@ -107,14 +107,25 @@ pub fn open(
     std::thread::spawn(move || {
         let mut reader = reader;
         let mut buf = [0u8; 8192];
+        // Carries a multi-byte UTF-8 character split across read chunks over
+        // to the next iteration, so it is never mangled into U+FFFD (which
+        // shifts TUI column alignment).
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let text = String::from_utf8_lossy(&buf[..n]).into_owned();
-                    let _ = app.emit(&output_event(&id), text);
+                    pending.extend_from_slice(&buf[..n]);
+                    let text = take_complete_utf8(&mut pending);
+                    if !text.is_empty() {
+                        let _ = app.emit(&output_event(&id), text);
+                    }
                 }
             }
+        }
+        if !pending.is_empty() {
+            let text = String::from_utf8_lossy(&pending).into_owned();
+            let _ = app.emit(&output_event(&id), text);
         }
         if let Some(term_state) = app.try_state::<TerminalState>() {
             if let Ok(mut sessions) = term_state.0.lock() {
@@ -125,6 +136,30 @@ pub fn open(
     });
 
     Ok(())
+}
+
+/// Drains the longest valid-UTF-8 prefix of `pending` into a `String`,
+/// leaving an incomplete trailing multi-byte sequence (at most 3 bytes) in
+/// place for the next read. Bytes that are outright invalid UTF-8 (not merely
+/// incomplete) are lossy-decoded so the stream never stalls.
+fn take_complete_utf8(pending: &mut Vec<u8>) -> String {
+    match std::str::from_utf8(pending) {
+        Ok(_) => {
+            let complete = std::mem::take(pending);
+            String::from_utf8(complete).unwrap_or_default()
+        }
+        Err(e) if e.error_len().is_none() => {
+            // Incomplete trailing sequence: keep it for the next chunk.
+            let tail = pending.split_off(e.valid_up_to());
+            let head = std::mem::replace(pending, tail);
+            String::from_utf8(head).unwrap_or_default()
+        }
+        Err(_) => {
+            let text = String::from_utf8_lossy(pending).into_owned();
+            pending.clear();
+            text
+        }
+    }
 }
 
 pub fn write(state: &TerminalState, id: &str, data: &str) -> Result<(), String> {
@@ -160,4 +195,43 @@ pub fn close(state: &TerminalState, id: &str) -> Result<(), String> {
         let _ = session.child.kill();
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::take_complete_utf8;
+
+    #[test]
+    fn complete_utf8_drains_everything() {
+        let mut pending = "hello 罫線".as_bytes().to_vec();
+        assert_eq!(take_complete_utf8(&mut pending), "hello 罫線");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn incomplete_trailing_char_is_carried_over() {
+        let bytes = "a┐".as_bytes(); // '┐' is 3 bytes
+        let mut pending = bytes[..bytes.len() - 1].to_vec();
+        assert_eq!(take_complete_utf8(&mut pending), "a");
+        assert_eq!(pending, &bytes[1..bytes.len() - 1]);
+
+        // Next chunk completes the character.
+        pending.push(bytes[bytes.len() - 1]);
+        assert_eq!(take_complete_utf8(&mut pending), "┐");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn invalid_bytes_are_lossy_decoded_without_stalling() {
+        let mut pending = vec![b'x', 0xff, b'y'];
+        assert_eq!(take_complete_utf8(&mut pending), "x\u{fffd}y");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn only_incomplete_prefix_returns_empty_and_keeps_bytes() {
+        let mut pending = vec![0xe2, 0x94]; // first 2 bytes of '┐'
+        assert_eq!(take_complete_utf8(&mut pending), "");
+        assert_eq!(pending, vec![0xe2, 0x94]);
+    }
 }

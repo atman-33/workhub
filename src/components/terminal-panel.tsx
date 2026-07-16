@@ -49,8 +49,10 @@ export function TerminalPanel({ visible }: Props) {
     const container = containerRef.current;
     if (!container) return;
 
+    // No `convertEol`: the backend is a real PTY (ConPTY), so line endings and
+    // cursor movement arrive as exact escape sequences — injecting CRs would
+    // corrupt full-screen TUI layouts like herdr's.
     const term = new Terminal({
-      convertEol: true,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       fontSize: 13,
       theme: {
