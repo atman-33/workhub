@@ -28,6 +28,21 @@ export interface Settings {
   /** Show the herdr client in an embedded terminal panel (xterm.js + ConPTY)
    * in the Tasks view instead of an external Windows Terminal window. */
   terminal_embed: boolean;
+  /** Quick capture: global hotkey opens a small window that creates an inbox
+   * task from the clipboard. */
+  quick_capture_enabled: boolean;
+  /** Preferred quick-capture hotkey; fallbacks are tried if taken. */
+  quick_capture_shortcut: string;
+  /** Last quick-capture window rect (managed by the backend; round-tripped
+   * here so saving settings doesn't wipe it). */
+  quick_capture_rect: WindowRect | null;
+}
+
+export interface WindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface Worktree {

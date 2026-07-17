@@ -62,6 +62,26 @@ pub struct Settings {
     /// Terminal window. Only meaningful together with `use_herdr`.
     #[serde(default)]
     pub terminal_embed: bool,
+    /// Quick capture: global hotkey opens a small always-on-top window that
+    /// creates an inbox task from the clipboard.
+    #[serde(default = "default_true")]
+    pub quick_capture_enabled: bool,
+    /// Preferred quick-capture hotkey; fallbacks are tried if taken.
+    #[serde(default = "default_quick_capture_shortcut")]
+    pub quick_capture_shortcut: String,
+    /// Last position/size of the quick-capture window (logical pixels),
+    /// carried over to the next open. Unset until first moved/closed.
+    #[serde(default)]
+    pub quick_capture_rect: Option<WindowRect>,
+}
+
+/// A window position + size in logical pixels.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WindowRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 fn default_true() -> bool {
@@ -86,6 +106,9 @@ fn default_herdr_cmd() -> String {
 fn default_worktree_root() -> String {
     "C:/repos/.worktrees".into()
 }
+fn default_quick_capture_shortcut() -> String {
+    "Ctrl+Alt+N".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -101,6 +124,9 @@ impl Default for Settings {
             vault_path: None,
             worktree_root: default_worktree_root(),
             terminal_embed: false,
+            quick_capture_enabled: true,
+            quick_capture_shortcut: default_quick_capture_shortcut(),
+            quick_capture_rect: None,
         }
     }
 }
