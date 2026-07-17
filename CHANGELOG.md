@@ -8,7 +8,10 @@
   lands in the vault (with an OS notification). Slack links in the clipboard
   auto-tag the task `slack`. If the preferred hotkey is taken by another app,
   fallbacks are tried (`Ctrl+Shift+N`). The window remembers its position and
-  size across opens.
+  size across opens and can be moved by dragging its header. Long clipboard
+  content (>500 chars or >10 lines) is not auto-pasted — a "Paste clipboard"
+  button inserts it on demand — and a clear button empties the description
+  in one click.
 
 ## 0.34.0 (2026-07-17)
 

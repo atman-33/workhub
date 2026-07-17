@@ -12,8 +12,9 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { Inbox, X } from "lucide-react";
+import { ClipboardPaste, Inbox, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { shouldAutoPaste } from "@/lib/clipboard-paste";
 import { containsSlackUrl } from "@/lib/slack-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,10 @@ export function CaptureApp() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  /** Clipboard text held back by the long-content guard, pasted on demand. */
+  const [pendingClipboard, setPendingClipboard] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const isSlack = containsSlackUrl(description);
 
@@ -43,7 +47,14 @@ export function CaptureApp() {
     setTitle("");
     setSaving(false);
     setError("");
-    setDescription(await readText().catch(() => "").then((t) => t ?? ""));
+    const clip = (await readText().catch(() => "")) ?? "";
+    if (shouldAutoPaste(clip)) {
+      setDescription(clip);
+      setPendingClipboard("");
+    } else {
+      setDescription("");
+      setPendingClipboard(clip);
+    }
     setVaultPath((await api.getConfig()).settings.vault_path);
     titleRef.current?.focus();
   }, []);
@@ -119,12 +130,43 @@ export function CaptureApp() {
           placeholder="Task title"
           className="h-8"
         />
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description (clipboard is pasted here)"
-          className="flex-1 resize-none font-mono text-xs"
-        />
+        <div className="relative flex-1">
+          <Textarea
+            ref={descriptionRef}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description (clipboard is pasted here)"
+            className="h-full resize-none pr-8 font-mono text-xs"
+          />
+          {description && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="absolute right-1 top-1"
+              aria-label="Clear description"
+              onClick={() => {
+                setDescription("");
+                descriptionRef.current?.focus();
+              }}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
+        </div>
+        {pendingClipboard && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start"
+            onClick={() => {
+              setDescription(pendingClipboard);
+              setPendingClipboard("");
+            }}
+          >
+            <ClipboardPaste className="mr-1.5 size-3.5" />
+            Paste clipboard ({pendingClipboard.length.toLocaleString()} chars)
+          </Button>
+        )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground">
