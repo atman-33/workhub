@@ -27,6 +27,9 @@ const DEFAULTS: Settings = {
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
   terminal_embed: false,
+  quick_capture_enabled: true,
+  quick_capture_shortcut: "Ctrl+Alt+N",
+  quick_capture_rect: null,
 };
 
 interface Props {
@@ -165,6 +168,26 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             />
             Screen annotation (double-press and hold Alt to draw)
           </label>
+          <label className="flex items-center gap-2 pt-1 text-sm">
+            <Checkbox
+              checked={draft.quick_capture_enabled}
+              onCheckedChange={(v) => setDraft({ ...draft, quick_capture_enabled: v === true })}
+            />
+            Quick capture (hotkey turns the clipboard into an inbox task)
+          </label>
+          {draft.quick_capture_enabled && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Quick capture hotkey
+              </label>
+              <Input
+                value={draft.quick_capture_shortcut}
+                onChange={(e) => setDraft({ ...draft, quick_capture_shortcut: e.target.value })}
+                placeholder="Ctrl+Alt+N"
+                className="h-8 font-mono text-xs"
+              />
+            </div>
+          )}
           <div className="space-y-2 rounded-md border p-3">
             <div className="flex items-center justify-between gap-3">
               <div>

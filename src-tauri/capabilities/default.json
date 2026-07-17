@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main window and the ink overlay",
-  "windows": ["main", "ink-overlay"],
+  "description": "Capabilities for the main window, the ink overlay, and the quick-capture window",
+  "windows": ["main", "ink-overlay", "quick-capture"],
   "permissions": [
     "core:default",
     "dialog:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     "opener:default",
     "notification:default"
   ]

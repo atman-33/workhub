@@ -17,15 +17,21 @@ pub fn get_config() -> Config {
 
 #[tauri::command]
 pub fn save_config(app: tauri::AppHandle, config: Config) {
-    let ink_was_enabled = storage::load().settings.ink_enabled;
+    let before = storage::load().settings;
     storage::save(&config);
     // Start/stop the ink keyboard hook when the setting is toggled.
-    if config.settings.ink_enabled != ink_was_enabled {
+    if config.settings.ink_enabled != before.ink_enabled {
         if config.settings.ink_enabled {
             crate::ink::start(&app);
         } else {
             crate::ink::stop(&app);
         }
+    }
+    // Re-register the quick-capture hotkey when its settings change.
+    if config.settings.quick_capture_enabled != before.quick_capture_enabled
+        || config.settings.quick_capture_shortcut != before.quick_capture_shortcut
+    {
+        crate::quick_capture::apply_shortcut(&app);
     }
     // Best-effort: keep the vault's .claude/project-context.json aligned with
     // the registered projects so agent sessions see them (harness contract).
@@ -456,4 +462,11 @@ pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), Str
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Hide the quick-capture window (Esc / after a successful save), remembering
+/// its position and size for the next open.
+#[tauri::command]
+pub fn quick_capture_hide(app: tauri::AppHandle) {
+    crate::quick_capture::hide(&app);
 }

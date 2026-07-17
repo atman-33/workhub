@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.0 (2026-07-18)
+
+- **Quick capture**: a global hotkey (default `Ctrl+Alt+N`, configurable in
+  Settings) opens a small always-on-top window with the clipboard pre-pasted
+  into the description — type a title, hit Ctrl+Enter, and an `inbox` task
+  lands in the vault (with an OS notification). Slack links in the clipboard
+  auto-tag the task `slack`. If the preferred hotkey is taken by another app,
+  fallbacks are tried (`Ctrl+Shift+N`). The window remembers its position and
+  size across opens.
+
 ## 0.34.0 (2026-07-17)
 
 - Repos: projects on a WSL share (`\\wsl.localhost\<distro>\...`) now work.

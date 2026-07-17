@@ -18,6 +18,8 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         // Ink screen-annotation overlay window (see src-tauri/src/ink/).
         overlay: path.resolve(__dirname, "overlay.html"),
+        // Quick-capture window (see src-tauri/src/quick_capture.rs).
+        "quick-capture": path.resolve(__dirname, "quick-capture.html"),
       },
     },
   },
