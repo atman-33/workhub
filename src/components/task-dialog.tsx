@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/accordion";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
+import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -522,17 +523,7 @@ export function TaskDialog({
                         )}
                       </>
                     )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    aria-label="Edit in Obsidian"
-                    title="Edit in Obsidian"
-                    onClick={() => void handleOpenInObsidian()}
-                  >
-                    <Gem className="size-3.5" />
-                  </Button>
+                  <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
                   <Button
                     type="button"
                     variant="outline"
