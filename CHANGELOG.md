@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34.0 (2026-07-17)
+
+- Repos: projects on a WSL share (`\\wsl.localhost\<distro>\...`) now work.
+  git commands run inside the distro via `wsl.exe`, fixing the
+  "detected dubious ownership" error in the Changes panel (and avoiding the
+  slow 9P share). "Open in VS Code" opens such projects with VS Code
+  Remote-WSL (`code --remote wsl+<distro>`) instead of Windows VS Code on
+  the UNC path.
+
 ## 0.33.0 (2026-07-17)
 
 - Tasks: the task dialog can now jump to the task file in **Obsidian**

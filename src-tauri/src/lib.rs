@@ -10,6 +10,7 @@ mod storage;
 mod tasks;
 mod terminal;
 mod update;
+mod wsl;
 
 use tauri::Manager;
 

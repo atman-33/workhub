@@ -8,19 +8,41 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Run `git -C <path> <args>` without flashing a console window.
-fn git(path: &str, args: &[&str]) -> Result<String, String> {
-    let mut cmd = Command::new("git");
-    // `core.quotepath=false` keeps non-ASCII paths (e.g. Japanese filenames)
-    // as raw UTF-8 in output instead of octal-escaping them (`\343\201\256`).
-    cmd.arg("-c")
-        .arg("core.quotepath=false")
-        .arg("-C")
-        .arg(path)
-        .args(args);
+/// Build the `git` invocation for a repository path. WSL share paths
+/// (`\\wsl.localhost\...`) are routed through `wsl.exe` so git runs inside
+/// the distro — Windows-side git rejects them as foreign-owned ("dubious
+/// ownership") and is very slow over the 9P share.
+/// `core.quotepath=false` keeps non-ASCII paths (e.g. Japanese filenames)
+/// as raw UTF-8 in output instead of octal-escaping them (`\343\201\256`).
+fn git_command(path: &str, args: &[&str]) -> Command {
+    let mut cmd = match crate::wsl::parse_wsl_path(path) {
+        Some(w) => {
+            let mut cmd = Command::new("wsl.exe");
+            cmd.arg("-d").arg(w.distro).arg("--").arg("git");
+            cmd.arg("-c")
+                .arg("core.quotepath=false")
+                .arg("-C")
+                .arg(w.linux_path);
+            cmd
+        }
+        None => {
+            let mut cmd = Command::new("git");
+            cmd.arg("-c")
+                .arg("core.quotepath=false")
+                .arg("-C")
+                .arg(path);
+            cmd
+        }
+    };
+    cmd.args(args);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    match cmd.output() {
+    cmd
+}
+
+/// Run `git -C <path> <args>` without flashing a console window.
+fn git(path: &str, args: &[&str]) -> Result<String, String> {
+    match git_command(path, args).output() {
         Ok(out) => {
             if out.status.success() {
                 Ok(String::from_utf8_lossy(&out.stdout).into_owned())
@@ -43,16 +65,7 @@ fn git(path: &str, args: &[&str]) -> Result<String, String> {
 /// lines to stdout rather than stderr, so callers that need to detect
 /// conflicts must inspect both streams.
 fn git_out_err(path: &str, args: &[&str]) -> Result<String, (String, String)> {
-    let mut cmd = Command::new("git");
-    // See `git()`: keep non-ASCII paths as raw UTF-8 rather than octal-escaped.
-    cmd.arg("-c")
-        .arg("core.quotepath=false")
-        .arg("-C")
-        .arg(path)
-        .args(args);
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    match cmd.output() {
+    match git_command(path, args).output() {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
             if out.status.success() {

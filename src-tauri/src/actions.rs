@@ -382,11 +382,28 @@ pub fn open_in_vscode(vscode_cmd: &str, paths: &[String]) -> Result<(), String> 
     if paths.is_empty() {
         return Err("no projects selected".into());
     }
+
+    // WSL share paths open via Remote-WSL, one window per project —
+    // `--remote` cannot target a multi-root workspace. Opening the UNC path
+    // directly would load it in Windows VS Code instead of inside the distro.
+    let (wsl_paths, paths): (Vec<&String>, Vec<&String>) = paths
+        .iter()
+        .partition(|p| crate::wsl::parse_wsl_path(p).is_some());
+    for p in wsl_paths {
+        let w = crate::wsl::parse_wsl_path(p).expect("partitioned as WSL path");
+        launch(&format!(
+            "{vscode_cmd} --remote wsl+{} \"{}\"",
+            w.distro, w.linux_path
+        ))?;
+    }
+    if paths.is_empty() {
+        return Ok(());
+    }
     if paths.len() == 1 {
         return launch(&format!("{vscode_cmd} \"{}\"", paths[0]));
     }
 
-    let mut sorted: Vec<&String> = paths.iter().collect();
+    let mut sorted: Vec<&String> = paths;
     sorted.sort();
     let mut hasher = DefaultHasher::new();
     sorted.hash(&mut hasher);
