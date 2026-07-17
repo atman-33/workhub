@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
+import { PriorityBadge } from "@/components/priority-badge";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -11,13 +12,7 @@ import {
 } from "@/components/ui/context-menu";
 import { dueTone } from "@/lib/task-due";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/types";
-
-const priorityVariant: Record<Task["priority"], "outline" | "secondary" | "destructive"> = {
-  low: "outline",
-  medium: "secondary",
-  high: "destructive",
-};
+import type { Task, TaskPriority } from "@/types";
 
 interface Props {
   tasks: Task[];
@@ -25,11 +20,12 @@ interface Props {
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
+  onCyclePriority: (task: Task, next: TaskPriority) => void;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onCyclePriority, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -75,9 +71,11 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpe
                 <span className="shrink-0 text-xs text-muted-foreground">{task.project}</span>
               )}
               <span className="shrink-0 text-xs text-muted-foreground">{task.assignee}</span>
-              <Badge variant={priorityVariant[task.priority]} className="shrink-0">
-                {task.priority}
-              </Badge>
+              <PriorityBadge
+                priority={task.priority}
+                onCycle={(next) => onCyclePriority(task, next)}
+                className="shrink-0"
+              />
               {task.due && (
                 <span className={cn("shrink-0 text-xs", dueTone(task.due, task.status))}>
                   {task.due}

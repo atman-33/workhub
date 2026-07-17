@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.0 (2026-07-18)
+
+- Tasks: **priority** is now a first-class, one-click control. It renders as a
+  small color-coded badge (grey/amber/red with a leading dot) that cycles
+  low → medium → high → low on click — directly from list rows, kanban cards,
+  and the task dialog. The optional-details priority dropdown is gone; priority
+  moved up beside Status and Assignee in the dialog. List and kanban now share
+  a single `PriorityBadge` component instead of duplicating the variant map.
+
 ## 0.34.0 (2026-07-17)
 
 - Repos: projects on a WSL share (`\\wsl.localhost\<distro>\...`) now work.
