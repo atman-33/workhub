@@ -59,6 +59,7 @@ pub fn run() {
             commands::copy_task_prompt,
             commands::opencode_models,
             commands::open_explorer,
+            commands::open_in_obsidian,
             commands::app_version,
             commands::check_update,
             commands::apply_update,

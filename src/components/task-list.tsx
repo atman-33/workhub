@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
+import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,11 +24,12 @@ interface Props {
   onOpen: (task: Task) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
+  onOpenInObsidian: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -93,6 +95,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onArc
                   />
                 </>
               )}
+              <OpenInObsidianButton
+                className="shrink-0"
+                onOpen={() => onOpenInObsidian(task)}
+              />
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>

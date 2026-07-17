@@ -227,6 +227,11 @@ pub fn open_explorer(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_in_obsidian(path: String) -> Result<(), String> {
+    actions::open_in_obsidian(&path)
+}
+
+#[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()
 }

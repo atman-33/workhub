@@ -3,6 +3,7 @@ import { Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
+import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -60,13 +61,14 @@ interface Props {
   onMove: (updates: UpdateTaskInput[]) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
+  onOpenInObsidian: (task: Task) => Promise<unknown>;
   onArchive: (task: Task, archived: boolean) => void;
   /** Archives every non-archived task in the Done column in one action. */
   onArchiveDone: () => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -219,12 +221,15 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                     {task.due && (
                       <span className={dueTone(task.due, task.status)}>· {task.due}</span>
                     )}
-                    {(task.assignee === "claude-code" || task.assignee === "opencode") && (
-                      <span className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <CopyPromptButton onCopy={() => onCopyTaskPrompt(task)} />
-                        <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />
-                      </span>
-                    )}
+                    <span className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {(task.assignee === "claude-code" || task.assignee === "opencode") && (
+                        <>
+                          <CopyPromptButton onCopy={() => onCopyTaskPrompt(task)} />
+                          <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />
+                        </>
+                      )}
+                      <OpenInObsidianButton onOpen={() => onOpenInObsidian(task)} />
+                    </span>
                   </div>
                   {task.tags.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1">

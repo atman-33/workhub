@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.32.0"
+version = "0.33.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -31,6 +31,8 @@ notify = "6"
 # task deletion goes to the OS recycle bin (restorable), never a hard delete
 trash = "5"
 tauri-plugin-notification = "2.3.3"
+# percent-encoding for obsidian:// open URIs (task file jump-to-Obsidian)
+percent-encoding = "2"
 portable-pty = "0.9"
 
 # ink overlay: Raw Input keyboard listener for the double-Alt temporary draw mode

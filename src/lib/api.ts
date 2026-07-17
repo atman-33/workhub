@@ -44,6 +44,7 @@ export const api = {
     invoke<void>("launch_agent", { template, path }),
   opencodeModels: () => invoke<string[]>("opencode_models"),
   openExplorer: (path: string) => invoke<void>("open_explorer", { path }),
+  openInObsidian: (path: string) => invoke<void>("open_in_obsidian", { path }),
   appVersion: () => invoke<string>("app_version"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),

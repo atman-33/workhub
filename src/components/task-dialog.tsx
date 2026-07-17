@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText, Maximize2, Minimize2 } from "lucide-react";
+import { FileText, Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/accordion";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
+import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -167,8 +168,9 @@ interface Props {
   task: Task | null;
   knownProjects: string[];
   onClose: () => void;
-  /** Called once when the user confirms creation of a new task. */
-  onCreate?: (draft: TaskDraft) => void;
+  /** Called once when the user confirms creation of a new task. Returns the
+   *  created task (null on failure) so follow-up actions can target its file. */
+  onCreate?: (draft: TaskDraft) => Promise<Task | null>;
   /** Called while editing an existing task, both on idle and on close. */
   onAutoSave?: (draft: TaskDraft) => Promise<void>;
   /** Launches an agent for the edited task; flushed edits are read from disk. */
@@ -216,11 +218,18 @@ export function TaskDialog({
   // Near-fullscreen mode for long descriptions; the description field absorbs
   // the extra space.
   const [maximized, setMaximized] = useState(false);
+  // Error from the "open in Obsidian" flows (e.g. Obsidian not installed);
+  // shown inline so the dialog can stay open for the user to read it.
+  const [obsidianError, setObsidianError] = useState<string | null>(null);
+  // Guards the create buttons against double-submits while creation runs.
+  const [creating, setCreating] = useState(false);
   useEffect(() => {
     if (open) {
       setDescEditing(false);
       setResultsOpen(false);
       setMaximized(false);
+      setObsidianError(null);
+      setCreating(false);
       skipAutoSaveOnCloseRef.current = false;
     }
   }, [open]);
@@ -434,6 +443,55 @@ export function TaskDialog({
     });
   }, [task, onCopyTaskPrompt]);
 
+  // Edit mode: jump to the task file in Obsidian. Mirrors handleLaunch —
+  // flush the debounced autosave first so Obsidian shows current content,
+  // then close without the autosave-on-close so a later dismiss cannot
+  // overwrite edits made in Obsidian with a stale draft.
+  const handleOpenInObsidian = useCallback(async () => {
+    if (!task) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const d = draftRef.current;
+    if (onAutoSave && d.title.trim()) {
+      await onAutoSave(d);
+    }
+    try {
+      await api.openInObsidian(task.file);
+    } catch (e) {
+      setObsidianError(String(e));
+      return;
+    }
+    skipAutoSaveOnCloseRef.current = true;
+    onClose();
+  }, [task, onAutoSave, onClose]);
+
+  // Create mode: create the task first (the file must exist before Obsidian
+  // can open it), then jump to the new file. On create failure the tasks view
+  // already surfaces the error in its status bar, so just close.
+  const handleCreateAndOpen = useCallback(async () => {
+    if (!onCreate) return;
+    setCreating(true);
+    try {
+      clearCreateDraft();
+      const created = await onCreate(draftRef.current);
+      if (created) {
+        try {
+          await api.openInObsidian(created.file);
+        } catch (e) {
+          // Task exists at this point — keep the dialog open so the user
+          // sees why the jump failed instead of silently closing.
+          setObsidianError(String(e));
+          return;
+        }
+      }
+      onClose();
+    } finally {
+      setCreating(false);
+    }
+  }, [onCreate, onClose]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* Flex column (overrides the default grid) so the form area can shrink
@@ -465,6 +523,7 @@ export function TaskDialog({
                         )}
                       </>
                     )}
+                  <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
                   <Button
                     type="button"
                     variant="outline"
@@ -729,13 +788,26 @@ export function TaskDialog({
             maximized ? "flex min-h-0 flex-1 flex-col" : undefined,
           )}
         </div>
+        {obsidianError && (
+          <p className="text-[10px] text-destructive/80">
+            Could not open Obsidian — {obsidianError}
+          </p>
+        )}
         {displayMode === "create" && (
           <DialogFooter>
             <Button
-              disabled={!draft.title.trim()}
+              type="button"
+              variant="outline"
+              disabled={!draft.title.trim() || creating}
+              onClick={() => void handleCreateAndOpen()}
+            >
+              <Gem className="size-3.5" /> Create & edit in Obsidian
+            </Button>
+            <Button
+              disabled={!draft.title.trim() || creating}
               onClick={() => {
                 clearCreateDraft();
-                onCreate?.(draft);
+                void onCreate?.(draft);
                 onClose();
               }}
             >
