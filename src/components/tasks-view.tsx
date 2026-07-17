@@ -334,9 +334,11 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     }
   }, [vaultPath, deleteTarget, refreshTasks]);
 
+  // Returns the created task so the dialog can chain follow-up actions
+  // (e.g. opening the new file in Obsidian); null when creation failed.
   const createTask = useCallback(
-    async (draft: TaskDraft) => {
-      if (!vaultPath) return;
+    async (draft: TaskDraft): Promise<Task | null> => {
+      if (!vaultPath) return null;
       const tags = draft.tags
         .split(",")
         .map((t) => t.trim())
@@ -345,7 +347,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         ? buildBody(parseBody(DEFAULT_BODY), draft.content)
         : undefined;
       try {
-        await api.createTask(vaultPath, {
+        const created = await api.createTask(vaultPath, {
           title: draft.title,
           status: draft.status,
           assignee: draft.assignee,
@@ -359,8 +361,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           body,
         });
         refreshTasks(vaultPath);
+        return created;
       } catch (e) {
         setStatus(`Create failed — ${e}`);
+        return null;
       }
     },
     [vaultPath, refreshTasks],
@@ -661,7 +665,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         task={editingTask}
         knownProjects={knownProjects}
         onClose={() => setDialog(null)}
-        onCreate={dialog?.mode === "create" ? (draft) => void createTask(draft) : undefined}
+        onCreate={dialog?.mode === "create" ? createTask : undefined}
         onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
         onLaunchAgent={dialog?.mode === "edit" ? launchAgent : undefined}
         onCopyTaskPrompt={dialog?.mode === "edit" ? copyTaskPrompt : undefined}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.0 (2026-07-17)
+
+- Tasks: the task dialog can now jump to the task file in **Obsidian**
+  (`obsidian://open`). Edit mode gained a header button that flushes pending
+  edits and opens the file; create mode gained **Create & edit in Obsidian**,
+  which creates the task and opens the new file for rich editing (images,
+  full Markdown). External edits flow back via the existing vault watcher.
+
 ## 0.32.0 (2026-07-16)
 
 - Tasks: the view gained a toggleable, resizable **embedded terminal panel**

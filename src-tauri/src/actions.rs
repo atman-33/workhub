@@ -337,6 +337,35 @@ fn parse_opencode_models(stdout: &str) -> Vec<String> {
         .collect()
 }
 
+/// Characters kept verbatim in the `path` query value of an `obsidian://`
+/// URI: unreserved chars plus `/` and `:` so a normalized Windows path stays
+/// readable (`C:/vault/tasks/...`). Everything else (spaces, `#`, `?`, `&`,
+/// multibyte) is percent-encoded.
+const OBSIDIAN_PATH_SET: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'/')
+    .remove(b':')
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
+/// Build the `obsidian://open?path=...` URI for an absolute task-file path.
+/// The `path` form needs no vault name — Obsidian resolves the vault that
+/// contains the path.
+fn obsidian_open_url(file: &str) -> String {
+    let normalized = file.replace('\\', "/");
+    format!(
+        "obsidian://open?path={}",
+        percent_encoding::utf8_percent_encode(&normalized, OBSIDIAN_PATH_SET)
+    )
+}
+
+/// Open a task file in Obsidian via the `obsidian://` URL scheme. Fails with
+/// the OS error if no handler is registered (Obsidian not installed).
+pub fn open_in_obsidian(file: &str) -> Result<(), String> {
+    tauri_plugin_opener::open_url(obsidian_open_url(file), None::<&str>).map_err(|e| e.to_string())
+}
+
 pub fn open_explorer(path: &str) -> Result<(), String> {
     Command::new("explorer")
         .arg(path)
@@ -379,6 +408,30 @@ pub fn open_in_vscode(vscode_cmd: &str, paths: &[String]) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn obsidian_url_encodes_spaces_and_normalizes_backslashes() {
+        assert_eq!(
+            obsidian_open_url(r"C:\repos\workhub-vault\tasks\T-0001 my task.md"),
+            "obsidian://open?path=C:/repos/workhub-vault/tasks/T-0001%20my%20task.md"
+        );
+    }
+
+    #[test]
+    fn obsidian_url_encodes_multibyte_characters() {
+        assert_eq!(
+            obsidian_open_url("C:/vault/tasks/T-0044 タスク.md"),
+            "obsidian://open?path=C:/vault/tasks/T-0044%20%E3%82%BF%E3%82%B9%E3%82%AF.md"
+        );
+    }
+
+    #[test]
+    fn obsidian_url_keeps_drive_colon_and_unreserved_chars() {
+        assert_eq!(
+            obsidian_open_url("C:/a-b_c.d~e/f.md"),
+            "obsidian://open?path=C:/a-b_c.d~e/f.md"
+        );
+    }
 
     #[test]
     fn splits_quoted_arguments() {
