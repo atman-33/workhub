@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  CircleHelp,
   FolderOpen,
   GitBranch,
   ListTodo,
@@ -7,6 +8,7 @@ import {
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
+import { HelpView } from "@/components/help-view";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -19,13 +21,14 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Settings, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos" | "music" | "timer";
+type Tab = "tasks" | "repos" | "music" | "timer" | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
+  { key: "help", label: "Help", icon: CircleHelp },
 ];
 
 export default function App() {
@@ -113,6 +116,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "timer" && "hidden")}>
             <TimerView />
+          </div>
+          <div className={cn("h-full", tab !== "help" && "hidden")}>
+            <HelpView />
           </div>
         </div>
         {settings && (
