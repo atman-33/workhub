@@ -6,6 +6,7 @@ mod herdr;
 mod ink;
 mod models;
 mod music;
+mod quick_capture;
 mod storage;
 mod tasks;
 mod terminal;
@@ -21,6 +22,21 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    // Runs inside WndProc on Windows — only show the
+                    // pre-built window here, never build one (see
+                    // quick_capture.rs module docs).
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed
+                        && quick_capture::matches(app, shortcut)
+                    {
+                        quick_capture::show(app);
+                    }
+                })
+                .build(),
+        )
+        .manage(quick_capture::QuickCaptureState::default())
         .manage(tasks::WatcherState::default())
         .manage(ink::InkState::default())
         .manage(terminal::TerminalState::default())
@@ -37,6 +53,13 @@ pub fn run() {
                     let _ = tasks::start_watcher(app.handle().clone(), &state.0, path);
                 }
             }
+            // Created hidden regardless of the enabled flag (the flag only
+            // gates the hotkey) so toggling it on later never has to build a
+            // window from inside an event handler.
+            if let Err(e) = quick_capture::create_window(app.handle()) {
+                eprintln!("quick-capture: failed to create window: {e}");
+            }
+            quick_capture::apply_shortcut(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -79,6 +102,7 @@ pub fn run() {
             commands::terminal_write,
             commands::terminal_resize,
             commands::terminal_close,
+            commands::quick_capture_hide,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

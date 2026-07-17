@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.35.0 (2026-07-18)
+## 0.36.0 (2026-07-18)
 
 - Tasks: **priority** is now a first-class, one-click control. It renders as a
   small color-coded badge (grey/amber/red with a leading dot) that cycles
@@ -8,6 +8,19 @@
   and the task dialog. The optional-details priority dropdown is gone; priority
   moved up beside Status and Assignee in the dialog. List and kanban now share
   a single `PriorityBadge` component instead of duplicating the variant map.
+
+## 0.35.0 (2026-07-18)
+
+- **Quick capture**: a global hotkey (default `Ctrl+Alt+N`, configurable in
+  Settings) opens a small always-on-top window with the clipboard pre-pasted
+  into the description — type a title, hit Ctrl+Enter, and an `inbox` task
+  lands in the vault (with an OS notification). Slack links in the clipboard
+  auto-tag the task `slack`. If the preferred hotkey is taken by another app,
+  fallbacks are tried (`Ctrl+Shift+N`). The window remembers its position and
+  size across opens and can be moved by dragging its header. Long clipboard
+  content (>500 chars or >10 lines) is not auto-pasted — a "Paste clipboard"
+  button inserts it on demand — and a clear button empties the description
+  in one click.
 
 ## 0.34.0 (2026-07-17)
 
