@@ -98,7 +98,7 @@ export function CaptureApp() {
         onMouseDown={(e) => {
           if (e.button !== 0) return;
           if ((e.target as HTMLElement).closest("button")) return;
-          void getCurrentWindow().startDragging();
+          getCurrentWindow().startDragging().catch(console.error);
         }}
         className="flex cursor-move select-none items-center justify-between border-b px-3 py-2"
       >
