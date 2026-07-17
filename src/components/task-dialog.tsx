@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ExternalLink, FileText, Maximize2, Minimize2 } from "lucide-react";
+import { FileText, Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -531,7 +531,7 @@ export function TaskDialog({
                     title="Edit in Obsidian"
                     onClick={() => void handleOpenInObsidian()}
                   >
-                    <ExternalLink className="size-3.5" />
+                    <Gem className="size-3.5" />
                   </Button>
                   <Button
                     type="button"
@@ -810,7 +810,7 @@ export function TaskDialog({
               disabled={!draft.title.trim() || creating}
               onClick={() => void handleCreateAndOpen()}
             >
-              <ExternalLink className="size-3.5" /> Create & edit in Obsidian
+              <Gem className="size-3.5" /> Create & edit in Obsidian
             </Button>
             <Button
               disabled={!draft.title.trim() || creating}

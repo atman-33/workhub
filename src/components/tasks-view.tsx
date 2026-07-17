@@ -287,6 +287,18 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [config],
   );
 
+  // Jump straight to the task file in Obsidian from a card/row, without
+  // opening the edit dialog. Errors land in the status bar; rethrown so the
+  // button can settle its busy state.
+  const openTaskInObsidian = useCallback(async (task: Task) => {
+    try {
+      await api.openInObsidian(task.file);
+    } catch (e) {
+      setStatus(`Open in Obsidian failed — ${e}`);
+      throw e;
+    }
+  }, []);
+
   const applyUpdates = useCallback(
     async (updates: UpdateTaskInput[]) => {
       if (!vaultPath) return;
@@ -562,6 +574,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onOpen={(task) => setDialog({ mode: "edit", task })}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
+                onOpenInObsidian={openTaskInObsidian}
                 onArchive={setArchived}
                 onDelete={setDeleteTarget}
               />
@@ -572,6 +585,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onMove={(updates) => void applyUpdates(updates)}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
+                onOpenInObsidian={openTaskInObsidian}
                 onArchive={setArchived}
                 onArchiveDone={() => setArchiveDoneOpen(true)}
                 onDelete={setDeleteTarget}

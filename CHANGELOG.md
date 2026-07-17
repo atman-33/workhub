@@ -6,7 +6,9 @@
   (`obsidian://open`). Edit mode gained a header button that flushes pending
   edits and opens the file; create mode gained **Create & edit in Obsidian**,
   which creates the task and opens the new file for rich editing (images,
-  full Markdown). External edits flow back via the existing vault watcher.
+  full Markdown). Kanban cards and list rows also carry the jump button
+  (gem icon), so Obsidian is one click away without opening the editor.
+  External edits flow back via the existing vault watcher.
 
 ## 0.32.0 (2026-07-16)
 
