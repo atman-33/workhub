@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
+import { PriorityBadge } from "@/components/priority-badge";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/context-menu";
 import { dueTone } from "@/lib/task-due";
 import { cn } from "@/lib/utils";
-import type { Task, TaskStatus, UpdateTaskInput } from "@/types";
+import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
 
 const COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: "inbox", label: "Inbox" },
@@ -22,12 +23,6 @@ const COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: "review", label: "Review" },
   { key: "done", label: "Done" },
 ];
-
-const priorityVariant: Record<Task["priority"], "outline" | "secondary" | "destructive"> = {
-  low: "outline",
-  medium: "secondary",
-  high: "destructive",
-};
 
 /** Sorted column items plus effective numeric orders for midpoint math.
  * Tasks without an explicit order sort last (by id) and get a synthetic
@@ -62,13 +57,14 @@ interface Props {
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
+  onCyclePriority: (task: Task, next: TaskPriority) => void;
   onArchive: (task: Task, archived: boolean) => void;
   /** Archives every non-archived task in the Done column in one action. */
   onArchiveDone: () => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onCyclePriority, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -211,7 +207,10 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                     <span className="text-xs font-medium leading-tight">{task.title}</span>
                     <div className="flex shrink-0 items-center gap-1">
                       {task.archived && <Badge variant="outline">archived</Badge>}
-                      <Badge variant={priorityVariant[task.priority]}>{task.priority}</Badge>
+                      <PriorityBadge
+                        priority={task.priority}
+                        onCycle={(next) => onCyclePriority(task, next)}
+                      />
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">

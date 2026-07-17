@@ -33,7 +33,7 @@ import {
 import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
-import type { Config, Settings, Task, TaskAssignee, TaskStatus, UpdateTaskInput } from "@/types";
+import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
 const TERMINAL_PANEL_SIZE = 35;
@@ -321,6 +321,13 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [applyUpdates],
   );
 
+  const cyclePriority = useCallback(
+    (task: Task, next: TaskPriority) => {
+      void applyUpdates([{ id: task.id, priority: next }]);
+    },
+    [applyUpdates],
+  );
+
   // Non-archived Done tasks currently visible — the targets of a bulk archive.
   const doneToArchive = useMemo(
     () => visible.filter((t) => t.status === "done" && !t.archived),
@@ -575,6 +582,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
                 onOpenInObsidian={openTaskInObsidian}
+                onCyclePriority={cyclePriority}
                 onArchive={setArchived}
                 onDelete={setDeleteTarget}
               />
@@ -586,6 +594,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
                 onOpenInObsidian={openTaskInObsidian}
+                onCyclePriority={cyclePriority}
                 onArchive={setArchived}
                 onArchiveDone={() => setArchiveDoneOpen(true)}
                 onDelete={setDeleteTarget}

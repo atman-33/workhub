@@ -39,6 +39,7 @@ import {
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
+import { PriorityBadge } from "@/components/priority-badge";
 import { parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -88,7 +89,6 @@ function draftFromTask(task: Task): TaskDraft {
 
 const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
-const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
 
 const CLAUDE_MODELS = ["haiku", "sonnet", "opus", "fable"];
 
@@ -375,10 +375,8 @@ export function TaskDialog({
     </div>
   );
 
-  const hasOptionalDetails =
-    draft.priority !== "medium" || draft.due || draft.tags.trim();
+  const hasOptionalDetails = Boolean(draft.due || draft.tags.trim());
   const optionalSummary = [
-    draft.priority !== "medium" ? `Priority: ${draft.priority}` : "",
     draft.due ? `Due: ${draft.due}` : "",
     draft.tags.trim() ? `Tags: ${draft.tags.trim()}` : "",
   ]
@@ -566,7 +564,7 @@ export function TaskDialog({
               placeholder="Task title"
             />,
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
             {field(
               "Status",
               <Select
@@ -606,6 +604,16 @@ export function TaskDialog({
                   ))}
                 </SelectContent>
               </Select>,
+            )}
+            {field(
+              "Priority",
+              // Click cycles low → medium → high → low; no more dropdown.
+              <div className="flex h-8 items-center">
+                <PriorityBadge
+                  priority={draft.priority}
+                  onCycle={(next) => setDraft({ ...draft, priority: next })}
+                />
+              </div>,
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -699,27 +707,7 @@ export function TaskDialog({
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    {field(
-                      "Priority",
-                      <Select
-                        value={draft.priority}
-                        onValueChange={(v) =>
-                          setDraft({ ...draft, priority: v as TaskPriority })
-                        }
-                      >
-                        <SelectTrigger size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PRIORITIES.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>,
-                    )}
+                  <div className="grid grid-cols-2 gap-3">
                     {field(
                       "Due",
                       <DatePicker
