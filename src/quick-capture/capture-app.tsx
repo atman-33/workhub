@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   isPermissionGranted,
@@ -90,11 +91,18 @@ export function CaptureApp() {
         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void save();
       }}
     >
+      {/* Whole-header drag via startDragging(): the `data-tauri-drag-region`
+          attribute only fires when the element directly under the cursor has
+          it, so the icon/text/badge children would be dead zones. */}
       <header
-        data-tauri-drag-region
-        className="flex select-none items-center justify-between border-b px-3 py-2"
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          if ((e.target as HTMLElement).closest("button")) return;
+          void getCurrentWindow().startDragging();
+        }}
+        className="flex cursor-move select-none items-center justify-between border-b px-3 py-2"
       >
-        <span data-tauri-drag-region className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Inbox className="size-3.5" />
           Quick capture
           {isSlack && <Badge variant="secondary">slack</Badge>}
