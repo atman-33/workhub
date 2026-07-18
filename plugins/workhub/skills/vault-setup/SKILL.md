@@ -29,6 +29,7 @@ Probe each tool and collect what is missing (do not install yet):
 | Claude Code | `claude --version` | the primary agent harness |
 | OpenCode | `opencode --version` | optional second agent; skip if unused |
 | Obsidian | Windows: `Test-Path "$env:LOCALAPPDATA\Obsidian"` | optional, human vault editing |
+| herdr | `herdr --version` | optional, the default AI-task workspace launcher |
 
 Present the missing list with the exact install commands and ask before
 running any of them:
@@ -38,8 +39,10 @@ running any of them:
   `winget install Obsidian.Obsidian`
 - macOS/Linux: the same npm installs; git/node via the platform's package
   manager.
+- herdr: install via the `setup-herdr` skill (productivity plugin) rather than
+  a package manager — see Phase 6.
 
-Obsidian and OpenCode are optional — offer, don't push.
+Obsidian, OpenCode, and herdr are optional — offer, don't push.
 
 ## 3. Ensure the vault exists
 

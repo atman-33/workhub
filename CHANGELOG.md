@@ -9,10 +9,13 @@
   guard on `DialogContent` keeps any dialog from overflowing the screen, and a
   new `Tabs` UI primitive backs the tabbed layout. The tab body has a fixed
   height so the tab bar stays put when switching tabs.
-- **Help tab**: the plugin-install step is now a complete manual reference —
-  it lists every required plugin (`workhub`, `engineering`, `productivity`,
-  `obsidian`) with the correct scope, instead of omitting `workhub` while
-  redundantly reinstalling the template's pre-enabled plugins.
+- **Help tab**: Initial setup now opens with a prerequisite-software step
+  (git, Node.js, Claude Code required; Obsidian, OpenCode, and herdr optional)
+  and points at the `vault-setup` skill as the automated path. The
+  plugin-install step is now a complete manual reference — it lists every
+  required plugin (`workhub`, `engineering`, `productivity`, `obsidian`) with
+  the correct scope, instead of omitting `workhub` while redundantly
+  reinstalling the template's pre-enabled plugins.
 
 ## 0.37.0 (2026-07-18)
 

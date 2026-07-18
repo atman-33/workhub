@@ -62,8 +62,32 @@ export function HelpView() {
           className="mt-4"
         >
           <Section icon={Rocket} title="Initial setup" value="setup">
-            <p>Three steps to get workhub ready on a new machine.</p>
+            <p>
+              A few steps to get workhub ready on a new machine. The fastest
+              path is to run the{" "}
+              <span className="font-mono">vault-setup</span> skill in Claude
+              Code from the vault folder — it checks and installs the
+              prerequisites, initializes the vault, wires up the plugins, and
+              syncs OpenCode. To do it by hand:
+            </p>
             <ol className="ml-4 list-decimal space-y-2">
+              <li>
+                <span className="font-medium text-foreground">
+                  Install the prerequisite software.
+                </span>{" "}
+                <span className="font-mono text-xs">git</span>,{" "}
+                <span className="font-mono text-xs">Node.js</span> (≥ 20), and{" "}
+                <span className="font-mono text-xs">Claude Code</span> are
+                required. <span className="font-mono text-xs">Obsidian</span>{" "}
+                (edit the vault by hand),{" "}
+                <span className="font-mono text-xs">OpenCode</span> (optional
+                second agent), and{" "}
+                <span className="font-mono text-xs">herdr</span> (the default
+                launcher — workhub opens each AI task in a fresh herdr
+                workspace) are optional but recommended. The{" "}
+                <span className="font-mono">vault-setup</span> skill probes for
+                these and offers the install commands.
+              </li>
               <li>
                 <span className="font-medium text-foreground">
                   Create the task vault.
