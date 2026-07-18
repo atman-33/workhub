@@ -146,7 +146,10 @@ fn restore_saved_position(app: &AppHandle, win: &WebviewWindow) -> bool {
 
 fn show_indicator(app: &AppHandle) {
     let Some(win) = window(app) else { return };
-    if !restore_saved_position(app, &win) {
+    // Position only on the hidden→shown transition: phase changes mid-session
+    // (recording→transcribing, errors) re-enter here, and repositioning then
+    // would yank the window away from wherever the user just dragged it.
+    if !win.is_visible().unwrap_or(false) && !restore_saved_position(app, &win) {
         position_bottom_center(app, &win);
     }
     let _ = win.show();
@@ -317,6 +320,16 @@ fn start_recording(app: &AppHandle) {
             .ok();
     }
     set_phase(app, Phase::Recording);
+}
+
+/// Command entry point for the indicator's stop button: same stop path as
+/// the hotkey toggle when a recording is in progress, a no-op otherwise
+/// (mirrors `toggle`'s `Phase::Recording` arm).
+pub fn stop_recording_command(app: &AppHandle) {
+    let phase = app.state::<VoiceState>().phase.lock().unwrap().clone();
+    if matches!(phase, Phase::Recording) {
+        stop_recording(app);
+    }
 }
 
 fn stop_recording(app: &AppHandle) {
@@ -507,6 +520,10 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
 
     match worker.join() {
         Ok(Ok(text)) if !text.is_empty() => {
+            // Recorded regardless of paste success below — this history is
+            // the safety net for when the paste target lost focus (or the
+            // paste otherwise failed) between recording and now.
+            record_history_entry(&app, &text);
             if let Err(e) = paste_text(&text) {
                 eprintln!("voice: paste failed: {e}");
             }
@@ -516,6 +533,16 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         Ok(Err(e)) => emit_error(&app, e),
         Err(_) => emit_error(&app, "voice: transcriber thread panicked"),
     }
+}
+
+/// Appends a completed transcript to the persistent voice history (a safety
+/// net independent of whether `paste_text` below succeeds) and notifies any
+/// open windows so the Voice history tab can refresh live.
+fn record_history_entry(app: &AppHandle, text: &str) {
+    let model = storage::load().settings.voice_model;
+    let entry = crate::voice_history::HistoryEntry::new(text.to_string(), model);
+    crate::voice_history::record(entry);
+    let _ = app.emit("voice:history-updated", ());
 }
 
 fn push_mono<T: Copy>(

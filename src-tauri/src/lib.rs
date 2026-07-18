@@ -14,6 +14,7 @@ mod terminal;
 mod update;
 mod voice;
 mod voice_chunk;
+mod voice_history;
 mod wsl;
 
 use tauri::Manager;
@@ -120,6 +121,10 @@ pub fn run() {
             commands::stt_model_status,
             commands::stt_download_model,
             commands::stt_delete_model,
+            commands::voice_stop_recording,
+            commands::voice_history_list,
+            commands::voice_history_delete,
+            commands::voice_history_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

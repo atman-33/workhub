@@ -12,6 +12,7 @@ import type {
   Task,
   UpdateInfo,
   UpdateTaskInput,
+  VoiceHistoryEntry,
   Worktree,
 } from "@/types";
 
@@ -142,6 +143,12 @@ export const api = {
   sttModelStatus: () => invoke<SttModelStatus[]>("stt_model_status"),
   sttDownloadModel: (model: string) => invoke<void>("stt_download_model", { model }),
   sttDeleteModel: (model: string) => invoke<void>("stt_delete_model", { model }),
+  voiceStopRecording: () => invoke<void>("voice_stop_recording"),
+
+  // ---- voice input: transcript history ----
+  voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),
+  voiceHistoryDelete: (id: string) => invoke<void>("voice_history_delete", { id }),
+  voiceHistoryClear: () => invoke<void>("voice_history_clear"),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

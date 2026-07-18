@@ -25,6 +25,14 @@
     dragged anywhere on screen; its position is persisted and restored on
     the next recording (falling back to the previous bottom-center placement
     if the saved spot no longer overlaps a connected monitor).
+  - **Stop button**: the indicator now shows a small stop button while
+    recording (pill and preview layouts), so a recording can be ended with a
+    click instead of only the hotkey.
+  - **Voice history tab**: every completed transcript is now saved to a new
+    **Voice** tab (latest 50, oldest dropped first), regardless of whether
+    the auto-paste into the focused app succeeded — a safety net for when the
+    paste target lost focus. Each entry shows its timestamp and model, with
+    copy and delete actions, plus a "Clear all" action.
 
 ## 0.38.0 (2026-07-18)
 

@@ -72,11 +72,12 @@ const VOICE_MD = `## Voice input (local dictation)
 
 A global hotkey turns speech into text and pastes it into whatever app has focus — fully offline, no cloud, no LLM.
 
-- Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe. Recording auto-stops after 2 minutes.
+- Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe, or click the stop button on the indicator. Recording auto-stops after 2 minutes.
 - The first time, download a model in **⚙ Settings → Voice** (\`tiny\`/\`base\`/\`small\`; larger models are more accurate but slower). Transcription won't work until a model is downloaded.
 - A small indicator at the bottom of the screen shows recording (with elapsed time), transcribing, or an error. While speaking, it grows into a live preview of the transcript so far, built from short chunks transcribed as you go — no need to wait for the final pass.
 - The indicator can be dragged anywhere on screen; workhub remembers where you left it and reopens it there next time.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
+- Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.`;
 
 const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD].join("\n\n---\n\n");
@@ -380,7 +381,8 @@ export function HelpView() {
               <li>
                 Press <Kbd>Ctrl</Kbd> + <Kbd>Shift</Kbd> + <Kbd>Space</Kbd>{" "}
                 (the default) to start recording; press it again to stop and
-                transcribe. Recording auto-stops after 2 minutes.
+                transcribe, or click the stop button on the indicator.
+                Recording auto-stops after 2 minutes.
               </li>
               <li>
                 The first time, download a model in{" "}
@@ -406,6 +408,13 @@ export function HelpView() {
                 The transcript is copied to the clipboard, pasted into the
                 focused app via Ctrl+V, and the previous clipboard content is
                 restored afterward.
+              </li>
+              <li>
+                Every transcript is also saved to the{" "}
+                <span className="font-medium">Voice</span> tab as a safety
+                net, even if the paste fails or its target app lost focus —
+                the latest 50 transcripts are kept, each with copy and delete
+                actions.
               </li>
               <li>
                 The hotkey, model, and language can be changed in{" "}

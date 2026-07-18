@@ -504,3 +504,41 @@ pub async fn stt_delete_model(model: String) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?
 }
+
+/// Stop button on the indicator: same stop path as a second hotkey press
+/// while recording; a no-op in any other phase.
+#[tauri::command]
+pub fn voice_stop_recording(app: tauri::AppHandle) {
+    crate::voice::stop_recording_command(&app);
+}
+
+// ---------------------------------------------------------------------
+// voice input: transcript history (safety net for lost-focus pastes)
+// ---------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn voice_history_list() -> Vec<crate::voice_history::HistoryEntry> {
+    tauri::async_runtime::spawn_blocking(|| crate::voice_history::load().entries)
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn voice_history_delete(id: String) {
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        let mut history = crate::voice_history::load();
+        history.delete(&id);
+        crate::voice_history::save(&history);
+    })
+    .await;
+}
+
+#[tauri::command]
+pub async fn voice_history_clear() {
+    let _ = tauri::async_runtime::spawn_blocking(|| {
+        let mut history = crate::voice_history::load();
+        history.clear();
+        crate::voice_history::save(&history);
+    })
+    .await;
+}

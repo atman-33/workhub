@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AlertCircle, Loader2, Mic } from "lucide-react";
+import { AlertCircle, Loader2, Mic, Square } from "lucide-react";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type VoiceState = "idle" | "recording" | "transcribing" | "error";
@@ -85,6 +86,20 @@ export function VoiceIndicatorApp() {
   // errors.
   const isPreviewMode = hasPreview && (state === "recording" || state === "transcribing");
 
+  const stopButton = state === "recording" && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void api.voiceStopRecording();
+      }}
+      aria-label="Stop recording"
+      className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground"
+    >
+      <Square className="size-3.5 fill-current" />
+    </button>
+  );
+
   const statusRow = (
     <>
       {state === "recording" && (
@@ -131,11 +146,13 @@ export function VoiceIndicatorApp() {
           <div
             onMouseDown={(e) => {
               if (e.button !== 0) return;
+              if ((e.target as HTMLElement).closest("button")) return;
               getCurrentWindow().startDragging().catch(console.error);
             }}
             className="flex shrink-0 cursor-move select-none items-center gap-2 px-1.5 py-1"
           >
             {statusRow}
+            {stopButton && <span className="ml-auto flex items-center">{stopButton}</span>}
           </div>
           <div
             ref={previewRef}
@@ -153,11 +170,13 @@ export function VoiceIndicatorApp() {
       <div
         onMouseDown={(e) => {
           if (e.button !== 0) return;
+          if ((e.target as HTMLElement).closest("button")) return;
           getCurrentWindow().startDragging().catch(console.error);
         }}
         className="flex h-full w-full min-w-0 cursor-move select-none items-center justify-center gap-2 rounded-full border bg-popover px-3.5 text-popover-foreground shadow-lg"
       >
         {statusRow}
+        {stopButton}
       </div>
     </div>
   );

@@ -55,6 +55,15 @@ export interface SttModelStatus {
   active: boolean;
 }
 
+/** One recorded voice-input transcript (safety net for lost-focus pastes). */
+export interface VoiceHistoryEntry {
+  id: string;
+  text: string;
+  /** ISO 8601 UTC timestamp. */
+  created: string;
+  model: string;
+}
+
 export interface WindowRect {
   x: number;
   y: number;
