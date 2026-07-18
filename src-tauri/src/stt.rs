@@ -215,7 +215,15 @@ pub struct SttState(pub Mutex<Option<(String, WhisperContext)>>);
 /// if the configured model changed) the ggml model on first use and keeps it
 /// resident in `SttState`. Intended to be called from
 /// `tauri::async_runtime::spawn_blocking`.
-pub fn transcribe(state: &SttState, samples: &[f32]) -> Result<String, String> {
+///
+/// `initial_prompt`, when non-empty, seeds whisper's context (used by the
+/// streaming voice-input worker to carry the tail of the previous chunk's
+/// transcript across chunk boundaries so wording stays consistent).
+pub fn transcribe(
+    state: &SttState,
+    samples: &[f32],
+    initial_prompt: Option<&str>,
+) -> Result<String, String> {
     let settings = storage::load().settings;
     let model_name = settings.voice_model;
     let path = model_path(&model_name);
@@ -249,6 +257,11 @@ pub fn transcribe(state: &SttState, samples: &[f32]) -> Result<String, String> {
     // set_language takes Option<&str> with the same lifetime as `params`;
     // `language` above already borrows from `settings`, which outlives this call.
     params.set_language(language);
+    if let Some(prompt) = initial_prompt {
+        if !prompt.is_empty() {
+            params.set_initial_prompt(prompt);
+        }
+    }
     params.set_translate(false);
     params.set_print_special(false);
     params.set_print_progress(false);

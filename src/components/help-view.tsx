@@ -74,7 +74,8 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 
 - Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe. Recording auto-stops after 2 minutes.
 - The first time, download a model in **⚙ Settings → Voice** (\`tiny\`/\`base\`/\`small\`; larger models are more accurate but slower). Transcription won't work until a model is downloaded.
-- A small indicator at the bottom of the screen shows recording (with elapsed time), transcribing, or an error.
+- A small indicator at the bottom of the screen shows recording (with elapsed time), transcribing, or an error. While speaking, it grows into a live preview of the transcript so far, built from short chunks transcribed as you go — no need to wait for the final pass.
+- The indicator can be dragged anywhere on screen; workhub remembers where you left it and reopens it there next time.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.`;
 
@@ -393,6 +394,13 @@ export function HelpView() {
               <li>
                 A small indicator at the bottom of the screen shows
                 recording (with elapsed time), transcribing, or an error.
+                While speaking, it grows into a live preview of the
+                transcript so far, built from short chunks transcribed as
+                you go — no need to wait for the final pass.
+              </li>
+              <li>
+                The indicator can be dragged anywhere on screen; workhub
+                remembers where you left it and reopens it there next time.
               </li>
               <li>
                 The transcript is copied to the clipboard, pasted into the

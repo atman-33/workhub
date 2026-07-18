@@ -13,6 +13,18 @@
   (`tiny`/`base`/`small`, downloaded on demand and SHA-1 checksum-verified),
   and language in the new **Settings → Voice** tab; documented in the Help
   tab's new Voice Input section.
+  - **Live preview**: audio is split into speech chunks (cut on ~600ms of
+    trailing silence, or force-cut at 15s) and transcribed as you speak
+    instead of only once at stop, so stopping only pays for the tail chunk's
+    latency. Each chunk carries the tail of the running transcript as
+    whisper's initial prompt so wording stays consistent across chunk
+    boundaries. The indicator grows from a small pill into a live preview
+    panel showing the accumulated transcript, auto-scrolled to the latest
+    text, and shrinks back to the pill on idle or error.
+  - **Draggable indicator with remembered position**: the indicator can be
+    dragged anywhere on screen; its position is persisted and restored on
+    the next recording (falling back to the previous bottom-center placement
+    if the saved spot no longer overlaps a connected monitor).
 
 ## 0.38.0 (2026-07-18)
 

@@ -13,6 +13,7 @@ mod tasks;
 mod terminal;
 mod update;
 mod voice;
+mod voice_chunk;
 mod wsl;
 
 use tauri::Manager;

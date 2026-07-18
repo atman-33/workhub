@@ -86,6 +86,11 @@ pub struct Settings {
     /// Transcription language: "auto" or an ISO code (e.g. "en", "ja").
     #[serde(default = "default_voice_language")]
     pub voice_language: String,
+    /// Last dragged position of the voice indicator window (physical
+    /// pixels, top-left), carried over to the next show. Unset until the
+    /// user first drags it.
+    #[serde(default)]
+    pub voice_indicator_position: Option<(i32, i32)>,
 }
 
 /// A window position + size in logical pixels.
@@ -153,6 +158,7 @@ impl Default for Settings {
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),
             voice_language: default_voice_language(),
+            voice_indicator_position: None,
         }
     }
 }
