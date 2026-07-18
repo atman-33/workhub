@@ -73,7 +73,7 @@ export function HelpView() {
                 <span className="font-mono text-xs">C:/obsidian/workhub-vault</span>
                 ) and press <span className="font-medium">Init vault</span> to
                 expand the bundled template into it. You can change it later in{" "}
-                <span className="font-medium">⚙ Settings → Tasks vault path</span>.
+                <span className="font-medium">⚙ Settings → Vault → Tasks vault path</span>.
               </li>
               <li>
                 <span className="font-medium text-foreground">

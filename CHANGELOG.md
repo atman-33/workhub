@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.38.0 (2026-07-18)
+
+- **Settings dialog**: the settings screen no longer grows past the viewport as
+  options accumulate. It now caps at 85vh with a fixed header and footer (Save /
+  Reset stay reachable) and a single scrollable body, and its fields are split
+  into **General / Commands / Vault** tabs for scannability. A shared `max-h`
+  guard on `DialogContent` keeps any dialog from overflowing the screen, and a
+  new `Tabs` UI primitive backs the tabbed layout.
+
 ## 0.37.0 (2026-07-18)
 
 - **Help tab**: a new **Help** tab (right of Timer) documents the operations
