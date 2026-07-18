@@ -15,7 +15,10 @@
   plugin-install step is now a complete manual reference — it lists every
   required plugin (`workhub`, `engineering`, `productivity`, `obsidian`) with
   the correct scope, instead of omitting `workhub` while redundantly
-  reinstalling the template's pre-enabled plugins.
+  reinstalling the template's pre-enabled plugins. Each section now has a
+  **Copy section** button, and the page header has a **Copy all** button, so
+  the guide's steps and commands can be pasted straight into an AI agent
+  instead of retyped.
 
 ## 0.37.0 (2026-07-18)
 

@@ -1,16 +1,17 @@
-import type { ReactNode } from "react";
-import { Keyboard, PenLine, Rocket } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Check, Copy, Keyboard, PenLine, Rocket } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 
 // NOTE: This screen documents user-facing operations and setup steps. When an
 // operation or setup flow changes elsewhere in the app (ink shortcuts, quick
-// capture, first-run setup, settings), update the matching section here too.
-// See .claude/rules/help-screen.md.
+// capture, first-run setup, settings), update the matching section here too —
+// including its markdown copy source below. See .claude/rules/help-screen.md.
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
@@ -20,15 +21,101 @@ function Kbd({ children }: { children: ReactNode }) {
   );
 }
 
+const SETUP_MD = `## Initial setup
+
+A few steps to get workhub ready on a new machine. The fastest path is to run the \`vault-setup\` skill in Claude Code from the vault folder — it checks and installs the prerequisites, initializes the vault, wires up the plugins, and syncs OpenCode. To do it by hand:
+
+1. **Install the prerequisite software.** \`git\`, \`Node.js\` (≥ 20), and \`Claude Code\` are required. \`Obsidian\` (edit the vault by hand), \`OpenCode\` (optional second agent), and \`herdr\` (the default launcher — workhub opens each AI task in a fresh herdr workspace) are optional but recommended. The \`vault-setup\` skill probes for these and offers the install commands.
+2. **Create the task vault.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`) and press **Init vault** to expand the bundled template into it. You can change it later in **⚙ Settings → Vault → Tasks vault path**.
+3. **Install the Claude Code plugins.** If you created the vault from the template, \`workhub\`, \`engineering\`, and \`obsidian\` are already enabled — just accept the trust prompt on first launch. To install everything manually (or from a non-template setup), run:
+
+\`\`\`bash
+# one-time: register the marketplace
+claude plugin marketplace add atman-33/workhub
+
+# workhub — task-board & vault knowledge-base skills
+claude plugin install workhub@workhub-marketplace --scope project
+
+# engineering — dev workflow skills, sub-agents, MCP launchers
+claude plugin install engineering@workhub-marketplace --scope project
+
+# productivity — personal/machine tools (work logs, reports, ...)
+claude plugin install productivity@workhub-marketplace
+
+# obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers
+claude plugin install obsidian@workhub-marketplace --scope project
+\`\`\`
+
+\`workhub\` and \`engineering\` are project scope (per vault/repository); \`productivity\` is user scope (once per machine, works from any directory); \`obsidian\` is optional but recommended for editing vault notes. See \`docs/plugins.md\` in the workhub repo for the full catalog.
+
+4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.`;
+
+const INK_MD = `## Screen annotation (ink)
+
+Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
+
+- Double-press **Alt** and hold the second press to start drawing.
+- **Alt** + **S** cycles the pen color.
+- Release **Alt** to clear the strokes.
+- Can be disabled in **⚙ Settings**.`;
+
+const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
+
+A global hotkey opens a small always-on-top window that turns the current clipboard text into an \`inbox\` task, without switching to the app.
+
+- Press **Ctrl** + **Alt** + **N** (the default). If another app already holds that combination, workhub falls back to **Ctrl** + **Shift** + **N**.
+- Edit the title and description, then save — the task lands in the Tasks board with status \`inbox\`.
+- The shortcut can be changed in **⚙ Settings**.`;
+
+const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD].join("\n\n---\n\n");
+
+function CopyButton({
+  id,
+  markdown,
+  copiedId,
+  onCopy,
+  label,
+}: {
+  id: string;
+  markdown: string;
+  copiedId: string | null;
+  onCopy: (id: string, markdown: string) => void;
+  label: string;
+}) {
+  const copied = copiedId === id;
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="gap-1.5 text-xs"
+      onClick={() => onCopy(id, markdown)}
+    >
+      {copied ? (
+        <Check className="size-3.5 text-green-500" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+      {copied ? "Copied" : label}
+    </Button>
+  );
+}
+
 function Section({
   icon: Icon,
   title,
   value,
+  markdown,
+  copiedId,
+  onCopy,
   children,
 }: {
   icon: typeof Rocket;
   title: string;
   value: string;
+  markdown: string;
+  copiedId: string | null;
+  onCopy: (id: string, markdown: string) => void;
   children: ReactNode;
 }) {
   return (
@@ -40,6 +127,15 @@ function Section({
         </span>
       </AccordionTrigger>
       <AccordionContent className="space-y-3 text-sm text-muted-foreground">
+        <div className="flex justify-end">
+          <CopyButton
+            id={value}
+            markdown={markdown}
+            copiedId={copiedId}
+            onCopy={onCopy}
+            label="Copy section"
+          />
+        </div>
         {children}
       </AccordionContent>
     </AccordionItem>
@@ -47,21 +143,47 @@ function Section({
 }
 
 export function HelpView() {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (id: string, markdown: string) => {
+    void navigator.clipboard.writeText(markdown);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1500);
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-2xl px-6 py-6">
-        <h1 className="text-lg font-semibold">How to use workhub</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          A quick reference for setup and the shortcuts that aren't obvious from
-          the UI.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold">How to use workhub</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A quick reference for setup and the shortcuts that aren't obvious from
+              the UI.
+            </p>
+          </div>
+          <CopyButton
+            id="all"
+            markdown={ALL_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+            label="Copy all"
+          />
+        </div>
 
         <Accordion
           type="multiple"
           defaultValue={["setup", "ink", "quick-capture"]}
           className="mt-4"
         >
-          <Section icon={Rocket} title="Initial setup" value="setup">
+          <Section
+            icon={Rocket}
+            title="Initial setup"
+            value="setup"
+            markdown={SETUP_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
             <p>
               A few steps to get workhub ready on a new machine. The fastest
               path is to run the{" "}
@@ -147,7 +269,14 @@ export function HelpView() {
             </ol>
           </Section>
 
-          <Section icon={PenLine} title="Screen annotation (ink)" value="ink">
+          <Section
+            icon={PenLine}
+            title="Screen annotation (ink)"
+            value="ink"
+            markdown={INK_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
             <p>
               Draw temporary strokes anywhere on screen — handy when narrating or
               reviewing.
@@ -173,6 +302,9 @@ export function HelpView() {
             icon={Keyboard}
             title="Capture a task from anywhere (quick capture)"
             value="quick-capture"
+            markdown={QUICK_CAPTURE_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
           >
             <p>
               A global hotkey opens a small always-on-top window that turns the
