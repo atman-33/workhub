@@ -4,6 +4,7 @@ import {
   FolderOpen,
   GitBranch,
   ListTodo,
+  Mic,
   Music,
   Settings as SettingsIcon,
   Timer,
@@ -15,19 +16,21 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
 import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
+import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Settings, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos" | "music" | "timer" | "help";
+type Tab = "tasks" | "repos" | "music" | "timer" | "voice" | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
+  { key: "voice", label: "Voice", icon: Mic },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
 
@@ -116,6 +119,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "timer" && "hidden")}>
             <TimerView />
+          </div>
+          <div className={cn("h-full", tab !== "voice" && "hidden")}>
+            <VoiceView />
           </div>
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />

@@ -102,3 +102,19 @@
     cursor: pointer;
   }
 }
+
+/* Minimal scrollbar for the voice-indicator's live preview panel (small,
+   chromeless window — a full-width native scrollbar would dominate it). */
+.voice-preview-scroll {
+  scrollbar-width: thin;
+}
+.voice-preview-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.voice-preview-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+.voice-preview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -20,6 +20,8 @@ export default defineConfig({
         overlay: path.resolve(__dirname, "overlay.html"),
         // Quick-capture window (see src-tauri/src/quick_capture.rs).
         "quick-capture": path.resolve(__dirname, "quick-capture.html"),
+        // Voice-input recording/transcribing indicator (see src-tauri/src/voice.rs).
+        "voice-indicator": path.resolve(__dirname, "voice-indicator.html"),
       },
     },
   },

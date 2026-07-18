@@ -36,6 +36,32 @@ export interface Settings {
   /** Last quick-capture window rect (managed by the backend; round-tripped
    * here so saving settings doesn't wipe it). */
   quick_capture_rect: WindowRect | null;
+  /** Voice input: global hotkey toggles local speech-to-text dictation,
+   * pasted into whatever app has focus. */
+  voice_enabled: boolean;
+  /** Preferred voice-input hotkey; a fallback is tried if taken. */
+  voice_hotkey: string;
+  /** Whisper ggml model used for transcription: "tiny" | "base" | "small". */
+  voice_model: string;
+  /** Transcription language: "auto" or an ISO code (e.g. "en", "ja"). */
+  voice_language: string;
+}
+
+/** Per-model download/active status for Settings > Voice. */
+export interface SttModelStatus {
+  model: string;
+  size_label: string;
+  downloaded: boolean;
+  active: boolean;
+}
+
+/** One recorded voice-input transcript (safety net for lost-focus pastes). */
+export interface VoiceHistoryEntry {
+  id: string;
+  text: string;
+  /** ISO 8601 UTC timestamp. */
+  created: string;
+  model: string;
 }
 
 export interface WindowRect {

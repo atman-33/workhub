@@ -8,9 +8,13 @@ mod models;
 mod music;
 mod quick_capture;
 mod storage;
+mod stt;
 mod tasks;
 mod terminal;
 mod update;
+mod voice;
+mod voice_chunk;
+mod voice_history;
 mod wsl;
 
 use tauri::Manager;
@@ -28,10 +32,13 @@ pub fn run() {
                     // Runs inside WndProc on Windows — only show the
                     // pre-built window here, never build one (see
                     // quick_capture.rs module docs).
-                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed
-                        && quick_capture::matches(app, shortcut)
-                    {
+                    if event.state != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        return;
+                    }
+                    if quick_capture::matches(app, shortcut) {
                         quick_capture::show(app);
+                    } else if voice::matches(app, shortcut) {
+                        voice::toggle(app);
                     }
                 })
                 .build(),
@@ -40,6 +47,8 @@ pub fn run() {
         .manage(tasks::WatcherState::default())
         .manage(ink::InkState::default())
         .manage(terminal::TerminalState::default())
+        .manage(voice::VoiceState::default())
+        .manage(stt::SttState::default())
         .setup(|app| {
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
@@ -60,6 +69,12 @@ pub fn run() {
                 eprintln!("quick-capture: failed to create window: {e}");
             }
             quick_capture::apply_shortcut(app.handle());
+            // Same rationale: build the (hidden) voice indicator window up
+            // front so the hotkey handler only ever shows/hides it.
+            if let Err(e) = voice::create_window(app.handle()) {
+                eprintln!("voice: failed to create indicator window: {e}");
+            }
+            voice::apply_shortcut(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -103,6 +118,13 @@ pub fn run() {
             commands::terminal_resize,
             commands::terminal_close,
             commands::quick_capture_hide,
+            commands::stt_model_status,
+            commands::stt_download_model,
+            commands::stt_delete_model,
+            commands::voice_stop_recording,
+            commands::voice_history_list,
+            commands::voice_history_delete,
+            commands::voice_history_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

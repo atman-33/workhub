@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
-import { Check, FolderOpen, Loader2 } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
+import { Check, Download, FolderOpen, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,8 +14,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Settings, UpdateInfo } from "@/types";
+import type { Settings, SttModelStatus, UpdateInfo } from "@/types";
+
+const VOICE_MODELS: { id: string; label: string; size: string }[] = [
+  { id: "tiny", label: "Tiny", size: "75MB" },
+  { id: "base", label: "Base", size: "142MB" },
+  { id: "small", label: "Small", size: "466MB" },
+];
+
+const VOICE_LANGUAGES: { id: string; label: string }[] = [
+  { id: "auto", label: "Auto-detect" },
+  { id: "ja", label: "Japanese" },
+  { id: "en", label: "English" },
+];
 
 const DEFAULTS: Settings = {
   vscode_cmd: "code",
@@ -31,6 +51,10 @@ const DEFAULTS: Settings = {
   quick_capture_enabled: true,
   quick_capture_shortcut: "Ctrl+Alt+N",
   quick_capture_rect: null,
+  voice_enabled: true,
+  voice_hotkey: "Ctrl+Shift+Space",
+  voice_model: "small",
+  voice_language: "auto",
 };
 
 interface Props {
@@ -48,6 +72,12 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "failed"
   >("idle");
   const [error, setError] = useState("");
+  const [modelStatus, setModelStatus] = useState<SttModelStatus[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadError, setDownloadError] = useState("");
+
+  const refreshModelStatus = () => void api.sttModelStatus().then(setModelStatus);
 
   useEffect(() => {
     if (open) {
@@ -55,9 +85,56 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setUpdate(null);
       setPhase("idle");
       setError("");
+      setDownloadError("");
       void api.appVersion().then(setVersion);
+      refreshModelStatus();
     }
+    // refreshModelStatus is stable enough for this effect's purpose (only
+    // depends on api, which never changes); omitting it avoids a re-run loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings]);
+
+  useEffect(() => {
+    if (!open) return;
+    const unlistenProgress = listen<{ model: string; downloaded: number; total: number }>(
+      "stt:download-progress",
+      (event) => {
+        if (event.payload.total > 0) {
+          setDownloadProgress(Math.round((event.payload.downloaded / event.payload.total) * 100));
+        }
+      },
+    );
+    const unlistenDone = listen<string>("stt:download-done", () => {
+      setDownloading(null);
+      refreshModelStatus();
+    });
+    const unlistenError = listen<{ model: string; message: string }>("stt:download-error", (event) => {
+      setDownloading(null);
+      setDownloadError(event.payload.message);
+    });
+    return () => {
+      void unlistenProgress.then((fn) => fn());
+      void unlistenDone.then((fn) => fn());
+      void unlistenError.then((fn) => fn());
+    };
+  }, [open]);
+
+  const downloadModel = async (model: string) => {
+    setDownloading(model);
+    setDownloadProgress(0);
+    setDownloadError("");
+    try {
+      await api.sttDownloadModel(model);
+    } catch (e) {
+      setDownloading(null);
+      setDownloadError(String(e));
+    }
+  };
+
+  const deleteModel = async (model: string) => {
+    await api.sttDeleteModel(model);
+    refreshModelStatus();
+  };
 
   const check = async () => {
     setPhase("checking");
@@ -106,9 +183,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           <DialogDescription>Configure workhub commands, vault, and behavior.</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="general" className="flex flex-col gap-3">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
+            <TabsTrigger value="voice">Voice</TabsTrigger>
             <TabsTrigger value="vault">Vault</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
@@ -233,6 +311,125 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   />
                   Embed terminal (show herdr inside the app)
                 </label>
+              )}
+            </TabsContent>
+            <TabsContent value="voice" className="mt-0 space-y-3">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.voice_enabled}
+                  onCheckedChange={(v) => setDraft({ ...draft, voice_enabled: v === true })}
+                />
+                Voice input (hotkey dictates into the focused app)
+              </label>
+              {draft.voice_enabled && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Voice input hotkey
+                    </label>
+                    <Input
+                      value={draft.voice_hotkey}
+                      onChange={(e) => setDraft({ ...draft, voice_hotkey: e.target.value })}
+                      placeholder="Ctrl+Shift+Space"
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Model</label>
+                      <Select
+                        value={draft.voice_model}
+                        onValueChange={(v) => setDraft({ ...draft, voice_model: v })}
+                      >
+                        <SelectTrigger size="sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VOICE_MODELS.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.label} ({m.size})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Language</label>
+                      <Select
+                        value={draft.voice_language}
+                        onValueChange={(v) => setDraft({ ...draft, voice_language: v })}
+                      >
+                        <SelectTrigger size="sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VOICE_LANGUAGES.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                              {l.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Local models</p>
+                    {VOICE_MODELS.map((m) => {
+                      const status = modelStatus.find((s) => s.model === m.id);
+                      const isDownloading = downloading === m.id;
+                      return (
+                        <div key={m.id} className="space-y-1 rounded-md border p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-xs">
+                              {m.label} <span className="text-muted-foreground">({m.size})</span>
+                              {status?.active && (
+                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">
+                                  active
+                                </span>
+                              )}
+                            </span>
+                            {status?.downloaded ? (
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={`Delete ${m.label}`}
+                                onClick={() => void deleteModel(m.id)}
+                                disabled={isDownloading}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={`Download ${m.label}`}
+                                onClick={() => void downloadModel(m.id)}
+                                disabled={isDownloading}
+                              >
+                                {isDownloading ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                          {isDownloading && (
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full bg-primary transition-all"
+                                style={{ width: `${downloadProgress}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {downloadError && <p className="text-xs text-destructive">{downloadError}</p>}
+                  </div>
+                </>
               )}
             </TabsContent>
             <TabsContent value="vault" className="mt-0 space-y-3">

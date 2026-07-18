@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.39.0 (2026-07-18)
+
+- **Voice input**: a new global hotkey (`Ctrl+Shift+Space` by default) starts
+  and stops local speech-to-text dictation — press once to record, press
+  again to transcribe and paste the result into whatever app currently has
+  focus (clipboard + simulated Ctrl+V, with the previous clipboard content
+  restored afterward). Transcription runs fully offline via `whisper-rs`
+  (whisper.cpp), with no cloud calls and no LLM. A small always-on-top,
+  non-focusable indicator shows recording (with elapsed time), transcribing,
+  or an error, auto-hiding after idle. Configure the hotkey, model
+  (`tiny`/`base`/`small`, downloaded on demand and SHA-1 checksum-verified),
+  and language in the new **Settings → Voice** tab; documented in the Help
+  tab's new Voice Input section.
+  - **Live preview**: audio is split into speech chunks (cut on ~600ms of
+    trailing silence, or force-cut at 15s) and transcribed as you speak
+    instead of only once at stop, so stopping only pays for the tail chunk's
+    latency. Each chunk carries the tail of the running transcript as
+    whisper's initial prompt so wording stays consistent across chunk
+    boundaries. The indicator grows from a small pill into a live preview
+    panel showing the accumulated transcript, auto-scrolled to the latest
+    text, and shrinks back to the pill on idle or error.
+  - **Draggable indicator with remembered position**: the indicator can be
+    dragged anywhere on screen; its position is persisted and restored on
+    the next recording (falling back to the previous bottom-center placement
+    if the saved spot no longer overlaps a connected monitor).
+  - **Stop button**: the indicator now shows a small stop button while
+    recording (pill and preview layouts), so a recording can be ended with a
+    click instead of only the hotkey.
+  - **Voice history tab**: every completed transcript is now saved to a new
+    **Voice** tab (latest 50, oldest dropped first), regardless of whether
+    the auto-paste into the focused app succeeded — a safety net for when the
+    paste target lost focus. Each entry shows its timestamp and model, with
+    copy and delete actions, plus a "Clear all" action.
+
 ## 0.38.0 (2026-07-18)
 
 - **Settings dialog**: the settings screen no longer grows past the viewport as

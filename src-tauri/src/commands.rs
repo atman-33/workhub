@@ -33,6 +33,12 @@ pub fn save_config(app: tauri::AppHandle, config: Config) {
     {
         crate::quick_capture::apply_shortcut(&app);
     }
+    // Re-register the voice-input hotkey when its settings change.
+    if config.settings.voice_enabled != before.voice_enabled
+        || config.settings.voice_hotkey != before.voice_hotkey
+    {
+        crate::voice::apply_shortcut(&app);
+    }
     // Best-effort: keep the vault's .claude/project-context.json aligned with
     // the registered projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
@@ -469,4 +475,70 @@ pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), Str
 #[tauri::command]
 pub fn quick_capture_hide(app: tauri::AppHandle) {
     crate::quick_capture::hide(&app);
+}
+
+// ---------------------------------------------------------------------
+// voice input: local speech-to-text (whisper.cpp model management)
+// ---------------------------------------------------------------------
+
+/// Per-model download/active status for the Settings > Voice tab.
+#[tauri::command]
+pub async fn stt_model_status() -> Vec<crate::stt::ModelStatus> {
+    tauri::async_runtime::spawn_blocking(crate::stt::model_status)
+        .await
+        .unwrap_or_default()
+}
+
+/// Downloads and checksum-verifies a whisper.cpp ggml model. Progress is
+/// streamed via `stt:download-progress` / `-done` / `-error` events.
+#[tauri::command]
+pub async fn stt_download_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::stt::download_model(&app, &model))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn stt_delete_model(model: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::stt::delete_model(&model))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Stop button on the indicator: same stop path as a second hotkey press
+/// while recording; a no-op in any other phase.
+#[tauri::command]
+pub fn voice_stop_recording(app: tauri::AppHandle) {
+    crate::voice::stop_recording_command(&app);
+}
+
+// ---------------------------------------------------------------------
+// voice input: transcript history (safety net for lost-focus pastes)
+// ---------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn voice_history_list() -> Vec<crate::voice_history::HistoryEntry> {
+    tauri::async_runtime::spawn_blocking(|| crate::voice_history::load().entries)
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn voice_history_delete(id: String) {
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        let mut history = crate::voice_history::load();
+        history.delete(&id);
+        crate::voice_history::save(&history);
+    })
+    .await;
+}
+
+#[tauri::command]
+pub async fn voice_history_clear() {
+    let _ = tauri::async_runtime::spawn_blocking(|| {
+        let mut history = crate::voice_history::load();
+        history.clear();
+        crate::voice_history::save(&history);
+    })
+    .await;
 }
