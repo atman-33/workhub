@@ -79,26 +79,31 @@ export function HelpView() {
                 <span className="font-medium text-foreground">
                   Install the Claude Code plugins.
                 </span>{" "}
-                <span className="font-mono text-xs">workhub</span> and{" "}
-                <span className="font-mono text-xs">engineering</span> are
-                pre-enabled by the vault template (just accept the trust
-                prompt on first launch). Also install these recommended
-                plugins from a terminal:
+                If you created the vault from the template,{" "}
+                <span className="font-mono text-xs">workhub</span>,{" "}
+                <span className="font-mono text-xs">engineering</span>, and{" "}
+                <span className="font-mono text-xs">obsidian</span> are
+                already enabled — just accept the trust prompt on first
+                launch. To install everything manually (or from a non-template
+                setup), run:
                 <pre className="mt-1.5 overflow-x-auto rounded-md border bg-muted/50 p-2 font-mono text-[11px] text-foreground">
-                  {"claude plugin marketplace add atman-33/workhub\n\n" +
+                  {"# one-time: register the marketplace\n" +
+                    "claude plugin marketplace add atman-33/workhub\n\n" +
+                    "# workhub — task-board & vault knowledge-base skills\n" +
+                    "claude plugin install workhub@workhub-marketplace --scope project\n\n" +
                     "# engineering — dev workflow skills, sub-agents, MCP launchers\n" +
                     "claude plugin install engineering@workhub-marketplace --scope project\n\n" +
                     "# productivity — personal/machine tools (work logs, reports, ...)\n" +
                     "claude plugin install productivity@workhub-marketplace\n\n" +
                     "# obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers\n" +
-                    "claude plugin install obsidian@workhub-marketplace"}
+                    "claude plugin install obsidian@workhub-marketplace --scope project"}
                 </pre>
                 <span className="mt-1 block text-xs">
-                  <span className="font-mono">engineering</span> is project
-                  scope (per repository); <span className="font-mono">
-                    productivity
-                  </span>{" "}
-                  is user scope (once per machine, works from any directory);{" "}
+                  <span className="font-mono">workhub</span> and{" "}
+                  <span className="font-mono">engineering</span> are project
+                  scope (per vault/repository);{" "}
+                  <span className="font-mono">productivity</span> is user scope
+                  (once per machine, works from any directory);{" "}
                   <span className="font-mono">obsidian</span> is optional but
                   recommended for editing vault notes. See{" "}
                   <span className="font-mono">docs/plugins.md</span> in the

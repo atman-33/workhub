@@ -7,7 +7,12 @@
   Reset stay reachable) and a single scrollable body, and its fields are split
   into **General / Commands / Vault** tabs for scannability. A shared `max-h`
   guard on `DialogContent` keeps any dialog from overflowing the screen, and a
-  new `Tabs` UI primitive backs the tabbed layout.
+  new `Tabs` UI primitive backs the tabbed layout. The tab body has a fixed
+  height so the tab bar stays put when switching tabs.
+- **Help tab**: the plugin-install step is now a complete manual reference —
+  it lists every required plugin (`workhub`, `engineering`, `productivity`,
+  `obsidian`) with the correct scope, instead of omitting `workhub` while
+  redundantly reinstalling the template's pre-enabled plugins.
 
 ## 0.37.0 (2026-07-18)
 

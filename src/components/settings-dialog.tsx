@@ -105,13 +105,15 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Configure workhub commands, vault, and behavior.</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="general" className="flex min-h-0 flex-1 flex-col gap-3">
+        <Tabs defaultValue="general" className="flex flex-col gap-3">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="vault">Vault</TabsTrigger>
           </TabsList>
-          <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6">
+          {/* Fixed-height scroll area so the tab bar stays put when switching
+              tabs, regardless of how much content each tab holds. */}
+          <div className="-mx-6 h-[min(55vh,380px)] overflow-y-auto px-6">
             <TabsContent value="general" className="mt-0 space-y-3">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
