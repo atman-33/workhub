@@ -20,7 +20,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use crate::storage;
 
 pub const WINDOW_LABEL: &str = "voice-indicator";
-const WINDOW_SIZE: (f64, f64) = (220.0, 48.0);
+const WINDOW_SIZE: (f64, f64) = (340.0, 48.0);
 /// Tried after the configured hotkey when registration fails.
 const FALLBACK_SHORTCUTS: &[&str] = &["Ctrl+Alt+Space"];
 /// Recording auto-stops after this long even without a second hotkey press.
@@ -180,10 +180,7 @@ pub fn toggle(app: &AppHandle) {
 fn start_recording(app: &AppHandle) {
     let settings = storage::load().settings;
     if !settings.voice_enabled {
-        emit_error(
-            app,
-            "Voice input is disabled — enable it in Settings > Voice.",
-        );
+        emit_error(app, "Voice input is off (Settings > Voice)");
         return;
     }
     if !crate::stt::models_dir()
@@ -193,7 +190,7 @@ fn start_recording(app: &AppHandle) {
         emit_error(
             app,
             format!(
-                "Model '{}' is not downloaded — open Settings > Voice to download it.",
+                "Model '{}' not downloaded (Settings > Voice)",
                 settings.voice_model
             ),
         );

@@ -50,8 +50,8 @@ export function VoiceIndicatorApp() {
   if (state === "idle") return null;
 
   return (
-    <div className="flex h-screen items-center justify-center p-1">
-      <div className="flex items-center gap-2 rounded-full border bg-popover px-3.5 py-2 text-popover-foreground shadow-lg">
+    <div className="h-screen w-screen overflow-hidden p-1">
+      <div className="flex h-full w-full min-w-0 items-center justify-center gap-2 rounded-full border bg-popover px-3.5 text-popover-foreground shadow-lg">
         {state === "recording" && (
           <>
             <span className="relative flex size-2.5">
@@ -74,7 +74,10 @@ export function VoiceIndicatorApp() {
         {state === "error" && (
           <>
             <AlertCircle className="size-3.5 shrink-0 text-destructive" />
-            <span className={cn("truncate text-xs text-destructive")} title={message ?? undefined}>
+            <span
+              className={cn("min-w-0 flex-1 truncate text-xs text-destructive")}
+              title={message ?? undefined}
+            >
               {message ?? "Voice input error"}
             </span>
           </>

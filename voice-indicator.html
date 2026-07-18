@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>workhub — voice indicator</title>
+    <style>
+      /* Tiny fixed-size indicator window: never show scrollbars, and keep
+         the page itself transparent so the pill's rounded corners float. */
+      html,
+      body {
+        overflow: hidden;
+        background: transparent !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

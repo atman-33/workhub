@@ -221,7 +221,7 @@ pub fn transcribe(state: &SttState, samples: &[f32]) -> Result<String, String> {
     let path = model_path(&model_name);
     if !path.is_file() {
         return Err(format!(
-            "model '{model_name}' is not downloaded — open Settings > Voice to download it"
+            "Model '{model_name}' not downloaded (Settings > Voice)"
         ));
     }
 
