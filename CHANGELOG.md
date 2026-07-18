@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.37.0 (2026-07-18)
+
+- **Help tab**: a new **Help** tab (right of Timer) documents the operations
+  and setup that aren't discoverable from the UI — first-run vault/plugin/repo
+  setup, screen annotation (ink: double-press Alt + hold, `Alt+S` to cycle
+  color), and quick capture (`Ctrl+Alt+N`). A path-scoped rule
+  (`.claude/rules/help-screen.md`) and a CLAUDE.md note keep the guide in sync
+  when these behaviors change.
+
 ## 0.36.0 (2026-07-18)
 
 - Tasks: **priority** is now a first-class, one-click control. It renders as a

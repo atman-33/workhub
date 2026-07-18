@@ -87,6 +87,10 @@ before adding or moving a skill.
 - Before committing: `cargo fmt`, `cargo clippy -- -D warnings`,
   `cargo test --release`, and `npm run build` (typecheck) must pass.
 - Shell out to the `git` CLI for git operations; do not introduce libgit2.
+- Keep the in-app **Help** tab (`src/components/help-view.tsx`) in sync: when
+  you change a user-facing operation or setup step that isn't discoverable from
+  the UI (ink shortcuts, quick capture, first-run setup), update its section
+  there too. See `.claude/rules/help-screen.md`.
 
 <important>
 - Config compatibility: `%APPDATA%\workhub\config.json` is read by every
