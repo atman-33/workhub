@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Check, Copy, Keyboard, PenLine, Rocket } from "lucide-react";
+import { Check, Copy, Keyboard, Mic, PenLine, Rocket } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -68,7 +68,17 @@ A global hotkey opens a small always-on-top window that turns the current clipbo
 - Edit the title and description, then save — the task lands in the Tasks board with status \`inbox\`.
 - The shortcut can be changed in **⚙ Settings**.`;
 
-const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD].join("\n\n---\n\n");
+const VOICE_MD = `## Voice input (local dictation)
+
+A global hotkey turns speech into text and pastes it into whatever app has focus — fully offline, no cloud, no LLM.
+
+- Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe. Recording auto-stops after 2 minutes.
+- The first time, download a model in **⚙ Settings → Voice** (\`tiny\`/\`base\`/\`small\`; larger models are more accurate but slower). Transcription won't work until a model is downloaded.
+- A small indicator at the bottom of the screen shows recording (with elapsed time), transcribing, or an error.
+- The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
+- The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.`;
+
+const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD].join("\n\n---\n\n");
 
 function CopyButton({
   id,
@@ -196,7 +206,7 @@ export function HelpView() {
 
         <Accordion
           type="multiple"
-          defaultValue={["setup", "ink", "quick-capture"]}
+          defaultValue={["setup", "ink", "quick-capture", "voice"]}
           className="mt-4"
         >
           <Section
@@ -349,6 +359,49 @@ export function HelpView() {
               <li>
                 The shortcut can be changed in{" "}
                 <span className="font-medium">⚙ Settings</span>.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Mic}
+            title="Voice input (local dictation)"
+            value="voice"
+            markdown={VOICE_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              A global hotkey turns speech into text and pastes it into
+              whatever app has focus — fully offline, no cloud, no LLM.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                Press <Kbd>Ctrl</Kbd> + <Kbd>Shift</Kbd> + <Kbd>Space</Kbd>{" "}
+                (the default) to start recording; press it again to stop and
+                transcribe. Recording auto-stops after 2 minutes.
+              </li>
+              <li>
+                The first time, download a model in{" "}
+                <span className="font-medium">⚙ Settings → Voice</span> (
+                <span className="font-mono text-xs">tiny</span>/
+                <span className="font-mono text-xs">base</span>/
+                <span className="font-mono text-xs">small</span>; larger
+                models are more accurate but slower). Transcription won't
+                work until a model is downloaded.
+              </li>
+              <li>
+                A small indicator at the bottom of the screen shows
+                recording (with elapsed time), transcribing, or an error.
+              </li>
+              <li>
+                The transcript is copied to the clipboard, pasted into the
+                focused app via Ctrl+V, and the previous clipboard content is
+                restored afterward.
+              </li>
+              <li>
+                The hotkey, model, and language can be changed in{" "}
+                <span className="font-medium">⚙ Settings → Voice</span>.
               </li>
             </ul>
           </Section>

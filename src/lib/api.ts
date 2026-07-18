@@ -8,6 +8,7 @@ import type {
   GitInfo,
   GitLog,
   GraphOp,
+  SttModelStatus,
   Task,
   UpdateInfo,
   UpdateTaskInput,
@@ -136,6 +137,11 @@ export const api = {
   terminalResize: (id: string, cols: number, rows: number) =>
     invoke<void>("terminal_resize", { id, cols, rows }),
   terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
+
+  // ---- voice input (local speech-to-text) ----
+  sttModelStatus: () => invoke<SttModelStatus[]>("stt_model_status"),
+  sttDownloadModel: (model: string) => invoke<void>("stt_download_model", { model }),
+  sttDeleteModel: (model: string) => invoke<void>("stt_delete_model", { model }),
 };
 
 // Dev-only default: the workhub-vault template folder shipped in this repo

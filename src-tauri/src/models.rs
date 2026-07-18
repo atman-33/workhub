@@ -73,6 +73,19 @@ pub struct Settings {
     /// carried over to the next open. Unset until first moved/closed.
     #[serde(default)]
     pub quick_capture_rect: Option<WindowRect>,
+    /// Voice input: global hotkey toggles local speech-to-text dictation,
+    /// pasted into whatever app has focus.
+    #[serde(default = "default_true")]
+    pub voice_enabled: bool,
+    /// Preferred voice-input hotkey; a fallback is tried if taken.
+    #[serde(default = "default_voice_hotkey")]
+    pub voice_hotkey: String,
+    /// Whisper ggml model used for transcription: "tiny" | "base" | "small".
+    #[serde(default = "default_voice_model")]
+    pub voice_model: String,
+    /// Transcription language: "auto" or an ISO code (e.g. "en", "ja").
+    #[serde(default = "default_voice_language")]
+    pub voice_language: String,
 }
 
 /// A window position + size in logical pixels.
@@ -109,6 +122,15 @@ fn default_worktree_root() -> String {
 fn default_quick_capture_shortcut() -> String {
     "Ctrl+Alt+N".into()
 }
+fn default_voice_hotkey() -> String {
+    "Ctrl+Shift+Space".into()
+}
+fn default_voice_model() -> String {
+    "small".into()
+}
+fn default_voice_language() -> String {
+    "auto".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -127,6 +149,10 @@ impl Default for Settings {
             quick_capture_enabled: true,
             quick_capture_shortcut: default_quick_capture_shortcut(),
             quick_capture_rect: None,
+            voice_enabled: true,
+            voice_hotkey: default_voice_hotkey(),
+            voice_model: default_voice_model(),
+            voice_language: default_voice_language(),
         }
     }
 }

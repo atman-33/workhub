@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.39.0 (2026-07-18)
+
+- **Voice input**: a new global hotkey (`Ctrl+Shift+Space` by default) starts
+  and stops local speech-to-text dictation — press once to record, press
+  again to transcribe and paste the result into whatever app currently has
+  focus (clipboard + simulated Ctrl+V, with the previous clipboard content
+  restored afterward). Transcription runs fully offline via `whisper-rs`
+  (whisper.cpp), with no cloud calls and no LLM. A small always-on-top,
+  non-focusable indicator shows recording (with elapsed time), transcribing,
+  or an error, auto-hiding after idle. Configure the hotkey, model
+  (`tiny`/`base`/`small`, downloaded on demand and SHA-1 checksum-verified),
+  and language in the new **Settings → Voice** tab; documented in the Help
+  tab's new Voice Input section.
+
 ## 0.38.0 (2026-07-18)
 
 - **Settings dialog**: the settings screen no longer grows past the viewport as

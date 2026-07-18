@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.38.0"
+version = "0.39.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -37,6 +37,14 @@ tauri-plugin-global-shortcut = "2"
 # percent-encoding for obsidian:// open URIs (task file jump-to-Obsidian)
 percent-encoding = "2"
 portable-pty = "0.9"
+# voice input: local speech-to-text via whisper.cpp (no LLM, CPU-only)
+whisper-rs = "0.14"
+# voice input: native microphone capture (focus-independent, no webview mic)
+cpal = "0.15"
+# voice input: verifies downloaded ggml model checksums. Upstream whisper.cpp
+# publishes SHA-1 checksums for its ggml models (40 hex chars), not SHA-256 —
+# this crate matches that, see src-tauri/src/stt.rs.
+sha1 = "0.10"
 
 # ink overlay: Raw Input keyboard listener for the double-Alt temporary draw mode
 [target.'cfg(windows)'.dependencies]
@@ -48,7 +56,19 @@ windows = { version = "0.61", features = [
     "Win32_System_LibraryLoader",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    # voice input: clipboard save/restore around the paste-injection (the
+    # focused app, not workhub, owns the clipboard target — Win32 clipboard
+    # APIs work regardless of which window has focus).
+    "Win32_System_DataExchange",
+    "Win32_System_Ole",
+    "Win32_System_Memory",
 ] }
+
+# whisper-rs-sys 0.13.1 passes the MSVC-only /utf-8 flag to g++ on every
+# Windows target, which breaks the windows-gnu build. Vendored copy carries a
+# one-line fix gating the flag on *-msvc (see vendor/whisper-rs-sys/build.rs).
+[patch.crates-io]
+whisper-rs-sys = { path = "vendor/whisper-rs-sys" }
 
 [profile.release]
 opt-level = 2

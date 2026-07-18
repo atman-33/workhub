@@ -33,6 +33,12 @@ pub fn save_config(app: tauri::AppHandle, config: Config) {
     {
         crate::quick_capture::apply_shortcut(&app);
     }
+    // Re-register the voice-input hotkey when its settings change.
+    if config.settings.voice_enabled != before.voice_enabled
+        || config.settings.voice_hotkey != before.voice_hotkey
+    {
+        crate::voice::apply_shortcut(&app);
+    }
     // Best-effort: keep the vault's .claude/project-context.json aligned with
     // the registered projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
@@ -469,4 +475,32 @@ pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), Str
 #[tauri::command]
 pub fn quick_capture_hide(app: tauri::AppHandle) {
     crate::quick_capture::hide(&app);
+}
+
+// ---------------------------------------------------------------------
+// voice input: local speech-to-text (whisper.cpp model management)
+// ---------------------------------------------------------------------
+
+/// Per-model download/active status for the Settings > Voice tab.
+#[tauri::command]
+pub async fn stt_model_status() -> Vec<crate::stt::ModelStatus> {
+    tauri::async_runtime::spawn_blocking(crate::stt::model_status)
+        .await
+        .unwrap_or_default()
+}
+
+/// Downloads and checksum-verifies a whisper.cpp ggml model. Progress is
+/// streamed via `stt:download-progress` / `-done` / `-error` events.
+#[tauri::command]
+pub async fn stt_download_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::stt::download_model(&app, &model))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn stt_delete_model(model: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::stt::delete_model(&model))
+        .await
+        .map_err(|e| e.to_string())?
 }
