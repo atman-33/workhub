@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // NOTE: This screen documents user-facing operations and setup steps. When an
 // operation or setup flow changes elsewhere in the app (ink shortcuts, quick
@@ -75,27 +76,45 @@ function CopyButton({
   copiedId,
   onCopy,
   label,
+  iconOnly = false,
+  className,
 }: {
   id: string;
   markdown: string;
   copiedId: string | null;
   onCopy: (id: string, markdown: string) => void;
   label: string;
+  iconOnly?: boolean;
+  className?: string;
 }) {
   const copied = copiedId === id;
+  const Icon = copied ? Check : Copy;
+
+  if (iconOnly) {
+    return (
+      <Button
+        type="button"
+        size="icon-xs"
+        variant="ghost"
+        aria-label={label}
+        title={label}
+        className={cn("text-muted-foreground", copied && "text-green-500", className)}
+        onClick={() => onCopy(id, markdown)}
+      >
+        <Icon className="size-3.5" />
+      </Button>
+    );
+  }
+
   return (
     <Button
       type="button"
       size="sm"
       variant="outline"
-      className="gap-1.5 text-xs"
+      className={cn("gap-1.5 text-xs", className)}
       onClick={() => onCopy(id, markdown)}
     >
-      {copied ? (
-        <Check className="size-3.5 text-green-500" />
-      ) : (
-        <Copy className="size-3.5" />
-      )}
+      <Icon className={cn("size-3.5", copied && "text-green-500")} />
       {copied ? "Copied" : label}
     </Button>
   );
@@ -120,22 +139,26 @@ function Section({
 }) {
   return (
     <AccordionItem value={value}>
-      <AccordionTrigger>
-        <span className="flex items-center gap-2">
-          <Icon className="size-4 text-muted-foreground" />
-          {title}
-        </span>
-      </AccordionTrigger>
+      <div className="relative">
+        <AccordionTrigger>
+          <span className="flex items-center gap-2 pr-8">
+            <Icon className="size-4 text-muted-foreground" />
+            {title}
+          </span>
+        </AccordionTrigger>
+        {/* Sibling of the trigger (which is itself a <button>, so we can't nest
+            another button inside it): overlaid just left of the chevron. */}
+        <CopyButton
+          id={value}
+          markdown={markdown}
+          copiedId={copiedId}
+          onCopy={onCopy}
+          label="Copy section"
+          iconOnly
+          className="absolute top-1/2 right-7 -translate-y-1/2"
+        />
+      </div>
       <AccordionContent className="space-y-3 text-sm text-muted-foreground">
-        <div className="flex justify-end">
-          <CopyButton
-            id={value}
-            markdown={markdown}
-            copiedId={copiedId}
-            onCopy={onCopy}
-            label="Copy section"
-          />
-        </div>
         {children}
       </AccordionContent>
     </AccordionItem>
