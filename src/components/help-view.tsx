@@ -77,13 +77,33 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  Install the Claude Code plugin.
+                  Install the Claude Code plugins.
                 </span>{" "}
-                Install it at user scope so it is available in every repository a
-                task may target:
+                <span className="font-mono text-xs">workhub</span> and{" "}
+                <span className="font-mono text-xs">engineering</span> are
+                pre-enabled by the vault template (just accept the trust
+                prompt on first launch). Also install these recommended
+                plugins from a terminal:
                 <pre className="mt-1.5 overflow-x-auto rounded-md border bg-muted/50 p-2 font-mono text-[11px] text-foreground">
-                  {"/plugin marketplace add atman-33/workhub\n/plugin install workhub@workhub-marketplace"}
+                  {"claude plugin marketplace add atman-33/workhub\n\n" +
+                    "# engineering — dev workflow skills, sub-agents, MCP launchers\n" +
+                    "claude plugin install engineering@workhub-marketplace --scope project\n\n" +
+                    "# productivity — personal/machine tools (work logs, reports, ...)\n" +
+                    "claude plugin install productivity@workhub-marketplace\n\n" +
+                    "# obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers\n" +
+                    "claude plugin install obsidian@workhub-marketplace"}
                 </pre>
+                <span className="mt-1 block text-xs">
+                  <span className="font-mono">engineering</span> is project
+                  scope (per repository); <span className="font-mono">
+                    productivity
+                  </span>{" "}
+                  is user scope (once per machine, works from any directory);{" "}
+                  <span className="font-mono">obsidian</span> is optional but
+                  recommended for editing vault notes. See{" "}
+                  <span className="font-mono">docs/plugins.md</span> in the
+                  workhub repo for the full catalog.
+                </span>
               </li>
               <li>
                 <span className="font-medium text-foreground">
