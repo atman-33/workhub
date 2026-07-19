@@ -45,6 +45,41 @@ export interface Settings {
   voice_model: string;
   /** Transcription language: "auto" or an ISO code (e.g. "en", "ja"). */
   voice_language: string;
+  /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
+   * tasks/archive index via a headless agent). */
+  tidy: TidySettings;
+}
+
+/** Config for the built-in vault-tidy routine (T-0050). */
+export interface TidySettings {
+  /** Master on/off for the *scheduled* routine (manual runs ignore this). */
+  enabled: boolean;
+  /** Which agent CLI to launch: "claude-code" | "opencode". */
+  assignee: string;
+  /** Model passed to the agent via --model; empty = the agent's default. */
+  model: string;
+  /** Anchor (unix seconds) the interval schedule is phased from. */
+  anchor: number | null;
+  /** Hours between scheduled runs, measured from the anchor. */
+  interval_hours: number;
+  /** Inbox files are only considered once at least this many days old. */
+  stale_days: number;
+  /** Inbox subfolders skipped entirely (work-in-progress hold areas). */
+  exclude_dirs: string[];
+  /** Unix seconds of the last run (scheduled or manual). */
+  last_run: number | null;
+}
+
+/** Live state of the vault-tidy runner, from `tidy_status` / `tidy:status`. */
+export interface TidyRun {
+  /** "idle" | "running" | "completed" | "failed" */
+  state: string;
+  since: number | null;
+  at: number | null;
+  summary: string | null;
+  error: string | null;
+  session_id: string | null;
+  stalled: boolean;
 }
 
 /** Per-model download/active status for Settings > Voice. */

@@ -265,6 +265,104 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
     )
 }
 
+/// Builds the self-contained prompt for an unattended vault-tidy run. The agent
+/// has no memory of any conversation, so this spells out exactly which skills to
+/// run and in which order. `stale_days`/`exclude` are baked in as literal values
+/// so the headless run never has to re-resolve settings.
+pub fn build_tidy_prompt(stale_days: u32, exclude: &[String]) -> String {
+    let exclude_arg = if exclude.is_empty() {
+        String::new()
+    } else {
+        format!(" --exclude {}", exclude.join(","))
+    };
+    format!(
+        "Perform unattended vault maintenance, non-interactively. \
+Step 1: run the kb-ingest skill in unattended mode — `/kb-ingest --unattended --stale-days {stale_days}{exclude_arg}`. \
+File only what is unambiguous and safe; leave everything that needs human judgement (new folder, rename, low confidence) in place and log it as pending-review, per the kb-ingest unattended rules. \
+Step 2: run the kb-index skill for the archive zone — `/kb-index --zone tasks-archive`. \
+Step 3: append one summary line to `_ai/logs/kb-log.md` stating how many files were auto-filed, how many were left pending-review, and whether the archive index changed. \
+Do not ask for confirmation at any point."
+    )
+}
+
+/// Extracts the bare agent executable from a configured command template by
+/// stripping the terminal wrapper. e.g.
+/// `wt -d {path} powershell -NoExit -Command claude` -> `claude`;
+/// a plain `claude` template -> `claude`. Used by the headless tidy launch,
+/// which runs the agent directly (no terminal window) with the vault as cwd.
+pub fn bare_agent_exe(template: &str) -> String {
+    let tokens = split_command_line(template);
+    if let Some(i) = tokens
+        .iter()
+        .position(|t| t.eq_ignore_ascii_case("-command"))
+    {
+        return tokens.get(i + 1).cloned().unwrap_or_default();
+    }
+    tokens
+        .into_iter()
+        .rev()
+        .find(|t| !t.starts_with('-') && !t.contains("{path}"))
+        .unwrap_or_default()
+}
+
+/// Builds the argv for a **headless** agent run (no terminal window; captured
+/// output). The tidy prompt is fed on **stdin**, not as an argument, so no
+/// shell/`cmd.exe` quoting of the long prompt is needed. claude runs in print
+/// mode with JSON output so the caller can parse `session_id` (for resume) and
+/// `is_error`; permissions are skipped so an unattended run never stalls on a
+/// prompt. opencode uses its non-interactive `run` subcommand.
+///
+/// ⚠ The exact CLI flags here are the main thing to verify on the first real
+/// run — a wrong flag surfaces as a captured error (Failed state), not a hang.
+pub fn tidy_agent_argv(
+    assignee: &str,
+    agent_cmd: &str,
+    opencode_cmd: &str,
+    model: &str,
+) -> Vec<String> {
+    let m = model.trim();
+    if assignee == "opencode" {
+        let exe = bare_agent_exe(opencode_cmd);
+        let mut argv = vec![exe, "run".into()];
+        if !m.is_empty() {
+            argv.push("--model".into());
+            argv.push(m.into());
+        }
+        argv
+    } else {
+        let exe = bare_agent_exe(agent_cmd);
+        let mut argv = vec![exe];
+        if !m.is_empty() {
+            argv.push("--model".into());
+            argv.push(m.into());
+        }
+        argv.push("--output-format".into());
+        argv.push("json".into());
+        // Headless: no interactive session to answer permission prompts, so the
+        // run must not block on them. Scoped to the vault the user pointed at
+        // and gated behind the user explicitly enabling/triggering tidy.
+        argv.push("--dangerously-skip-permissions".into());
+        // `-p` with no positional value reads the prompt from stdin.
+        argv.push("-p".into());
+        argv
+    }
+}
+
+/// Launches a visible terminal to resume a headless tidy session interactively.
+/// Fills the agent command `template`'s `{path}` with the vault and, for a
+/// claude session with a captured `session_id`, appends `--resume <id>` so the
+/// user can drive the exact stalled/failed session by hand. Without a session
+/// id it just opens a fresh interactive agent in the vault.
+pub fn launch_resume(template: &str, vault: &str, session_id: Option<&str>) -> Result<(), String> {
+    let mut cmd = fill_template(template, &vault.replace('\\', "/"));
+    if let Some(id) = session_id {
+        if !id.is_empty() {
+            cmd.push_str(&format!(" --resume {id}"));
+        }
+    }
+    launch(&cmd)
+}
+
 /// Renders the ` --model <model>` fragment inserted between the agent command
 /// and the trailing prompt. Both claude and opencode accept `--model`; an
 /// empty model means "use the agent's own default" and adds nothing.

@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { Check, Download, FolderOpen, Loader2, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import {
+  AlertTriangle,
+  Check,
+  Download,
+  FolderOpen,
+  Loader2,
+  Play,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
+import { api, timeAgo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -21,8 +30,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Settings, SttModelStatus, UpdateInfo } from "@/types";
+import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
+
+const TIDY_DEFAULTS: Settings["tidy"] = {
+  enabled: false,
+  assignee: "claude-code",
+  model: "",
+  anchor: null,
+  interval_hours: 24,
+  stale_days: 7,
+  exclude_dirs: ["_wip"],
+  last_run: null,
+};
+
+/** unix seconds -> a `datetime-local` input value in the user's local time. */
+function unixToLocalInput(secs: number | null): string {
+  if (!secs) return "";
+  const d = new Date(secs * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToUnix(value: string): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+}
+
+/** Next scheduled check time from anchor + interval (unix seconds). */
+function nextCheck(tidy: Settings["tidy"]): number | null {
+  if (!tidy.anchor) return null;
+  const interval = Math.max(1, tidy.interval_hours) * 3600;
+  const now = Math.floor(Date.now() / 1000);
+  const elapsed = Math.max(0, now - tidy.anchor);
+  return tidy.anchor + (Math.floor(elapsed / interval) + 1) * interval;
+}
 
 const VOICE_MODELS: { id: string; label: string; size: string }[] = [
   { id: "tiny", label: "Tiny", size: "75MB" },
@@ -55,6 +99,7 @@ const DEFAULTS: Settings = {
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
   voice_language: "auto",
+  tidy: TIDY_DEFAULTS,
 };
 
 interface Props {
@@ -76,6 +121,12 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadError, setDownloadError] = useState("");
+  const [tidyRun, setTidyRun] = useState<TidyRun | null>(null);
+  const [tidyMsg, setTidyMsg] = useState("");
+
+  // A tidy config helper so the many nested fields stay readable.
+  const setTidy = (patch: Partial<Settings["tidy"]>) =>
+    setDraft((d) => ({ ...d, tidy: { ...d.tidy, ...patch } }));
 
   const refreshModelStatus = () => void api.sttModelStatus().then(setModelStatus);
 
@@ -87,6 +138,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setError("");
       setDownloadError("");
       void api.appVersion().then(setVersion);
+      void api.tidyStatus().then(setTidyRun);
+      setTidyMsg("");
       refreshModelStatus();
     }
     // refreshModelStatus is stable enough for this effect's purpose (only
@@ -112,10 +165,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setDownloading(null);
       setDownloadError(event.payload.message);
     });
+    const unlistenTidy = listen<TidyRun>("tidy:status", (event) => {
+      setTidyRun(event.payload);
+    });
     return () => {
       void unlistenProgress.then((fn) => fn());
       void unlistenDone.then((fn) => fn());
       void unlistenError.then((fn) => fn());
+      void unlistenTidy.then((fn) => fn());
     };
   }, [open]);
 
@@ -134,6 +191,25 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const deleteModel = async (model: string) => {
     await api.sttDeleteModel(model);
     refreshModelStatus();
+  };
+
+  const runTidy = async (force: boolean) => {
+    setTidyMsg("");
+    try {
+      setTidyMsg(await api.runVaultTidyNow(force));
+      setTidyRun(await api.tidyStatus());
+    } catch (e) {
+      setTidyMsg(String(e));
+    }
+  };
+
+  const resumeTidy = async () => {
+    setTidyMsg("");
+    try {
+      setTidyMsg(await api.resumeTidySession());
+    } catch (e) {
+      setTidyMsg(String(e));
+    }
   };
 
   const check = async () => {
@@ -457,6 +533,171 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     <FolderOpen className="size-3.5" />
                   </Button>
                 </div>
+              </div>
+
+              {/* Vault tidy (T-0050) */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Vault tidy</p>
+                    <p className="text-xs text-muted-foreground">
+                      File stale inbox notes and refresh the archive index with a headless agent.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.tidy.enabled}
+                    onCheckedChange={(v) => setTidy({ enabled: v })}
+                  />
+                </div>
+
+                {tidyRun && (
+                  <div className="rounded-md bg-muted p-2 text-xs">
+                    {tidyRun.state === "running" ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {tidyRun.stalled ? "Running — may be stuck" : "Running…"}
+                      </span>
+                    ) : tidyRun.state === "failed" ? (
+                      <span className="flex items-start gap-1.5 text-destructive">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                        <span>Failed{tidyRun.error ? `: ${tidyRun.error}` : ""}</span>
+                      </span>
+                    ) : tidyRun.state === "completed" ? (
+                      <span className="flex items-start gap-1.5">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-green-500" />
+                        <span>{tidyRun.summary ?? "Completed"}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Idle</span>
+                    )}
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      {tidyRun.at
+                        ? `Last run ${timeAgo(tidyRun.at)}. `
+                        : draft.tidy.last_run
+                          ? `Last run ${timeAgo(draft.tidy.last_run)}. `
+                          : "Not run yet. "}
+                      {draft.tidy.enabled && nextCheck(draft.tidy)
+                        ? `Next check ${new Date((nextCheck(draft.tidy) as number) * 1000).toLocaleString()}.`
+                        : ""}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                    <Select
+                      value={draft.tidy.assignee}
+                      onValueChange={(v) => setTidy({ assignee: v })}
+                    >
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="claude-code">Claude Code</SelectItem>
+                        <SelectItem value="opencode">OpenCode</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Model</label>
+                    <Input
+                      value={draft.tidy.model}
+                      onChange={(e) => setTidy({ model: e.target.value })}
+                      placeholder="agent default"
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">First run at</label>
+                    <Input
+                      type="datetime-local"
+                      value={unixToLocalInput(draft.tidy.anchor)}
+                      onChange={(e) => setTidy({ anchor: localInputToUnix(e.target.value) })}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Run every (hours)
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={draft.tidy.interval_hours}
+                      onChange={(e) =>
+                        setTidy({ interval_hours: Math.max(1, Number(e.target.value) || 1) })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Inbox age (days)
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={draft.tidy.stale_days}
+                      onChange={(e) =>
+                        setTidy({ stale_days: Math.max(0, Number(e.target.value) || 0) })
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Exclude folders
+                    </label>
+                    <Input
+                      value={draft.tidy.exclude_dirs.join(", ")}
+                      onChange={(e) =>
+                        setTidy({
+                          exclude_dirs: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="_wip"
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  24 = daily, 168 = weekly. Save to apply schedule changes.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void runTidy(false)}
+                    disabled={tidyRun?.state === "running"}
+                  >
+                    <Play className="mr-1.5 size-3.5" />
+                    Run now
+                  </Button>
+                  {(tidyRun?.state === "failed" || tidyRun?.stalled) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void resumeTidy()}
+                    >
+                      <RotateCcw className="mr-1.5 size-3.5" />
+                      Resume session
+                    </Button>
+                  )}
+                </div>
+                {tidyMsg && <p className="text-xs text-muted-foreground">{tidyMsg}</p>}
               </div>
             </TabsContent>
           </div>

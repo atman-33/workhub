@@ -91,6 +91,74 @@ pub struct Settings {
     /// user first drags it.
     #[serde(default)]
     pub voice_indicator_position: Option<(i32, i32)>,
+    /// Built-in vault-tidy routine (T-0050): periodically files stale inbox
+    /// notes and refreshes the tasks/archive index via a headless agent.
+    #[serde(default)]
+    pub tidy: TidySettings,
+}
+
+/// Config for the built-in vault-tidy routine. The scheduler decides *whether*
+/// there is work with a cheap mechanical scan (no tokens); only when there is
+/// does it launch the agent. Disabled by default so existing installs — and
+/// users who prefer a Claude Desktop routine — are unaffected; manual "Run now"
+/// works regardless of `enabled`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TidySettings {
+    /// Master on/off for the *scheduled* routine (manual runs ignore this).
+    #[serde(default)]
+    pub enabled: bool,
+    /// Which agent CLI to launch: "claude-code" | "opencode".
+    #[serde(default = "default_tidy_assignee")]
+    pub assignee: String,
+    /// Model passed to the agent via `--model`; empty = the agent's default.
+    #[serde(default)]
+    pub model: String,
+    /// Anchor (unix seconds) the interval schedule is phased from. Set to the
+    /// current time when the routine is first enabled if still unset.
+    #[serde(default)]
+    pub anchor: Option<u64>,
+    /// Hours between scheduled runs, measured from `anchor`.
+    #[serde(default = "default_tidy_interval_hours")]
+    pub interval_hours: u32,
+    /// Inbox files are only considered once their mtime is at least this many
+    /// days old (still-being-edited notes are left alone).
+    #[serde(default = "default_tidy_stale_days")]
+    pub stale_days: u32,
+    /// Inbox subfolders skipped entirely (work-in-progress hold areas).
+    #[serde(default = "default_tidy_exclude_dirs")]
+    pub exclude_dirs: Vec<String>,
+    /// Unix seconds of the last run (scheduled or manual). Drives both the
+    /// "slot already consumed" check and the UI's last-run display.
+    #[serde(default)]
+    pub last_run: Option<u64>,
+}
+
+fn default_tidy_assignee() -> String {
+    "claude-code".into()
+}
+fn default_tidy_interval_hours() -> u32 {
+    24
+}
+fn default_tidy_stale_days() -> u32 {
+    7
+}
+fn default_tidy_exclude_dirs() -> Vec<String> {
+    vec!["_wip".into()]
+}
+
+impl Default for TidySettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            assignee: default_tidy_assignee(),
+            model: String::new(),
+            anchor: None,
+            interval_hours: default_tidy_interval_hours(),
+            stale_days: default_tidy_stale_days(),
+            exclude_dirs: default_tidy_exclude_dirs(),
+            last_run: None,
+        }
+    }
 }
 
 /// A window position + size in logical pixels.
@@ -159,6 +227,7 @@ impl Default for Settings {
             voice_model: default_voice_model(),
             voice_language: default_voice_language(),
             voice_indicator_position: None,
+            tidy: TidySettings::default(),
         }
     }
 }

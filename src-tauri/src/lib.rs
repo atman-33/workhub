@@ -11,6 +11,7 @@ mod storage;
 mod stt;
 mod tasks;
 mod terminal;
+mod tidy;
 mod update;
 mod voice;
 mod voice_chunk;
@@ -49,6 +50,7 @@ pub fn run() {
         .manage(terminal::TerminalState::default())
         .manage(voice::VoiceState::default())
         .manage(stt::SttState::default())
+        .manage(tidy::TidyState::default())
         .setup(|app| {
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
@@ -75,11 +77,17 @@ pub fn run() {
                 eprintln!("voice: failed to create indicator window: {e}");
             }
             voice::apply_shortcut(app.handle());
+            // Background vault-tidy scheduler (T-0050). Cheap mechanical checks;
+            // only launches an agent when there is actual housekeeping to do.
+            tidy::start_scheduler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
+            commands::tidy_status,
+            commands::run_vault_tidy_now,
+            commands::resume_tidy_session,
             commands::check_vault_path,
             commands::git_status,
             commands::list_branches,
