@@ -72,6 +72,8 @@ const VOICE_MODELS: { id: string; label: string; size: string }[] = [
   { id: "tiny", label: "Tiny", size: "75MB" },
   { id: "base", label: "Base", size: "142MB" },
   { id: "small", label: "Small", size: "466MB" },
+  { id: "small-q5_1", label: "Small (quantized)", size: "182MB" },
+  { id: "large-v3-turbo-q5_0", label: "Large v3 Turbo (quantized)", size: "547MB" },
 ];
 
 const VOICE_LANGUAGES: { id: string; label: string }[] = [
