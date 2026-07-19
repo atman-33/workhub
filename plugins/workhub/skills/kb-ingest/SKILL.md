@@ -28,6 +28,10 @@ indexes — and proposes tasks for actionable items.
 /kb-ingest                      # Process all eligible files in inbox/
 /kb-ingest path/to/file.md      # Process a specific file
 /kb-ingest path/to/folder/      # Process all eligible .md files in a folder
+/kb-ingest --unattended [--stale-days N] [--exclude <dir>,...]
+                                # Headless mode for scheduled/automated runs:
+                                # only stale files, auto-file the unambiguous,
+                                # log the rest as pending-review (see below)
 ```
 
 ## Structural README Exception
@@ -200,6 +204,65 @@ When processing multiple files (inbox/ or a folder):
 6. Update indexes once at end (not per-file)
 7. Single batch log entry
 
+## Unattended Mode
+
+`--unattended` runs the ingest headless for scheduled/automated maintenance
+(the workhub app's vault-tidy routine launches it this way). There is no human
+in the loop, so the interactive confirmation steps cannot be used: instead of
+asking, this mode **auto-processes only what is unambiguous and safe, and
+defers everything else to a review queue** in the log.
+
+Arguments:
+
+| Argument | Effect |
+|----------|--------|
+| `--unattended` | Enable headless mode (no prompts; defer instead of asking) |
+| `--stale-days N` | Only consider inbox files whose mtime is ≥ N days old (default 7) |
+| `--exclude <dir>,...` | Skip these inbox subfolders entirely (default `_wip`) |
+
+### Selection
+
+1. Scan `inbox/` for `.md` files, then drop:
+   - `inbox/**/README.md` (structural notes — always excluded)
+   - anything under an excluded subfolder (`inbox/<dir>/**` for each `--exclude`
+     entry; default `inbox/_wip/`) — this is the user's "not ready to file yet"
+     holding area
+   - files whose mtime is newer than `--stale-days` days ago (still being edited)
+2. The remaining files are the unattended candidates.
+
+### Auto-file vs. defer
+
+For each candidate, run the normal READ → ANALYZE → PLAN classification, then:
+
+- **Auto-file** only when ALL of these hold: classification confidence is high,
+  a single existing target container clearly fits, no new subdirectory is
+  needed, and no rename is needed (or the filename is clearly temporary/
+  low-information per the canonicalization rules). Perform the MOVE →
+  FRONTMATTER → WIKILINK → BACKLINK → INDEX steps as usual.
+- **Defer (do not move)** and record a `pending-review` entry in the log when
+  any of these is true: confidence is low, multiple containers are plausible, a
+  new subdirectory would be required, or a rename needs human judgement. Never
+  create folders, never rename ambiguous files, never create tasks unattended —
+  these all need a human, so leave the file in place for a later interactive
+  `/kb-ingest` run.
+
+### Logging
+
+Append per-file lines to `_ai/logs/kb-log.md` as usual for auto-filed items,
+and a `pending-review` line for each deferred item with the reason, e.g.:
+
+```
+[2026-07-19] ingest (unattended) | Deploy notes | → knowledge/infra/ | auto-filed
+[2026-07-19] ingest (unattended) | random idea | pending-review: low confidence (2 plausible containers)
+```
+
+Finish with one summary line so the caller can report counts without re-reading
+the log:
+
+```
+[2026-07-19] ingest (unattended) | summary | auto-filed N, pending-review M, skipped-fresh K
+```
+
 ## Obsidian CLI Integration
 
 When available:
@@ -217,6 +280,9 @@ frontmatter for existing tags/links.
 - **Never ingest from or into** `journal/`, `tasks/`, `templates/`, `_ai/`, or `attachments/`
 - **Folder-first is the default** for new ingest in projects, knowledge, and archive
 - **Never ingest** `inbox/**/README.md` during default scans or batch processing
+- **Respect the hold folder**: `inbox/_wip/` (and any other configured exclude
+  folder) is a "not ready to file yet" area — never ingest its contents during
+  default scans, batch processing, or unattended runs
 - **Never create** a new subdirectory or task without explicit user approval
 - **Ask user** before renaming files, unless the filename is clearly temporary or low-information
 - **Ask user** when classification confidence is low or multiple containers are plausible
