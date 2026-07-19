@@ -2,8 +2,8 @@
 //! transcription. No LLM, no cloud — everything runs on-device via
 //! `whisper-rs`.
 //!
-//! Models are stored in `%APPDATA%\workhub\models\ggml-<name>.bin`, mirroring
-//! how `storage::config_dir()` derives the app's config directory. The
+//! Models are stored in `~/.workhub/models/ggml-<name>.bin`, mirroring how
+//! `storage::config_dir()` derives the app's config directory. The
 //! catalog (URL/size/checksum) is taken from the same upstream
 //! `whisper.cpp` release ggerganov publishes models from; note the
 //! `checksum` values published alongside those models are **SHA-1**, not
@@ -62,7 +62,7 @@ fn model_info(name: &str) -> Option<&'static ModelInfo> {
     MODELS.iter().find(|m| m.name == name)
 }
 
-/// `%APPDATA%\workhub\models`, created on demand.
+/// `~/.workhub/models`, created on demand.
 pub fn models_dir() -> PathBuf {
     storage::config_dir().join("models")
 }

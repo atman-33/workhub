@@ -49,7 +49,9 @@ claude plugin install obsidian@workhub-marketplace --scope project
 
 \`workhub\` and \`engineering\` are project scope (per vault/repository); \`productivity\` is user scope (once per machine, works from any directory); \`obsidian\` is optional but recommended for editing vault notes. See \`docs/plugins.md\` in the workhub repo for the full catalog.
 
-4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.`;
+4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.
+
+Settings, voice history, and downloaded voice models are stored under \`~/.workhub/\` (your user home directory) rather than \`AppData\`. If Settings ever silently fail to stick after a restart, an antivirus product's folder-shielding blocking writes to \`AppData\\Roaming\` is a known cause of that on Windows — \`~/.workhub/\` was chosen precisely to avoid it, so it's a good first thing to check permissions on.`;
 
 const TEMPLATE_MD = `## Vault template updates
 
@@ -330,6 +332,19 @@ export function HelpView() {
                 to these.
               </li>
             </ol>
+            <p>
+              Settings, voice history, and downloaded voice models are stored
+              under <span className="font-mono text-xs">~/.workhub/</span>{" "}
+              (your user home directory) rather than{" "}
+              <span className="font-mono text-xs">AppData</span>. If Settings
+              ever silently fail to stick after a restart, an antivirus
+              product's folder-shielding blocking writes to{" "}
+              <span className="font-mono text-xs">AppData\Roaming</span> is a
+              known cause of that on Windows —{" "}
+              <span className="font-mono text-xs">~/.workhub/</span> was
+              chosen precisely to avoid it, so it's a good first thing to
+              check permissions on.
+            </p>
           </Section>
 
           <Section

@@ -94,7 +94,7 @@ impl History {
     }
 }
 
-/// `%APPDATA%\workhub\voice-history.json`.
+/// `~/.workhub/voice-history.json`.
 fn history_file() -> PathBuf {
     storage::config_dir().join("voice-history.json")
 }

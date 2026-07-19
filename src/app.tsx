@@ -157,7 +157,7 @@ export default function App() {
             open={showSettings}
             settings={settings}
             onClose={() => setShowSettings(false)}
-            onSave={(s) => void saveSettings(s)}
+            onSave={saveSettings}
           />
         )}
       </div>

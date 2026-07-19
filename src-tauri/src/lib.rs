@@ -22,6 +22,10 @@ use tauri::Manager;
 
 pub fn run() {
     update::cleanup_old();
+    // Must run before the first `storage::load()` call below (or anywhere
+    // else) so config reads see the migrated `~/.workhub` copy, not a fresh
+    // default (T-0064).
+    storage::migrate_from_appdata();
     tauri::Builder::default()
         // Must be registered first (per tauri-plugin-single-instance docs).
         // Without this, every launch adds another process; combined with the
