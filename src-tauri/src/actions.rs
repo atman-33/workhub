@@ -305,9 +305,9 @@ pub fn build_tidy_prompt(stale_days: u32, exclude: &[String]) -> String {
     format!(
         "Perform unattended vault maintenance, non-interactively. \
 Step 1: run the kb-ingest skill in unattended mode — `/kb-ingest --unattended --stale-days {stale_days}{exclude_arg}`. \
-File only what is unambiguous and safe; leave everything that needs human judgement (new folder, rename, low confidence) in place and log it as pending-review, per the kb-ingest unattended rules. \
+File only what is unambiguous and safe; everything that needs human judgement (new folder, rename, low confidence) stays in place and goes through the kb-ingest deferred-items flow: record it in `_ai/memory/tidy-pending.json` and create-or-update the single `#tidy-review` task on the board so the human can review the proposed plans. \
 Step 2: run the kb-index skill for the archive zone — `/kb-index --zone tasks-archive`. \
-Step 3: append one summary line to `_ai/logs/kb-log.md` stating how many files were auto-filed, how many were left pending-review, and whether the archive index changed. \
+Step 3: append one summary line to `_ai/logs/kb-log.md` stating how many files were auto-filed, how many were left pending-review (with the review task id, if any), and whether the archive index changed. \
 Do not ask for confirmation at any point."
     )
 }

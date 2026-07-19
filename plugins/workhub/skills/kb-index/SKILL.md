@@ -149,17 +149,31 @@ Only runs with `--full` flag:
 - Standalone .md files in a zone root are also tracked
 
 ### tasks/archive/ entry format
-Each archived task is one line, most-recent first (by id, descending):
+
+This index doubles as the **AI digest of archived tasks**: agents answer
+"what did T-#### do / have we solved X before" from these one-liners instead
+of opening the task files, so the per-entry format is fixed and each entry
+stays on one line.
+
+Entries are grouped under a `## <year>` heading (the task's `created` year,
+falling back to `updated`), newest year first; within a year, by id
+descending. An agent looking something up reads only the relevant year
+section, so reads stay bounded as the archive grows:
 
 ```
-- [[T-#### title]] — one-sentence summary (project: <project>)
+## 2026
+- [[T-#### title]] — one-sentence result summary (project: <project>) → [[deliverable]]
 ```
 
 Derive the summary from the task file: prefer the first sentence of its
 `## Results` section; fall back to the first sentence of `## Description` when
 `## Results` is empty. Omit the `(project: …)` suffix when the task has no
-`project`. For a smart diff update, only read the newly-added task files — never
-re-read tasks already listed in the index.
+`project`. Append `→ [[link]]` only when `## Results` links a polished
+deliverable note (in `projects/` or `knowledge/`) — at most one link, the main
+one. For a smart diff update, only read the newly-added task files — never
+re-read tasks already listed in the index; add a new `## <year>` heading when
+the first task of a year arrives (existing flat indexes are re-sectioned once,
+on the next update that touches them).
 
 ### When to recommend --full
 If diff detects >30% items changed, suggest: "Many changes detected. Rebuild with --full?"
