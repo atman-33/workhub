@@ -44,6 +44,12 @@ pub struct Settings {
     /// Check GitHub Releases for a newer version on startup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
+    /// Check the vault template for updates against the current vault on
+    /// startup (T-0061). Mirrors `src/types.ts`'s `Settings.check_template_updates`
+    /// — see the `settings_field_parity` test below, which fails the build if
+    /// the two drift apart again.
+    #[serde(default = "default_true")]
+    pub check_template_updates: bool,
     /// Screen-annotation overlay (double-press-and-hold Alt to draw),
     /// including its low-level keyboard hook.
     #[serde(default = "default_true")]
@@ -223,6 +229,7 @@ impl Default for Settings {
             use_herdr: true,
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
+            check_template_updates: true,
             ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),
@@ -453,4 +460,121 @@ pub enum GraphOp {
     DeleteTag {
         name: String,
     },
+}
+
+#[cfg(test)]
+mod settings_parity_tests {
+    use super::Settings;
+    use std::collections::BTreeSet;
+
+    /// Extracts the matching `{ ... }` body for `interface Settings` out of a
+    /// TypeScript source string via simple brace counting from the first
+    /// occurrence of `interface Settings {`. Returns `None` if the interface
+    /// isn't found or the braces never balance.
+    fn extract_interface_body(source: &str, interface_name: &str) -> Option<String> {
+        let needle = format!("interface {interface_name} {{");
+        let start = source.find(&needle)? + needle.len();
+        let mut depth = 1i32;
+        let mut end = start;
+        for (i, ch) in source[start..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = start + i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if depth != 0 {
+            return None;
+        }
+        Some(source[start..end].to_string())
+    }
+
+    /// Strips `/* ... */` block comments (including `/** ... */` JSDoc), then
+    /// `// ...` line comments, then reads one field name per remaining
+    /// non-empty line (text before `:` or `?:`). Deliberately simple — this
+    /// only needs to handle the flat `Settings` interface, which has no
+    /// nested braces or inline object types.
+    fn field_names(body: &str) -> BTreeSet<String> {
+        let mut no_block_comments = String::with_capacity(body.len());
+        let mut rest = body;
+        while let Some(start) = rest.find("/*") {
+            no_block_comments.push_str(&rest[..start]);
+            rest = match rest[start..].find("*/") {
+                Some(end) => &rest[start + end + 2..],
+                None => "",
+            };
+        }
+        no_block_comments.push_str(rest);
+
+        no_block_comments
+            .lines()
+            .filter_map(|line| {
+                let line = match line.find("//") {
+                    Some(idx) => &line[..idx],
+                    None => line,
+                };
+                let line = line.trim();
+                if line.is_empty() {
+                    return None;
+                }
+                let name = line.split(':').next().unwrap_or("").trim();
+                let name = name.trim_end_matches('?');
+                if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                    return None;
+                }
+                Some(name.to_string())
+            })
+            .collect()
+    }
+
+    /// Guards against the exact regression in T-0064: a field added to the TS
+    /// `Settings` type (`src/types.ts`) without a matching field in the Rust
+    /// `Settings` struct is silently dropped by serde on every save, with no
+    /// compiler or `cargo test`/`npm run build` error otherwise. Skips (does
+    /// not fail) when `src/types.ts` can't be found, e.g. in a packaging
+    /// context where the frontend source isn't checked out alongside
+    /// `src-tauri/`.
+    #[test]
+    fn settings_field_parity_with_types_ts() {
+        let ts_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/types.ts");
+        let Ok(source) = std::fs::read_to_string(&ts_path) else {
+            eprintln!(
+                "skipping settings_field_parity_with_types_ts: could not read {}",
+                ts_path.display()
+            );
+            return;
+        };
+        let Some(body) = extract_interface_body(&source, "Settings") else {
+            eprintln!(
+                "skipping settings_field_parity_with_types_ts: no `interface Settings {{ ... }}` found in {}",
+                ts_path.display()
+            );
+            return;
+        };
+        let ts_fields = field_names(&body);
+
+        let rust_value = serde_json::to_value(Settings::default()).expect("serialize Settings");
+        let rust_fields: BTreeSet<String> = rust_value
+            .as_object()
+            .expect("Settings serializes to an object")
+            .keys()
+            .cloned()
+            .collect();
+
+        let missing_in_rust: Vec<_> = ts_fields.difference(&rust_fields).collect();
+        let missing_in_ts: Vec<_> = rust_fields.difference(&ts_fields).collect();
+
+        assert!(
+            missing_in_rust.is_empty() && missing_in_ts.is_empty(),
+            "Settings field mismatch between src-tauri/src/models.rs and src/types.ts:\n\
+             fields in src/types.ts but missing from Rust Settings: {missing_in_rust:?}\n\
+             fields in Rust Settings but missing from src/types.ts: {missing_in_ts:?}"
+        );
+    }
 }

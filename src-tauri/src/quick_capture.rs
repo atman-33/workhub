@@ -92,7 +92,9 @@ pub fn hide(app: &AppHandle) {
     if let Some(rect) = current_rect(&win) {
         let mut cfg = storage::load();
         cfg.settings.quick_capture_rect = Some(rect);
-        storage::save(&cfg);
+        if let Err(e) = storage::save(&cfg) {
+            eprintln!("quick-capture: failed to persist window rect: {e}");
+        }
     }
     let _ = win.hide();
 }

@@ -34,7 +34,7 @@ Backend (`src-tauri/src/`):
 | `tasks.rs` | task Markdown parsing/writing, vault file watching, `_ai/index/tasks.json` |
 | `git.rs` | git CLI integration (kept from devdeck for the repos module) |
 | `actions.rs` | external launches (VS Code, terminal, AI agent with task context) |
-| `storage.rs` | JSON persistence (`%APPDATA%\workhub\config.json`) |
+| `storage.rs` | JSON persistence (`~/.workhub/config.json`; migrated from `%APPDATA%\workhub\` — see `storage::migrate_from_appdata`) |
 | `ink/` | screen-annotation overlay: Raw Input Alt double-press listener + transparent draw window (`overlay.html` / `src/overlay/main.ts`) |
 | `update.rs` | self-update against GitHub Releases (disabled by default; no releases yet) |
 
@@ -93,9 +93,10 @@ before adding or moving a skill.
   there too. See `.claude/rules/help-screen.md`.
 
 <important>
-- Config compatibility: `%APPDATA%\workhub\config.json` is read by every
-  released version — only add fields with `#[serde(default)]`, never rename
-  or remove existing ones.
+- Config compatibility: `~/.workhub/config.json` (migrated on first run of
+  0.49.0+ from `%APPDATA%\workhub\config.json`) is read by every released
+  version — only add fields with `#[serde(default)]`, never rename or remove
+  existing ones.
 - Keep `crate-type` in `src-tauri/Cargo.toml` as plain rlib (no cdylib) —
   cdylib breaks windows-gnu debug builds ("export ordinal too large").
 - Never write to the vault's human zone (`tasks/`, `projects/`, `knowledge/`)

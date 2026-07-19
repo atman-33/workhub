@@ -105,6 +105,7 @@ const DEFAULTS: Settings = {
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
   voice_language: "auto",
+  voice_indicator_position: null,
   task_language: "en",
   tidy: TIDY_DEFAULTS,
 };
@@ -113,7 +114,10 @@ interface Props {
   open: boolean;
   settings: Settings;
   onClose: () => void;
-  onSave: (settings: Settings) => void;
+  /** Persists the settings; rejects (with a message) on failure so the
+   * dialog can report it and stay open instead of closing on a save that
+   * silently didn't happen (T-0064). */
+  onSave: (settings: Settings) => Promise<void>;
 }
 
 export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
@@ -130,6 +134,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [downloadError, setDownloadError] = useState("");
   const [tidyRun, setTidyRun] = useState<TidyRun | null>(null);
   const [tidyMsg, setTidyMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // A tidy config helper so the many nested fields stay readable.
   const setTidy = (patch: Partial<Settings["tidy"]>) =>
@@ -144,6 +150,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setPhase("idle");
       setError("");
       setDownloadError("");
+      setSaveError("");
       void api.appVersion().then(setVersion);
       void api.tidyStatus().then(setTidyRun);
       setTidyMsg("");
@@ -229,6 +236,19 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     } else {
       setUpdate(null);
       setPhase("uptodate");
+    }
+  };
+
+  const save = async () => {
+    setSaveError("");
+    setSaving(true);
+    try {
+      await onSave(draft);
+      onClose();
+    } catch (e) {
+      setSaveError(String(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -745,17 +765,16 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             </TabsContent>
           </div>
         </Tabs>
+        {saveError && (
+          <p className="text-xs text-destructive">Save failed: {saveError}</p>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setDraft(DEFAULTS)}>
             Reset to defaults
           </Button>
-          <Button
-            onClick={() => {
-              onSave(draft);
-              onClose();
-            }}
-          >
-            Save
+          <Button onClick={() => void save()} disabled={saving}>
+            {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

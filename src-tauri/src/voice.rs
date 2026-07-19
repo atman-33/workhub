@@ -171,7 +171,9 @@ fn persist_indicator_position(app: &AppHandle) {
     };
     let mut cfg = storage::load();
     cfg.settings.voice_indicator_position = Some(pos);
-    storage::save(&cfg);
+    if let Err(e) = storage::save(&cfg) {
+        eprintln!("voice: failed to persist indicator position: {e}");
+    }
 }
 
 /// Resizes the indicator window while keeping its top-left corner fixed

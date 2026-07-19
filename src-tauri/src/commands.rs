@@ -16,7 +16,7 @@ pub fn get_config() -> Config {
 }
 
 #[tauri::command]
-pub fn save_config(app: tauri::AppHandle, config: Config) {
+pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<(), String> {
     let before = storage::load().settings;
     let mut config = config;
     // Seed the tidy schedule anchor the first time the routine is enabled so
@@ -29,7 +29,7 @@ pub fn save_config(app: tauri::AppHandle, config: Config) {
                 .unwrap_or(0),
         );
     }
-    storage::save(&config);
+    storage::save(&config)?;
     // Start/stop the ink keyboard hook when the setting is toggled.
     if config.settings.ink_enabled != before.ink_enabled {
         if config.settings.ink_enabled {
@@ -57,6 +57,7 @@ pub fn save_config(app: tauri::AppHandle, config: Config) {
             let _ = harness::sync_project_context(std::path::Path::new(vault), &config.projects);
         }
     }
+    Ok(())
 }
 
 /// Current state of the built-in vault-tidy runner (idle/running/completed/

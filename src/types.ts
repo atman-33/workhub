@@ -48,6 +48,10 @@ export interface Settings {
   voice_model: string;
   /** Transcription language: "auto" or an ISO code (e.g. "en", "ja"). */
   voice_language: string;
+  /** Last dragged position of the voice indicator window (physical pixels,
+   * top-left; managed by the backend, round-tripped here so saving settings
+   * doesn't wipe it). */
+  voice_indicator_position: [number, number] | null;
   /** Language the AI writes the task file's `## Plan` and `## Results`
    * sections in: "en" | "ja". Content only — never affects code, comments,
    * commit messages, or other repository artifacts. */

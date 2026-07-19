@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.49.0 (2026-07-19)
+
+- **Fixed Settings silently failing to save, sometimes permanently.** Two
+  independent bugs compounded on at least one machine: the "Check for vault
+  template updates on startup" setting added in 0.47.0 existed only in the
+  frontend's type definitions, not in the Rust struct that actually gets
+  saved — serde quietly drops unknown fields, so the checkbox always reverted
+  after a restart. Separately, every write to `config.json` swallowed its own
+  errors, so when something on disk blocked the write (folder-shielding
+  antivirus software is the leading suspect), the Settings dialog still
+  reported success and nothing ever reached disk — for over a week, in the
+  case that surfaced this.
+  - The Rust and TypeScript `Settings` types are now compared by an
+    automated test on every build, so a field added to one side and
+    forgotten on the other fails the build instead of failing silently at
+    runtime.
+  - A failed save is no longer silently discarded: it now surfaces as an
+    error in the Settings dialog, and the dialog stays open (instead of
+    closing on a save that didn't actually happen) so you can retry.
+  - Settings, voice history, and downloaded voice models now live under
+    `~/.workhub/` instead of `%APPDATA%\workhub\`, matching where task
+    worktree workspaces were already stored for the same reason — the old
+    `AppData\Roaming` location has been observed to silently reject writes
+    under some antivirus configurations, while a plain dot-folder under the
+    user's home directory does not. Existing installs are migrated
+    automatically on first launch; the old location is left in place, never
+    deleted.
+
 ## 0.48.0 (2026-07-19)
 
 - **Fixed self-update failing permanently once a stale instance locked the
