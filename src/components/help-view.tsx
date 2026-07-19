@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Check, Copy, Keyboard, Mic, PenLine, Rocket } from "lucide-react";
+import { Check, Copy, Keyboard, Mic, PenLine, Rocket, Sparkles } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -80,7 +80,18 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.`;
 
-const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD].join("\n\n---\n\n");
+const TIDY_MD = `## Vault tidy (automatic housekeeping)
+
+Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and refreshes the \`tasks/archive/_index.md\` summary — by launching an agent headlessly (no terminal window).
+
+- Turn it on in **⚙ Settings → Vault → Vault tidy**. It is **off by default**; leave it off if you drive the same routine from a Claude Desktop routine instead.
+- The app decides *whether* there is work with a cheap mechanical scan (no tokens) — a run only starts when \`inbox/\` has a note older than the age threshold, or the archive index has drifted.
+- **Schedule** is "first run at" + "run every N hours" (24 = daily, 168 = weekly). Because it counts from that anchor, a run missed while the app was closed is caught up on the next launch.
+- Notes you're still writing: keep them in **\`inbox/_wip/\`** (or any folder listed under "Exclude folders") — tidy never touches those.
+- **Agent / Model** pick which CLI (Claude Code or OpenCode) and model run the routine, just like a task.
+- **Run now** triggers it immediately, even when the schedule is off. If a run stalls on a permission prompt or fails, you get a desktop notification and a **Resume session** button opens it in a terminal so you can finish it by hand.`;
+
+const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD, TIDY_MD].join("\n\n---\n\n");
 
 function CopyButton({
   id,
@@ -208,7 +219,7 @@ export function HelpView() {
 
         <Accordion
           type="multiple"
-          defaultValue={["setup", "ink", "quick-capture", "voice"]}
+          defaultValue={["setup", "ink", "quick-capture", "voice", "tidy"]}
           className="mt-4"
         >
           <Section
@@ -419,6 +430,60 @@ export function HelpView() {
               <li>
                 The hotkey, model, and language can be changed in{" "}
                 <span className="font-medium">⚙ Settings → Voice</span>.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Sparkles}
+            title="Vault tidy (automatic housekeeping)"
+            value="tidy"
+            markdown={TIDY_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              Keeps the vault easy for AI to search: files stale notes out of{" "}
+              <span className="font-mono text-xs">inbox/</span> and refreshes the{" "}
+              <span className="font-mono text-xs">tasks/archive/_index.md</span>{" "}
+              summary — by launching an agent headlessly (no terminal window).
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                Turn it on in{" "}
+                <span className="font-medium">⚙ Settings → Vault → Vault tidy</span>.
+                It is <span className="font-medium">off by default</span>; leave
+                it off if you drive the same routine from a Claude Desktop
+                routine instead.
+              </li>
+              <li>
+                The app decides <em>whether</em> there is work with a cheap
+                mechanical scan (no tokens) — a run only starts when{" "}
+                <span className="font-mono text-xs">inbox/</span> has a note
+                older than the age threshold, or the archive index has drifted.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Schedule</span> is
+                "first run at" + "run every N hours" (24 = daily, 168 = weekly).
+                A run missed while the app was closed is caught up on the next
+                launch.
+              </li>
+              <li>
+                Notes you're still writing: keep them in{" "}
+                <Kbd>inbox/_wip/</Kbd> (or any folder listed under "Exclude
+                folders") — tidy never touches those.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Agent / Model</span>{" "}
+                pick which CLI (Claude Code or OpenCode) and model run the
+                routine, just like a task.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Run now</span>{" "}
+                triggers it immediately, even when the schedule is off. If a run
+                stalls or fails, you get a desktop notification and a{" "}
+                <span className="font-medium">Resume session</span> button opens
+                it in a terminal so you can finish it by hand.
               </li>
             </ul>
           </Section>

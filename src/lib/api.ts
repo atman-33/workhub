@@ -10,6 +10,7 @@ import type {
   GraphOp,
   SttModelStatus,
   Task,
+  TidyRun,
   UpdateInfo,
   UpdateTaskInput,
   VoiceHistoryEntry,
@@ -19,6 +20,11 @@ import type {
 export const api = {
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
+  // ---- vault tidy (T-0050) ----
+  tidyStatus: () => invoke<TidyRun>("tidy_status"),
+  runVaultTidyNow: (force: boolean) =>
+    invoke<string>("run_vault_tidy_now", { force }),
+  resumeTidySession: () => invoke<string>("resume_tidy_session"),
   gitStatus: (path: string) => invoke<GitInfo>("git_status", { path }),
   listBranches: (path: string) => invoke<BranchList>("list_branches", { path }),
   gitOp: (path: string, op: "fetch" | "pull" | "switch", branch?: string) =>

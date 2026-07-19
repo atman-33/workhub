@@ -18,6 +18,17 @@ pub fn get_config() -> Config {
 #[tauri::command]
 pub fn save_config(app: tauri::AppHandle, config: Config) {
     let before = storage::load().settings;
+    let mut config = config;
+    // Seed the tidy schedule anchor the first time the routine is enabled so
+    // the interval has a phase to count from (and the UI can show "next check").
+    if config.settings.tidy.enabled && config.settings.tidy.anchor.is_none() {
+        config.settings.tidy.anchor = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+        );
+    }
     storage::save(&config);
     // Start/stop the ink keyboard hook when the setting is toggled.
     if config.settings.ink_enabled != before.ink_enabled {
@@ -46,6 +57,27 @@ pub fn save_config(app: tauri::AppHandle, config: Config) {
             let _ = harness::sync_project_context(std::path::Path::new(vault), &config.projects);
         }
     }
+}
+
+/// Current state of the built-in vault-tidy runner (idle/running/completed/
+/// failed + stall flag), for the settings panel.
+#[tauri::command]
+pub fn tidy_status(app: tauri::AppHandle) -> crate::tidy::TidyRun {
+    crate::tidy::snapshot(&app)
+}
+
+/// Manually run the vault-tidy routine now. Works even when the schedule is
+/// disabled. `force` bypasses the mechanical pre-check.
+#[tauri::command]
+pub fn run_vault_tidy_now(app: tauri::AppHandle, force: bool) -> Result<String, String> {
+    crate::tidy::run_now(app, force)
+}
+
+/// Reopen the last tidy session in a terminal so the user can drive a stalled
+/// or failed run interactively.
+#[tauri::command]
+pub fn resume_tidy_session(app: tauri::AppHandle) -> Result<String, String> {
+    crate::tidy::resume(app)
 }
 
 #[tauri::command]

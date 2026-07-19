@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.40.0 (2026-07-19)
+
+- **Vault tidy**: a built-in routine that keeps the vault easy for AI to
+  search by filing stale `inbox/` notes into the knowledge base and refreshing
+  the `tasks/archive/_index.md` summary — launched as a headless agent (no
+  terminal window). Configure it in the new **Settings → Vault → Vault tidy**
+  section (off by default) and documented in the Help tab.
+  - **Zero-token scheduling**: whether there is any work is decided by a cheap
+    mechanical scan in the app (stale inbox files, or archive-index drift) — an
+    agent is launched only when there actually is something to do. Scheduling
+    is anchor + interval ("first run at" + "run every N hours", 24 = daily),
+    so a run missed while the app was closed is caught up on the next launch
+    rather than lost.
+  - **Agent / model selectable**, just like a task (Claude Code or OpenCode).
+    A configurable inbox age threshold and a set of excluded inbox subfolders
+    (default `_wip`) let work-in-progress notes stay untouched.
+  - **Manual "Run now"** works even when the schedule is off. Runs are tracked:
+    a completion, failure, or stall raises a desktop notification, and a
+    **Resume session** button reopens a failed/stalled headless run in a
+    terminal (via `claude --resume`) so it can be finished interactively.
+
 ## 0.39.0 (2026-07-18)
 
 - **Voice input**: a new global hotkey (`Ctrl+Shift+Space` by default) starts

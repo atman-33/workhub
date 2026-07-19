@@ -20,6 +20,7 @@ import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, UpdateInfo } from "@/types";
 
@@ -42,6 +43,7 @@ export default function App() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
+  useTidyNotifications();
 
   useEffect(() => {
     void (async () => {
