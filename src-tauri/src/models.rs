@@ -91,6 +91,11 @@ pub struct Settings {
     /// user first drags it.
     #[serde(default)]
     pub voice_indicator_position: Option<(i32, i32)>,
+    /// Language the AI writes the task file's `## Plan` and `## Results`
+    /// sections in: "en" | "ja". Content only — never affects code, comments,
+    /// commit messages, or other repository artifacts.
+    #[serde(default = "default_task_language")]
+    pub task_language: String,
     /// Built-in vault-tidy routine (T-0050): periodically files stale inbox
     /// notes and refreshes the tasks/archive index via a headless agent.
     #[serde(default)]
@@ -204,6 +209,9 @@ fn default_voice_model() -> String {
 fn default_voice_language() -> String {
     "auto".into()
 }
+fn default_task_language() -> String {
+    "en".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -227,6 +235,7 @@ impl Default for Settings {
             voice_model: default_voice_model(),
             voice_language: default_voice_language(),
             voice_indicator_position: None,
+            task_language: default_task_language(),
             tidy: TidySettings::default(),
         }
     }

@@ -80,6 +80,11 @@ const VOICE_LANGUAGES: { id: string; label: string }[] = [
   { id: "en", label: "English" },
 ];
 
+const TASK_LANGUAGES: { id: string; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "ja", label: "日本語" },
+];
+
 const DEFAULTS: Settings = {
   vscode_cmd: "code",
   terminal_cmd: "wt -d {path}",
@@ -99,6 +104,7 @@ const DEFAULTS: Settings = {
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
   voice_language: "auto",
+  task_language: "en",
   tidy: TIDY_DEFAULTS,
 };
 
@@ -388,6 +394,30 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   Embed terminal (show herdr inside the app)
                 </label>
               )}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Task file language
+                </label>
+                <p className="text-[10px] leading-tight text-muted-foreground/70">
+                  Language an AI agent writes a task's Plan and Results sections in.
+                  Never affects code, comments, or commit messages.
+                </p>
+                <Select
+                  value={draft.task_language}
+                  onValueChange={(v) => setDraft({ ...draft, task_language: v })}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_LANGUAGES.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </TabsContent>
             <TabsContent value="voice" className="mt-0 space-y-3">
               <label className="flex items-center gap-2 text-sm">

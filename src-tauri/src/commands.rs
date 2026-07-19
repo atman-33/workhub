@@ -235,6 +235,7 @@ pub fn copy_task_prompt(
     confirm: bool,
     worktree: bool,
     vault_path: String,
+    task_language: String,
 ) -> Result<(), String> {
     let prompt = actions::build_agent_prompt(&actions::LaunchAgentForTaskParams {
         agent_cmd: "",
@@ -250,6 +251,7 @@ pub fn copy_task_prompt(
         use_herdr: false,
         herdr_cmd: "",
         terminal_embed: false,
+        task_language: &task_language,
     });
     app.clipboard()
         .write_text(prompt)
@@ -452,6 +454,7 @@ pub fn launch_agent_for_task(
     use_herdr: bool,
     herdr_cmd: String,
     terminal_embed: bool,
+    task_language: String,
 ) -> Result<String, String> {
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
         agent_cmd: &agent_cmd,
@@ -467,6 +470,7 @@ pub fn launch_agent_for_task(
         use_herdr,
         herdr_cmd: &herdr_cmd,
         terminal_embed,
+        task_language: &task_language,
     })
 }
 

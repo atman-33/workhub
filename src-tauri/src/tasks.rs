@@ -452,7 +452,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         file: file.to_string_lossy().replace('\\', "/"),
         body: input
             .body
-            .unwrap_or_else(|| "\n## Description\n\n## Results\n".to_string()),
+            .unwrap_or_else(|| "\n## Description\n\n## Plan\n\n## Results\n".to_string()),
     };
     write_task_file(&task)?;
     regenerate_index(vault)?;
@@ -892,6 +892,45 @@ mod tests {
         assert_eq!(updated.body, hand_written_body);
 
         // Re-parse from disk to confirm the write path preserved the body too.
+        let reparsed = parse_task_file(&PathBuf::from(&task.file)).unwrap();
+        assert_eq!(reparsed.body, hand_written_body);
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn frontmatter_round_trip_preserves_three_section_body_bytes() {
+        // Same as frontmatter_round_trip_preserves_body_bytes, but with an
+        // approved "## Plan" section present (T-0057) — a frontmatter-only
+        // update must preserve it byte-for-byte, same as Description/Results.
+        let vault = temp_vault("roundtrip-plan");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "sample task with plan".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let hand_written_body = "\n## Description\n\nDo the thing.\n\n## Plan\n\n\
+1. Step one.\n2. Step two.\n\n## Results\n\n- [[some note]]\n";
+        let content_before = format!("{}{}", render_frontmatter(&task), hand_written_body);
+        fs::write(&task.file, &content_before).unwrap();
+
+        let updated = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("doing".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(updated.status, "doing");
+        assert_eq!(updated.body, hand_written_body);
+
         let reparsed = parse_task_file(&PathBuf::from(&task.file)).unwrap();
         assert_eq!(reparsed.body, hand_written_body);
 

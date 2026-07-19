@@ -253,6 +253,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           config.settings.use_herdr,
           config.settings.herdr_cmd,
           config.settings.terminal_embed,
+          config.settings.task_language,
         );
         setStatus(message);
       } catch (e) {
@@ -277,6 +278,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           task.confirm,
           task.worktree,
           config.settings.vault_path ?? "",
+          config.settings.task_language,
         );
         setStatus(`Copied prompt for ${task.id}`);
       } catch (e) {

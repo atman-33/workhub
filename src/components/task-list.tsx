@@ -1,3 +1,4 @@
+import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -10,6 +11,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
@@ -58,6 +60,14 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpe
                 </Badge>
               )}
               <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
+              {parseBody(task.body).plan && (
+                <span title="Plan recorded" className="flex shrink-0">
+                  <ClipboardList
+                    className="size-3.5 text-muted-foreground"
+                    aria-label="Plan recorded"
+                  />
+                </span>
+              )}
               {task.tags.map((t) => (
                 <Badge
                   key={t}
