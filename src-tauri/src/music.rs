@@ -66,6 +66,25 @@ pub fn save(vault_path: &Path, data: &MusicData) -> Result<(), String> {
     std::fs::write(&file, text).map_err(|e| e.to_string())
 }
 
+/// Writes an export payload to a user-chosen path. The payload is serialized on
+/// the frontend so the transfer format lives in exactly one place
+/// (`src/lib/music/playlist-transfer.ts`); this only does the file IO the
+/// webview cannot.
+pub fn export_playlists(path: &Path, contents: &str) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        if !dir.as_os_str().is_empty() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+    }
+    std::fs::write(path, contents).map_err(|e| e.to_string())
+}
+
+/// Reads an export payload chosen in an open dialog. Parsing and validation
+/// happen on the frontend.
+pub fn import_playlists(path: &Path) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 /// Fetches a video title via YouTube oEmbed (no API key required).
 pub fn fetch_title(video_id: &str) -> Result<String, String> {
     let url = format!(
@@ -144,6 +163,22 @@ mod tests {
             is_shuffle: false,
         };
         assert!(save(&missing, &data).is_err());
+    }
+
+    #[test]
+    fn export_then_import_round_trips() {
+        let dir = temp_vault();
+        let file = dir.join("exported").join("playlists.json");
+        let payload = r#"{"format":"workhub-music-playlist","version":1,"playlists":[]}"#;
+        export_playlists(&file, payload).unwrap();
+        assert_eq!(import_playlists(&file).unwrap(), payload);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn import_fails_for_missing_file() {
+        let missing = std::env::temp_dir().join("workhub-music-export-does-not-exist.json");
+        assert!(import_playlists(&missing).is_err());
     }
 
     #[test]

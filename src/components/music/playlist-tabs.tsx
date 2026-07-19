@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Playlist } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
+import { PlaylistTransferMenu } from "./playlist-transfer-menu";
 
 function TabRenameInput({
   initialName,
@@ -193,6 +194,9 @@ export function PlaylistTabs() {
       >
         <Plus className="size-3.5" />
       </Button>
+      <div className="ml-auto">
+        <PlaylistTransferMenu />
+      </div>
     </div>
   );
 }

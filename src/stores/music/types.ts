@@ -48,6 +48,9 @@ export interface PlaylistSlice {
     toPlaylistId: string,
   ) => boolean;
   clearPlaylist: (playlistId?: string) => void;
+  /** Appends playlists from an export. Existing playlists are never modified;
+   *  returns how many were added and how many hit the playlist limit. */
+  importPlaylists: (imported: Playlist[]) => { added: number; skipped: number };
   nextPlaylistName: () => string;
   createPlaylist: () => string | null;
   removePlaylist: (playlistId: string) => boolean;

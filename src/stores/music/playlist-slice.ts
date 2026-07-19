@@ -4,6 +4,7 @@ import {
   generatePlaylistId,
   MAX_PLAYLIST_COUNT,
 } from "@/lib/music/playlist-helpers";
+import { appendImportedPlaylists } from "@/lib/music/playlist-transfer";
 import { removeQueueForPlaylist, resetQueueForPlaylist } from "@/lib/music/shuffle-queue";
 import type { Playlist } from "@/lib/music/types";
 import type { MusicStoreSlice, PlaylistSlice } from "./types";
@@ -212,6 +213,20 @@ export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) =>
         ...resetState,
       };
     }),
+  importPlaylists: (imported) => {
+    const outcome = appendImportedPlaylists(get().playlists, imported);
+    if (outcome.added === 0) {
+      return { added: 0, skipped: outcome.skipped };
+    }
+
+    set((currentState) => ({
+      // Playback is intentionally left alone — an import adds tabs in the
+      // background and must not interrupt the song that is playing.
+      ...enforcePlaylistBounds(outcome.playlists, currentState.activePlaylistId),
+    }));
+
+    return { added: outcome.added, skipped: outcome.skipped };
+  },
   nextPlaylistName: () => {
     const { playlists } = get();
     return deriveNextPlaylistName(playlists);

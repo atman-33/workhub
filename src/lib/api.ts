@@ -76,6 +76,9 @@ export const api = {
     invoke<MusicData | null>("load_music_data", { vaultPath }),
   saveMusicData: (vaultPath: string, data: MusicData) =>
     invoke<void>("save_music_data", { vaultPath, data }),
+  exportPlaylistFile: (path: string, contents: string) =>
+    invoke<void>("export_playlist_file", { path, contents }),
+  importPlaylistFile: (path: string) => invoke<string>("import_playlist_file", { path }),
   fetchYoutubeTitle: (videoId: string) =>
     invoke<string>("fetch_youtube_title", { videoId }),
 
