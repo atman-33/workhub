@@ -665,118 +665,275 @@ pub fn scan_and_index(vault: &Path) -> Result<Vec<Task>, String> {
 }
 
 // ---------------------------------------------------------------------
-// vault init (copy vault-template/)
+// vault init + template sync (vault-template/, embedded in the binary)
 // ---------------------------------------------------------------------
+//
+// The template used to be copied from a filesystem path and kept in sync via
+// an HTML-comment marker in each managed file (`workhub-template: version=N`).
+// That broke down in practice: the marker version never advanced past the
+// files that first shipped it, JSON files can't carry an HTML comment, and a
+// packaged single-exe build has no filesystem copy of `vault-template/` to
+// diff against.
+//
+// The replacement: `vault-template/` is embedded into the binary at compile
+// time (`include_dir!`), and a `_ai/template-manifest.json` file records, per
+// relative path, the sha256 of the template content that was last applied to
+// this vault (the "baseline"). `check_vault_template` does a 3-way compare of
+// (current vault content, baseline, new template content) to classify each
+// file; `apply_vault_template` applies a caller-chosen subset and updates the
+// baseline to match.
 
-const TEMPLATE_MARKER: &str = "workhub-template:";
-const TEMPLATE_VERSION: &str = "version=1";
+use include_dir::{include_dir, Dir};
+use sha2::{Digest, Sha256};
 
-/// Returns true for files that should be overwritten on init when they still
-/// carry the official template marker. These files define AI behavior or task
-/// schemas and must stay in sync with the app version.
-fn is_template_managed(src_path: &Path, template_root: &Path) -> bool {
-    let Ok(rel) = src_path.strip_prefix(template_root) else {
-        return false;
-    };
-    rel == Path::new("CLAUDE.md") || rel == Path::new("templates/task.md")
+static VAULT_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../vault-template");
+
+/// Files copied only on first init (an existing vault's copy is never
+/// touched again) and excluded from the template manifest/diff entirely —
+/// there is nothing to "update" about them.
+const INITIAL_ONLY_PATHS: &[&str] = &["home.md", "tasks/_index.md", "knowledge/_index.md"];
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
 }
 
-/// Returns true for files that should be copied only on first init. User edits
-/// are preserved across re-runs.
-fn is_initial_only(src_path: &Path, template_root: &Path) -> bool {
-    let Ok(rel) = src_path.strip_prefix(template_root) else {
-        return false;
-    };
-    rel == Path::new("home.md")
-        || rel == Path::new("tasks/_index.md")
-        || rel == Path::new("knowledge/_index.md")
+/// Recursively collects every embedded template file, skipping `node_modules`
+/// directories and the per-vault `.claude-plugin-sync-manifest.json` (never
+/// part of the template). Kept as a guard even though `include_dir` embeds
+/// the tree as of build time and normally won't contain either.
+fn walk_template_files<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
+    for file in dir.files() {
+        let name = file.path().file_name().and_then(|n| n.to_str());
+        if name == Some(".claude-plugin-sync-manifest.json") {
+            continue;
+        }
+        out.push(file);
+    }
+    for sub in dir.dirs() {
+        if sub.path().file_name().and_then(|n| n.to_str()) == Some("node_modules") {
+            continue;
+        }
+        walk_template_files(sub, out);
+    }
 }
 
-/// Checks whether a file still contains the official template marker, meaning
-/// it has not been hand-edited and is safe to overwrite with a newer template.
-fn has_template_marker(content: &str) -> bool {
-    content.lines().any(|line| {
-        let trimmed = line.trim();
-        trimmed.starts_with("<!--")
-            && trimmed.contains(TEMPLATE_MARKER)
-            && trimmed.contains(TEMPLATE_VERSION)
-            && trimmed.ends_with("-->")
-    })
+fn manifest_path(vault: &Path) -> PathBuf {
+    vault.join("_ai").join("template-manifest.json")
 }
 
-/// Copies `template_source` into `vault_path`, creating directories as needed.
+#[derive(Debug, Default, Serialize, serde::Deserialize)]
+struct TemplateManifest {
+    app_version: String,
+    files: HashMap<String, String>,
+}
+
+fn load_manifest(vault: &Path) -> TemplateManifest {
+    fs::read_to_string(manifest_path(vault))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_manifest(vault: &Path, manifest: &TemplateManifest) -> Result<(), String> {
+    let path = manifest_path(vault);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let body = serde_json::to_string_pretty(manifest).map_err(|e| e.to_string())?;
+    fs::write(&path, body).map_err(|e| e.to_string())
+}
+
+/// Per-file classification produced by [`check_vault_template`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TemplateFileState {
+    /// Not present in the vault; safe to add.
+    Added,
+    /// Vault content matches the recorded baseline and the template changed;
+    /// safe to overwrite.
+    Updatable,
+    /// Vault content diverged from the baseline (hand-edited) and the
+    /// template also changed; do not auto-apply.
+    Conflict,
+    /// No effective change to apply.
+    UpToDate,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct TemplateFileDiff {
+    pub path: String,
+    pub state: TemplateFileState,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct TemplateDiff {
+    pub files: Vec<TemplateFileDiff>,
+}
+
+/// Copies the embedded `vault-template/` into `vault`, creating directories as
+/// needed, then writes `_ai/template-manifest.json` recording the baseline
+/// (the sha256 of what now sits on disk) for every non-initial-only file.
 ///
-/// Policy by file type:
-/// - `CLAUDE.md` and `templates/task.md`: overwrite only when the destination
-///   does not exist or still contains the official `workhub-template` marker.
-/// - `home.md`, `tasks/_index.md`, and `knowledge/_index.md`: copy only when the
-///   destination does not exist (first init only).
-/// - `.gitkeep`: create only if missing; content is irrelevant.
-/// - Other files: copy only when the destination does not exist.
-pub fn init_vault(vault: &Path, template_source: &Path) -> Result<(), String> {
-    if !template_source.exists() {
-        return Err(format!(
-            "template source not found: {}",
-            template_source.display()
-        ));
-    }
-    fs::create_dir_all(vault).map_err(|e| e.to_string())?;
-    copy_template_dir(template_source, vault, template_source)
+/// Existing files are never overwritten by this call — re-running it against
+/// an already-initialized vault only fills in files that are still missing
+/// and refreshes the manifest to match what is actually on disk.
+pub fn init_vault(vault: &Path) -> Result<(), String> {
+    init_from(vault, &VAULT_TEMPLATE)
 }
 
-fn copy_template_dir(src: &Path, dst: &Path, template_root: &Path) -> Result<(), String> {
-    for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
+    fs::create_dir_all(vault).map_err(|e| e.to_string())?;
 
-        if file_type.is_dir() {
-            // Dev-machine artifacts inside the template working copy (e.g.
-            // node_modules from checking vault-template/.opencode) must never
-            // reach a vault.
-            if entry.file_name() == "node_modules" {
-                continue;
-            }
-            fs::create_dir_all(&dst_path).map_err(|e| e.to_string())?;
-            copy_template_dir(&src_path, &dst_path, template_root)?;
-            continue;
-        }
+    let mut files = Vec::new();
+    walk_template_files(template, &mut files);
 
-        let name = src_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if name == ".claude-plugin-sync-manifest.json" {
-            // Per-vault sync baseline, never part of the template.
-            continue;
+    let mut manifest = TemplateManifest {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        files: HashMap::new(),
+    };
+
+    for file in files {
+        let rel = norm_path(file.path());
+        let dst_path = vault.join(file.path());
+        if let Some(parent) = dst_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        if name == ".gitkeep" {
-            // Ensure the directory exists; the keepfile itself is only a placeholder.
-            if !dst_path.exists() {
-                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
-            }
-            continue;
+        if !dst_path.exists() {
+            fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
         }
 
-        if is_template_managed(&src_path, template_root) {
-            let should_copy = if !dst_path.exists() {
-                true
-            } else {
-                match fs::read_to_string(&dst_path) {
-                    Ok(content) => has_template_marker(&content),
-                    Err(_) => false, // unreadable or binary: leave untouched to be safe
-                }
-            };
-            if should_copy {
-                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
-            }
-        } else if is_initial_only(&src_path, template_root) {
-            if !dst_path.exists() {
-                fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
-            }
-        } else if !dst_path.exists() {
-            fs::copy(&src_path, &dst_path).map_err(|e| e.to_string())?;
+        if INITIAL_ONLY_PATHS.contains(&rel.as_str()) {
+            continue;
         }
+        // Baseline is what is actually now on disk, not necessarily the
+        // just-embedded content (a pre-existing file is left untouched above).
+        let on_disk = fs::read(&dst_path).map_err(|e| e.to_string())?;
+        manifest.files.insert(rel, sha256_hex(&on_disk));
     }
-    Ok(())
+
+    write_manifest(vault, &manifest)
+}
+
+/// 3-way compares every non-initial-only template file against the vault's
+/// current content and the last-applied baseline recorded in the manifest.
+///
+/// - `Added`: the vault does not have this file at all.
+/// - Otherwise, compare `current` (on disk), `baseline` (manifest), `new`
+///   (embedded template):
+///   - no baseline recorded: `UpToDate` if `current == new`, else `Conflict`
+///     (safer default for a vault that predates the manifest).
+///   - `new == baseline`: nothing changed upstream — `UpToDate`.
+///   - `current == baseline`: only the template changed — `Updatable`.
+///   - otherwise: both diverged — `Conflict`.
+pub fn check_vault_template(vault: &Path) -> Result<TemplateDiff, String> {
+    diff_against(vault, &VAULT_TEMPLATE)
+}
+
+fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
+    let manifest = load_manifest(vault);
+
+    let mut files = Vec::new();
+    walk_template_files(template, &mut files);
+
+    let mut entries = Vec::new();
+    for file in files {
+        let rel = norm_path(file.path());
+        if INITIAL_ONLY_PATHS.contains(&rel.as_str()) {
+            continue;
+        }
+
+        let new_hash = sha256_hex(file.contents());
+        let dst_path = vault.join(file.path());
+
+        let state = if !dst_path.exists() {
+            TemplateFileState::Added
+        } else {
+            let current = fs::read(&dst_path).map_err(|e| e.to_string())?;
+            let current_hash = sha256_hex(&current);
+            match manifest.files.get(&rel) {
+                None => {
+                    if current_hash == new_hash {
+                        TemplateFileState::UpToDate
+                    } else {
+                        TemplateFileState::Conflict
+                    }
+                }
+                Some(baseline_hash) => {
+                    if new_hash == *baseline_hash {
+                        TemplateFileState::UpToDate
+                    } else if current_hash == *baseline_hash {
+                        TemplateFileState::Updatable
+                    } else {
+                        TemplateFileState::Conflict
+                    }
+                }
+            }
+        };
+
+        entries.push(TemplateFileDiff { path: rel, state });
+    }
+
+    Ok(TemplateDiff { files: entries })
+}
+
+/// Applies the embedded template content for exactly the given relative
+/// paths. A path currently in `Conflict` is written beside the original as
+/// `<name>.new` instead, leaving the vault's file untouched; every other
+/// requested path is overwritten/created in place. The manifest baseline is
+/// then updated for every path that was actually written in place (Conflict
+/// paths keep their previous baseline, since the vault's file did not
+/// change). Unknown paths (not part of the template, or initial-only) are
+/// silently skipped.
+pub fn apply_vault_template(vault: &Path, paths: &[String]) -> Result<(), String> {
+    apply_from(vault, &VAULT_TEMPLATE, paths)
+}
+
+fn apply_from(vault: &Path, template: &Dir, paths: &[String]) -> Result<(), String> {
+    let diff = diff_against(vault, template)?;
+    let states: HashMap<&str, TemplateFileState> = diff
+        .files
+        .iter()
+        .map(|f| (f.path.as_str(), f.state))
+        .collect();
+
+    let mut manifest = load_manifest(vault);
+    manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
+
+    for rel in paths {
+        let Some(state) = states.get(rel.as_str()).copied() else {
+            continue;
+        };
+        let Some(file) = template.get_file(rel) else {
+            continue;
+        };
+
+        let dst_path = vault.join(rel);
+        if let Some(parent) = dst_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        if state == TemplateFileState::Conflict {
+            let side_name = format!(
+                "{}.new",
+                dst_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("template")
+            );
+            let side_path = dst_path.with_file_name(side_name);
+            fs::write(&side_path, file.contents()).map_err(|e| e.to_string())?;
+            continue;
+        }
+
+        fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
+        manifest
+            .files
+            .insert(rel.clone(), sha256_hex(file.contents()));
+    }
+
+    write_manifest(vault, &manifest)
 }
 
 // ---------------------------------------------------------------------
@@ -1447,155 +1604,250 @@ mod tests {
         fs::remove_dir_all(&vault).ok();
     }
 
-    fn temp_template_dir() -> PathBuf {
+    // -------------------------------------------------------------------
+    // template sync (init_vault / check_vault_template / apply_vault_template)
+    // -------------------------------------------------------------------
+    //
+    // `include_dir::Dir` and `File` are `const fn`-constructible, so tests
+    // build a small synthetic template tree instead of exercising the real
+    // (large, fast-moving) `vault-template/`. The `*_from`/`*_against`
+    // internals take the template `Dir` as a parameter for exactly this
+    // reason — the public `init_vault`/`check_vault_template`/
+    // `apply_vault_template` just plug in the real embedded `VAULT_TEMPLATE`.
+
+    use include_dir::{Dir, DirEntry, File};
+
+    static TEST_TEMPLATE: Dir<'_> = Dir::new(
+        "",
+        &[
+            DirEntry::File(File::new("added.md", b"added-content")),
+            DirEntry::File(File::new("stable.md", b"stable-content")),
+            DirEntry::File(File::new("changed.md", b"changed-content-v2")),
+            DirEntry::File(File::new("home.md", b"home-content")),
+        ],
+    );
+
+    fn temp_test_vault(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("workhub-template-{nanos}"))
+        std::env::temp_dir().join(format!("workhub-template-test-{name}-{nanos}"))
     }
 
-    fn write_template(template: &Path) {
-        fs::create_dir_all(template.join("tasks")).unwrap();
-        fs::create_dir_all(template.join("knowledge")).unwrap();
-        fs::create_dir_all(template.join("templates")).unwrap();
-        fs::create_dir_all(template.join("projects")).unwrap();
-        fs::create_dir_all(template.join("_ai/index")).unwrap();
-        fs::create_dir_all(template.join("attachments")).unwrap();
-
-        fs::write(
-            template.join("CLAUDE.md"),
-            "<!-- workhub-template: version=1 -->\n# workhub vault\n",
-        )
-        .unwrap();
-        fs::write(
-            template.join("templates/task.md"),
-            "---\nid:\ntitle:\n---\n\n<!-- workhub-template: version=1 -->\n\n## Description\n",
-        )
-        .unwrap();
-        fs::write(template.join("home.md"), "# Home\n").unwrap();
-        fs::write(template.join("tasks/_index.md"), "# Tasks index\n").unwrap();
-        fs::write(template.join("knowledge/_index.md"), "# Knowledge index\n").unwrap();
-        fs::write(template.join("projects/.gitkeep"), "").unwrap();
-        fs::write(template.join("_ai/index/.gitkeep"), "").unwrap();
+    fn diff_state(diff: &TemplateDiff, path: &str) -> Option<TemplateFileState> {
+        diff.files.iter().find(|f| f.path == path).map(|f| f.state)
     }
 
     #[test]
-    fn init_vault_copies_all_template_files() {
-        let template = temp_template_dir();
-        write_template(&template);
+    fn init_writes_files_and_baseline_manifest() {
+        let vault = temp_test_vault("init");
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let vault = std::env::temp_dir().join(format!("workhub-init-{nanos}"));
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
 
-        init_vault(&vault, &template).unwrap();
-
-        assert!(vault.join("CLAUDE.md").exists());
-        assert!(vault.join("templates/task.md").exists());
+        assert!(vault.join("added.md").exists());
         assert!(vault.join("home.md").exists());
-        assert!(vault.join("tasks/_index.md").exists());
-        assert!(vault.join("knowledge/_index.md").exists());
-        assert!(vault.join("projects/.gitkeep").exists());
+        let manifest = load_manifest(&vault);
+        assert_eq!(
+            manifest.files.get("stable.md").unwrap(),
+            &sha256_hex(b"stable-content")
+        );
+        // Initial-only files are copied but excluded from the manifest.
+        assert!(!manifest.files.contains_key("home.md"));
 
         fs::remove_dir_all(&vault).ok();
-        fs::remove_dir_all(&template).ok();
     }
 
     #[test]
-    fn init_vault_overwrites_managed_files_only_when_unedited() {
-        let template = temp_template_dir();
-        write_template(&template);
+    fn init_never_overwrites_existing_files() {
+        let vault = temp_test_vault("init-preserve");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("home.md"), "hand-written home").unwrap();
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let vault = std::env::temp_dir().join(format!("workhub-init-overwrite-{nanos}"));
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
 
-        init_vault(&vault, &template).unwrap();
-
-        // User edits a managed file.
-        fs::write(vault.join("CLAUDE.md"), "# Custom rules\n").unwrap();
-
-        // The template is updated (marker stays intact, content changes).
-        fs::write(
-            template.join("CLAUDE.md"),
-            "<!-- workhub-template: version=1 -->\n# Updated rules\n",
-        )
-        .unwrap();
-
-        init_vault(&vault, &template).unwrap();
-        let claude = fs::read_to_string(vault.join("CLAUDE.md")).unwrap();
-        assert!(
-            claude.contains("# Custom rules"),
-            "user-edited CLAUDE.md should be preserved"
+        assert_eq!(
+            fs::read_to_string(vault.join("home.md")).unwrap(),
+            "hand-written home"
         );
-
-        // Unedited managed file is overwritten with the latest template.
-        fs::write(
-            template.join("templates/task.md"),
-            "---\nid:\ntitle:\nnew-field: x\n---\n\n<!-- workhub-template: version=1 -->\n\n## Description\n",
-        )
-        .unwrap();
-        init_vault(&vault, &template).unwrap();
-        let task = fs::read_to_string(vault.join("templates/task.md")).unwrap();
-        assert!(
-            task.contains("new-field: x"),
-            "unedited managed template should be updated"
-        );
-
-        // Initial-only files are never overwritten.
-        fs::write(vault.join("home.md"), "# Custom home\n").unwrap();
-        fs::write(vault.join("tasks/_index.md"), "# Custom tasks\n").unwrap();
-        fs::write(vault.join("knowledge/_index.md"), "# Custom knowledge\n").unwrap();
-        init_vault(&vault, &template).unwrap();
-        assert!(fs::read_to_string(vault.join("home.md"))
-            .unwrap()
-            .contains("# Custom home"));
-        assert!(fs::read_to_string(vault.join("tasks/_index.md"))
-            .unwrap()
-            .contains("# Custom tasks"));
-        assert!(fs::read_to_string(vault.join("knowledge/_index.md"))
-            .unwrap()
-            .contains("# Custom knowledge"));
 
         fs::remove_dir_all(&vault).ok();
-        fs::remove_dir_all(&template).ok();
     }
 
     #[test]
-    fn init_vault_skips_dev_artifacts() {
-        let template = temp_template_dir();
-        write_template(&template);
-        // Simulate a repo working copy where the opencode runtime was
-        // typechecked (node_modules) and a sync was run (manifest).
-        fs::create_dir_all(template.join(".opencode/node_modules/pkg")).unwrap();
-        fs::write(template.join(".opencode/node_modules/pkg/index.js"), "x").unwrap();
-        fs::write(template.join(".opencode/plugins.txt"), "runtime file").unwrap();
+    fn diff_reports_added_for_missing_file() {
+        let vault = temp_test_vault("diff-added");
+        fs::create_dir_all(&vault).unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "added.md"),
+            Some(TemplateFileState::Added)
+        );
+    }
+
+    #[test]
+    fn diff_reports_updatable_when_vault_matches_baseline_but_template_changed() {
+        let vault = temp_test_vault("diff-updatable");
+        fs::create_dir_all(&vault).unwrap();
+        // Vault has the *old* content, matching the recorded baseline.
+        fs::write(vault.join("changed.md"), "changed-content-v1").unwrap();
+        let mut manifest = TemplateManifest::default();
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "changed.md"),
+            Some(TemplateFileState::Updatable)
+        );
+    }
+
+    #[test]
+    fn diff_reports_conflict_when_vault_and_template_both_diverged_from_baseline() {
+        let vault = temp_test_vault("diff-conflict");
+        fs::create_dir_all(&vault).unwrap();
+        // Vault was hand-edited away from the old baseline.
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        let mut manifest = TemplateManifest::default();
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "changed.md"),
+            Some(TemplateFileState::Conflict)
+        );
+    }
+
+    #[test]
+    fn diff_reports_up_to_date_when_nothing_changed() {
+        let vault = temp_test_vault("diff-uptodate");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("stable.md"), "stable-content").unwrap();
+        let mut manifest = TemplateManifest::default();
+        manifest
+            .files
+            .insert("stable.md".into(), sha256_hex(b"stable-content"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "stable.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+    }
+
+    #[test]
+    fn diff_with_no_baseline_falls_back_to_content_comparison() {
+        let vault = temp_test_vault("diff-no-baseline");
+        fs::create_dir_all(&vault).unwrap();
+        // No manifest at all (a vault that predates the manifest mechanism).
+        fs::write(vault.join("stable.md"), "stable-content").unwrap();
         fs::write(
-            template.join(".opencode/.claude-plugin-sync-manifest.json"),
-            "{}",
+            vault.join("changed.md"),
+            "hand-edited, no baseline on record",
         )
         .unwrap();
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let vault = std::env::temp_dir().join(format!("workhub-init-skip-{nanos}"));
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
 
-        init_vault(&vault, &template).unwrap();
+        assert_eq!(
+            diff_state(&diff, "stable.md"),
+            Some(TemplateFileState::UpToDate),
+            "content-equal with no baseline is UpToDate"
+        );
+        assert_eq!(
+            diff_state(&diff, "changed.md"),
+            Some(TemplateFileState::Conflict),
+            "content-divergent with no baseline defaults to Conflict, not silently overwritten"
+        );
+    }
 
-        assert!(vault.join(".opencode/plugins.txt").exists());
-        assert!(!vault.join(".opencode/node_modules").exists());
-        assert!(!vault
-            .join(".opencode/.claude-plugin-sync-manifest.json")
-            .exists());
+    #[test]
+    fn initial_only_files_are_excluded_from_the_diff() {
+        let vault = temp_test_vault("diff-initial-only");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("home.md"), "hand-written home").unwrap();
 
-        fs::remove_dir_all(&vault).ok();
-        fs::remove_dir_all(&template).ok();
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(diff_state(&diff, "home.md").is_none());
+    }
+
+    #[test]
+    fn apply_conflict_writes_side_by_side_file_and_preserves_original() {
+        let vault = temp_test_vault("apply-conflict");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        let mut manifest = TemplateManifest::default();
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()]).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "hand-edited content",
+            "the conflicting original must be left untouched"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md.new")).unwrap(),
+            "changed-content-v2"
+        );
+        // Baseline is left as-is for a conflict — the vault file didn't change.
+        let reloaded = load_manifest(&vault);
+        assert_eq!(
+            reloaded.files.get("changed.md").unwrap(),
+            &sha256_hex(b"changed-content-v1")
+        );
+    }
+
+    #[test]
+    fn apply_updatable_overwrites_and_advances_the_baseline() {
+        let vault = temp_test_vault("apply-updatable");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "changed-content-v1").unwrap();
+        let mut manifest = TemplateManifest::default();
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()]).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "changed-content-v2"
+        );
+        assert!(!vault.join("changed.md.new").exists());
+        let reloaded = load_manifest(&vault);
+        assert_eq!(
+            reloaded.files.get("changed.md").unwrap(),
+            &sha256_hex(b"changed-content-v2")
+        );
+    }
+
+    #[test]
+    fn apply_added_creates_the_missing_file() {
+        let vault = temp_test_vault("apply-added");
+        fs::create_dir_all(&vault).unwrap();
+
+        apply_from(&vault, &TEST_TEMPLATE, &["added.md".to_string()]).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("added.md")).unwrap(),
+            "added-content"
+        );
     }
 }

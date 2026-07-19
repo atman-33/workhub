@@ -93,6 +93,7 @@ const DEFAULTS: Settings = {
   use_herdr: true,
   herdr_cmd: "herdr",
   check_updates: true,
+  check_template_updates: true,
   ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
@@ -281,6 +282,15 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   onCheckedChange={(v) => setDraft({ ...draft, check_updates: v === true })}
                 />
                 Check for updates on startup
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.check_template_updates}
+                  onCheckedChange={(v) =>
+                    setDraft({ ...draft, check_template_updates: v === true })
+                  }
+                />
+                Check for vault template updates on startup
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox

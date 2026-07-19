@@ -363,19 +363,47 @@ pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// `template_source` is the absolute path to a `vault-template/` folder to
-/// copy from — the frontend defaults it to the repo checkout in dev; a
-/// packaged build would point it at a bundled resource instead.
+/// `vault-template/` is embedded into the binary at compile time (see
+/// `tasks::VAULT_TEMPLATE`), so there is no filesystem template path to pass
+/// in anymore — this works the same in dev and in a packaged single-exe
+/// build.
 #[tauri::command]
-pub async fn init_vault(vault_path: String, template_source: String) -> Result<(), String> {
+pub async fn init_vault(vault_path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let vault = PathBuf::from(vault_path);
-        tasks::init_vault(&vault, &PathBuf::from(template_source))?;
+        tasks::init_vault(&vault)?;
         // Seed the harness config with the currently registered projects
         // (best-effort — a fresh vault already has the template default).
         let config = storage::load();
         let _ = harness::sync_project_context(&vault, &config.projects);
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 3-way compares the embedded template against `vault_path`'s current
+/// content and the last-applied baseline (`_ai/template-manifest.json`),
+/// classifying every non-initial-only template file as added/updatable/
+/// conflicting/up-to-date.
+#[tauri::command]
+pub async fn check_vault_template(vault_path: String) -> Result<tasks::TemplateDiff, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::check_vault_template(&PathBuf::from(vault_path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Applies the embedded template content for exactly the given relative
+/// `paths` (as returned by `check_vault_template`'s `TemplateDiff`). Paths
+/// currently in `Conflict` are written beside the original as `<name>.new`
+/// rather than overwriting it; see `tasks::apply_vault_template` for the
+/// full policy.
+#[tauri::command]
+pub async fn apply_vault_template(vault_path: String, paths: Vec<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::apply_vault_template(&PathBuf::from(vault_path), &paths)
     })
     .await
     .map_err(|e| e.to_string())?

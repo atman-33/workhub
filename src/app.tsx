@@ -14,6 +14,7 @@ import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
+import { TemplateUpdateBanner } from "@/components/template-update-banner";
 import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
 import { VoiceView } from "@/components/voice-view";
@@ -22,7 +23,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
-import type { Settings, UpdateInfo } from "@/types";
+import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
 
 type Tab = "tasks" | "repos" | "music" | "timer" | "voice" | "help";
 
@@ -41,9 +42,19 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [templateDiff, setTemplateDiff] = useState<TemplateDiff | null>(null);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   useTidyNotifications();
+
+  const checkTemplate = useCallback(async (vaultPath: string) => {
+    try {
+      const diff = await api.checkVaultTemplate(vaultPath);
+      setTemplateDiff(diff);
+    } catch {
+      // Never block startup on a template-check failure.
+    }
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -53,7 +64,11 @@ export default function App() {
       if (cfg.settings.check_updates) {
         setUpdate(await api.checkUpdate());
       }
+      if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
+        await checkTemplate(cfg.settings.vault_path);
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveSettings = useCallback(async (next: Settings) => {
@@ -70,6 +85,14 @@ export default function App() {
       <div className="flex h-screen flex-col">
         {update && (
           <UpdateBanner update={update} currentVersion={version} onDismiss={() => setUpdate(null)} />
+        )}
+        {templateDiff && settings?.vault_path && (
+          <TemplateUpdateBanner
+            diff={templateDiff}
+            vaultPath={settings.vault_path}
+            onDismiss={() => setTemplateDiff(null)}
+            onApplied={() => void checkTemplate(settings.vault_path as string)}
+          />
         )}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
           {TABS.map(({ key, label, icon: Icon }) => (
