@@ -38,13 +38,23 @@ that flag exists specifically to require a human typing the command. Before
 writing "use the X skill" into a prompt:
 
 1. Find X's `SKILL.md` and check its frontmatter for `disable-model-invocation`.
-2. If set, resolve X's current absolute path — project scope
-   (`.claude/skills/<name>/SKILL.md`), user scope (`~/.claude/skills/<name>/SKILL.md`),
-   then the plugin cache (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/<name>/SKILL.md`;
-   cross-check the installed version via `~/.claude/plugins/installed_plugins.json`).
+2. If set, resolve X's current absolute path, in this order:
+   a. project scope (`.claude/skills/<name>/SKILL.md`)
+   b. user scope (`~/.claude/skills/<name>/SKILL.md`)
+   c. marketplace source (`~/.claude/plugins/marketplaces/<marketplace>/<plugin-source>/skills/<name>/SKILL.md`,
+      where `<plugin-source>` is the `source` field for that plugin in the marketplace's
+      `.claude-plugin/marketplace.json`, typically `plugins/<plugin>`). This path has no
+      version segment, so it keeps tracking the plugin's latest content as the marketplace
+      auto-updates — unlike the cache path below, it won't go stale when the installed
+      cache version lags behind.
+   d. plugin cache, only if (c) doesn't exist — e.g. a locally-installed marketplace with
+      no `marketplaces/` clone (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/<name>/SKILL.md`;
+      cross-check the installed version via `~/.claude/plugins/installed_plugins.json`).
 3. Write the prompt as "Read `<absolute path>` and follow its instructions" —
-   never the bare skill name. Plugin-cache paths are version-pinned and move on
-   update, so add one fallback line: "if that path is missing, glob
+   never the bare skill name. If (c) was used, add one fallback line: "if that
+   path is missing, use the plugin-cache path instead." If (d) had to be used,
+   plugin-cache paths are version-pinned and move on update, so add one
+   fallback line: "if that path is missing, glob
    `~/.claude/plugins/cache/*/<plugin>/*/skills/<name>/SKILL.md` and use the
    highest version found."
 4. If X's own SKILL.md already fixes an output format (a report layout, a
@@ -87,3 +97,4 @@ writing "use the X skill" into a prompt:
 - Backup directory doesn't exist or can't be created: ask the user for a different path rather than failing silently.
 - User's request is actually for a **remote** routine: point them to Desktop's Routines → New routine → Remote, or [claude.ai/code/routines](https://claude.ai/code/routines); don't attempt to create it here.
 - **Referenced skill can't run headless**: a `disable-model-invocation: true` skill named by its bare name (not resolved to an absolute path) silently fails to invoke on a scheduled run — always resolve per "Referencing other skills from a routine prompt" above.
+- **`marketplaces/` source path missing**: fall back to the version-pinned cache path (step 2d) — this happens for locally-installed marketplaces without a git-cloned `marketplaces/` copy.
