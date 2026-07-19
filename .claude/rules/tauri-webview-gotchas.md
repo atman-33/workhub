@@ -28,3 +28,17 @@ paths:
   (children are dead zones); for a fully draggable header, call
   `startDragging()` from a container-wide `onMouseDown` instead
   (see `src/quick-capture/capture-app.tsx`).
+- **Never use native `<input type="date">` / `type="datetime-local">` / `type="time">`.**
+  Their popups render in the **Windows display language**, not the page's — a
+  Japanese machine shows a Japanese calendar and Japanese Clear/Today buttons
+  inside this otherwise English UI. `<html lang="en">` does **not** override
+  this (it is already set, and the popup ignores it), and the popup is browser
+  chrome: it cannot be relabeled, restyled, or partially localized from the
+  page. So "keep the calendar OS-locale but force the buttons English" is not
+  buildable — it is all-or-nothing.
+  Use the app's own controls instead: `src/components/ui/date-picker.tsx`
+  (date only) or `src/components/ui/date-time-picker.tsx` (date + time, with
+  English Clear/Today buttons). The shared date arithmetic behind the latter
+  lives in `src/lib/date-time.ts` and is unit-tested.
+  The same trap applies to `Date#toLocaleString()` / `toLocaleDateString()`
+  in UI strings — pass an explicit `"en-US"` `Intl.DateTimeFormat`.
