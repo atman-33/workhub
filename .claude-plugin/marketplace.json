@@ -30,7 +30,7 @@
       "name": "productivity",
       "source": "./plugins/productivity",
       "description": "Productivity helpers for administrative and daily tasks, including Zenn blog writing.",
-      "version": "0.20.0",
+      "version": "0.21.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
