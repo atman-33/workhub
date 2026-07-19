@@ -62,9 +62,11 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
 
-A global hotkey opens a small always-on-top window that turns the current clipboard text into an \`inbox\` task, without switching to the app.
+A global hotkey opens a small always-on-top window that turns a copied link into an \`inbox\` task, without switching to the app. Typical use: a Slack message is about to get buried — copy its link, hit the hotkey, save, reply later.
 
 - Press **Ctrl** + **Alt** + **N** (the default). If another app already holds that combination, workhub falls back to **Ctrl** + **Shift** + **N**.
+- The clipboard is pasted into the description **only when it is a link workhub recognizes** — a Slack message, a GitHub pull request, or a monday.com item. The task is tagged accordingly (\`slack\`, \`github-pr\`, \`monday\`).
+- Any other clipboard content is left out of the form and offered on a **Paste clipboard** button instead, so unrelated text never has to be deleted by hand.
 - Edit the title and description, then save — the task lands in the Tasks board with status \`inbox\`.
 - The shortcut can be changed in **⚙ Settings**.`;
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.42.0 (2026-07-19)
+
+- **Quick capture no longer pastes arbitrary clipboard text.** The window was
+  built for links you want to come back to (a Slack message about to get
+  buried), but it pasted whatever happened to be on the clipboard, so
+  unrelated content usually had to be deleted by hand. Now the clipboard is
+  auto-pasted **only when it is a recognized link**, and anything else is
+  offered on the existing **Paste clipboard** button instead.
+  - Recognized sources: **Slack** messages/threads, **GitHub pull requests**,
+    and **monday.com** items. Each tags the task (`slack`, `github-pr`,
+    `monday`) and shows a badge in the capture window header; a link that
+    matches several shows several.
+  - Adding a source later is a one-line change in `src/lib/capture-patterns.ts`
+    — the same list drives auto-paste, the badges, and the tags.
+
 ## 0.41.0 (2026-07-19)
 
 - **Repos → commit graph**: the commit diff panel is now **resizable** — drag

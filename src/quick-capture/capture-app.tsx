@@ -1,7 +1,9 @@
 // Quick-capture window (label `quick-capture`): a small always-on-top form
-// that turns the clipboard into an inbox task. Shown/hidden by the Rust side
+// that turns a copied link into an inbox task. Shown/hidden by the Rust side
 // (src-tauri/src/quick_capture.rs); each `quick-capture://activate` event
-// re-initializes the form with the current clipboard text.
+// re-reads the clipboard and re-initializes the form. Only clipboard content
+// matching a known capture pattern (lib/capture-patterns.ts) is auto-pasted;
+// anything else waits behind the paste button.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -14,8 +16,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { ClipboardPaste, Inbox, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { shouldAutoPaste } from "@/lib/clipboard-paste";
-import { containsSlackUrl } from "@/lib/slack-url";
+import { matchCapturePatterns, shouldAutoPaste } from "@/lib/capture-patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,9 @@ export function CaptureApp() {
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  const isSlack = containsSlackUrl(description);
+  /** Recognized sources in the current description — drives both the header
+   *  badges and the tags the task is saved with. */
+  const matched = matchCapturePatterns(description);
 
   const init = useCallback(async () => {
     setTitle("");
@@ -83,7 +86,7 @@ export function CaptureApp() {
         title: trimmed,
         status: "inbox",
         assignee: "me",
-        tags: isSlack ? ["slack"] : [],
+        tags: matched.map((p) => p.id),
         body: `\n## Description\n\n${description.trim()}\n\n## Results\n`,
       });
       void notifyCreated(task.id, task.title);
@@ -116,7 +119,11 @@ export function CaptureApp() {
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Inbox className="size-3.5" />
           Quick capture
-          {isSlack && <Badge variant="secondary">slack</Badge>}
+          {matched.map((p) => (
+            <Badge key={p.id} variant="secondary">
+              {p.id}
+            </Badge>
+          ))}
         </span>
         <Button size="icon-sm" variant="ghost" onClick={hide} aria-label="Close">
           <X className="size-3.5" />
@@ -135,7 +142,7 @@ export function CaptureApp() {
             ref={descriptionRef}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (clipboard is pasted here)"
+            placeholder="Description (a copied Slack / PR / monday link is pasted here)"
             className="h-full resize-none pr-8 font-mono text-xs"
           />
           {description && (
