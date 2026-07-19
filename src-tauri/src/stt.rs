@@ -56,6 +56,24 @@ pub const MODELS: &[ModelInfo] = &[
         size_bytes: 487_601_967,
         sha1: "55356645c2b361a969dfd0ef2c5a50d530afd8d5",
     },
+    // Quantized variants: near-identical accuracy at a fraction of the size,
+    // and meaningfully faster to load and decode on CPU. SHA-1s computed from
+    // the upstream HF files (upstream publishes none for quantized models).
+    ModelInfo {
+        name: "small-q5_1",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
+        size_label: "~182 MB",
+        size_bytes: 190_085_487,
+        sha1: "6fe57ddcfdd1c6b07cdcc73aaf620810ce5fc771",
+    },
+    ModelInfo {
+        name: "large-v3-turbo-q5_0",
+        url:
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+        size_label: "~547 MB",
+        size_bytes: 574_041_195,
+        sha1: "e050f7970618a659205450ad97eb95a18d69c9ee",
+    },
 ];
 
 fn model_info(name: &str) -> Option<&'static ModelInfo> {
@@ -211,6 +229,71 @@ pub fn delete_model(name: &str) -> Result<(), String> {
 #[derive(Default)]
 pub struct SttState(pub Mutex<Option<(String, WhisperContext)>>);
 
+/// Number of CPU threads whisper should decode with. whisper.cpp's default
+/// caps at 4; on bigger CPUs raising it toward the core count is close to a
+/// free speedup. Capped at 8 — beyond that the decoder's parallelism stops
+/// paying for the extra thread coordination.
+fn decode_threads() -> i32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .min(8) as i32
+}
+
+/// whisper degrades on very short clips; pad anything under ~1s with
+/// trailing silence to a stable minimum (mirrors amical's worker, which pads
+/// to 1s + a small buffer).
+const MIN_SAMPLES: usize = 16_000 + 4_000;
+
+/// Loads (or reloads, when the configured model changed) the whisper context
+/// into `state`, keeping it resident. No-op when the right model is already
+/// loaded. Called by `transcribe` on demand and by `preload` ahead of time.
+pub fn ensure_loaded(state: &SttState) -> Result<(), String> {
+    let model_name = storage::load().settings.voice_model;
+    let path = model_path(&model_name);
+    if !path.is_file() {
+        return Err(format!(
+            "Model '{model_name}' not downloaded (Settings > Voice)"
+        ));
+    }
+
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    let needs_load = match guard.as_ref() {
+        Some((loaded, _)) => loaded != &model_name,
+        None => true,
+    };
+    if needs_load {
+        let started = Instant::now();
+        let ctx = WhisperContext::new_with_params(
+            path.to_str().ok_or("model path is not valid UTF-8")?,
+            WhisperContextParameters::default(),
+        )
+        .map_err(|e| format!("failed to load model: {e}"))?;
+        *guard = Some((model_name.clone(), ctx));
+        eprintln!(
+            "stt: loaded model '{model_name}' in {}ms",
+            started.elapsed().as_millis()
+        );
+    }
+    Ok(())
+}
+
+/// Fire-and-forget model warm-up on a background thread, so the load cost is
+/// paid while the user is still speaking instead of when the first chunk
+/// arrives. Errors are deferred to `transcribe`, which reports them properly.
+pub fn preload(app: &tauri::AppHandle) {
+    let app = app.clone();
+    std::thread::Builder::new()
+        .name("stt-preload".into())
+        .spawn(move || {
+            let state = tauri::Manager::state::<SttState>(&app);
+            if let Err(e) = ensure_loaded(&state) {
+                eprintln!("stt: preload skipped: {e}");
+            }
+        })
+        .ok();
+}
+
 /// Runs local transcription on 16 kHz mono PCM samples. Loads (or reloads,
 /// if the configured model changed) the ggml model on first use and keeps it
 /// resident in `SttState`. Intended to be called from
@@ -225,28 +308,20 @@ pub fn transcribe(
     initial_prompt: Option<&str>,
 ) -> Result<String, String> {
     let settings = storage::load().settings;
-    let model_name = settings.voice_model;
-    let path = model_path(&model_name);
-    if !path.is_file() {
-        return Err(format!(
-            "Model '{model_name}' not downloaded (Settings > Voice)"
-        ));
-    }
+    ensure_loaded(state)?;
 
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    let needs_load = match guard.as_ref() {
-        Some((loaded, _)) => loaded != &model_name,
-        None => true,
+    let padded;
+    let samples = if samples.len() < MIN_SAMPLES {
+        let mut buf = samples.to_vec();
+        buf.resize(MIN_SAMPLES, 0.0);
+        padded = buf;
+        &padded[..]
+    } else {
+        samples
     };
-    if needs_load {
-        let ctx = WhisperContext::new_with_params(
-            path.to_str().ok_or("model path is not valid UTF-8")?,
-            WhisperContextParameters::default(),
-        )
-        .map_err(|e| format!("failed to load model: {e}"))?;
-        *guard = Some((model_name.clone(), ctx));
-    }
-    let (_, ctx) = guard.as_ref().expect("just populated");
+
+    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let (_, ctx) = guard.as_ref().expect("ensure_loaded just populated");
 
     let mut whisper_state = ctx.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
@@ -269,10 +344,17 @@ pub fn transcribe(
     params.set_print_timestamps(false);
     params.set_no_timestamps(true);
     params.set_single_segment(false);
+    params.set_n_threads(decode_threads());
 
+    let started = Instant::now();
     whisper_state
         .full(params, samples)
         .map_err(|e| format!("transcription failed: {e}"))?;
+    eprintln!(
+        "stt: transcribed {}ms of audio in {}ms",
+        samples.len() / 16,
+        started.elapsed().as_millis()
+    );
 
     let n_segments = whisper_state.full_n_segments().map_err(|e| e.to_string())?;
     let mut text = String::new();
@@ -282,4 +364,29 @@ pub fn transcribe(
         }
     }
     Ok(text.trim().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Manual smoke/bench, excluded from normal runs (`#[ignore]`): loads the
+    /// *configured* model from the local `~/.workhub` setup and decodes 3s of
+    /// synthetic audio. Run with
+    /// `cargo test --release transcribe_smoke -- --ignored --nocapture` and
+    /// read stderr: on Vulkan builds whisper.cpp prints the selected
+    /// `ggml_vulkan` device on load, and the `stt: transcribed ...` line
+    /// gives the decode time.
+    #[test]
+    #[ignore]
+    fn transcribe_smoke() {
+        let state = SttState::default();
+        let samples: Vec<f32> = (0..48_000)
+            .map(|i| 0.1 * (i as f32 * 220.0 * 2.0 * std::f32::consts::PI / 16_000.0).sin())
+            .collect();
+        match transcribe(&state, &samples, None) {
+            Ok(text) => eprintln!("stt smoke: transcript = {text:?}"),
+            Err(e) => eprintln!("stt smoke: skipped ({e})"),
+        }
+    }
 }

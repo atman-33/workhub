@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.51.0 (2026-07-19)
+
+- **Voice input transcription is much faster.**
+  - whisper.cpp now builds with the Vulkan GPU backend: transcription runs
+    on the GPU when one is available (NVIDIA/AMD/Intel) and falls back to
+    CPU automatically otherwise. Building from source now requires the
+    Vulkan SDK (`VULKAN_SDK` env var).
+  - CPU decoding uses up to 8 threads instead of whisper.cpp's default cap
+    of 4.
+  - Two quantized models were added to the catalog: `small-q5_1` (~182 MB,
+    near-`small` accuracy at a fraction of the size and decode time) and
+    `large-v3-turbo-q5_0` (~547 MB, the most accurate option and fast on a
+    GPU).
+  - The model is preloaded in the background as soon as recording starts,
+    so the first transcribed chunk no longer waits behind a multi-second
+    model load.
+  - Sub-second audio chunks are padded with silence before decoding, which
+    whisper otherwise handles poorly.
+
 ## 0.50.0 (2026-07-19)
 
 - **Fixed a vault template sync bug that could silently overwrite

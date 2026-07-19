@@ -321,6 +321,9 @@ fn start_recording(app: &AppHandle) {
             .spawn(move || record_and_finish(app_handle, stop_rx))
             .ok();
     }
+    // Warm the model up while the user is speaking, so the first chunk isn't
+    // stuck behind a multi-second model load.
+    crate::stt::preload(app);
     set_phase(app, Phase::Recording);
 }
 

@@ -72,6 +72,8 @@ const VOICE_MODELS: { id: string; label: string; size: string }[] = [
   { id: "tiny", label: "Tiny", size: "75MB" },
   { id: "base", label: "Base", size: "142MB" },
   { id: "small", label: "Small", size: "466MB" },
+  { id: "small-q5_1", label: "Small (quantized)", size: "182MB" },
+  { id: "large-v3-turbo-q5_0", label: "Large v3 Turbo (quantized)", size: "547MB" },
 ];
 
 const VOICE_LANGUAGES: { id: string; label: string }[] = [
@@ -471,14 +473,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Model</label>
                       <Select
                         value={draft.voice_model}
                         onValueChange={(v) => setDraft({ ...draft, voice_model: v })}
                       >
-                        <SelectTrigger size="sm">
-                          <SelectValue />
+                        <SelectTrigger size="sm" className="w-full">
+                          <SelectValue className="truncate" />
                         </SelectTrigger>
                         <SelectContent>
                           {VOICE_MODELS.map((m) => (
@@ -489,14 +491,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Language</label>
                       <Select
                         value={draft.voice_language}
                         onValueChange={(v) => setDraft({ ...draft, voice_language: v })}
                       >
-                        <SelectTrigger size="sm">
-                          <SelectValue />
+                        <SelectTrigger size="sm" className="w-full">
+                          <SelectValue className="truncate" />
                         </SelectTrigger>
                         <SelectContent>
                           {VOICE_LANGUAGES.map((l) => (
