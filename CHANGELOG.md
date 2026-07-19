@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.45.0 (2026-07-19)
+
+- **Task files gained a `## Plan` section**, sitting between `Description`
+  and `Results`. When a task uses confirm mode, the agent now writes the
+  approved plan into this section before touching any code — so if the
+  session later crashes, hits a usage limit, or gets closed, the plan the
+  human already reviewed isn't lost. It also means a task can be picked up
+  later, potentially by a different agent CLI (Claude Code → OpenCode), and
+  the new agent follows the recorded plan instead of re-planning from
+  scratch.
+  - The section is read-only in the app — a **Plan** button appears next to
+    **Results** in the task dialog header whenever a plan is recorded,
+    opening the same kind of rendered-Markdown slide-over (mermaid diagrams
+    and tables included). Editing a plan is an approval action, so the right
+    place for it is Obsidian, where the human is already reviewing.
+    Task cards on the board and in the list view show a small icon when a
+    plan is present.
+  - Existing task files are unaffected: a missing `## Plan` parses as empty,
+    and the app never inserts the header on save — only newly created tasks
+    (and the vault template) get an empty one.
+- **New setting: task file language** (Settings → Commands → *Task file
+  language*, English or 日本語). Controls only the language an AI agent
+  writes a task's `## Plan` and `## Results` sections in — it never touches
+  code, comments, commit messages, or other repository documentation.
+
 ## 0.44.0 (2026-07-19)
 
 - **Music playlists can be moved between workhub installs.** The playlist tab

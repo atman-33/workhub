@@ -45,6 +45,10 @@ export interface Settings {
   voice_model: string;
   /** Transcription language: "auto" or an ISO code (e.g. "en", "ja"). */
   voice_language: string;
+  /** Language the AI writes the task file's `## Plan` and `## Results`
+   * sections in: "en" | "ja". Content only — never affects code, comments,
+   * commit messages, or other repository artifacts. */
+  task_language: string;
   /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
    * tasks/archive index via a headless agent). */
   tidy: TidySettings;

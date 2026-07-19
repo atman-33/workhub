@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText, Gem, Maximize2, Minimize2 } from "lucide-react";
+import { ClipboardList, FileText, Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -161,6 +161,9 @@ export function TaskDialog({
   const [descEditing, setDescEditing] = useState(false);
   // Results are read-only; they open in a slide-over sheet from the header.
   const [resultsOpen, setResultsOpen] = useState(false);
+  // Plan is also read-only in the app — it's the approval record, edited in
+  // Obsidian only — and opens in its own slide-over sheet.
+  const [planOpen, setPlanOpen] = useState(false);
   // Near-fullscreen mode for long descriptions; the description field absorbs
   // the extra space.
   const [maximized, setMaximized] = useState(false);
@@ -173,6 +176,7 @@ export function TaskDialog({
     if (open) {
       setDescEditing(false);
       setResultsOpen(false);
+      setPlanOpen(false);
       setMaximized(false);
       setObsidianError(null);
       setCreating(false);
@@ -184,6 +188,9 @@ export function TaskDialog({
   // resultRaw always starts with the "## Results" header; treat "header only"
   // (nothing after it) as empty so the sheet can show a placeholder instead.
   const hasResults = resultRaw.replace(/^##\s*Results\s*/i, "").trim().length > 0;
+  // Plan is already trimmed by parseBody, so a simple non-empty check suffices.
+  const plan = task ? parseBody(task.body).plan : "";
+  const hasPlan = plan.length > 0;
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef(draft);
@@ -413,6 +420,17 @@ export function TaskDialog({
                       </>
                     )}
                   <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
+                  {hasPlan && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => setPlanOpen(true)}
+                    >
+                      <ClipboardList className="size-3.5" /> Plan
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
@@ -675,6 +693,29 @@ export function TaskDialog({
           </DialogFooter>
         )}
       </DialogContent>
+
+      {/* Read-only Plan preview. The approved implementation plan — written
+          by an AI agent (with human approval) or by hand in Obsidian; the
+          app only ever displays it, never edits it (see task-body.ts). */}
+      <Sheet open={planOpen} onOpenChange={setPlanOpen}>
+        <SheetContent side="right" className="w-[90vw] gap-0 sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{task?.id ? `${task.id} — Plan` : "Plan"}</SheetTitle>
+            <SheetDescription className="sr-only">
+              Rendered implementation plan for this task.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            {hasPlan ? (
+              <Markdown>{plan}</Markdown>
+            ) : (
+              <p className="mt-8 text-center text-sm text-muted-foreground">
+                No plan recorded yet.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Read-only Results preview. Rendered markdown with copyable code blocks;
           the app never writes this section (see task-body.ts). */}

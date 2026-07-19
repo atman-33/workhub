@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Archive } from "lucide-react";
+import { Archive, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -12,6 +12,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
@@ -215,6 +216,11 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                   </div>
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                     <span>{task.id}</span>
+                    {parseBody(task.body).plan && (
+                      <span title="Plan recorded" className="flex shrink-0">
+                        <ClipboardList className="size-3" aria-label="Plan recorded" />
+                      </span>
+                    )}
                     {task.project && <span>· {task.project}</span>}
                     <span>· {task.assignee}</span>
                     {task.due && (

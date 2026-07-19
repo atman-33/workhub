@@ -58,8 +58,19 @@ created: 2026-07-10
 updated: 2026-07-10
 ```
 
-Body sections: `## Description` (prompt/spec for AI) and `## Results`
-(deliverables, filled on completion, links to deliverable notes).
+Body sections, in document order:
+
+| Section | Written by | Meaning |
+|---------|-----------|---------|
+| `## Description` | human | prompt/spec for AI — what should happen |
+| `## Plan` | AI, approved by human | the approved implementation plan |
+| `## Results` | AI, on completion | deliverables, links to deliverable notes |
+
+Description and Plan are inputs; Results is the output. A non-empty `## Plan`
+means the plan is already approved — follow it instead of re-planning. The
+section outlives the session that wrote it, so a plan approved by one agent
+can be executed later by another. The app renders Plan read-only; edit plans
+in Obsidian.
 
 ## Agent harness
 
@@ -81,6 +92,10 @@ knowledge, and configuration — never application code.
   enabled Claude plugins — edit the plugin source and re-sync, never the copies.
 - Respond to the user in Japanese. Write documents and repository artifacts
   in English unless the user explicitly requests otherwise.
+- **Exception:** a task file's `## Plan` and `## Results` follow the workhub
+  **Task language** setting (default English), which the app states in its
+  launch prompt. That setting governs those two sections only — never code,
+  comments, commit messages, or repository documentation.
 
 ### herdr workspace integration
 
@@ -150,8 +165,11 @@ mechanical authoring):
 
 - **Status transitions you may perform:** `todo → doing → review` only.
   Never set `done` — a human does that in the app.
-- When updating a task file, change only `status`, `updated`, and the
+- When updating a task file, change only `status`, `updated`, the `## Plan`
+  section (plan-first tasks, before implementation starts), and the
   `## Results` section. Preserve all other frontmatter and body content.
+- Never rewrite an approved `## Plan` in place — it is the user's approval
+  record. Append if the plan genuinely changes, and say so.
 - Raw work reports go to `_ai/logs/`. Polished, human-readable summaries and
   deliverables go to `projects/` or `knowledge/`, linked from the task's
   `## Results`.

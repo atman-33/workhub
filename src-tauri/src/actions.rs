@@ -105,6 +105,11 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// When true, herdr runs in the Tasks view's embedded terminal panel
     /// instead of an external Windows Terminal window (see `herdr::ensure_server`).
     pub terminal_embed: bool,
+    /// Language the agent should write the task file's `## Plan` and
+    /// `## Results` sections in: "en" | "ja". Unrecognized values fall back
+    /// to English. Scoped to those two sections only — never code, comments,
+    /// commit messages, or other repository artifacts.
+    pub task_language: &'a str,
 }
 
 /// Launches the configured agent for a task with an initial prompt telling it
@@ -208,8 +213,14 @@ pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
     // Execution clause: autonomous by default; plan-first when the task opts
     // into confirm mode (T-0016 — a task Description asking for confirmation is
     // otherwise overridden by the "run without asking" instruction below).
+    // When approval lands, the plan is written into `## Plan` before any code
+    // changes (T-0057) — that's what makes it resumable if the session ends
+    // mid-implementation, possibly picked up later by a different agent CLI.
+    // Backticks (not double quotes) around section names throughout this
+    // function — double quotes would collide with the outer prompt quoting
+    // in `agent_command_template` (see `quoted_prompt` there).
     let execution = if params.confirm {
-        ". Understand the Description, create an implementation plan, and get the user's approval before proceeding. Do not change code until approved"
+        ". Understand the Description, create an implementation plan, and get the user's approval before proceeding. Once approved, write the approved plan into the task file's `## Plan` section before making any code changes. Do not change code until approved"
     } else {
         ", then complete it automatically without asking for confirmation"
     };
@@ -224,9 +235,25 @@ pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
     } else {
         String::new()
     };
+    // Plan clause (T-0057): applies regardless of confirm mode, because the
+    // resume/handoff case — a plan approved in an earlier session, executed
+    // later, possibly by a different agent CLI — is exactly when `confirm` is
+    // no longer meaningful.
+    let plan_note = " If the task file's `## Plan` section is already non-empty, treat it as the approved implementation plan: follow it rather than re-planning, and ask before deviating from it.";
+    // Language clause (T-0057): scoped strictly to the task file's `## Plan`
+    // and `## Results` sections. Deliberately does not say "write in
+    // <language>" unqualified, so an agent cannot over-apply it to code,
+    // comments, commit messages, PR text, or repository documentation.
+    let language_name = match params.task_language {
+        "ja" => "Japanese",
+        _ => "English",
+    };
+    let language_note = format!(
+        " Write the task file's `## Plan` and `## Results` sections in {language_name}. This applies only to those two sections of the task file — never change the language of code, code comments, commit messages, PR titles/bodies, or other repository documentation.",
+    );
     format!(
-        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{} Task file: {}",
-        params.task_id, execution, worktree_note, project_note, params.task_file
+        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{}{}{} Task file: {}",
+        params.task_id, execution, worktree_note, project_note, plan_note, language_note, params.task_file
     )
 }
 
@@ -571,6 +598,7 @@ mod tests {
             use_herdr: false,
             herdr_cmd: "herdr",
             terminal_embed: false,
+            task_language: "en",
         }
     }
 
@@ -632,6 +660,56 @@ mod tests {
     fn default_mode_has_no_worktree_instruction() {
         let template = agent_command_template(&test_params("claude-code", ""));
         assert!(!template.contains("This task uses git worktree mode"));
+    }
+
+    #[test]
+    fn prompt_always_includes_the_plan_clause_regardless_of_confirm() {
+        let prompt = build_agent_prompt(&test_params("claude-code", ""));
+        assert!(prompt.contains("`## Plan` section is already non-empty"));
+        assert!(prompt.contains("follow it rather than re-planning"));
+
+        let mut confirm_params = test_params("claude-code", "");
+        confirm_params.confirm = true;
+        let confirm_prompt = build_agent_prompt(&confirm_params);
+        assert!(confirm_prompt.contains("`## Plan` section is already non-empty"));
+    }
+
+    #[test]
+    fn confirm_mode_writes_approved_plan_before_implementing() {
+        let mut params = test_params("claude-code", "");
+        params.confirm = true;
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.contains(
+            "write the approved plan into the task file's `## Plan` section before making any code changes"
+        ));
+    }
+
+    #[test]
+    fn prompt_language_clause_defaults_to_english_and_is_scoped_to_plan_and_results() {
+        let prompt = build_agent_prompt(&test_params("claude-code", ""));
+        assert!(prompt
+            .contains("Write the task file's `## Plan` and `## Results` sections in English."));
+        assert!(
+            prompt.contains("never change the language of code, code comments, commit messages")
+        );
+    }
+
+    #[test]
+    fn prompt_language_clause_says_japanese_when_set() {
+        let mut params = test_params("claude-code", "");
+        params.task_language = "ja";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt
+            .contains("Write the task file's `## Plan` and `## Results` sections in Japanese."));
+    }
+
+    #[test]
+    fn prompt_language_clause_falls_back_to_english_for_unknown_values() {
+        let mut params = test_params("claude-code", "");
+        params.task_language = "fr";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt
+            .contains("Write the task file's `## Plan` and `## Results` sections in English."));
     }
 
     #[test]

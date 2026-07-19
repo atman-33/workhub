@@ -53,3 +53,10 @@ argument-hint: "<task-id>"
 - If the work is incomplete or blocked, still report: describe the blocker in
   `## Results`, keep `status: doing`, and leave the active-task marker in place.
 - Do not overwrite existing human notes; create new ones and link them.
+- Never modify the task's `## Plan` section — it is the approved plan and the
+  user's approval record, not a place for results.
+- Write `## Results` in the language given by the workhub **Task language**
+  setting, stated in the app's launch prompt (default English). That setting
+  governs the task file's `## Plan` and `## Results` only — notes under
+  `knowledge/` and `projects/`, and everything in target repositories, follow
+  their own conventions.
