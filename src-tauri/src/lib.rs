@@ -23,6 +23,16 @@ use tauri::Manager;
 pub fn run() {
     update::cleanup_old();
     tauri::Builder::default()
+        // Must be registered first (per tauri-plugin-single-instance docs).
+        // Without this, every launch adds another process; combined with the
+        // hidden quick-capture/voice windows keeping each one alive after its
+        // main window closes, instances used to accumulate indefinitely.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
@@ -52,6 +62,23 @@ pub fn run() {
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
         .setup(|app| {
+            // Closing the main window used to leave the process running
+            // (the hidden quick-capture/voice windows below keep Tauri
+            // alive), producing windowless zombie processes that then lock
+            // their own exe against future self-updates. There is no tray
+            // icon, so a windowless process is also unreachable — exit the
+            // whole app when the main window closes. The quick-capture and
+            // voice windows are hidden helper windows, not covered by this
+            // (their own `CloseRequested` just hides them, see their
+            // modules), so hiding either of them never exits the app.
+            if let Some(main_window) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        app_handle.exit(0);
+                    }
+                });
+            }
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
             if cfg.settings.ink_enabled {

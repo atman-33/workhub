@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.48.0 (2026-07-19)
+
+- **Fixed self-update failing permanently once a stale instance locked the
+  update's "previous version" file.** Closing the main window used to leave
+  workhub running in the background (the hidden quick-capture and voice
+  windows kept it alive), so instances quietly accumulated across restarts.
+  When an update later renamed one of those still-running exes aside, the
+  file stayed locked forever — and because the app silently ignored the
+  failure to remove a leftover from an even earlier update, every subsequent
+  update attempt failed with "cannot move current exe aside: os error 5"
+  until someone found and killed the stray processes by hand.
+  - Closing the main window now quits the app immediately (there is no tray
+    icon to keep it reachable otherwise); the hidden quick-capture/voice
+    windows no longer keep it alive after that. As a side effect, their
+    global hotkeys stop working once the app is closed — noted in the Help
+    tab.
+  - A second launch now focuses the existing window and exits instead of
+    starting a duplicate instance (`tauri-plugin-single-instance`).
+  - If the update's aside file is still locked by an old instance, it now
+    falls back to a unique name (`workhub.exe.old-<timestamp>`) instead of
+    failing outright, and the app sweeps up every leftover `.old`/`.new` file
+    it can reach on startup. Failures now name the exact file involved and,
+    for a lock-related error, suggest closing other running copies.
+
 ## 0.47.0 (2026-07-19)
 
 - **The vault template now stays in sync with the app.** `vault-template/` is

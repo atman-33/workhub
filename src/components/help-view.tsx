@@ -78,7 +78,8 @@ A global hotkey opens a small always-on-top window that turns a copied link into
 - The clipboard is pasted into the description **only when it is a link workhub recognizes** — a Slack message, a GitHub pull request, or a monday.com item. The task is tagged accordingly (\`slack\`, \`github-pr\`, \`monday\`).
 - Any other clipboard content is left out of the form and offered on a **Paste clipboard** button instead, so unrelated text never has to be deleted by hand.
 - Edit the title and description, then save — the task lands in the Tasks board with status \`inbox\`.
-- The shortcut can be changed in **⚙ Settings**.`;
+- The shortcut can be changed in **⚙ Settings**.
+- workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const VOICE_MD = `## Voice input (local dictation)
 
@@ -90,7 +91,8 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - The indicator can be dragged anywhere on screen; workhub remembers where you left it and reopens it there next time.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
-- The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.`;
+- The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.
+- workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
@@ -441,6 +443,11 @@ export function HelpView() {
                 The shortcut can be changed in{" "}
                 <span className="font-medium">⚙ Settings</span>.
               </li>
+              <li>
+                workhub has no tray icon: closing its main window quits the
+                app entirely, and the hotkey stops working until you
+                relaunch it.
+              </li>
             </ul>
           </Section>
 
@@ -498,6 +505,11 @@ export function HelpView() {
               <li>
                 The hotkey, model, and language can be changed in{" "}
                 <span className="font-medium">⚙ Settings → Voice</span>.
+              </li>
+              <li>
+                workhub has no tray icon: closing its main window quits the
+                app entirely, and the hotkey stops working until you
+                relaunch it.
               </li>
             </ul>
           </Section>
