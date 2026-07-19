@@ -80,10 +80,20 @@ export function ReposView({ configVersion, active }: Props) {
   const [showChanges, setShowChanges] = useState(
     () => localStorage.getItem("repos.showChanges") === "1",
   );
+  // Widen the graph sheet to the whole window. Toggling only swaps the sheet's
+  // width classes, so GitGraphView stays mounted and keeps its loaded commits,
+  // selection and scroll position.
+  const [graphMaximized, setGraphMaximized] = useState(
+    () => localStorage.getItem("repos.graphMaximized") === "1",
+  );
 
   useEffect(() => {
     localStorage.setItem("repos.showChanges", showChanges ? "1" : "0");
   }, [showChanges]);
+
+  useEffect(() => {
+    localStorage.setItem("repos.graphMaximized", graphMaximized ? "1" : "0");
+  }, [graphMaximized]);
 
   // Persist the list / changes-panel split across restarts (localStorage-backed).
   const verticalLayout = useDefaultLayout({ id: "repos-vertical", storage: localStorage });
@@ -597,7 +607,12 @@ export function ReposView({ configVersion, active }: Props) {
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="w-[90vw] gap-0 p-0 sm:max-w-4xl"
+          className={cn(
+            "gap-0 p-0",
+            graphMaximized
+              ? "w-screen max-w-none sm:max-w-none"
+              : "w-[90vw] sm:max-w-4xl",
+          )}
           aria-describedby={undefined}
           // Never close on an outside interaction. While a commit context menu
           // is open it uses `disableOutsidePointerEvents`, which makes Radix
@@ -612,6 +627,8 @@ export function ReposView({ configVersion, active }: Props) {
               name={config.projects.find((p) => p.path === graphPath)?.name ?? graphPath}
               onClose={() => setGraphPath(null)}
               onRepoChanged={refreshStatus}
+              maximized={graphMaximized}
+              onToggleMaximize={() => setGraphMaximized((v) => !v)}
             />
           )}
         </SheetContent>

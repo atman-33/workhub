@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { useDefaultLayout } from "react-resizable-panels";
 import {
   ChevronsUpDown,
   Download,
   GitBranch,
   Loader2,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   Upload,
   X,
@@ -20,6 +23,11 @@ import { NameDialog } from "@/components/graph/name-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BranchCombobox } from "@/components/ui/branch-combobox";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
@@ -34,9 +42,19 @@ interface Props {
   name: string;
   onClose: () => void;
   onRepoChanged: (path: string) => void;
+  /** Whether the containing sheet is expanded to the full window width. */
+  maximized: boolean;
+  onToggleMaximize: () => void;
 }
 
-export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
+export function GitGraphView({
+  path,
+  name,
+  onClose,
+  onRepoChanged,
+  maximized,
+  onToggleMaximize,
+}: Props) {
   const [log, setLog] = useState<GitLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [opBusy, setOpBusy] = useState<string | null>(null);
@@ -47,7 +65,16 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
   const [viewportH, setViewportH] = useState(600);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const scrollTopRef = useRef(0);
   const rafRef = useRef(0);
+
+  // Persist the commit-list / diff-panel split across restarts, the same way
+  // the repos list persists its own vertical split.
+  const diffLayout = useDefaultLayout({
+    id: "git-graph-vertical",
+    storage: localStorage,
+  });
 
   const load = useCallback(
     async (limit: number, skip: number, append: boolean) => {
@@ -72,14 +99,20 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
     void load(PAGE, 0, false);
   }, [load]);
 
-  useEffect(() => {
-    const el = scrollRef.current;
+  // Opening/closing the diff panel moves the commit list into (and out of) a
+  // resizable panel, which remounts it. Attach via a callback ref so the size
+  // observer follows the live element, and restore the scroll offset so the
+  // virtualised window still matches the row the user just clicked.
+  const attachScroll = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
+    scrollRef.current = el;
     if (!el) return;
-    const measure = () => setViewportH(el.clientHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
+    el.scrollTop = scrollTopRef.current;
+    setViewportH(el.clientHeight);
+    const ro = new ResizeObserver(() => setViewportH(el.clientHeight));
     ro.observe(el);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
 
   const reload = useCallback(() => {
@@ -168,7 +201,9 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       const el = scrollRef.current;
-      if (el) setScrollTop(el.scrollTop);
+      if (!el) return;
+      scrollTopRef.current = el.scrollTop;
+      setScrollTop(el.scrollTop);
     });
   }, []);
 
@@ -197,6 +232,60 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
 
   const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 20);
   const end = Math.min(rows.length, start + Math.ceil(viewportH / ROW_H) + 40);
+
+  const commitList = (
+    <div
+      ref={attachScroll}
+      className="h-full overflow-y-auto px-2 py-1"
+      onScroll={onScroll}
+    >
+      {!log && loading ? (
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="mt-16 text-center text-sm text-muted-foreground">No commits yet.</p>
+      ) : (
+        <>
+          <div style={{ height: start * ROW_H }} />
+          {rows.slice(start, end).map((entry, i) => (
+            <CommitRow
+              key={entry.hash}
+              entry={entry}
+              layout={layout[start + i]}
+              isHead={entry.hash === log?.head}
+              isWorktree={entry.hash === WORKTREE_HASH}
+              detached={detached}
+              currentBranch={log?.current_branch ?? ""}
+              selected={entry.hash === selectedHash}
+              opBusy={opBusy}
+              onOp={(label, op) => void runOp(label, op)}
+              onCopy={copy}
+              onRequestDialog={setDialog}
+              onDeleteBranch={(b) => void deleteBranch(b)}
+              onSelect={() =>
+                setSelectedHash((prev) => (prev === entry.hash ? null : entry.hash))
+              }
+            />
+          ))}
+          <div style={{ height: (rows.length - end) * ROW_H }} />
+          {log?.has_more && (
+            <div className="flex justify-center py-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                disabled={loading}
+                onClick={() => void load(PAGE, log.commits.length, true)}
+              >
+                {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Load more"}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -289,69 +378,49 @@ export function GitGraphView({ path, name, onClose, onRepoChanged }: Props) {
           >
             <RefreshCw className="size-3.5" /> Refresh
           </Button>
+          {/* Widens the sheet to the full window without remounting this view,
+              so the loaded commits and the selection survive the toggle. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-8"
+                onClick={onToggleMaximize}
+              >
+                {maximized ? (
+                  <Minimize2 className="size-3.5" />
+                ) : (
+                  <Maximize2 className="size-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{maximized ? "Restore size" : "Maximize"}</TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
-      {/* commit list */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-1" onScroll={onScroll}>
-        {!log && loading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="mt-16 text-center text-sm text-muted-foreground">
-            No commits yet.
-          </p>
-        ) : (
-          <>
-            <div style={{ height: start * ROW_H }} />
-            {rows.slice(start, end).map((entry, i) => (
-              <CommitRow
-                key={entry.hash}
-                entry={entry}
-                layout={layout[start + i]}
-                isHead={entry.hash === log?.head}
-                isWorktree={entry.hash === WORKTREE_HASH}
-                detached={detached}
-                currentBranch={log?.current_branch ?? ""}
-                selected={entry.hash === selectedHash}
-                opBusy={opBusy}
-                onOp={(label, op) => void runOp(label, op)}
-                onCopy={copy}
-                onRequestDialog={setDialog}
-                onDeleteBranch={(b) => void deleteBranch(b)}
-                onSelect={() =>
-                  setSelectedHash((prev) => (prev === entry.hash ? null : entry.hash))
-                }
-              />
-            ))}
-            <div style={{ height: (rows.length - end) * ROW_H }} />
-            {log?.has_more && (
-              <div className="flex justify-center py-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs"
-                  disabled={loading}
-                  onClick={() => void load(PAGE, log.commits.length, true)}
-                >
-                  {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Load more"}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* diff panel */}
-      {selectedEntry && (
-        <div className="h-[45%] shrink-0">
-          <CommitDiffPanel
-            path={path}
-            entry={selectedEntry}
-            onClose={() => setSelectedHash(null)}
-          />
-        </div>
+      {/* commit list, optionally split with the commit diff panel */}
+      {selectedEntry ? (
+        <ResizablePanelGroup
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          {...diffLayout}
+        >
+          <ResizablePanel id="commits" defaultSize="55%" minSize="20%" className="min-h-0">
+            {commitList}
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel id="diff" defaultSize="45%" minSize="15%" className="min-h-0">
+            <CommitDiffPanel
+              path={path}
+              entry={selectedEntry}
+              onClose={() => setSelectedHash(null)}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="min-h-0 flex-1">{commitList}</div>
       )}
 
       {/* status bar */}

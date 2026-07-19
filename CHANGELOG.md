@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.41.0 (2026-07-19)
+
+- **Repos → commit graph**: the commit diff panel is now **resizable** — drag
+  the divider between the commit list and the diff to give either side more
+  room. The split is remembered across restarts.
+- **Maximize the graph**: a new button in the graph header expands the sheet
+  to the full window width (and back). The preference is remembered, and
+  toggling keeps the loaded commits, the selected commit and the scroll
+  position intact.
+
 ## 0.40.0 (2026-07-19)
 
 - **Vault tidy**: a built-in routine that keeps the vault easy for AI to
