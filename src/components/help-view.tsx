@@ -58,8 +58,9 @@ const TEMPLATE_MD = `## Vault template updates
 The vault template (\`CLAUDE.md\`, skill configuration, and other shared files) can change between workhub versions. On startup, workhub compares the configured vault against the bundled template and, if anything differs, shows a banner.
 
 - Each file is one of: **added** (missing in the vault, will be created), **updatable** (you haven't edited it and the template changed — safe to overwrite), **conflict** (you edited it *and* the template changed), or up to date (no action).
+- A few files — such as \`.claude/project-context.json\`, \`.claude/settings.json\`, and the \`_index.md\` files kept up to date by \`/kb-index\` — are **seed files**: they're created once when missing and never compared or overwritten again, so this check never touches your registered repos or generated indexes.
 - Press **Review** on the banner to see the list and pick which files to update. **added** and **updatable** files are pre-checked; **conflict** files are left unchecked.
-- Updating a **conflict** file never overwrites your edits — it writes a \`<name>.new\` file beside the original so you can merge by hand.
+- Updating a **conflict** file never overwrites your edits — it writes a \`<name>.new\` file beside the original with the incoming template content, so you can compare and merge by hand; delete it once you're done.
 - Press **Later** to dismiss the banner for this session; it reappears on the next launch if updates are still pending.
 - Can be disabled in **⚙ Settings → General → Check for vault template updates on startup**.`;
 
@@ -372,6 +373,16 @@ export function HelpView() {
                 it <em>and</em> the template changed), or up to date (no action).
               </li>
               <li>
+                A few files — such as{" "}
+                <span className="font-mono text-xs">.claude/project-context.json</span>,{" "}
+                <span className="font-mono text-xs">.claude/settings.json</span>, and the{" "}
+                <span className="font-mono text-xs">_index.md</span> files kept up to date
+                by <span className="font-mono text-xs">/kb-index</span> — are{" "}
+                <span className="font-medium text-foreground">seed files</span>: they're
+                created once when missing and never compared or overwritten again, so this
+                check never touches your registered repos or generated indexes.
+              </li>
+              <li>
                 Press <span className="font-medium">Review</span> on the banner to see
                 the list and pick which files to update.{" "}
                 <span className="font-medium text-foreground">added</span> and{" "}
@@ -383,7 +394,8 @@ export function HelpView() {
                 Updating a <span className="font-medium text-foreground">conflict</span>{" "}
                 file never overwrites your edits — it writes a{" "}
                 <span className="font-mono text-xs">{"<name>.new"}</span> file beside the
-                original so you can merge by hand.
+                original with the incoming template content, so you can compare and merge
+                by hand; delete it once you're done.
               </li>
               <li>
                 Press <span className="font-medium">Later</span> to dismiss the banner

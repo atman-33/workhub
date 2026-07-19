@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.50.0 (2026-07-19)
+
+- **Fixed a vault template sync bug that could silently overwrite
+  user-edited files with the template's empty placeholders — including
+  `.claude/project-context.json` (a user's registered repositories),
+  `projects/_index.md`, and `archive/_index.md`.** The 3-way compare that
+  decides whether a template update is safe to auto-apply relies on a
+  "baseline" recorded in `_ai/template-manifest.json`: the content that was
+  last known to match the template. Initializing a vault used to record
+  *whatever was already on disk* as that baseline for a pre-existing file —
+  even if the user had customized it. On the next check, the user's own
+  content then looked identical to the baseline, so a later upstream
+  template change was misclassified as a clean, safe overwrite (`Updatable`)
+  instead of a `Conflict`, and the customized file was silently replaced.
+  This affected any hand-edited file that wasn't already excluded from
+  tracking, not just `project-context.json`.
+  - `init_from` no longer records a baseline for a pre-existing file unless
+    its on-disk content is confirmed to already match the template; a
+    diverging file now correctly falls through to a `Conflict` report
+    instead.
+  - The list of files that are seeded once and never diffed/overwritten
+    again (previously a hardcoded `INITIAL_ONLY_PATHS` list covering only
+    `home.md`, `tasks/_index.md`, `knowledge/_index.md`) is now a
+    data-driven `.template-policy.json` at the template root, and now also
+    covers `.claude/project-context.json`, `.claude/settings.json`,
+    `projects/_index.md`, and `archive/_index.md` — the files most likely to
+    diverge per-vault. If that policy file is ever missing or unparseable,
+    every template file is treated as seed-only (the safe direction — never
+    overwrite) and the app logs why.
+  - Manifests written by 0.49.0 or earlier cannot be trusted (they may carry
+    exactly the baseline bug described above), so they are now detected via
+    a new `schema_version` field and have their recorded baselines discarded
+    on load. Any file that has actually diverged from the template will
+    report `Conflict` on the next check instead of silently reapplying the
+    old, unsafe classification; a single review clears it back to normal.
+  - If you were affected before this fix, your vault's lost content is not
+    recovered automatically — restore it by hand (e.g. from git history or a
+    backup) if needed.
+
 ## 0.49.0 (2026-07-19)
 
 - **Fixed Settings silently failing to save, sometimes permanently.** Two

@@ -14,6 +14,7 @@ use crate::models::Task;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::RecvTimeoutError;
@@ -688,10 +689,13 @@ use sha2::{Digest, Sha256};
 
 static VAULT_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../vault-template");
 
-/// Files copied only on first init (an existing vault's copy is never
-/// touched again) and excluded from the template manifest/diff entirely —
-/// there is nothing to "update" about them.
-const INITIAL_ONLY_PATHS: &[&str] = &["home.md", "tasks/_index.md", "knowledge/_index.md"];
+/// Name of the data-driven classification file living at the template root.
+/// Never copied into a vault (see `walk_template_files`).
+const TEMPLATE_POLICY_FILE: &str = ".template-policy.json";
+
+/// Bumped whenever the manifest's meaning changes in a way that makes
+/// previously written `files` baselines untrustworthy. See `load_manifest`.
+const MANIFEST_SCHEMA_VERSION: u32 = 1;
 
 fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -700,13 +704,13 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 /// Recursively collects every embedded template file, skipping `node_modules`
-/// directories and the per-vault `.claude-plugin-sync-manifest.json` (never
-/// part of the template). Kept as a guard even though `include_dir` embeds
-/// the tree as of build time and normally won't contain either.
+/// directories and files that are never actually part of a vault's copy of
+/// the template: the per-vault `.claude-plugin-sync-manifest.json` and the
+/// template's own classification file (`.template-policy.json`).
 fn walk_template_files<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
     for file in dir.files() {
         let name = file.path().file_name().and_then(|n| n.to_str());
-        if name == Some(".claude-plugin-sync-manifest.json") {
+        if name == Some(".claude-plugin-sync-manifest.json") || name == Some(TEMPLATE_POLICY_FILE) {
             continue;
         }
         out.push(file);
@@ -719,21 +723,91 @@ fn walk_template_files<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File
     }
 }
 
+/// Data-driven replacement for the old `INITIAL_ONLY_PATHS` const: paths
+/// (repo-relative to the template root) that are seeded into a vault only
+/// when missing and are otherwise excluded from the manifest and every
+/// `TemplateDiff` — there is nothing to "update" about them, so they can
+/// never be silently overwritten by a template sync.
+#[derive(Debug, Default, serde::Deserialize)]
+struct TemplatePolicy {
+    #[serde(default)]
+    seed_only: Vec<String>,
+}
+
+/// Collects every path `walk_template_files` would embed, used as the safe
+/// fallback when the policy file is missing or unparseable: treating every
+/// file as seed-only means a template sync can only ever add missing files,
+/// never overwrite one that already exists.
+fn all_template_paths(template: &Dir) -> HashSet<String> {
+    let mut files = Vec::new();
+    walk_template_files(template, &mut files);
+    files.into_iter().map(|f| norm_path(f.path())).collect()
+}
+
+/// Loads the `seed_only` path set from `.template-policy.json` at the
+/// template root. Missing or unparseable policy data falls back to treating
+/// every template file as seed-only (the safe direction — never overwrite)
+/// and logs the reason to stderr.
+fn load_template_policy(template: &Dir) -> HashSet<String> {
+    let Some(file) = template.get_file(TEMPLATE_POLICY_FILE) else {
+        eprintln!(
+            "workhub: {TEMPLATE_POLICY_FILE} not found in template; treating every \
+             template file as seed-only (safe default)"
+        );
+        return all_template_paths(template);
+    };
+
+    let parsed = std::str::from_utf8(file.contents())
+        .ok()
+        .and_then(|s| serde_json::from_str::<TemplatePolicy>(s).ok());
+
+    match parsed {
+        Some(policy) => policy.seed_only.into_iter().collect(),
+        None => {
+            eprintln!(
+                "workhub: {TEMPLATE_POLICY_FILE} is unparseable; treating every \
+                 template file as seed-only (safe default)"
+            );
+            all_template_paths(template)
+        }
+    }
+}
+
 fn manifest_path(vault: &Path) -> PathBuf {
     vault.join("_ai").join("template-manifest.json")
 }
 
 #[derive(Debug, Default, Serialize, serde::Deserialize)]
 struct TemplateManifest {
+    #[serde(default)]
+    schema_version: u32,
     app_version: String,
     files: HashMap<String, String>,
 }
 
+/// Loads the manifest, discarding recorded baselines from schema versions
+/// older than [`MANIFEST_SCHEMA_VERSION`] (including the implicit version 0
+/// of a manifest with no `schema_version` field at all, written by <= 0.49.0
+/// — see the `init_from` doc comment for why those baselines cannot be
+/// trusted). Dropping `files` makes `diff_against` fall into its "no
+/// baseline" branch, which is the safe outcome: a file that actually
+/// diverged from the template reports `Conflict` instead of a clean
+/// `Updatable` overwrite.
 fn load_manifest(vault: &Path) -> TemplateManifest {
-    fs::read_to_string(manifest_path(vault))
+    let manifest: TemplateManifest = fs::read_to_string(manifest_path(vault))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    if manifest.schema_version < MANIFEST_SCHEMA_VERSION {
+        TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            app_version: manifest.app_version,
+            files: HashMap::new(),
+        }
+    } else {
+        manifest
+    }
 }
 
 fn write_manifest(vault: &Path, manifest: &TemplateManifest) -> Result<(), String> {
@@ -773,12 +847,21 @@ pub struct TemplateDiff {
 }
 
 /// Copies the embedded `vault-template/` into `vault`, creating directories as
-/// needed, then writes `_ai/template-manifest.json` recording the baseline
-/// (the sha256 of what now sits on disk) for every non-initial-only file.
+/// needed, then writes `_ai/template-manifest.json` recording a baseline for
+/// every non-seed-only file whose on-disk content is confirmed to match the
+/// template.
 ///
 /// Existing files are never overwritten by this call — re-running it against
-/// an already-initialized vault only fills in files that are still missing
-/// and refreshes the manifest to match what is actually on disk.
+/// an already-initialized vault only fills in files that are still missing.
+/// A pre-existing file whose content differs from the just-embedded template
+/// (e.g. a user-customized `.claude/project-context.json`) intentionally gets
+/// **no** baseline recorded: recording the on-disk content as the baseline
+/// would make `diff_against` see `current == baseline` on the next check and
+/// misclassify the next upstream template change as a clean `Updatable`
+/// overwrite, silently destroying the user's edits (see `CHANGELOG.md`, the
+/// data-loss incident this guarded against). Leaving the baseline absent
+/// instead falls into `diff_against`'s "no baseline" branch, which correctly
+/// reports `Conflict` for a file that differs from the template.
 pub fn init_vault(vault: &Path) -> Result<(), String> {
     init_from(vault, &VAULT_TEMPLATE)
 }
@@ -788,8 +871,10 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
 
     let mut files = Vec::new();
     walk_template_files(template, &mut files);
+    let seed_only = load_template_policy(template);
 
     let mut manifest = TemplateManifest {
+        schema_version: MANIFEST_SCHEMA_VERSION,
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         files: HashMap::new(),
     };
@@ -800,23 +885,34 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
         if let Some(parent) = dst_path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        if !dst_path.exists() {
+        let existed_before = dst_path.exists();
+        if !existed_before {
             fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
         }
 
-        if INITIAL_ONLY_PATHS.contains(&rel.as_str()) {
+        if seed_only.contains(&rel) {
             continue;
         }
-        // Baseline is what is actually now on disk, not necessarily the
-        // just-embedded content (a pre-existing file is left untouched above).
-        let on_disk = fs::read(&dst_path).map_err(|e| e.to_string())?;
-        manifest.files.insert(rel, sha256_hex(&on_disk));
+
+        if existed_before {
+            // Only record a baseline when the pre-existing file actually
+            // matches the template — never when it merely happens to be
+            // whatever was already on disk (see the doc comment above).
+            let on_disk = fs::read(&dst_path).map_err(|e| e.to_string())?;
+            if on_disk == file.contents() {
+                manifest.files.insert(rel, sha256_hex(&on_disk));
+            }
+        } else {
+            // Freshly created: on-disk content is exactly the template's, so
+            // recording it as the baseline is always safe.
+            manifest.files.insert(rel, sha256_hex(file.contents()));
+        }
     }
 
     write_manifest(vault, &manifest)
 }
 
-/// 3-way compares every non-initial-only template file against the vault's
+/// 3-way compares every non-seed-only template file against the vault's
 /// current content and the last-applied baseline recorded in the manifest.
 ///
 /// - `Added`: the vault does not have this file at all.
@@ -836,11 +932,12 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
 
     let mut files = Vec::new();
     walk_template_files(template, &mut files);
+    let seed_only = load_template_policy(template);
 
     let mut entries = Vec::new();
     for file in files {
         let rel = norm_path(file.path());
-        if INITIAL_ONLY_PATHS.contains(&rel.as_str()) {
+        if seed_only.contains(&rel) {
             continue;
         }
 
@@ -884,7 +981,7 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
 /// requested path is overwritten/created in place. The manifest baseline is
 /// then updated for every path that was actually written in place (Conflict
 /// paths keep their previous baseline, since the vault's file did not
-/// change). Unknown paths (not part of the template, or initial-only) are
+/// change). Unknown paths (not part of the template, or seed-only) are
 /// silently skipped.
 pub fn apply_vault_template(vault: &Path, paths: &[String]) -> Result<(), String> {
     apply_from(vault, &VAULT_TEMPLATE, paths)
@@ -899,6 +996,7 @@ fn apply_from(vault: &Path, template: &Dir, paths: &[String]) -> Result<(), Stri
         .collect();
 
     let mut manifest = load_manifest(vault);
+    manifest.schema_version = MANIFEST_SCHEMA_VERSION;
     manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
 
     for rel in paths {
@@ -1624,6 +1722,10 @@ mod tests {
             DirEntry::File(File::new("stable.md", b"stable-content")),
             DirEntry::File(File::new("changed.md", b"changed-content-v2")),
             DirEntry::File(File::new("home.md", b"home-content")),
+            DirEntry::File(File::new(
+                ".template-policy.json",
+                br#"{"seed_only": ["home.md"]}"#,
+            )),
         ],
     );
 
@@ -1693,7 +1795,10 @@ mod tests {
         fs::create_dir_all(&vault).unwrap();
         // Vault has the *old* content, matching the recorded baseline.
         fs::write(vault.join("changed.md"), "changed-content-v1").unwrap();
-        let mut manifest = TemplateManifest::default();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
         manifest
             .files
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
@@ -1713,7 +1818,10 @@ mod tests {
         fs::create_dir_all(&vault).unwrap();
         // Vault was hand-edited away from the old baseline.
         fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
-        let mut manifest = TemplateManifest::default();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
         manifest
             .files
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
@@ -1732,7 +1840,10 @@ mod tests {
         let vault = temp_test_vault("diff-uptodate");
         fs::create_dir_all(&vault).unwrap();
         fs::write(vault.join("stable.md"), "stable-content").unwrap();
-        let mut manifest = TemplateManifest::default();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
         manifest
             .files
             .insert("stable.md".into(), sha256_hex(b"stable-content"));
@@ -1788,7 +1899,10 @@ mod tests {
         let vault = temp_test_vault("apply-conflict");
         fs::create_dir_all(&vault).unwrap();
         fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
-        let mut manifest = TemplateManifest::default();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
         manifest
             .files
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
@@ -1818,7 +1932,10 @@ mod tests {
         let vault = temp_test_vault("apply-updatable");
         fs::create_dir_all(&vault).unwrap();
         fs::write(vault.join("changed.md"), "changed-content-v1").unwrap();
-        let mut manifest = TemplateManifest::default();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
         manifest
             .files
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
@@ -1849,5 +1966,178 @@ mod tests {
             fs::read_to_string(vault.join("added.md")).unwrap(),
             "added-content"
         );
+    }
+
+    #[test]
+    fn init_records_no_baseline_for_a_preexisting_file_that_differs_from_the_template() {
+        let vault = temp_test_vault("init-preexisting-conflict");
+        fs::create_dir_all(&vault).unwrap();
+        // The user already has their own content in this file before the
+        // template is ever applied (e.g. a hand-customized project-context
+        // equivalent). Recording *this* content as the baseline would make
+        // the next `diff_against` see `current == baseline` and misreport a
+        // future upstream change as a safe `Updatable` overwrite.
+        fs::write(vault.join("stable.md"), "user-customized-content").unwrap();
+
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        let manifest = load_manifest(&vault);
+        assert!(
+            !manifest.files.contains_key("stable.md"),
+            "a pre-existing, template-diverging file must not get a baseline recorded"
+        );
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert_eq!(
+            diff_state(&diff, "stable.md"),
+            Some(TemplateFileState::Conflict),
+            "with no baseline recorded, diverging content must report Conflict, not Updatable"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn init_records_a_baseline_for_a_preexisting_file_that_matches_the_template() {
+        let vault = temp_test_vault("init-preexisting-match");
+        fs::create_dir_all(&vault).unwrap();
+        // The file already on disk happens to be byte-identical to the
+        // template — nothing was customized, so recording a baseline is safe.
+        fs::write(vault.join("stable.md"), "stable-content").unwrap();
+
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        let manifest = load_manifest(&vault);
+        assert_eq!(
+            manifest.files.get("stable.md").unwrap(),
+            &sha256_hex(b"stable-content")
+        );
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert_eq!(
+            diff_state(&diff, "stable.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn init_records_a_baseline_for_a_newly_created_file() {
+        let vault = temp_test_vault("init-newly-created");
+        fs::create_dir_all(&vault).unwrap();
+        // "stable.md" does not exist yet; init_from creates it, and since the
+        // on-disk content is then exactly the embedded template, recording a
+        // baseline is always safe.
+        assert!(!vault.join("stable.md").exists());
+
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        let manifest = load_manifest(&vault);
+        assert_eq!(
+            manifest.files.get("stable.md").unwrap(),
+            &sha256_hex(b"stable-content")
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn manifest_without_schema_version_has_its_baselines_discarded() {
+        let vault = temp_test_vault("manifest-schema-migration");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        // Simulate a manifest written by <= 0.49.0: no `schema_version`
+        // field at all, but a baseline recorded for the hand-edited file
+        // (the very bug this fix addresses).
+        let legacy_json = serde_json::json!({
+            "app_version": "0.49.0",
+            "files": { "changed.md": sha256_hex(b"changed-content-v1") },
+        });
+        write_manifest(
+            &vault,
+            &serde_json::from_value(legacy_json).unwrap_or_default(),
+        )
+        .unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "changed.md"),
+            Some(TemplateFileState::Conflict),
+            "a pre-schema-version manifest's baselines must be discarded, \
+             so a diverging file safely reports Conflict instead of Updatable"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+}
+
+#[cfg(test)]
+mod regression_t0065 {
+    use super::*;
+
+    /// Reproduces the T-0065 data loss against the REAL embedded template:
+    /// a vault whose `.claude/project-context.json` holds the user's own
+    /// registered repos must never be reported as a clean `Updatable`.
+    #[test]
+    fn user_edited_files_are_never_silently_updatable() {
+        let vault = std::env::temp_dir().join(format!(
+            "wh-t0065-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(vault.join(".claude")).unwrap();
+        // The user's real data, as it was before the wipe.
+        let user_data = br#"{"projects":[{"name":"workhub","path":"C:/repos/workhub"}],"roleBasedDelegation":true}"#;
+        fs::write(vault.join(".claude/project-context.json"), user_data).unwrap();
+        // A managed file the user also customised.
+        fs::write(vault.join("CLAUDE.md"), b"# my own edited harness notes\n").unwrap();
+
+        init_from(&vault, &VAULT_TEMPLATE).unwrap();
+
+        // Seed-only: must not appear in the diff at all, and must be untouched.
+        let diff = diff_against(&vault, &VAULT_TEMPLATE).unwrap();
+        assert!(
+            !diff
+                .files
+                .iter()
+                .any(|f| f.path == ".claude/project-context.json"),
+            "seed-only file must be excluded from the diff entirely"
+        );
+        assert_eq!(
+            fs::read(vault.join(".claude/project-context.json")).unwrap(),
+            user_data,
+            "seed-only file must be left byte-identical"
+        );
+
+        // Managed but user-edited: must be Conflict, never Updatable.
+        let claude_md = diff
+            .files
+            .iter()
+            .find(|f| f.path == "CLAUDE.md")
+            .expect("CLAUDE.md should be in the diff");
+        assert_eq!(
+            claude_md.state,
+            TemplateFileState::Conflict,
+            "a user-edited managed file must be Conflict, not {:?}",
+            claude_md.state
+        );
+
+        // Applying the conflict must not clobber the user's file.
+        apply_from(&vault, &VAULT_TEMPLATE, &["CLAUDE.md".to_string()]).unwrap();
+        assert_eq!(
+            fs::read(vault.join("CLAUDE.md")).unwrap(),
+            b"# my own edited harness notes\n",
+            "applying a Conflict must leave the original untouched"
+        );
+        assert!(
+            vault.join("CLAUDE.md.new").exists(),
+            ".new must be written beside it"
+        );
+
+        fs::remove_dir_all(&vault).ok();
     }
 }

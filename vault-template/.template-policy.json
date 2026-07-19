@@ -1,0 +1,11 @@
+{
+  "seed_only": [
+    "home.md",
+    "tasks/_index.md",
+    "knowledge/_index.md",
+    ".claude/project-context.json",
+    ".claude/settings.json",
+    "projects/_index.md",
+    "archive/_index.md"
+  ]
+}
