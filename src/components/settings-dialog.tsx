@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { ModelCombobox } from "@/components/model-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
 
@@ -45,19 +47,17 @@ const TIDY_DEFAULTS: Settings["tidy"] = {
   last_run: null,
 };
 
-/** unix seconds -> a `datetime-local` input value in the user's local time. */
-function unixToLocalInput(secs: number | null): string {
-  if (!secs) return "";
-  const d = new Date(secs * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function localInputToUnix(value: string): number | null {
-  if (!value) return null;
-  const ms = new Date(value).getTime();
-  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
-}
+/** Timestamps in this dialog are formatted in English rather than via
+ * `toLocaleString()`, so the app reads the same on a Japanese Windows as it
+ * does on an English one. */
+const TIMESTAMP = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
 
 /** Next scheduled check time from anchor + interval (unix seconds). */
 function nextCheck(tidy: Settings["tidy"]): number | null {
@@ -577,7 +577,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                           ? `Last run ${timeAgo(draft.tidy.last_run)}. `
                           : "Not run yet. "}
                       {draft.tidy.enabled && nextCheck(draft.tidy)
-                        ? `Next check ${new Date((nextCheck(draft.tidy) as number) * 1000).toLocaleString()}.`
+                        ? `Next check ${TIMESTAMP.format(new Date((nextCheck(draft.tidy) as number) * 1000))}.`
                         : ""}
                     </div>
                   </div>
@@ -601,11 +601,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Model</label>
-                    <Input
+                    <ModelCombobox
+                      assignee={draft.tidy.assignee}
                       value={draft.tidy.model}
-                      onChange={(e) => setTidy({ model: e.target.value })}
-                      placeholder="agent default"
-                      className="h-8 font-mono text-xs"
+                      onChange={(model) => setTidy({ model })}
+                      active={open}
+                      // Lives inside a modal Radix Dialog — see the prop's doc
+                      // comment.
+                      modal
                     />
                   </div>
                 </div>
@@ -613,11 +616,11 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">First run at</label>
-                    <Input
-                      type="datetime-local"
-                      value={unixToLocalInput(draft.tidy.anchor)}
-                      onChange={(e) => setTidy({ anchor: localInputToUnix(e.target.value) })}
-                      className="h-8 text-xs"
+                    <DateTimePicker
+                      value={draft.tidy.anchor}
+                      onChange={(anchor) => setTidy({ anchor })}
+                      placeholder="not scheduled"
+                      modal
                     />
                   </div>
                   <div className="space-y-1.5">

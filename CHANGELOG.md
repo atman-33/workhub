@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.43.0 (2026-07-19)
+
+- **Settings → Vault tidy** now reads in English regardless of the OS
+  language, and picking a model no longer means typing one from memory.
+  - **First run at** replaces the native `datetime-local` field with the
+    app's own picker. The native popup — its calendar *and* its Clear/Today
+    buttons — renders in the Windows display language no matter what the page
+    declares, so a Japanese machine showed a Japanese control in an otherwise
+    English UI. The new picker hard-codes English and matches the date picker
+    already used for a task's due date.
+  - **Model** is now a dropdown instead of a free-text box, offering the same
+    catalog as a task's model field: Claude Code's aliases, or opencode's
+    model list with recently-used entries pinned to the top. Typing a model
+    that isn't listed still works, so models already saved in `config.json`
+    keep working.
+  - The **Next check** timestamp is formatted in English too.
+
 ## 0.42.0 (2026-07-19)
 
 - **Quick capture no longer pastes arbitrary clipboard text.** The window was
