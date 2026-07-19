@@ -116,6 +116,8 @@ pub fn run() {
             commands::update_task,
             commands::delete_task,
             commands::init_vault,
+            commands::check_vault_template,
+            commands::apply_vault_template,
             commands::watch_vault,
             commands::launch_agent_for_task,
             commands::load_music_data,

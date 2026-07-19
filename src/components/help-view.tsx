@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Check, Copy, Keyboard, Mic, PenLine, Rocket, Sparkles } from "lucide-react";
+import { Check, Copy, FileDiff, Keyboard, Mic, PenLine, Rocket, Sparkles } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -51,6 +51,16 @@ claude plugin install obsidian@workhub-marketplace --scope project
 
 4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.`;
 
+const TEMPLATE_MD = `## Vault template updates
+
+The vault template (\`CLAUDE.md\`, skill configuration, and other shared files) can change between workhub versions. On startup, workhub compares the configured vault against the bundled template and, if anything differs, shows a banner.
+
+- Each file is one of: **added** (missing in the vault, will be created), **updatable** (you haven't edited it and the template changed — safe to overwrite), **conflict** (you edited it *and* the template changed), or up to date (no action).
+- Press **Review** on the banner to see the list and pick which files to update. **added** and **updatable** files are pre-checked; **conflict** files are left unchecked.
+- Updating a **conflict** file never overwrites your edits — it writes a \`<name>.new\` file beside the original so you can merge by hand.
+- Press **Later** to dismiss the banner for this session; it reappears on the next launch if updates are still pending.
+- Can be disabled in **⚙ Settings → General → Check for vault template updates on startup**.`;
+
 const INK_MD = `## Screen annotation (ink)
 
 Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
@@ -94,7 +104,9 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 - **Agent / Model** pick which CLI (Claude Code or OpenCode) and model run the routine, just like a task.
 - **Run now** triggers it immediately, even when the schedule is off. If a run stalls on a permission prompt or fails, you get a desktop notification and a **Resume session** button opens it in a terminal so you can finish it by hand.`;
 
-const ALL_MD = [SETUP_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD, TIDY_MD].join("\n\n---\n\n");
+const ALL_MD = [SETUP_MD, TEMPLATE_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD, TIDY_MD].join(
+  "\n\n---\n\n",
+);
 
 function CopyButton({
   id,
@@ -222,7 +234,7 @@ export function HelpView() {
 
         <Accordion
           type="multiple"
-          defaultValue={["setup", "ink", "quick-capture", "voice", "tidy"]}
+          defaultValue={["setup", "template", "ink", "quick-capture", "voice", "tidy"]}
           className="mt-4"
         >
           <Section
@@ -316,6 +328,59 @@ export function HelpView() {
                 to these.
               </li>
             </ol>
+          </Section>
+
+          <Section
+            icon={FileDiff}
+            title="Vault template updates"
+            value="template"
+            markdown={TEMPLATE_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The vault template (<span className="font-mono text-xs">CLAUDE.md</span>,
+              skill configuration, and other shared files) can change between workhub
+              versions. On startup, workhub compares the configured vault against the
+              bundled template and, if anything differs, shows a banner.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                Each file is one of:{" "}
+                <span className="font-medium text-foreground">added</span> (missing in
+                the vault, will be created),{" "}
+                <span className="font-medium text-foreground">updatable</span> (you
+                haven't edited it and the template changed — safe to overwrite),{" "}
+                <span className="font-medium text-foreground">conflict</span> (you edited
+                it <em>and</em> the template changed), or up to date (no action).
+              </li>
+              <li>
+                Press <span className="font-medium">Review</span> on the banner to see
+                the list and pick which files to update.{" "}
+                <span className="font-medium text-foreground">added</span> and{" "}
+                <span className="font-medium text-foreground">updatable</span> files are
+                pre-checked; <span className="font-medium text-foreground">conflict</span>{" "}
+                files are left unchecked.
+              </li>
+              <li>
+                Updating a <span className="font-medium text-foreground">conflict</span>{" "}
+                file never overwrites your edits — it writes a{" "}
+                <span className="font-mono text-xs">{"<name>.new"}</span> file beside the
+                original so you can merge by hand.
+              </li>
+              <li>
+                Press <span className="font-medium">Later</span> to dismiss the banner
+                for this session; it reappears on the next launch if updates are still
+                pending.
+              </li>
+              <li>
+                Can be disabled in{" "}
+                <span className="font-medium">
+                  ⚙ Settings → General → Check for vault template updates on startup
+                </span>
+                .
+              </li>
+            </ul>
           </Section>
 
           <Section

@@ -1,5 +1,3 @@
-<!-- workhub-template: version=2 -->
-
 # workhub vault
 
 This Obsidian vault is the data store of the workhub app and the owner's

@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.46.0"
+version = "0.47.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -45,6 +45,12 @@ cpal = "0.15"
 # publishes SHA-1 checksums for its ggml models (40 hex chars), not SHA-256 —
 # this crate matches that, see src-tauri/src/stt.rs.
 sha1 = "0.10"
+# vault template sync: hashes embedded template files vs. vault copies to
+# detect drift (see src-tauri/src/tasks.rs, "template manifest" section).
+sha2 = "0.10"
+# embeds vault-template/ into the binary so a packaged build has no dev-machine
+# path dependency for the template source (see src-tauri/src/tasks.rs).
+include_dir = "0.7"
 
 # ink overlay: Raw Input keyboard listener for the double-Alt temporary draw mode
 [target.'cfg(windows)'.dependencies]

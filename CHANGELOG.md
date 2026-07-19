@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.47.0 (2026-07-19)
+
+- **The vault template now stays in sync with the app.** `vault-template/` is
+  embedded in the binary at build time, so an installed copy no longer needs a
+  checkout of this repo to initialize or update a vault — the template version
+  is simply the app version.
+  - On startup the app compares the vault against the embedded template and
+    shows a banner when files are out of date. "Review" opens a per-file list;
+    you choose what to apply.
+  - Drift is tracked in `_ai/template-manifest.json` (a SHA-256 per file), which
+    makes the comparison three-way: files you never touched update cleanly,
+    files you edited are reported as conflicts and are never overwritten — the
+    new version is written beside them as `<name>.new` instead.
+  - New setting "Check for vault template updates on startup" (on by default).
+  - This replaces the old HTML-comment marker scheme, which could not update a
+    file once its marker version advanced, could not cover JSON files, and did
+    not work outside a dev checkout. The marker lines are gone from the
+    template. Existing vaults have no manifest yet, so any file whose content
+    already differs from the template is reported as a conflict on the first
+    check — review those once and the baseline is recorded from then on.
+
 ## 0.46.0 (2026-07-19)
 
 - **Vault tidy deferred items now become a review task** instead of dying in

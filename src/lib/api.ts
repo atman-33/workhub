@@ -10,6 +10,7 @@ import type {
   GraphOp,
   SttModelStatus,
   Task,
+  TemplateDiff,
   TidyRun,
   UpdateInfo,
   UpdateTaskInput,
@@ -68,9 +69,12 @@ export const api = {
     invoke<Task>("update_task", { vaultPath, input }),
   deleteTask: (vaultPath: string, id: string) =>
     invoke<void>("delete_task", { vaultPath, id }),
-  initVault: (vaultPath: string, templateSource: string) =>
-    invoke<void>("init_vault", { vaultPath, templateSource }),
+  initVault: (vaultPath: string) => invoke<void>("init_vault", { vaultPath }),
   watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),
+  checkVaultTemplate: (vaultPath: string) =>
+    invoke<TemplateDiff>("check_vault_template", { vaultPath }),
+  applyVaultTemplate: (vaultPath: string, paths: string[]) =>
+    invoke<void>("apply_vault_template", { vaultPath, paths }),
   // ---- music player (vault-backed) ----
   loadMusicData: (vaultPath: string) =>
     invoke<MusicData | null>("load_music_data", { vaultPath }),
@@ -163,11 +167,6 @@ export const api = {
   voiceHistoryDelete: (id: string) => invoke<void>("voice_history_delete", { id }),
   voiceHistoryClear: () => invoke<void>("voice_history_clear"),
 };
-
-// Dev-only default: the workhub-vault template folder shipped in this repo
-// checkout. A packaged build would resolve this from a bundled resource
-// instead — out of scope for the task-management MVP.
-export const DEV_VAULT_TEMPLATE_SOURCE = "C:/repos/workhub/vault-template";
 
 export function timeAgo(unixSecs: number): string {
   const secs = Math.max(0, Math.floor(Date.now() / 1000) - unixSecs);

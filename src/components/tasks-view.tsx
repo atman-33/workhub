@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api, DEV_VAULT_TEMPLATE_SOURCE } from "@/lib/api";
+import { api } from "@/lib/api";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
@@ -184,7 +184,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     if (!vaultPath) return;
     setInitializing(true);
     try {
-      await api.initVault(vaultPath, DEV_VAULT_TEMPLATE_SOURCE);
+      await api.initVault(vaultPath);
       setStatus("Vault initialized");
       refreshTasks(vaultPath);
     } catch (e) {

@@ -20,6 +20,9 @@ export interface Settings {
   use_herdr: boolean;
   herdr_cmd: string;
   check_updates: boolean;
+  /** Check the vault template for updates against the current vault on
+   * startup (T-0061). */
+  check_template_updates: boolean;
   /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
   ink_enabled: boolean;
   vault_path: string | null;
@@ -153,6 +156,19 @@ export interface GitInfo {
 export interface UpdateInfo {
   tag: string;
   url: string;
+}
+
+/** Per-file comparison state between the shipped vault template and the
+ * configured vault, from `check_vault_template` (T-0061). */
+export type TemplateFileState = "added" | "updatable" | "conflict" | "up_to_date";
+
+export interface TemplateDiffFile {
+  path: string;
+  state: TemplateFileState;
+}
+
+export interface TemplateDiff {
+  files: TemplateDiffFile[];
 }
 
 export interface BranchList {
