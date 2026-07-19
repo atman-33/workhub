@@ -365,3 +365,28 @@ pub fn transcribe(
     }
     Ok(text.trim().to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Manual smoke/bench, excluded from normal runs (`#[ignore]`): loads the
+    /// *configured* model from the local `~/.workhub` setup and decodes 3s of
+    /// synthetic audio. Run with
+    /// `cargo test --release transcribe_smoke -- --ignored --nocapture` and
+    /// read stderr: on Vulkan builds whisper.cpp prints the selected
+    /// `ggml_vulkan` device on load, and the `stt: transcribed ...` line
+    /// gives the decode time.
+    #[test]
+    #[ignore]
+    fn transcribe_smoke() {
+        let state = SttState::default();
+        let samples: Vec<f32> = (0..48_000)
+            .map(|i| 0.1 * (i as f32 * 220.0 * 2.0 * std::f32::consts::PI / 16_000.0).sin())
+            .collect();
+        match transcribe(&state, &samples, None) {
+            Ok(text) => eprintln!("stt smoke: transcript = {text:?}"),
+            Err(e) => eprintln!("stt smoke: skipped ({e})"),
+        }
+    }
+}

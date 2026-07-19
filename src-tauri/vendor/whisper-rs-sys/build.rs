@@ -10,9 +10,29 @@ use std::path::PathBuf;
 
 fn main() {
     let target = env::var("TARGET").unwrap();
-    // Link C++ standard library
+    // Link C++ standard library. Local windows-gnu fix (see workhub
+    // .claude/rules/voice-input-build.md): link libstdc++ statically there —
+    // dynamically-linked exes load whichever libstdc++-6.dll comes first on
+    // PATH, and on machines where Git's older mingw64 shadows the real
+    // toolchain the Vulkan backend's newer GLIBCXX symbols are missing and
+    // the exe dies at load with STATUS_ENTRYPOINT_NOT_FOUND.
     if let Some(cpp_stdlib) = get_cpp_link_stdlib(&target) {
-        println!("cargo:rustc-link-lib=dylib={}", cpp_stdlib);
+        if target.contains("windows-gnu") {
+            // rustc doesn't search gcc's internal lib dir; ask g++ where
+            // libstdc++.a lives and add it.
+            if let Ok(out) = std::process::Command::new("g++")
+                .arg("-print-file-name=libstdc++.a")
+                .output()
+            {
+                let path = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim().to_string());
+                if let Some(dir) = path.parent().filter(|d| d.is_dir()) {
+                    println!("cargo:rustc-link-search=native={}", dir.display());
+                }
+            }
+            println!("cargo:rustc-link-lib=static={}", cpp_stdlib);
+        } else {
+            println!("cargo:rustc-link-lib=dylib={}", cpp_stdlib);
+        }
     }
     // Link macOS Accelerate framework for matrix calculations
     if target.contains("apple") {

@@ -21,6 +21,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      # whisper.cpp's Vulkan backend (whisper-rs `vulkan` feature) needs the
+      # Vulkan SDK (headers, vulkan-1 import lib, glslc) at build time.
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          $ver = "1.4.350.0"
+          curl.exe -sSL -o vulkan-sdk.exe "https://sdk.lunarg.com/sdk/download/$ver/windows/vulkansdk-windows-X64-$ver.exe"
+          Start-Process -Wait .\vulkan-sdk.exe -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install"
+          "VULKAN_SDK=C:\VulkanSDK\$ver" >> $env:GITHUB_ENV
       - name: Install frontend dependencies
         run: npm ci
       - name: Format check
