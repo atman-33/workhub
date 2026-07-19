@@ -120,6 +120,8 @@ pub fn run() {
             commands::launch_agent_for_task,
             commands::load_music_data,
             commands::save_music_data,
+            commands::export_playlist_file,
+            commands::import_playlist_file,
             commands::fetch_youtube_title,
             commands::terminal_open,
             commands::terminal_write,

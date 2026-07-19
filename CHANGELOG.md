@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.44.0 (2026-07-19)
+
+- **Music playlists can be moved between workhub installs.** The playlist tab
+  bar gained an export and an import button, so a library built up on one
+  machine can be reproduced on another instead of re-pasting every URL.
+  - **Export** writes a JSON file — either the whole library or just the
+    active playlist — through a save dialog. The same selection can also be
+    copied to the clipboard as JSON, which is the quicker route when the
+    playlist is going to someone over chat.
+  - **Import** reads such a file, or JSON pasted on the clipboard, and
+    **always appends**: existing playlists are never overwritten or edited.
+    Playlist ids are regenerated so an import cannot collide with what is
+    already there, and duplicate names get a `(2)` suffix. Anything past the
+    10-playlist limit is reported as skipped rather than evicting a playlist.
+  - Playback state (active tab, loop, shuffle) is deliberately left out of the
+    export — it describes the machine, not the library. Importing also does
+    not interrupt the song currently playing.
+
 ## 0.43.0 (2026-07-19)
 
 - **Settings → Vault tidy** now reads in English regardless of the OS

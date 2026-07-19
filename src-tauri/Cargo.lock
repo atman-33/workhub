@@ -5955,7 +5955,7 @@ dependencies = [
 
 [[package]]
 name = "workhub"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "cpal",
  "dirs 5.0.1",

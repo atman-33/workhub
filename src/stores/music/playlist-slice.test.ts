@@ -97,3 +97,34 @@ describe("moveItemBetweenPlaylists", () => {
     expect(moveItemBetweenPlaylists(-1, "a", "b")).toBe(false);
   });
 });
+
+describe("importPlaylists", () => {
+  it("appends imported playlists without disturbing playback", () => {
+    const result = useMusicStore.getState().importPlaylists([playlist("imported", ["v42"])]);
+
+    expect(result).toEqual({ added: 1, skipped: 0 });
+    expect(useMusicStore.getState().playlists).toHaveLength(3);
+    expect(useMusicStore.getState().activePlaylistId).toBe("a");
+    expect(useMusicStore.getState().currentIndex).toBe(0);
+  });
+
+  it("keeps the create-playlist affordance in sync with the new count", () => {
+    const many = Array.from({ length: 8 }, (_, index) => playlist(`x${index}`, []));
+    useMusicStore.getState().importPlaylists(many);
+
+    expect(useMusicStore.getState().playlists).toHaveLength(10);
+    expect(useMusicStore.getState().canCreatePlaylist).toBe(false);
+  });
+
+  it("leaves the state untouched when nothing fits", () => {
+    const many = Array.from({ length: 8 }, (_, index) => playlist(`x${index}`, []));
+    useMusicStore.getState().importPlaylists(many);
+
+    const before = useMusicStore.getState().playlists;
+    expect(useMusicStore.getState().importPlaylists([playlist("late", [])])).toEqual({
+      added: 0,
+      skipped: 1,
+    });
+    expect(useMusicStore.getState().playlists).toBe(before);
+  });
+});

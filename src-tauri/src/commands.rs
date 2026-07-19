@@ -409,6 +409,24 @@ pub async fn save_music_data(vault_path: String, data: MusicData) -> Result<(), 
         .map_err(|e| e.to_string())?
 }
 
+/// Writes a playlist export to a path picked in a save dialog.
+#[tauri::command]
+pub async fn export_playlist_file(path: String, contents: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        music::export_playlists(&PathBuf::from(path), &contents)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Reads a playlist export picked in an open dialog.
+#[tauri::command]
+pub async fn import_playlist_file(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || music::import_playlists(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// YouTube oEmbed lookup; runs in Rust because the webview blocks the
 /// cross-origin fetch.
 #[tauri::command]
