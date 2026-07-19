@@ -16,9 +16,12 @@ Indexed zones and their index files:
 | `projects/` | `projects/_index.md` |
 | `knowledge/` | `knowledge/_index.md` |
 | `archive/` | `archive/_index.md` |
+| `tasks/archive/` | `tasks/archive/_index.md` |
 
-`tasks/_index.md` and `_ai/index/tasks.json` are managed by the workhub app —
-never rebuild them here. `inbox/` and `journal/` are intentionally unindexed.
+The board index `tasks/_index.md` and `_ai/index/tasks.json` are managed by the
+workhub app — never rebuild them here. `tasks/archive/_index.md` is a different
+file (a summary of *completed/inactive* tasks) and **is** managed by this
+command. `inbox/` and `journal/` are intentionally unindexed.
 
 ## Usage
 
@@ -108,6 +111,8 @@ Only runs with `--full` flag:
   projects/: list project folders, read overview files, extract status
   knowledge/: list topic folders, count files, extract topics
   archive/: count entries
+  tasks/archive/: list .md files, read each frontmatter + Results/Description
+    first sentence, emit one line per task (see tasks/archive/ entry format)
 
 2. GENERATE _index.md per zone (from scratch)
   Read templates/_index.md.template
@@ -140,7 +145,21 @@ Only runs with `--full` flag:
 - projects/: subdirectories (each project is a folder)
 - knowledge/: topic subdirectories
 - archive/: subdirectories (archived containers)
+- tasks/archive/: each `.md` file directly under it (one archived task = one item)
 - Standalone .md files in a zone root are also tracked
+
+### tasks/archive/ entry format
+Each archived task is one line, most-recent first (by id, descending):
+
+```
+- [[T-#### title]] — one-sentence summary (project: <project>)
+```
+
+Derive the summary from the task file: prefer the first sentence of its
+`## Results` section; fall back to the first sentence of `## Description` when
+`## Results` is empty. Omit the `(project: …)` suffix when the task has no
+`project`. For a smart diff update, only read the newly-added task files — never
+re-read tasks already listed in the index.
 
 ### When to recommend --full
 If diff detects >30% items changed, suggest: "Many changes detected. Rebuild with --full?"
@@ -159,7 +178,7 @@ obsidian tags sort=count counts                    # tag inventory for enrichmen
 |----------|--------|
 | (default) | Smart diff update — only process changes |
 | `--full` | Full rebuild from scratch |
-| `--zone <name>` | Limit to: projects, knowledge, or archive |
+| `--zone <name>` | Limit to: projects, knowledge, archive, or tasks-archive |
 | `--dry-run` | Show what would change without writing |
 
 ## Decision Guide
