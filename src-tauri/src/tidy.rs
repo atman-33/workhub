@@ -118,6 +118,45 @@ pub fn has_work(vault: &Path, s: &TidySettings) -> bool {
     has_stale_inbox(vault, s.stale_days, &s.exclude_dirs) || archive_index_drift(vault)
 }
 
+/// Inbox files a previous unattended run deferred for human review. The
+/// kb-ingest skill records them in `_ai/memory/tidy-pending.json`; such a file
+/// is not "work" — relaunching the agent would just re-defer it — unless the
+/// user edited it after the deferral (file mtime newer than the list's mtime).
+struct Pending {
+    paths: std::collections::HashSet<PathBuf>,
+    /// mtime of tidy-pending.json itself = when the entries were last written.
+    mtime: u64,
+}
+
+impl Pending {
+    fn shields(&self, path: &Path, file_mtime: u64) -> bool {
+        file_mtime <= self.mtime && self.paths.contains(path)
+    }
+}
+
+fn load_pending(vault: &Path) -> Pending {
+    let file = vault.join("_ai").join("memory").join("tidy-pending.json");
+    let mut paths = std::collections::HashSet::new();
+    let mut mtime = 0;
+    if let Ok(text) = fs::read_to_string(&file) {
+        mtime = mtime_secs(&file);
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+            for entry in v
+                .get("files")
+                .and_then(|f| f.as_array())
+                .into_iter()
+                .flatten()
+            {
+                if let Some(p) = entry.get("path").and_then(|x| x.as_str()) {
+                    // Vault-relative, forward slashes; join() normalizes.
+                    paths.insert(vault.join(p));
+                }
+            }
+        }
+    }
+    Pending { paths, mtime }
+}
+
 fn mtime_secs(p: &Path) -> u64 {
     fs::metadata(p)
         .and_then(|m| m.modified())
@@ -134,10 +173,17 @@ fn has_stale_inbox(vault: &Path, stale_days: u32, exclude: &[String]) -> bool {
         return false;
     }
     let cutoff = now().saturating_sub(stale_days as u64 * 86_400);
-    stale_in_dir(&inbox, true, exclude, cutoff)
+    let pending = load_pending(vault);
+    stale_in_dir(&inbox, true, exclude, cutoff, &pending)
 }
 
-fn stale_in_dir(dir: &Path, is_inbox_root: bool, exclude: &[String], cutoff: u64) -> bool {
+fn stale_in_dir(
+    dir: &Path,
+    is_inbox_root: bool,
+    exclude: &[String],
+    cutoff: u64,
+    pending: &Pending,
+) -> bool {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return false,
@@ -151,11 +197,14 @@ fn stale_in_dir(dir: &Path, is_inbox_root: bool, exclude: &[String], cutoff: u64
             if is_inbox_root && exclude.iter().any(|d| d == &name) {
                 continue;
             }
-            if stale_in_dir(&path, false, exclude, cutoff) {
+            if stale_in_dir(&path, false, exclude, cutoff, pending) {
                 return true;
             }
-        } else if name.ends_with(".md") && name != "README.md" && mtime_secs(&path) <= cutoff {
-            return true;
+        } else if name.ends_with(".md") && name != "README.md" {
+            let mtime = mtime_secs(&path);
+            if mtime <= cutoff && !pending.shields(&path, mtime) {
+                return true;
+            }
         }
     }
     false
@@ -527,6 +576,36 @@ mod tests {
         let (summary, sid) = parse_result(json);
         assert_eq!(summary.as_deref(), Some("auto-filed 2, pending-review 1"));
         assert_eq!(sid.as_deref(), Some("abc-123"));
+    }
+
+    #[test]
+    fn load_pending_reads_paths_and_mtime() {
+        let vault = std::env::temp_dir().join(format!("tidy-pending-test-{}", now()));
+        fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
+        fs::write(
+            vault.join("_ai").join("memory").join("tidy-pending.json"),
+            r#"{"task":"T-0061","files":[{"path":"inbox/random idea.md","reason":"low confidence"}]}"#,
+        )
+        .unwrap();
+        let pending = load_pending(&vault);
+        assert!(pending.mtime > 0);
+        assert_eq!(pending.paths.len(), 1);
+        // Same file arrived at via a component-wise identical path matches.
+        let seen = vault.join("inbox").join("random idea.md");
+        assert!(pending.shields(&seen, pending.mtime));
+        // Edited after the deferral → no longer shielded.
+        assert!(!pending.shields(&seen, pending.mtime + 1));
+        // A different file is never shielded.
+        assert!(!pending.shields(&vault.join("inbox").join("other.md"), 0));
+        let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn load_pending_missing_file_is_empty() {
+        let vault = std::env::temp_dir().join("tidy-pending-missing");
+        let pending = load_pending(&vault);
+        assert!(pending.paths.is_empty());
+        assert!(!pending.shields(&vault.join("inbox").join("a.md"), 0));
     }
 
     #[test]

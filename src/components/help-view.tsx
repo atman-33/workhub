@@ -90,6 +90,7 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 - The app decides *whether* there is work with a cheap mechanical scan (no tokens) — a run only starts when \`inbox/\` has a note older than the age threshold, or the archive index has drifted.
 - **Schedule** is "first run at" + "run every N hours" (24 = daily, 168 = weekly). Because it counts from that anchor, a run missed while the app was closed is caught up on the next launch.
 - Notes you're still writing: keep them in **\`inbox/_wip/\`** (or any folder listed under "Exclude folders") — tidy never touches those.
+- Files that need human judgement (a new folder, a rename, unclear classification) are **not** filed silently. They surface as a single **\`#tidy-review\`** task on the board with a proposed plan per file — edit the proposals, then assign the task to an agent to execute them. Deferred files don't retrigger tidy runs until you touch them again.
 - **Agent / Model** pick which CLI (Claude Code or OpenCode) and model run the routine, just like a task.
 - **Run now** triggers it immediately, even when the schedule is off. If a run stalls on a permission prompt or fails, you get a desktop notification and a **Resume session** button opens it in a terminal so you can finish it by hand.`;
 
@@ -474,6 +475,15 @@ export function HelpView() {
                 Notes you're still writing: keep them in{" "}
                 <Kbd>inbox/_wip/</Kbd> (or any folder listed under "Exclude
                 folders") — tidy never touches those.
+              </li>
+              <li>
+                Files that need human judgement (a new folder, a rename, unclear
+                classification) are <span className="font-medium">not</span>{" "}
+                filed silently. They surface as a single{" "}
+                <span className="font-mono text-xs">#tidy-review</span> task on
+                the board with a proposed plan per file — edit the proposals,
+                then assign the task to an agent to execute them. Deferred files
+                don't retrigger tidy runs until you touch them again.
               </li>
               <li>
                 <span className="font-medium text-foreground">Agent / Model</span>{" "}

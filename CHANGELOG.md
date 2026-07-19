@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.45.0 (2026-07-19)
+## 0.46.0 (2026-07-19)
+
+- **Vault tidy deferred items now become a review task** instead of dying in
+  the log. When an unattended run can't file an inbox note safely (a new
+  folder, a rename, or unclear classification would be needed), the kb-ingest
+  skill records it in `_ai/memory/tidy-pending.json` and creates-or-updates a
+  single `#tidy-review` task on the board carrying a proposed plan per file —
+  the human edits the proposals, then assigns the task to an agent to execute
+  them.
+  - The tidy pre-check in the app now reads `tidy-pending.json` and stops
+    counting deferred files as "work", so a note waiting on human review no
+    longer relaunches the agent every interval (it becomes eligible again as
+    soon as the user edits it).
+  - The Help tab's Vault tidy section documents the new review flow.
+- workhub plugin 0.12.0: kb-ingest unattended review-task flow +
+  `kb-log.md` yearly rotation; kb-index now groups `tasks/archive/_index.md`
+  by year and treats it as the AI digest of archived tasks (bounded reads,
+  one line + optional deliverable link per task).
 
 - **Task files gained a `## Plan` section**, sitting between `Description`
   and `Results`. When a task uses confirm mode, the agent now writes the

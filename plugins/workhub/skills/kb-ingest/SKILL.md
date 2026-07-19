@@ -210,7 +210,9 @@ When processing multiple files (inbox/ or a folder):
 (the workhub app's vault-tidy routine launches it this way). There is no human
 in the loop, so the interactive confirmation steps cannot be used: instead of
 asking, this mode **auto-processes only what is unambiguous and safe, and
-defers everything else to a review queue** in the log.
+defers everything else to a review task** on the board (plus a machine-readable
+pending list), so deferred items are visible and instructable instead of
+sitting silently in the log.
 
 Arguments:
 
@@ -228,6 +230,11 @@ Arguments:
      entry; default `inbox/_wip/`) — this is the user's "not ready to file yet"
      holding area
    - files whose mtime is newer than `--stale-days` days ago (still being edited)
+   - files already listed in `_ai/memory/tidy-pending.json` whose mtime is older
+     than that JSON file's own mtime — they were deferred on a previous run and
+     nothing changed since, so re-classifying them would only burn tokens. A
+     pending file the user has edited *after* the last deferral is a candidate
+     again (it may now be classifiable).
 2. The remaining files are the unattended candidates.
 
 ### Auto-file vs. defer
@@ -242,9 +249,83 @@ For each candidate, run the normal READ → ANALYZE → PLAN classification, the
 - **Defer (do not move)** and record a `pending-review` entry in the log when
   any of these is true: confidence is low, multiple containers are plausible, a
   new subdirectory would be required, or a rename needs human judgement. Never
-  create folders, never rename ambiguous files, never create tasks unattended —
-  these all need a human, so leave the file in place for a later interactive
-  `/kb-ingest` run.
+  create folders and never rename ambiguous files unattended — these need a
+  human. Leave the file in place and route it through the review task below.
+  (The **review task is the one exception** to the no-tasks-unattended rule;
+  never create any other task unattended.)
+
+### Deferred items → pending list + review task
+
+When this run ends with one or more deferred items (and also to clean up after
+previous runs), do both of the following:
+
+**1. Maintain `_ai/memory/tidy-pending.json`** — the machine-readable pending
+list the workhub app's pre-check reads to avoid re-launching the agent for
+files a human still has to look at. Rewrite the whole file each run:
+
+```json
+{
+  "task": "T-0061",
+  "updated": "2026-07-19T21:00:00+09:00",
+  "files": [
+    {
+      "path": "inbox/random idea.md",
+      "reason": "low confidence (2 plausible containers)",
+      "proposal": "knowledge/product-ideas/ (new folder) or projects/workhub/"
+    }
+  ]
+}
+```
+
+- `path` is vault-relative with forward slashes.
+- Carry over still-unresolved entries from the previous file, **dropping any
+  whose file no longer exists at that path** (the human resolved it).
+- If nothing is pending anymore, write `"files": []` (keep the file).
+
+**2. Create or update the single review task.** Deferred items must surface on
+the task board where the human can see them, edit the proposals, and hand the
+task to an agent — not only in a log nobody reads.
+
+- Look in `_ai/index/tasks.json` for an existing open review task: tag
+  `#tidy-review` with status `inbox`, `todo`, or `doing`. If the index is
+  missing or stale, fall back to scanning `tasks/*.md` frontmatter.
+- **If one exists**, update it: refresh the checklist in `## Description` to
+  match the current pending list (add new items, drop resolved ones) and bump
+  `updated`. Do not touch other frontmatter or the `## Results` section.
+- **If none exists**, create `tasks/T-#### Vault tidy - review deferred inbox items.md`
+  from `templates/task.md`, taking the next free `T-####` id from
+  `_ai/index/tasks.json` (the app is the id authority — if the index is
+  missing, skip task creation, log the fact, and leave the pending list as the
+  only record). Frontmatter: `status: inbox`, `assignee: me`,
+  `priority: low`, `tags: [tidy-review]`, today's `created`/`updated`.
+- `## Description` format — one block per deferred file so the human can edit
+  the plan in place, then assign the task to an agent to execute it:
+
+  ```markdown
+  Unattended vault tidy deferred these inbox files. For each item, edit the
+  plan as needed, delete items to leave alone, then assign this task to an
+  agent — it will execute the remaining plans (creating approved folders /
+  renames), update the indexes, and clear `_ai/memory/tidy-pending.json`.
+
+  ### inbox/random idea.md
+  - reason deferred: low confidence (2 plausible containers)
+  - proposed target: knowledge/product-ideas/ (new folder)
+  - alternative: projects/workhub/
+  - rename: none
+  ```
+
+- An agent later executing this task treats each surviving block as an
+  **approved** plan: perform MOVE → FRONTMATTER → WIKILINK → BACKLINK → INDEX
+  for it (folder creation and renames listed in the block are pre-approved by
+  the human's edit), remove its entry from `tidy-pending.json`, and log
+  normally.
+
+### Log rotation
+
+Before appending, check `_ai/logs/kb-log.md`: if its existing entries are from
+a previous year, rename it to `_ai/logs/kb-log-<that-year>.md` (append to that
+file if it already exists) and start a fresh `kb-log.md`. This keeps the live
+log — which agents read and append to constantly — bounded to one year.
 
 ### Logging
 
@@ -260,8 +341,11 @@ Finish with one summary line so the caller can report counts without re-reading
 the log:
 
 ```
-[2026-07-19] ingest (unattended) | summary | auto-filed N, pending-review M, skipped-fresh K
+[2026-07-19] ingest (unattended) | summary | auto-filed N, pending-review M, skipped-fresh K | review task T-####
 ```
+
+(Omit the `review task` segment when nothing is pending and no open review
+task exists.)
 
 ## Obsidian CLI Integration
 
@@ -284,6 +368,7 @@ frontmatter for existing tags/links.
   folder) is a "not ready to file yet" area — never ingest its contents during
   default scans, batch processing, or unattended runs
 - **Never create** a new subdirectory or task without explicit user approval
+  (sole exception: the single unattended review task described above)
 - **Ask user** before renaming files, unless the filename is clearly temporary or low-information
 - **Ask user** when classification confidence is low or multiple containers are plausible
 - **Do not reorganize** existing notes into folders unless the user asks for cleanup
