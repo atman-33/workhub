@@ -473,14 +473,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Model</label>
                       <Select
                         value={draft.voice_model}
                         onValueChange={(v) => setDraft({ ...draft, voice_model: v })}
                       >
-                        <SelectTrigger size="sm">
-                          <SelectValue />
+                        <SelectTrigger size="sm" className="w-full">
+                          <SelectValue className="truncate" />
                         </SelectTrigger>
                         <SelectContent>
                           {VOICE_MODELS.map((m) => (
@@ -491,14 +491,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="min-w-0 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Language</label>
                       <Select
                         value={draft.voice_language}
                         onValueChange={(v) => setDraft({ ...draft, voice_language: v })}
                       >
-                        <SelectTrigger size="sm">
-                          <SelectValue />
+                        <SelectTrigger size="sm" className="w-full">
+                          <SelectValue className="truncate" />
                         </SelectTrigger>
                         <SelectContent>
                           {VOICE_LANGUAGES.map((l) => (
