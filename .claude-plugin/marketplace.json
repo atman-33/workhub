@@ -37,10 +37,10 @@
       }
     },
     {
-      "name": "scrum",
-      "source": "./plugins/scrum",
-      "description": "Helpers for scrum and agile development workflows, including monday.com backlog and Google Drive doc integration.",
-      "version": "0.16.0",
+      "name": "team-ops",
+      "source": "./plugins/team-ops",
+      "description": "Team operations on a shared folder as the single source of truth: team knowledge base, file-based product backlog, sprint ceremonies, multi-repo progress tracking, and daily burndown/spec reporting.",
+      "version": "0.1.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

@@ -42,7 +42,7 @@ something this marketplace needs to maintain.
 | `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`, `vault-setup`), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), long-term memory (`memory-setup`, `memory-recall` + capture/inject hooks backed by the bundled `memory-engine/`), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
 | `engineering` | **Required** | project | Development workflow: role-based sub-agents, rule-injection hooks (`project-context.json`, `rules-ex`), serena/context7 MCP launchers, and skills (commit, PR, ADR, TDD, codebase design, bug investigation, review/test/onboarding guides, PRD/issues, …). |
 | `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, Zenn blog writing (`zenn-blog-writing`, `zenn-markdown`), and skill-writing helpers (`grilling`, `handoff`, `writing-great-skills`). No vault or project-context dependency. |
-| `scrum` | Optional | project | Scrum workflows against monday.com and Google Drive (backlog, sprint review, retrospective). Needs per-project `scrum-context.json`. |
+| `team-ops` | Optional | project | Team operations on a shared folder as SSoT: team knowledge base, file-based backlog + sprints, multi-repo dev-main tracking, daily burndown/spec reporting. Needs `.claude/team-context.json` (see `plugins/team-ops/docs/design.html`). |
 | `obsidian` | Optional (pre-enabled in the vault template) | project or user | Generic Obsidian format helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, defuddle). Vault-agnostic — useful in the workhub vault and any other vault. |
 | `stack-cloudflare` | Optional | project | Cloudflare (Workers, Pages, R2, D1) development helpers. |
 | `stack-dnd-kit` | Optional | project | dnd-kit drag-and-drop UI helpers. |
@@ -73,7 +73,7 @@ claude plugin install engineering@workhub-marketplace --scope project
 claude plugin install productivity@workhub-marketplace   # user scope (default)
 
 # optional plugins, as needed
-claude plugin install scrum@workhub-marketplace --scope project
+claude plugin install team-ops@workhub-marketplace --scope project
 claude plugin install obsidian@workhub-marketplace   # user scope for non-workhub vaults; the vault template already enables it at project scope
 claude plugin install stack-react-router@workhub-marketplace --scope project
 ```

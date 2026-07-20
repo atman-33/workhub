@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "monday-api-mcp": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/monday-api-mcp-launcher.mjs"]
-    }
-  }
-}
