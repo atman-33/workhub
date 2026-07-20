@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.52.1 (2026-07-20)
+
+- **Fixed:** Repositories removed via "Remove from Workhub" no longer
+  reappear after restarting the app (T-0068). The frontend was issuing two
+  overlapping saves, and the second one used stale config state that wrote
+  the pre-removal project list back to disk.
+
 ## 0.52.0 (2026-07-20)
 
 - **Long-term memory for AI agents (T-0060).** The workhub plugin now ships a
