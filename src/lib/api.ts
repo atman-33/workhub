@@ -102,6 +102,7 @@ export const api = {
     herdrCmd: string,
     terminalEmbed: boolean,
     taskLanguage: string,
+    customPrompt: string,
   ) =>
     invoke<string>("launch_agent_for_task", {
       agentCmd,
@@ -118,6 +119,7 @@ export const api = {
       herdrCmd,
       terminalEmbed,
       taskLanguage,
+      customPrompt,
     }),
 
   copyTaskPrompt: (
@@ -131,6 +133,7 @@ export const api = {
     worktree: boolean,
     vaultPath: string,
     taskLanguage: string,
+    customPrompt: string,
   ) =>
     invoke<void>("copy_task_prompt", {
       assignee,
@@ -143,6 +146,7 @@ export const api = {
       worktree,
       vaultPath,
       taskLanguage,
+      customPrompt,
     }),
 
   // ---- embedded terminal (xterm.js + ConPTY running the herdr client) ----

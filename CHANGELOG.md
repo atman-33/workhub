@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.54.0 (2026-07-20)
+
+- **Custom prompt** (T-0078): **Settings → Commands** gains a free-form field
+  whose text is appended to the end of every agent prompt — both when
+  launching an agent and when using **Copy prompt**. Use it for standing
+  instructions that apply to all tasks (e.g. "Respond to me in Japanese");
+  task-specific instructions still belong in the task's Description. Line
+  breaks are collapsed into spaces so the prompt survives being quoted into a
+  one-line command. Empty by default, so existing setups are unchanged.
+- **Settings → General** is now grouped consistently: *Startup checks* (app
+  updates, vault template updates, long-term memory setup notice),
+  *Long-term memory* (per-agent toggles), and *Features* (screen annotation,
+  quick capture). Previously only the memory box was framed while the other
+  checkboxes sat loose around it.
+
 ## 0.53.2 (2026-07-20)
 
 - New application icon (T-0076). The window, taskbar and executable icons now

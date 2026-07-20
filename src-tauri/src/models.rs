@@ -116,6 +116,12 @@ pub struct Settings {
     /// commit messages, or other repository artifacts.
     #[serde(default = "default_task_language")]
     pub task_language: String,
+    /// Free-form instructions appended to every agent prompt, both when
+    /// launching an agent and when copying the prompt (T-0078). Empty by
+    /// default. Whitespace is normalized before it is embedded — see
+    /// `actions::build_agent_prompt`.
+    #[serde(default)]
+    pub custom_prompt: String,
     /// Built-in vault-tidy routine (T-0050): periodically files stale inbox
     /// notes and refreshes the tasks/archive index via a headless agent.
     #[serde(default)]
@@ -260,6 +266,7 @@ impl Default for Settings {
             voice_language: default_voice_language(),
             voice_indicator_position: None,
             task_language: default_task_language(),
+            custom_prompt: String::new(),
             tidy: TidySettings::default(),
         }
     }

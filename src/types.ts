@@ -63,6 +63,10 @@ export interface Settings {
    * sections in: "en" | "ja". Content only — never affects code, comments,
    * commit messages, or other repository artifacts. */
   task_language: string;
+  /** Free-form instructions appended to every agent prompt (launch and copy
+   * alike). Empty = nothing appended; whitespace is normalized by the
+   * backend so the prompt survives being quoted into a one-line command. */
+  custom_prompt: string;
   /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
    * tasks/archive index via a headless agent). */
   tidy: TidySettings;

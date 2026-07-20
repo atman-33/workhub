@@ -5,6 +5,7 @@ import {
   Copy,
   FileDiff,
   Keyboard,
+  MessageSquarePlus,
   Mic,
   PenLine,
   Rocket,
@@ -130,9 +131,24 @@ Gives every agent session on the vault — Claude Code and OpenCode — a memory
 - **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
 - The setup banner can be disabled in **⚙ Settings → General → Notify when long-term memory is not set up on this machine**.`;
 
-const ALL_MD = [SETUP_MD, TEMPLATE_MD, MEMORY_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD, TIDY_MD].join(
-  "\n\n---\n\n",
-);
+const CUSTOM_PROMPT_MD = `## Your own instructions in every agent prompt
+
+Every task you hand to an agent — by launching it or by copying its prompt — is sent with a generated prompt telling the agent which task to work and how to report back. **⚙ Settings → Commands → Custom prompt** lets you append your own standing instructions to it.
+
+- Whatever you write there is added to the end of *every* task prompt, so it fits instructions that always apply (e.g. "Respond to me in Japanese", "Ask before touching CI config") rather than task-specific ones — those belong in the task's own Description.
+- Line breaks are collapsed into spaces when the prompt is built, so a multi-line note stays a single valid command line. Leave the field empty to add nothing.
+- It applies equally to **Copy prompt**, so a prompt pasted into another terminal by hand carries the same instructions.`;
+
+const ALL_MD = [
+  SETUP_MD,
+  TEMPLATE_MD,
+  MEMORY_MD,
+  CUSTOM_PROMPT_MD,
+  INK_MD,
+  QUICK_CAPTURE_MD,
+  VOICE_MD,
+  TIDY_MD,
+].join("\n\n---\n\n");
 
 function CopyButton({
   id,
@@ -488,6 +504,41 @@ export function HelpView() {
                   this machine
                 </span>
                 .
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={MessageSquarePlus}
+            title="Your own instructions in every agent prompt"
+            value="custom-prompt"
+            markdown={CUSTOM_PROMPT_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              Every task you hand to an agent — by launching it or by copying its
+              prompt — is sent with a generated prompt telling the agent which task to
+              work and how to report back.{" "}
+              <span className="font-medium">⚙ Settings → Commands → Custom prompt</span>{" "}
+              lets you append your own standing instructions to it.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                Whatever you write there is added to the end of <em>every</em> task
+                prompt, so it fits instructions that always apply (e.g. &quot;Respond to
+                me in Japanese&quot;) rather than task-specific ones — those belong in
+                the task&apos;s own Description.
+              </li>
+              <li>
+                Line breaks are collapsed into spaces when the prompt is built, so a
+                multi-line note stays a single valid command line. Leave the field empty
+                to add nothing.
+              </li>
+              <li>
+                It applies equally to <span className="font-medium">Copy prompt</span>,
+                so a prompt pasted into another terminal by hand carries the same
+                instructions.
               </li>
             </ul>
           </Section>

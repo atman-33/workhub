@@ -110,6 +110,12 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// to English. Scoped to those two sections only — never code, comments,
     /// commit messages, or other repository artifacts.
     pub task_language: &'a str,
+    /// User-defined extra instructions appended to every agent prompt
+    /// (Settings → Commands → Custom prompt). Empty = nothing appended.
+    /// Whitespace is normalized to single spaces before it is embedded,
+    /// because the prompt has to survive being quoted into a one-line
+    /// command line (see `agent_command_template`).
+    pub custom_prompt: &'a str,
 }
 
 /// Launches the configured agent for a task with an initial prompt telling it
@@ -251,9 +257,26 @@ pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
     let language_note = format!(
         " Write the task file's `## Plan` and `## Results` sections in {language_name}. This applies only to those two sections of the task file — never change the language of code, code comments, commit messages, PR titles/bodies, or other repository documentation.",
     );
+    // Custom clause (T-0078): free-form instructions the user configured once
+    // in Settings, appended verbatim to every task's prompt. Appended last, so
+    // it reads as the user's own addition rather than splitting the fixed
+    // instructions. Whitespace (newlines included) collapses to single spaces —
+    // a multi-line value would otherwise break the quoted command line.
+    let custom_note = {
+        let normalized = params
+            .custom_prompt
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if normalized.is_empty() {
+            String::new()
+        } else {
+            format!(" {normalized}")
+        }
+    };
     format!(
-        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{}{}{} Task file: {}",
-        params.task_id, execution, worktree_note, project_note, plan_note, language_note, params.task_file
+        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{}{}{} Task file: {}{}",
+        params.task_id, execution, worktree_note, project_note, plan_note, language_note, params.task_file, custom_note
     )
 }
 
@@ -599,6 +622,7 @@ mod tests {
             herdr_cmd: "herdr",
             terminal_embed: false,
             task_language: "en",
+            custom_prompt: "",
         }
     }
 
@@ -701,6 +725,37 @@ mod tests {
         let prompt = build_agent_prompt(&params);
         assert!(prompt
             .contains("Write the task file's `## Plan` and `## Results` sections in Japanese."));
+    }
+
+    #[test]
+    fn custom_prompt_is_absent_when_unset() {
+        let prompt = build_agent_prompt(&test_params("claude-code", ""));
+        assert!(prompt.ends_with("Task file: tasks/T-1.md"));
+    }
+
+    #[test]
+    fn custom_prompt_is_appended_at_the_end() {
+        let mut params = test_params("claude-code", "");
+        params.custom_prompt = "Always answer in Japanese.";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.ends_with("Always answer in Japanese."));
+    }
+
+    #[test]
+    fn custom_prompt_newlines_collapse_to_single_spaces() {
+        let mut params = test_params("claude-code", "");
+        params.custom_prompt = "  First line.\n\nSecond   line.\r\n";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.ends_with(" First line. Second line."));
+        assert!(!prompt.contains('\n'));
+    }
+
+    #[test]
+    fn custom_prompt_of_only_whitespace_appends_nothing() {
+        let mut params = test_params("claude-code", "");
+        params.custom_prompt = "  \n\t ";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.ends_with("Task file: tasks/T-1.md"));
     }
 
     #[test]
