@@ -106,7 +106,7 @@
   <div class="sub">Design document for review · Task T-0053 · 2026-07-20</div>
   <div class="badges">
     <span class="badge draft">APPROVED 2026-07-20 (T-0053) — keep in sync with plugin changes</span>
-    <span class="badge plain">zero-base rebuild (successor to the retired scrum plugin)</span>
+    <span class="badge plain">shared folder as the single source of truth</span>
     <span class="badge plain">file-based backlog core</span>
   </div>
 </header>
@@ -174,7 +174,7 @@
     <span class="hz">rules/</span>                      <span class="c"># team rules &amp; working agreements</span>
     <span class="hz">onboarding/</span>                 <span class="c"># newcomer guides</span>
     <span class="hz">&lt;topic&gt;/</span>                    <span class="c"># kebab-case topic folders, each with _index.md</span>
-  projects/&lt;project&gt;/           <span class="c"># one folder per project (generalized from the retired scrum plugin's Epic folder)</span>
+  projects/&lt;project&gt;/           <span class="c"># one folder per project</span>
     <span class="az">_index.md</span>                   <span class="c"># project catalog + current-state summary</span>
     config/
       <span class="hz">project.json</span>              <span class="c"># shared project settings: repos[], sprint length, point scale</span>
@@ -586,11 +586,6 @@
   <div class="card">
     <table>
       <tr><th style="width:22%">Plugin</th><th>Relationship</th></tr>
-      <tr><td><code>scrum</code></td>
-          <td>Retired and removed from the marketplace (2026-07-20, owner decision). team-ops is
-              its zero-base successor around the shared-folder-as-SSoT idea; the monday.com +
-              Drive snapshot workflow was not carried over — external tools may return later as
-              optional mirrors.</td></tr>
       <tr><td><code>workhub</code> (vault)</td>
           <td>Different scope: the vault is <em>personal</em> task/knowledge space; team-ops is the
               <em>team's</em> shared space. The KB skills mirror the vault's kb-* philosophy

@@ -5,9 +5,7 @@ knowledge base, a file-based product backlog with sprint ceremonies,
 multi-repo development tracking against per-project dev-main branches, and a
 daily burndown/spec reporting cycle.
 
-Built zero-base as the team-oriented successor to the retired `scrum` plugin
-(removed from the marketplace; the shared folder replaces its monday.com +
-Drive snapshot workflow as the master data store). The
+The
 full design — folder layout, information-flow diagrams, and the operations
 cycle — lives in **[docs/design.html](docs/design.html)**; keep that document
 in sync with any change to this plugin (see the workhub repo rule
