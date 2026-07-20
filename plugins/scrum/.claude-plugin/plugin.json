@@ -1,9 +1,0 @@
-{
-  "name": "scrum",
-  "version": "0.16.0",
-  "description": "Helpers for scrum and agile development workflows, including monday.com backlog and Google Drive doc integration.",
-  "author": {
-    "name": "atman-33",
-    "url": "https://github.com/atman-33"
-  }
-}
