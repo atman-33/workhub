@@ -5,3 +5,7 @@
 _ai/memory/memory.db
 _ai/memory/memory.db-wal
 _ai/memory/memory.db-shm
+
+# OpenCode plugin logs
+.opencode/plugins/logs/*
+!.opencode/plugins/logs/.gitkeep
