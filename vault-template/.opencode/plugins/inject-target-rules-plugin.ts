@@ -15,6 +15,16 @@ import {
   xmlEscape,
 } from "./lib/project-context-core";
 
+// OpenCode mirror of the engineering plugin's inject-target-rules.mjs hook.
+//
+// Injection happens in `tool.execute.after` by appending the guidance blocks to
+// the tool result (`output.output`). The tool result is fed straight back to the
+// model within the same agentic loop, so the guidance reaches the model in the
+// SAME turn the file is touched — the OpenCode equivalent of Claude Code's
+// PreToolUse `additionalContext` placement. The earlier design queued blocks in
+// `tool.execute.before` and flushed them via `experimental.chat.system.transform`,
+// but that hook only runs when the system prompt is assembled at the start of a
+// user turn, so the guidance arrived one full turn late.
 const injectTargetRulesPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
   const configPath = workspaceRoot + "/.claude/project-context.json";
@@ -30,17 +40,18 @@ const injectTargetRulesPlugin: Plugin = async (ctx, _options) => {
   // runs as a fresh process and de-dups via a shared filesystem sentinel, so it
   // must additionally key on agent_id to avoid a sub-agent's injection suppressing
   // the main session's. OpenCode needs no such agent keying — and could not do it
-  // anyway, since tool.execute.before exposes no agent identifier.
+  // anyway, since the tool hooks expose no agent identifier.
   const sessionState = new Map<string, SessionState>();
 
   return {
-    "tool.execute.before": async (input, output) => {
+    "tool.execute.after": async (input, output) => {
       if (!isFileMutationTool(input.tool) || !projectConfig) {
         return;
       }
 
       const state = getSessionState(sessionState, input.sessionID);
-      const touchedPaths = collectTouchedPaths(output.args);
+      const blocks: string[] = [];
+      const touchedPaths = collectTouchedPaths(input.args);
       for (const touchedPath of touchedPaths) {
         const target = findSiblingTargetProject(
           touchedPath,
@@ -51,21 +62,23 @@ const injectTargetRulesPlugin: Plugin = async (ctx, _options) => {
           continue;
         }
 
-        queueTargetGuidance(target, touchedPath, state);
+        collectTargetGuidance(target, touchedPath, state, blocks);
       }
-    },
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) {
+
+      if (blocks.length === 0) {
         return;
       }
 
-      const state = sessionState.get(input.sessionID);
-      if (!state || state.pendingBlocks.length === 0) {
-        return;
-      }
-
-      output.system.push(...state.pendingBlocks);
-      state.pendingBlocks = [];
+      output.output = [
+        output.output,
+        "",
+        '<injected-project-guidance source="inject-target-rules-plugin">',
+        "The tool call above touched a registered target project. Follow this",
+        "guidance for that repository. It is injected by the harness and is not",
+        "part of the tool output.",
+        blocks.join("\n\n"),
+        "</injected-project-guidance>",
+      ].join("\n");
     },
   };
 };
@@ -84,17 +97,18 @@ function getSessionState(
   return created;
 }
 
-function queueTargetGuidance(
+function collectTargetGuidance(
   target: TargetProject,
   touchedPath: string,
   state: SessionState,
+  blocks: string[],
 ): void {
   if (!state.loadedInstructionTargets.has(target.root)) {
     const instructionPath = resolveInstructionsFile(target.root);
     if (instructionPath) {
       const content = safeReadText(instructionPath);
       if (content) {
-        state.pendingBlocks.push(
+        blocks.push(
           [
             "<target-project-instructions>",
             `<repo name="${xmlEscape(target.name)}" path="${xmlEscape(target.root)}">`,
@@ -114,7 +128,7 @@ function queueTargetGuidance(
       continue;
     }
 
-    state.pendingBlocks.push(
+    blocks.push(
       [
         "<target-project-rules>",
         `<rule repo="${xmlEscape(target.name)}" path="${xmlEscape(rule.path)}">`,

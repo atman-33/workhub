@@ -33,7 +33,6 @@ export interface SessionState {
   loadedInstructionTargets: Set<string>;
   loadedRules: Set<string>;
   loadedExtendedRules: Set<string>;
-  pendingBlocks: string[];
 }
 
 export interface TargetProject {
@@ -52,7 +51,6 @@ export function createSessionState(): SessionState {
     loadedInstructionTargets: new Set<string>(),
     loadedRules: new Set<string>(),
     loadedExtendedRules: new Set<string>(),
-    pendingBlocks: [],
   };
 }
 
