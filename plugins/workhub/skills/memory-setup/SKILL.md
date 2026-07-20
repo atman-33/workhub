@@ -22,8 +22,10 @@ The hooks stay silently disabled until this one-time machine setup has run.
    This installs npm dependencies (better-sqlite3, sqlite-vec,
    @huggingface/transformers) into `~/.workhub/memory-engine/`, downloads
    the embedding model (~320 MB, one time) into
-   `~/.workhub/memory-engine/models/`, creates `<vault>/_ai/memory/memory.db`,
-   makes sure the vault `.gitignore` excludes the database, and writes the
+   `~/.workhub/memory-engine/models/`, copies the engine to
+   `~/.workhub/memory-engine/engine/` (the stable path the vault's OpenCode
+   memory plugin calls), creates `<vault>/_ai/memory/memory.db`, makes sure
+   the vault `.gitignore` excludes the database, and writes the
    `.setup-version` marker the hooks and the workhub app check.
 
    The first run takes several minutes (native module install + model
@@ -36,7 +38,10 @@ The hooks stay silently disabled until this one-time machine setup has run.
    ```
 
    Report the summary (setup state, database path, memory counts) to the
-   user. From the next session on, memory capture and injection are active.
+   user. From the next session on, memory capture and injection are active
+   in both Claude Code (plugin hooks) and OpenCode (the vault's
+   `.opencode/plugins/memory-plugin.ts`). Per-agent on/off switches live in
+   the workhub app settings (`memory_claude_code` / `memory_opencode`).
 
 ## Troubleshooting
 

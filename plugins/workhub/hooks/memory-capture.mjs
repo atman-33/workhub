@@ -7,10 +7,10 @@ import { join } from "node:path";
 import { readPayload } from "./lib.mjs";
 
 try {
-  const { readMarker, resolveVault, dbPathForVault } = await import(
+  const { readMarker, memoryEnabled, resolveVault, dbPathForVault } = await import(
     "../memory-engine/lib/paths.mjs"
   );
-  if (!readMarker()) process.exit(0);
+  if (!readMarker() || !memoryEnabled("claude_code")) process.exit(0);
 
   const payload = readPayload();
   const transcriptPath = payload.transcript_path ?? "";

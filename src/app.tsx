@@ -69,7 +69,11 @@ export default function App() {
       if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
         await checkTemplate(cfg.settings.vault_path);
       }
-      if (cfg.settings.vault_path && cfg.settings.check_memory_setup) {
+      if (
+        cfg.settings.vault_path &&
+        cfg.settings.check_memory_setup &&
+        (cfg.settings.memory_claude_code || cfg.settings.memory_opencode)
+      ) {
         try {
           setMemorySetupNeeded(!(await api.memorySetupOk()));
         } catch {

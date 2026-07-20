@@ -6,11 +6,21 @@
 //   5. write the .setup-version marker
 // Safe to re-run; exits fast when the marker already matches ENGINE_VERSION.
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   ENGINE_HOME,
   ENGINE_VERSION,
+  INSTALLED_ENGINE_DIR,
   MARKER_PATH,
   dbPathForVault,
   readMarker,
@@ -65,6 +75,21 @@ async function warmModel() {
   log(`model ready: ${MODEL_ID}`);
 }
 
+// Copy the engine source (cli.mjs + lib/) to a version-stable location so
+// callers outside the Claude plugin cache — the OpenCode plugin, plain
+// terminals — don't depend on the versioned plugin directory. Refreshed on
+// every setup run.
+function installEngineCopy() {
+  const sourceDir = dirname(dirname(fileURLToPath(import.meta.url)));
+  // Re-running setup from the installed copy itself: nothing to refresh.
+  if (sourceDir === INSTALLED_ENGINE_DIR) return;
+  rmSync(INSTALLED_ENGINE_DIR, { recursive: true, force: true });
+  mkdirSync(INSTALLED_ENGINE_DIR, { recursive: true });
+  cpSync(join(sourceDir, "cli.mjs"), join(INSTALLED_ENGINE_DIR, "cli.mjs"));
+  cpSync(join(sourceDir, "lib"), join(INSTALLED_ENGINE_DIR, "lib"), { recursive: true });
+  log(`engine copy installed: ${INSTALLED_ENGINE_DIR}`);
+}
+
 function ensureGitignore(vault) {
   const path = join(vault, ".gitignore");
   const current = existsSync(path) ? readFileSync(path, "utf8") : "";
@@ -100,6 +125,7 @@ export async function runSetup({ force = false } = {}) {
     db.close();
   }
 
+  installEngineCopy();
   ensureGitignore(vault);
   await warmModel();
 

@@ -18,6 +18,10 @@ export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
 export const MODELS_DIR = join(ENGINE_HOME, "models");
 export const LOCK_PATH = join(ENGINE_HOME, "embed.lock");
 export const INJECT_STATE_PATH = join(ENGINE_HOME, "inject-state.json");
+// Setup copies the engine source here so callers outside the Claude plugin
+// (OpenCode plugin, plain terminals) have a version-stable CLI path that
+// doesn't depend on the versioned plugin cache directory.
+export const INSTALLED_ENGINE_DIR = join(ENGINE_HOME, "engine");
 
 /** Resolve the workhub vault path (same order as the task skills). */
 export function resolveVault() {
@@ -41,6 +45,25 @@ export function resolveVault() {
 
 export function dbPathForVault(vault) {
   return join(vault, "_ai", "memory", "memory.db");
+}
+
+/**
+ * Per-agent enable switch from the workhub app settings
+ * (`~/.workhub/config.json`). Missing config or field means enabled — the
+ * feature defaults to on once set up.
+ *
+ * @param {"claude_code" | "opencode"} agent
+ */
+export function memoryEnabled(agent) {
+  try {
+    const cfg = JSON.parse(
+      readFileSync(join(homedir(), ".workhub", "config.json"), "utf8"),
+    );
+    const value = cfg.settings?.[`memory_${agent}`];
+    return value !== false;
+  } catch {
+    return true;
+  }
 }
 
 /**

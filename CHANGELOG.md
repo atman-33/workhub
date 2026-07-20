@@ -9,9 +9,15 @@
   FTS5 + vector search (UserPromptSubmit hook). Fully local — SQLite +
   sqlite-vec + an ONNX embedding model (Ruri v3), no cloud, no LLM. Setup is
   the one-time `/memory-setup` skill; `/memory-recall` searches on demand.
+- OpenCode sessions get the same memory via the vault's
+  `.opencode/plugins/memory-plugin.ts` (context injection on each message,
+  capture on session idle), backed by the identical engine and database.
 - The app now checks on startup whether the memory engine is set up on this
   machine and shows a banner pointing at `/memory-setup` when it is not.
-  Disable the notice in **Settings → General** (`check_memory_setup`).
+  Disable the notice in **Settings → General** (`check_memory_setup`), and
+  toggle the feature per agent with the new **Long-term memory in Claude
+  Code / OpenCode sessions** settings (`memory_claude_code`,
+  `memory_opencode`).
 - New Help section: **Long-term memory for AI agents**.
 
 ## 0.51.0 (2026-07-19)

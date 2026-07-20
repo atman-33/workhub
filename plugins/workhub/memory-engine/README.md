@@ -27,6 +27,23 @@ prompt submitted (UserPromptSubmit hook) hooks/memory-inject.mjs
 Both hooks are silent no-ops until setup has run on the machine, so sessions
 never break on an un-provisioned install.
 
+## OpenCode
+
+OpenCode sessions get the same behavior through the vault's
+`.opencode/plugins/memory-plugin.ts` (shipped in `vault-template/`): it
+prepends the `cli.mjs inject` output to each user message (`chat.message`
+hook) and feeds the session's messages to `cli.mjs capture-json` on
+`session.idle`. Pairing, noise filtering, search, and embedding all run
+engine-side, so the two agents stay behaviorally aligned. The plugin calls
+the version-stable engine copy that setup installs under
+`~/.workhub/memory-engine/engine/` (it must not depend on the versioned
+Claude plugin cache path).
+
+Per-agent switches live in the workhub app settings
+(`~/.workhub/config.json` → `settings.memory_claude_code` /
+`settings.memory_opencode`, both default true); the Claude hooks and the
+OpenCode plugin check them on every run.
+
 ## Layout
 
 | Where | What |

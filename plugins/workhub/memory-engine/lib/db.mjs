@@ -59,6 +59,9 @@ export function initDb(db) {
 
     CREATE INDEX IF NOT EXISTS idx_memories_session_timestamp
     ON memories(session_id, timestamp);
+
+    CREATE INDEX IF NOT EXISTS idx_memories_timestamp
+    ON memories(timestamp);
   `);
 }
 
@@ -77,8 +80,11 @@ function projectName(project) {
  */
 export function saveChunksTextOnly(db, chunks, taskId = "") {
   if (!chunks.length) return 0;
+  // Dedup on (timestamp, user_text), not (session_id, timestamp): resumed
+  // sessions copy the old history into a transcript with a NEW session id,
+  // and the original per-message timestamps are what survive the copy.
   const exists = db.prepare(
-    "SELECT COUNT(*) AS n FROM memories WHERE session_id = ? AND timestamp = ?",
+    "SELECT COUNT(*) AS n FROM memories WHERE timestamp = ? AND user_text = ?",
   );
   const insert = db.prepare(`
     INSERT INTO memories
@@ -90,7 +96,7 @@ export function saveChunksTextOnly(db, chunks, taskId = "") {
   let inserted = 0;
   const run = db.transaction(() => {
     for (const c of chunks) {
-      if (exists.get(c.session_id ?? "", c.timestamp ?? "").n > 0) continue;
+      if (exists.get(c.timestamp ?? "", c.user ?? "").n > 0) continue;
       insert.run(
         c.session_id ?? "",
         c.project ?? "",

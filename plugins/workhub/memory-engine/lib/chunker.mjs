@@ -1,5 +1,8 @@
-// Splits a Claude Code transcript (.jsonl) into user/assistant Q&A chunks.
-// Port of sui-memory's chunker.py.
+// Splits conversations into user/assistant Q&A chunks.
+// - loadChunks(): Claude Code transcript (.jsonl) → chunks
+// - pairMessages(): pre-extracted {role, text, timestamp} messages → chunks
+//   (used by the OpenCode adapter via `cli.mjs capture-json`)
+// Pairing and noise filtering live here so every agent shares one behavior.
 import { readFileSync } from "node:fs";
 
 // Skip user turns shorter than this — bare acknowledgements ("ok", "はい",
@@ -38,10 +41,55 @@ function extractText(content) {
 }
 
 /**
- * Returns Q&A chunks: { user, assistant, timestamp, session_id, project }.
+ * Pair a flat [{role, text, timestamp}] message list into Q&A chunks with
+ * the shared noise filters applied. Messages with empty text are skipped; a
+ * user turn waits for the next assistant turn that carries text.
+ *
+ * Returns chunks: { user, assistant, timestamp, session_id, project }.
+ */
+export function pairMessages(messages, { sessionId = "", project = "" } = {}) {
+  const chunks = [];
+  let pendingUser = null;
+
+  for (const msg of messages) {
+    const text = (msg.text ?? "").trim();
+    if (msg.role === "user") {
+      // A user turn without text (tool results only) must not displace the
+      // pending question: "question → N tool calls → final answer" would
+      // otherwise lose the original question.
+      if (text) pendingUser = { text, timestamp: msg.timestamp ?? "" };
+    } else if (msg.role === "assistant") {
+      if (pendingUser === null) continue;
+      // Thinking-only / streaming intermediate entries have no text yet —
+      // keep waiting for the real answer.
+      if (!text) continue;
+
+      const userText = pendingUser.text;
+      if (
+        userText.length >= MIN_USER_TEXT_LEN &&
+        !NOISE_USER_PREFIXES.some((p) => userText.startsWith(p)) &&
+        !NOISE_ASSISTANT_TEXTS.has(text)
+      ) {
+        chunks.push({
+          user: userText,
+          assistant: text,
+          timestamp: pendingUser.timestamp,
+          session_id: sessionId,
+          project,
+        });
+      }
+      pendingUser = null;
+    }
+  }
+
+  return chunks;
+}
+
+/**
+ * Claude Code transcript (.jsonl) → Q&A chunks. Session id and project
+ * (cwd) are taken from the transcript entries themselves.
  */
 export function loadChunks(transcriptPath) {
-  const chunks = [];
   const entries = [];
   for (const line of readFileSync(transcriptPath, "utf8").split("\n")) {
     const trimmed = line.trim();
@@ -53,46 +101,21 @@ export function loadChunks(transcriptPath) {
     }
   }
 
-  // A user turn containing only tool_result blocks must not displace the
-  // pending question: "question → N tool calls → final answer" would
-  // otherwise lose the original question.
-  let pendingUser = null;
-
+  let sessionId = "";
+  let project = "";
+  const messages = [];
   for (const entry of entries) {
-    const type = entry.type;
-    if (type === "file-history-snapshot") continue;
-
-    if (type === "user") {
-      if (extractText(entry.message?.content ?? "")) pendingUser = entry;
-    } else if (type === "assistant") {
-      if (pendingUser === null) continue;
-
-      const assistantText = extractText(entry.message?.content ?? "");
-      // Thinking-only / streaming intermediate entries have no text yet —
-      // keep waiting for the real answer.
-      if (!assistantText) continue;
-
-      const userText = extractText(pendingUser.message?.content ?? "");
-      if (
-        !userText ||
-        userText.length < MIN_USER_TEXT_LEN ||
-        NOISE_USER_PREFIXES.some((p) => userText.startsWith(p)) ||
-        NOISE_ASSISTANT_TEXTS.has(assistantText)
-      ) {
-        pendingUser = null;
-        continue;
-      }
-
-      chunks.push({
-        user: userText,
-        assistant: assistantText,
-        timestamp: pendingUser.timestamp ?? "",
-        session_id: pendingUser.sessionId ?? "",
-        project: pendingUser.cwd ?? "",
-      });
-      pendingUser = null;
+    if (entry.type !== "user" && entry.type !== "assistant") continue;
+    if (entry.type === "user") {
+      sessionId ||= entry.sessionId ?? "";
+      project ||= entry.cwd ?? "";
     }
+    messages.push({
+      role: entry.type,
+      text: extractText(entry.message?.content ?? ""),
+      timestamp: entry.timestamp ?? "",
+    });
   }
 
-  return chunks;
+  return pairMessages(messages, { sessionId, project });
 }

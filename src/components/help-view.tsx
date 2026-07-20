@@ -122,11 +122,12 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 
 const MEMORY_MD = `## Long-term memory for AI agents
 
-Gives every agent session on the vault a memory of past sessions — fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
+Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
 
 - **One-time setup per machine**: run the \`/memory-setup\` skill in a Claude Code session on the vault. It installs the engine's dependencies and a local Japanese-capable embedding model (~320 MB) under \`~/.workhub/memory-engine/\`. Until then the memory hooks stay silently disabled, and workhub shows a startup banner as a reminder.
 - **Recall on demand**: the \`/memory-recall <keyword> [days]\` skill searches past conversations explicitly; without arguments it lists the recent timeline.
 - **Privacy**: the database stores conversation text verbatim and may contain sensitive material, so setup adds it to the vault's \`.gitignore\` — it never leaves the machine with a vault backup.
+- **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
 - The setup banner can be disabled in **⚙ Settings → General → Notify when long-term memory is not set up on this machine**.`;
 
 const ALL_MD = [SETUP_MD, TEMPLATE_MD, MEMORY_MD, INK_MD, QUICK_CAPTURE_MD, VOICE_MD, TIDY_MD].join(
@@ -441,8 +442,9 @@ export function HelpView() {
             onCopy={handleCopy}
           >
             <p>
-              Gives every agent session on the vault a memory of past sessions — fully
-              local, no cloud, no LLM. Each session&apos;s Q&amp;A pairs are saved into{" "}
+              Gives every agent session on the vault — Claude Code and OpenCode — a
+              memory of past sessions, fully local, no cloud, no LLM. Each
+              session&apos;s Q&amp;A pairs are saved into{" "}
               <span className="font-mono text-xs">_ai/memory/memory.db</span> in the
               vault, and new sessions automatically receive a time summary (&quot;last
               session was N days ago&quot;) plus past conversations relevant to the
@@ -470,6 +472,14 @@ export function HelpView() {
                 setup adds it to the vault&apos;s{" "}
                 <span className="font-mono text-xs">.gitignore</span> — it never leaves
                 the machine with a vault backup.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Per-agent switches</span>:{" "}
+                <span className="font-medium">⚙ Settings → General</span> has separate
+                toggles for Claude Code and OpenCode sessions (both on by default).
+                OpenCode support runs through the vault&apos;s{" "}
+                <span className="font-mono text-xs">.opencode/plugins/memory-plugin.ts</span>,
+                which uses the same engine and database.
               </li>
               <li>
                 The setup banner can be disabled in{" "}

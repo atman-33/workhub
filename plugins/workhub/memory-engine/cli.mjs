@@ -4,13 +4,21 @@
 //   node cli.mjs setup [--force]        one-time machine setup
 //   node cli.mjs status                 setup / database state
 //   node cli.mjs capture <transcript>   store a transcript's Q&A chunks
+//   node cli.mjs capture-json           store chunks from stdin JSON
+//                                       {session_id, project, task_id?,
+//                                        messages: [{role, text, timestamp}]}
+//   node cli.mjs inject                 print the injection block for stdin
+//                                       JSON {prompt, session_id}
 //   node cli.mjs embed-pending [--all]  vectorize rows with embedding=NULL
 //   node cli.mjs recall <query> [--days N] [--limit N]   hybrid search
 //   node cli.mjs recent [--limit N]     newest chunks, no query
 //
-// Hooks import lib/ directly; this CLI is for setup, explicit recall
-// (the memory-recall skill / OpenCode), and background embedding.
-import { writeFileSync, unlinkSync } from "node:fs";
+// Claude Code hooks import lib/ directly; this CLI serves setup, explicit
+// recall (the memory-recall skill), background embedding, and the OpenCode
+// plugin (capture-json / inject against the engine copy in
+// ~/.workhub/memory-engine/engine).
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { ENGINE_HOME, LOCK_PATH, dbPathForVault, readMarker, resolveVault } from "./lib/paths.mjs";
 import { loadSqlite } from "./lib/deps.mjs";
 
@@ -89,6 +97,60 @@ async function main() {
       return;
     }
 
+    case "capture-json": {
+      // Chunk source for agents without Claude-style transcripts (OpenCode):
+      // stdin carries {session_id, project, task_id?, messages}.
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      awaitedDb = await import("./lib/db.mjs");
+      const { pairMessages } = await import("./lib/chunker.mjs");
+      const chunks = pairMessages(input.messages ?? [], {
+        sessionId: input.session_id ?? "",
+        project: input.project ?? "",
+      });
+      const db = openVaultDb();
+      try {
+        let taskId = input.task_id ?? "";
+        if (!taskId) {
+          try {
+            taskId =
+              JSON.parse(
+                readFileSync(join(resolveVault(), "_ai", "memory", "active-task.json"), "utf8"),
+              ).id ?? "";
+          } catch {
+            // no active task — chunks are stored untagged
+          }
+        }
+        const inserted = awaitedDb.saveChunksTextOnly(db, chunks, taskId);
+        console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
+        const { maybeTriggerEmbed } = await import("./lib/background.mjs");
+        maybeTriggerEmbed(db);
+      } finally {
+        db.close();
+      }
+      return;
+    }
+
+    case "inject": {
+      // Prints the injection block for stdin JSON {prompt, session_id};
+      // prints nothing when there is nothing worth injecting.
+      const input = JSON.parse(readFileSync(0, "utf8"));
+      awaitedDb = await import("./lib/db.mjs");
+      const { buildInjection } = await import("./lib/inject.mjs");
+      const db = openVaultDb();
+      try {
+        const text = await buildInjection(db, {
+          prompt: input.prompt ?? "",
+          sessionId: input.session_id ?? "",
+        });
+        if (text) console.log(text);
+        const { maybeTriggerEmbed } = await import("./lib/background.mjs");
+        maybeTriggerEmbed(db);
+      } finally {
+        db.close();
+      }
+      return;
+    }
+
     case "embed-pending": {
       awaitedDb = await import("./lib/db.mjs");
       const { embedDocs } = await import("./lib/embedder.mjs");
@@ -154,7 +216,9 @@ async function main() {
 
     default:
       console.error(`unknown command: ${command ?? "(none)"}`);
-      console.error("commands: setup | status | capture | embed-pending | recall | recent");
+      console.error(
+        "commands: setup | status | capture | capture-json | inject | embed-pending | recall | recent",
+      );
       process.exitCode = 1;
   }
 }
