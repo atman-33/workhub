@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.54.1 (2026-07-20)
+
+- **Fixed:** the window no longer shows a blank white page while the frontend
+  loads (T-0079). `index.html` now carries an inline dark background and a
+  small loading spinner that need no external CSS or JS, so they apply on the
+  first paint; `main.tsx` fades them out once React has mounted. The spinner
+  is held back for 200 ms, so a fast start shows no spinner at all. Most
+  visible under `npm run tauri:dev`, where Vite serves modules unbundled and
+  the gap before React mounts is several seconds.
+- **Fixed:** the Settings dialog's scroll area now ends with bottom padding, so
+  the last section of a long tab (Commands, Vault) is no longer flush against
+  the bottom edge when scrolled all the way down.
+
 ## 0.54.0 (2026-07-20)
 
 - **Custom prompt** (T-0078): **Settings → Commands** gains a free-form field

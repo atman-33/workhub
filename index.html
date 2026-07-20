@@ -4,9 +4,66 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workhub</title>
+    <!--
+      Boot splash. index.css is injected by JS (imported from main.tsx), so
+      until the module graph is evaluated the page falls back to the browser
+      default white — jarring against the dark UI, and long-lived under
+      `tauri dev` where Vite serves modules unbundled. These inline styles
+      need no external CSS/JS, so they apply on the very first paint.
+      Removed by main.tsx once React has mounted.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        /* Keep in sync with the `.dark` --background token in src/index.css. */
+        background: #16181f;
+        background: oklch(0.165 0.012 265);
+        color-scheme: dark;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms ease;
+      }
+      #boot.boot-hidden {
+        opacity: 0;
+        /* Never let the fading overlay swallow clicks meant for the app. */
+        pointer-events: none;
+      }
+      #boot::after {
+        content: "";
+        width: 28px;
+        height: 28px;
+        border: 2px solid oklch(0.65 0.015 265 / 0.25);
+        border-top-color: oklch(0.62 0.19 277);
+        border-radius: 50%;
+        /* Held invisible for 200ms so a fast start never flashes a spinner. */
+        animation:
+          boot-spin 700ms linear infinite,
+          boot-appear 150ms ease 200ms both;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes boot-appear {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
