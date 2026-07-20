@@ -273,6 +273,22 @@ export function ReposView({ configVersion, active }: Props) {
     });
   }, [mutateConfig, refreshStatus]);
 
+  const removeProject = useCallback(
+    (path: string) => {
+      const nextSel = new Set(selectedRef.current);
+      nextSel.delete(path);
+      setSelected(nextSel);
+      setConfig((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, projects: prev.projects.filter((p) => p.path !== path) };
+        persist(next, nextSel);
+        return next;
+      });
+      setActivePath((cur) => (cur === path ? null : cur));
+    },
+    [persist],
+  );
+
   const handleRowAction = useCallback(
     (path: string, action: RowAction) => {
       const cfg = configRef.current;
@@ -325,17 +341,11 @@ export function ReposView({ configVersion, active }: Props) {
           }));
           break;
         case "remove":
-          mutateConfig((c) => ({ ...c, projects: c.projects.filter((p) => p.path !== path) }));
-          updateSelection((sel) => {
-            const next = new Set(sel);
-            next.delete(path);
-            return next;
-          });
-          setActivePath((cur) => (cur === path ? null : cur));
+          removeProject(path);
           break;
       }
     },
-    [markOpened, mutateConfig, runGitOp, updateSelection],
+    [markOpened, mutateConfig, removeProject, runGitOp, updateSelection],
   );
 
   // ---- derived ----
