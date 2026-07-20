@@ -20,9 +20,10 @@ import {
 // project-name globs (`paths: <project-name>/src/**`, resolved against the
 // project roots registered in `.claude/project-context.json`).
 //
-// Like inject-target-rules-plugin.ts, OpenCode cannot attach context to the same
-// file-tool call, so matching rules are queued on `tool.execute.before` and flushed
-// into the next model turn via `experimental.chat.system.transform`. De-dup is
+// Like inject-target-rules-plugin.ts, matching rules are appended to the tool
+// result in `tool.execute.after` so they reach the model in the SAME turn the
+// file is touched (see that plugin for why the former
+// `experimental.chat.system.transform` flush arrived one turn late). De-dup is
 // keyed per sessionID (sub-agents run in distinct child sessions), tracked in
 // SessionState.loadedExtendedRules.
 const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
@@ -30,13 +31,14 @@ const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
   const sessionState = new Map<string, SessionState>();
 
   return {
-    "tool.execute.before": async (input, output) => {
+    "tool.execute.after": async (input, output) => {
       if (!isFileMutationTool(input.tool)) {
         return;
       }
 
       const state = getSessionState(sessionState, input.sessionID);
-      const touchedPaths = collectTouchedPaths(output.args);
+      const blocks: string[] = [];
+      const touchedPaths = collectTouchedPaths(input.args);
       // Re-read per call: the config may be (re)generated during the session.
       const config = loadProjectContextConfig(
         workspaceRoot + "/.claude/project-context.json",
@@ -51,21 +53,23 @@ const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
           continue;
         }
 
-        queueExtendedRules(workspaceRoot, candidates, state);
+        collectExtendedRules(workspaceRoot, candidates, state, blocks);
       }
-    },
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) {
+
+      if (blocks.length === 0) {
         return;
       }
 
-      const state = sessionState.get(input.sessionID);
-      if (!state || state.pendingBlocks.length === 0) {
-        return;
-      }
-
-      output.system.push(...state.pendingBlocks);
-      state.pendingBlocks = [];
+      output.output = [
+        output.output,
+        "",
+        '<injected-project-guidance source="inject-extended-rules-plugin">',
+        "The tool call above touched a file covered by workspace extended rules.",
+        "Follow this guidance. It is injected by the harness and is not part of",
+        "the tool output.",
+        blocks.join("\n\n"),
+        "</injected-project-guidance>",
+      ].join("\n");
     },
   };
 };
@@ -84,17 +88,18 @@ function getSessionState(
   return created;
 }
 
-function queueExtendedRules(
+function collectExtendedRules(
   workspaceRoot: string,
   candidatePaths: string[],
   state: SessionState,
+  blocks: string[],
 ): void {
   for (const rule of loadExtendedRules(workspaceRoot, candidatePaths)) {
     if (state.loadedExtendedRules.has(rule.path)) {
       continue;
     }
 
-    state.pendingBlocks.push(
+    blocks.push(
       [
         "<extended-rules>",
         `<rule path="${xmlEscape(rule.path)}">`,

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.53.1 (2026-07-20)
+
+- **Fixed:** `inject-target-rules-plugin` and `inject-extended-rules-plugin`
+  in the OpenCode vault template now inject a touched target repo's
+  `CLAUDE.md` / `.claude/rules` guidance in the SAME turn a file is read or
+  edited, instead of one user turn late (T-0073). The rule text is appended
+  to the tool result (`tool.execute.after`) rather than queued for the next
+  system-prompt assembly.
+
 ## 0.52.3 (2026-07-20)
 
 - OpenCode plugin logs are now written to `vault-template/.opencode/plugins/logs/`
