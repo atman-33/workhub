@@ -23,6 +23,9 @@ export interface Settings {
   /** Check the vault template for updates against the current vault on
    * startup (T-0061). */
   check_template_updates: boolean;
+  /** Notify on startup when the long-term memory engine is not set up on
+   * this machine (T-0060). The notice points at the memory-setup skill. */
+  check_memory_setup: boolean;
   /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
   ink_enabled: boolean;
   vault_path: string | null;

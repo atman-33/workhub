@@ -1,0 +1,7 @@
+# Obsidian workspace state (local UI layout)
+.obsidian/workspace.json
+
+# workhub memory engine database (may contain sensitive conversation text)
+_ai/memory/memory.db
+_ai/memory/memory.db-wal
+_ai/memory/memory.db-shm

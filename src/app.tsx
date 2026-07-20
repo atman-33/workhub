@@ -10,6 +10,7 @@ import {
   Timer,
 } from "lucide-react";
 import { HelpView } from "@/components/help-view";
+import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -43,6 +44,7 @@ export default function App() {
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [templateDiff, setTemplateDiff] = useState<TemplateDiff | null>(null);
+  const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   useTidyNotifications();
@@ -67,6 +69,13 @@ export default function App() {
       if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
         await checkTemplate(cfg.settings.vault_path);
       }
+      if (cfg.settings.vault_path && cfg.settings.check_memory_setup) {
+        try {
+          setMemorySetupNeeded(!(await api.memorySetupOk()));
+        } catch {
+          // Never block startup on the memory-setup check.
+        }
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -85,6 +94,15 @@ export default function App() {
       <div className="flex h-screen flex-col">
         {update && (
           <UpdateBanner update={update} currentVersion={version} onDismiss={() => setUpdate(null)} />
+        )}
+        {memorySetupNeeded && settings && (
+          <MemorySetupBanner
+            onDismiss={() => setMemorySetupNeeded(false)}
+            onDisable={() => {
+              setMemorySetupNeeded(false);
+              void saveSettings({ ...settings, check_memory_setup: false });
+            }}
+          />
         )}
         {templateDiff && settings?.vault_path && (
           <TemplateUpdateBanner

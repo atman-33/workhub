@@ -50,6 +50,11 @@ pub struct Settings {
     /// the two drift apart again.
     #[serde(default = "default_true")]
     pub check_template_updates: bool,
+    /// Notify on startup when the long-term memory engine has not been set
+    /// up on this machine yet (T-0060). The notice only points the user at
+    /// the `memory-setup` agent skill; the app never installs anything.
+    #[serde(default = "default_true")]
+    pub check_memory_setup: bool,
     /// Screen-annotation overlay (double-press-and-hold Alt to draw),
     /// including its low-level keyboard hook.
     #[serde(default = "default_true")]
@@ -230,6 +235,7 @@ impl Default for Settings {
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
             check_template_updates: true,
+            check_memory_setup: true,
             ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),

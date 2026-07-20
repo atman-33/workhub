@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.52.0 (2026-07-20)
+
+- **Long-term memory for AI agents (T-0060).** The workhub plugin now ships a
+  local memory engine: every agent session's Q&A pairs are saved into
+  `<vault>/_ai/memory/memory.db` (Stop hook), and new sessions receive a time
+  summary plus past conversations relevant to the current prompt via hybrid
+  FTS5 + vector search (UserPromptSubmit hook). Fully local — SQLite +
+  sqlite-vec + an ONNX embedding model (Ruri v3), no cloud, no LLM. Setup is
+  the one-time `/memory-setup` skill; `/memory-recall` searches on demand.
+- The app now checks on startup whether the memory engine is set up on this
+  machine and shows a banner pointing at `/memory-setup` when it is not.
+  Disable the notice in **Settings → General** (`check_memory_setup`).
+- New Help section: **Long-term memory for AI agents**.
+
 ## 0.51.0 (2026-07-19)
 
 - **Voice input transcription is much faster.**
