@@ -300,8 +300,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             <TabsTrigger value="vault">Vault</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
-              tabs, regardless of how much content each tab holds. */}
-          <div className="-mx-6 h-[min(65vh,520px)] overflow-y-auto px-6">
+              tabs, regardless of how much content each tab holds. The bottom
+              padding is part of the scrollable content, so the last section
+              does not sit flush against the edge at the end of the scroll. */}
+          <div className="-mx-6 h-[min(65vh,520px)] overflow-y-auto px-6 pb-4">
             <TabsContent value="general" className="mt-0 space-y-3">
               {/* Every group on this tab is a titled bordered section, so no
                   checkbox sits loose next to a framed one. */}

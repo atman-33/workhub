@@ -9,6 +9,9 @@
   is held back for 200 ms, so a fast start shows no spinner at all. Most
   visible under `npm run tauri:dev`, where Vite serves modules unbundled and
   the gap before React mounts is several seconds.
+- **Fixed:** the Settings dialog's scroll area now ends with bottom padding, so
+  the last section of a long tab (Commands, Vault) is no longer flush against
+  the bottom edge when scrolled all the way down.
 
 ## 0.54.0 (2026-07-20)
 
