@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>team-ops plugin — Design (T-0053)</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --line: #e3e6ec;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --green: #059669;
+    --green-soft: #d1fae5;
+    --amber: #d97706;
+    --amber-soft: #fef3c7;
+    --purple: #7c3aed;
+    --purple-soft: #ede9fe;
+    --rose: #e11d48;
+    --rose-soft: #ffe4e6;
+    --mono: "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 80px;
+    font-family: "Segoe UI", "Yu Gothic UI", system-ui, sans-serif;
+    color: var(--ink); background: var(--bg);
+    line-height: 1.6; font-size: 15px;
+  }
+  header {
+    background: linear-gradient(135deg, #1e293b, #334155);
+    color: #fff; padding: 36px 48px 28px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 650; }
+  header .sub { color: #cbd5e1; font-size: 14px; }
+  header .badges { margin-top: 12px; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; margin-right: 8px;
+  }
+  .badge.draft { background: var(--amber-soft); color: var(--amber); }
+  .badge.plain { background: rgba(255,255,255,.15); color: #e2e8f0; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 20px; font-weight: 650; margin: 0 0 4px;
+    padding-top: 8px; border-top: 3px solid var(--accent);
+    display: inline-block;
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; }
+  p.lead { color: var(--muted); margin-top: 2px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 24px; margin-top: 14px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 600; }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  code { background: #eef1f6; padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: #0f172a; color: #e2e8f0; border-radius: 8px;
+    padding: 16px 18px; overflow-x: auto; font-family: var(--mono);
+    font-size: 13px; line-height: 1.55;
+  }
+  pre .c  { color: #94a3b8; }          /* comment */
+  pre .hz { color: #7dd3fc; }          /* human zone */
+  pre .az { color: #86efac; }          /* AI zone */
+  pre .mz { color: #fcd34d; }          /* machine zone */
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; margin-top: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .pill.human   { background: var(--accent-soft); color: var(--accent); }
+  .pill.ai      { background: var(--green-soft); color: var(--green); }
+  .pill.machine { background: var(--amber-soft); color: var(--amber); }
+  .pill.hook    { background: var(--purple-soft); color: var(--purple); }
+  .pill.daily   { background: var(--rose-soft); color: var(--rose); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin-top: 12px; font-size: 14px;
+  }
+  .warn {
+    border-left: 4px solid var(--amber); background: var(--amber-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin-top: 12px; font-size: 14px;
+  }
+  svg text { font-family: "Segoe UI", "Yu Gothic UI", sans-serif; }
+  .svg-wrap { overflow-x: auto; margin-top: 14px; }
+  footer { margin-top: 60px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>team-ops — Team Operations Plugin for the workhub Marketplace</h1>
+  <div class="sub">Design document for review · Task T-0053 · 2026-07-20</div>
+  <div class="badges">
+    <span class="badge draft">APPROVED 2026-07-20 (T-0053) — keep in sync with plugin changes</span>
+    <span class="badge plain">zero-base rebuild (scrum plugin stays untouched)</span>
+    <span class="badge plain">file-based backlog core</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">1</span>Concept &amp; principles</h2>
+  <p class="lead">What this plugin is, and the rules every later decision follows from.</p>
+  <div class="card">
+    <p><strong>team-ops</strong> turns one team-shared folder (Google Drive / OneDrive / file
+    server — anything synced to a local path) into the team's single source of truth for
+    <em>knowledge</em> and <em>project operations</em>, maintained jointly by humans and AI agents.</p>
+    <table>
+      <tr><th style="width:32%">Principle</th><th>Consequence</th></tr>
+      <tr>
+        <td><strong>Shared folder = SSoT</strong></td>
+        <td>Backlog, sprints, specs, and knowledge live as Markdown in the shared folder.
+            External tools (monday.com etc.) are future <em>optional mirrors</em>, never the master.</td>
+      </tr>
+      <tr>
+        <td><strong>Readable by newcomers</strong></td>
+        <td>Everything is plain Markdown with <code>_index.md</code> catalogs. A new member (or an AI
+            session) can self-serve answers by reading <code>knowledge/</code> and <code>docs/spec/spec.md</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>Multi-person safe</strong></td>
+        <td>One item = one file (sync-conflict resistant), ID conventions, and an
+            <code>activity-log.md</code> audit trail of AI writes.</td>
+      </tr>
+      <tr>
+        <td><strong>Storage-agnostic</strong></td>
+        <td>Config holds one local path (<code>teamRootPath</code>). No Drive/OneDrive API coupling;
+            never place a <code>.git</code> directory inside the shared folder.</td>
+      </tr>
+      <tr>
+        <td><strong>Token-free data layer</strong></td>
+        <td>Repo sync and progress snapshots are plain Node scripts. AI runs only where judgment
+            is needed (report narrative, spec update) — a daily routine stays cheap.</td>
+      </tr>
+      <tr>
+        <td><strong>Knowledge accumulates naturally</strong></td>
+        <td>A SessionStart hook injects a standing norm: "when you discover reusable team
+            knowledge, propose saving it via <code>team-kb-save</code>". Capture happens at the moment
+            of discovery, not in a weekly chore.</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">2</span>Shared folder layout</h2>
+  <p class="lead">The <code>ai/</code> zone inside the team-shared folder. Color = who owns the writes.</p>
+  <div class="card">
+    <div class="legend">
+      <span><span class="dot" style="background:#7dd3fc"></span> human-curated (AI appends/proposes)</span>
+      <span><span class="dot" style="background:#86efac"></span> AI-maintained (humans read)</span>
+      <span><span class="dot" style="background:#fcd34d"></span> machine-generated (scripts, no AI tokens)</span>
+    </div>
+<pre>&lt;teamRoot&gt;/ai/
+  knowledge/                    <span class="c"># team knowledge base — the "read this and you understand us" zone</span>
+    <span class="az">_index.md</span>                   <span class="c"># whole-KB catalog (team-kb-index maintains)</span>
+    <span class="hz">rules/</span>                      <span class="c"># team rules &amp; working agreements</span>
+    <span class="hz">onboarding/</span>                 <span class="c"># newcomer guides</span>
+    <span class="hz">&lt;topic&gt;/</span>                    <span class="c"># kebab-case topic folders, each with _index.md</span>
+  projects/&lt;project&gt;/           <span class="c"># one folder per project (≈ today's scrum Epic folder, generalized)</span>
+    <span class="az">_index.md</span>                   <span class="c"># project catalog + current-state summary</span>
+    config/
+      <span class="hz">project.json</span>              <span class="c"># shared project settings: repos[], sprint length, point scale</span>
+    <span class="hz">prd/</span>                        <span class="c"># product requirements</span>
+    backlog/
+      <span class="az">product-backlog.md</span>        <span class="c"># ordered PBL overview (id / title / status / points / sprint)</span>
+      <span class="hz">items/&lt;id&gt;-&lt;slug&gt;.md</span>      <span class="c"># PBI: user story, acceptance criteria, tasks (1 item = 1 file)</span>
+      <span class="mz">progress-history.jsonl</span>    <span class="c"># daily snapshot: date, status counts, remaining points</span>
+    sprints/&lt;yyyy.nn&gt;/
+      <span class="az">planning.md</span>               <span class="c"># sprint goal + committed items (plan-sprint)</span>
+      <span class="mz">scope.json</span>                <span class="c"># machine-readable sprint scope: item ids + points (burndown baseline)</span>
+      <span class="az">review.md</span>  <span class="az">retro.md</span>       <span class="c"># review-sprint / write-retro</span>
+    docs/
+      <span class="hz">decisions/</span>                <span class="c"># ADR-style decision records</span>
+      spec/<span class="az">spec.md</span>              <span class="c"># living spec — updated daily from PBIs + merged diffs (update-spec)</span>
+    reports/
+      <span class="az">daily/&lt;date&gt;.html</span>         <span class="c"># daily progress report + burndown (report-daily-progress)</span>
+    repos/&lt;repo-name&gt;/          <span class="c"># per-repository tracking data (multi-repo aware)</span>
+      <span class="mz">repo-state.json</span>           <span class="c"># url, devMainBranch, lastSyncedSha, lastSyncAt</span>
+      <span class="mz">commits.jsonl</span>             <span class="c"># dev-main-branch commits, append-only incremental</span>
+      <span class="mz">diff-vs-default.json</span>      <span class="c"># dev-main vs default branch: ahead/behind, diffstat, files</span>
+      <span class="mz">pbi-activity.json</span>         <span class="c"># per-PBI: merged commits, files, +/- lines, last merge date</span>
+  _meta/
+    <span class="hz">conventions.md</span>              <span class="c"># naming / ID / branch conventions the AI must follow</span>
+    <span class="az">activity-log.md</span>             <span class="c"># append-only log of AI writes (audit for multi-person use)</span></pre>
+    <div class="note">
+      <strong>PBI frontmatter (schema draft):</strong>
+      <code>id</code> (e.g. <code>P-0012</code>), <code>title</code>, <code>status</code>
+      (<code>todo | doing | review | done</code>), <code>points</code>, <code>sprint</code>,
+      <code>assignee</code>, <code>repos</code> (which repos it touches), <code>created</code>, <code>updated</code>.
+      Body: <code>## Story</code> / <code>## Acceptance Criteria</code> / <code>## Tasks</code> / <code>## Notes</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">3</span>Configuration — two layers</h2>
+  <p class="lead">Shared team settings live in the shared folder; machine-local paths stay local.</p>
+  <div class="two-col">
+    <div class="card">
+      <h3 style="margin-top:0">Local: <code>.claude/team-context.json</code> <span class="pill human">per machine</span></h3>
+      <p style="font-size:14px">Created by <code>setup-team-context</code> in each working project /
+      harness workspace. Gitignored (mirrors the <code>scrum-context.json</code> pattern).</p>
+<pre>{
+  "teamRootPath": "G:\\共有ドライブ\\team-x",
+  "repoWorkspacesRoot": "C:\\repos\\.team-ops-repos",
+  "me": "atman",
+  "activeProjects": ["app-renewal"]
+}</pre>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Shared: <code>projects/&lt;p&gt;/config/project.json</code> <span class="pill ai">per team</span></h3>
+      <p style="font-size:14px">Lives in the shared folder — every member and every AI session sees
+      the same repo definitions and sprint settings.</p>
+<pre>{
+  "repos": [
+    { "name": "app",
+      "url": "https://github.com/org/app",
+      "devMainBranch": "develop/app-renewal",
+      "defaultBranch": "main" },
+    { "name": "api",
+      "url": "https://github.com/org/api",
+      "devMainBranch": "develop/app-renewal" }
+  ],
+  "sprint": { "lengthDays": 10, "pointScale": [1,2,3,5,8,13] }
+}</pre>
+    </div>
+  </div>
+  <div class="warn"><strong>Clone policy:</strong> script-owned read-only mirrors under
+  <code>repoWorkspacesRoot</code> (default <code>~/.team-ops-repos/</code>) — never inside the shared
+  folder, never your own development checkout.</div>
+  <div class="note"><strong>Team-wide shared config: <code>_meta/team.json</code></strong> — settings
+  that apply to the whole team regardless of project, currently the content
+  <strong><code>language</code></strong> (BCP 47 tag, e.g. <code>"ja"</code>): the language KB, backlog,
+  sprint, and spec <em>content</em> is written in. Injected into every session as
+  <code>&lt;content-language&gt;</code>. Plugin docs and skills themselves stay English.</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">4</span>Skills &amp; hooks catalog</h2>
+  <p class="lead">Grouped by business activity. "Writes to" is the contract this document exists to agree on.</p>
+  <div class="card">
+    <table>
+      <tr><th>Group</th><th>Skill / hook</th><th>Trigger</th><th>Reads</th><th>Writes to</th></tr>
+      <tr>
+        <td rowspan="2"><strong>Setup</strong></td>
+        <td><code>setup-team-context</code></td>
+        <td>manual, once per machine/project</td>
+        <td>—</td>
+        <td><code>.claude/team-context.json</code>; scaffolds <code>ai/</code> skeleton + <code>_meta/conventions.md</code> if missing</td>
+      </tr>
+      <tr>
+        <td>SessionStart hook <span class="pill hook">hook</span></td>
+        <td>every session</td>
+        <td>both config layers</td>
+        <td>injects <code>&lt;team-context&gt;</code> (teamRoot, projects, KB pointers) + the knowledge-capture norm. No config → silent.</td>
+      </tr>
+      <tr>
+        <td rowspan="4"><strong>Knowledge</strong></td>
+        <td><code>team-kb-save</code></td>
+        <td>auto-proposed at discovery; manual</td>
+        <td>conversation context</td>
+        <td><code>knowledge/&lt;topic&gt;/</code> + topic <code>_index.md</code> + <code>activity-log.md</code></td>
+      </tr>
+      <tr>
+        <td><code>team-kb-query</code></td>
+        <td>questions about team rules / know-how</td>
+        <td><code>knowledge/</code></td>
+        <td>— (answers; may propose team-kb-save for gaps)</td>
+      </tr>
+      <tr>
+        <td><code>team-kb-index</code></td>
+        <td>after saves; periodic</td>
+        <td><code>knowledge/</code></td>
+        <td><code>_index.md</code> files</td>
+      </tr>
+      <tr>
+        <td><code>team-onboard</code></td>
+        <td>new member joins</td>
+        <td><code>knowledge/</code>, <code>spec.md</code>, latest daily report</td>
+        <td>onboarding briefing → <code>knowledge/onboarding/</code></td>
+      </tr>
+      <tr>
+        <td rowspan="5"><strong>Backlog &amp; sprint</strong></td>
+        <td><code>manage-backlog</code></td>
+        <td>add / refine / split PBIs</td>
+        <td><code>backlog/</code>, <code>prd/</code></td>
+        <td><code>items/&lt;id&gt;-&lt;slug&gt;.md</code>, <code>product-backlog.md</code></td>
+      </tr>
+      <tr>
+        <td><code>start-pbi</code></td>
+        <td>developer starts a PBI</td>
+        <td>the PBI file, <code>project.json</code></td>
+        <td>PBI status → <code>doing</code>; issues branch name <code>pbi/&lt;id&gt;-&lt;slug&gt;</code> (convention enforcement point)</td>
+      </tr>
+      <tr>
+        <td><code>plan-sprint</code></td>
+        <td>sprint boundary</td>
+        <td><code>product-backlog.md</code>, velocity from history</td>
+        <td><code>sprints/&lt;id&gt;/planning.md</code> + <code>scope.json</code> (burndown baseline)</td>
+      </tr>
+      <tr>
+        <td><code>review-sprint</code> / <code>write-retro</code></td>
+        <td>sprint end</td>
+        <td>scope vs done, <code>pbi-activity.json</code>, previous retro</td>
+        <td><code>sprints/&lt;id&gt;/review.md</code> / <code>retro.md</code></td>
+      </tr>
+      <tr>
+        <td><code>load-project-context</code></td>
+        <td>session priming: "where are we?"</td>
+        <td><code>_index.md</code>, history, <code>diff-vs-default.json</code></td>
+        <td>refreshes <code>projects/&lt;p&gt;/_index.md</code> summary</td>
+      </tr>
+      <tr>
+        <td rowspan="3"><strong>Daily ops</strong> <span class="pill daily">routine</span></td>
+        <td><code>sync-project-repos.mjs</code> (script)</td>
+        <td>daily routine step 1–2</td>
+        <td>git remotes, <code>project.json</code></td>
+        <td><code>repos/&lt;repo&gt;/*</code>, <code>progress-history.jsonl</code> — token-free</td>
+      </tr>
+      <tr>
+        <td><code>report-daily-progress</code></td>
+        <td>daily routine step 3</td>
+        <td>backlog, history, <code>pbi-activity.json</code>, <code>scope.json</code></td>
+        <td><code>reports/daily/&lt;date&gt;.html</code> — status board + <strong>burndown chart</strong> + merges of the day</td>
+      </tr>
+      <tr>
+        <td><code>update-spec</code></td>
+        <td>daily routine step 4 (only when diffs exist)</td>
+        <td>PBI acceptance criteria, merged diffs since last run</td>
+        <td><code>docs/spec/spec.md</code> — living "implemented spec" by feature area</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">5</span>Information flow — which skill writes what, where</h2>
+  <p class="lead">The one-picture answer to "どのスキルでどの情報がどこに格納されるか".</p>
+  <div class="card svg-wrap">
+  <svg viewBox="0 0 1020 620" width="1020" height="620" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+      </marker>
+      <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+      </marker>
+      <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#e11d48"/>
+      </marker>
+    </defs>
+
+    <!-- column headers -->
+    <text x="120" y="26" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Actors / skills</text>
+    <text x="590" y="26" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">&lt;teamRoot&gt;/ai/ (shared folder = SSoT)</text>
+    <text x="925" y="26" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Dev repos</text>
+
+    <!-- left: actors -->
+    <g font-size="12.5">
+      <rect x="20" y="46"  width="200" height="46" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="120" y="65" text-anchor="middle" font-weight="600" fill="#1e40af">Humans + AI sessions</text>
+      <text x="120" y="82" text-anchor="middle" fill="#1e40af">team-kb-save / team-kb-query</text>
+
+      <rect x="20" y="112" width="200" height="46" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="120" y="131" text-anchor="middle" font-weight="600" fill="#1e40af">Backlog work</text>
+      <text x="120" y="148" text-anchor="middle" fill="#1e40af">manage-backlog / start-pbi</text>
+
+      <rect x="20" y="178" width="200" height="46" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="120" y="197" text-anchor="middle" font-weight="600" fill="#1e40af">Sprint ceremonies</text>
+      <text x="120" y="214" text-anchor="middle" fill="#1e40af">plan / review / retro</text>
+
+      <rect x="20" y="258" width="200" height="60" rx="8" fill="#ffe4e6" stroke="#e11d48"/>
+      <text x="120" y="279" text-anchor="middle" font-weight="600" fill="#9f1239">Daily routine (scheduled)</text>
+      <text x="120" y="296" text-anchor="middle" fill="#9f1239">sync → snapshot →</text>
+      <text x="120" y="311" text-anchor="middle" fill="#9f1239">report → update-spec</text>
+
+      <rect x="20" y="342" width="200" height="46" rx="8" fill="#ede9fe" stroke="#7c3aed"/>
+      <text x="120" y="361" text-anchor="middle" font-weight="600" fill="#5b21b6">SessionStart hook</text>
+      <text x="120" y="378" text-anchor="middle" fill="#5b21b6">context + capture norm</text>
+
+      <rect x="20" y="408" width="200" height="46" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="120" y="427" text-anchor="middle" font-weight="600" fill="#1e40af">Newcomer</text>
+      <text x="120" y="444" text-anchor="middle" fill="#1e40af">team-onboard</text>
+    </g>
+
+    <!-- center: shared folder zones -->
+    <g font-size="12.5">
+      <rect x="330" y="40" width="520" height="70" rx="8" fill="#f0f9ff" stroke="#0284c7"/>
+      <text x="345" y="62" font-weight="700" fill="#075985">knowledge/</text>
+      <text x="345" y="80" fill="#075985">rules · onboarding · topics — team KB, _index.md catalogs</text>
+      <text x="345" y="97" fill="#0369a1" font-style="italic">newcomers self-serve here</text>
+
+      <rect x="330" y="124" width="520" height="56" rx="8" fill="#f0fdf4" stroke="#059669"/>
+      <text x="345" y="146" font-weight="700" fill="#065f46">projects/&lt;p&gt;/backlog/</text>
+      <text x="345" y="164" fill="#065f46">product-backlog.md · items/&lt;id&gt;-&lt;slug&gt;.md · progress-history.jsonl</text>
+
+      <rect x="330" y="194" width="520" height="52" rx="8" fill="#f0fdf4" stroke="#059669"/>
+      <text x="345" y="215" font-weight="700" fill="#065f46">projects/&lt;p&gt;/sprints/&lt;id&gt;/</text>
+      <text x="345" y="232" fill="#065f46">planning.md · scope.json (burndown baseline) · review.md · retro.md</text>
+
+      <rect x="330" y="260" width="520" height="56" rx="8" fill="#fffbeb" stroke="#d97706"/>
+      <text x="345" y="282" font-weight="700" fill="#92400e">projects/&lt;p&gt;/repos/&lt;repo&gt;/</text>
+      <text x="345" y="300" fill="#92400e">commits.jsonl · diff-vs-default.json · pbi-activity.json (per-PBI dev progress)</text>
+
+      <rect x="330" y="330" width="520" height="52" rx="8" fill="#f0fdf4" stroke="#059669"/>
+      <text x="345" y="351" font-weight="700" fill="#065f46">projects/&lt;p&gt;/docs/spec/spec.md</text>
+      <text x="345" y="368" fill="#065f46">living spec — synced daily with what is actually merged</text>
+
+      <rect x="330" y="396" width="520" height="52" rx="8" fill="#f0fdf4" stroke="#059669"/>
+      <text x="345" y="417" font-weight="700" fill="#065f46">projects/&lt;p&gt;/reports/daily/&lt;date&gt;.html</text>
+      <text x="345" y="434" fill="#065f46">status board + burndown + merges of the day</text>
+
+      <rect x="330" y="462" width="520" height="48" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+      <text x="345" y="483" font-weight="700" fill="#475569">_meta/</text>
+      <text x="345" y="500" fill="#475569">conventions.md (norms AI follows) · activity-log.md (AI write audit)</text>
+    </g>
+
+    <!-- right: repos -->
+    <g font-size="12.5">
+      <rect x="880" y="124" width="120" height="192" rx="8" fill="#fdf4ff" stroke="#a855f7"/>
+      <text x="940" y="150" text-anchor="middle" font-weight="700" fill="#7e22ce">repo A / B / …</text>
+      <text x="940" y="172" text-anchor="middle" fill="#7e22ce">devMainBranch</text>
+      <text x="940" y="189" text-anchor="middle" fill="#7e22ce">develop/&lt;p&gt;</text>
+      <text x="940" y="215" text-anchor="middle" fill="#9333ea">← pbi/&lt;id&gt;-&lt;slug&gt;</text>
+      <text x="940" y="232" text-anchor="middle" fill="#9333ea">branches merge in</text>
+      <text x="940" y="258" text-anchor="middle" fill="#7e22ce">read-only mirror</text>
+      <text x="940" y="275" text-anchor="middle" fill="#7e22ce">~/.team-ops-repos/</text>
+    </g>
+
+    <!-- arrows: left -> center -->
+    <line x1="220" y1="69"  x2="330" y2="72"  stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrB)"/>
+    <line x1="220" y1="135" x2="330" y2="150" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrB)"/>
+    <line x1="220" y1="201" x2="330" y2="218" stroke="#2563eb" stroke-width="1.8" marker-end="url(#arrB)"/>
+    <line x1="220" y1="278" x2="330" y2="288" stroke="#e11d48" stroke-width="1.8" marker-end="url(#arrR)"/>
+    <line x1="220" y1="292" x2="330" y2="356" stroke="#e11d48" stroke-width="1.8" marker-end="url(#arrR)"/>
+    <line x1="220" y1="300" x2="330" y2="420" stroke="#e11d48" stroke-width="1.8" marker-end="url(#arrR)"/>
+    <line x1="220" y1="288" x2="330" y2="166" stroke="#e11d48" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrR)"/>
+    <!-- hook reads config, injects into session -->
+    <path d="M 120 342 C 120 320, 120 300, 120 92" stroke="#7c3aed" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+    <!-- onboard reads KB + spec -->
+    <path d="M 220 424 C 290 424, 300 110, 330 96" stroke="#64748b" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+    <path d="M 220 434 C 280 440, 300 360, 330 358" stroke="#64748b" stroke-width="1.4" fill="none" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+
+    <!-- arrows: repos -> machine zone (sync) -->
+    <line x1="880" y1="288" x2="850" y2="288" stroke="#d97706" stroke-width="1.8" marker-end="url(#arr)"/>
+    <text x="866" y="278" font-size="11" fill="#92400e" text-anchor="middle">sync</text>
+
+    <!-- legend note -->
+    <text x="510" y="560" font-size="12.5" fill="#64748b" text-anchor="middle">solid = writes · dashed = reads · red = automated daily routine · blue = interactive skills · purple = hook injection</text>
+    <text x="510" y="580" font-size="12.5" fill="#64748b" text-anchor="middle">PBI ↔ code linkage: branch name pbi/&lt;id&gt;-&lt;slug&gt; + PBI id in merge commits → aggregated into pbi-activity.json</text>
+  </svg>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">6</span>Daily operations cycle</h2>
+  <p class="lead">One scheduled routine per day. Steps 1–2 consume no AI tokens; 3–4 are the only AI work (4 is conditional).</p>
+  <div class="card svg-wrap">
+  <svg viewBox="0 0 1000 250" width="1000" height="250" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+      </marker>
+    </defs>
+    <g font-size="12.5">
+      <rect x="20"  y="60" width="215" height="96" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+      <text x="127" y="84"  text-anchor="middle" font-weight="700" fill="#92400e">① sync-project-repos.mjs</text>
+      <text x="127" y="104" text-anchor="middle" fill="#92400e">fetch each repo's dev-main branch</text>
+      <text x="127" y="121" text-anchor="middle" fill="#92400e">append commits · compute diffs</text>
+      <text x="127" y="138" text-anchor="middle" fill="#92400e">aggregate per-PBI activity</text>
+      <text x="127" y="176" text-anchor="middle" fill="#b45309" font-size="11.5">script · no AI tokens</text>
+
+      <rect x="275" y="60" width="195" height="96" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+      <text x="372" y="84"  text-anchor="middle" font-weight="700" fill="#92400e">② progress snapshot</text>
+      <text x="372" y="104" text-anchor="middle" fill="#92400e">read all PBI frontmatter</text>
+      <text x="372" y="121" text-anchor="middle" fill="#92400e">append date · status counts</text>
+      <text x="372" y="138" text-anchor="middle" fill="#92400e">· remaining points</text>
+      <text x="372" y="176" text-anchor="middle" fill="#b45309" font-size="11.5">script · no AI tokens</text>
+
+      <rect x="510" y="60" width="210" height="96" rx="10" fill="#f0fdf4" stroke="#059669" stroke-width="1.5"/>
+      <text x="615" y="84"  text-anchor="middle" font-weight="700" fill="#065f46">③ report-daily-progress</text>
+      <text x="615" y="104" text-anchor="middle" fill="#065f46">reports/daily/&lt;date&gt;.html</text>
+      <text x="615" y="121" text-anchor="middle" fill="#065f46">status board · burndown chart</text>
+      <text x="615" y="138" text-anchor="middle" fill="#065f46">· merges of the day per PBI</text>
+      <text x="615" y="176" text-anchor="middle" fill="#047857" font-size="11.5">AI skill · daily</text>
+
+      <rect x="760" y="60" width="220" height="96" rx="10" fill="#f0fdf4" stroke="#059669" stroke-width="1.5" stroke-dasharray="6 3"/>
+      <text x="870" y="84"  text-anchor="middle" font-weight="700" fill="#065f46">④ update-spec</text>
+      <text x="870" y="104" text-anchor="middle" fill="#065f46">PBI acceptance criteria</text>
+      <text x="870" y="121" text-anchor="middle" fill="#065f46">+ newly merged diffs</text>
+      <text x="870" y="138" text-anchor="middle" fill="#065f46">→ docs/spec/spec.md</text>
+      <text x="870" y="176" text-anchor="middle" fill="#047857" font-size="11.5">AI skill · only when diffs exist</text>
+
+      <line x1="235" y1="108" x2="275" y2="108" stroke="#475569" stroke-width="2" marker-end="url(#arr2)"/>
+      <line x1="470" y1="108" x2="510" y2="108" stroke="#475569" stroke-width="2" marker-end="url(#arr2)"/>
+      <line x1="720" y1="108" x2="760" y2="108" stroke="#475569" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <text x="500" y="225" text-anchor="middle" fill="#64748b" font-size="12.5">Runs as a scheduled Claude routine (template shipped in the plugin README). Burndown = scope.json baseline − remaining points per day from progress-history.jsonl.</text>
+    </g>
+  </svg>
+  </div>
+
+  <h3>Cadence overview (who does what, when)</h3>
+  <div class="card">
+    <table>
+      <tr><th style="width:18%">Cadence</th><th>Activity</th><th>Actor</th></tr>
+      <tr><td><strong>Anytime</strong></td>
+          <td>Refine backlog (<code>manage-backlog</code>), start a PBI (<code>start-pbi</code>), save knowledge (<code>team-kb-save</code> — hook keeps proposing it), ask the KB (<code>team-kb-query</code>), prime a session (<code>load-project-context</code>)</td>
+          <td><span class="pill human">human + AI</span></td></tr>
+      <tr><td><strong>Daily</strong></td>
+          <td>Steps ①–④ above; team members open <code>reports/daily/&lt;date&gt;.html</code> at stand-up</td>
+          <td><span class="pill daily">automated</span></td></tr>
+      <tr><td><strong>Sprint boundary</strong></td>
+          <td><code>plan-sprint</code> (commit scope → burndown baseline) → develop → <code>review-sprint</code> / <code>write-retro</code></td>
+          <td><span class="pill human">human + AI</span></td></tr>
+      <tr><td><strong>New member</strong></td>
+          <td><code>team-onboard</code> generates a briefing from KB + spec.md + latest report</td>
+          <td><span class="pill ai">AI</span></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">7</span>PBI ↔ code linkage &amp; burndown mechanics</h2>
+  <div class="two-col">
+    <div class="card">
+      <h3 style="margin-top:0">Linkage (convention-based)</h3>
+      <ol style="padding-left:20px; font-size:14px">
+        <li><code>start-pbi</code> sets the PBI to <code>doing</code> and issues the branch name
+            <code>pbi/&lt;id&gt;-&lt;slug&gt;</code> — the convention is enforced where work begins.</li>
+        <li>Commits/PRs merged into the project's <strong>dev-main branch</strong> carry the PBI id
+            (branch name in the merge commit, or <code>[P-0012]</code> in the message).</li>
+        <li><code>sync-project-repos.mjs</code> extracts PBI ids from new commits and aggregates
+            per-PBI: merged commit count, files touched, +/- lines, last merge date →
+            <code>repos/&lt;repo&gt;/pbi-activity.json</code>.</li>
+        <li>Open a PBI file → its id keys into <code>pbi-activity.json</code> across <em>all</em> repos:
+            you see how far implementation has progressed and where.</li>
+      </ol>
+      <div class="note" style="font-size:13.5px">Works with any git hosting — it only reads the
+      cloned mirror; no GitHub/GitLab API needed for the core.</div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Burndown</h3>
+      <ol style="padding-left:20px; font-size:14px">
+        <li><code>plan-sprint</code> writes <code>sprints/&lt;id&gt;/scope.json</code> — committed item ids
+            and their <code>points</code>: the baseline.</li>
+        <li>The daily snapshot appends remaining points (sum of points of not-<code>done</code>
+            scope items) to <code>progress-history.jsonl</code>.</li>
+        <li><code>report-daily-progress</code> draws: ideal line (baseline → 0 over sprint days)
+            vs actual line (daily remaining), plus scope-change annotations if items were
+            added/removed mid-sprint.</li>
+      </ol>
+      <div class="note" style="font-size:13.5px">Status changes are made in the PBI frontmatter
+      (by humans in the editor, or via skills) — the snapshot only <em>reads</em>, so the chart is
+      correct regardless of who edited what, and needs no central server.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">8</span>Relationship to existing plugins</h2>
+  <div class="card">
+    <table>
+      <tr><th style="width:22%">Plugin</th><th>Relationship</th></tr>
+      <tr><td><code>scrum</code></td>
+          <td>Stays untouched (optional, monday.com + Drive snapshot workflow). team-ops is a
+              zero-base rebuild around the shared-folder-as-SSoT idea; once team-ops covers real
+              usage, scrum can be deprecated in a separate decision.</td></tr>
+      <tr><td><code>workhub</code> (vault)</td>
+          <td>Different scope: the vault is <em>personal</em> task/knowledge space; team-ops is the
+              <em>team's</em> shared space. The KB skills mirror the vault's kb-* philosophy
+              (indexes, zones) but operate on <code>&lt;teamRoot&gt;/ai/</code>.</td></tr>
+      <tr><td><code>engineering</code></td>
+          <td>Unchanged. team-ops' knowledge-capture norm complements <code>capture-rule</code>:
+              repo-specific rules still go to the repo; <em>team-process</em> knowledge goes to the
+              team KB.</td></tr>
+    </table>
+    <p style="font-size:14px; margin-bottom:0"><strong>Marketplace placement:</strong> optional ·
+    project scope (needs per-project config), registered in <code>marketplace.json</code> +
+    <code>docs/plugins.md</code>. All scripts are Node ESM (<code>.mjs</code>) per plugin-authoring rules.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">9</span>Decision record (owner review, 2026-07-20)</h2>
+  <div class="card">
+    <ol style="padding-left:20px">
+      <li><strong>Folder layout (§2)</strong> — approved as designed (top folder name <code>ai/</code>).</li>
+      <li><strong>PBI id format</strong> — <code>P-0001</code> per project, sequential.</li>
+      <li><strong>Sprint folder naming</strong> — <code>sprints/&lt;year&gt;.&lt;sequence&gt;/</code> (e.g. <code>2026.15</code>).</li>
+      <li><strong>Daily routine trigger</strong> — scheduled Claude routine on the owner's machine first; team-shared automation (CI) is a later step.</li>
+      <li><strong>spec.md granularity</strong> — one <code>spec.md</code> per project to start, splitting into <code>spec/&lt;area&gt;.md</code> when it grows (update-spec proposes the split).</li>
+      <li><strong>Language</strong> — team content language is <em>configurable</em> in the shared <code>_meta/team.json</code> (<code>language</code>); plugin docs/skills stay English.</li>
+      <li><strong>This document</strong> — lives at <code>plugins/team-ops/docs/design.html</code>; the repo rule <code>.claude/rules/team-ops-design-doc.md</code> requires updating it alongside any behavioral plugin change.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  team-ops design · T-0053 · approved 2026-07-20 · keep in sync with plugin changes
+</footer>
+
+</main>
+</body>
+</html>

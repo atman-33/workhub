@@ -47,6 +47,16 @@
       }
     },
     {
+      "name": "team-ops",
+      "source": "./plugins/team-ops",
+      "description": "Team operations on a shared folder as the single source of truth: team knowledge base, file-based product backlog, sprint ceremonies, multi-repo progress tracking, and daily burndown/spec reporting.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
       "name": "obsidian",
       "source": "./plugins/obsidian",
       "description": "Generic Obsidian format helpers: Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, and Defuddle web clipping.",
