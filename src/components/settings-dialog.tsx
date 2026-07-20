@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { ModelCombobox } from "@/components/model-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -112,6 +113,7 @@ const DEFAULTS: Settings = {
   voice_language: "auto",
   voice_indicator_position: null,
   task_language: "en",
+  custom_prompt: "",
   tidy: TIDY_DEFAULTS,
 };
 
@@ -301,33 +303,36 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               tabs, regardless of how much content each tab holds. */}
           <div className="-mx-6 h-[min(65vh,520px)] overflow-y-auto px-6">
             <TabsContent value="general" className="mt-0 space-y-3">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.check_updates}
-                  onCheckedChange={(v) => setDraft({ ...draft, check_updates: v === true })}
-                />
-                Check for updates on startup
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.check_template_updates}
-                  onCheckedChange={(v) =>
-                    setDraft({ ...draft, check_template_updates: v === true })
-                  }
-                />
-                Check for vault template updates on startup
-              </label>
+              {/* Every group on this tab is a titled bordered section, so no
+                  checkbox sits loose next to a framed one. */}
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Long-term memory</p>
+                <p className="text-sm font-medium">Startup checks</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.check_updates}
+                    onCheckedChange={(v) => setDraft({ ...draft, check_updates: v === true })}
+                  />
+                  Check for app updates
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.check_template_updates}
+                    onCheckedChange={(v) =>
+                      setDraft({ ...draft, check_template_updates: v === true })
+                    }
+                  />
+                  Check for vault template updates
+                </label>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.check_memory_setup}
-                    onCheckedChange={(v) =>
-                      setDraft({ ...draft, check_memory_setup: v === true })
-                    }
+                    onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
                   />
-                  Notify when not set up on this machine
+                  Notify when long-term memory is not set up on this machine
                 </label>
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Long-term memory</p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.memory_claude_code}
@@ -345,33 +350,40 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   Enabled in OpenCode sessions
                 </label>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.ink_enabled}
-                  onCheckedChange={(v) => setDraft({ ...draft, ink_enabled: v === true })}
-                />
-                Screen annotation (double-press and hold Alt to draw)
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.quick_capture_enabled}
-                  onCheckedChange={(v) => setDraft({ ...draft, quick_capture_enabled: v === true })}
-                />
-                Quick capture (hotkey turns the clipboard into an inbox task)
-              </label>
-              {draft.quick_capture_enabled && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Quick capture hotkey
-                  </label>
-                  <Input
-                    value={draft.quick_capture_shortcut}
-                    onChange={(e) => setDraft({ ...draft, quick_capture_shortcut: e.target.value })}
-                    placeholder="Ctrl+Alt+N"
-                    className="h-8 font-mono text-xs"
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Features</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.ink_enabled}
+                    onCheckedChange={(v) => setDraft({ ...draft, ink_enabled: v === true })}
                   />
-                </div>
-              )}
+                  Screen annotation (double-press and hold Alt to draw)
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.quick_capture_enabled}
+                    onCheckedChange={(v) =>
+                      setDraft({ ...draft, quick_capture_enabled: v === true })
+                    }
+                  />
+                  Quick capture (hotkey turns the clipboard into an inbox task)
+                </label>
+                {draft.quick_capture_enabled && (
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Quick capture hotkey
+                    </label>
+                    <Input
+                      value={draft.quick_capture_shortcut}
+                      onChange={(e) =>
+                        setDraft({ ...draft, quick_capture_shortcut: e.target.value })
+                      }
+                      placeholder="Ctrl+Alt+N"
+                      className="h-8 font-mono text-xs"
+                    />
+                  </div>
+                )}
+              </div>
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -480,6 +492,19 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-medium text-muted-foreground">Custom prompt</label>
+                <p className="text-[10px] leading-tight text-muted-foreground/70">
+                  Appended to the end of every task prompt, both when launching an agent and when
+                  copying the prompt. Line breaks are collapsed into spaces.
+                </p>
+                <Textarea
+                  value={draft.custom_prompt}
+                  onChange={(e) => setDraft({ ...draft, custom_prompt: e.target.value })}
+                  placeholder="e.g. Respond to me in Japanese."
+                  className="min-h-20 text-xs"
+                />
               </div>
             </TabsContent>
             <TabsContent value="voice" className="mt-0 space-y-3">
