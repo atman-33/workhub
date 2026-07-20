@@ -5,14 +5,14 @@
 // response-language.json (sibling file) so it can be edited without touching
 // plugin code; an mtime check reloads it on change.
 //
-// A small append-only log (inject-response-language.log) is written next to the
-// plugin so users can visually confirm injection actually happened (tail -f).
+// A small append-only log (.opencode/plugins/logs/inject-response-language.log) is
+// written so users can visually confirm injection actually happened (tail -f).
 //
 // Scope: OpenCode-only. The Claude Code side does not need a mirror (per the
 // user's decision) because AGENTS.md already instructs claude code natively.
 import type { Plugin } from "@opencode-ai/plugin";
 import { normalizePath, safeReadText } from "./lib/project-context-core";
-import { appendFileSync, statSync } from "node:fs";
+import { appendFileSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 interface ResponseLanguageConfig {
@@ -25,8 +25,9 @@ interface ResponseLanguageConfig {
 const injectResponseLanguagePlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
   const pluginDir = join(workspaceRoot, ".opencode", "plugins");
+  const logDir = join(pluginDir, "logs");
   const configPath = join(pluginDir, "response-language.json");
-  const logPath = join(pluginDir, "inject-response-language.log");
+  const logPath = join(logDir, "inject-response-language.log");
 
   let cachedConfig: ResponseLanguageConfig | null = null;
   let cachedMtimeMs = 0;
@@ -85,6 +86,7 @@ const injectResponseLanguagePlugin: Plugin = async (ctx, _options) => {
       output.system.push(lines.join("\n"));
 
       try {
+        mkdirSync(logDir, { recursive: true });
         appendFileSync(
           logPath,
           `${new Date().toISOString()}\tsession=${input.sessionID}\tturn=${turn}\tlang=${config.lang ?? "?"}\n`,
