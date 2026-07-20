@@ -50,6 +50,20 @@ pub struct Settings {
     /// the two drift apart again.
     #[serde(default = "default_true")]
     pub check_template_updates: bool,
+    /// Notify on startup when the long-term memory engine has not been set
+    /// up on this machine yet (T-0060). The notice only points the user at
+    /// the `memory-setup` agent skill; the app never installs anything.
+    #[serde(default = "default_true")]
+    pub check_memory_setup: bool,
+    /// Long-term memory hooks in Claude Code sessions (capture + inject).
+    /// Read by the plugin hooks from this config file; the app itself only
+    /// stores the flag.
+    #[serde(default = "default_true")]
+    pub memory_claude_code: bool,
+    /// Long-term memory adapter in OpenCode sessions (capture + inject).
+    /// Read by the vault's OpenCode memory plugin from this config file.
+    #[serde(default = "default_true")]
+    pub memory_opencode: bool,
     /// Screen-annotation overlay (double-press-and-hold Alt to draw),
     /// including its low-level keyboard hook.
     #[serde(default = "default_true")]
@@ -230,6 +244,9 @@ impl Default for Settings {
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
             check_template_updates: true,
+            check_memory_setup: true,
+            memory_claude_code: true,
+            memory_opencode: true,
             ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),

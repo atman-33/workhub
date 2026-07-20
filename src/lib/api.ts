@@ -58,6 +58,7 @@ export const api = {
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),
   restartApp: () => invoke<void>("restart_app"),
+  memorySetupOk: () => invoke<boolean>("memory_setup_ok"),
 
   // ---- tasks (vault-backed) ----
   checkVaultPath: (vaultPath: string) =>

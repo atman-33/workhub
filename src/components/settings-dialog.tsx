@@ -96,6 +96,9 @@ const DEFAULTS: Settings = {
   herdr_cmd: "herdr",
   check_updates: true,
   check_template_updates: true,
+  check_memory_setup: true,
+  memory_claude_code: true,
+  memory_opencode: true,
   ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
@@ -313,6 +316,27 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   }
                 />
                 Check for vault template updates on startup
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.check_memory_setup}
+                  onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
+                />
+                Notify when long-term memory is not set up on this machine
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.memory_claude_code}
+                  onCheckedChange={(v) => setDraft({ ...draft, memory_claude_code: v === true })}
+                />
+                Long-term memory in Claude Code sessions
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.memory_opencode}
+                  onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
+                />
+                Long-term memory in OpenCode sessions
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox

@@ -317,6 +317,22 @@ pub fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
+/// True when the long-term memory engine has been set up on this machine —
+/// i.e. the marker written by the `memory-setup` agent skill exists under
+/// `~/.workhub/memory-engine/` and parses. The app only ever *checks*; the
+/// setup itself runs in an agent session (heavy npm install + model
+/// download, with interactive recovery on failure).
+#[tauri::command]
+pub fn memory_setup_ok() -> bool {
+    let marker = storage::config_dir()
+        .join("memory-engine")
+        .join(".setup-version");
+    std::fs::read_to_string(marker)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .is_some_and(|v| v.get("version").is_some_and(serde_json::Value::is_u64))
+}
+
 // ---------------------------------------------------------------------
 // tasks (vault-backed)
 // ---------------------------------------------------------------------

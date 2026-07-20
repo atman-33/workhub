@@ -142,6 +142,7 @@ pub fn run() {
             commands::check_update,
             commands::apply_update,
             commands::restart_app,
+            commands::memory_setup_ok,
             commands::list_tasks,
             commands::create_task,
             commands::update_task,
