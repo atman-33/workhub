@@ -17,7 +17,7 @@ export const DEFAULT_TIMER_SETTINGS: TimerSettings = {
 };
 
 /** Preset durations (minutes) offered as one-click buttons. */
-export const PRESET_MINUTES = [5, 15, 30, 60];
+export const PRESET_MINUTES = [5, 10, 15, 20, 30, 60];
 
 export const MIN_DURATION_SEC = 1;
 export const MAX_DURATION_SEC = 24 * 60 * 60;

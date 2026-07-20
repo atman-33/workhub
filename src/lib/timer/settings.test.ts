@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_TIMER_SETTINGS,
+  PRESET_MINUTES,
   clampDuration,
   loadTimerSettings,
   saveTimerSettings,
@@ -19,6 +20,12 @@ function stubStorage(initial?: string) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("PRESET_MINUTES", () => {
+  it("includes the requested preset durations", () => {
+    expect(PRESET_MINUTES).toEqual([5, 10, 15, 20, 30, 60]);
+  });
 });
 
 describe("clampDuration", () => {
