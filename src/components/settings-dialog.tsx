@@ -317,27 +317,34 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 />
                 Check for vault template updates on startup
               </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.check_memory_setup}
-                  onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
-                />
-                Notify when long-term memory is not set up on this machine
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.memory_claude_code}
-                  onCheckedChange={(v) => setDraft({ ...draft, memory_claude_code: v === true })}
-                />
-                Long-term memory in Claude Code sessions
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.memory_opencode}
-                  onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
-                />
-                Long-term memory in OpenCode sessions
-              </label>
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Long-term memory</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.check_memory_setup}
+                    onCheckedChange={(v) =>
+                      setDraft({ ...draft, check_memory_setup: v === true })
+                    }
+                  />
+                  Notify when not set up on this machine
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.memory_claude_code}
+                    onCheckedChange={(v) =>
+                      setDraft({ ...draft, memory_claude_code: v === true })
+                    }
+                  />
+                  Enabled in Claude Code sessions
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.memory_opencode}
+                    onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
+                  />
+                  Enabled in OpenCode sessions
+                </label>
+              </div>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={draft.ink_enabled}

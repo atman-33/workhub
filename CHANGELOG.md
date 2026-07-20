@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.52.2 (2026-07-20)
+
+- Grouped the long-term memory settings (setup notification, per-agent
+  Claude Code / OpenCode toggles) into a single labeled box in **Settings →
+  General**, matching the existing "App update" section — they had been
+  three loose checkboxes crowding the tab since 0.52.0.
+
 ## 0.52.1 (2026-07-20)
 
 - **Fixed:** Repositories removed via "Remove from Workhub" no longer
