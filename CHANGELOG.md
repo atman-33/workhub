@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.52.3 (2026-07-20)
+
+- OpenCode plugin logs are now written to `vault-template/.opencode/plugins/logs/`
+  and ignored by `.gitignore`, so new log files no longer appear as untracked
+  changes (T-0069).
+
 ## 0.52.2 (2026-07-20)
 
 - Grouped the long-term memory settings (setup notification, per-agent
