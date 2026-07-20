@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.53.2 (2026-07-20)
+
+- New application icon (T-0076). The window, taskbar and executable icons now
+  use the ice-crystal artwork in place of the previous purple "W" mark. The
+  full `src-tauri/icons/` set (Windows, Store, iOS, Android) was regenerated
+  from the new source with `tauri icon`.
+
 ## 0.53.1 (2026-07-20)
 
 - **Fixed:** `inject-target-rules-plugin` and `inject-extended-rules-plugin`
