@@ -325,9 +325,21 @@ export function TaskDialog({
   }, [task, onAutoSave, onLaunchAgent, onClose]);
 
   // Copy the prompt from the editor using the draft's current launch fields.
+  // Mirrors handleLaunch: the copied prompt is about to be run by an agent that
+  // will edit the task file itself, so flush the debounced autosave first and
+  // then close without the autosave-on-close — a dialog left open would
+  // otherwise overwrite the agent's status change with a stale draft. The short
+  // delay lets the button's "Copied" feedback show before the dialog goes away.
   const handleCopyPrompt = useCallback(async () => {
     if (!task || !onCopyTaskPrompt) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
     const d = draftRef.current;
+    if (onAutoSave && d.title.trim()) {
+      await onAutoSave(d);
+    }
     await onCopyTaskPrompt({
       ...task,
       title: d.title,
@@ -337,7 +349,9 @@ export function TaskDialog({
       confirm: d.confirm,
       worktree: d.worktree,
     });
-  }, [task, onCopyTaskPrompt]);
+    skipAutoSaveOnCloseRef.current = true;
+    setTimeout(() => onClose(), 700);
+  }, [task, onAutoSave, onCopyTaskPrompt, onClose]);
 
   // Edit mode: jump to the task file in Obsidian. Mirrors handleLaunch —
   // flush the debounced autosave first so Obsidian shows current content,
