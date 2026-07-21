@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.56.0 (2026-07-21)
+
+- **Vault tidy runs are always resumable** (T-0082): the agent session id is
+  now assigned before the run starts instead of being read out of the finished
+  run's output, so a run that is killed, stalls, or is cut short by quitting
+  the app can still be picked up. The id is persisted with the run record
+  (surviving an app restart), shown next to the run status with a copy button,
+  and written into the run log under `_ai/logs/tidy/` together with a
+  ready-to-paste `claude --resume` command. **Resume session** is available
+  whenever an id is known, not only after a failure.
+- **Changed:** vault tidy now runs with the same auto-approve permission mode
+  as a task-card agent launch (`--permission-mode auto` for Claude Code,
+  `--auto` for OpenCode) instead of bypassing permission checks entirely. An
+  unattended run no longer has more authority over the vault than an
+  interactive one; anything it is not allowed to do is skipped, and the run can
+  be finished by hand via Resume session. OpenCode tidy runs previously had no
+  auto-approve flag at all and could sit waiting for a confirmation.
+
 ## 0.55.0 (2026-07-21)
 
 - **Help screen navigation** (T-0080): the Help tab now opens with every

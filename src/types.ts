@@ -90,6 +90,8 @@ export interface TidySettings {
   exclude_dirs: string[];
   /** Unix seconds of the last run (scheduled or manual). */
   last_run: number | null;
+  /** Session id of the last run, kept so resume survives an app restart. */
+  last_session_id: string | null;
 }
 
 /** Live state of the vault-tidy runner, from `tidy_status` / `tidy:status`. */

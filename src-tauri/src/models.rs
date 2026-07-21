@@ -162,6 +162,11 @@ pub struct TidySettings {
     /// "slot already consumed" check and the UI's last-run display.
     #[serde(default)]
     pub last_run: Option<u64>,
+    /// Agent session id of the last run, persisted so "resume" still targets
+    /// the right session after the app restarts (the in-memory run state is
+    /// lost then). claude only — opencode mints its own ids.
+    #[serde(default)]
+    pub last_session_id: Option<String>,
 }
 
 fn default_tidy_assignee() -> String {
@@ -188,6 +193,7 @@ impl Default for TidySettings {
             stale_days: default_tidy_stale_days(),
             exclude_dirs: default_tidy_exclude_dirs(),
             last_run: None,
+            last_session_id: None,
         }
     }
 }

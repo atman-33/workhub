@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   AlertTriangle,
   Check,
+  Copy,
   Download,
   FolderOpen,
   Loader2,
@@ -46,6 +48,7 @@ const TIDY_DEFAULTS: Settings["tidy"] = {
   stale_days: 7,
   exclude_dirs: ["_wip"],
   last_run: null,
+  last_session_id: null,
 };
 
 /** Timestamps in this dialog are formatted in English rather than via
@@ -228,6 +231,20 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     setTidyMsg("");
     try {
       setTidyMsg(await api.resumeTidySession());
+    } catch (e) {
+      setTidyMsg(String(e));
+    }
+  };
+
+  /** Live run first, then the id persisted in settings — the latter is all
+   * that survives an app restart. */
+  const tidySessionId = tidyRun?.session_id || draft.tidy.last_session_id || "";
+
+  const copySessionId = async () => {
+    if (!tidySessionId) return;
+    try {
+      await writeText(tidySessionId);
+      setTidyMsg("Session id copied.");
     } catch (e) {
       setTidyMsg(String(e));
     }
@@ -700,6 +717,22 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                         ? `Next check ${TIMESTAMP.format(new Date((nextCheck(draft.tidy) as number) * 1000))}.`
                         : ""}
                     </div>
+                    {tidySessionId && (
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="shrink-0">Session</span>
+                        <code className="truncate font-mono">{tidySessionId}</code>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-5 shrink-0"
+                          title="Copy session id"
+                          onClick={() => void copySessionId()}
+                        >
+                          <Copy className="size-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -808,7 +841,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     <Play className="mr-1.5 size-3.5" />
                     Run now
                   </Button>
-                  {(tidyRun?.state === "failed" || tidyRun?.stalled) && (
+                  {/* Any known session id is resumable — a run that was killed
+                      mid-way never reports a failure, but is exactly the one
+                      worth picking up by hand. */}
+                  {(tidySessionId || tidyRun?.state === "failed" || tidyRun?.stalled) && (
                     <Button
                       type="button"
                       size="sm"
