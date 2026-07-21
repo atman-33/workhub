@@ -1,7 +1,9 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import {
   BrainCircuit,
   Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Copy,
   FileDiff,
   Keyboard,
@@ -200,6 +202,29 @@ function CopyButton({
   );
 }
 
+/**
+ * Section order and labels, shared by the table of contents and the
+ * expand/collapse-all control. Keep in sync with the <Section> elements below:
+ * every section rendered there needs an entry here, or it drops out of the
+ * contents row and out of "Expand all".
+ */
+const SECTIONS = [
+  { value: "setup", title: "Initial setup", icon: Rocket },
+  { value: "template", title: "Vault template updates", icon: FileDiff },
+  { value: "memory", title: "Long-term memory", icon: BrainCircuit },
+  { value: "custom-prompt", title: "Your own instructions", icon: MessageSquarePlus },
+  { value: "ink", title: "Screen annotation", icon: PenLine },
+  { value: "quick-capture", title: "Quick capture", icon: Keyboard },
+  { value: "voice", title: "Voice input", icon: Mic },
+  { value: "tidy", title: "Vault tidy", icon: Sparkles },
+] as const;
+
+const ALL_SECTION_VALUES = SECTIONS.map((s) => s.value as string);
+
+function sectionDomId(value: string) {
+  return `help-section-${value}`;
+}
+
 function Section({
   icon: Icon,
   title,
@@ -218,7 +243,7 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <AccordionItem value={value}>
+    <AccordionItem value={value} id={sectionDomId(value)} className="scroll-mt-2">
       <div className="relative">
         <AccordionTrigger>
           <span className="flex items-center gap-2 pr-8">
@@ -247,12 +272,34 @@ function Section({
 
 export function HelpView() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Start fully collapsed: with every section closed the accordion headers are
+  // themselves the table of contents, which is the fastest way to find a topic
+  // now that the guide has grown past a screenful.
+  const [openSections, setOpenSections] = useState<string[]>([]);
 
   const handleCopy = (id: string, markdown: string) => {
     void navigator.clipboard.writeText(markdown);
     setCopiedId(id);
     setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1500);
   };
+
+  const allOpen = openSections.length === ALL_SECTION_VALUES.length;
+
+  const toggleAll = useCallback(() => {
+    setOpenSections(allOpen ? [] : [...ALL_SECTION_VALUES]);
+  }, [allOpen]);
+
+  // Contents row: open the target section (if it is closed) and scroll to it.
+  // The scroll waits a frame so it measures the section after the accordion has
+  // committed the expansion, not at its collapsed position.
+  const jumpTo = useCallback((value: string) => {
+    setOpenSections((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    requestAnimationFrame(() => {
+      document
+        .getElementById(sectionDomId(value))
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
 
   return (
     <div className="h-full overflow-auto">
@@ -265,18 +312,53 @@ export function HelpView() {
               the UI.
             </p>
           </div>
-          <CopyButton
-            id="all"
-            markdown={ALL_MD}
-            copiedId={copiedId}
-            onCopy={handleCopy}
-            label="Copy all"
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs"
+              onClick={toggleAll}
+            >
+              {allOpen ? (
+                <ChevronsDownUp className="size-3.5" />
+              ) : (
+                <ChevronsUpDown className="size-3.5" />
+              )}
+              {allOpen ? "Collapse all" : "Expand all"}
+            </Button>
+            <CopyButton
+              id="all"
+              markdown={ALL_MD}
+              copiedId={copiedId}
+              onCopy={handleCopy}
+              label="Copy all"
+            />
+          </div>
         </div>
+
+        {/* Table of contents. Stays available once sections are open, so the
+            user can move between topics without collapsing everything first. */}
+        <nav aria-label="Contents" className="mt-4 flex flex-wrap gap-1.5">
+          {SECTIONS.map(({ value, title, icon: Icon }) => (
+            <Button
+              key={value}
+              type="button"
+              size="xs"
+              variant="outline"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => jumpTo(value)}
+            >
+              <Icon className="size-3.5" />
+              {title}
+            </Button>
+          ))}
+        </nav>
 
         <Accordion
           type="multiple"
-          defaultValue={["setup", "template", "ink", "quick-capture", "voice", "tidy"]}
+          value={openSections}
+          onValueChange={setOpenSections}
           className="mt-4"
         >
           <Section

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.55.0 (2026-07-21)
+
+- **Help screen navigation** (T-0080): the Help tab now opens with every
+  section collapsed, so the headers act as a table of contents. A contents row
+  of section chips sits under the title — clicking one opens that section and
+  scrolls to it — and an **Expand all** / **Collapse all** button next to
+  **Copy all** toggles the whole guide at once. The guide's wording is
+  unchanged.
+- **Fixed:** copying a task's prompt from the task editor now closes the editor
+  (T-0081). The dialog saves the draft when it is dismissed, so leaving it open
+  while an agent worked the copied prompt could overwrite the status the agent
+  had set. **Copy prompt** now flushes the pending autosave, copies, and closes
+  without the save-on-close — the same handling **Launch agent** already had.
+
 ## 0.54.1 (2026-07-20)
 
 - **Fixed:** the window no longer shows a blank white page while the frontend
