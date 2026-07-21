@@ -121,7 +121,9 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 - Notes you're still writing: keep them in **\`inbox/_wip/\`** (or any folder listed under "Exclude folders") — tidy never touches those.
 - Files that need human judgement (a new folder, a rename, unclear classification) are **not** filed silently. They surface as a single **\`#tidy-review\`** task on the board with a proposed plan per file — edit the proposals, then assign the task to an agent to execute them. Deferred files don't retrigger tidy runs until you touch them again.
 - **Agent / Model** pick which CLI (Claude Code or OpenCode) and model run the routine, just like a task.
-- **Run now** triggers it immediately, even when the schedule is off. If a run stalls on a permission prompt or fails, you get a desktop notification and a **Resume session** button opens it in a terminal so you can finish it by hand.`;
+- **Run now** triggers it immediately, even when the schedule is off.
+- The routine runs with the same auto-approve permission mode a task-card agent launch uses, so it doesn't sit waiting on prompts. An operation it isn't allowed to do is skipped rather than asked about, which can leave a run half-finished.
+- **Resume session** picks up exactly where a run left off — after a failure, a stall, a killed process, or an app restart. The session id is shown next to the run status with a copy button, and is also written into the run log under \`_ai/logs/tidy/\`, so you can resume from a terminal yourself with \`claude --resume <id>\`. (OpenCode mints its own session ids, so there Resume just reopens the agent in the vault.)`;
 
 const MEMORY_MD = `## Long-term memory for AI agents
 

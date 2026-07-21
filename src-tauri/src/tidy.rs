@@ -256,17 +256,60 @@ fn slot_due(now_secs: u64, anchor: u64, interval_hours: u32, last_run: Option<u6
 }
 
 /// Persist `last_run` (and seed `anchor` if unset) so a fired slot isn't
-/// re-fired. Whole-file load/save; the small race with a concurrent UI save is
-/// acceptable for a single-user desktop app.
-fn persist_last_run(ts: u64) {
+/// re-fired, plus the session id so a resume survives an app restart. Whole-file
+/// load/save; the small race with a concurrent UI save is acceptable for a
+/// single-user desktop app.
+fn persist_last_run(ts: u64, session_id: Option<&str>) {
     let mut cfg = storage::load();
     if cfg.settings.tidy.anchor.is_none() {
         cfg.settings.tidy.anchor = Some(ts);
     }
     cfg.settings.tidy.last_run = Some(ts);
+    if let Some(sid) = session_id {
+        cfg.settings.tidy.last_session_id = Some(sid.to_string());
+    }
     if let Err(e) = storage::save(&cfg) {
         eprintln!("tidy: failed to persist last_run: {e}");
     }
+}
+
+/// Mints a fresh session id for a headless run *before* the agent starts, so
+/// resume works even when the process is killed or the app quits before the
+/// agent can report an id of its own (the old failure mode: the id only
+/// existed in the final JSON of a cleanly-finished run — precisely the case
+/// where nobody needs to resume).
+///
+/// Format-valid UUID v4 is all the CLI asks for, and the id only has to be
+/// unique among this machine's sessions, so it is derived from the clock plus
+/// address-space entropy rather than pulling in a `uuid`/`rand` dependency.
+fn new_session_id() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+    let seed = nanos
+        ^ (std::process::id() as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ (&nanos as *const u64 as u64);
+    // splitmix64: a tiny, well-distributed generator for a handful of draws.
+    let mut state = seed;
+    let mut next = || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    };
+    let hi = next();
+    let lo = next();
+    format!(
+        "{:08x}-{:04x}-4{:03x}-{:04x}-{:012x}",
+        hi >> 32,
+        (hi >> 16) & 0xFFFF,
+        hi & 0x0FFF,
+        // Variant bits: 0b10xx.
+        0x8000 | ((lo >> 48) & 0x3FFF),
+        lo & 0xFFFF_FFFF_FFFF
+    )
 }
 
 /// Starts the background scheduler thread. Sleeps first, so enabling tidy never
@@ -304,7 +347,7 @@ fn tick(app: &AppHandle) {
         let _ = spawn_agent(app.clone(), &cfg, &vault);
     } else {
         // Consume the slot so we don't re-scan every tick — zero tokens.
-        persist_last_run(now());
+        persist_last_run(now(), None);
     }
 }
 
@@ -352,11 +395,15 @@ pub fn resume(app: AppHandle) -> Result<String, String> {
     let cfg = storage::load();
     let vault = resolve_vault(&cfg).ok_or("no vault is configured")?;
     let t = &cfg.settings.tidy;
+    // Live run state first; fall back to the persisted id so a resume still
+    // works after an app restart dropped the in-memory run.
     let session_id = {
         let st = app.state::<TidyState>();
         let run = st.0.lock().unwrap();
         run.session_id.clone()
-    };
+    }
+    .or_else(|| t.last_session_id.clone())
+    .filter(|s| !s.trim().is_empty());
     // Resume by session id is claude-specific; for opencode just reopen the
     // agent in the vault so the user can re-run the tidy prompt themselves.
     let (template, sid) = if t.assignee == "opencode" {
@@ -364,18 +411,26 @@ pub fn resume(app: AppHandle) -> Result<String, String> {
     } else {
         (cfg.settings.agent_cmd.as_str(), session_id.as_deref())
     };
-    actions::launch_resume(template, &vault.to_string_lossy(), sid)?;
+    actions::launch_resume(&t.assignee, template, &vault.to_string_lossy(), sid)?;
     Ok("Opened the tidy session in a terminal.".into())
 }
 
 fn spawn_agent(app: AppHandle, cfg: &Config, vault: &Path) -> Result<(), String> {
     let t = &cfg.settings.tidy;
     let prompt = actions::build_tidy_prompt(t.stale_days, &t.exclude_dirs);
+    // claude accepts a caller-chosen session id; opencode does not, so its runs
+    // keep resolving their id from the run output (or resume as a fresh session).
+    let session_id = if t.assignee == "opencode" {
+        String::new()
+    } else {
+        new_session_id()
+    };
     let argv = actions::tidy_agent_argv(
         &t.assignee,
         &cfg.settings.agent_cmd,
         &cfg.settings.opencode_cmd,
         &t.model,
+        &session_id,
     );
     if argv.first().map(|s| s.is_empty()).unwrap_or(true) {
         return Err("could not resolve the agent command".into());
@@ -397,8 +452,11 @@ fn spawn_agent(app: AppHandle, cfg: &Config, vault: &Path) -> Result<(), String>
     }
     let pid = child.id();
 
-    // Fired-slot bookkeeping + state → running.
-    persist_last_run(now());
+    // Fired-slot bookkeeping + state → running. The session id is recorded up
+    // front so it is resumable while the run is still going, not only after it
+    // reports one on exit.
+    let sid_opt = (!session_id.is_empty()).then(|| session_id.clone());
+    persist_last_run(now(), sid_opt.as_deref());
     {
         let st = app.state::<TidyState>();
         let mut run = st.0.lock().unwrap();
@@ -406,6 +464,7 @@ fn spawn_agent(app: AppHandle, cfg: &Config, vault: &Path) -> Result<(), String>
         run.state = "running".into();
         run.since = Some(now());
         run.child_id = Some(pid);
+        run.session_id = sid_opt.clone();
     }
     emit_status(&app);
 
@@ -432,7 +491,7 @@ fn spawn_agent(app: AppHandle, cfg: &Config, vault: &Path) -> Result<(), String>
     let vault_owned = vault.to_path_buf();
     std::thread::spawn(move || {
         let result = child.wait_with_output();
-        finish_run(&wait_app, pid, result, &vault_owned);
+        finish_run(&wait_app, pid, result, &vault_owned, sid_opt);
     });
 
     Ok(())
@@ -461,18 +520,23 @@ fn build_command(argv: &[String]) -> Command {
     c
 }
 
+/// `minted` is the id the caller assigned before launching (claude). It wins
+/// over anything parsed from the output — the process may have died before
+/// printing a result at all.
 fn finish_run(
     app: &AppHandle,
     pid: u32,
     result: std::io::Result<std::process::Output>,
     vault: &Path,
+    minted: Option<String>,
 ) {
     let (state, summary, error, session_id) = match result {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            save_run_log(vault, &stdout, &stderr);
-            let (parsed_summary, sid) = parse_result(&stdout);
+            let (parsed_summary, parsed_sid) = parse_result(&stdout);
+            let sid = minted.clone().or(parsed_sid);
+            save_run_log(vault, &stdout, &stderr, sid.as_deref());
             if out.status.success() {
                 (
                     "completed".to_string(),
@@ -489,8 +553,23 @@ fn finish_run(
                 ("failed".to_string(), None, Some(msg), sid)
             }
         }
-        Err(e) => ("failed".to_string(), None, Some(e.to_string()), None),
+        // The process never produced output (spawn/wait error) — the minted id
+        // is still the right thing to resume.
+        Err(e) => (
+            "failed".to_string(),
+            None,
+            Some(e.to_string()),
+            minted.clone(),
+        ),
     };
+
+    // An id the agent reported itself (opencode, or a claude run that ignored
+    // our `--session-id`) still needs persisting; a minted one already was.
+    if let Some(sid) = session_id.as_deref() {
+        if minted.as_deref() != Some(sid) {
+            persist_last_run(now(), Some(sid));
+        }
+    }
 
     let st = app.state::<TidyState>();
     {
@@ -538,13 +617,23 @@ fn parse_result(stdout: &str) -> (Option<String>, Option<String>) {
 }
 
 /// Persists the raw run output under `_ai/logs/tidy/` for later inspection.
-fn save_run_log(vault: &Path, stdout: &str, stderr: &str) {
+/// The session id goes in both the filename and a header line with a ready-to-
+/// paste resume command, so an interrupted run can be picked up straight from
+/// the log without the app running.
+fn save_run_log(vault: &Path, stdout: &str, stderr: &str, session_id: Option<&str>) {
     let dir = vault.join("_ai").join("logs").join("tidy");
     if fs::create_dir_all(&dir).is_err() {
         return;
     }
-    let file = dir.join(format!("tidy-{}.log", now()));
-    let body = format!("=== stdout ===\n{stdout}\n\n=== stderr ===\n{stderr}\n");
+    let suffix = session_id
+        .map(|s| format!("-{}", s.chars().take(8).collect::<String>()))
+        .unwrap_or_default();
+    let file = dir.join(format!("tidy-{}{suffix}.log", now()));
+    let header = match session_id {
+        Some(sid) => format!("session_id: {sid}\nresume: claude --resume {sid}\n\n"),
+        None => "session_id: (none captured)\n\n".to_string(),
+    };
+    let body = format!("{header}=== stdout ===\n{stdout}\n\n=== stderr ===\n{stderr}\n");
     let _ = fs::write(file, body);
 }
 
@@ -608,6 +697,22 @@ mod tests {
         let pending = load_pending(&vault);
         assert!(pending.paths.is_empty());
         assert!(!pending.shields(&vault.join("inbox").join("a.md"), 0));
+    }
+
+    #[test]
+    fn new_session_id_is_a_distinct_uuid_v4() {
+        let a = new_session_id();
+        let b = new_session_id();
+        assert_ne!(a, b);
+        let parts: Vec<&str> = a.split('-').collect();
+        assert_eq!(
+            parts.iter().map(|p| p.len()).collect::<Vec<_>>(),
+            vec![8, 4, 4, 4, 12]
+        );
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
+        // Version nibble 4, variant nibble in 8..=b.
+        assert!(parts[2].starts_with('4'));
+        assert!(matches!(&parts[3][0..1], "8" | "9" | "a" | "b"));
     }
 
     #[test]

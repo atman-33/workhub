@@ -358,9 +358,19 @@ pub fn bare_agent_exe(template: &str) -> String {
 /// Builds the argv for a **headless** agent run (no terminal window; captured
 /// output). The tidy prompt is fed on **stdin**, not as an argument, so no
 /// shell/`cmd.exe` quoting of the long prompt is needed. claude runs in print
-/// mode with JSON output so the caller can parse `session_id` (for resume) and
-/// `is_error`; permissions are skipped so an unattended run never stalls on a
-/// prompt. opencode uses its non-interactive `run` subcommand.
+/// mode with JSON output so the caller can parse `is_error`; opencode uses its
+/// non-interactive `run` subcommand.
+///
+/// Both agents get the same auto-approve flag a task-card launch uses
+/// (`--permission-mode auto` / `--auto`) rather than a blanket permission
+/// bypass: an unattended run should not have more authority over the vault than
+/// the user's own interactive runs. In print mode a permission request that
+/// nobody can answer is denied rather than hung, so a denial shows up as a
+/// partial tidy the user can finish by resuming the session — never a stall.
+///
+/// `session_id` is minted by the caller *before* the process starts (claude
+/// only, via `--session-id`), so resume works even when the run is killed
+/// before it can report an id of its own. Empty = let the agent pick one.
 ///
 /// ⚠ The exact CLI flags here are the main thing to verify on the first real
 /// run — a wrong flag surfaces as a captured error (Failed state), not a hang.
@@ -369,6 +379,7 @@ pub fn tidy_agent_argv(
     agent_cmd: &str,
     opencode_cmd: &str,
     model: &str,
+    session_id: &str,
 ) -> Vec<String> {
     let m = model.trim();
     if assignee == "opencode" {
@@ -378,6 +389,9 @@ pub fn tidy_agent_argv(
             argv.push("--model".into());
             argv.push(m.into());
         }
+        // opencode has no equivalent of --session-id (it mints its own), so an
+        // opencode tidy run is resumed by reopening the agent in the vault.
+        argv.push("--auto".into());
         argv
     } else {
         let exe = bare_agent_exe(agent_cmd);
@@ -386,12 +400,15 @@ pub fn tidy_agent_argv(
             argv.push("--model".into());
             argv.push(m.into());
         }
+        let sid = session_id.trim();
+        if !sid.is_empty() {
+            argv.push("--session-id".into());
+            argv.push(sid.into());
+        }
         argv.push("--output-format".into());
         argv.push("json".into());
-        // Headless: no interactive session to answer permission prompts, so the
-        // run must not block on them. Scoped to the vault the user pointed at
-        // and gated behind the user explicitly enabling/triggering tidy.
-        argv.push("--dangerously-skip-permissions".into());
+        argv.push("--permission-mode".into());
+        argv.push("auto".into());
         // `-p` with no positional value reads the prompt from stdin.
         argv.push("-p".into());
         argv
@@ -400,11 +417,28 @@ pub fn tidy_agent_argv(
 
 /// Launches a visible terminal to resume a headless tidy session interactively.
 /// Fills the agent command `template`'s `{path}` with the vault and, for a
-/// claude session with a captured `session_id`, appends `--resume <id>` so the
+/// claude session with a known `session_id`, appends `--resume <id>` so the
 /// user can drive the exact stalled/failed session by hand. Without a session
 /// id it just opens a fresh interactive agent in the vault.
-pub fn launch_resume(template: &str, vault: &str, session_id: Option<&str>) -> Result<(), String> {
+///
+/// The resumed session gets the same auto-approve mode as the headless run, so
+/// finishing an interrupted tidy by hand doesn't turn into a prompt-per-file
+/// slog. Templates that already carry the flag are left alone.
+pub fn launch_resume(
+    assignee: &str,
+    template: &str,
+    vault: &str,
+    session_id: Option<&str>,
+) -> Result<(), String> {
     let mut cmd = fill_template(template, &vault.replace('\\', "/"));
+    let (flag, present) = if assignee == "opencode" {
+        (" --auto", cmd.contains("--auto"))
+    } else {
+        (" --permission-mode auto", cmd.contains("--permission-mode"))
+    };
+    if !present {
+        cmd.push_str(flag);
+    }
     if let Some(id) = session_id {
         if !id.is_empty() {
             cmd.push_str(&format!(" --resume {id}"));
@@ -877,6 +911,38 @@ opencode-go/kimi-k2.7-code
             " --model anthropic/claude-sonnet-4-5"
         );
         assert_eq!(model_arg("my model"), " --model \"my model\"");
+    }
+
+    #[test]
+    fn tidy_argv_carries_auto_approval_and_session_id() {
+        let claude = tidy_agent_argv(
+            "claude-code",
+            "wt -d {path} powershell -NoExit -Command claude",
+            "opencode",
+            "opus",
+            "11111111-2222-4333-8444-555555555555",
+        );
+        assert_eq!(claude[0], "claude");
+        // The same auto-approve mode a task-card launch uses — not a blanket
+        // permission bypass.
+        assert!(claude
+            .windows(2)
+            .any(|w| w == ["--permission-mode", "auto"]));
+        assert!(!claude.iter().any(|a| a.contains("skip-permissions")));
+        assert!(claude
+            .windows(2)
+            .any(|w| w == ["--session-id", "11111111-2222-4333-8444-555555555555"]));
+        assert_eq!(claude.last().unwrap(), "-p");
+
+        // opencode has no --session-id; it still needs its auto-approve flag.
+        let oc = tidy_agent_argv("opencode", "claude", "opencode", "", "ignored");
+        assert_eq!(oc, vec!["opencode", "run", "--auto"]);
+    }
+
+    #[test]
+    fn tidy_argv_omits_empty_session_id() {
+        let argv = tidy_agent_argv("claude-code", "claude", "opencode", "", "  ");
+        assert!(!argv.iter().any(|a| a == "--session-id"));
     }
 
     #[test]
