@@ -118,6 +118,10 @@ const DEFAULTS: Settings = {
   task_language: "en",
   custom_prompt: "",
   tidy: TIDY_DEFAULTS,
+  schedule_assignee: "claude-code",
+  schedule_model: "",
+  schedule_confirm: false,
+  schedule_export_dir: "",
 };
 
 interface Props {
@@ -671,6 +675,51 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     <FolderOpen className="size-3.5" />
                   </Button>
                 </div>
+              </div>
+
+              {/* Schedule AI edits (T-0091) */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Schedule</p>
+                  <p className="text-xs text-muted-foreground">
+                    Agent used when you edit a schedule with a natural-language instruction.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={draft.schedule_assignee}
+                    onValueChange={(v) => setDraft({ ...draft, schedule_assignee: v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="claude-code">Claude Code</SelectItem>
+                      <SelectItem value="opencode">OpenCode</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={draft.schedule_model}
+                    onChange={(e) => setDraft({ ...draft, schedule_model: e.target.value })}
+                    placeholder="model (blank = agent default)"
+                    className="h-8 font-mono text-xs"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Show the diff and wait for approval instead of applying immediately.
+                  </p>
+                  <Switch
+                    checked={draft.schedule_confirm}
+                    onCheckedChange={(v) => setDraft({ ...draft, schedule_confirm: v })}
+                  />
+                </div>
+                <Input
+                  value={draft.schedule_export_dir}
+                  onChange={(e) => setDraft({ ...draft, schedule_export_dir: e.target.value })}
+                  placeholder="HTML export folder (blank = the project's attachments/)"
+                  className="h-8 font-mono text-xs"
+                />
               </div>
 
               {/* Vault tidy (T-0050) */}

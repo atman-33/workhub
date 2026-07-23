@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useState } from "react";
 import {
   BrainCircuit,
+  CalendarRange,
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -112,6 +113,20 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
+const SCHEDULE_MD = `## Planning dates (Schedule)
+
+The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
+
+- A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. Copy the file in Obsidian to compare alternatives.
+- Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
+- **Drag an element** to move it; **drag its left or right edge** to stretch or shrink it. **Drag across empty cells** to select a range — the bar underneath reports calendar days and working days, and offers to turn the selection into a new element.
+- **Right-click a day** to mark it non-working (or clear it). Weekends come from the \`weekly:\` line in the note; holidays and leave are individual entries. Every bar shows the working days it actually covers.
+- **Click an element** to edit its title, dates, color, and the task it links to.
+- Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
+- Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
+- **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around.
+- **AI に指示**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.`;
+
 const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
 Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and refreshes the \`tasks/archive/_index.md\` summary — by launching an agent headlessly (no terminal window).
@@ -219,6 +234,7 @@ const SECTIONS = [
   { value: "ink", title: "Screen annotation", icon: PenLine },
   { value: "quick-capture", title: "Quick capture", icon: Keyboard },
   { value: "voice", title: "Voice input", icon: Mic },
+  { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
 ] as const;
 
@@ -762,6 +778,88 @@ export function HelpView() {
                 workhub has no tray icon: closing its main window quits the
                 app entirely, and the hotkey stops working until you
                 relaunch it.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={CalendarRange}
+            title="Planning dates (Schedule)"
+            value="schedule"
+            markdown={SCHEDULE_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Schedule</span> tab is a
+              workspace for <em>deciding</em> dates — the digital version of
+              drawing a calendar on a whiteboard — not a record of a settled
+              plan.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                A schedule lives in the vault as{" "}
+                <span className="font-mono text-xs">
+                  projects/&lt;project-slug&gt;/schedules/&lt;name&gt;.md
+                </span>
+                . Pick a project, then <span className="font-medium">New</span>{" "}
+                to create one, or open an existing note from the second
+                dropdown. Copy the file in Obsidian to compare alternatives.
+              </li>
+              <li>
+                Weeks run <span className="font-medium">continuously</span> down
+                the page rather than being cut into months, so a plan spanning
+                7/20&ndash;8/20 stays readable in one piece. A new month shows as
+                "8/1" on the day itself, with a divider and a month label in the
+                left gutter.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Drag</span> an
+                element to move it; drag its{" "}
+                <span className="font-medium">left or right edge</span> to
+                stretch or shrink it. Drag across empty cells to select a range —
+                the bar underneath reports calendar days and working days, and
+                offers to turn the selection into a new element.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Right-click</span>{" "}
+                a day to mark it non-working (or clear it). Weekends come from
+                the <span className="font-mono text-xs">weekly:</span> line in
+                the note; holidays and leave are individual entries. Every bar
+                shows the working days it actually covers.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Click</span> an
+                element to edit its title, dates, color, and the task it links
+                to.
+              </li>
+              <li>
+                Tasks with a <span className="font-medium">due date</span> in the
+                same project appear as dashed chips. Dragging a chip changes that
+                task's due date on the board — it is the real task, not a copy.
+              </li>
+              <li>
+                Edits save automatically a moment after you stop; the note stays
+                editable in Obsidian at the same time, and changes made there
+                appear here immediately. If the file changed underneath an edit,
+                the save is refused and the note reloads rather than overwriting
+                the other change.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">HTML output</span>{" "}
+                writes a single self-contained file (default: the project's{" "}
+                <span className="font-mono text-xs">attachments/</span>) that
+                opens anywhere and prints to A4 landscape — use the browser's
+                "Save as PDF" to hand it around.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">AI に指示</span>:
+                describe the change in plain language and press{" "}
+                <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd>. The calendar is locked while
+                the agent works, and the undo button restores the note to how it
+                was just before the run. Choose the agent and model in{" "}
+                <span className="font-medium">⚙ Settings → Vault → Schedule</span>
+                .
               </li>
             </ul>
           </Section>

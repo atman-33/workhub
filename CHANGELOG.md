@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.59.0 (2026-07-24)
+
+- **New Schedule tab for planning project dates** (T-0088..T-0092). A
+  workspace for *deciding* dates rather than recording them: weeks run
+  continuously down the page instead of being cut into months, so a plan
+  spanning two months stays readable in one piece. Drag elements to move them,
+  drag an edge to stretch them, sweep an empty range to see its calendar and
+  working day counts, and right-click a day to mark it non-working. Every bar
+  reports the working days it actually covers.
+  - Schedules are plain Markdown at
+    `projects/<project-slug>/schedules/<name>.md`, editable in Obsidian at the
+    same time. External edits appear in the app immediately; a save that would
+    overwrite someone else's change is refused and the note reloads instead.
+  - Tasks with a `due` date in the same project show as chips on the calendar,
+    and dragging one updates the real task. Elements can link to a task with
+    `task:<id>` and show its status.
+  - **HTML output** writes a single self-contained file (default: the
+    project's `attachments/`) that opens anywhere and prints to A4 landscape
+    for PDF hand-off.
+  - **AI editing**: describe a change in plain language and a headless agent
+    applies it through the new `schedule-edit` skill, rewriting only the
+    affected lines. The calendar locks while it runs, and one press restores
+    the note to how it was just before.
+  - New settings under **Vault → Schedule**: agent, model, confirm-first mode,
+    and a default export folder.
+
 ## 0.58.1 (2026-07-23)
 
 - **Long-term memory setup no longer needs a C/C++ toolchain** (T-0086): the

@@ -1,7 +1,10 @@
 use crate::models::{
-    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, Task, Worktree,
+    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, ScheduleDoc, ScheduleFile,
+    Task, Worktree,
 };
 use crate::music::{self, MusicData};
+use crate::schedule;
+use crate::schedule_edit;
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::terminal::{self, TerminalState};
 use crate::{actions, git, harness, storage, update};
@@ -380,6 +383,97 @@ pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ---- schedule notes (T-0088..T-0091) -------------------------------------
+
+/// Lists schedule notes, optionally narrowed to one project slug (pass an
+/// empty string for "all projects").
+#[tauri::command]
+pub async fn list_schedules(
+    vault_path: String,
+    project: String,
+) -> Result<Vec<ScheduleFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let project = (!project.trim().is_empty()).then_some(project);
+        schedule::list_schedules(&PathBuf::from(vault_path), project.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_schedule(path: String) -> Result<ScheduleDoc, String> {
+    tauri::async_runtime::spawn_blocking(move || schedule::read_schedule(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Writes a schedule note, refusing when the file changed on disk since the
+/// caller read it. Returns the new mtime for the next guarded write. Pass
+/// `expected_mtime: 0` to write unconditionally.
+#[tauri::command]
+pub async fn write_schedule(
+    path: String,
+    content: String,
+    expected_mtime: u64,
+) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::write_schedule(&PathBuf::from(path), &content, expected_mtime)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn create_schedule(
+    vault_path: String,
+    project: String,
+    title: String,
+    range: String,
+) -> Result<ScheduleFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::create_schedule(&PathBuf::from(vault_path), &project, &title, &range)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes a frontend-generated, self-contained HTML export to disk (T-0090).
+#[tauri::command]
+pub async fn export_schedule_html(out_path: String, html: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::export_html(&PathBuf::from(out_path), &html)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Launches a headless agent to apply a natural-language edit to a schedule
+/// note (T-0091). Returns immediately; progress arrives on
+/// `schedule-edit:status`.
+#[tauri::command]
+pub fn run_schedule_edit(
+    app: tauri::AppHandle,
+    path: String,
+    instruction: String,
+    confirm: bool,
+) -> Result<String, String> {
+    schedule_edit::run(app, path, instruction, confirm)
+}
+
+#[tauri::command]
+pub fn schedule_edit_status(app: tauri::AppHandle) -> schedule_edit::ScheduleEditRun {
+    schedule_edit::snapshot(&app)
+}
+
+/// Restores the snapshot taken before the last AI edit of this schedule.
+#[tauri::command]
+pub fn restore_schedule_snapshot(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<ScheduleDoc, String> {
+    schedule_edit::undo(app, path)
 }
 
 /// `vault-template/` is embedded into the binary at compile time (see
