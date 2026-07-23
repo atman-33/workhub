@@ -15,6 +15,7 @@ Every note should have:
 title: Document Title
 created: YYYY-MM-DD
 type: note|reference|meeting|idea|log|paper
+      # project-scaffold notes use: project-readme|prd|roadmap|spec|backlog|index
 tags: []
 ---
 ```
