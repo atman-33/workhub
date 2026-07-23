@@ -493,8 +493,9 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   Task file language
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
-                  Language an AI agent writes a task's Plan and Results sections in.
-                  Never affects code, comments, or commit messages.
+                  Language an AI agent writes a task's Plan and Results sections in, plus the
+                  title and Description of tasks an automatic vault tidy creates. Never affects
+                  code, comments, or commit messages.
                 </p>
                 <Select
                   value={draft.task_language}

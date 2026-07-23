@@ -314,6 +314,12 @@ task to an agent — not only in a log nobody reads.
   - rename: none
   ```
 
+- **Language** — write the review task's title and `## Description` prose in the
+  language the caller's prompt asks for (the workhub app passes its **Task file
+  language** setting into the unattended tidy prompt); with no such
+  instruction, write them in English. This covers those two parts only:
+  frontmatter values, `_ai/memory/tidy-pending.json`, and the `kb-log.md`
+  entries stay in English, and vault-relative paths are quoted verbatim.
 - An agent later executing this task treats each surviving block as an
   **approved** plan: perform MOVE → FRONTMATTER → WIKILINK → BACKLINK → INDEX
   for it (folder creation and renames listed in the block are pre-approved by

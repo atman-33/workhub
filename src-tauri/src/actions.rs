@@ -250,10 +250,7 @@ pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
     // and `## Results` sections. Deliberately does not say "write in
     // <language>" unqualified, so an agent cannot over-apply it to code,
     // comments, commit messages, PR text, or repository documentation.
-    let language_name = match params.task_language {
-        "ja" => "Japanese",
-        _ => "English",
-    };
+    let language_name = language_name(params.task_language);
     let language_note = format!(
         " Write the task file's `## Plan` and `## Results` sections in {language_name}. This applies only to those two sections of the task file — never change the language of code, code comments, commit messages, PR titles/bodies, or other repository documentation.",
     );
@@ -319,20 +316,38 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
 /// has no memory of any conversation, so this spells out exactly which skills to
 /// run and in which order. `stale_days`/`exclude` are baked in as literal values
 /// so the headless run never has to re-resolve settings.
-pub fn build_tidy_prompt(stale_days: u32, exclude: &[String]) -> String {
+pub fn build_tidy_prompt(stale_days: u32, exclude: &[String], task_language: &str) -> String {
     let exclude_arg = if exclude.is_empty() {
         String::new()
     } else {
         format!(" --exclude {}", exclude.join(","))
     };
+    // Language clause (T-0085): an unattended run creates/updates the
+    // `#tidy-review` task, and its prose used to be English regardless of the
+    // Task file language setting. Scoped to the human-facing prose only —
+    // frontmatter values, naming conventions, the pending list and the KB log
+    // stay English so they remain greppable and convention-consistent.
+    let language_note = format!(
+        " Write the title and `## Description` of any task file you create or update in {}. That applies to those parts only — frontmatter values, folder and file naming conventions, `_ai/memory/tidy-pending.json`, and the `_ai/logs/kb-log.md` entries stay in English.",
+        language_name(task_language)
+    );
     format!(
         "Perform unattended vault maintenance, non-interactively. \
 Step 1: run the kb-ingest skill in unattended mode — `/kb-ingest --unattended --stale-days {stale_days}{exclude_arg}`. \
 File only what is unambiguous and safe; everything that needs human judgement (new folder, rename, low confidence) stays in place and goes through the kb-ingest deferred-items flow: record it in `_ai/memory/tidy-pending.json` and create-or-update the single `#tidy-review` task on the board so the human can review the proposed plans. \
 Step 2: run the kb-index skill for the archive zone — `/kb-index --zone tasks-archive`. \
 Step 3: append one summary line to `_ai/logs/kb-log.md` stating how many files were auto-filed, how many were left pending-review (with the review task id, if any), and whether the archive index changed. \
-Do not ask for confirmation at any point."
+Do not ask for confirmation at any point.{language_note}"
     )
+}
+
+/// Maps a task-language setting code to the language name used in prompts.
+/// Unrecognized values fall back to English.
+fn language_name(code: &str) -> &'static str {
+    match code {
+        "ja" => "Japanese",
+        _ => "English",
+    }
 }
 
 /// Extracts the bare agent executable from a configured command template by
@@ -937,6 +952,26 @@ opencode-go/kimi-k2.7-code
         // opencode has no --session-id; it still needs its auto-approve flag.
         let oc = tidy_agent_argv("opencode", "claude", "opencode", "", "ignored");
         assert_eq!(oc, vec!["opencode", "run", "--auto"]);
+    }
+
+    #[test]
+    fn tidy_prompt_language_clause_says_japanese_when_set() {
+        let prompt = build_tidy_prompt(7, &[], "ja");
+        assert!(prompt.contains(
+            "Write the title and `## Description` of any task file you create or update in Japanese."
+        ));
+        // Scoped: the machine-readable artifacts stay English.
+        assert!(prompt.contains("`_ai/logs/kb-log.md` entries stay in English"));
+    }
+
+    #[test]
+    fn tidy_prompt_language_clause_defaults_to_english() {
+        for code in ["en", "fr", ""] {
+            let prompt = build_tidy_prompt(7, &[], code);
+            assert!(prompt.contains(
+                "Write the title and `## Description` of any task file you create or update in English."
+            ));
+        }
     }
 
     #[test]
