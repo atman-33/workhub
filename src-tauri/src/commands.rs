@@ -417,12 +417,32 @@ pub async fn check_vault_template(vault_path: String) -> Result<tasks::TemplateD
 /// Applies the embedded template content for exactly the given relative
 /// `paths` (as returned by `check_vault_template`'s `TemplateDiff`). Paths
 /// currently in `Conflict` are written beside the original as `<name>.new`
-/// rather than overwriting it; see `tasks::apply_vault_template` for the
-/// full policy.
+/// rather than overwriting it, unless they are also listed in `overwrite` —
+/// the user's explicit choice to discard local edits for that file. See
+/// `tasks::apply_vault_template` for the full policy.
 #[tauri::command]
-pub async fn apply_vault_template(vault_path: String, paths: Vec<String>) -> Result<(), String> {
+pub async fn apply_vault_template(
+    vault_path: String,
+    paths: Vec<String>,
+    overwrite: Vec<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::apply_vault_template(&PathBuf::from(vault_path), &paths)
+        tasks::apply_vault_template(&PathBuf::from(vault_path), &paths, &overwrite)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Renders the unified diff between the vault's current copy of `path` and
+/// the embedded template's version, for previewing a template update (and in
+/// particular what an overwrite of a conflicting file would discard).
+#[tauri::command]
+pub async fn preview_vault_template_file(
+    vault_path: String,
+    path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::template_file_diff(&PathBuf::from(vault_path), &path)
     })
     .await
     .map_err(|e| e.to_string())?

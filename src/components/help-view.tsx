@@ -73,7 +73,8 @@ The vault template (\`CLAUDE.md\`, skill configuration, and other shared files) 
 - Each file is one of: **added** (missing in the vault, will be created), **updatable** (you haven't edited it and the template changed — safe to overwrite), **conflict** (you edited it *and* the template changed), or up to date (no action).
 - A few files — such as \`.claude/project-context.json\`, \`.claude/settings.json\`, and the \`_index.md\` files kept up to date by \`/kb-index\` — are **seed files**: they're created once when missing and never compared or overwritten again, so this check never touches your registered repos or generated indexes.
 - Press **Review** on the banner to see the list and pick which files to update. **added** and **updatable** files are pre-checked; **conflict** files are left unchecked.
-- Updating a **conflict** file never overwrites your edits — it writes a \`<name>.new\` file beside the original with the incoming template content, so you can compare and merge by hand; delete it once you're done.
+- **Show diff** on any file renders the unified diff between your vault's copy and the incoming template content, so you can see exactly what an update would change before applying it.
+- A **conflict** file offers two resolutions: **Keep mine (write .new)** — the default — writes a \`<name>.new\` file beside the original with the incoming content, leaving your file untouched so you can merge by hand and delete the \`.new\` afterwards; **Replace with template** overwrites your copy with the template's version. Replacing discards your edits to that file for good, so check the diff first.
 - Press **Later** to dismiss the banner for this session; it reappears on the next launch if updates are still pending.
 - Can be disabled in **⚙ Settings → General → Check for vault template updates on startup**.`;
 

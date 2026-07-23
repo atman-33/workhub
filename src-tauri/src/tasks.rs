@@ -13,6 +13,7 @@
 use crate::models::Task;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
+use similar::TextDiff;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -977,17 +978,28 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
 
 /// Applies the embedded template content for exactly the given relative
 /// paths. A path currently in `Conflict` is written beside the original as
-/// `<name>.new` instead, leaving the vault's file untouched; every other
-/// requested path is overwritten/created in place. The manifest baseline is
-/// then updated for every path that was actually written in place (Conflict
-/// paths keep their previous baseline, since the vault's file did not
-/// change). Unknown paths (not part of the template, or seed-only) are
-/// silently skipped.
-pub fn apply_vault_template(vault: &Path, paths: &[String]) -> Result<(), String> {
-    apply_from(vault, &VAULT_TEMPLATE, paths)
+/// `<name>.new` instead, leaving the vault's file untouched — unless the
+/// caller listed it in `overwrite`, in which case the user explicitly chose
+/// to discard their local edits and the template content is written in place
+/// like any other path. Every other requested path is overwritten/created in
+/// place. The manifest baseline is then updated for every path that was
+/// actually written in place (a `.new`-resolved Conflict keeps its previous
+/// baseline, since the vault's file did not change). Unknown paths (not part
+/// of the template, or seed-only) are silently skipped.
+pub fn apply_vault_template(
+    vault: &Path,
+    paths: &[String],
+    overwrite: &[String],
+) -> Result<(), String> {
+    apply_from(vault, &VAULT_TEMPLATE, paths, overwrite)
 }
 
-fn apply_from(vault: &Path, template: &Dir, paths: &[String]) -> Result<(), String> {
+fn apply_from(
+    vault: &Path,
+    template: &Dir,
+    paths: &[String],
+    overwrite: &[String],
+) -> Result<(), String> {
     let diff = diff_against(vault, template)?;
     let states: HashMap<&str, TemplateFileState> = diff
         .files
@@ -1012,7 +1024,7 @@ fn apply_from(vault: &Path, template: &Dir, paths: &[String]) -> Result<(), Stri
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        if state == TemplateFileState::Conflict {
+        if state == TemplateFileState::Conflict && !overwrite.iter().any(|p| p == rel) {
             let side_name = format!(
                 "{}.new",
                 dst_path
@@ -1032,6 +1044,41 @@ fn apply_from(vault: &Path, template: &Dir, paths: &[String]) -> Result<(), Stri
     }
 
     write_manifest(vault, &manifest)
+}
+
+/// Renders a unified diff between the vault's current copy of `path` and the
+/// embedded template's version of it, so the update dialog can show what an
+/// overwrite would actually change before the user discards local edits.
+///
+/// The vault side is empty when the file does not exist yet (an `Added`
+/// path), which renders as a pure addition. Returns an error for a path that
+/// is not part of the template, or whose vault copy is not valid UTF-8.
+pub fn template_file_diff(vault: &Path, path: &str) -> Result<String, String> {
+    template_file_diff_from(vault, &VAULT_TEMPLATE, path)
+}
+
+fn template_file_diff_from(vault: &Path, template: &Dir, path: &str) -> Result<String, String> {
+    let file = template
+        .get_file(path)
+        .ok_or_else(|| format!("{path} is not part of the vault template"))?;
+    let new =
+        std::str::from_utf8(file.contents()).map_err(|_| format!("{path} is not a text file"))?;
+
+    let dst_path = vault.join(path);
+    let current = if dst_path.exists() {
+        fs::read_to_string(&dst_path).map_err(|_| format!("{path} is not a text file"))?
+    } else {
+        String::new()
+    };
+
+    let mut out = format!("--- {path} (vault)\n+++ {path} (template)\n");
+    for hunk in TextDiff::from_lines(current.as_str(), new)
+        .unified_diff()
+        .iter_hunks()
+    {
+        out.push_str(&hunk.to_string());
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------
@@ -1908,7 +1955,7 @@ mod tests {
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
         write_manifest(&vault, &manifest).unwrap();
 
-        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()]).unwrap();
+        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()], &[]).unwrap();
 
         assert_eq!(
             fs::read_to_string(vault.join("changed.md")).unwrap(),
@@ -1941,7 +1988,7 @@ mod tests {
             .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
         write_manifest(&vault, &manifest).unwrap();
 
-        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()]).unwrap();
+        apply_from(&vault, &TEST_TEMPLATE, &["changed.md".to_string()], &[]).unwrap();
 
         assert_eq!(
             fs::read_to_string(vault.join("changed.md")).unwrap(),
@@ -1956,11 +2003,109 @@ mod tests {
     }
 
     #[test]
+    fn apply_conflict_listed_as_overwrite_replaces_in_place_and_advances_the_baseline() {
+        let vault = temp_test_vault("apply-conflict-overwrite");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        apply_from(
+            &vault,
+            &TEST_TEMPLATE,
+            &["changed.md".to_string()],
+            &["changed.md".to_string()],
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "changed-content-v2",
+            "an explicitly chosen overwrite must replace the conflicting file"
+        );
+        assert!(
+            !vault.join("changed.md.new").exists(),
+            "no side-by-side file when the user chose to overwrite"
+        );
+        // The baseline must advance, or the file would report Conflict forever.
+        assert_eq!(
+            diff_state(&diff_against(&vault, &TEST_TEMPLATE).unwrap(), "changed.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+    }
+
+    #[test]
+    fn overwrite_list_does_not_affect_conflicts_that_were_not_listed() {
+        let vault = temp_test_vault("apply-conflict-overwrite-other");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        apply_from(
+            &vault,
+            &TEST_TEMPLATE,
+            &["changed.md".to_string()],
+            &["some/other/path.md".to_string()],
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "hand-edited content"
+        );
+        assert!(vault.join("changed.md.new").exists());
+    }
+
+    #[test]
+    fn template_file_diff_reports_both_sides_of_a_conflict() {
+        let vault = temp_test_vault("template-file-diff");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("changed.md"), "hand-edited content\n").unwrap();
+
+        let diff = template_file_diff_from(&vault, &TEST_TEMPLATE, "changed.md").unwrap();
+
+        assert!(diff.contains("-hand-edited content"), "{diff}");
+        assert!(diff.contains("+changed-content-v2"), "{diff}");
+    }
+
+    #[test]
+    fn template_file_diff_of_a_missing_file_is_a_pure_addition() {
+        let vault = temp_test_vault("template-file-diff-added");
+        fs::create_dir_all(&vault).unwrap();
+
+        let diff = template_file_diff_from(&vault, &TEST_TEMPLATE, "added.md").unwrap();
+
+        assert!(diff.contains("+added-content"), "{diff}");
+        assert!(!diff.contains("\n-"), "nothing to remove: {diff}");
+    }
+
+    #[test]
+    fn template_file_diff_rejects_a_path_outside_the_template() {
+        let vault = temp_test_vault("template-file-diff-unknown");
+        fs::create_dir_all(&vault).unwrap();
+
+        assert!(template_file_diff_from(&vault, &TEST_TEMPLATE, "nope.md").is_err());
+    }
+
+    #[test]
     fn apply_added_creates_the_missing_file() {
         let vault = temp_test_vault("apply-added");
         fs::create_dir_all(&vault).unwrap();
 
-        apply_from(&vault, &TEST_TEMPLATE, &["added.md".to_string()]).unwrap();
+        apply_from(&vault, &TEST_TEMPLATE, &["added.md".to_string()], &[]).unwrap();
 
         assert_eq!(
             fs::read_to_string(vault.join("added.md")).unwrap(),
@@ -2127,7 +2272,7 @@ mod regression_t0065 {
         );
 
         // Applying the conflict must not clobber the user's file.
-        apply_from(&vault, &VAULT_TEMPLATE, &["CLAUDE.md".to_string()]).unwrap();
+        apply_from(&vault, &VAULT_TEMPLATE, &["CLAUDE.md".to_string()], &[]).unwrap();
         assert_eq!(
             fs::read(vault.join("CLAUDE.md")).unwrap(),
             b"# my own edited harness notes\n",

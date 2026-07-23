@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.57.0 (2026-07-23)
+
+- **Vault template conflicts can be resolved by replacing the file** (T-0084):
+  a **conflict** in the template update dialog is no longer forced through a
+  `<name>.new` side file. Each conflicting file now offers two resolutions —
+  **Keep mine (write .new)** (the default, unchanged behavior) or **Replace
+  with template**, which overwrites the vault's copy in place and advances the
+  recorded baseline so the file stops reporting a conflict on every later
+  check.
+- **Diff preview in the template update dialog**: **Show diff** on any pending
+  file renders the unified diff between the vault's current copy and the
+  incoming template content, so an overwrite is an informed choice rather than
+  a blind one.
+
 ## 0.56.2 (2026-07-23)
 
 - **Fix:** the project folder scaffold added in 0.56.1 introduced note types
