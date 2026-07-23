@@ -1,16 +1,150 @@
-// SQLite storage for memory chunks: better-sqlite3 + sqlite-vec (cosine
-// distance over embedding BLOBs) + FTS5 trigram index. Port of sui-memory's
-// storage.py, extended with a task_id column for workhub task context.
-import { mkdirSync } from "node:fs";
+// SQLite storage for memory chunks: node-sqlite3-wasm + an FTS5 trigram index,
+// with cosine distance computed in JavaScript over the embedding BLOBs. Port of
+// sui-memory's storage.py, extended with a task_id column for workhub task
+// context.
+import { closeSync, existsSync, mkdirSync, openSync, readSync, writeSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, dirname } from "node:path";
 
-export function openDb(dbPath, { Database, sqliteVec }) {
+const BUSY_TIMEOUT_MS = 5000;
+
+// Offsets 18/19 of the SQLite header are the write/read format versions: 2
+// means the file is in WAL mode, 1 a rollback journal.
+const HEADER_JOURNAL_OFFSET = 18;
+const WAL_FORMAT = 2;
+const ROLLBACK_FORMAT = 1;
+
+function readJournalFormat(dbPath) {
+  const fd = openSync(dbPath, "r");
+  try {
+    const header = Buffer.alloc(20);
+    if (readSync(fd, header, 0, 20, 0) < 20) return null;
+    return header[HEADER_JOURNAL_OFFSET];
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Take a database out of WAL mode.
+ *
+ * Engine versions up to 1 used better-sqlite3 and set `journal_mode = WAL`,
+ * which is recorded in the file header. The WASM build has no WAL support and
+ * refuses to open such a file at all ("unable to open database file"), so an
+ * existing database has to be converted once before it can be used again.
+ * Node's built-in `node:sqlite` does the conversion properly (checkpoint +
+ * header rewrite); where it is unavailable (Node < 22.5) the header can be
+ * flipped directly, but only when no `-wal` file is left holding committed
+ * pages.
+ */
+export function migrateOutOfWal(dbPath) {
+  if (!existsSync(dbPath) || readJournalFormat(dbPath) !== WAL_FORMAT) return false;
+
+  try {
+    const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
+    const db = new DatabaseSync(dbPath);
+    try {
+      db.prepare("PRAGMA journal_mode = DELETE").get();
+    } finally {
+      db.close();
+    }
+    return true;
+  } catch {
+    // fall through to the header rewrite
+  }
+
+  if (existsSync(`${dbPath}-wal`)) {
+    throw new Error(
+      `${dbPath} is in WAL mode and cannot be converted on this Node version ` +
+        `(needs Node 22.5+ for node:sqlite). Upgrade Node and re-run memory setup.`,
+    );
+  }
+  const fd = openSync(dbPath, "r+");
+  try {
+    writeSync(fd, Buffer.from([ROLLBACK_FORMAT, ROLLBACK_FORMAT]), 0, 2, HEADER_JOURNAL_OFFSET);
+  } finally {
+    closeSync(fd);
+  }
+  return true;
+}
+
+// node-sqlite3-wasm exposes `db.all/get/run(sql, params)` and statements that
+// must be finalized explicitly. The rest of this module — and its port history
+// — is written against the better-sqlite3 surface, so wrap the raw handle in a
+// thin adapter instead of rewriting every call site.
+class Statement {
+  constructor(raw, sql) {
+    this.stmt = raw.prepare(sql);
+  }
+  get(...params) {
+    return this.stmt.get(params);
+  }
+  all(...params) {
+    return this.stmt.all(params);
+  }
+  run(...params) {
+    return this.stmt.run(params);
+  }
+  finalize() {
+    this.stmt.finalize();
+  }
+}
+
+class Db {
+  constructor(raw) {
+    this.raw = raw;
+    this.statements = [];
+  }
+  prepare(sql) {
+    const stmt = new Statement(this.raw, sql);
+    this.statements.push(stmt);
+    return stmt;
+  }
+  exec(sql) {
+    this.raw.exec(sql);
+  }
+  /** better-sqlite3-style transaction wrapper: returns a callable. */
+  transaction(fn) {
+    return (...args) => {
+      this.raw.exec("BEGIN");
+      try {
+        const result = fn(...args);
+        this.raw.exec("COMMIT");
+        return result;
+      } catch (err) {
+        try {
+          this.raw.exec("ROLLBACK");
+        } catch {
+          // the transaction was already rolled back by SQLite
+        }
+        throw err;
+      }
+    };
+  }
+  close() {
+    // Statements outlive their prepare() call here, so free them explicitly
+    // before closing — the WASM build leaks them otherwise.
+    for (const stmt of this.statements) {
+      try {
+        stmt.finalize();
+      } catch {
+        // already finalized
+      }
+    }
+    this.statements = [];
+    this.raw.close();
+  }
+}
+
+export function openDb(dbPath, { Database }) {
   mkdirSync(dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath, { timeout: 5000 });
-  sqliteVec.load(db);
-  // WAL: concurrent capture (Stop hook) and inject (UserPromptSubmit) must
-  // not block each other.
-  db.pragma("journal_mode = WAL");
+  migrateOutOfWal(dbPath);
+  const db = new Db(new Database(dbPath));
+  // The WASM build cannot use WAL, so concurrent capture (Stop hook) and
+  // inject (UserPromptSubmit) serialize on the write lock instead of running
+  // side by side. Both hold it only for a few milliseconds; the busy timeout
+  // makes the loser wait rather than fail.
+  db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
   return db;
 }
 
@@ -151,9 +285,37 @@ const SELECT_FIELDS = `
   m.user_text, m.assistant_text, m.timestamp, m.created_at
 `;
 
+/** Float32 view over a BLOB column value, honouring the buffer offset. */
+function blobToVec(blob) {
+  return new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
+}
+
+/** Cosine distance, matching sqlite-vec's `vec_distance_cosine` semantics. */
+function cosineDistance(a, b) {
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < n; i += 1) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 1 : 1 - dot / denom;
+}
+
+/**
+ * Nearest neighbours by cosine distance, ranked in JavaScript.
+ *
+ * A vector index (sqlite-vec) would mean loading a native SQLite extension,
+ * which the WASM build cannot do. A full scan is affordable at this scale —
+ * the embeddings are a plain BLOB column, so the stored format is unchanged
+ * and existing databases keep working.
+ */
 export function vectorSearch(db, queryVec, { limit = 20, since = null, until = null } = {}) {
   const conditions = ["m.embedding IS NOT NULL"];
-  const params = [vecToBlob(queryVec)];
+  const params = [];
   if (since !== null) {
     conditions.push("m.created_at >= ?");
     params.push(since);
@@ -162,16 +324,22 @@ export function vectorSearch(db, queryVec, { limit = 20, since = null, until = n
     conditions.push("m.created_at <= ?");
     params.push(until);
   }
-  params.push(limit);
-  return db
+  const rows = db
     .prepare(
-      `SELECT ${SELECT_FIELDS}, vec_distance_cosine(m.embedding, ?) AS distance
+      `SELECT ${SELECT_FIELDS}, m.embedding
        FROM memories m
-       WHERE ${conditions.join(" AND ")}
-       ORDER BY distance ASC
-       LIMIT ?`,
+       WHERE ${conditions.join(" AND ")}`,
     )
     .all(...params);
+
+  const query = new Float32Array(queryVec);
+  return rows
+    .map(({ embedding, ...rest }) => ({
+      ...rest,
+      distance: cosineDistance(query, blobToVec(embedding)),
+    }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit);
 }
 
 // The trigram tokenizer can never match phrases under 3 chars, and Japanese

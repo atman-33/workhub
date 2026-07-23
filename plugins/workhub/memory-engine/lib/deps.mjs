@@ -9,12 +9,20 @@ import { ENGINE_HOME } from "./paths.mjs";
 
 const engineRequire = createRequire(join(ENGINE_HOME, "package.json"));
 
-/** better-sqlite3 Database constructor + sqlite-vec loader, or null. */
+/**
+ * node-sqlite3-wasm Database constructor, or null.
+ *
+ * The engine deliberately uses the WebAssembly build rather than a native
+ * binding: `better-sqlite3` falls back to a node-gyp source build whenever no
+ * prebuilt binary matches the local Node ABI, which forces every machine to
+ * install a C/C++ toolchain. The WASM build has no such dependency and still
+ * ships FTS5 (with the trigram tokenizer) — the only SQLite extension the
+ * engine relies on.
+ */
 export function loadSqlite() {
   try {
-    const Database = engineRequire("better-sqlite3");
-    const sqliteVec = engineRequire("sqlite-vec");
-    return { Database, sqliteVec };
+    const { Database } = engineRequire("node-sqlite3-wasm");
+    return { Database };
   } catch {
     return null;
   }

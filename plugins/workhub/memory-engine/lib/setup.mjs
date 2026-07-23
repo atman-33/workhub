@@ -31,8 +31,7 @@ import { initDb, openDb } from "./db.mjs";
 
 // Pinned majors; bump ENGINE_VERSION when changing this set.
 const DEPENDENCIES = {
-  "better-sqlite3": "^12.2.0",
-  "sqlite-vec": "^0.1.7-alpha.2",
+  "node-sqlite3-wasm": "^0.8.59",
   "@huggingface/transformers": "^3.7.0",
 };
 
@@ -115,7 +114,7 @@ export async function runSetup({ force = false } = {}) {
   installDependencies();
 
   const sqlite = loadSqlite();
-  if (!sqlite) throw new Error("dependencies installed but better-sqlite3/sqlite-vec failed to load");
+  if (!sqlite) throw new Error("dependencies installed but node-sqlite3-wasm failed to load");
 
   const db = openDb(dbPathForVault(vault), sqlite);
   try {

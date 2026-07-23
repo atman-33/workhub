@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.58.1 (2026-07-23)
+
+- **Long-term memory setup no longer needs a C/C++ toolchain** (T-0086): the
+  memory engine now uses the WebAssembly SQLite build instead of a native
+  binding, so `/memory-setup` never falls back to compiling from source and
+  never asks for the Visual Studio C++ desktop workload. The Help section for
+  long-term memory states this explicitly. Databases created by the previous
+  engine are converted out of WAL mode automatically on first use.
+
 ## 0.58.0 (2026-07-23)
 
 - **Automatic vault tidy writes its review task in the configured task

@@ -19,7 +19,7 @@ The hooks stay silently disabled until this one-time machine setup has run.
    node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" setup
    ```
 
-   This installs npm dependencies (better-sqlite3, sqlite-vec,
+   This installs npm dependencies (node-sqlite3-wasm,
    @huggingface/transformers) into `~/.workhub/memory-engine/`, downloads
    the embedding model (~320 MB, one time) into
    `~/.workhub/memory-engine/models/`, copies the engine to
@@ -28,8 +28,10 @@ The hooks stay silently disabled until this one-time machine setup has run.
    the vault `.gitignore` excludes the database, and writes the
    `.setup-version` marker the hooks and the workhub app check.
 
-   The first run takes several minutes (native module install + model
-   download). Warn the user before starting if they seem to be in a hurry.
+   The first run takes several minutes, almost all of it the model download.
+   Warn the user before starting if they seem to be in a hurry. No dependency
+   compiles from source, so a C/C++ toolchain (Visual Studio Build Tools) is
+   never required.
 
 2. **Verify**:
 
@@ -45,10 +47,16 @@ The hooks stay silently disabled until this one-time machine setup has run.
 
 ## Troubleshooting
 
-- **npm install fails building better-sqlite3**: a C/C++ toolchain may be
-  missing; prebuilt binaries cover common Node versions, so first check
-  `node --version` (needs Node 20+) and retry with
-  `node cli.mjs setup --force`.
+- **npm install fails**: the dependency set is pure JavaScript/WebAssembly
+  plus prebuilt binaries, so a failure here is a network or registry problem,
+  not a missing compiler. Check `node --version` (needs Node 20+) and retry
+  with `node cli.mjs setup --force`. If an older install left a
+  `better-sqlite3` build error behind, it is stale — setup no longer uses it.
+- **"unable to open database file" on a database from an older engine**: it is
+  still in WAL mode, which the WASM SQLite build cannot open. The engine
+  converts it automatically on the next run; if the message persists, check
+  that Node is 22.5+ (`node --version`) so `node:sqlite` is available for the
+  conversion.
 - **Model download fails**: network issue — rerun step 1; the download
   resumes from the HF cache.
 - **Engine version changed after a plugin update**: hooks fall back to
