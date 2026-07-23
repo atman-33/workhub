@@ -20,7 +20,7 @@ session ends (Stop hook, async)          hooks/memory-capture.mjs
 prompt submitted (UserPromptSubmit hook) hooks/memory-inject.mjs
     first prompt of the session → time summary + elapsed-days reminder
     every prompt → hybrid search over the last 7 days
-      FTS5 (trigram) + vector (sqlite-vec cosine) → RRF fusion → time decay
+      FTS5 (trigram) + vector (cosine, computed in JS) → RRF fusion → time decay
       relevance-gated (cosine distance ≤ 0.65, FTS hits always pass), max 5
 ```
 
@@ -55,13 +55,28 @@ OpenCode plugin check them on every run.
 ## Setup
 
 Run the `memory-setup` skill (or `node cli.mjs setup`) once per machine. It
-installs `better-sqlite3`, `sqlite-vec`, and `@huggingface/transformers` into
+installs `node-sqlite3-wasm` and `@huggingface/transformers` into
 `~/.workhub/memory-engine/`, downloads the embedding model
 (`onnx-community/ruri-v3-310m-ONNX`, q8, ~320 MB), initializes the vault DB,
 ensures the vault `.gitignore` covers it, and writes the setup marker the
 hooks and the workhub app check. Re-run after a plugin update that bumps
 `ENGINE_VERSION` in `lib/paths.mjs` (the marker mismatch disables the hooks
 until then).
+
+No dependency compiles from source, so setup never needs a C/C++ toolchain:
+SQLite comes from the WebAssembly build (`node-sqlite3-wasm`) instead of a
+native binding, and `onnxruntime-node` ships its binaries inside the package.
+The trade-offs of the WASM build are that WAL is unavailable — the two hooks
+serialize on the write lock via `busy_timeout` — and that loadable extensions
+cannot be used, which is why cosine distance is computed in JavaScript rather
+than by `sqlite-vec`. Embeddings stay a plain `BLOB` column either way, so the
+table schema is unchanged.
+
+A database written by engine version 1 is in WAL mode, which the WASM build
+refuses to open at all. `openDb()` therefore converts it back to a rollback
+journal on first use (via Node's built-in `node:sqlite`, falling back to a
+header rewrite when no `-wal` file is pending); no data is touched and the
+conversion happens once.
 
 ## CLI
 

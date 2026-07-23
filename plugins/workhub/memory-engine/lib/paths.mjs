@@ -1,7 +1,7 @@
 // Shared path resolution for the workhub memory engine.
 //
 // The engine *source* lives inside the plugin (this directory). Its npm
-// dependencies (better-sqlite3, sqlite-vec, @huggingface/transformers) and
+// dependencies (node-sqlite3-wasm, @huggingface/transformers) and
 // the embedding-model cache are installed once per machine into ENGINE_HOME
 // by `cli.mjs setup`, so plugin updates never wipe them. The SQLite database
 // lives inside the vault (`_ai/memory/memory.db`) and is gitignored there.
@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 // Bump when the dependency set or embedding model changes; `setup` re-runs
 // the full install when the marker's version no longer matches.
-export const ENGINE_VERSION = 1;
+export const ENGINE_VERSION = 2;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");

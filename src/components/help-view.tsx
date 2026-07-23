@@ -130,7 +130,7 @@ const MEMORY_MD = `## Long-term memory for AI agents
 
 Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
 
-- **One-time setup per machine**: run the \`/memory-setup\` skill in a Claude Code session on the vault. It installs the engine's dependencies and a local Japanese-capable embedding model (~320 MB) under \`~/.workhub/memory-engine/\`. Until then the memory hooks stay silently disabled, and workhub shows a startup banner as a reminder.
+- **One-time setup per machine**: run the \`/memory-setup\` skill in a Claude Code session on the vault. It installs the engine's dependencies and a local Japanese-capable embedding model (~320 MB) under \`~/.workhub/memory-engine/\`. Nothing is compiled from source, so no C/C++ build tools are required — only Node 20+. Until then the memory hooks stay silently disabled, and workhub shows a startup banner as a reminder.
 - **Recall on demand**: the \`/memory-recall <keyword> [days]\` skill searches past conversations explicitly; without arguments it lists the recent timeline.
 - **Privacy**: the database stores conversation text verbatim and may contain sensitive material, so setup adds it to the vault's \`.gitignore\` — it never leaves the machine with a vault backup.
 - **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
@@ -557,9 +557,10 @@ export function HelpView() {
                 : run the <span className="font-mono text-xs">/memory-setup</span> skill in
                 a Claude Code session on the vault. It installs the engine&apos;s
                 dependencies and a local embedding model (~320 MB) under{" "}
-                <span className="font-mono text-xs">~/.workhub/memory-engine/</span>. Until
-                then the memory hooks stay silently disabled, and workhub shows a startup
-                banner as a reminder.
+                <span className="font-mono text-xs">~/.workhub/memory-engine/</span>. Nothing
+                is compiled from source, so no C/C++ build tools are required — only Node
+                20+. Until then the memory hooks stay silently disabled, and workhub shows a
+                startup banner as a reminder.
               </li>
               <li>
                 <span className="font-medium text-foreground">Recall on demand</span>: the{" "}
