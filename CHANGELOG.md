@@ -23,8 +23,9 @@
     applies it through the new `schedule-edit` skill, rewriting only the
     affected lines. The calendar locks while it runs, and one press restores
     the note to how it was just before.
-  - New settings under **Vault → Schedule**: agent, model, confirm-first mode,
-    and a default export folder.
+  - New settings under **Vault → Schedule**: agent, model (picked from the
+    selected agent's catalog, same as vault tidy), confirm-first mode, and a
+    default export folder.
   - The project picker lists every folder under the vault's `projects/`, so a
     project with no schedule yet can still have its first one created.
 

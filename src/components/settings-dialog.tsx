@@ -685,25 +685,39 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     Agent used when you edit a schedule with a natural-language instruction.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Select
-                    value={draft.schedule_assignee}
-                    onValueChange={(v) => setDraft({ ...draft, schedule_assignee: v })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="claude-code">Claude Code</SelectItem>
-                      <SelectItem value="opencode">OpenCode</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={draft.schedule_model}
-                    onChange={(e) => setDraft({ ...draft, schedule_model: e.target.value })}
-                    placeholder="model (blank = agent default)"
-                    className="h-8 font-mono text-xs"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                    <Select
+                      value={draft.schedule_assignee}
+                      // Clear the model when the agent changes: model ids are
+                      // per-CLI, so a claude id left behind on an opencode run
+                      // would be passed straight through to `--model` and fail.
+                      onValueChange={(v) =>
+                        setDraft({ ...draft, schedule_assignee: v, schedule_model: "" })
+                      }
+                    >
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="claude-code">Claude Code</SelectItem>
+                        <SelectItem value="opencode">OpenCode</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Model</label>
+                    <ModelCombobox
+                      assignee={draft.schedule_assignee}
+                      value={draft.schedule_model}
+                      onChange={(model) => setDraft({ ...draft, schedule_model: model })}
+                      active={open}
+                      // Lives inside a modal Radix Dialog — see the prop's doc
+                      // comment.
+                      modal
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
@@ -714,12 +728,17 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     onCheckedChange={(v) => setDraft({ ...draft, schedule_confirm: v })}
                   />
                 </div>
-                <Input
-                  value={draft.schedule_export_dir}
-                  onChange={(e) => setDraft({ ...draft, schedule_export_dir: e.target.value })}
-                  placeholder="HTML export folder (blank = the project's attachments/)"
-                  className="h-8 font-mono text-xs"
-                />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    HTML export folder
+                  </label>
+                  <Input
+                    value={draft.schedule_export_dir}
+                    onChange={(e) => setDraft({ ...draft, schedule_export_dir: e.target.value })}
+                    placeholder="blank = the project's attachments/"
+                    className="h-8 font-mono text-xs"
+                  />
+                </div>
               </div>
 
               {/* Vault tidy (T-0050) */}
