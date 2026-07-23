@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.56.2 (2026-07-23)
+
+- **Fix:** the project folder scaffold added in 0.56.1 introduced note types
+  (`project-readme`, `prd`, `roadmap`, `spec`, `backlog`, `index`) not covered
+  by the `type` enum documented in `vault-template/.claude/rules/notes.md`;
+  extended the enum to match. Run `vault-init`/vault template sync to pick it
+  up in existing vaults. No app behavior change.
+
 ## 0.56.1 (2026-07-23)
 
 - **Standard project folder scaffold in the vault template**: `vault-template/`
