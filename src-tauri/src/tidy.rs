@@ -417,7 +417,8 @@ pub fn resume(app: AppHandle) -> Result<String, String> {
 
 fn spawn_agent(app: AppHandle, cfg: &Config, vault: &Path) -> Result<(), String> {
     let t = &cfg.settings.tidy;
-    let prompt = actions::build_tidy_prompt(t.stale_days, &t.exclude_dirs);
+    let prompt =
+        actions::build_tidy_prompt(t.stale_days, &t.exclude_dirs, &cfg.settings.task_language);
     // claude accepts a caller-chosen session id; opencode does not, so its runs
     // keep resolving their id from the run output (or resume as a fresh session).
     let session_id = if t.assignee == "opencode" {

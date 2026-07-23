@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.58.0 (2026-07-23)
+
+- **Automatic vault tidy writes its review task in the configured task
+  language** (T-0085): the unattended tidy prompt now carries the **Task file
+  language** setting, so the title and `## Description` of the `#tidy-review`
+  task it creates or updates are written in that language instead of always in
+  English. The scope stops there — frontmatter values, folder and file naming
+  conventions, `_ai/memory/tidy-pending.json`, and the `_ai/logs/kb-log.md`
+  entries stay in English.
+
 ## 0.57.0 (2026-07-23)
 
 - **Vault template conflicts can be resolved by replacing the file** (T-0084):
