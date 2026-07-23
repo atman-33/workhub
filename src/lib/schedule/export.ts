@@ -18,7 +18,7 @@
 import { buildLayout, countWorkingDays, type Layout } from "./layout";
 import { COLOR_HEX, type ScheduleDocModel, type ScheduleItem } from "./parse";
 
-const WEEKDAY_HEADERS = ["月", "火", "水", "木", "金", "土", "日"];
+const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Minimal HTML escaping for the user-authored strings that go into the page
  * (titles, labels). Kept local rather than pulled from a library: the export
@@ -176,7 +176,7 @@ function renderLegend(doc: ScheduleDocModel): string {
         `<span><i class="swatch" style="background:${hex}"></i>${esc(titles.join(" / "))}</span>`,
     )
     .join("");
-  return `<div class="legend">${swatches}<span><i class="swatch" style="background:#f3f4f6;border:1px solid #d1d5db"></i>非稼働日</span></div>`;
+  return `<div class="legend">${swatches}<span><i class="swatch" style="background:#f3f4f6;border:1px solid #d1d5db"></i>Non-working day</span></div>`;
 }
 
 export interface ExportOptions {
@@ -199,7 +199,7 @@ export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions
   const headers = WEEKDAY_HEADERS.map((h) => `<th>${h}</th>`).join("");
 
   return `<!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>${esc(doc.title || "schedule")}</title>
@@ -208,7 +208,7 @@ export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions
 <body>
 <header>
   <h1>${esc(doc.title || "schedule")}</h1>
-  <div class="meta">${start} 〜 ${end} ／ 稼働 ${working} 日 ／ 出力日 ${today}</div>
+  <div class="meta">${start} to ${end} &middot; ${working} working days &middot; exported ${today}</div>
 </header>
 <table class="grid">
   <thead><tr><th class="gutter"></th><th><table class="days"><tr>${headers}</tr></table></th></tr></thead>

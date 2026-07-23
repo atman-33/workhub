@@ -55,6 +55,7 @@ interface Props {
 export function ScheduleView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
   const [project, setProject] = useState("");
   const [path, setPath] = useState("");
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
@@ -103,6 +104,7 @@ export function ScheduleView({ configVersion }: Props) {
   useEffect(() => {
     if (!vaultPath) return;
     void api.listTasks(vaultPath).then(setTasks);
+    void api.listScheduleProjects(vaultPath).then(setProjects);
   }, [vaultPath]);
 
   useEffect(() => {
@@ -185,7 +187,7 @@ export function ScheduleView({ configVersion }: Props) {
     const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()) });
     try {
       await api.exportScheduleHtml(out, html);
-      setStatus(`出力しました: ${out}`);
+      setStatus(`Exported to ${out}`);
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
@@ -195,7 +197,7 @@ export function ScheduleView({ configVersion }: Props) {
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-        Settings で vault を設定するとスケジュールを扱えます。
+        Set a vault path in Settings to use schedules.
       </div>
     );
   }
@@ -205,11 +207,11 @@ export function ScheduleView({ configVersion }: Props) {
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs">
         <Select value={project || "__all__"} onValueChange={(v) => setProject(v === "__all__" ? "" : v)}>
           <SelectTrigger className="h-7 w-40 text-xs">
-            <SelectValue placeholder="プロジェクト" />
+            <SelectValue placeholder="Project" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">すべてのプロジェクト</SelectItem>
-            {[...new Set(files.map((f) => f.project))].map((slug) => (
+            <SelectItem value="__all__">All projects</SelectItem>
+            {projects.map((slug) => (
               <SelectItem key={slug} value={slug}>
                 {slug}
               </SelectItem>
@@ -219,7 +221,7 @@ export function ScheduleView({ configVersion }: Props) {
 
         <Select value={path} onValueChange={setPath}>
           <SelectTrigger className="h-7 w-56 text-xs">
-            <SelectValue placeholder="スケジュールを選択" />
+            <SelectValue placeholder="Select a schedule" />
           </SelectTrigger>
           <SelectContent>
             {files.map((f) => (
@@ -236,7 +238,7 @@ export function ScheduleView({ configVersion }: Props) {
               value={window_.start}
               onChange={(v) => v && setWindow({ ...window_, start: v })}
             />
-            <span className="text-muted-foreground">〜</span>
+            <span className="text-muted-foreground">to</span>
             <DatePicker value={window_.end} onChange={(v) => v && setWindow({ ...window_, end: v })} />
           </div>
         )}
@@ -250,7 +252,7 @@ export function ScheduleView({ configVersion }: Props) {
             disabled={!path}
           >
             <RefreshCw className="mr-1 size-3" />
-            再読込
+            Reload
           </Button>
           <Button
             size="sm"
@@ -260,19 +262,27 @@ export function ScheduleView({ configVersion }: Props) {
             disabled={!doc}
           >
             <Download className="mr-1 size-3" />
-            HTML 出力
+            Export HTML
           </Button>
           <Popover open={creating} onOpenChange={setCreating}>
             <PopoverTrigger asChild>
-              <Button size="sm" variant="secondary" className="h-7 text-xs" disabled={!project}>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                // A schedule belongs to exactly one project, so "All projects"
+                // leaves nothing to create it in.
+                disabled={!project}
+                title={project ? `Create a schedule in ${project}` : "Pick a project first"}
+              >
                 <Plus className="mr-1 size-3" />
-                新規
+                New
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 space-y-2 p-3 text-xs">
               <Input
                 value={newTitle}
-                placeholder="スケジュール名"
+                placeholder="Schedule name"
                 className="h-8 text-xs"
                 onChange={(e) => setNewTitle(e.target.value)}
               />
@@ -296,7 +306,7 @@ export function ScheduleView({ configVersion }: Props) {
                   })();
                 }}
               >
-                作成
+                Create
               </Button>
             </PopoverContent>
           </Popover>
@@ -348,7 +358,7 @@ export function ScheduleView({ configVersion }: Props) {
             />
           ) : (
             <div className="p-6 text-sm text-muted-foreground">
-              スケジュールを選択するか、プロジェクトを選んで新規作成してください。
+              Select a schedule, or pick a project and create one.
             </div>
           )}
         </div>
@@ -425,7 +435,7 @@ export function ScheduleView({ configVersion }: Props) {
       id: nextItemId(doc.items),
       start,
       end,
-      title: "新しい帯",
+      title: "New bar",
       color: "blue",
     };
     mutate({ ...doc, items: [...doc.items, item] });

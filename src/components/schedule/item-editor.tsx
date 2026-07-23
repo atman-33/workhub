@@ -72,16 +72,16 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="bar">帯 (bar)</SelectItem>
-            <SelectItem value="milestone">マイルストーン</SelectItem>
-            <SelectItem value="note">メモ (note)</SelectItem>
+            <SelectItem value="bar">Bar</SelectItem>
+            <SelectItem value="milestone">Milestone</SelectItem>
+            <SelectItem value="note">Note</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <Input
         value={draft.title}
-        placeholder="タイトル"
+        placeholder="Title"
         className="h-8 text-xs"
         onChange={(e) => commit({ title: e.target.value })}
       />
@@ -114,10 +114,10 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
         onValueChange={(v) => commit({ task: v === NONE ? undefined : v })}
       >
         <SelectTrigger className="h-7 text-xs">
-          <SelectValue placeholder="タスクに紐づけない" />
+          <SelectValue placeholder="No linked task" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>タスクに紐づけない</SelectItem>
+          <SelectItem value={NONE}>No linked task</SelectItem>
           {tasks.map((task) => (
             <SelectItem key={task.id} value={task.id}>
               {task.id} {task.title}
@@ -129,10 +129,10 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
       <div className="flex justify-between pt-1">
         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onDelete}>
           <Trash2 className="mr-1 size-3" />
-          削除
+          Delete
         </Button>
         <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={onClose}>
-          閉じる
+          Close
         </Button>
       </div>
     </div>

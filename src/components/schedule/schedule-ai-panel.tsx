@@ -41,7 +41,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
     <div className="flex w-72 shrink-0 flex-col gap-2 border-l p-3 text-xs">
       <div className="flex items-center gap-1.5 font-medium">
         <Sparkles className="size-3.5" />
-        AI に指示
+        Edit with AI
       </div>
 
       <Textarea
@@ -57,7 +57,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
         }}
         disabled={running || disabled}
         rows={4}
-        placeholder="例: 実装フェーズを1週間後ろ倒しして、ずれた分だけ結合テストを縮めて"
+        placeholder="e.g. push the implementation phase back a week and shorten the integration test by the same amount"
         className="resize-none text-xs"
       />
 
@@ -67,13 +67,13 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
           onCheckedChange={(v) => setConfirm(v === true)}
           disabled={running}
         />
-        変更前に差分を確認する
+        Review the diff before applying
       </label>
 
       <div className="flex gap-2">
         <Button size="sm" className="h-7 flex-1 text-xs" onClick={submit} disabled={running || disabled}>
           {running ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
-          {running ? "実行中…" : "実行 (Ctrl+Enter)"}
+          {running ? "Running…" : "Run (Ctrl+Enter)"}
         </Button>
         <Button
           size="sm"
@@ -81,7 +81,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
           className="h-7 text-xs"
           onClick={onUndo}
           disabled={running || !run.can_undo}
-          title="直前の AI 編集を取り消す"
+          title="Undo the last AI edit"
         >
           <RotateCcw className="size-3" />
         </Button>
@@ -90,7 +90,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
       {running && run.stalled && (
         <div className="flex items-start gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[11px]">
           <TriangleAlert className="mt-0.5 size-3 shrink-0" />
-          応答が長引いています。`_ai/logs/schedule/` に実行ログがあります。
+          This is taking a while. The run log is under `_ai/logs/schedule/`.
         </div>
       )}
       {run.state === "failed" && run.error && (
@@ -104,7 +104,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
 
       {run.history.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mb-1 text-[11px] font-medium text-muted-foreground">実行履歴</div>
+          <div className="mb-1 text-[11px] font-medium text-muted-foreground">History</div>
           <ul className="space-y-1.5">
             {run.history.map((entry) => (
               <li key={entry.at} className="rounded border p-1.5 text-[11px]">
@@ -117,7 +117,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
                     entry.state === "failed" ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {entry.seconds}秒 · {timeAgo(entry.at)}
+                  {entry.seconds}s · {timeAgo(entry.at)}
                 </div>
               </li>
             ))}

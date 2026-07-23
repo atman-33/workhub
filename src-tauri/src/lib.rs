@@ -155,6 +155,7 @@ pub fn run() {
             commands::apply_vault_template,
             commands::preview_vault_template_file,
             commands::watch_vault,
+            commands::list_schedule_projects,
             commands::list_schedules,
             commands::read_schedule,
             commands::write_schedule,

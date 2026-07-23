@@ -84,6 +84,11 @@ export const api = {
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
   // ---- schedule notes (projects/<slug>/schedules/*.md) ----
+  /** Project slugs under the vault's `projects/`, including ones with no
+   * schedule note yet — deriving the list from existing notes would make the
+   * first schedule impossible to create. */
+  listScheduleProjects: (vaultPath: string) =>
+    invoke<string[]>("list_schedule_projects", { vaultPath }),
   /** `project` narrows to one project slug; pass "" for every project. */
   listSchedules: (vaultPath: string, project = "") =>
     invoke<ScheduleFile[]>("list_schedules", { vaultPath, project }),

@@ -125,7 +125,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around.
-- **AI に指示**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.`;
+- **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.`;
 
 const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
@@ -853,7 +853,7 @@ export function HelpView() {
                 "Save as PDF" to hand it around.
               </li>
               <li>
-                <span className="font-medium text-foreground">AI に指示</span>:
+                <span className="font-medium text-foreground">Edit with AI</span>:
                 describe the change in plain language and press{" "}
                 <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd>. The calendar is locked while
                 the agent works, and the undo button restores the note to how it

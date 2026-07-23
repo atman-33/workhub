@@ -176,7 +176,7 @@ describe("buildLayout", () => {
     expect(aug1?.isMonthStart).toBe(true);
     expect(layout.weeks[0].days.find((d) => d.date === "2026-07-31")?.isMonthStart).toBe(false);
     // Five of the seven days are in July, so the gutter says July.
-    expect(layout.weeks[0].monthLabel).toBe("7月");
+    expect(layout.weeks[0].monthLabel).toBe("Jul");
   });
 
   it("clips a multi-week bar into one segment per week", () => {
@@ -273,7 +273,7 @@ describe("exportScheduleHtml", () => {
   it("reports the window's working-day count in the header", () => {
     const doc = parseSchedule(NOTE);
     const days = countWorkingDays("2026-07-20", "2026-08-31", doc.nonWorking);
-    expect(html).toContain(`稼働 ${days} 日`);
+    expect(html).toContain(`${days} working days`);
   });
 });
 

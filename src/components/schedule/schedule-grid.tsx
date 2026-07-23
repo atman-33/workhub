@@ -25,7 +25,7 @@ import type { Task } from "@/types";
  * appearance and gestures — never geometry.
  */
 
-const WEEKDAY_HEADERS = ["月", "火", "水", "木", "金", "土", "日"];
+const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** Height of one bar lane, in px. Mirrored in the row height calculation. */
 const LANE_H = 22;
 
@@ -247,7 +247,7 @@ export function ScheduleGrid({
                       disabled={readOnly}
                       onSelect={() => onToggleNonWorking(day.date)}
                     >
-                      {day.isNonWorking ? "非稼働日を解除" : "非稼働日にする"}
+                      {day.isNonWorking ? "Clear non-working day" : "Mark non-working"}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
@@ -291,7 +291,7 @@ export function ScheduleGrid({
                       bar.isStart && "rounded-l",
                       bar.isEnd && "rounded-r",
                     )}
-                    title={`${bar.item.title} · ${bar.item.start} 〜 ${bar.item.end} · 稼働 ${bar.workingDays} 日`}
+                    title={`${bar.item.title} · ${bar.item.start} to ${bar.item.end} · ${bar.workingDays} working days`}
                   >
                     {bar.isStart && !readOnly && (
                       <span
@@ -413,8 +413,8 @@ export function ScheduleGrid({
       {drag?.kind === "range" && !readOnly && (
         <div className="flex items-center gap-3 border-t bg-muted/40 px-3 py-1.5 text-[11px]">
           <span>
-            選択: {drag.start} 〜 {drag.end} ／ 暦{calendarDays(drag.start, drag.end)}日 ／ 稼働
-            {countWorkingDays(drag.start, drag.end, doc.nonWorking)}日
+            Selected {drag.start} to {drag.end} · {calendarDays(drag.start, drag.end)} calendar
+            days · {countWorkingDays(drag.start, drag.end, doc.nonWorking)} working days
           </span>
           <button
             type="button"
@@ -424,14 +424,14 @@ export function ScheduleGrid({
             }}
             className="rounded border px-2 py-0.5 hover:bg-muted"
           >
-            この範囲に帯を作る
+            Create a bar here
           </button>
           <button
             type="button"
             onClick={() => setDrag(null)}
             className="text-muted-foreground hover:text-foreground"
           >
-            選択解除
+            Clear selection
           </button>
         </div>
       )}

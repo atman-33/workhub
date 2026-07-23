@@ -243,8 +243,26 @@ function monthLabelFor(days: LayoutDay[]): string {
     }
   }
   const [, month] = best.split("-");
-  return `${Number(month)}月`;
+  return MONTH_NAMES[Number(month) - 1] ?? "";
 }
+
+/** Short month names, spelled out rather than formatted at render time:
+ * `toLocaleString` would follow the OS display language and turn the gutter
+ * Japanese on a Japanese machine (`.claude/rules/tauri-webview-gotchas.md`). */
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 /** Parses a `YYYY-MM-DD..YYYY-MM-DD` frontmatter range. Returns null when the
  * value is absent or malformed, so the caller can fall back to a default

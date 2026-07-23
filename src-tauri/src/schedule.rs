@@ -99,6 +99,35 @@ fn projects_dir(vault: &Path) -> PathBuf {
     vault.join("projects")
 }
 
+/// Project slugs the vault has, i.e. the folder names under `projects/`.
+///
+/// The picker cannot derive this from existing schedule notes: a vault with no
+/// schedules yet would offer no projects, and "create a schedule" needs a
+/// project first — which is a deadlock, not an empty state.
+///
+/// Folders starting with `_` (the zone index and any scratch area) are not
+/// projects and are skipped.
+pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
+    let root = projects_dir(vault);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('_') || name.starts_with('.') {
+            continue;
+        }
+        out.push(name);
+    }
+    out.sort();
+    Ok(out)
+}
+
 /// Lists schedule notes across the vault, optionally narrowed to one project
 /// slug. Files that are not schedule notes (no frontmatter, or `type` set to
 /// something else) are skipped rather than failing the scan, so a stray note
@@ -475,6 +504,21 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         // One generation only: the snapshot is consumed by the restore.
         assert!(!has_snapshot(&vault, &path));
         assert!(restore_snapshot(&vault, &path).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn list_projects_finds_folders_without_any_schedule_yet() {
+        let vault = temp_vault("projects");
+        // The deadlock this guards: a project with no `schedules/` folder at
+        // all must still be offered, or the first schedule can never be made.
+        fs::create_dir_all(vault.join("projects").join("alpha")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("beta").join(SCHEDULES_DIR)).unwrap();
+        fs::create_dir_all(vault.join("projects").join("_wip")).unwrap();
+        fs::write(vault.join("projects").join("_index.md"), "x").unwrap();
+
+        assert_eq!(list_projects(&vault).unwrap(), vec!["alpha", "beta"]);
+        assert!(list_schedules(&vault, None).unwrap().is_empty());
         fs::remove_dir_all(&vault).ok();
     }
 

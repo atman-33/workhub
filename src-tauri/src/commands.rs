@@ -387,6 +387,17 @@ pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
 
 // ---- schedule notes (T-0088..T-0091) -------------------------------------
 
+/// Project slugs (folder names under the vault's `projects/`) available to the
+/// schedule picker, including projects that hold no schedule note yet.
+#[tauri::command]
+pub async fn list_schedule_projects(vault_path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::list_projects(&PathBuf::from(vault_path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Lists schedule notes, optionally narrowed to one project slug (pass an
 /// empty string for "all projects").
 #[tauri::command]
