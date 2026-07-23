@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.56.1 (2026-07-23)
+
+- **Standard project folder scaffold in the vault template**: `vault-template/`
+  now ships `templates/project/` (README entry point, `prd.md`, `roadmap.md`,
+  `specs/`, `backlog/` with an Obsidian Base view, `research/`, `dev-notes/`,
+  `deliverables/`, `attachments/`, `_index.md`) plus documentation of the
+  layout and the backlog-vs-tasks flow in `CLAUDE.md` and a new
+  `.claude/rules/projects.md`. Run `vault-init`/vault template sync to pick it
+  up in existing vaults. No app behavior change.
+
 ## 0.56.0 (2026-07-21)
 
 - **Vault tidy runs are always resumable** (T-0082): the agent session id is
