@@ -5,6 +5,7 @@ paths:
   - "CHANGELOG.md"
   - ".github/workflows/**"
   - "src-tauri/src/update.rs"
+  - "vault-template/**"
 ---
 
 # Release process
@@ -16,6 +17,14 @@ in-app version display reads `CARGO_PKG_VERSION` via the `app_version`
 command). Releases are cut by pushing a `vX.Y.Z` tag;
 `.github/workflows/release.yml` builds, packages, and publishes the GitHub
 Release automatically.
+
+## `vault-template/` changes also need a release
+
+`vault-template/` is bundled into the app binary and is the only way
+`vault-init`/vault template sync updates an existing vault — there is no
+separate distribution channel for it. **Any change under `vault-template/`
+requires a version bump and release, even when nothing under `src-tauri/` or
+`src/` changed.** Don't skip the release just because it "was only docs".
 
 ## Steps to cut a release
 
