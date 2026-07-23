@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.56.2"
+version = "0.57.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -58,6 +58,9 @@ sha2 = "0.10"
 # embeds vault-template/ into the binary so a packaged build has no dev-machine
 # path dependency for the template source (see src-tauri/src/tasks.rs).
 include_dir = "0.7"
+# vault template sync: renders the vault-vs-template unified diff shown in the
+# template update dialog before an overwrite (see src-tauri/src/tasks.rs).
+similar = "2"
 
 # ink overlay: Raw Input keyboard listener for the double-Alt temporary draw mode
 [target.'cfg(windows)'.dependencies]

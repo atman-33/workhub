@@ -150,6 +150,7 @@ pub fn run() {
             commands::init_vault,
             commands::check_vault_template,
             commands::apply_vault_template,
+            commands::preview_vault_template_file,
             commands::watch_vault,
             commands::launch_agent_for_task,
             commands::load_music_data,

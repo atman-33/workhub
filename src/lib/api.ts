@@ -74,8 +74,12 @@ export const api = {
   watchVault: (vaultPath: string) => invoke<void>("watch_vault", { vaultPath }),
   checkVaultTemplate: (vaultPath: string) =>
     invoke<TemplateDiff>("check_vault_template", { vaultPath }),
-  applyVaultTemplate: (vaultPath: string, paths: string[]) =>
-    invoke<void>("apply_vault_template", { vaultPath, paths }),
+  /** `overwrite` lists conflicting paths the user chose to replace with the
+   * template instead of getting a `<name>.new` file beside the original. */
+  applyVaultTemplate: (vaultPath: string, paths: string[], overwrite: string[] = []) =>
+    invoke<void>("apply_vault_template", { vaultPath, paths, overwrite }),
+  previewVaultTemplateFile: (vaultPath: string, path: string) =>
+    invoke<string>("preview_vault_template_file", { vaultPath, path }),
   // ---- music player (vault-backed) ----
   loadMusicData: (vaultPath: string) =>
     invoke<MusicData | null>("load_music_data", { vaultPath }),

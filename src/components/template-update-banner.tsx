@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { diffLineClass } from "@/lib/diff-format";
+import { cn } from "@/lib/utils";
 import type { TemplateDiff, TemplateFileState } from "@/types";
 
 interface Props {
@@ -92,19 +94,26 @@ interface ReviewProps {
   onApplied: () => void;
 }
 
+/** How a conflicting file gets resolved when the update is applied. */
+type Resolution = "keep" | "overwrite";
+
 function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: ReviewProps) {
   const pending = diff.files.filter((f) => isPending(f.state));
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       // Default-select added/updatable; leave conflict unselected so a user
-      // opts in to overwriting after reading the .new-file explanation.
+      // opts in after reading the explanation (and, if they want, the diff).
       setSelected(
         new Set(pending.filter((f) => f.state !== "conflict").map((f) => f.path)),
       );
+      // Conflicts default to the non-destructive resolution (.new beside the
+      // original); replacing is always an explicit per-file choice.
+      setOverwrite(new Set());
       setError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,11 +128,25 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
     });
   };
 
+  const setResolution = (path: string, resolution: Resolution) => {
+    setOverwrite((prev) => {
+      const next = new Set(prev);
+      if (resolution === "overwrite") next.add(path);
+      else next.delete(path);
+      return next;
+    });
+  };
+
   const apply = async () => {
     setApplying(true);
     setError("");
     try {
-      await api.applyVaultTemplate(vaultPath, [...selected]);
+      // Only send overwrite choices for files actually being applied.
+      await api.applyVaultTemplate(
+        vaultPath,
+        [...selected],
+        [...overwrite].filter((p) => selected.has(p)),
+      );
       onApplied();
     } catch (e) {
       setError(String(e));
@@ -153,13 +176,21 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
                 <Badge variant={STATE_VARIANT[f.state]}>{STATE_LABEL[f.state]}</Badge>
               </label>
               {f.state === "conflict" && (
-                <p className="ml-6 flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-                  You edited this file and the template also changed it. Updating writes{" "}
-                  <span className="font-mono">{f.path}.new</span> beside the original instead
-                  of overwriting it — merge by hand afterward.
-                </p>
+                <div className="ml-6 space-y-1.5">
+                  <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                    You edited this file and the template also changed it. Choose how to
+                    resolve it — check the diff first if you are unsure what your copy
+                    contains.
+                  </p>
+                  <ResolutionPicker
+                    path={f.path}
+                    value={overwrite.has(f.path) ? "overwrite" : "keep"}
+                    onChange={(r) => setResolution(f.path, r)}
+                  />
+                </div>
               )}
+              <DiffPreview vaultPath={vaultPath} path={f.path} />
             </div>
           ))}
         </div>
@@ -175,5 +206,98 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const RESOLUTION_LABEL: Record<Resolution, string> = {
+  keep: "Keep mine (write .new)",
+  overwrite: "Replace with template",
+};
+
+/** Segmented two-button control choosing how one conflict is resolved. */
+function ResolutionPicker({
+  path,
+  value,
+  onChange,
+}: {
+  path: string;
+  value: Resolution;
+  onChange: (resolution: Resolution) => void;
+}) {
+  return (
+    <div className="flex gap-1" role="radiogroup" aria-label={`Resolution for ${path}`}>
+      {(["keep", "overwrite"] as const).map((r) => (
+        <Button
+          key={r}
+          role="radio"
+          aria-checked={value === r}
+          size="sm"
+          variant={value === r ? "secondary" : "ghost"}
+          className={cn(
+            "h-6 px-2 text-[11px]",
+            value === r && r === "overwrite" && "text-destructive",
+          )}
+          onClick={() => onChange(r)}
+        >
+          {RESOLUTION_LABEL[r]}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** Collapsed "Show diff" toggle that lazily loads the vault-vs-template
+ * unified diff for one path — the context a user needs before deciding to
+ * discard their own edits. */
+function DiffPreview({ vaultPath, path }: { vaultPath: string; path: string }) {
+  const [open, setOpen] = useState(false);
+  const [diff, setDiff] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || diff !== null) return;
+    let cancelled = false;
+    setLoading(true);
+    void api
+      .previewVaultTemplateFile(vaultPath, path)
+      .then((text) => {
+        if (!cancelled) setDiff(text);
+      })
+      .catch((e) => {
+        if (!cancelled) setDiff(`diff failed — ${e}`);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, diff, vaultPath, path]);
+
+  return (
+    <div className="ml-6">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-[11px] text-muted-foreground"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? "Hide diff" : "Show diff"}
+      </Button>
+      {open && (
+        <div className="mt-1 max-h-56 overflow-auto rounded-md border bg-muted/30 p-2">
+          {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {diff !== null && (
+            <pre className="font-mono text-[11px] leading-4">
+              {diff.split("\n").map((line, i) => (
+                <div key={i} className={diffLineClass(line)}>
+                  {line || " "}
+                </div>
+              ))}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
