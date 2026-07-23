@@ -14,7 +14,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
-| `templates/` | human | note templates (`task.md`, `_index.md.template`) |
+| `templates/` | human | note templates (`task.md`, `_index.md.template`, `project/` scaffold) |
 | `_ai/` | **AI only** | `index/` indexes, `logs/` agent reports + KB activity log, `memory/` working memory |
 | `attachments/` | human + AI | images and other binary assets |
 
@@ -69,6 +69,45 @@ means the plan is already approved — follow it instead of re-planning. The
 section outlives the session that wrote it, so a plan approved by one agent
 can be executed later by another. The app renders Plan read-only; edit plans
 in Obsidian.
+
+## Project layout
+
+Each development project gets one folder under `projects/<project-slug>/`
+(English kebab-case). Start a new project by copying `templates/project/` and
+filling in the placeholders. Layout:
+
+| Path | Contents |
+|---|---|
+| `README.md` | Entry point — read first. Overview, current status, where things live, reading order, key links. Embeds the backlog Base. |
+| `prd.md` | Product intent, scope, goals — the single source of product intent |
+| `roadmap.md` | Milestones and schedule |
+| `specs/` | Feature specs, one file per feature |
+| `backlog/` | Backlog items (`B-NNN-<title>.md`), one per file; `_backlog.base` renders them by status/priority |
+| `research/` | Investigations and technical spikes |
+| `dev-notes/` | Development notes, design decisions, architecture |
+| `deliverables/` | Task deliverable notes (`T-XXXX-<title>`), linked from a task's `## Results` |
+| `attachments/` | Images and binaries for this project |
+| `_index.md` | Machine-readable index, maintained by `/kb-index` |
+
+**AI agents: open `README.md` first.** It states the current status and points
+to everything else — do not scan the whole project folder.
+
+Folder names are English kebab-case; note file names may be Japanese (vault
+convention). `B-NNN` is a stable identifier, not a sort order — ordering and
+status live in frontmatter and are rendered by `_backlog.base`.
+
+### Backlog vs tasks
+
+`backlog/` is the project's idea pool; `tasks/` (vault root) is the app's
+single source of executable tasks. They are not the same list:
+
+- A backlog item is a candidate (`status: idea | ready | dropped`). Keep it
+  lightweight.
+- When an item is `ready` and picked up, it becomes a real task in `tasks/`
+  (created via the app). Record the task id back on the item
+  (`promoted: T-XXXX`, `status: promoted`) so it drops out of the open view.
+- Deliverables produced by that task land in the project's `deliverables/`,
+  linked from the task's `## Results`.
 
 ## Agent harness
 
