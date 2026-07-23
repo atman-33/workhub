@@ -1,0 +1,40 @@
+filters:
+  and:
+    - 'type == "backlog"'
+    - file.inFolder("backlog")
+
+formulas:
+  prio_rank: 'if(priority == "high", 1, if(priority == "medium", 2, 3))'
+
+properties:
+  status:
+    displayName: Status
+  priority:
+    displayName: Priority
+  promoted:
+    displayName: "Promoted to"
+
+views:
+  - type: table
+    name: "Open"
+    filters:
+      and:
+        - 'status != "promoted"'
+        - 'status != "dropped"'
+    order:
+      - file.name
+      - status
+      - priority
+      - promoted
+    groupBy:
+      property: status
+      direction: ASC
+
+  - type: table
+    name: "Promoted"
+    filters:
+      and:
+        - 'status == "promoted"'
+    order:
+      - file.name
+      - promoted
