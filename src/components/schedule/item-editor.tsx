@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,10 @@ import type { Task } from "@/types";
  * The element `id` is displayed but never editable. It is the handle the AI
  * and the file both use to identify the element; reassigning it would silently
  * break the link between a note's history and the thing it describes.
+ *
+ * `Details` is the element's body — the indented continuation lines under it
+ * in the file. A note shows it on hover in the grid; a bar or milestone shows
+ * it in its tooltip, where it reads as a remark about the element.
  */
 
 interface Props {
@@ -40,6 +45,13 @@ interface Props {
 /** Sentinel for the Select's "no value" option — Radix rejects an empty
  * string as an item value. */
 const NONE = "__none__";
+
+/** Folds pasted line breaks into spaces. The title is the element's single
+ * grammar line in the file, so a newline there would emit a second,
+ * unparsable line; multi-line text belongs in the body. */
+function collapseLines(value: string): string {
+  return value.split(/\s*[\r\n]+\s*/).join(" ");
+}
 
 export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) {
   const [draft, setDraft] = useState(item);
@@ -83,7 +95,15 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
         value={draft.title}
         placeholder="Title"
         className="h-8 text-xs"
-        onChange={(e) => commit({ title: e.target.value })}
+        onChange={(e) => commit({ title: collapseLines(e.target.value) })}
+      />
+
+      <Textarea
+        value={draft.body ?? ""}
+        placeholder={draft.kind === "note" ? "Note text (shown on hover)" : "Details"}
+        rows={draft.kind === "note" ? 4 : 2}
+        className="resize-none text-xs"
+        onChange={(e) => commit({ body: e.target.value })}
       />
 
       <div className="space-y-1.5">

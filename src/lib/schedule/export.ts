@@ -64,6 +64,9 @@ table.days { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.days td { width: 14.285%; vertical-align: top; padding: 0; }
 .daynum { padding: 3px 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .nonworking { background: #f3f4f6; color: #9ca3af; }
+/* The x is what distinguishes a non-working day at a glance; the shading
+   alone is easy to lose on a printed page. */
+.nwmark { margin-left: 2px; font-size: 9px; color: #9ca3af; }
 .outside { color: #d1d5db; }
 .monthstart { font-weight: 700; border-left: 2px solid #9ca3af; }
 .nwlabel { display: block; font-size: 9px; color: #9ca3af; padding: 0 5px 2px; }
@@ -90,7 +93,7 @@ footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px;
 .notes { margin-top: 8px; }
 .notes h2 { font-size: 10px; margin: 0 0 3px; color: #374151; }
 .notes ul { margin: 0; padding-left: 14px; }
-.notes li { margin-bottom: 1px; }
+.notes li { margin-bottom: 1px; white-space: pre-wrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; }
 .legend span { display: flex; align-items: center; gap: 4px; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
@@ -117,6 +120,7 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       if (d.isOutside) classes.push("outside");
       if (d.isMonthStart) classes.push("monthstart");
       const label = d.isMonthStart ? `${d.month}/${d.day}` : String(d.day);
+      const mark = d.isNonWorking ? '<span class="nwmark">&#10005;</span>' : "";
       const nw = d.nonWorkingLabel
         ? `<span class="nwlabel">${esc(d.nonWorkingLabel)}</span>`
         : "";
@@ -125,7 +129,7 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
         : "";
       return `<td class="daycell">${marker}<div class="${classes.join(
         " ",
-      )}">${label}</div>${nw}</td>`;
+      )}">${label}${mark}</div>${nw}</td>`;
     })
     .join("");
 
@@ -189,7 +193,10 @@ function renderNotes(
     .sort((a, b) => a.start.localeCompare(b.start));
   if (notes.length === 0) return "";
   const items = notes
-    .map((n) => `<li><strong>${n.start}</strong> ${esc(n.title)}</li>`)
+    .map((n) => {
+      const text = [n.title, n.body].filter(Boolean).join("\n");
+      return `<li><strong>${n.start}</strong> ${esc(text)}</li>`;
+    })
     .join("");
   return `<div class="notes"><h2>${esc(strings(locale).notes)}</h2><ul>${items}</ul></div>`;
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -258,44 +259,27 @@ export function ScheduleGrid({
                             active: true,
                           });
                         }}
-                        onPointerUp={() => {
-                          // A press that never left this day is a click, and a
-                          // click toggles the day. A sweep leaves a selection
-                          // instead (handled by the window-level handler).
-                          const current = dragRef.current;
-                          if (readOnly) return;
-                          if (
-                            current?.kind === "range" &&
-                            current.start === day.date &&
-                            current.end === day.date
-                          ) {
-                            setDrag(null);
-                            if (!weekly) onToggleNonWorking(day.date);
-                          }
-                        }}
-                        title={
-                          weekly ? "Weekend — edit the weekly: line in the note" : undefined
-                        }
                         className={cn(
                           "min-h-20 border-r border-border/60 px-1 pb-1 pt-0.5 last:border-r-0",
+                          // Shading alone competed with the selection tint for
+                          // the same visual channel; the ✕ below is what
+                          // actually marks a day as non-working.
                           day.isNonWorking && "bg-muted/60",
                           day.isOutside && "opacity-40",
                           day.isMonthStart && "border-l-2 border-l-foreground/40",
-                          !readOnly && !weekly && "cursor-pointer",
-                          selection &&
-                            day.date >= selection.start &&
-                            day.date <= selection.end &&
-                            "bg-primary/10",
                         )}
                       >
                         <div className="flex items-start justify-between gap-1">
                           <span
                             className={cn(
-                              "text-[11px] tabular-nums",
+                              "flex items-center gap-0.5 text-[11px] tabular-nums",
                               day.isMonthStart ? "font-bold" : "text-muted-foreground",
                             )}
                           >
                             {day.isMonthStart ? `${day.month}/${day.day}` : day.day}
+                            {day.isNonWorking && (
+                              <X className="size-2.5 text-muted-foreground/70" aria-hidden />
+                            )}
                           </span>
                           {notes.length > 0 && <NoteMarker notes={notes} onOpen={onSelectItem} />}
                         </div>
@@ -325,6 +309,25 @@ export function ScheduleGrid({
               })}
             </div>
 
+            {/* The sweep is outlined as one shape spanning its columns, rather
+                than tinting each day: an outline is a different visual channel
+                from the non-working shading, so a selected non-working day
+                reads as both at once instead of as an ambiguous shade. */}
+            {selection &&
+              (() => {
+                const cols = selectionColumns(week.days, selection);
+                if (!cols) return null;
+                return (
+                  <div
+                    className="pointer-events-none absolute inset-y-0 z-10 rounded-sm bg-primary/10 ring-2 ring-primary/70"
+                    style={{
+                      left: `${(cols.from / 7) * 100}%`,
+                      width: `${((cols.to - cols.from + 1) / 7) * 100}%`,
+                    }}
+                  />
+                );
+              })()}
+
             {/* Bars float above the cells, positioned in column percentages so
                 they stay aligned with the grid at any width. */}
             <div className="pointer-events-none absolute inset-x-0 top-6">
@@ -346,9 +349,14 @@ export function ScheduleGrid({
                     bar.isEnd && "rounded-r",
                     selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
                   )}
-                  title={`${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
-                    bar.workingDays,
-                  )}`}
+                  title={[
+                    `${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
+                      bar.workingDays,
+                    )}`,
+                    bar.item.body,
+                  ]
+                    .filter(Boolean)
+                    .join("\n")}
                 >
                   {bar.isStart && !readOnly && (
                     <span
@@ -393,14 +401,20 @@ export function ScheduleGrid({
                         onPointerDown={(e) => beginItemDrag(e, point)}
                         onPointerUp={() => endItemPress(point)}
                         className={cn(
-                          "pointer-events-auto mb-0.5 flex items-center gap-1 truncate text-[10px]",
+                          // No `truncate` here: its `overflow: hidden` clipped
+                          // the diamond, whose rotation puts its corners
+                          // outside its own box. The label below truncates
+                          // instead, which is the part that needs it.
+                          "pointer-events-auto mb-0.5 flex min-w-0 items-center gap-1 text-[10px]",
                           !readOnly && "cursor-grab active:cursor-grabbing",
                           selectedId === point.id && "font-semibold",
                         )}
-                        title={`${point.title} · ${point.start}`}
+                        title={pointTooltip(point)}
                       >
                         <span
-                          className="size-1.5 shrink-0 rotate-45"
+                          // `mx-px` keeps the rotated corners clear of the
+                          // cell's padding edge.
+                          className="mx-px size-1.5 shrink-0 rotate-45"
                           style={{
                             background: point.color ? COLOR_HEX[point.color] : COLOR_HEX.gray,
                           }}
@@ -476,6 +490,27 @@ export function ScheduleGrid({
   );
 }
 
+/** Columns a selection covers within one week row, or null when the sweep
+ * does not reach this week. */
+function selectionColumns(
+  days: { date: string }[],
+  selection: { start: string; end: string },
+): { from: number; to: number } | null {
+  const weekStart = days[0].date;
+  const weekEnd = days[6].date;
+  if (selection.end < weekStart || selection.start > weekEnd) return null;
+  const index = (date: string) => Math.max(0, days.findIndex((d) => d.date === date));
+  return {
+    from: selection.start <= weekStart ? 0 : index(selection.start),
+    to: selection.end >= weekEnd ? 6 : index(selection.end),
+  };
+}
+
+/** Tooltip for a milestone or note: the date, plus the body when it has one. */
+function pointTooltip(point: ScheduleItem): string {
+  return [`${point.title} · ${point.start}`, point.body].filter(Boolean).join("\n");
+}
+
 /**
  * Applies the in-flight drag to a copy of the document, so the grid lays out
  * the result rather than approximating it with a CSS transform. Returns `doc`
@@ -529,9 +564,13 @@ function NoteMarker({
           className="size-0 shrink-0 border-r-[9px] border-t-[9px] border-r-transparent border-t-amber-600"
         />
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-64">
+      {/* `whitespace-pre-wrap` is the point of the body: a note written over
+          several indented lines in the file reads as several lines here. */}
+      <TooltipContent side="top" className="max-w-72 whitespace-pre-wrap text-left">
         {notes.map((note) => (
-          <div key={note.id}>{note.title}</div>
+          <div key={note.id} className="not-first:mt-1.5">
+            {[note.title, note.body].filter(Boolean).join("\n")}
+          </div>
         ))}
       </TooltipContent>
     </Tooltip>

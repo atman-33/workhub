@@ -59,6 +59,23 @@ Element line:
 | `#<color>` | Optional, one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. |
 | `task:<id>` | Optional link to a task in `tasks/`. |
 
+An element may carry a **body** on indented continuation lines beneath it —
+ordinary Markdown list continuation. Any kind may have one; a `note` is the
+usual case, since a note is a comment about the day:
+
+```text
+- [note] I-004 2026-07-31 monthly review
+  15:00-16:00, room A
+  bring the deck
+- [bar] I-002 2026-08-08..2026-08-19 integration test #amber
+  QA lead is away the first week
+```
+
+The body belongs to its element: when you move or edit the element, **keep its
+continuation lines with it**, and never merge a body into the element's first
+line (the first line is the grammar line, and a newline in it would produce a
+second, unparsable element).
+
 Non-working line — one of:
 
 ```text
@@ -96,6 +113,8 @@ Non-working line — one of:
   and this skill agree on which element is which. A new element gets the next
   unused number; a deleted element's number stays retired.
 - **Never touch `## Memo` or anything after it.** That section is the human's.
+- **Never orphan a continuation line.** An element's body moves with it; if you
+  delete an element, delete its continuation lines too.
 - **Never remove or reorder frontmatter keys** you do not recognize. Update
   `updated:` to today's date and leave the rest alone.
 - **Never edit any file other than the target schedule.** In particular, do not

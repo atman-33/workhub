@@ -131,6 +131,14 @@ Element line: `- [<kind>] <id> <date-spec> <title> [#<color>] [task:<task-id>]`
   `YYYY-MM-DD` otherwise.
 - `#<color>` is one of `blue`, `green`, `amber`, `red`, `purple`, `gray`.
 - `task:<task-id>` links the element to a task in `tasks/`.
+- An element may carry extra lines of text on **indented continuation lines**
+  beneath it (ordinary Markdown list continuation). A `note` shows them on
+  hover in the app; a `bar` or `milestone` shows them in its tooltip.
+
+```markdown
+- [note] I-004 2026-07-31 monthly review
+  15:00-16:00, room A
+```
 
 Non-working days drive the working-day counts the grid shows. Schedule
 elements are **not** tasks: they are candidates under consideration, and

@@ -121,10 +121,11 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
 - **Drag an element** to move it — in any direction. Dragging straight down moves it a week, since the grid measures a drag in days rather than pixels. **Drag its left or right edge** to stretch or shrink it.
 - **Right-click a day** to add a **bar**, **milestone**, or **note** there. Sweep across several days first and the bar covers the whole sweep; a milestone or note always lands on the first day.
-- **Click a day** to toggle it non-working. Weekends come from the \`weekly:\` line in the note and cannot be clicked — edit that line to change them. Clicking one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
+- **Non-working days** are shaded and carry a small **✕** next to the date, so they stay distinguishable from a selection. Toggle one from the day's right-click menu. Weekends come from the \`weekly:\` line in the note and cannot be toggled here — edit that line to change them. Clearing one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
 - **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
+- **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; a bar or milestone shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
 - **Click an element** to edit its title, dates, color, and the task it links to.
-- **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, toggle, delete) and **Ctrl** + **Shift** + **Z** redoes it.
+- **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
@@ -834,11 +835,15 @@ export function HelpView() {
                 milestone or note always lands on the first day.
               </li>
               <li>
-                <span className="font-medium text-foreground">Click</span> a day
-                to toggle it non-working. Weekends come from the{" "}
-                <span className="font-mono text-xs">weekly:</span> line in the
-                note and cannot be clicked — edit that line to change them.
-                Clicking one day inside a multi-day entry (say a three-day
+                <span className="font-medium text-foreground">
+                  Non-working days
+                </span>{" "}
+                are shaded and carry a small <span className="font-medium">✕</span>{" "}
+                next to the date, so they stay distinguishable from a selection.
+                Toggle one from the day's right-click menu. Weekends come from
+                the <span className="font-mono text-xs">weekly:</span> line in
+                the note and cannot be toggled here — edit that line to change
+                them. Clearing one day inside a multi-day entry (say a three-day
                 leave) takes just that day back rather than cancelling the whole
                 entry. Every bar shows the working days it actually covers.
               </li>
@@ -847,6 +852,15 @@ export function HelpView() {
                 comments on a day, like a cell comment in Excel: a small
                 triangle in the day's corner, with the text on hover. Click the
                 triangle to edit it.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Any element can carry extra lines of text
+                </span>{" "}
+                — the <span className="font-medium">Details</span> box in the
+                edit panel. A note shows them on hover; a bar or milestone shows
+                them in its tooltip. In the file they are indented lines under
+                the element, so they stay readable in Obsidian and in a diff.
               </li>
               <li>
                 <span className="font-medium text-foreground">Click</span> an
@@ -859,7 +873,7 @@ export function HelpView() {
                 day, <Kbd>Shift</Kbd>+<Kbd>←</Kbd> / <Kbd>→</Kbd> stretch or
                 shrink a bar, <Kbd>Delete</Kbd> removes it, <Kbd>Esc</Kbd>{" "}
                 deselects. <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> undoes the last change —
-                drag, resize, toggle or delete — and{" "}
+                drag, resize, create or delete — and{" "}
                 <Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>Z</Kbd> redoes it.
               </li>
               <li>

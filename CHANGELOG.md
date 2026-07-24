@@ -19,14 +19,20 @@
   - **Right-click a day to add** a bar, milestone or note; sweep a range first
     and the bar covers it. The sweep also reports the range's calendar and
     working day counts, and every bar shows the working days it covers.
-  - **Click a day to toggle it non-working.** Weekends are governed by the
-    note's `weekly:` line and are not clickable. Clearing one day inside a
-    multi-day entry splits that entry rather than cancelling all of it.
+  - **Non-working days** are shaded and carry a small ✕ beside the date, so
+    they stay distinguishable from a selection (which is outlined rather than
+    tinted). Toggle one from the day's right-click menu. Weekends are governed
+    by the note's `weekly:` line; clearing one day inside a multi-day entry
+    splits that entry rather than cancelling all of it.
   - **Notes are day comments**, like a cell comment in Excel: a corner triangle
     with the text on hover, rather than a line competing for space with the
     elements that actually occupy the day.
+  - **Any element can carry extra lines of text** (the `Details` box), stored
+    as indented continuation lines under the element in the file. A note shows
+    them on hover; a bar or milestone shows them in its tooltip; the HTML
+    export lists them with the note.
   - **Undo and keyboard editing.** `Ctrl+Z` / `Ctrl+Shift+Z` cover every
-    on-screen edit. With an element selected, the arrow keys nudge it a day,
+    on-screen edit (drag, resize, create, delete). With an element selected, the arrow keys nudge it a day,
     `Shift` + arrows resize a bar, `Delete` removes it, `Esc` deselects.
   - Tasks with a `due` date in the same project show as chips on the calendar,
     and dragging one updates the real task. Elements can link to a task with

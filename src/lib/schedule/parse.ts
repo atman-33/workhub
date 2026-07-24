@@ -16,8 +16,15 @@
  * The grammar (design note §5.3):
  *
  *   - [<kind>] <id> <date-spec> <title> [#<color>] [task:<task-id>]
+ *     <optional continuation lines, indented — the element's body>
  *   - weekly: sat, sun
  *   - <YYYY-MM-DD>[..<YYYY-MM-DD>] <label>
+ *
+ * Continuation lines are how an element carries more than one line of text
+ * (a note that wants a second sentence, say) without breaking the one-line
+ * grammar everything else depends on. They are ordinary Markdown list-item
+ * continuations, so Obsidian renders the element as a single list item and a
+ * diff still shows one added line per added line.
  */
 
 /** Element kinds. Kept to three on purpose — see the design note §3.2. */
@@ -49,7 +56,17 @@ export interface ScheduleItem {
   start: string;
   /** `YYYY-MM-DD`; equals `start` for milestones and notes. */
   end: string;
+  /** First line of the element's text. */
   title: string;
+  /**
+   * Free text continued on indented lines under the element (see
+   * `parseItemLine`). Empty when the element is a single line.
+   *
+   * Every kind may carry one — the grammar is uniform — but only `note`
+   * renders it inline; bars and milestones surface it in their tooltip and in
+   * the editor, where it reads as a detail about the element.
+   */
+  body?: string;
   color?: Color;
   /** Linked task id (`T-0042`), if any. */
   task?: string;
@@ -287,27 +304,63 @@ export function parseSchedule(content: string): ScheduleDocModel {
   }
   doc.nonWorking.weekly.sort((a, b) => a - b);
 
+  // Continuation lines belong to whatever element opened the block, so the
+  // loop tracks the last element it parsed. A continuation following an
+  // *unrecognized* line has no element to attach to and stays raw, which keeps
+  // the "nothing is ever dropped" guarantee intact for malformed files.
+  let open: ScheduleItem | null = null;
+  const bodies = new Map<ScheduleItem, string[]>();
   for (const line of s.items.split("\n")) {
     if (!line.trim() || line.trim().startsWith("##")) continue;
     const item = parseItemLine(line);
-    if (item) doc.items.push(item);
-    else doc.rawItems.push(line.trimEnd());
+    if (item) {
+      doc.items.push(item);
+      open = item;
+      continue;
+    }
+    if (open && isContinuation(line)) {
+      const lines = bodies.get(open);
+      if (lines) lines.push(line.trim());
+      else bodies.set(open, [line.trim()]);
+      continue;
+    }
+    open = null;
+    doc.rawItems.push(line.trimEnd());
   }
+  for (const [item, lines] of bodies) item.body = lines.join("\n");
 
   return doc;
+}
+
+/** An indented line that does not open a new list item continues the previous
+ * one — ordinary Markdown list continuation, which is why a note written this
+ * way still renders as a single item in Obsidian. */
+function isContinuation(line: string): boolean {
+  return /^\s+/.test(line) && !/^\s*-\s/.test(line);
 }
 
 // ---------------------------------------------------------------------------
 // serialization
 // ---------------------------------------------------------------------------
 
+/** Indent for an element's continuation lines. Two spaces is what makes
+ * Markdown treat them as part of the `- ` list item. */
+const BODY_INDENT = "  ";
+
+/** Renders one element, plus its body as indented continuation lines — so the
+ * result may span several lines. */
 export function formatItem(item: ScheduleItem): string {
   const dates = item.kind === "bar" ? `${item.start}..${item.end}` : item.start;
   const parts = [`- [${item.kind}]`, item.id, dates];
-  if (item.title) parts.push(item.title);
+  // Only ever the first line: a stray newline in the title would otherwise
+  // emit a second, unparsable element line.
+  if (item.title) parts.push(item.title.split("\n")[0]);
   if (item.color) parts.push(`#${item.color}`);
   if (item.task) parts.push(`task:${item.task}`);
-  return parts.join(" ");
+  const head = parts.join(" ");
+  const body = (item.body ?? "").replace(/\s+$/, "");
+  if (!body) return head;
+  return [head, ...body.split("\n").map((line) => `${BODY_INDENT}${line}`)].join("\n");
 }
 
 function formatNonWorking(nw: NonWorking, raw: string[]): string[] {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { exportScheduleHtml } from "./export";
 import {
   buildLayout,
+  calendarDays,
   countWorkingDays,
   dayDelta,
   isNonWorking,
@@ -92,6 +93,87 @@ describe("parseSchedule", () => {
     const doc = parseSchedule(reversed);
     expect(doc.items.map((i) => i.id)).not.toContain("I-001");
     expect(doc.rawItems[0]).toContain("I-001");
+  });
+});
+
+describe("continuation lines (element body)", () => {
+  const WITH_BODY = NOTE.replace(
+    "- [note] I-004 2026-07-31 monthly review 15:00",
+    "- [note] I-004 2026-07-31 monthly review\n  15:00-16:00 room A\n  bring the deck",
+  );
+
+  it("attaches indented lines to the element above them", () => {
+    const doc = parseSchedule(WITH_BODY);
+    const note = doc.items.find((i) => i.id === "I-004");
+    expect(note?.title).toBe("monthly review");
+    expect(note?.body).toBe("15:00-16:00 room A\nbring the deck");
+    // The continuation is not mistaken for an unparsable line.
+    expect(doc.rawItems).toEqual([]);
+    // Neighbouring elements are unaffected.
+    expect(doc.items.find((i) => i.id === "I-003")?.body).toBeUndefined();
+  });
+
+  it("round-trips a body without disturbing the rest of the file", () => {
+    const doc = parseSchedule(WITH_BODY);
+    const out = serializeSchedule(WITH_BODY, doc, "2026-07-25");
+    expect(out).toContain("- [note] I-004 2026-07-31 monthly review\n  15:00-16:00 room A\n  bring the deck");
+    expect(out).toContain("Free-form prose neither the app nor the AI rewrites.");
+    expect(parseSchedule(out).items).toEqual(doc.items);
+  });
+
+  it("carries the body along when the element moves", () => {
+    const doc = parseSchedule(WITH_BODY);
+    const note = doc.items.find((i) => i.id === "I-004");
+    if (!note) throw new Error("missing I-004");
+    note.start = "2026-08-03";
+    note.end = "2026-08-03";
+    const out = serializeSchedule(WITH_BODY, doc, "2026-07-25");
+    expect(out).toContain("- [note] I-004 2026-08-03 monthly review\n  15:00-16:00 room A");
+    expect(parseSchedule(out).items.find((i) => i.id === "I-004")?.body).toBe(
+      "15:00-16:00 room A\nbring the deck",
+    );
+  });
+
+  it("works on any kind, so a bar can carry a remark", () => {
+    const withBar = NOTE.replace(
+      "- [bar] I-002 2026-08-08..2026-08-19 integration test #amber",
+      "- [bar] I-002 2026-08-08..2026-08-19 integration test #amber\n  QA lead is away the first week",
+    );
+    const bar = parseSchedule(withBar).items.find((i) => i.id === "I-002");
+    expect(bar?.title).toBe("integration test");
+    expect(bar?.color).toBe("amber");
+    expect(bar?.body).toBe("QA lead is away the first week");
+  });
+
+  it("keeps a continuation that follows an unparsable line as raw", () => {
+    // There is no element to attach it to, so the "nothing is ever dropped"
+    // guarantee has to carry it instead.
+    const broken = NOTE.replace(
+      "- [note] I-004 2026-07-31 monthly review 15:00",
+      "- [note] I-004 not-a-date monthly review\n  a stranded continuation",
+    );
+    const doc = parseSchedule(broken);
+    expect(doc.rawItems).toEqual([
+      "- [note] I-004 not-a-date monthly review",
+      "  a stranded continuation",
+    ]);
+    expect(serializeSchedule(broken, doc, "2026-07-25")).toContain("  a stranded continuation");
+  });
+
+  it("emits no continuation lines for an empty body", () => {
+    expect(
+      formatItem({ kind: "note", id: "I-009", start: "2026-08-01", end: "2026-08-01", title: "x" }),
+    ).toBe("- [note] I-009 2026-08-01 x");
+    expect(
+      formatItem({
+        kind: "note",
+        id: "I-009",
+        start: "2026-08-01",
+        end: "2026-08-01",
+        title: "x",
+        body: "  \n ",
+      }),
+    ).toBe("- [note] I-009 2026-08-01 x");
   });
 });
 
@@ -371,6 +453,36 @@ describe("exportScheduleHtml", () => {
       locale: "en",
     });
     expect(out).not.toContain("<h2>Notes</h2>");
+  });
+
+  it("marks non-working days with a glyph, not shading alone", () => {
+    // Shading is easy to lose on a printed page, and on screen it competes
+    // with the selection tint — the mark is what actually says "non-working".
+    expect(html).toContain('<span class="nwmark">&#10005;</span>');
+    const marks = html.match(/class="nwmark"/g) ?? [];
+    const working = countWorkingDays("2026-07-20", "2026-08-31", parseSchedule(NOTE).nonWorking);
+    // Every rendered day is either working or marked. Week rows are whole, so
+    // the grid also holds days outside the window; the mark count must at
+    // least cover the non-working days inside it.
+    expect(marks.length).toBeGreaterThanOrEqual(calendarDays("2026-07-20", "2026-08-31") - working);
+  });
+
+  it("keeps a note's continuation lines in the footer list", () => {
+    const withBody = parseSchedule(
+      NOTE.replace(
+        "- [note] I-004 2026-07-31 monthly review 15:00",
+        "- [note] I-004 2026-07-31 monthly review\n  15:00-16:00 room A",
+      ),
+    );
+    const out = exportScheduleHtml(withBody, {
+      start: "2026-07-20",
+      end: "2026-08-31",
+      today: "2026-07-24",
+      locale: "en",
+    });
+    expect(out).toContain("monthly review\n15:00-16:00 room A");
+    // `pre-wrap` is what makes that newline visible rather than collapsed.
+    expect(out).toContain("white-space: pre-wrap");
   });
 
   it("follows the locale for weekday, month and header text", () => {

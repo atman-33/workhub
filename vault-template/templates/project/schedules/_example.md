@@ -24,7 +24,15 @@ updated: {{DATE}}
      kind: bar | milestone | note
      date-spec: `YYYY-MM-DD..YYYY-MM-DD` for a bar, `YYYY-MM-DD` otherwise
      id: `I-` + a number, unique in this file — never change or reuse one
-     color: blue | green | amber | red | purple | gray -->
+     color: blue | green | amber | red | purple | gray
+
+     An element can carry extra text on indented continuation lines beneath
+     it. A note shows them on hover in the app; a bar or milestone shows them
+     in its tooltip:
+
+       - [note] I-004 2026-07-31 monthly review
+         15:00-16:00, room A
+-->
 
 ## Memo
 
