@@ -73,7 +73,8 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
   };
 
   return (
-    <div className="w-72 space-y-3 p-3 text-xs">
+    // Width comes from the sidebar column, not from here — see schedule-view.
+    <div className="shrink-0 space-y-3 border-b p-3 text-xs">
       <div className="flex items-center justify-between">
         <span className="font-mono text-[11px] text-muted-foreground">{draft.id}</span>
         <Select

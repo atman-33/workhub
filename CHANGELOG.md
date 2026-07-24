@@ -32,7 +32,11 @@
     them on hover; a bar or milestone shows them in its tooltip; the HTML
     export lists them with the note.
   - **Undo and keyboard editing.** `Ctrl+Z` / `Ctrl+Shift+Z` cover every
-    on-screen edit (drag, resize, create, delete). With an element selected, the arrow keys nudge it a day,
+    on-screen edit (drag, resize, create, delete).
+  - The element editor and the AI box share **one fixed-width side panel**, so
+    selecting an element no longer resizes the calendar — bars are positioned
+    in percentages of the week's width, which made the whole grid jump under
+    the pointer. A toolbar button hides the panel for a full-width calendar. With an element selected, the arrow keys nudge it a day,
     `Shift` + arrows resize a bar, `Delete` removes it, `Esc` deselects.
   - Tasks with a `due` date in the same project show as chips on the calendar,
     and dragging one updates the real task. Elements can link to a task with

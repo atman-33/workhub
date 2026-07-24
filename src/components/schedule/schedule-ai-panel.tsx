@@ -38,7 +38,7 @@ export function ScheduleAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }
   };
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-2 border-l p-3 text-xs">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 text-xs">
       <div className="flex items-center gap-1.5 font-medium">
         <Sparkles className="size-3.5" />
         Edit with AI

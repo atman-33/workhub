@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { Download, PanelRightClose, PanelRightOpen, Plus, RefreshCw } from "lucide-react";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
@@ -78,6 +78,10 @@ export function ScheduleView({ configVersion }: Props) {
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  // Session-only: the calendar reads better at full width when reviewing or
+  // before an export, but that is a preference for a moment, not for a
+  // machine, so it is deliberately not persisted to settings.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
   // "that drag went somewhere I didn't mean", not for history — the file's git
   // backup and the AI-edit snapshot cover the durable cases.
@@ -385,6 +389,20 @@ export function ScheduleView({ configVersion }: Props) {
             <Download className="mr-1 size-3" />
             Export HTML
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            disabled={!path}
+            title={sidebarCollapsed ? "Show the side panel" : "Hide the side panel"}
+          >
+            {sidebarCollapsed ? (
+              <PanelRightOpen className="size-3" />
+            ) : (
+              <PanelRightClose className="size-3" />
+            )}
+          </Button>
           <Popover open={creating} onOpenChange={setCreating}>
             <PopoverTrigger asChild>
               <Button
@@ -486,38 +504,48 @@ export function ScheduleView({ configVersion }: Props) {
           )}
         </div>
 
-        {selected && doc && (
-          <div className="w-72 shrink-0 border-l">
-            <ItemEditor
-              item={selected}
-              tasks={projectTasks}
-              onChange={(next) => {
-                setSelected(next);
-                patchItem(next.id, () => next);
-              }}
-              onDelete={() => {
-                mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
-                setSelected(null);
-              }}
-              onClose={() => setSelected(null)}
-            />
-          </div>
-        )}
-
-        {aiRun && path && (
-          <ScheduleAiPanel
-            run={aiRun}
-            defaultConfirm={config?.settings.schedule_confirm ?? false}
-            onRun={(instruction, confirm) => {
-              void api.runScheduleEdit(path, instruction, confirm).catch((e) => setStatus(String(e)));
-            }}
-            onUndo={() => {
-              void api
-                .restoreScheduleSnapshot(path)
-                .then(() => loadDoc(path))
-                .catch((e) => setStatus(String(e)));
-            }}
-          />
+        {/* One right column of a fixed width, not one per panel.
+            The grid positions its bars in percentages of the week's width, so
+            anything that changes that width moves every element on screen —
+            and the editor used to appear on selection, which meant the
+            calendar jumped under the pointer the instant you clicked a bar.
+            The editor now comes and goes *vertically* inside this column,
+            which costs the grid nothing. */}
+        {path && !sidebarCollapsed && (
+          <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l">
+            {selected && doc && (
+              <ItemEditor
+                item={selected}
+                tasks={projectTasks}
+                onChange={(next) => {
+                  setSelected(next);
+                  patchItem(next.id, () => next);
+                }}
+                onDelete={() => {
+                  mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
+                  setSelected(null);
+                }}
+                onClose={() => setSelected(null)}
+              />
+            )}
+            {aiRun && (
+              <ScheduleAiPanel
+                run={aiRun}
+                defaultConfirm={config?.settings.schedule_confirm ?? false}
+                onRun={(instruction, confirm) => {
+                  void api
+                    .runScheduleEdit(path, instruction, confirm)
+                    .catch((e) => setStatus(String(e)));
+                }}
+                onUndo={() => {
+                  void api
+                    .restoreScheduleSnapshot(path)
+                    .then(() => loadDoc(path))
+                    .catch((e) => setStatus(String(e)));
+                }}
+              />
+            )}
+          </aside>
         )}
       </div>
     </div>
