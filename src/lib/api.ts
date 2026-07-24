@@ -8,6 +8,9 @@ import type {
   GitInfo,
   GitLog,
   GraphOp,
+  ScheduleDoc,
+  ScheduleEditRun,
+  ScheduleFile,
   SttModelStatus,
   Task,
   TemplateDiff,
@@ -80,6 +83,30 @@ export const api = {
     invoke<void>("apply_vault_template", { vaultPath, paths, overwrite }),
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
+  // ---- schedule notes (projects/<slug>/schedules/*.md) ----
+  /** Project slugs under the vault's `projects/`, including ones with no
+   * schedule note yet — deriving the list from existing notes would make the
+   * first schedule impossible to create. */
+  listScheduleProjects: (vaultPath: string) =>
+    invoke<string[]>("list_schedule_projects", { vaultPath }),
+  /** `project` narrows to one project slug; pass "" for every project. */
+  listSchedules: (vaultPath: string, project = "") =>
+    invoke<ScheduleFile[]>("list_schedules", { vaultPath, project }),
+  readSchedule: (path: string) => invoke<ScheduleDoc>("read_schedule", { path }),
+  /** Returns the new mtime. Rejects when the file changed on disk since it was
+   * read; pass `expectedMtime: 0` to write unconditionally. */
+  writeSchedule: (path: string, content: string, expectedMtime: number) =>
+    invoke<number>("write_schedule", { path, content, expectedMtime }),
+  createSchedule: (vaultPath: string, project: string, title: string, range: string) =>
+    invoke<ScheduleFile>("create_schedule", { vaultPath, project, title, range }),
+  exportScheduleHtml: (outPath: string, html: string) =>
+    invoke<void>("export_schedule_html", { outPath, html }),
+  runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>
+    invoke<string>("run_schedule_edit", { path, instruction, confirm }),
+  scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
+  restoreScheduleSnapshot: (path: string) =>
+    invoke<ScheduleDoc>("restore_schedule_snapshot", { path }),
+
   // ---- music player (vault-backed) ----
   loadMusicData: (vaultPath: string) =>
     invoke<MusicData | null>("load_music_data", { vaultPath }),

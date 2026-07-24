@@ -126,6 +126,29 @@ pub struct Settings {
     /// notes and refreshes the tasks/archive index via a headless agent.
     #[serde(default)]
     pub tidy: TidySettings,
+    /// Agent CLI used for AI schedule edits: "claude-code" | "opencode"
+    /// (T-0091).
+    #[serde(default = "default_schedule_assignee")]
+    pub schedule_assignee: String,
+    /// Model passed to that agent via `--model`; empty = the agent's default.
+    #[serde(default)]
+    pub schedule_model: String,
+    /// Default an AI schedule edit to the confirm-first mode (show the diff,
+    /// apply on approval) instead of applying immediately.
+    #[serde(default)]
+    pub schedule_confirm: bool,
+    /// Default destination for HTML exports. Empty = the project's own
+    /// `attachments/` folder, which is what keeps an export attached to the
+    /// project it describes.
+    #[serde(default)]
+    pub schedule_export_dir: String,
+    /// Display language for the schedule calendar — weekday and month labels
+    /// on screen *and* in the HTML export: "en" | "ja". Display only; a
+    /// schedule note never stores localized text, so this can never change a
+    /// file. The export follows it too because the exported file is a hand-out
+    /// for other people, not a dump of the authoring machine's locale.
+    #[serde(default = "default_schedule_locale")]
+    pub schedule_locale: String,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -244,6 +267,12 @@ fn default_voice_language() -> String {
 fn default_task_language() -> String {
     "en".into()
 }
+fn default_schedule_assignee() -> String {
+    "claude-code".into()
+}
+fn default_schedule_locale() -> String {
+    "en".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -274,8 +303,38 @@ impl Default for Settings {
             task_language: default_task_language(),
             custom_prompt: String::new(),
             tidy: TidySettings::default(),
+            schedule_assignee: default_schedule_assignee(),
+            schedule_model: String::new(),
+            schedule_confirm: false,
+            schedule_export_dir: String::new(),
+            schedule_locale: default_schedule_locale(),
         }
     }
+}
+
+/// One schedule note as the picker sees it — enough to choose a file without
+/// reading every note's body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleFile {
+    /// Absolute path, forward slashes.
+    pub path: String,
+    /// Owning project slug (the `projects/<slug>/` folder name).
+    pub project: String,
+    pub title: String,
+    /// `YYYY-MM-DD..YYYY-MM-DD` display range from the frontmatter.
+    pub range: String,
+    pub updated: String,
+}
+
+/// A schedule note's full text. The element notation is interpreted on the
+/// frontend (see `schedule.rs` module docs), so the backend hands over the
+/// whole file and the mtime that guards the next write.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleDoc {
+    pub path: String,
+    pub content: String,
+    /// Unix seconds; pass back to `write_schedule` for conflict detection.
+    pub mtime: u64,
 }
 
 /// A task's frontmatter fields plus location and body — the app's view of

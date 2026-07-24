@@ -19,7 +19,7 @@ interface Props {
   active?: boolean;
   /**
    * Render the popover as its own modal layer — required when the picker
-   * lives inside a modal Radix Dialog. Both current call sites do.
+   * lives inside a modal Radix Dialog. Every current call site does.
    */
   modal?: boolean;
   disabled?: boolean;
@@ -29,7 +29,8 @@ interface Props {
 
 /**
  * Model picker for an AI agent launch, shared by the task dialog and the
- * vault-tidy settings. Which catalog is offered follows `assignee`: opencode's
+ * vault-tidy and schedule settings. Which catalog is offered follows
+ * `assignee`: opencode's
  * is fetched from the CLI (with recently-used ids pinned to the top), while
  * Claude Code's is a static alias list. Free text is always accepted, so a
  * model the catalog does not advertise — or one already persisted in config —

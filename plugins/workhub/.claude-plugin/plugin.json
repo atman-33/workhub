@@ -1,7 +1,7 @@
 {
   "name": "workhub",
-  "version": "0.14.0",
-  "description": "Task-board and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall).",
+  "version": "0.15.0",
+  "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall).",
   "author": {
     "name": "atman-33",
     "url": "https://github.com/atman-33"

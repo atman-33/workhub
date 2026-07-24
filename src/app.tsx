@@ -3,6 +3,7 @@ import {
   CircleHelp,
   FolderOpen,
   GitBranch,
+  CalendarRange,
   ListTodo,
   Mic,
   Music,
@@ -13,6 +14,7 @@ import { HelpView } from "@/components/help-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
+import { ScheduleView } from "@/components/schedule/schedule-view";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
 import { TemplateUpdateBanner } from "@/components/template-update-banner";
@@ -26,10 +28,11 @@ import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos" | "music" | "timer" | "voice" | "help";
+type Tab = "tasks" | "schedule" | "repos" | "music" | "timer" | "voice" | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
+  { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
@@ -157,6 +160,9 @@ export default function App() {
               configVersion={configVersion}
               onSettingsChange={(s) => setSettings(s)}
             />
+          </div>
+          <div className={cn("h-full", tab !== "schedule" && "hidden")}>
+            <ScheduleView configVersion={configVersion} />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
             <ReposView configVersion={configVersion} active={tab === "repos"} />

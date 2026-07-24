@@ -70,6 +70,63 @@ export interface Settings {
   /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
    * tasks/archive index via a headless agent). */
   tidy: TidySettings;
+  /** Agent CLI used for AI schedule edits: "claude-code" | "opencode". */
+  schedule_assignee: string;
+  /** Model passed to that agent via --model; empty = the agent's default. */
+  schedule_model: string;
+  /** Default AI schedule edits to confirm-first (show the diff) instead of
+   * applying immediately. */
+  schedule_confirm: boolean;
+  /** Default HTML export destination; empty = the project's `attachments/`. */
+  schedule_export_dir: string;
+  /** Calendar display language, on screen and in the HTML export: "en" | "ja".
+   * Display only — a schedule note never stores localized text. */
+  schedule_locale: string;
+}
+
+/** One schedule note as the picker sees it (`list_schedules`). */
+export interface ScheduleFile {
+  /** Absolute path, forward slashes — the id used by every other command. */
+  path: string;
+  /** Owning project slug (the `projects/<slug>/` folder name). */
+  project: string;
+  title: string;
+  /** `YYYY-MM-DD..YYYY-MM-DD` display range from the frontmatter. */
+  range: string;
+  updated: string;
+}
+
+/** A schedule note's full text plus the mtime that guards the next write. */
+export interface ScheduleDoc {
+  path: string;
+  content: string;
+  mtime: number;
+}
+
+/** One past AI schedule edit, newest first in `ScheduleEditRun.history`. */
+export interface ScheduleEditEntry {
+  instruction: string;
+  /** "completed" | "failed" */
+  state: string;
+  message: string;
+  seconds: number;
+  at: number;
+}
+
+/** Live state of the AI schedule-edit runner (`schedule_edit_status` /
+ * `schedule-edit:status`). `state === "running"` also means the calendar is
+ * locked against app-side writes. */
+export interface ScheduleEditRun {
+  /** "idle" | "running" | "completed" | "failed" */
+  state: string;
+  path: string | null;
+  instruction: string | null;
+  since: number | null;
+  summary: string | null;
+  error: string | null;
+  stalled: boolean;
+  can_undo: boolean;
+  history: ScheduleEditEntry[];
 }
 
 /** Config for the built-in vault-tidy routine (T-0050). */

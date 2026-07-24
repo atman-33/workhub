@@ -7,6 +7,8 @@ mod ink;
 mod models;
 mod music;
 mod quick_capture;
+mod schedule;
+mod schedule_edit;
 mod storage;
 mod stt;
 mod tasks;
@@ -65,6 +67,7 @@ pub fn run() {
         .manage(voice::VoiceState::default())
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
+        .manage(schedule_edit::ScheduleEditState::default())
         .setup(|app| {
             // Closing the main window used to leave the process running
             // (the hidden quick-capture/voice windows below keep Tauri
@@ -152,6 +155,15 @@ pub fn run() {
             commands::apply_vault_template,
             commands::preview_vault_template_file,
             commands::watch_vault,
+            commands::list_schedule_projects,
+            commands::list_schedules,
+            commands::read_schedule,
+            commands::write_schedule,
+            commands::create_schedule,
+            commands::export_schedule_html,
+            commands::run_schedule_edit,
+            commands::schedule_edit_status,
+            commands::restore_schedule_snapshot,
             commands::launch_agent_for_task,
             commands::load_music_data,
             commands::save_music_data,

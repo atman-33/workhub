@@ -24,6 +24,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 const TASKS_CHANGED_EVENT: &str = "tasks-changed";
+/// Emitted when a `projects/*/schedules/*.md` file changes, so the Schedule
+/// view reloads after an Obsidian or agent edit (T-0088).
+const SCHEDULES_CHANGED_EVENT: &str = "schedules-changed";
 const DEBOUNCE: Duration = Duration::from_millis(300);
 
 fn tasks_dir(vault: &Path) -> PathBuf {
@@ -1097,11 +1100,29 @@ impl Default for WatcherState {
     }
 }
 
-/// Starts (or restarts) watching `<vault>/tasks` for changes, debouncing
-/// bursts of events (e.g. an editor's save-as-temp-then-rename) into a
-/// single `tasks-changed` emit. Any per-event error from `notify` (a
-/// transient OS/FS hiccup) is treated as "something changed" rather than
-/// killing the loop, so the watcher stays alive for the app's lifetime.
+/// True for a path under `projects/<slug>/schedules/` ending in `.md`.
+///
+/// `projects/` as a whole is a human writing area with far more churn than
+/// `tasks/`, so the watcher subscribes to the tree but only *reports* schedule
+/// notes — otherwise every note edit in Obsidian would round-trip a reload
+/// through the Schedule view (design note §10.4).
+fn is_schedule_path(p: &Path) -> bool {
+    if p.extension().and_then(|e| e.to_str()) != Some("md") {
+        return false;
+    }
+    p.parent()
+        .and_then(|d| d.file_name())
+        .and_then(|n| n.to_str())
+        == Some("schedules")
+}
+
+/// Starts (or restarts) watching `<vault>/tasks` and `<vault>/projects` for
+/// changes, debouncing bursts of events (e.g. an editor's
+/// save-as-temp-then-rename) into a single emit per affected area:
+/// `tasks-changed` for the task tree, `schedules-changed` for schedule notes.
+/// Any per-event error from `notify` (a transient OS/FS hiccup) is treated as
+/// "the tasks changed" rather than killing the loop, so the watcher stays
+/// alive for the app's lifetime.
 pub fn start_watcher(
     app: AppHandle,
     state: &Mutex<Option<RecommendedWatcher>>,
@@ -1121,23 +1142,53 @@ pub fn start_watcher(
     watcher
         .watch(&dir, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
+    // Schedule notes live under `projects/<slug>/schedules/`. A vault that has
+    // no `projects/` yet is not an error — the folder appears when the user
+    // creates their first project, and the watcher is restarted on vault load.
+    let projects = vault.join("projects");
+    if projects.is_dir() {
+        let _ = watcher.watch(&projects, RecursiveMode::Recursive);
+    }
 
     let vault_for_thread = vault.clone();
     std::thread::spawn(move || loop {
         // Block for the first event of a new burst.
-        if rx.recv().is_err() {
-            break; // watcher dropped: channel closed, thread exits
+        let mut tasks_touched = false;
+        let mut schedules_touched = false;
+        let mut classify = |ev: &Result<Event, notify::Error>| match ev {
+            Ok(event) => {
+                for path in &event.paths {
+                    if is_schedule_path(path) {
+                        schedules_touched = true;
+                    } else if !path.starts_with(&projects) {
+                        tasks_touched = true;
+                    }
+                }
+            }
+            // An unreadable event could have been anything; assume the tasks
+            // moved (the cheaper, self-healing direction).
+            Err(_) => tasks_touched = true,
+        };
+
+        match rx.recv() {
+            Ok(ev) => classify(&ev),
+            Err(_) => break, // watcher dropped: channel closed, thread exits
         }
         // Drain further events within the debounce window.
         loop {
             match rx.recv_timeout(DEBOUNCE) {
-                Ok(_) => continue,
+                Ok(ev) => classify(&ev),
                 Err(RecvTimeoutError::Timeout) => break,
                 Err(RecvTimeoutError::Disconnected) => return,
             }
         }
-        let _ = regenerate_index(&vault_for_thread);
-        let _ = app.emit(TASKS_CHANGED_EVENT, ());
+        if tasks_touched {
+            let _ = regenerate_index(&vault_for_thread);
+            let _ = app.emit(TASKS_CHANGED_EVENT, ());
+        }
+        if schedules_touched {
+            let _ = app.emit(SCHEDULES_CHANGED_EVENT, ());
+        }
     });
 
     let mut guard = state

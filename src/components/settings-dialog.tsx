@@ -91,6 +91,12 @@ const TASK_LANGUAGES: { id: string; label: string }[] = [
   { id: "ja", label: "日本語" },
 ];
 
+/** Calendar display language for the Schedule tab and its HTML export. */
+const SCHEDULE_LOCALES: { id: string; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "ja", label: "日本語" },
+];
+
 const DEFAULTS: Settings = {
   vscode_cmd: "code",
   terminal_cmd: "wt -d {path}",
@@ -118,6 +124,11 @@ const DEFAULTS: Settings = {
   task_language: "en",
   custom_prompt: "",
   tidy: TIDY_DEFAULTS,
+  schedule_assignee: "claude-code",
+  schedule_model: "",
+  schedule_confirm: false,
+  schedule_export_dir: "",
+  schedule_locale: "en",
 };
 
 interface Props {
@@ -670,6 +681,96 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   >
                     <FolderOpen className="size-3.5" />
                   </Button>
+                </div>
+              </div>
+
+              {/* Schedule AI edits (T-0091) */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Schedule</p>
+                  <p className="text-xs text-muted-foreground">
+                    Agent used when you edit a schedule with a natural-language instruction.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                    <Select
+                      value={draft.schedule_assignee}
+                      // Clear the model when the agent changes: model ids are
+                      // per-CLI, so a claude id left behind on an opencode run
+                      // would be passed straight through to `--model` and fail.
+                      onValueChange={(v) =>
+                        setDraft({ ...draft, schedule_assignee: v, schedule_model: "" })
+                      }
+                    >
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="claude-code">Claude Code</SelectItem>
+                        <SelectItem value="opencode">OpenCode</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Model</label>
+                    <ModelCombobox
+                      assignee={draft.schedule_assignee}
+                      value={draft.schedule_model}
+                      onChange={(model) => setDraft({ ...draft, schedule_model: model })}
+                      active={open}
+                      // Lives inside a modal Radix Dialog — see the prop's doc
+                      // comment.
+                      modal
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Show the diff and wait for approval instead of applying immediately.
+                  </p>
+                  <Switch
+                    checked={draft.schedule_confirm}
+                    onCheckedChange={(v) => setDraft({ ...draft, schedule_confirm: v })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Calendar language
+                  </label>
+                  <Select
+                    value={draft.schedule_locale}
+                    onValueChange={(v) => setDraft({ ...draft, schedule_locale: v })}
+                  >
+                    <SelectTrigger size="sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SCHEDULE_LOCALES.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Weekday names, month labels and day counts in the Schedule tab, and the whole
+                    exported HTML. Menus and buttons stay English. Display only — schedule notes
+                    never store localized text.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    HTML export folder
+                  </label>
+                  <Input
+                    value={draft.schedule_export_dir}
+                    onChange={(e) => setDraft({ ...draft, schedule_export_dir: e.target.value })}
+                    placeholder="blank = the project's attachments/"
+                    className="h-8 font-mono text-xs"
+                  />
                 </div>
               </div>
 
