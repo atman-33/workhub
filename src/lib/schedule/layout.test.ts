@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { exportScheduleHtml } from "./export";
-import { buildLayout, countWorkingDays, isNonWorking, parseRange, shiftDate } from "./layout";
+import {
+  buildLayout,
+  countWorkingDays,
+  dayDelta,
+  isNonWorking,
+  isWeeklyNonWorking,
+  parseRange,
+  shiftDate,
+  toggleNonWorkingDay,
+} from "./layout";
 import {
   formatItem,
   nextItemId,
@@ -157,36 +166,39 @@ describe("countWorkingDays", () => {
 describe("buildLayout", () => {
   const doc = parseSchedule(NOTE);
 
-  it("emits whole Monday-start weeks covering the range", () => {
+  it("emits whole Sunday-start weeks covering the range", () => {
     const layout = buildLayout(doc, "2026-07-22", "2026-08-05");
-    expect(layout.weeks[0].days[0].weekday).toBe(1);
+    expect(layout.weeks[0].days[0].weekday).toBe(0);
     expect(layout.weeks[0].days).toHaveLength(7);
-    // 7/22 is a Wednesday, so its week starts 7/20 — before the range.
-    expect(layout.weeks[0].days[0].date).toBe("2026-07-20");
+    // 7/22 is a Wednesday, so its week starts Sunday 7/19 — before the range.
+    expect(layout.weeks[0].days[0].date).toBe("2026-07-19");
     expect(layout.weeks[0].days[0].isOutside).toBe(true);
-    expect(layout.weeks[0].days[2].isOutside).toBe(false);
+    expect(layout.weeks[0].days[3].isOutside).toBe(false);
     expect(layout.weeks.at(-1)?.days.some((d) => d.date === "2026-08-05")).toBe(true);
   });
 
   it("marks the month boundary on the day rather than breaking the run", () => {
-    const layout = buildLayout(doc, "2026-07-27", "2026-08-02");
+    const layout = buildLayout(doc, "2026-07-26", "2026-08-01");
     // One continuous week row spans the month change.
     expect(layout.weeks).toHaveLength(1);
     const aug1 = layout.weeks[0].days.find((d) => d.date === "2026-08-01");
     expect(aug1?.isMonthStart).toBe(true);
     expect(layout.weeks[0].days.find((d) => d.date === "2026-07-31")?.isMonthStart).toBe(false);
-    // Five of the seven days are in July, so the gutter says July.
-    expect(layout.weeks[0].monthLabel).toBe("Jul");
+    // Most of this week is in July, so the gutter reports month 7. The label
+    // itself is the renderer's business (see i18n.ts).
+    expect(layout.weeks[0].gutterMonth).toBe(7);
   });
 
   it("clips a multi-week bar into one segment per week", () => {
     const layout = buildLayout(doc, "2026-07-20", "2026-08-09");
     const segments = layout.weeks.flatMap((w) => w.bars.filter((b) => b.item.id === "I-001"));
-    // 7/21 (Tue) .. 8/7 (Fri) touches three week rows.
+    // 7/21 (Tue) .. 8/7 (Fri) touches three Sunday-start week rows.
     expect(segments).toHaveLength(3);
-    expect(segments[0]).toMatchObject({ startCol: 1, endCol: 6, isStart: true, isEnd: false });
+    // Sunday is column 0, so Tuesday 7/21 starts at column 2.
+    expect(segments[0]).toMatchObject({ startCol: 2, endCol: 6, isStart: true, isEnd: false });
     expect(segments[1]).toMatchObject({ startCol: 0, endCol: 6, isStart: false, isEnd: false });
-    expect(segments[2]).toMatchObject({ startCol: 0, endCol: 4, isStart: false, isEnd: true });
+    // Friday 8/7 is column 5.
+    expect(segments[2]).toMatchObject({ startCol: 0, endCol: 5, isStart: false, isEnd: true });
     // Every segment reports the whole bar's working days, not the segment's.
     const whole = countWorkingDays("2026-07-21", "2026-08-07", doc.nonWorking);
     expect(segments.every((s) => s.workingDays === whole)).toBe(true);
@@ -201,7 +213,7 @@ describe("buildLayout", () => {
         { kind: "bar", id: "I-103", start: "2026-07-25", end: "2026-07-26", title: "c" },
       ],
     };
-    const week = buildLayout(overlapping, "2026-07-20", "2026-07-26").weeks[0];
+    const week = buildLayout(overlapping, "2026-07-19", "2026-07-25").weeks[0];
     expect(week.lanes).toBe(2);
     const lane = (id: string) => week.bars.find((b) => b.item.id === id)?.lane;
     expect(lane("I-101")).toBe(0);
@@ -211,7 +223,7 @@ describe("buildLayout", () => {
   });
 
   it("places point elements on their own day only", () => {
-    const layout = buildLayout(doc, "2026-07-27", "2026-08-02");
+    const layout = buildLayout(doc, "2026-07-26", "2026-08-01");
     const days = layout.weeks[0].days;
     expect(days.find((d) => d.date === "2026-07-31")?.points.map((p) => p.id)).toEqual(["I-004"]);
     expect(days.find((d) => d.date === "2026-07-30")?.points).toEqual([]);
@@ -220,12 +232,12 @@ describe("buildLayout", () => {
   });
 
   it("carries the non-working label onto the day", () => {
-    const layout = buildLayout(doc, "2026-08-10", "2026-08-16");
+    const layout = buildLayout(doc, "2026-08-09", "2026-08-15");
     const days = layout.weeks[0].days;
     expect(days.find((d) => d.date === "2026-08-11")?.nonWorkingLabel).toBe("Mountain Day");
     expect(days.find((d) => d.date === "2026-08-14")?.nonWorkingLabel).toBe("summer leave");
     // A weekend is non-working but carries no label.
-    const sunday = days.find((d) => d.date === "2026-08-16");
+    const sunday = days.find((d) => d.date === "2026-08-09");
     expect(sunday?.isNonWorking).toBe(true);
     expect(sunday?.nonWorkingLabel).toBeUndefined();
   });
@@ -235,11 +247,77 @@ describe("buildLayout", () => {
   });
 });
 
+describe("toggleNonWorkingDay", () => {
+  const nw = parseSchedule(NOTE).nonWorking;
+
+  it("adds a plain working day", () => {
+    // Thu 2026-08-06 is a working day; clicking it makes it non-working.
+    const next = toggleNonWorkingDay(nw, "2026-08-06");
+    expect(next.ranges).toContainEqual({ start: "2026-08-06", end: "2026-08-06", label: "" });
+    expect(isNonWorking("2026-08-06", next)).toBe(true);
+  });
+
+  it("removes a single-day entry outright", () => {
+    const next = toggleNonWorkingDay(nw, "2026-08-11");
+    expect(next.ranges.some((r) => r.start === "2026-08-11")).toBe(false);
+    expect(isNonWorking("2026-08-11", next)).toBe(false);
+  });
+
+  it("splits a multi-day entry rather than dropping the whole thing", () => {
+    // Taking 8/14 back out of "8/13..8/15 summer leave" must leave 8/13 and
+    // 8/15 off — cancelling the entire leave would be a much bigger edit than
+    // the one click asked for.
+    const next = toggleNonWorkingDay(nw, "2026-08-14");
+    expect(next.ranges).toContainEqual({
+      start: "2026-08-13",
+      end: "2026-08-13",
+      label: "summer leave",
+    });
+    expect(next.ranges).toContainEqual({
+      start: "2026-08-15",
+      end: "2026-08-15",
+      label: "summer leave",
+    });
+    expect(isNonWorking("2026-08-14", next)).toBe(false);
+    expect(isNonWorking("2026-08-13", next)).toBe(true);
+    expect(isNonWorking("2026-08-15", next)).toBe(true);
+  });
+
+  it("trims an edge day without splitting", () => {
+    const next = toggleNonWorkingDay(nw, "2026-08-13");
+    expect(next.ranges).toContainEqual({
+      start: "2026-08-14",
+      end: "2026-08-15",
+      label: "summer leave",
+    });
+    expect(isNonWorking("2026-08-13", next)).toBe(false);
+  });
+
+  it("leaves a weekly-rule day untouched, identity included", () => {
+    // The notation has no "working exception", so the grid must be able to
+    // detect a no-op and say why instead of writing a redundant entry.
+    expect(isWeeklyNonWorking("2026-08-16", nw)).toBe(true);
+    expect(toggleNonWorkingDay(nw, "2026-08-16")).toBe(nw);
+    expect(isWeeklyNonWorking("2026-08-06", nw)).toBe(false);
+  });
+});
+
+describe("dayDelta", () => {
+  it("measures whole days in both directions, across week and month edges", () => {
+    // What makes a drag able to cross a week row: one row down is +7.
+    expect(dayDelta("2026-07-20", "2026-07-27")).toBe(7);
+    expect(dayDelta("2026-07-27", "2026-07-20")).toBe(-7);
+    expect(dayDelta("2026-07-31", "2026-08-01")).toBe(1);
+    expect(dayDelta("2026-07-20", "2026-07-20")).toBe(0);
+  });
+});
+
 describe("exportScheduleHtml", () => {
   const html = exportScheduleHtml(parseSchedule(NOTE), {
     start: "2026-07-20",
     end: "2026-08-31",
     today: "2026-07-24",
+    locale: "en",
   });
 
   it("references nothing outside the file", () => {
@@ -264,7 +342,7 @@ describe("exportScheduleHtml", () => {
     expect(html).toContain("Mountain Day");
     const escaped = exportScheduleHtml(
       { ...parseSchedule(NOTE), title: "<b>plan</b> & co" },
-      { start: "2026-07-20", end: "2026-07-26", today: "2026-07-24" },
+      { start: "2026-07-20", end: "2026-07-26", today: "2026-07-24", locale: "en" },
     );
     expect(escaped).toContain("&lt;b&gt;plan&lt;/b&gt; &amp; co");
     expect(escaped).not.toContain("<b>plan</b>");
@@ -274,6 +352,43 @@ describe("exportScheduleHtml", () => {
     const doc = parseSchedule(NOTE);
     const days = countWorkingDays("2026-07-20", "2026-08-31", doc.nonWorking);
     expect(html).toContain(`${days} working days`);
+  });
+
+  it("lists note text in the footer, since paper has no hover", () => {
+    expect(html).toContain("Notes");
+    expect(html).toContain("monthly review 15:00");
+    // The note is not also drawn inside its day cell.
+    expect(html).not.toContain('class="dot note"');
+    // Its day still carries the corner marker.
+    expect(html).toContain('class="marker"');
+
+    // A schedule with no notes gets no Notes section at all.
+    const noNotes = parseSchedule(NOTE.replace(/^- \[note\].*$/m, ""));
+    const out = exportScheduleHtml(noNotes, {
+      start: "2026-07-20",
+      end: "2026-08-31",
+      today: "2026-07-24",
+      locale: "en",
+    });
+    expect(out).not.toContain("<h2>Notes</h2>");
+  });
+
+  it("follows the locale for weekday, month and header text", () => {
+    const ja = exportScheduleHtml(parseSchedule(NOTE), {
+      start: "2026-07-20",
+      end: "2026-08-31",
+      today: "2026-07-24",
+      locale: "ja",
+    });
+    expect(ja).toContain('<html lang="ja">');
+    expect(ja).toContain("<th>日</th>");
+    expect(ja).toContain("出力日 2026-07-24");
+    expect(ja).toContain("非稼働日");
+    expect(ja).not.toContain("<th>Sun</th>");
+    // English is unchanged, and the schedule content is identical either way.
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain("<th>Sun</th>");
+    expect(ja).toContain("implementation");
   });
 });
 

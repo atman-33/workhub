@@ -91,6 +91,12 @@ const TASK_LANGUAGES: { id: string; label: string }[] = [
   { id: "ja", label: "日本語" },
 ];
 
+/** Calendar display language for the Schedule tab and its HTML export. */
+const SCHEDULE_LOCALES: { id: string; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "ja", label: "日本語" },
+];
+
 const DEFAULTS: Settings = {
   vscode_cmd: "code",
   terminal_cmd: "wt -d {path}",
@@ -122,6 +128,7 @@ const DEFAULTS: Settings = {
   schedule_model: "",
   schedule_confirm: false,
   schedule_export_dir: "",
+  schedule_locale: "en",
 };
 
 interface Props {
@@ -728,6 +735,32 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     onCheckedChange={(v) => setDraft({ ...draft, schedule_confirm: v })}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Calendar language
+                  </label>
+                  <Select
+                    value={draft.schedule_locale}
+                    onValueChange={(v) => setDraft({ ...draft, schedule_locale: v })}
+                  >
+                    <SelectTrigger size="sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SCHEDULE_LOCALES.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Weekday names, month labels and day counts in the Schedule tab, and the whole
+                    exported HTML. Menus and buttons stay English. Display only — schedule notes
+                    never store localized text.
+                  </p>
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
                     HTML export folder

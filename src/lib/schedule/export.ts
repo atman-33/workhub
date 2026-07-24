@@ -15,10 +15,9 @@
  * any policy and "Print → Save as PDF" is the whole distribution story.
  */
 
+import { monthLabel, strings, type ScheduleLocale } from "./i18n";
 import { buildLayout, countWorkingDays, type Layout } from "./layout";
 import { COLOR_HEX, type ScheduleDocModel, type ScheduleItem } from "./parse";
-
-const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Minimal HTML escaping for the user-authored strings that go into the page
  * (titles, labels). Kept local rather than pulled from a library: the export
@@ -77,6 +76,9 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
 }
 .bar.start { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
 .bar.end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+.marker { position: absolute; top: 0; right: 0; width: 0; height: 0;
+  border-top: 7px solid #b45309; border-left: 7px solid transparent; }
+.daycell { position: relative; }
 .points { padding: 0 4px 3px; }
 .point { display: block; font-size: 10px; line-height: 14px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
@@ -85,6 +87,10 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
 .dot.note { border-radius: 50%; }
 footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px;
   font-size: 10px; color: #6b7280; }
+.notes { margin-top: 8px; }
+.notes h2 { font-size: 10px; margin: 0 0 3px; color: #374151; }
+.notes ul { margin: 0; padding-left: 14px; }
+.notes li { margin-bottom: 1px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; }
 .legend span { display: flex; align-items: center; gap: 4px; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
@@ -95,8 +101,15 @@ footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px;
 `.trim();
 }
 
-/** One week row: the day numbers, the stacked bar lanes, then point elements. */
-function renderWeek(week: Layout["weeks"][number]): string {
+/** One week row: the day numbers, the stacked bar lanes, then point elements.
+ *
+ * Notes render as a corner marker only, matching the screen. Their text goes
+ * into the footer's Notes list instead — on paper there is no hover, so the
+ * content has to live somewhere the reader can actually reach. Geometry is
+ * still exactly `buildLayout`'s; only the note's presentation differs by
+ * medium.
+ */
+function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): string {
   const dayCells = week.days
     .map((d) => {
       const classes = ["daynum"];
@@ -107,7 +120,12 @@ function renderWeek(week: Layout["weeks"][number]): string {
       const nw = d.nonWorkingLabel
         ? `<span class="nwlabel">${esc(d.nonWorkingLabel)}</span>`
         : "";
-      return `<td><div class="${classes.join(" ")}">${label}</div>${nw}</td>`;
+      const marker = d.points.some((p) => p.kind === "note")
+        ? '<span class="marker"></span>'
+        : "";
+      return `<td class="daycell">${marker}<div class="${classes.join(
+        " ",
+      )}">${label}</div>${nw}</td>`;
     })
     .join("");
 
@@ -136,6 +154,7 @@ function renderWeek(week: Layout["weeks"][number]): string {
   const pointRow = week.days
     .map((d) => {
       const points = d.points
+        .filter((p) => p.kind !== "note")
         .map(
           (p) =>
             `<span class="point"><span class="dot ${p.kind}" style="background:${itemColor(
@@ -148,7 +167,7 @@ function renderWeek(week: Layout["weeks"][number]): string {
     .join("");
 
   return `<tr class="week">
-  <td class="gutter">${esc(week.monthLabel)}</td>
+  <td class="gutter">${esc(monthLabel(week.gutterMonth, locale))}</td>
   <td class="dayrow">
     <table class="days"><tr>${dayCells}</tr></table>
     <div class="lanes">${lanes.join("")}</div>
@@ -157,9 +176,27 @@ function renderWeek(week: Layout["weeks"][number]): string {
 </tr>`;
 }
 
+/** The note text the grid can only show on hover, listed by date so the
+ * printed copy carries it too. Empty when the schedule has no notes. */
+function renderNotes(
+  doc: ScheduleDocModel,
+  start: string,
+  end: string,
+  locale: ScheduleLocale,
+): string {
+  const notes = doc.items
+    .filter((i) => i.kind === "note" && i.start >= start && i.start <= end)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  if (notes.length === 0) return "";
+  const items = notes
+    .map((n) => `<li><strong>${n.start}</strong> ${esc(n.title)}</li>`)
+    .join("");
+  return `<div class="notes"><h2>${esc(strings(locale).notes)}</h2><ul>${items}</ul></div>`;
+}
+
 /** Colors actually used by this schedule, so the legend explains the plan in
  * front of the reader rather than the palette. */
-function renderLegend(doc: ScheduleDocModel): string {
+function renderLegend(doc: ScheduleDocModel, locale: ScheduleLocale): string {
   const seen = new Map<string, string[]>();
   for (const item of doc.items) {
     const hex = itemColor(item);
@@ -176,7 +213,9 @@ function renderLegend(doc: ScheduleDocModel): string {
         `<span><i class="swatch" style="background:${hex}"></i>${esc(titles.join(" / "))}</span>`,
     )
     .join("");
-  return `<div class="legend">${swatches}<span><i class="swatch" style="background:#f3f4f6;border:1px solid #d1d5db"></i>Non-working day</span></div>`;
+  return `<div class="legend">${swatches}<span><i class="swatch" style="background:#f3f4f6;border:1px solid #d1d5db"></i>${esc(
+    strings(locale).nonWorkingDay,
+  )}</span></div>`;
 }
 
 export interface ExportOptions {
@@ -186,6 +225,10 @@ export interface ExportOptions {
   /** Date stamped in the header, `YYYY-MM-DD`. Passed in rather than read from
    * the clock so the output is reproducible in tests. */
   today: string;
+  /** Display language for weekday/month labels and the header — the exported
+   * file is a hand-out, so it follows the same setting as the screen rather
+   * than the machine that produced it. */
+  locale: ScheduleLocale;
 }
 
 /**
@@ -193,13 +236,14 @@ export interface ExportOptions {
  * window. The result is written to disk by `export_schedule_html`.
  */
 export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions): string {
-  const { start, end, today } = options;
+  const { start, end, today, locale } = options;
   const layout = buildLayout(doc, start, end);
   const working = countWorkingDays(start, end, doc.nonWorking);
-  const headers = WEEKDAY_HEADERS.map((h) => `<th>${h}</th>`).join("");
+  const t = strings(locale);
+  const headers = t.weekdays.map((h) => `<th>${h}</th>`).join("");
 
   return `<!doctype html>
-<html lang="en">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <title>${esc(doc.title || "schedule")}</title>
@@ -208,15 +252,17 @@ export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions
 <body>
 <header>
   <h1>${esc(doc.title || "schedule")}</h1>
-  <div class="meta">${start} to ${end} &middot; ${working} working days &middot; exported ${today}</div>
+  <div class="meta">${t.range(start, end)} &middot; ${t.workingDays(working)} &middot; ${t.exportedOn(
+    today,
+  )}</div>
 </header>
 <table class="grid">
   <thead><tr><th class="gutter"></th><th><table class="days"><tr>${headers}</tr></table></th></tr></thead>
   <tbody>
-${layout.weeks.map(renderWeek).join("\n")}
+${layout.weeks.map((w) => renderWeek(w, locale)).join("\n")}
   </tbody>
 </table>
-<footer>${renderLegend(doc)}</footer>
+<footer>${renderLegend(doc, locale)}${renderNotes(doc, start, end, locale)}</footer>
 </body>
 </html>
 `;

@@ -5,27 +5,45 @@
 - **New Schedule tab for planning project dates** (T-0088..T-0092). A
   workspace for *deciding* dates rather than recording them: weeks run
   continuously down the page instead of being cut into months, so a plan
-  spanning two months stays readable in one piece. Drag elements to move them,
-  drag an edge to stretch them, sweep an empty range to see its calendar and
-  working day counts, and right-click a day to mark it non-working. Every bar
-  reports the working days it actually covers.
+  spanning two months stays readable in one piece. Weeks start on Sunday,
+  matching the paper and Miro calendars this replaces.
   - Schedules are plain Markdown at
     `projects/<project-slug>/schedules/<name>.md`, editable in Obsidian at the
     same time. External edits appear in the app immediately; a save that would
     overwrite someone else's change is refused and the note reloads instead.
+  - **Direct manipulation.** Drag an element in any direction to move it —
+    straight down is a week, since a drag is measured in days rather than
+    horizontal pixels — and drag its edge to stretch it. What you see mid-drag
+    is the actual pending state, so a bar crossing a week boundary splits
+    exactly as it will once released.
+  - **Right-click a day to add** a bar, milestone or note; sweep a range first
+    and the bar covers it. The sweep also reports the range's calendar and
+    working day counts, and every bar shows the working days it covers.
+  - **Click a day to toggle it non-working.** Weekends are governed by the
+    note's `weekly:` line and are not clickable. Clearing one day inside a
+    multi-day entry splits that entry rather than cancelling all of it.
+  - **Notes are day comments**, like a cell comment in Excel: a corner triangle
+    with the text on hover, rather than a line competing for space with the
+    elements that actually occupy the day.
+  - **Undo and keyboard editing.** `Ctrl+Z` / `Ctrl+Shift+Z` cover every
+    on-screen edit. With an element selected, the arrow keys nudge it a day,
+    `Shift` + arrows resize a bar, `Delete` removes it, `Esc` deselects.
   - Tasks with a `due` date in the same project show as chips on the calendar,
     and dragging one updates the real task. Elements can link to a task with
     `task:<id>` and show its status.
   - **HTML output** writes a single self-contained file (default: the
     project's `attachments/`) that opens anywhere and prints to A4 landscape
-    for PDF hand-off.
+    for PDF hand-off. Note text is listed in its footer, since a printed page
+    has no hover.
   - **AI editing**: describe a change in plain language and a headless agent
     applies it through the new `schedule-edit` skill, rewriting only the
     affected lines. The calendar locks while it runs, and one press restores
     the note to how it was just before.
   - New settings under **Vault → Schedule**: agent, model (picked from the
-    selected agent's catalog, same as vault tidy), confirm-first mode, and a
-    default export folder.
+    selected agent's catalog, same as vault tidy), confirm-first mode, a
+    default export folder, and a **Calendar language** (English or Japanese
+    weekday/month labels, on screen and in exported HTML — display only, a
+    schedule note never stores localized text).
   - The project picker lists every folder under the vault's `projects/`, so a
     project with no schedule yet can still have its first one created.
 

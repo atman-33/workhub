@@ -119,13 +119,17 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 
 - A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. Copy the file in Obsidian to compare alternatives.
 - Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
-- **Drag an element** to move it; **drag its left or right edge** to stretch or shrink it. **Drag across empty cells** to select a range — the bar underneath reports calendar days and working days, and offers to turn the selection into a new element.
-- **Right-click a day** to mark it non-working (or clear it). Weekends come from the \`weekly:\` line in the note; holidays and leave are individual entries. Every bar shows the working days it actually covers.
+- **Drag an element** to move it — in any direction. Dragging straight down moves it a week, since the grid measures a drag in days rather than pixels. **Drag its left or right edge** to stretch or shrink it.
+- **Right-click a day** to add a **bar**, **milestone**, or **note** there. Sweep across several days first and the bar covers the whole sweep; a milestone or note always lands on the first day.
+- **Click a day** to toggle it non-working. Weekends come from the \`weekly:\` line in the note and cannot be clicked — edit that line to change them. Clicking one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
+- **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
 - **Click an element** to edit its title, dates, color, and the task it links to.
+- **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, toggle, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
-- **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around.
-- **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.`;
+- **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
+- **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
+- **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
 
 const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
@@ -815,23 +819,48 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">Drag</span> an
-                element to move it; drag its{" "}
+                element to move it — in any direction. Dragging straight down
+                moves it a week, since the grid measures a drag in days rather
+                than pixels. Drag its{" "}
                 <span className="font-medium">left or right edge</span> to
-                stretch or shrink it. Drag across empty cells to select a range —
-                the bar underneath reports calendar days and working days, and
-                offers to turn the selection into a new element.
+                stretch or shrink it.
               </li>
               <li>
                 <span className="font-medium text-foreground">Right-click</span>{" "}
-                a day to mark it non-working (or clear it). Weekends come from
-                the <span className="font-mono text-xs">weekly:</span> line in
-                the note; holidays and leave are individual entries. Every bar
-                shows the working days it actually covers.
+                a day to add a <span className="font-medium">bar</span>,{" "}
+                <span className="font-medium">milestone</span>, or{" "}
+                <span className="font-medium">note</span> there. Sweep across
+                several days first and the bar covers the whole sweep; a
+                milestone or note always lands on the first day.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Click</span> a day
+                to toggle it non-working. Weekends come from the{" "}
+                <span className="font-mono text-xs">weekly:</span> line in the
+                note and cannot be clicked — edit that line to change them.
+                Clicking one day inside a multi-day entry (say a three-day
+                leave) takes just that day back rather than cancelling the whole
+                entry. Every bar shows the working days it actually covers.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Notes</span> are
+                comments on a day, like a cell comment in Excel: a small
+                triangle in the day's corner, with the text on hover. Click the
+                triangle to edit it.
               </li>
               <li>
                 <span className="font-medium text-foreground">Click</span> an
                 element to edit its title, dates, color, and the task it links
                 to.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Keyboard</span>:
+                with an element selected, <Kbd>←</Kbd> / <Kbd>→</Kbd> move it a
+                day, <Kbd>Shift</Kbd>+<Kbd>←</Kbd> / <Kbd>→</Kbd> stretch or
+                shrink a bar, <Kbd>Delete</Kbd> removes it, <Kbd>Esc</Kbd>{" "}
+                deselects. <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> undoes the last change —
+                drag, resize, toggle or delete — and{" "}
+                <Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>Z</Kbd> redoes it.
               </li>
               <li>
                 Tasks with a <span className="font-medium">due date</span> in the
@@ -850,7 +879,8 @@ export function HelpView() {
                 writes a single self-contained file (default: the project's{" "}
                 <span className="font-mono text-xs">attachments/</span>) that
                 opens anywhere and prints to A4 landscape — use the browser's
-                "Save as PDF" to hand it around.
+                "Save as PDF" to hand it around. Note text is listed in the
+                footer, since a printed page has no hover.
               </li>
               <li>
                 <span className="font-medium text-foreground">Edit with AI</span>:
@@ -860,6 +890,15 @@ export function HelpView() {
                 was just before the run. Choose the agent and model in{" "}
                 <span className="font-medium">⚙ Settings → Vault → Schedule</span>
                 .
+              </li>
+              <li>
+                <span className="font-medium">
+                  ⚙ Settings → Vault → Schedule → Calendar language
+                </span>{" "}
+                switches weekday names, month labels and day counts between
+                English and Japanese — in the calendar and across the whole
+                exported HTML. Menus and buttons stay English. It is display
+                only: a schedule note never stores localized text.
               </li>
             </ul>
           </Section>

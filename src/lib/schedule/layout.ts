@@ -17,7 +17,7 @@
  */
 
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
-import type { NonWorking, ScheduleDocModel, ScheduleItem } from "./parse";
+import type { NonWorking, NonWorkingRange, ScheduleDocModel, ScheduleItem } from "./parse";
 
 export interface LayoutDay {
   /** `YYYY-MM-DD`. */
@@ -63,8 +63,10 @@ export interface LayoutBar {
 
 export interface LayoutWeek {
   days: LayoutDay[];
-  /** Month label for the left gutter: the month most of this week sits in. */
-  monthLabel: string;
+  /** Month (1-12) most of this week sits in, for the left gutter. A number
+   * rather than a label: localization belongs to the renderer (`i18n.ts`), so
+   * geometry stays independent of display language. */
+  gutterMonth: number;
   bars: LayoutBar[];
   /** Number of stacking lanes this week needs (0 when it has no bars). */
   lanes: number;
@@ -77,9 +79,10 @@ export interface Layout {
   end: string;
 }
 
-/** Monday-first weeks: a working week reads Mon..Sun, and a plan is about
- * working weeks. `date-fns`' `weekStartsOn: 1`. */
-const WEEK_STARTS_ON = 1;
+/** Sunday-first weeks, matching the calendars this feature replaces (paper
+ * and Miro) so a plan reads the way the user already draws it. `date-fns`'
+ * `weekStartsOn: 0`; `LayoutDay.weekday` is the same 0-6 scale. */
+const WEEK_STARTS_ON = 0;
 
 export function toISO(d: Date): string {
   return format(d, "yyyy-MM-dd");
@@ -108,6 +111,49 @@ export function isNonWorking(date: string, nw: NonWorking): boolean {
 function nonWorkingLabel(date: string, nw: NonWorking): string | undefined {
   const hit = nw.ranges.find((r) => date >= r.start && date <= r.end && r.label);
   return hit?.label;
+}
+
+/** Whether this date is non-working because of the standing `weekly:` rule
+ * rather than an explicit entry. Such a day cannot be toggled from the grid —
+ * the notation has no "working exception" — so the UI reports why instead of
+ * silently doing nothing. */
+export function isWeeklyNonWorking(date: string, nw: NonWorking): boolean {
+  return nw.weekly.includes(fromISO(date).getDay());
+}
+
+/**
+ * Adds or removes one day from the explicit non-working entries.
+ *
+ * Removing a day that sits inside a multi-day entry **splits** the entry
+ * rather than dropping it: clicking 8/14 inside "8/13..8/15 summer leave"
+ * should take one day back, not silently cancel the whole leave. The label is
+ * carried onto both halves.
+ *
+ * A day covered by the `weekly:` rule is returned unchanged — see
+ * `isWeeklyNonWorking`.
+ */
+export function toggleNonWorkingDay(nw: NonWorking, date: string): NonWorking {
+  if (isWeeklyNonWorking(date, nw)) return nw;
+
+  const covered = nw.ranges.some((r) => date >= r.start && date <= r.end);
+  if (!covered) {
+    const ranges = [...nw.ranges, { start: date, end: date, label: "" }].sort((a, b) =>
+      a.start.localeCompare(b.start),
+    );
+    return { ...nw, ranges };
+  }
+
+  const ranges: NonWorkingRange[] = [];
+  for (const r of nw.ranges) {
+    if (date < r.start || date > r.end) {
+      ranges.push(r);
+      continue;
+    }
+    if (r.start < date) ranges.push({ ...r, end: shiftDate(date, -1) });
+    if (r.end > date) ranges.push({ ...r, start: shiftDate(date, 1) });
+    // A single-day entry contributes neither half: it is simply removed.
+  }
+  return { ...nw, ranges };
 }
 
 /**
@@ -211,7 +257,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
     }
     const lanes = packBars(bars);
 
-    weeks.push({ days, monthLabel: monthLabelFor(days), bars, lanes });
+    weeks.push({ days, gutterMonth: gutterMonthFor(days), bars, lanes });
     cursor = addDays(cursor, 7);
   }
 
@@ -224,11 +270,11 @@ function dayIndex(days: LayoutDay[], date: string): number {
 }
 
 /**
- * Gutter label for a week: the month holding most of its days. A week split
+ * Gutter month for a week: the month holding most of its days. A week split
  * across two months gets the one it mostly belongs to, and the month change
  * itself is carried by the per-day marker instead.
  */
-function monthLabelFor(days: LayoutDay[]): string {
+function gutterMonthFor(days: LayoutDay[]): number {
   const counts = new Map<string, number>();
   for (const d of days) {
     const key = `${d.year}-${d.month}`;
@@ -243,26 +289,8 @@ function monthLabelFor(days: LayoutDay[]): string {
     }
   }
   const [, month] = best.split("-");
-  return MONTH_NAMES[Number(month) - 1] ?? "";
+  return Number(month);
 }
-
-/** Short month names, spelled out rather than formatted at render time:
- * `toLocaleString` would follow the OS display language and turn the gutter
- * Japanese on a Japanese machine (`.claude/rules/tauri-webview-gotchas.md`). */
-const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
 
 /** Parses a `YYYY-MM-DD..YYYY-MM-DD` frontmatter range. Returns null when the
  * value is absent or malformed, so the caller can fall back to a default
@@ -283,4 +311,16 @@ export function formatRange(start: string, end: string): string {
  * expressed in, so drag handling never touches `Date` directly. */
 export function shiftDate(date: string, days: number): string {
   return toISO(addDays(fromISO(date), days));
+}
+
+/**
+ * Whole days from `from` to `to` (negative when `to` is earlier).
+ *
+ * This is how a drag measures itself: the day under the pointer minus the day
+ * the drag started on. Measuring in *dates* rather than pixels is what lets a
+ * drag cross week rows — a pixel delta only ever describes horizontal travel,
+ * so dragging straight down used to move nothing.
+ */
+export function dayDelta(from: string, to: string): number {
+  return differenceInCalendarDays(fromISO(to), fromISO(from));
 }

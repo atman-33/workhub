@@ -17,11 +17,19 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { exportScheduleHtml } from "@/lib/schedule/export";
-import { formatRange, parseRange, shiftDate, toISO } from "@/lib/schedule/layout";
+import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
+import {
+  formatRange,
+  parseRange,
+  shiftDate,
+  toISO,
+  toggleNonWorkingDay,
+} from "@/lib/schedule/layout";
 import {
   nextItemId,
   parseSchedule,
   serializeSchedule,
+  type ItemKind,
   type ScheduleDocModel,
   type ScheduleItem,
 } from "@/lib/schedule/parse";
@@ -44,6 +52,10 @@ import type { Config, ScheduleEditRun, ScheduleFile, Task } from "@/types";
 
 /** Quiet period after the last edit before the file is written. */
 const SAVE_DEBOUNCE_MS = 600;
+/** Depth of the in-memory undo stack (Ctrl+Z). Deep enough to walk back out of
+ * a run of experiments, shallow enough that it is obviously not a substitute
+ * for the file's git history. */
+const UNDO_LIMIT = 50;
 /** Default window when a note has no usable `range` (design note §3.1). */
 const DEFAULT_WEEKS = 6;
 
@@ -66,6 +78,11 @@ export function ScheduleView({ configVersion }: Props) {
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
+  // "that drag went somewhere I didn't mean", not for history — the file's git
+  // backup and the AI-edit snapshot cover the durable cases.
+  const undoStack = useRef<ScheduleDocModel[]>([]);
+  const redoStack = useRef<ScheduleDocModel[]>([]);
 
   // The raw file text and the mtime it was read at: serialization needs the
   // original bytes to preserve `## Memo` and unmanaged frontmatter, and the
@@ -75,6 +92,8 @@ export function ScheduleView({ configVersion }: Props) {
 
   const vaultPath = config?.settings.vault_path ?? null;
   const aiRunning = aiRun?.state === "running";
+  const rawLocale = config?.settings.schedule_locale ?? "en";
+  const locale: ScheduleLocale = isScheduleLocale(rawLocale) ? rawLocale : "en";
 
   useEffect(() => {
     void api.getConfig().then(setConfig);
@@ -93,6 +112,10 @@ export function ScheduleView({ configVersion }: Props) {
     const read = await api.readSchedule(target);
     source.current = { content: read.content, mtime: read.mtime };
     const parsed = parseSchedule(read.content);
+    // A reload means the file, not the user, decided the current state — the
+    // stack would otherwise let Ctrl+Z "undo" someone else's edit.
+    undoStack.current = [];
+    redoStack.current = [];
     setDoc(parsed);
     setWindow((prev) => prev ?? parseRange(parsed.range) ?? defaultWindow());
   }, []);
@@ -135,11 +158,10 @@ export function ScheduleView({ configVersion }: Props) {
   }, []);
 
   /**
-   * Applies a change to the in-memory model and schedules a write. The model
-   * updates synchronously so dragging stays responsive; disk catches up when
-   * the gesture settles.
+   * Writes a model to state and schedules the file write, without touching the
+   * undo stacks — the undo/redo handlers manage those themselves.
    */
-  const mutate = useCallback(
+  const apply = useCallback(
     (next: ScheduleDocModel) => {
       if (aiRunning) return; // the agent holds the file
       setDoc(next);
@@ -163,6 +185,41 @@ export function ScheduleView({ configVersion }: Props) {
     [aiRunning, path, loadDoc],
   );
 
+  /**
+   * Applies a user edit: records the previous state for undo, then writes.
+   *
+   * Every drag, resize, toggle and delete goes through here, which is what
+   * makes one Ctrl+Z always mean "the last thing I did" — including the
+   * clicks that now toggle non-working days, where a mis-click is easy.
+   */
+  const mutate = useCallback(
+    (next: ScheduleDocModel) => {
+      if (aiRunning || !doc) return;
+      undoStack.current = [...undoStack.current, doc].slice(-UNDO_LIMIT);
+      redoStack.current = [];
+      apply(next);
+    },
+    [aiRunning, doc, apply],
+  );
+
+  const undo = useCallback(() => {
+    const previous = undoStack.current.at(-1);
+    if (!previous || !doc || aiRunning) return;
+    undoStack.current = undoStack.current.slice(0, -1);
+    redoStack.current = [...redoStack.current, doc];
+    setSelected(null);
+    apply(previous);
+  }, [doc, aiRunning, apply]);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.at(-1);
+    if (!next || !doc || aiRunning) return;
+    redoStack.current = redoStack.current.slice(0, -1);
+    undoStack.current = [...undoStack.current, doc];
+    setSelected(null);
+    apply(next);
+  }, [doc, aiRunning, apply]);
+
   const patchItem = useCallback(
     (id: string, patch: (item: ScheduleItem) => ScheduleItem) => {
       if (!doc) return;
@@ -184,7 +241,7 @@ export function ScheduleView({ configVersion }: Props) {
       `${vaultPath}/projects/${file?.project ?? project}/attachments`;
     const name = `${(doc.title || "schedule").replace(/[\\/:*?"<>|]/g, "-")} ${window_.start}.html`;
     const out = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${name}`;
-    const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()) });
+    const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale });
     try {
       await api.exportScheduleHtml(out, html);
       setStatus(`Exported to ${out}`);
@@ -192,7 +249,71 @@ export function ScheduleView({ configVersion }: Props) {
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, window_, vaultPath, files, path, project, config]);
+  }, [doc, window_, vaultPath, files, path, project, config, locale]);
+
+  /**
+   * Keyboard editing: undo/redo, plus nudging the selected element.
+   *
+   * Dragging is for placing something roughly; the arrow keys are for the last
+   * day or two of adjustment, where a mouse is the wrong instrument. Bound on
+   * the window rather than a focused element so the shortcuts work straight
+   * after a drag, without the user having to click the grid first.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Never steal a key from a field the user is typing in.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      if (aiRunning) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (e.key === "Escape") {
+        setSelected(null);
+        return;
+      }
+      if (!selected) return;
+
+      if (e.key === "Delete") {
+        e.preventDefault();
+        if (doc) mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
+        setSelected(null);
+        return;
+      }
+      const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      // Shift resizes the end; without it the whole element moves. A bar can
+      // be shortened to a single day but never inverted.
+      if (e.shiftKey) {
+        if (selected.kind !== "bar") return;
+        const end = shiftDate(selected.end, step);
+        if (end < selected.start) return;
+        const next = { ...selected, end };
+        setSelected(next);
+        patchItem(next.id, () => next);
+      } else {
+        const next = {
+          ...selected,
+          start: shiftDate(selected.start, step),
+          end: shiftDate(selected.end, step),
+        };
+        setSelected(next);
+        patchItem(next.id, () => next);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selected, doc, aiRunning, undo, redo, mutate, patchItem]);
 
   if (!vaultPath) {
     return (
@@ -327,6 +448,8 @@ export function ScheduleView({ configVersion }: Props) {
               start={window_.start}
               end={window_.end}
               tasks={projectTasks}
+              locale={locale}
+              selectedId={selected?.id ?? null}
               readOnly={aiRunning}
               onMoveItem={(id, delta) =>
                 patchItem(id, (i) => ({
@@ -349,7 +472,7 @@ export function ScheduleView({ configVersion }: Props) {
               }
               onSelectItem={(item) => setSelected(item)}
               onToggleNonWorking={(date) => toggleNonWorking(date)}
-              onCreateBar={(start, end) => createBar(start, end)}
+              onCreateItem={(kind, from, to) => createItem(kind, from, to)}
               onMoveTaskDue={(taskId, date) => {
                 void api.updateTask(vaultPath, { id: taskId, due: date }).then(() => {
                   void api.listTasks(vaultPath).then(setTasks);
@@ -400,43 +523,34 @@ export function ScheduleView({ configVersion }: Props) {
     </div>
   );
 
+  /** Non-working toggle for one day. The splitting behaviour (and the
+   * weekend no-op) lives in `toggleNonWorkingDay` so the grid, the keyboard
+   * and any future caller all get the same rule. */
   function toggleNonWorking(date: string) {
     if (!doc) return;
-    const covering = doc.nonWorking.ranges.find((r) => date >= r.start && date <= r.end);
-    if (covering) {
-      // Only whole explicit entries are removed. Carving a day out of a
-      // multi-day range would need to split it in two, which is a file edit
-      // the user is better off making in Obsidian than discovering by
-      // right-clicking.
-      mutate({
-        ...doc,
-        nonWorking: {
-          ...doc.nonWorking,
-          ranges: doc.nonWorking.ranges.filter((r) => r !== covering),
-        },
-      });
-      return;
-    }
-    mutate({
-      ...doc,
-      nonWorking: {
-        ...doc.nonWorking,
-        ranges: [...doc.nonWorking.ranges, { start: date, end: date, label: "" }].sort((a, b) =>
-          a.start.localeCompare(b.start),
-        ),
-      },
-    });
+    const nonWorking = toggleNonWorkingDay(doc.nonWorking, date);
+    if (nonWorking === doc.nonWorking) return; // weekend: nothing to change
+    mutate({ ...doc, nonWorking });
   }
 
-  function createBar(start: string, end: string) {
+  /**
+   * Creates an element of the kind the user picked from the day's context
+   * menu. Choosing the kind up front is what removes the old two-step dance
+   * (make a bar, then convert it in the side panel).
+   *
+   * A bar opens the editor so its title can be typed immediately; a note does
+   * too, since an untitled note is an empty comment marker. A milestone opens
+   * as well, for the same reason — every kind is created untitled.
+   */
+  function createItem(kind: ItemKind, start: string, end: string) {
     if (!doc) return;
     const item: ScheduleItem = {
-      kind: "bar",
+      kind,
       id: nextItemId(doc.items),
       start,
-      end,
-      title: "New bar",
-      color: "blue",
+      end: kind === "bar" ? end : start,
+      title: "",
+      ...(kind === "bar" ? { color: "blue" as const } : {}),
     };
     mutate({ ...doc, items: [...doc.items, item] });
     setSelected(item);

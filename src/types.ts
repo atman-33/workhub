@@ -79,6 +79,9 @@ export interface Settings {
   schedule_confirm: boolean;
   /** Default HTML export destination; empty = the project's `attachments/`. */
   schedule_export_dir: string;
+  /** Calendar display language, on screen and in the HTML export: "en" | "ja".
+   * Display only — a schedule note never stores localized text. */
+  schedule_locale: string;
 }
 
 /** One schedule note as the picker sees it (`list_schedules`). */

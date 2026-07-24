@@ -142,6 +142,13 @@ pub struct Settings {
     /// project it describes.
     #[serde(default)]
     pub schedule_export_dir: String,
+    /// Display language for the schedule calendar — weekday and month labels
+    /// on screen *and* in the HTML export: "en" | "ja". Display only; a
+    /// schedule note never stores localized text, so this can never change a
+    /// file. The export follows it too because the exported file is a hand-out
+    /// for other people, not a dump of the authoring machine's locale.
+    #[serde(default = "default_schedule_locale")]
+    pub schedule_locale: String,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -263,6 +270,9 @@ fn default_task_language() -> String {
 fn default_schedule_assignee() -> String {
     "claude-code".into()
 }
+fn default_schedule_locale() -> String {
+    "en".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -297,6 +307,7 @@ impl Default for Settings {
             schedule_model: String::new(),
             schedule_confirm: false,
             schedule_export_dir: String::new(),
+            schedule_locale: default_schedule_locale(),
         }
     }
 }
