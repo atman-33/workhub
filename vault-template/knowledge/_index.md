@@ -11,4 +11,5 @@ tags:
 
 One line per note: link + one-sentence description of what it answers.
 
-(No notes yet.)
+- [[profile/about-me|About me]] — who the vault owner is: background, current
+  work, preferences, and where the rest of their context lives.

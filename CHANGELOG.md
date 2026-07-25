@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.61.0 (2026-07-25)
+
+- **A common prompt for every agent session, kept in the vault** (T-0093,
+  T-0094). The vault template now ships the ground rules that used to be
+  re-explained in each conversation:
+  - `CLAUDE.md` gains a **Working agreement** section — plan before building
+    and reuse what exists, ask and push back instead of agreeing silently,
+    record decisions and rejected options without being asked, and confirm
+    before anything irreversible or outward-facing. Existing vaults pick it up
+    on the next template sync.
+  - `knowledge/profile/about-me.md` is a new skeleton note for who the vault
+    owner is: background, current work, agent preferences, and where the rest
+    of their context lives. Agents read it instead of asking the owner to
+    restate their situation every session. It is seeded once and never
+    overwritten by a template sync, so it is safe to edit.
+  - `vault-init` walks through both during setup and offers to draft the
+    profile note from what is already known about the user.
+
 ## 0.60.0 (2026-07-25)
 
 - **Send a task to Claude Desktop in one click** (T-0095). AI task cards, list

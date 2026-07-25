@@ -3,6 +3,7 @@
     "home.md",
     "tasks/_index.md",
     "knowledge/_index.md",
+    "knowledge/profile/about-me.md",
     ".claude/project-context.json",
     ".claude/settings.json",
     "projects/_index.md",
