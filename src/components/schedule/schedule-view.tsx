@@ -26,6 +26,7 @@ import {
   toggleNonWorkingDay,
 } from "@/lib/schedule/layout";
 import {
+  isRangeKind,
   nextItemId,
   parseSchedule,
   serializeSchedule,
@@ -296,10 +297,10 @@ export function ScheduleView({ configVersion }: Props) {
       const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
       if (!step) return;
       e.preventDefault();
-      // Shift resizes the end; without it the whole element moves. A bar can
-      // be shortened to a single day but never inverted.
+      // Shift resizes the end; without it the whole element moves. A range
+      // element can be shortened to a single day but never inverted.
       if (e.shiftKey) {
-        if (selected.kind !== "bar") return;
+        if (!isRangeKind(selected.kind)) return;
         const end = shiftDate(selected.end, step);
         if (end < selected.start) return;
         const next = { ...selected, end };
@@ -576,9 +577,9 @@ export function ScheduleView({ configVersion }: Props) {
       kind,
       id: nextItemId(doc.items),
       start,
-      end: kind === "bar" ? end : start,
+      end: isRangeKind(kind) ? end : start,
       title: "",
-      ...(kind === "bar" ? { color: "blue" as const } : {}),
+      ...(isRangeKind(kind) ? { color: "blue" as const } : {}),
     };
     mutate({ ...doc, items: [...doc.items, item] });
     setSelected(item);

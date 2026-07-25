@@ -21,13 +21,17 @@ updated: {{DATE}}
 ## Items
 
 <!-- - [<kind>] <id> <date-spec> <title> [#<color>] [task:<task-id>]
-     kind: bar | milestone | note
-     date-spec: `YYYY-MM-DD..YYYY-MM-DD` for a bar, `YYYY-MM-DD` otherwise
+     kind: bar | arrow | milestone | note
+       bar   — a period that is settled
+       arrow — the same span as an estimate, drawn as a thin double-headed
+               line (lead time, buffer, parallel work)
+     date-spec: `YYYY-MM-DD..YYYY-MM-DD` for a bar or arrow, `YYYY-MM-DD`
+       otherwise
      id: `I-` + a number, unique in this file — never change or reuse one
      color: blue | green | amber | red | purple | gray
 
      An element can carry extra text on indented continuation lines beneath
-     it. A note shows them on hover in the app; a bar or milestone shows them
+     it. A note shows them on hover in the app; every other kind shows them
      in its tooltip:
 
        - [note] I-004 2026-07-31 monthly review

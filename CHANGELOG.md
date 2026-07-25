@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.62.0 (2026-07-25)
+
+- **A weaker kind of period on the schedule: `arrow`** (T-0096). A bar states
+  that a period is settled, which makes it the wrong shape for a span you are
+  only guessing at — a vendor lead time, a buffer, work running alongside.
+  The Schedule tab gains a fourth element kind for exactly that: an `arrow`
+  covers a date range like a bar and drags, resizes and links to a task the
+  same way, but it is drawn as a thin double-headed line instead of a filled
+  band, so a plan shows at a glance which periods are committed and which are
+  estimates. Add one from a day's right-click menu, or switch an existing
+  element's kind in the edit panel. Arrows share the bar lanes, so they never
+  overlap a bar, and they reach the HTML export as the same hairline.
+- Tab order is now **Tasks → Repos → Schedule**, putting the two
+  repository-facing views next to each other.
+
 ## 0.61.0 (2026-07-25)
 
 - **A common prompt for every agent session, kept in the vault** (T-0093,

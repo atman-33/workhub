@@ -27,8 +27,32 @@
  * diff still shows one added line per added line.
  */
 
-/** Element kinds. Kept to three on purpose — see the design note §3.2. */
-export type ItemKind = "bar" | "milestone" | "note";
+/**
+ * Element kinds. The set is deliberately small (design note §3.2) — a kind
+ * earns its place by meaning something the others cannot say:
+ *
+ * - `bar` — a period that is settled.
+ * - `arrow` — a period that is an estimate: same geometry, drawn as a thin
+ *   double-headed line so it reads as weaker than a bar rather than competing
+ *   with it.
+ * - `milestone` — a point the plan has to reach.
+ * - `note` — a remark about a day.
+ */
+export type ItemKind = "bar" | "arrow" | "milestone" | "note";
+
+/**
+ * Kinds that span a date range (`start..end`) rather than sitting on one day.
+ *
+ * Every "is this a bar?" test in the app goes through here: the distinction the
+ * code actually cares about is range-vs-point, and spelling it as
+ * `kind === "bar"` is what would silently leave `arrow` out of bar lanes,
+ * resize handles and range serialization.
+ */
+const RANGE_KINDS: readonly ItemKind[] = ["bar", "arrow"];
+
+export function isRangeKind(kind: ItemKind): boolean {
+  return RANGE_KINDS.includes(kind);
+}
 
 /**
  * Colors are a fixed list rather than free-form values (§14.1): the screen and
@@ -194,7 +218,7 @@ function unquote(s: string): string {
 
 /** `- [bar] I-001 2026-07-21..2026-08-07 build it #blue task:T-0090` */
 function parseItemLine(line: string): ScheduleItem | null {
-  const m = /^\s*-\s*\[(bar|milestone|note)\]\s+(\S+)\s+(\S+)\s*(.*)$/.exec(line);
+  const m = /^\s*-\s*\[(bar|arrow|milestone|note)\]\s+(\S+)\s+(\S+)\s*(.*)$/.exec(line);
   if (!m) return null;
   const [, kind, id, dateSpec, restRaw] = m;
 
@@ -236,7 +260,7 @@ function parseItemLine(line: string): ScheduleItem | null {
     id,
     start,
     // A milestone/note carries a single date even if the file spelled a range.
-    end: kind === "bar" ? end : start,
+    end: isRangeKind(kind as ItemKind) ? end : start,
     title: rest,
     ...(color ? { color } : {}),
     ...(task ? { task } : {}),
@@ -350,7 +374,7 @@ const BODY_INDENT = "  ";
 /** Renders one element, plus its body as indented continuation lines — so the
  * result may span several lines. */
 export function formatItem(item: ScheduleItem): string {
-  const dates = item.kind === "bar" ? `${item.start}..${item.end}` : item.start;
+  const dates = isRangeKind(item.kind) ? `${item.start}..${item.end}` : item.start;
   const parts = [`- [${item.kind}]`, item.id, dates];
   // Only ever the first line: a stray newline in the title would otherwise
   // emit a second, unparsable element line.

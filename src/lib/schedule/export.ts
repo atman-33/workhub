@@ -79,6 +79,20 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
 }
 .bar.start { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
 .bar.end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+/* An arrow is the same span as a bar drawn with far less ink — a hairline
+   between two heads — so an estimated period reads as weaker than a settled
+   one on paper as well as on screen. */
+.arrow { position: absolute; height: 16px; }
+.arrow .aline { position: absolute; left: 0; right: 0; top: 11px; height: 1px; }
+.arrow.start .aline { left: 5px; }
+.arrow.end .aline { right: 5px; }
+.arrow .ahead { position: absolute; top: 8px; width: 0; height: 0;
+  border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+.arrow .ahead.l { left: 0; border-right-width: 5px; border-right-style: solid; }
+.arrow .ahead.r { right: 0; border-left-width: 5px; border-left-style: solid; }
+.arrow .alabel { position: absolute; left: 2px; right: 2px; top: 0;
+  font-size: 10px; line-height: 11px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .marker { position: absolute; top: 0; right: 0; width: 0; height: 0;
   border-top: 7px solid #b45309; border-left: 7px solid transparent; }
 .daycell { position: relative; }
@@ -143,13 +157,26 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       .map((b) => {
         const left = (b.startCol / 7) * 100;
         const width = ((b.endCol - b.startCol + 1) / 7) * 100;
-        const cls = ["bar", b.isStart ? "start" : "", b.isEnd ? "end" : ""]
+        const cls = [
+          b.item.kind === "arrow" ? "arrow" : "bar",
+          b.isStart ? "start" : "",
+          b.isEnd ? "end" : "",
+        ]
           .filter(Boolean)
           .join(" ");
+        const color = itemColor(b.item);
         const text = b.isStart ? `${esc(b.item.title)} (${b.workingDays}d)` : "";
-        return `<div class="${cls}" style="left:${left}%;width:${width}%;background:${itemColor(
-          b.item,
-        )}">${text}</div>`;
+        const box = `left:${left}%;width:${width}%`;
+        if (b.item.kind === "arrow") {
+          const head = (side: "l" | "r", edge: "left" | "right") =>
+            `<span class="ahead ${side}" style="border-${edge}-color:${color}"></span>`;
+          return `<div class="${cls}" style="${box}">${
+            b.isStart ? `<span class="alabel" style="color:${color}">${text}</span>` : ""
+          }<span class="aline" style="background:${color}"></span>${
+            b.isStart ? head("l", "right") : ""
+          }${b.isEnd ? head("r", "left") : ""}</div>`;
+        }
+        return `<div class="${cls}" style="${box};background:${color}">${text}</div>`;
       })
       .join("");
     lanes.push(`<div class="lane">${bars}</div>`);

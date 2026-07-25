@@ -17,6 +17,7 @@ import {
   dayDelta,
   isWeeklyNonWorking,
   shiftDate,
+  type LayoutBar,
 } from "@/lib/schedule/layout";
 import { COLOR_HEX, type ItemKind, type ScheduleDocModel, type ScheduleItem } from "@/lib/schedule/parse";
 import { cn } from "@/lib/utils";
@@ -328,61 +329,68 @@ export function ScheduleGrid({
                 );
               })()}
 
-            {/* Bars float above the cells, positioned in column percentages so
-                they stay aligned with the grid at any width. */}
+            {/* Range elements float above the cells, positioned in column
+                percentages so they stay aligned with the grid at any width. */}
             <div className="pointer-events-none absolute inset-x-0 top-6">
-              {week.bars.map((bar) => (
-                <div
-                  key={`${bar.item.id}-${bar.startCol}`}
-                  style={{
-                    left: `${(bar.startCol / 7) * 100}%`,
-                    width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
-                    top: bar.lane * LANE_H,
-                    background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
-                  }}
-                  onPointerDown={(e) => beginItemDrag(e, bar.item)}
-                  onPointerUp={() => endItemPress(bar.item)}
-                  className={cn(
-                    "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
-                    !readOnly && "cursor-grab active:cursor-grabbing",
-                    bar.isStart && "rounded-l",
-                    bar.isEnd && "rounded-r",
-                    selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
-                  )}
-                  title={[
-                    `${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
-                      bar.workingDays,
-                    )}`,
-                    bar.item.body,
-                  ]
-                    .filter(Boolean)
-                    .join("\n")}
-                >
-                  {bar.isStart && !readOnly && (
-                    <span
-                      onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
-                      className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
-                    />
-                  )}
-                  {bar.isStart && (
-                    <span className="truncate">
-                      {bar.item.title}
-                      <span className="ml-1 opacity-80">{bar.workingDays}d</span>
-                      {linkedStatus(bar.item) && (
-                        <span className="ml-1 rounded bg-black/25 px-1 text-[9px] uppercase">
-                          {linkedStatus(bar.item)}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {bar.isEnd && !readOnly && (
-                    <span
-                      onPointerDown={(e) => beginItemDrag(e, bar.item, "end")}
-                      className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
-                    />
-                  )}
-                </div>
-              ))}
+              {week.bars.map((bar) =>
+                bar.item.kind === "arrow" ? (
+                  <ArrowSegment
+                    key={`${bar.item.id}-${bar.startCol}`}
+                    bar={bar}
+                    laneHeight={LANE_H}
+                    selected={selectedId === bar.item.id}
+                    readOnly={readOnly}
+                    status={linkedStatus(bar.item)}
+                    title={rangeTooltip(bar, t)}
+                    onDrag={beginItemDrag}
+                    onPress={endItemPress}
+                  />
+                ) : (
+                  <div
+                    key={`${bar.item.id}-${bar.startCol}`}
+                    style={{
+                      left: `${(bar.startCol / 7) * 100}%`,
+                      width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+                      top: bar.lane * LANE_H,
+                      background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
+                    }}
+                    onPointerDown={(e) => beginItemDrag(e, bar.item)}
+                    onPointerUp={() => endItemPress(bar.item)}
+                    className={cn(
+                      "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
+                      !readOnly && "cursor-grab active:cursor-grabbing",
+                      bar.isStart && "rounded-l",
+                      bar.isEnd && "rounded-r",
+                      selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
+                    )}
+                    title={rangeTooltip(bar, t)}
+                  >
+                    {bar.isStart && !readOnly && (
+                      <span
+                        onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
+                        className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
+                      />
+                    )}
+                    {bar.isStart && (
+                      <span className="truncate">
+                        {bar.item.title}
+                        <span className="ml-1 opacity-80">{bar.workingDays}d</span>
+                        {linkedStatus(bar.item) && (
+                          <span className="ml-1 rounded bg-black/25 px-1 text-[9px] uppercase">
+                            {linkedStatus(bar.item)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {bar.isEnd && !readOnly && (
+                      <span
+                        onPointerDown={(e) => beginItemDrag(e, bar.item, "end")}
+                        className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
+                      />
+                    )}
+                  </div>
+                ),
+              )}
             </div>
 
             {/* Milestones and task chips sit below the bar lanes. Notes are not
@@ -485,6 +493,112 @@ export function ScheduleGrid({
             Clear selection
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Tooltip for a range element: dates, working days, and the body when set. */
+function rangeTooltip(bar: LayoutBar, t: ReturnType<typeof strings>): string {
+  return [
+    `${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
+      bar.workingDays,
+    )}`,
+    bar.item.body,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * An `arrow` segment: a thin double-headed line instead of a filled band.
+ *
+ * An arrow means the same shape of thing as a bar — a span of days — but one
+ * that is still an estimate, so it has to read as *weaker* than a bar rather
+ * than as another bar in a different color. Hence no fill: the ink is a hairline
+ * plus two heads, and the title sits above it in the element's own color.
+ *
+ * The heads are drawn only on the segments that hold the real start and end, so
+ * a span crossing week rows shows one head at each true edge and none at the
+ * week boundaries it merely passes through.
+ */
+function ArrowSegment({
+  bar,
+  laneHeight,
+  selected,
+  readOnly,
+  status,
+  title,
+  onDrag,
+  onPress,
+}: {
+  bar: LayoutBar;
+  laneHeight: number;
+  selected: boolean;
+  readOnly?: boolean;
+  status?: string;
+  title: string;
+  onDrag: (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => void;
+  onPress: (item: ScheduleItem) => void;
+}) {
+  const color = bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray;
+  return (
+    <div
+      style={{
+        left: `${(bar.startCol / 7) * 100}%`,
+        width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+        top: bar.lane * laneHeight,
+      }}
+      onPointerDown={(e) => onDrag(e, bar.item)}
+      onPointerUp={() => onPress(bar.item)}
+      className={cn(
+        "pointer-events-auto absolute h-[18px]",
+        !readOnly && "cursor-grab active:cursor-grabbing",
+        selected && "rounded ring-1 ring-foreground",
+      )}
+      title={title}
+    >
+      {bar.isStart && !readOnly && (
+        <span
+          onPointerDown={(e) => onDrag(e, bar.item, "start")}
+          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize"
+        />
+      )}
+      {bar.isStart && (
+        <span
+          className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
+          style={{ color }}
+        >
+          <span className="truncate">{bar.item.title}</span>
+          <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
+          {status && (
+            <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
+              {status}
+            </span>
+          )}
+        </span>
+      )}
+      {/* The line itself, vertically centred under the label. */}
+      <div className="absolute inset-x-0 top-[13px] flex items-center">
+        {bar.isStart && (
+          <span
+            className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
+            style={{ borderRightColor: color }}
+          />
+        )}
+        <span className="h-px flex-1" style={{ background: color }} />
+        {bar.isEnd && (
+          <span
+            className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
+            style={{ borderLeftColor: color }}
+          />
+        )}
+      </div>
+      {bar.isEnd && !readOnly && (
+        <span
+          onPointerDown={(e) => onDrag(e, bar.item, "end")}
+          className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-ew-resize"
+        />
       )}
     </div>
   );
@@ -618,6 +732,12 @@ function DayMenuItems({
         onSelect={() => onCreateItem("bar", range.start, range.end)}
       >
         Add bar
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={readOnly}
+        onSelect={() => onCreateItem("arrow", range.start, range.end)}
+      >
+        Add arrow
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}

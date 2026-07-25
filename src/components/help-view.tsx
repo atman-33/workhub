@@ -121,12 +121,13 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. Copy the file in Obsidian to compare alternatives.
 - Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
 - **Drag an element** to move it — in any direction. Dragging straight down moves it a week, since the grid measures a drag in days rather than pixels. **Drag its left or right edge** to stretch or shrink it.
-- **Right-click a day** to add a **bar**, **milestone**, or **note** there. Sweep across several days first and the bar covers the whole sweep; a milestone or note always lands on the first day.
+- **Right-click a day** to add a **bar**, **arrow**, **milestone**, or **note** there. Sweep across several days first and a bar or arrow covers the whole sweep; a milestone or note always lands on the first day.
+- **A bar is a settled period; an arrow is an estimate.** An arrow covers a range of days exactly like a bar and behaves the same way when you drag or resize it, but it is drawn as a thin double-headed line instead of a filled band — so a period you are not yet committed to (a vendor lead time, a buffer, something running in parallel) reads as weaker than one you are. Switch a kind at any time in the edit panel.
 - **Non-working days** are shaded and carry a small **✕** next to the date, so they stay distinguishable from a selection. Toggle one from the day's right-click menu. Weekends come from the \`weekly:\` line in the note and cannot be toggled here — edit that line to change them. Clearing one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
 - **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
-- **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; a bar or milestone shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
+- **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; every other kind shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
 - **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right, above the AI box — the panel keeps a constant width so the calendar never shifts under your pointer. Hide it with the panel button in the toolbar when you want the calendar at full width.
-- **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
+- **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar or arrow, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
@@ -882,10 +883,22 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Right-click</span>{" "}
                 a day to add a <span className="font-medium">bar</span>,{" "}
+                <span className="font-medium">arrow</span>,{" "}
                 <span className="font-medium">milestone</span>, or{" "}
                 <span className="font-medium">note</span> there. Sweep across
-                several days first and the bar covers the whole sweep; a
+                several days first and a bar or arrow covers the whole sweep; a
                 milestone or note always lands on the first day.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  A bar is a settled period; an arrow is an estimate.
+                </span>{" "}
+                An arrow covers a range of days exactly like a bar and behaves
+                the same way when you drag or resize it, but it is drawn as a
+                thin double-headed line instead of a filled band — so a period
+                you are not yet committed to (a vendor lead time, a buffer,
+                something running in parallel) reads as weaker than one you are.
+                Switch a kind at any time in the edit panel.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -911,7 +924,7 @@ export function HelpView() {
                   Any element can carry extra lines of text
                 </span>{" "}
                 — the <span className="font-medium">Details</span> box in the
-                edit panel. A note shows them on hover; a bar or milestone shows
+                edit panel. A note shows them on hover; every other kind shows
                 them in its tooltip. In the file they are indented lines under
                 the element, so they stay readable in Obsidian and in a diff.
               </li>
@@ -927,7 +940,7 @@ export function HelpView() {
                 <span className="font-medium text-foreground">Keyboard</span>:
                 with an element selected, <Kbd>←</Kbd> / <Kbd>→</Kbd> move it a
                 day, <Kbd>Shift</Kbd>+<Kbd>←</Kbd> / <Kbd>→</Kbd> stretch or
-                shrink a bar, <Kbd>Delete</Kbd> removes it, <Kbd>Esc</Kbd>{" "}
+                shrink a bar or arrow, <Kbd>Delete</Kbd> removes it, <Kbd>Esc</Kbd>{" "}
                 deselects. <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> undoes the last change —
                 drag, resize, create or delete — and{" "}
                 <Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>Z</Kbd> redoes it.

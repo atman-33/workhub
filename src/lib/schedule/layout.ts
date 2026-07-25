@@ -17,6 +17,7 @@
  */
 
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { isRangeKind } from "./parse";
 import type { NonWorking, NonWorkingRange, ScheduleDocModel, ScheduleItem } from "./parse";
 
 export interface LayoutDay {
@@ -42,7 +43,14 @@ export interface LayoutDay {
   points: ScheduleItem[];
 }
 
-/** A bar clipped to one week row. A bar spanning three weeks yields three. */
+/**
+ * A range element (`bar` or `arrow`) clipped to one week row. One spanning
+ * three weeks yields three.
+ *
+ * Both kinds share these lanes on purpose: they occupy the same days, so
+ * packing them separately would let an arrow and a bar overlap on screen. The
+ * renderer tells them apart from `item.kind`.
+ */
 export interface LayoutBar {
   item: ScheduleItem;
   /** Column index within the week, 0-6. */
@@ -210,7 +218,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
   // O(days x items) for no benefit.
   const pointsByDate = new Map<string, ScheduleItem[]>();
   for (const item of doc.items) {
-    if (item.kind === "bar") continue;
+    if (isRangeKind(item.kind)) continue;
     const list = pointsByDate.get(item.start);
     if (list) list.push(item);
     else pointsByDate.set(item.start, [item]);
@@ -241,7 +249,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
     const weekEnd = days[6].date;
     const bars: LayoutBar[] = [];
     for (const item of doc.items) {
-      if (item.kind !== "bar") continue;
+      if (!isRangeKind(item.kind)) continue;
       if (item.end < weekStart || item.start > weekEnd) continue;
       const startCol = item.start <= weekStart ? 0 : dayIndex(days, item.start);
       const endCol = item.end >= weekEnd ? 6 : dayIndex(days, item.end);

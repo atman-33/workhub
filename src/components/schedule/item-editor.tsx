@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COLOR_HEX, COLORS, type Color, type ScheduleItem } from "@/lib/schedule/parse";
+import { COLOR_HEX, COLORS, isRangeKind, type Color, type ScheduleItem } from "@/lib/schedule/parse";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -29,8 +29,8 @@ import type { Task } from "@/types";
  * break the link between a note's history and the thing it describes.
  *
  * `Details` is the element's body — the indented continuation lines under it
- * in the file. A note shows it on hover in the grid; a bar or milestone shows
- * it in its tooltip, where it reads as a remark about the element.
+ * in the file. A note shows it on hover in the grid; every other kind shows it
+ * in its tooltip, where it reads as a remark about the element.
  */
 
 interface Props {
@@ -61,13 +61,13 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
 
   const commit = (patch: Partial<ScheduleItem>) => {
     const next = { ...draft, ...patch };
-    // A bar cannot end before it starts; pushing the far edge along is less
-    // surprising than rejecting the edit the user just made.
-    if (next.kind === "bar" && next.end < next.start) {
+    // A range element cannot end before it starts; pushing the far edge along is
+    // less surprising than rejecting the edit the user just made.
+    if (isRangeKind(next.kind) && next.end < next.start) {
       if (patch.start) next.end = next.start;
       else next.start = next.end;
     }
-    if (next.kind !== "bar") next.end = next.start;
+    if (!isRangeKind(next.kind)) next.end = next.start;
     setDraft(next);
     onChange(next);
   };
@@ -86,6 +86,7 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="bar">Bar</SelectItem>
+            <SelectItem value="arrow">Arrow</SelectItem>
             <SelectItem value="milestone">Milestone</SelectItem>
             <SelectItem value="note">Note</SelectItem>
           </SelectContent>
@@ -109,7 +110,7 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
 
       <div className="space-y-1.5">
         <DatePicker value={draft.start} onChange={(v) => v && commit({ start: v })} />
-        {draft.kind === "bar" && (
+        {isRangeKind(draft.kind) && (
           <DatePicker value={draft.end} onChange={(v) => v && commit({ end: v })} />
         )}
       </div>

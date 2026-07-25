@@ -329,6 +329,68 @@ describe("buildLayout", () => {
   });
 });
 
+describe("arrow elements", () => {
+  const WITH_ARROW = NOTE.replace(
+    "- [milestone] I-003 2026-08-20 release review #red",
+    "- [arrow] I-005 2026-07-22..2026-07-30 vendor lead time #gray\n- [milestone] I-003 2026-08-20 release review #red",
+  );
+
+  it("parses and writes an arrow with a date range, like a bar", () => {
+    const doc = parseSchedule(WITH_ARROW);
+    expect(doc.items.find((i) => i.id === "I-005")).toEqual({
+      kind: "arrow",
+      id: "I-005",
+      start: "2026-07-22",
+      end: "2026-07-30",
+      title: "vendor lead time",
+      color: "gray",
+    });
+    expect(doc.rawItems).toEqual([]);
+    expect(
+      formatItem({ kind: "arrow", id: "I-009", start: "2026-08-01", end: "2026-08-03", title: "x" }),
+    ).toBe("- [arrow] I-009 2026-08-01..2026-08-03 x");
+  });
+
+  it("shares the bar lanes so an arrow and a bar cannot overlap on screen", () => {
+    const doc = parseSchedule(WITH_ARROW);
+    const mixed: ScheduleDocModel = {
+      ...doc,
+      items: [
+        { kind: "bar", id: "I-101", start: "2026-07-20", end: "2026-07-24", title: "a" },
+        { kind: "arrow", id: "I-102", start: "2026-07-22", end: "2026-07-25", title: "b" },
+      ],
+    };
+    const week = buildLayout(mixed, "2026-07-19", "2026-07-25").weeks[0];
+    expect(week.lanes).toBe(2);
+    expect(week.bars.find((b) => b.item.id === "I-102")?.lane).toBe(1);
+  });
+
+  it("is a range element, never a point on its start day", () => {
+    const layout = buildLayout(parseSchedule(WITH_ARROW), "2026-07-19", "2026-08-01");
+    const days = layout.weeks.flatMap((w) => w.days);
+    expect(days.every((d) => d.points.every((p) => p.kind !== "arrow"))).toBe(true);
+    // 7/22 (Wed) is where the arrow starts: column 3 of its week row.
+    const segments = layout.weeks.flatMap((w) => w.bars.filter((b) => b.item.id === "I-005"));
+    expect(segments[0]).toMatchObject({ startCol: 3, isStart: true, isEnd: false });
+    expect(segments.at(-1)).toMatchObject({ isEnd: true });
+  });
+
+  it("exports as a hairline with heads rather than a filled band", () => {
+    const html = exportScheduleHtml(parseSchedule(WITH_ARROW), {
+      start: "2026-07-20",
+      end: "2026-08-31",
+      today: "2026-07-24",
+      locale: "en",
+    });
+    expect(html).toContain('class="arrow start"');
+    expect(html).toContain('class="ahead l"');
+    expect(html).toContain("vendor lead time");
+    // The label carries the working-day count the same way a bar's does.
+    const workingDays = countWorkingDays("2026-07-22", "2026-07-30", parseSchedule(NOTE).nonWorking);
+    expect(html).toContain(`vendor lead time (${workingDays}d)`);
+  });
+});
+
 describe("toggleNonWorkingDay", () => {
   const nw = parseSchedule(NOTE).nonWorking;
 
