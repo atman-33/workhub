@@ -42,7 +42,23 @@ argument-hint: "<target-path>"
       workspace by default; if they use herdr, run `setup-herdr` from the
       `productivity` plugin to install it and wire up the Claude Code /
       OpenCode integrations.
-7. **Suggest next steps**: open the folder as a vault in Obsidian, then
+7. **Seed the common prompt.** The copied `CLAUDE.md` already carries the
+   *Working agreement* — the rules every agent session in the vault follows
+   (plan before building, ask instead of assuming, record decisions, confirm
+   irreversible actions). Point the user at it, and set up the one part that
+   is theirs alone:
+   - `knowledge/profile/about-me.md` is a skeleton: who they are, their
+     background, current work, agent preferences, and where the rest of their
+     context lives (other vaults, Notion, GitHub, internal wikis).
+   - Offer to draft it now from what is already known about them, and have
+     them correct it — a rough first version they fix beats an empty one they
+     never fill in. It grows over time.
+   - The file is seeded once and never overwritten by a template sync, so it
+     is safe to edit.
+   - Mention **Settings → Commands → Custom prompt** in the app for a short
+     personal delta appended to every task prompt; anything longer belongs in
+     these two vault files instead (its whitespace collapses to single spaces).
+8. **Suggest next steps**: open the folder as a vault in Obsidian, then
    create a first task in the workhub app or via `templates/task.md`, and
    start AI agent sessions with the vault as the working directory. For
    knowledge management, drop raw notes into `inbox/` and run `/kb-ingest`;

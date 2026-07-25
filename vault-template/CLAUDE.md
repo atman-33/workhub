@@ -10,7 +10,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 |--------|------|----------|
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes and task deliverables |
-| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
+| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme (incl. `profile/about-me.md`) |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
@@ -20,6 +20,47 @@ files; it is the single source of truth for tasks and shared knowledge.
 
 English folder names are lowercase kebab-case. Topic folders under `knowledge/`
 follow the same convention (e.g. `knowledge/infra/`).
+
+## Working agreement
+
+How agents and the owner work together here. It applies to every session in
+this vault, on top of the task-specific prompt.
+
+**Owner context.** `knowledge/profile/about-me.md` says who the owner is —
+background, current work, preferences, and where the rest of their context
+lives. Read it before work that depends on any of that, instead of asking the
+owner to restate it. When a session reveals something durable about them that
+the note is missing, offer to add it.
+
+**Before building.** Write the plan before the implementation, and get it
+approved when the task is plan-first. Reuse what already exists — an existing
+note, module, or convention beats a new one. Prefer being handed the goal
+(what, for whom, why) and working out the *how* yourself; when the goal is
+unclear, ask for it rather than guessing at steps.
+
+**In conversation.** Be a collaborator, not a yes-man. Ask about anything
+ambiguous instead of picking an interpretation silently, and say so when a
+request looks wrong, more expensive than it needs to be, or solvable a better
+way. Disagree with reasons, then follow the owner's decision.
+
+**Recording.** Write down what a future session would otherwise have to
+rediscover, without being asked: decisions and the reasoning behind them,
+options that were rejected and why, and ideas parked for later. Route it as
+described in *Capturing knowledge* below — working notes for a session go to
+`_ai/memory/`, design decisions to the project's `dev-notes/`, reusable
+constraints to `.claude/rules/`. When something fails, record the cause and
+what to do differently, so the next session does not repeat it.
+
+**Safety.** Confirm with the owner before anything irreversible or outward
+facing: deleting or overwriting files, force-pushing, rewriting history,
+sending mail or messages, publishing, or spending money. Prefer the reversible
+form (append, copy, new file, draft) when one exists. Approval for one action
+is not approval for the next one.
+
+The workhub app's **Settings → Commands → Custom prompt** is appended verbatim
+to every task launch prompt; its whitespace collapses to single spaces, so keep
+it to a short personal delta. Anything longer belongs in this file or in
+`knowledge/profile/about-me.md`, which agents read from the vault itself.
 
 ## Knowledge workflow
 
@@ -265,6 +306,8 @@ mechanical authoring):
   link them. `_ai/` is yours to manage freely.
 
 <important>
+- Confirm with the owner before irreversible or outward-facing actions
+  (deleting, overwriting, force-pushing, sending, publishing, spending).
 - Never set a task's `status` to `done`. Only humans mark tasks done in the app.
 - Never delete a worktree folder directly; always use `git worktree remove`.
 - Do not author skills inside this vault; keep skill source in the workhub repo.
