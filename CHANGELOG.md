@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.63.0 (2026-07-25)
+
+- **The schedule says where today is** (T-0096). Today's date is drawn as a
+  filled pill in its day cell — one marker in its own visual channel, so it
+  stays readable next to non-working shading and a range selection. A **Today**
+  button next to the date range scrolls to it, and moves the range onto today
+  when today is outside the window entirely. The HTML export marks it too, as
+  an outlined pill that survives black-and-white printing.
+- **Change the displayed range with the wheel** (T-0096). Over the calendar,
+  `Shift` + wheel moves the range a week at a time and `Ctrl` + wheel grows or
+  shrinks it (one week to a year, anchored at the start so nothing on screen
+  jumps). A plain wheel still scrolls as before. The range is view state, so
+  none of this touches the note.
+
 ## 0.62.0 (2026-07-25)
 
 - **A weaker kind of period on the schedule: `arrow`** (T-0096). A bar states

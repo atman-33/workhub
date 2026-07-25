@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, PanelRightClose, PanelRightOpen, Plus, RefreshCw } from "lucide-react";
+import {
+  CalendarCheck,
+  Download,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
@@ -20,10 +27,13 @@ import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
   formatRange,
+  panWindow,
   parseRange,
   shiftDate,
   toISO,
   toggleNonWorkingDay,
+  windowAround,
+  zoomWindow,
 } from "@/lib/schedule/layout";
 import {
   isRangeKind,
@@ -94,6 +104,8 @@ export function ScheduleView({ configVersion }: Props) {
   // mtime is what makes the next write conflict-safe.
   const source = useRef<{ content: string; mtime: number }>({ content: "", mtime: 0 });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The calendar's scroll container — what the Today button scrolls. */
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
   const aiRunning = aiRun?.state === "running";
@@ -103,6 +115,18 @@ export function ScheduleView({ configVersion }: Props) {
   useEffect(() => {
     void api.getConfig().then(setConfig);
   }, [configVersion]);
+
+  // Today is state, not a value read during render: the view re-renders only on
+  // file events, so a window left open overnight would keep marking yesterday.
+  // A minute's granularity is plenty for a marker that changes at midnight.
+  const [today, setToday] = useState(() => toISO(new Date()));
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = toISO(new Date());
+      setToday((prev) => (prev === now ? prev : now));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadFiles = useCallback(async () => {
     if (!vaultPath) return;
@@ -320,6 +344,50 @@ export function ScheduleView({ configVersion }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selected, doc, aiRunning, undo, redo, mutate, patchItem]);
 
+  /**
+   * The displayed window: moved by whole weeks, grown or shrunk from its end,
+   * or repositioned onto today.
+   *
+   * None of this writes the note — the window is view state, and the `range`
+   * frontmatter belongs to whoever created the file. That is what makes the
+   * wheel gestures safe to fire dozens of times: nothing to save, nothing to
+   * undo, nothing that can conflict with an edit made in Obsidian.
+   *
+   * The setters are functional so these callbacks stay identity-stable: the
+   * grid re-registers its non-passive wheel listener whenever they change.
+   */
+  const panBy = useCallback((weeks: number) => {
+    setWindow((prev) => (prev ? panWindow(prev, weeks) : prev));
+  }, []);
+
+  const zoomBy = useCallback((weeks: number) => {
+    setWindow((prev) => (prev ? zoomWindow(prev, weeks) : prev));
+  }, []);
+
+  const scrollToTodayCell = useCallback(() => {
+    scrollRef.current
+      ?.querySelector("[data-today]")
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, []);
+
+  /** Set when today first has to be brought into the window: its cell does not
+   * exist until that render has happened, so the scroll waits for it. */
+  const pendingScroll = useRef(false);
+  useEffect(() => {
+    if (!pendingScroll.current) return;
+    pendingScroll.current = false;
+    scrollToTodayCell();
+  }, [window_, scrollToTodayCell]);
+
+  const goToToday = useCallback(() => {
+    if (window_ && today >= window_.start && today <= window_.end) {
+      scrollToTodayCell();
+      return;
+    }
+    pendingScroll.current = true;
+    setWindow((prev) => (prev ? windowAround(prev, today) : prev));
+  }, [window_, today, scrollToTodayCell]);
+
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
@@ -359,13 +427,27 @@ export function ScheduleView({ configVersion }: Props) {
         </Select>
 
         {window_ && (
-          <div className="flex items-center gap-1">
+          <div
+            className="flex items-center gap-1"
+            title="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it"
+          >
             <DatePicker
               value={window_.start}
               onChange={(v) => v && setWindow({ ...window_, start: v })}
             />
             <span className="text-muted-foreground">to</span>
             <DatePicker value={window_.end} onChange={(v) => v && setWindow({ ...window_, end: v })} />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={goToToday}
+              disabled={!doc}
+              title="Show today"
+            >
+              <CalendarCheck className="mr-1 size-3" />
+              Today
+            </Button>
           </div>
         )}
 
@@ -460,7 +542,7 @@ export function ScheduleView({ configVersion }: Props) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
           {doc && window_ ? (
             <ScheduleGrid
               doc={doc}
@@ -468,6 +550,7 @@ export function ScheduleView({ configVersion }: Props) {
               end={window_.end}
               tasks={projectTasks}
               locale={locale}
+              today={today}
               selectedId={selected?.id ?? null}
               readOnly={aiRunning}
               onMoveItem={(id, delta) =>
@@ -497,6 +580,8 @@ export function ScheduleView({ configVersion }: Props) {
                   void api.listTasks(vaultPath).then(setTasks);
                 });
               }}
+              onPanWindow={panBy}
+              onZoomWindow={zoomBy}
             />
           ) : (
             <div className="p-6 text-sm text-muted-foreground">

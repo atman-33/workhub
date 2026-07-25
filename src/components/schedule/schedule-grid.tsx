@@ -57,6 +57,9 @@ interface Props {
   /** Tasks of the displayed project that carry a `due` (T-0089). */
   tasks: Task[];
   locale: ScheduleLocale;
+  /** Today as `YYYY-MM-DD`, marked in the grid. The component never reads the
+   * clock itself so the rendering stays a function of its props. */
+  today?: string;
   /** Id of the element the side panel is editing, highlighted in the grid. */
   selectedId?: string | null;
   /** True while an AI edit is running: every gesture is disabled so an app
@@ -68,6 +71,10 @@ interface Props {
   onToggleNonWorking: (date: string) => void;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onMoveTaskDue: (taskId: string, date: string) => void;
+  /** Move the displayed window by whole weeks (Shift + wheel). */
+  onPanWindow: (weeks: number) => void;
+  /** Grow or shrink the displayed window by whole weeks (Ctrl + wheel). */
+  onZoomWindow: (weeks: number) => void;
 }
 
 /** What the pointer is currently doing. `null` means nothing. */
@@ -96,6 +103,7 @@ export function ScheduleGrid({
   end,
   tasks,
   locale,
+  today,
   selectedId,
   readOnly,
   onMoveItem,
@@ -104,6 +112,8 @@ export function ScheduleGrid({
   onToggleNonWorking,
   onCreateItem,
   onMoveTaskDue,
+  onPanWindow,
+  onZoomWindow,
 }: Props) {
   const [drag, setDrag] = useState<Drag>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -115,7 +125,7 @@ export function ScheduleGrid({
   const t = strings(locale);
   // Lay out the document *with the pending drag applied*, so the preview and
   // the eventual save can never disagree.
-  const layout = buildLayout(previewDoc(doc, drag), start, end);
+  const layout = buildLayout(previewDoc(doc, drag), start, end, today);
 
   const tasksByDate = new Map<string, Task[]>();
   for (const task of tasks) {
@@ -193,6 +203,33 @@ export function ScheduleGrid({
     };
   }, [drag, dateAt, onMoveItem, onResizeItem, onMoveTaskDue]);
 
+  /**
+   * Wheel with a modifier changes the displayed window; a plain wheel is left
+   * alone so the grid still scrolls the way every other list does.
+   *
+   * Registered by hand rather than with `onWheel` because React attaches its
+   * wheel listener at the root **passively**: `preventDefault` from a JSX
+   * handler is ignored, and Ctrl + wheel would zoom the whole WebView on top of
+   * zooming the window. `{ passive: false }` here is what makes the modifier
+   * gestures ours (`.claude/rules/ui-conventions.md`).
+   */
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.shiftKey) return;
+      if (!e.deltaY) return;
+      e.preventDefault();
+      // One notch is one week, in the direction the content moves: wheeling
+      // down walks the plan forward and widens it.
+      const weeks = e.deltaY > 0 ? 1 : -1;
+      if (e.ctrlKey) onZoomWindow(weeks);
+      else onPanWindow(weeks);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onPanWindow, onZoomWindow]);
+
   const beginItemDrag = (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => {
     if (readOnly || e.button !== 0) return;
     e.stopPropagation();
@@ -249,6 +286,8 @@ export function ScheduleGrid({
                     <ContextMenuTrigger asChild>
                       <div
                         data-date={day.date}
+                        // The anchor the toolbar's Today button scrolls to.
+                        data-today={day.isToday ? "" : undefined}
                         onPointerDown={(e) => {
                           if (readOnly || e.button !== 0) return;
                           onSelectItem(null);
@@ -275,11 +314,25 @@ export function ScheduleGrid({
                             className={cn(
                               "flex items-center gap-0.5 text-[11px] tabular-nums",
                               day.isMonthStart ? "font-bold" : "text-muted-foreground",
+                              // Today is the date itself in a filled pill, and
+                              // nothing else. Cell shading is already spoken
+                              // for by non-working days and an outline by the
+                              // range sweep; a third cell-wide treatment would
+                              // make all three ambiguous (§16.4.1).
+                              day.isToday &&
+                                "rounded-full bg-primary px-1.5 font-semibold text-primary-foreground",
                             )}
+                            title={day.isToday ? `Today · ${day.date}` : undefined}
                           >
                             {day.isMonthStart ? `${day.month}/${day.day}` : day.day}
                             {day.isNonWorking && (
-                              <X className="size-2.5 text-muted-foreground/70" aria-hidden />
+                              <X
+                                className={cn(
+                                  "size-2.5 text-muted-foreground/70",
+                                  day.isToday && "text-primary-foreground/80",
+                                )}
+                                aria-hidden
+                              />
                             )}
                           </span>
                           {notes.length > 0 && <NoteMarker notes={notes} onOpen={onSelectItem} />}

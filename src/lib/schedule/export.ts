@@ -68,6 +68,12 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
    alone is easy to lose on a printed page. */
 .nwmark { margin-left: 2px; font-size: 9px; color: #9ca3af; }
 .outside { color: #d1d5db; }
+/* Today is outlined rather than filled: a printed page is often black and
+   white, where a filled pill turns into a black blob and a solid block of
+   toner. The header already states the export date, so this only has to say
+   "here". */
+.today { display: inline-block; border: 1px solid #111827; border-radius: 999px;
+  padding: 1px 5px; font-weight: 700; color: #111827; }
 .monthstart { font-weight: 700; border-left: 2px solid #9ca3af; }
 .nwlabel { display: block; font-size: 9px; color: #9ca3af; padding: 0 5px 2px; }
 .lanes { padding: 0 0 4px; }
@@ -133,6 +139,7 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       if (d.isNonWorking) classes.push("nonworking");
       if (d.isOutside) classes.push("outside");
       if (d.isMonthStart) classes.push("monthstart");
+      if (d.isToday) classes.push("today");
       const label = d.isMonthStart ? `${d.month}/${d.day}` : String(d.day);
       const mark = d.isNonWorking ? '<span class="nwmark">&#10005;</span>' : "";
       const nw = d.nonWorkingLabel
@@ -271,7 +278,7 @@ export interface ExportOptions {
  */
 export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions): string {
   const { start, end, today, locale } = options;
-  const layout = buildLayout(doc, start, end);
+  const layout = buildLayout(doc, start, end, today);
   const working = countWorkingDays(start, end, doc.nonWorking);
   const t = strings(locale);
   const headers = t.weekdays.map((h) => `<th>${h}</th>`).join("");
