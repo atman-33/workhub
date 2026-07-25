@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Archive, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
@@ -57,6 +58,9 @@ interface Props {
   onMove: (updates: UpdateTaskInput[]) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
+  onSendToClaudeDesktop: (task: Task) => Promise<unknown>;
+  /** `claude_desktop_mode` setting, shown in the send button's tooltip. */
+  claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
   onArchive: (task: Task, archived: boolean) => void;
@@ -65,7 +69,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onCyclePriority, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -230,6 +234,10 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                       {(task.assignee === "claude-code" || task.assignee === "opencode") && (
                         <>
                           <CopyPromptButton onCopy={() => onCopyTaskPrompt(task)} />
+                          <ClaudeDesktopButton
+                            mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                            onSend={() => onSendToClaudeDesktop(task)}
+                          />
                           <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />
                         </>
                       )}

@@ -291,6 +291,36 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [config],
   );
 
+  const sendTaskToClaudeDesktop = useCallback(
+    async (task: Task) => {
+      if (!config) return;
+      try {
+        const message = await api.sendTaskToClaudeDesktop(
+          task.assignee,
+          task.id,
+          task.title,
+          task.file,
+          task.project,
+          task.model,
+          task.confirm,
+          task.worktree,
+          config.settings.vault_path ?? "",
+          config.settings.task_language,
+          config.settings.custom_prompt,
+          config.settings.claude_desktop_mode,
+          // Only chat mode uses the Description; parsing it here keeps the
+          // command free of the task body's Plan/Results sections.
+          parseBody(task.body).content,
+        );
+        setStatus(message);
+      } catch (e) {
+        setStatus(`Send to Claude Desktop failed — ${e}`);
+        throw e;
+      }
+    },
+    [config],
+  );
+
   // Jump straight to the task file in Obsidian from a card/row, without
   // opening the edit dialog. Errors land in the status bar; rethrown so the
   // button can settle its busy state.
@@ -585,6 +615,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onOpen={(task) => setDialog({ mode: "edit", task })}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
+                onSendToClaudeDesktop={sendTaskToClaudeDesktop}
+                claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
                 onArchive={setArchived}
@@ -597,6 +629,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 onMove={(updates) => void applyUpdates(updates)}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
+                onSendToClaudeDesktop={sendTaskToClaudeDesktop}
+                claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
                 onArchive={setArchived}
@@ -696,6 +730,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
         onLaunchAgent={dialog?.mode === "edit" ? launchAgent : undefined}
         onCopyTaskPrompt={dialog?.mode === "edit" ? copyTaskPrompt : undefined}
+        onSendToClaudeDesktop={dialog?.mode === "edit" ? sendTaskToClaudeDesktop : undefined}
+        claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
       />
     </div>
   );

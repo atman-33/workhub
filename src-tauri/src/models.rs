@@ -122,6 +122,12 @@ pub struct Settings {
     /// `actions::build_agent_prompt`.
     #[serde(default)]
     pub custom_prompt: String,
+    /// What "send to Claude Desktop" opens (T-0095): "code" opens a Claude
+    /// Code session rooted at the vault, carrying the same prompt a terminal
+    /// launch would; "chat" opens a plain chat with the task's Description,
+    /// which has no skills and cannot work the task.
+    #[serde(default = "default_claude_desktop_mode")]
+    pub claude_desktop_mode: String,
     /// Built-in vault-tidy routine (T-0050): periodically files stale inbox
     /// notes and refreshes the tasks/archive index via a headless agent.
     #[serde(default)]
@@ -267,6 +273,9 @@ fn default_voice_language() -> String {
 fn default_task_language() -> String {
     "en".into()
 }
+fn default_claude_desktop_mode() -> String {
+    "code".into()
+}
 fn default_schedule_assignee() -> String {
     "claude-code".into()
 }
@@ -302,6 +311,7 @@ impl Default for Settings {
             voice_indicator_position: None,
             task_language: default_task_language(),
             custom_prompt: String::new(),
+            claude_desktop_mode: default_claude_desktop_mode(),
             tidy: TidySettings::default(),
             schedule_assignee: default_schedule_assignee(),
             schedule_model: String::new(),

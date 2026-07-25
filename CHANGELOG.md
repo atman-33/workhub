@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.60.0 (2026-07-25)
+
+- **Send a task to Claude Desktop in one click** (T-0095). AI task cards, list
+  rows, and the task editor gain a third action next to *Launch agent* and
+  *Copy prompt*: it opens Claude Desktop on a new session with the task's
+  prompt already filled in, replacing the copy-then-paste round trip.
+  - **⚙ Settings → Commands → Send to Claude Desktop** picks what opens.
+    *Code session* (the default) starts a Claude Code session with the vault as
+    its folder, so the prompt behaves exactly as it does in a terminal — same
+    instructions, same skills (`task-start`, `task-report`), same working
+    directory. *Chat* opens a plain chat with the task's Description instead;
+    it has no skills or vault access, so it is for talking a task over rather
+    than working it.
+  - Claude Desktop asks you to confirm the folder the first time a session
+    opens with one; that confirmation is part of its own link handling.
+  - The task editor's *Plan* and *Results* buttons now share one menu, which
+    frees the header width the new button needs and stops the dialog title from
+    wrapping onto a second line.
+
 ## 0.59.0 (2026-07-24)
 
 - **New Schedule tab for planning project dates** (T-0088..T-0092). A
