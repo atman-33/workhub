@@ -128,7 +128,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **Non-working days** are shaded and carry a small **✕** next to the date, so they stay distinguishable from a selection. Toggle one from the day's right-click menu. Weekends come from the \`weekly:\` line in the note and cannot be toggled here — edit that line to change them. Clearing one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
 - **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
 - **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; every other kind shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
-- **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right, above the AI box — the panel keeps a constant width so the calendar never shifts under your pointer. Hide it with the panel button in the toolbar when you want the calendar at full width.
+- **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right, above the AI box — it never changes the panel's width on its own, so the calendar does not shift under your pointer. **Drag the divider** to give the calendar or the panel more room (the width lasts for the session), or hide the panel entirely with the panel button in the toolbar.
 - **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar or arrow, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
@@ -951,9 +951,12 @@ export function HelpView() {
                 <span className="font-medium text-foreground">Click</span> an
                 element to edit its title, dates, color, and the task it links
                 to. The editor opens in the side panel on the right, above the
-                AI box — the panel keeps a constant width so the calendar never
-                shifts under your pointer. Hide it with the panel button in the
-                toolbar when you want the calendar at full width.
+                AI box — it never changes the panel's width on its own, so the
+                calendar does not shift under your pointer.{" "}
+                <span className="font-medium">Drag the divider</span> to give the
+                calendar or the panel more room (the width lasts for the
+                session), or hide the panel entirely with the panel button in
+                the toolbar.
               </li>
               <li>
                 <span className="font-medium text-foreground">Keyboard</span>:

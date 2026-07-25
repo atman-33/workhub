@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.64.0 (2026-07-25)
+
+- **The schedule's side panel is resizable** (T-0096). Drag the divider between
+  the calendar and the editor/AI column to give either one more room; the width
+  holds for the session. The panel still never resizes itself — that was the
+  point of the fixed width, since the calendar's elements are positioned in
+  percentages of its width and used to jump the moment an element was selected.
+  A width you dragged yourself is a different matter.
+
 ## 0.63.0 (2026-07-25)
 
 - **The schedule says where today is** (T-0096). Today's date is drawn as a

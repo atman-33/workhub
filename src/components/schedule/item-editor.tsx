@@ -76,12 +76,14 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
     // Width comes from the sidebar column, not from here — see schedule-view.
     <div className="shrink-0 space-y-3 border-b p-3 text-xs">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] text-muted-foreground">{draft.id}</span>
+        <span className="truncate font-mono text-[11px] text-muted-foreground">{draft.id}</span>
         <Select
           value={draft.kind}
           onValueChange={(v) => commit({ kind: v as ScheduleItem["kind"] })}
         >
-          <SelectTrigger className="h-7 w-28 text-xs">
+          {/* `max-w` rather than a bare width: the column is resizable now, and
+              at its narrowest a fixed 7rem trigger would push the id out. */}
+          <SelectTrigger className="h-7 w-28 max-w-[60%] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

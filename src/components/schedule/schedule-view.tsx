@@ -16,6 +16,11 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -69,6 +74,9 @@ const SAVE_DEBOUNCE_MS = 600;
 const UNDO_LIMIT = 50;
 /** Default window when a note has no usable `range` (design note §3.1). */
 const DEFAULT_WEEKS = 6;
+/** Starting width of the right column, in percent of the view. Roughly the
+ * fixed 288px it replaced at a typical window size. */
+const SIDEBAR_DEFAULT_PCT = 22;
 
 interface Props {
   /** Bumped by the app shell after settings are saved. */
@@ -93,6 +101,11 @@ export function ScheduleView({ configVersion }: Props) {
   // before an export, but that is a preference for a moment, not for a
   // machine, so it is deliberately not persisted to settings.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Width of the right column, in percent, kept here rather than left to the
+  // panel group: hiding the sidebar unmounts its panel, and without a
+  // remembered size every collapse/expand round trip would snap it back to the
+  // default. Session-only for the same reason as the collapse flag.
+  const [sidebarSize, setSidebarSize] = useState(SIDEBAR_DEFAULT_PCT);
   // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
   // "that drag went somewhere I didn't mean", not for history — the file's git
   // backup and the AI-edit snapshot cover the durable cases.
@@ -541,99 +554,123 @@ export function ScheduleView({ configVersion }: Props) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
-          {doc && window_ ? (
-            <ScheduleGrid
-              doc={doc}
-              start={window_.start}
-              end={window_.end}
-              tasks={projectTasks}
-              locale={locale}
-              today={today}
-              selectedId={selected?.id ?? null}
-              readOnly={aiRunning}
-              onMoveItem={(id, delta) =>
-                patchItem(id, (i) => ({
-                  ...i,
-                  start: shiftDate(i.start, delta),
-                  end: shiftDate(i.end, delta),
-                }))
-              }
-              onResizeItem={(id, edge, delta) =>
-                patchItem(id, (i) => {
-                  const next =
-                    edge === "start"
-                      ? { ...i, start: shiftDate(i.start, delta) }
-                      : { ...i, end: shiftDate(i.end, delta) };
-                  // A resize can only shorten a bar to a single day; past that
-                  // the gesture would invert it, which the notation forbids.
-                  if (next.end < next.start) return i;
-                  return next;
-                })
-              }
-              onSelectItem={(item) => setSelected(item)}
-              onToggleNonWorking={(date) => toggleNonWorking(date)}
-              onCreateItem={(kind, from, to) => createItem(kind, from, to)}
-              onMoveTaskDue={(taskId, date) => {
-                void api.updateTask(vaultPath, { id: taskId, due: date }).then(() => {
-                  void api.listTasks(vaultPath).then(setTasks);
-                });
-              }}
-              onPanWindow={panBy}
-              onZoomWindow={zoomBy}
-            />
-          ) : (
-            <div className="p-6 text-sm text-muted-foreground">
-              Select a schedule, or pick a project and create one.
-            </div>
-          )}
-        </div>
-
-        {/* One right column of a fixed width, not one per panel.
-            The grid positions its bars in percentages of the week's width, so
-            anything that changes that width moves every element on screen —
-            and the editor used to appear on selection, which meant the
-            calendar jumped under the pointer the instant you clicked a bar.
-            The editor now comes and goes *vertically* inside this column,
-            which costs the grid nothing. */}
-        {path && !sidebarCollapsed && (
-          <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l">
-            {selected && doc && (
-              <ItemEditor
-                item={selected}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+        onLayoutChanged={(layout) => {
+          const size = layout.sidebar;
+          if (typeof size === "number") setSidebarSize(size);
+        }}
+      >
+        <ResizablePanel id="calendar" minSize="40%" className="min-h-0 min-w-0">
+          <div ref={scrollRef} className="h-full overflow-y-auto">
+            {doc && window_ ? (
+              <ScheduleGrid
+                doc={doc}
+                start={window_.start}
+                end={window_.end}
                 tasks={projectTasks}
-                onChange={(next) => {
-                  setSelected(next);
-                  patchItem(next.id, () => next);
+                locale={locale}
+                today={today}
+                selectedId={selected?.id ?? null}
+                readOnly={aiRunning}
+                onMoveItem={(id, delta) =>
+                  patchItem(id, (i) => ({
+                    ...i,
+                    start: shiftDate(i.start, delta),
+                    end: shiftDate(i.end, delta),
+                  }))
+                }
+                onResizeItem={(id, edge, delta) =>
+                  patchItem(id, (i) => {
+                    const next =
+                      edge === "start"
+                        ? { ...i, start: shiftDate(i.start, delta) }
+                        : { ...i, end: shiftDate(i.end, delta) };
+                    // A resize can only shorten a bar to a single day; past
+                    // that the gesture would invert it, which the notation
+                    // forbids.
+                    if (next.end < next.start) return i;
+                    return next;
+                  })
+                }
+                onSelectItem={(item) => setSelected(item)}
+                onToggleNonWorking={(date) => toggleNonWorking(date)}
+                onCreateItem={(kind, from, to) => createItem(kind, from, to)}
+                onMoveTaskDue={(taskId, date) => {
+                  void api.updateTask(vaultPath, { id: taskId, due: date }).then(() => {
+                    void api.listTasks(vaultPath).then(setTasks);
+                  });
                 }}
-                onDelete={() => {
-                  mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
-                  setSelected(null);
-                }}
-                onClose={() => setSelected(null)}
+                onPanWindow={panBy}
+                onZoomWindow={zoomBy}
               />
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground">
+                Select a schedule, or pick a project and create one.
+              </div>
             )}
-            {aiRun && (
-              <ScheduleAiPanel
-                run={aiRun}
-                defaultConfirm={config?.settings.schedule_confirm ?? false}
-                onRun={(instruction, confirm) => {
-                  void api
-                    .runScheduleEdit(path, instruction, confirm)
-                    .catch((e) => setStatus(String(e)));
-                }}
-                onUndo={() => {
-                  void api
-                    .restoreScheduleSnapshot(path)
-                    .then(() => loadDoc(path))
-                    .catch((e) => setStatus(String(e)));
-                }}
-              />
-            )}
-          </aside>
+          </div>
+        </ResizablePanel>
+
+        {/* Still one right column for every panel, not one per panel: the
+            editor comes and goes *vertically* inside it, so selecting a bar
+            never changes the calendar's width. The grid places its bars in
+            percentages of that width, and it jumping on selection was the
+            original complaint.
+
+            Dragging the divider is a different thing from that: the width
+            changes because the user asked it to, at the moment they asked, so
+            the elements moving with it reads as the resize working rather than
+            as the calendar running away. */}
+        {path && !sidebarCollapsed && (
+          <>
+            <ResizableHandle />
+            <ResizablePanel
+              id="sidebar"
+              defaultSize={`${sidebarSize}%`}
+              minSize="15%"
+              maxSize="45%"
+              className="min-h-0 min-w-0"
+            >
+              <aside className="flex h-full flex-col overflow-y-auto">
+                {selected && doc && (
+                  <ItemEditor
+                    item={selected}
+                    tasks={projectTasks}
+                    onChange={(next) => {
+                      setSelected(next);
+                      patchItem(next.id, () => next);
+                    }}
+                    onDelete={() => {
+                      mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
+                      setSelected(null);
+                    }}
+                    onClose={() => setSelected(null)}
+                  />
+                )}
+                {aiRun && (
+                  <ScheduleAiPanel
+                    run={aiRun}
+                    defaultConfirm={config?.settings.schedule_confirm ?? false}
+                    onRun={(instruction, confirm) => {
+                      void api
+                        .runScheduleEdit(path, instruction, confirm)
+                        .catch((e) => setStatus(String(e)));
+                    }}
+                    onUndo={() => {
+                      void api
+                        .restoreScheduleSnapshot(path)
+                        .then(() => loadDoc(path))
+                        .catch((e) => setStatus(String(e)));
+                    }}
+                  />
+                )}
+              </aside>
+            </ResizablePanel>
+          </>
         )}
-      </div>
+      </ResizablePanelGroup>
     </div>
   );
 
