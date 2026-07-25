@@ -7,9 +7,12 @@ import {
   dayDelta,
   isNonWorking,
   isWeeklyNonWorking,
+  panWindow,
   parseRange,
   shiftDate,
   toggleNonWorkingDay,
+  windowAround,
+  zoomWindow,
 } from "./layout";
 import {
   formatItem,
@@ -326,6 +329,133 @@ describe("buildLayout", () => {
 
   it("returns no weeks for a reversed range", () => {
     expect(buildLayout(doc, "2026-08-05", "2026-07-20").weeks).toEqual([]);
+  });
+});
+
+describe("arrow elements", () => {
+  const WITH_ARROW = NOTE.replace(
+    "- [milestone] I-003 2026-08-20 release review #red",
+    "- [arrow] I-005 2026-07-22..2026-07-30 vendor lead time #gray\n- [milestone] I-003 2026-08-20 release review #red",
+  );
+
+  it("parses and writes an arrow with a date range, like a bar", () => {
+    const doc = parseSchedule(WITH_ARROW);
+    expect(doc.items.find((i) => i.id === "I-005")).toEqual({
+      kind: "arrow",
+      id: "I-005",
+      start: "2026-07-22",
+      end: "2026-07-30",
+      title: "vendor lead time",
+      color: "gray",
+    });
+    expect(doc.rawItems).toEqual([]);
+    expect(
+      formatItem({ kind: "arrow", id: "I-009", start: "2026-08-01", end: "2026-08-03", title: "x" }),
+    ).toBe("- [arrow] I-009 2026-08-01..2026-08-03 x");
+  });
+
+  it("shares the bar lanes so an arrow and a bar cannot overlap on screen", () => {
+    const doc = parseSchedule(WITH_ARROW);
+    const mixed: ScheduleDocModel = {
+      ...doc,
+      items: [
+        { kind: "bar", id: "I-101", start: "2026-07-20", end: "2026-07-24", title: "a" },
+        { kind: "arrow", id: "I-102", start: "2026-07-22", end: "2026-07-25", title: "b" },
+      ],
+    };
+    const week = buildLayout(mixed, "2026-07-19", "2026-07-25").weeks[0];
+    expect(week.lanes).toBe(2);
+    expect(week.bars.find((b) => b.item.id === "I-102")?.lane).toBe(1);
+  });
+
+  it("is a range element, never a point on its start day", () => {
+    const layout = buildLayout(parseSchedule(WITH_ARROW), "2026-07-19", "2026-08-01");
+    const days = layout.weeks.flatMap((w) => w.days);
+    expect(days.every((d) => d.points.every((p) => p.kind !== "arrow"))).toBe(true);
+    // 7/22 (Wed) is where the arrow starts: column 3 of its week row.
+    const segments = layout.weeks.flatMap((w) => w.bars.filter((b) => b.item.id === "I-005"));
+    expect(segments[0]).toMatchObject({ startCol: 3, isStart: true, isEnd: false });
+    expect(segments.at(-1)).toMatchObject({ isEnd: true });
+  });
+
+  it("exports as a hairline with heads rather than a filled band", () => {
+    const html = exportScheduleHtml(parseSchedule(WITH_ARROW), {
+      start: "2026-07-20",
+      end: "2026-08-31",
+      today: "2026-07-24",
+      locale: "en",
+    });
+    expect(html).toContain('class="arrow start"');
+    expect(html).toContain('class="ahead l"');
+    expect(html).toContain("vendor lead time");
+    // The label carries the working-day count the same way a bar's does.
+    const workingDays = countWorkingDays("2026-07-22", "2026-07-30", parseSchedule(NOTE).nonWorking);
+    expect(html).toContain(`vendor lead time (${workingDays}d)`);
+  });
+});
+
+describe("today marker", () => {
+  const doc = parseSchedule(NOTE);
+
+  it("marks exactly the day it was given, and nothing when given none", () => {
+    const layout = buildLayout(doc, "2026-07-20", "2026-08-02", "2026-07-25");
+    const days = layout.weeks.flatMap((w) => w.days);
+    expect(days.filter((d) => d.isToday).map((d) => d.date)).toEqual(["2026-07-25"]);
+    // The layout never reads the clock: no argument, no marker anywhere.
+    const none = buildLayout(doc, "2026-07-20", "2026-08-02");
+    expect(none.weeks.flatMap((w) => w.days).some((d) => d.isToday)).toBe(false);
+  });
+
+  it("marks a today that falls in a rendered week but outside the window", () => {
+    // Week rows are whole, so 7/19 is drawn even though the window starts 7/20.
+    const layout = buildLayout(doc, "2026-07-20", "2026-07-26", "2026-07-19");
+    const day = layout.weeks[0].days.find((d) => d.date === "2026-07-19");
+    expect(day).toMatchObject({ isToday: true, isOutside: true });
+  });
+
+  it("reaches the HTML export as an outlined day number", () => {
+    const html = exportScheduleHtml(doc, {
+      start: "2026-07-20",
+      end: "2026-08-02",
+      today: "2026-07-25",
+      locale: "en",
+    });
+    expect(html).toContain("today");
+    expect((html.match(/class="daynum[^"]*today[^"]*"/g) ?? [])).toHaveLength(1);
+  });
+});
+
+describe("window controls", () => {
+  const win = { start: "2026-07-20", end: "2026-08-30" }; // six weeks
+
+  it("pans by whole weeks in both directions, keeping the length", () => {
+    expect(panWindow(win, 1)).toEqual({ start: "2026-07-27", end: "2026-09-06" });
+    expect(panWindow(win, -2)).toEqual({ start: "2026-07-06", end: "2026-08-16" });
+    // Whole weeks only: the weekday of both edges is preserved, which is what
+    // stops the grid appearing to shift sideways as it moves.
+    expect(panWindow(panWindow(win, 3), -3)).toEqual(win);
+  });
+
+  it("zooms from the end, anchored at the start", () => {
+    expect(zoomWindow(win, 1)).toEqual({ start: "2026-07-20", end: "2026-09-06" });
+    expect(zoomWindow(win, -1)).toEqual({ start: "2026-07-20", end: "2026-08-23" });
+  });
+
+  it("clamps to one week and to a year", () => {
+    const oneWeek = zoomWindow(win, -99);
+    expect(calendarDays(oneWeek.start, oneWeek.end)).toBe(7);
+    // Already at the floor: shrinking further is a no-op, not an inverted range.
+    expect(zoomWindow(oneWeek, -1)).toBe(oneWeek);
+    const wide = zoomWindow(win, 999);
+    expect(calendarDays(wide.start, wide.end)).toBe(52 * 7);
+    expect(zoomWindow(wide, 1)).toBe(wide);
+  });
+
+  it("repositions onto a date, keeping the length and a week of lead-in", () => {
+    const moved = windowAround(win, "2026-10-05");
+    expect(moved.start).toBe("2026-09-28");
+    expect(calendarDays(moved.start, moved.end)).toBe(calendarDays(win.start, win.end));
+    expect(moved.start <= "2026-10-05" && "2026-10-05" <= moved.end).toBe(true);
   });
 });
 

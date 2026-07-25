@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.64.0 (2026-07-25)
+
+- **The schedule's side panel is resizable** (T-0096). Drag the divider between
+  the calendar and the editor/AI column to give either one more room; the width
+  holds for the session. The panel still never resizes itself — that was the
+  point of the fixed width, since the calendar's elements are positioned in
+  percentages of its width and used to jump the moment an element was selected.
+  A width you dragged yourself is a different matter.
+
+## 0.63.0 (2026-07-25)
+
+- **The schedule says where today is** (T-0096). Today's date is drawn as a
+  filled pill in its day cell — one marker in its own visual channel, so it
+  stays readable next to non-working shading and a range selection. A **Today**
+  button next to the date range scrolls to it, and moves the range onto today
+  when today is outside the window entirely. The HTML export marks it too, as
+  an outlined pill that survives black-and-white printing.
+- **Change the displayed range with the wheel** (T-0096). Over the calendar,
+  `Shift` + wheel moves the range a week at a time and `Ctrl` + wheel grows or
+  shrinks it (one week to a year, anchored at the start so nothing on screen
+  jumps). A plain wheel still scrolls as before. The range is view state, so
+  none of this touches the note.
+
+## 0.62.0 (2026-07-25)
+
+- **A weaker kind of period on the schedule: `arrow`** (T-0096). A bar states
+  that a period is settled, which makes it the wrong shape for a span you are
+  only guessing at — a vendor lead time, a buffer, work running alongside.
+  The Schedule tab gains a fourth element kind for exactly that: an `arrow`
+  covers a date range like a bar and drags, resizes and links to a task the
+  same way, but it is drawn as a thin double-headed line instead of a filled
+  band, so a plan shows at a glance which periods are committed and which are
+  estimates. Add one from a day's right-click menu, or switch an existing
+  element's kind in the edit panel. Arrows share the bar lanes, so they never
+  overlap a bar, and they reach the HTML export as the same hairline.
+- Tab order is now **Tasks → Repos → Schedule**, putting the two
+  repository-facing views next to each other.
+
 ## 0.61.0 (2026-07-25)
 
 - **A common prompt for every agent session, kept in the vault** (T-0093,

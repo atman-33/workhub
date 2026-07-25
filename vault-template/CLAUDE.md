@@ -159,22 +159,25 @@ section neither the app nor the AI ever rewrites:
 ## Items
 
 - [bar] I-001 2026-07-21..2026-08-07 implementation #blue task:T-0090
+- [arrow] I-005 2026-07-21..2026-08-19 vendor lead time #gray
 - [milestone] I-003 2026-08-20 release review #red
 - [note] I-004 2026-07-31 monthly review 15:00
 ```
 
 Element line: `- [<kind>] <id> <date-spec> <title> [#<color>] [task:<task-id>]`
 
-- `<kind>` is `bar`, `milestone`, or `note`.
+- `<kind>` is `bar`, `arrow`, `milestone`, or `note`. A `bar` is a period that
+  is settled; an `arrow` is the same span drawn as a thin double-headed line,
+  for a period that is still an estimate (lead time, buffer, parallel work).
 - `<id>` is `I-` + a number, unique in the file. **Never change or reuse one** —
   it is how the app and the AI identify an element across edits.
-- `<date-spec>` is `YYYY-MM-DD..YYYY-MM-DD` for a `bar`, a single
+- `<date-spec>` is `YYYY-MM-DD..YYYY-MM-DD` for a `bar` or `arrow`, a single
   `YYYY-MM-DD` otherwise.
 - `#<color>` is one of `blue`, `green`, `amber`, `red`, `purple`, `gray`.
 - `task:<task-id>` links the element to a task in `tasks/`.
 - An element may carry extra lines of text on **indented continuation lines**
   beneath it (ordinary Markdown list continuation). A `note` shows them on
-  hover in the app; a `bar` or `milestone` shows them in its tooltip.
+  hover in the app; every other kind shows them in its tooltip.
 
 ```markdown
 - [note] I-004 2026-07-31 monthly review

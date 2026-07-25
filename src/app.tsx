@@ -28,12 +28,12 @@ import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "schedule" | "repos" | "music" | "timer" | "voice" | "help";
+type Tab = "tasks" | "repos" | "schedule" | "music" | "timer" | "voice" | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
-  { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "repos", label: "Repos", icon: GitBranch },
+  { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
   { key: "voice", label: "Voice", icon: Mic },
@@ -161,11 +161,11 @@ export default function App() {
               onSettingsChange={(s) => setSettings(s)}
             />
           </div>
-          <div className={cn("h-full", tab !== "schedule" && "hidden")}>
-            <ScheduleView configVersion={configVersion} />
-          </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
             <ReposView configVersion={configVersion} active={tab === "repos"} />
+          </div>
+          <div className={cn("h-full", tab !== "schedule" && "hidden")}>
+            <ScheduleView configVersion={configVersion} />
           </div>
           <div className={cn("h-full", tab !== "music" && "hidden")}>
             <MusicView configVersion={configVersion} />

@@ -17,6 +17,7 @@
  */
 
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { isRangeKind } from "./parse";
 import type { NonWorking, NonWorkingRange, ScheduleDocModel, ScheduleItem } from "./parse";
 
 export interface LayoutDay {
@@ -38,11 +39,22 @@ export interface LayoutDay {
   /** Outside the requested range: rendered dimmed, since a week row always
    * shows all seven days even when the range starts midweek. */
   isOutside: boolean;
+  /** Today, per the `today` argument `buildLayout` was given. False everywhere
+   * when the caller passes none — the layout never reads the clock itself, so
+   * a rendered week stays a pure function of its inputs. */
+  isToday: boolean;
   /** Point elements (milestones and notes) falling on this day. */
   points: ScheduleItem[];
 }
 
-/** A bar clipped to one week row. A bar spanning three weeks yields three. */
+/**
+ * A range element (`bar` or `arrow`) clipped to one week row. One spanning
+ * three weeks yields three.
+ *
+ * Both kinds share these lanes on purpose: they occupy the same days, so
+ * packing them separately would let an arrow and a bar overlap on screen. The
+ * renderer tells them apart from `item.kind`.
+ */
 export interface LayoutBar {
   item: ScheduleItem;
   /** Column index within the week, 0-6. */
@@ -199,7 +211,12 @@ function packBars(bars: LayoutBar[]): number {
  * and always hold seven days, so the grid stays a grid; days outside the
  * requested range are marked `isOutside` rather than omitted.
  */
-export function buildLayout(doc: ScheduleDocModel, start: string, end: string): Layout {
+export function buildLayout(
+  doc: ScheduleDocModel,
+  start: string,
+  end: string,
+  today?: string,
+): Layout {
   if (end < start) return { weeks: [], start, end };
 
   const nw = doc.nonWorking;
@@ -210,7 +227,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
   // O(days x items) for no benefit.
   const pointsByDate = new Map<string, ScheduleItem[]>();
   for (const item of doc.items) {
-    if (item.kind === "bar") continue;
+    if (isRangeKind(item.kind)) continue;
     const list = pointsByDate.get(item.start);
     if (list) list.push(item);
     else pointsByDate.set(item.start, [item]);
@@ -233,6 +250,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
         nonWorkingLabel: nonWorkingLabel(iso, nw),
         isMonthStart: d.getDate() === 1,
         isOutside: iso < start || iso > end,
+        isToday: iso === today,
         points: pointsByDate.get(iso) ?? [],
       });
     }
@@ -241,7 +259,7 @@ export function buildLayout(doc: ScheduleDocModel, start: string, end: string): 
     const weekEnd = days[6].date;
     const bars: LayoutBar[] = [];
     for (const item of doc.items) {
-      if (item.kind !== "bar") continue;
+      if (!isRangeKind(item.kind)) continue;
       if (item.end < weekStart || item.start > weekEnd) continue;
       const startCol = item.start <= weekStart ? 0 : dayIndex(days, item.start);
       const endCol = item.end >= weekEnd ? 6 : dayIndex(days, item.end);
@@ -305,6 +323,55 @@ export function parseRange(range: string): { start: string; end: string } | null
 
 export function formatRange(start: string, end: string): string {
   return `${start}..${end}`;
+}
+
+/** The displayed window: which days the grid draws. It is view state only —
+ * changing it never touches the note (the `range` frontmatter is written by
+ * whoever created the file, not by scrolling around in it). */
+export interface ScheduleWindow {
+  start: string;
+  end: string;
+}
+
+/** Narrowest and widest window the wheel may produce. One week is the smallest
+ * thing the grid can draw; half a year is where a continuous week grid stops
+ * being readable and starts being a wall. */
+const MIN_WEEKS = 1;
+const MAX_WEEKS = 52;
+
+/** Moves the whole window by whole weeks, keeping its length. Whole weeks
+ * rather than days so the grid's week rows keep the same weekday columns —
+ * panning must not make the calendar appear to shift sideways. */
+export function panWindow(win: ScheduleWindow, weeks: number): ScheduleWindow {
+  const days = weeks * 7;
+  return { start: shiftDate(win.start, days), end: shiftDate(win.end, days) };
+}
+
+/**
+ * Grows or shrinks the window by whole weeks, **anchored at `start`**.
+ *
+ * The grid flows downward, so growing from the end reads as "show me more of
+ * what comes next" and leaves everything already on screen exactly where it
+ * was. Anchoring at the middle (or at today) would move rows the user is
+ * looking at, which is what makes zoom feel like it lost your place.
+ */
+export function zoomWindow(win: ScheduleWindow, weeks: number): ScheduleWindow {
+  const current = Math.max(1, Math.ceil(calendarDays(win.start, win.end) / 7));
+  const next = Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, current + weeks));
+  if (next === current) return win;
+  return { start: win.start, end: shiftDate(win.start, next * 7 - 1) };
+}
+
+/**
+ * A window of the same length positioned on `date` — how the "Today" button
+ * reaches a day that is outside the current window. The date lands one week in
+ * rather than at the very top, so the days just before it stay visible; a plan
+ * is read in both directions from where you are.
+ */
+export function windowAround(win: ScheduleWindow, date: string): ScheduleWindow {
+  const length = calendarDays(win.start, win.end);
+  const start = shiftDate(date, -7);
+  return { start, end: shiftDate(start, length - 1) };
 }
 
 /** Shifts an ISO date by whole days — the primitive every drag operation is

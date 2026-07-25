@@ -68,6 +68,12 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
    alone is easy to lose on a printed page. */
 .nwmark { margin-left: 2px; font-size: 9px; color: #9ca3af; }
 .outside { color: #d1d5db; }
+/* Today is outlined rather than filled: a printed page is often black and
+   white, where a filled pill turns into a black blob and a solid block of
+   toner. The header already states the export date, so this only has to say
+   "here". */
+.today { display: inline-block; border: 1px solid #111827; border-radius: 999px;
+  padding: 1px 5px; font-weight: 700; color: #111827; }
 .monthstart { font-weight: 700; border-left: 2px solid #9ca3af; }
 .nwlabel { display: block; font-size: 9px; color: #9ca3af; padding: 0 5px 2px; }
 .lanes { padding: 0 0 4px; }
@@ -79,6 +85,20 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
 }
 .bar.start { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
 .bar.end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+/* An arrow is the same span as a bar drawn with far less ink — a hairline
+   between two heads — so an estimated period reads as weaker than a settled
+   one on paper as well as on screen. */
+.arrow { position: absolute; height: 16px; }
+.arrow .aline { position: absolute; left: 0; right: 0; top: 11px; height: 1px; }
+.arrow.start .aline { left: 5px; }
+.arrow.end .aline { right: 5px; }
+.arrow .ahead { position: absolute; top: 8px; width: 0; height: 0;
+  border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+.arrow .ahead.l { left: 0; border-right-width: 5px; border-right-style: solid; }
+.arrow .ahead.r { right: 0; border-left-width: 5px; border-left-style: solid; }
+.arrow .alabel { position: absolute; left: 2px; right: 2px; top: 0;
+  font-size: 10px; line-height: 11px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .marker { position: absolute; top: 0; right: 0; width: 0; height: 0;
   border-top: 7px solid #b45309; border-left: 7px solid transparent; }
 .daycell { position: relative; }
@@ -119,6 +139,7 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       if (d.isNonWorking) classes.push("nonworking");
       if (d.isOutside) classes.push("outside");
       if (d.isMonthStart) classes.push("monthstart");
+      if (d.isToday) classes.push("today");
       const label = d.isMonthStart ? `${d.month}/${d.day}` : String(d.day);
       const mark = d.isNonWorking ? '<span class="nwmark">&#10005;</span>' : "";
       const nw = d.nonWorkingLabel
@@ -143,13 +164,26 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       .map((b) => {
         const left = (b.startCol / 7) * 100;
         const width = ((b.endCol - b.startCol + 1) / 7) * 100;
-        const cls = ["bar", b.isStart ? "start" : "", b.isEnd ? "end" : ""]
+        const cls = [
+          b.item.kind === "arrow" ? "arrow" : "bar",
+          b.isStart ? "start" : "",
+          b.isEnd ? "end" : "",
+        ]
           .filter(Boolean)
           .join(" ");
+        const color = itemColor(b.item);
         const text = b.isStart ? `${esc(b.item.title)} (${b.workingDays}d)` : "";
-        return `<div class="${cls}" style="left:${left}%;width:${width}%;background:${itemColor(
-          b.item,
-        )}">${text}</div>`;
+        const box = `left:${left}%;width:${width}%`;
+        if (b.item.kind === "arrow") {
+          const head = (side: "l" | "r", edge: "left" | "right") =>
+            `<span class="ahead ${side}" style="border-${edge}-color:${color}"></span>`;
+          return `<div class="${cls}" style="${box}">${
+            b.isStart ? `<span class="alabel" style="color:${color}">${text}</span>` : ""
+          }<span class="aline" style="background:${color}"></span>${
+            b.isStart ? head("l", "right") : ""
+          }${b.isEnd ? head("r", "left") : ""}</div>`;
+        }
+        return `<div class="${cls}" style="${box};background:${color}">${text}</div>`;
       })
       .join("");
     lanes.push(`<div class="lane">${bars}</div>`);
@@ -244,7 +278,7 @@ export interface ExportOptions {
  */
 export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions): string {
   const { start, end, today, locale } = options;
-  const layout = buildLayout(doc, start, end);
+  const layout = buildLayout(doc, start, end, today);
   const working = countWorkingDays(start, end, doc.nonWorking);
   const t = strings(locale);
   const headers = t.weekdays.map((h) => `<th>${h}</th>`).join("");

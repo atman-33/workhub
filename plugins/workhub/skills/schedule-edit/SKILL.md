@@ -1,6 +1,6 @@
 ---
 name: schedule-edit
-description: Edit a workhub schedule note (projects/<slug>/schedules/*.md) from a natural-language instruction — move or resize the bars, milestones and notes in `## Items`, and adjust `## Non-working` days. Use when asked to shift a phase, rebalance a plan, add or remove non-working days, or when the workhub app launches a schedule edit.
+description: Edit a workhub schedule note (projects/<slug>/schedules/*.md) from a natural-language instruction — move or resize the bars, arrows, milestones and notes in `## Items`, and adjust `## Non-working` days. Use when asked to shift a phase, rebalance a plan, add or remove non-working days, or when the workhub app launches a schedule edit.
 argument-hint: "<schedule-file-path> <instruction>"
 ---
 
@@ -35,6 +35,7 @@ updated: 2026-07-24
 
 - [bar] I-001 2026-07-21..2026-08-07 implementation #blue task:T-0090
 - [bar] I-002 2026-08-08..2026-08-19 integration test #amber
+- [arrow] I-005 2026-07-21..2026-08-19 vendor lead time #gray
 - [milestone] I-003 2026-08-20 release review #red
 - [note] I-004 2026-07-31 monthly review 15:00
 
@@ -53,11 +54,19 @@ Element line:
 
 | Field | Rule |
 |---|---|
-| `<kind>` | `bar`, `milestone`, or `note`. No other kinds exist. |
+| `<kind>` | `bar`, `arrow`, `milestone`, or `note`. No other kinds exist. |
 | `<id>` | `I-` + a zero-padded number, unique in the file. **Never change it.** |
-| `<date-spec>` | `bar`: `YYYY-MM-DD..YYYY-MM-DD`. `milestone`/`note`: a single `YYYY-MM-DD`. |
+| `<date-spec>` | `bar`/`arrow`: `YYYY-MM-DD..YYYY-MM-DD`. `milestone`/`note`: a single `YYYY-MM-DD`. |
 | `#<color>` | Optional, one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. |
 | `task:<id>` | Optional link to a task in `tasks/`. |
+
+`bar` and `arrow` are the same shape of element — a span of days — and differ in
+confidence: a `bar` is a period that is settled, an `arrow` is one that is still
+an estimate (a vendor lead time, a buffer, work running in parallel). The app
+draws the arrow as a thin double-headed line so it reads as weaker than a bar.
+When an instruction asks for a period that is explicitly a guess, a buffer, or
+someone else's turnaround, prefer `arrow`; otherwise use `bar`. Never change an
+existing element's kind unless the instruction asks for it.
 
 An element may carry a **body** on indented continuation lines beneath it —
 ordinary Markdown list continuation. Any kind may have one; a `note` is the
@@ -97,7 +106,7 @@ Non-working line — one of:
    `## Non-working` (both the `weekly:` rule and the explicit ranges).
 4. **Rewrite only the affected lines**, in place, keeping their order.
 5. **Validate before writing:**
-   - every `bar` has `start <= end`;
+   - every `bar` and `arrow` has `start <= end`;
    - every date is a real calendar date in `YYYY-MM-DD` form;
    - ids are unchanged and still unique;
    - colors are from the list above;
@@ -127,7 +136,7 @@ Non-working line — one of:
 Report what blocked it and change nothing. Common cases:
 
 - the named element does not exist, or two elements match the description;
-- the requested move would invert a bar (`end` before `start`);
+- the requested move would invert a bar or arrow (`end` before `start`);
 - the instruction asks for something the notation cannot express (a half-day,
   a dependency between elements). Suggest the nearest expressible change
   instead — often a `note` element carrying the detail in its title.

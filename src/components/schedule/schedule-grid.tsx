@@ -17,6 +17,7 @@ import {
   dayDelta,
   isWeeklyNonWorking,
   shiftDate,
+  type LayoutBar,
 } from "@/lib/schedule/layout";
 import { COLOR_HEX, type ItemKind, type ScheduleDocModel, type ScheduleItem } from "@/lib/schedule/parse";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,9 @@ interface Props {
   /** Tasks of the displayed project that carry a `due` (T-0089). */
   tasks: Task[];
   locale: ScheduleLocale;
+  /** Today as `YYYY-MM-DD`, marked in the grid. The component never reads the
+   * clock itself so the rendering stays a function of its props. */
+  today?: string;
   /** Id of the element the side panel is editing, highlighted in the grid. */
   selectedId?: string | null;
   /** True while an AI edit is running: every gesture is disabled so an app
@@ -67,6 +71,10 @@ interface Props {
   onToggleNonWorking: (date: string) => void;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onMoveTaskDue: (taskId: string, date: string) => void;
+  /** Move the displayed window by whole weeks (Shift + wheel). */
+  onPanWindow: (weeks: number) => void;
+  /** Grow or shrink the displayed window by whole weeks (Ctrl + wheel). */
+  onZoomWindow: (weeks: number) => void;
 }
 
 /** What the pointer is currently doing. `null` means nothing. */
@@ -95,6 +103,7 @@ export function ScheduleGrid({
   end,
   tasks,
   locale,
+  today,
   selectedId,
   readOnly,
   onMoveItem,
@@ -103,6 +112,8 @@ export function ScheduleGrid({
   onToggleNonWorking,
   onCreateItem,
   onMoveTaskDue,
+  onPanWindow,
+  onZoomWindow,
 }: Props) {
   const [drag, setDrag] = useState<Drag>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -114,7 +125,7 @@ export function ScheduleGrid({
   const t = strings(locale);
   // Lay out the document *with the pending drag applied*, so the preview and
   // the eventual save can never disagree.
-  const layout = buildLayout(previewDoc(doc, drag), start, end);
+  const layout = buildLayout(previewDoc(doc, drag), start, end, today);
 
   const tasksByDate = new Map<string, Task[]>();
   for (const task of tasks) {
@@ -192,6 +203,33 @@ export function ScheduleGrid({
     };
   }, [drag, dateAt, onMoveItem, onResizeItem, onMoveTaskDue]);
 
+  /**
+   * Wheel with a modifier changes the displayed window; a plain wheel is left
+   * alone so the grid still scrolls the way every other list does.
+   *
+   * Registered by hand rather than with `onWheel` because React attaches its
+   * wheel listener at the root **passively**: `preventDefault` from a JSX
+   * handler is ignored, and Ctrl + wheel would zoom the whole WebView on top of
+   * zooming the window. `{ passive: false }` here is what makes the modifier
+   * gestures ours (`.claude/rules/ui-conventions.md`).
+   */
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.shiftKey) return;
+      if (!e.deltaY) return;
+      e.preventDefault();
+      // One notch is one week, in the direction the content moves: wheeling
+      // down walks the plan forward and widens it.
+      const weeks = e.deltaY > 0 ? 1 : -1;
+      if (e.ctrlKey) onZoomWindow(weeks);
+      else onPanWindow(weeks);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onPanWindow, onZoomWindow]);
+
   const beginItemDrag = (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => {
     if (readOnly || e.button !== 0) return;
     e.stopPropagation();
@@ -248,6 +286,8 @@ export function ScheduleGrid({
                     <ContextMenuTrigger asChild>
                       <div
                         data-date={day.date}
+                        // The anchor the toolbar's Today button scrolls to.
+                        data-today={day.isToday ? "" : undefined}
                         onPointerDown={(e) => {
                           if (readOnly || e.button !== 0) return;
                           onSelectItem(null);
@@ -274,11 +314,25 @@ export function ScheduleGrid({
                             className={cn(
                               "flex items-center gap-0.5 text-[11px] tabular-nums",
                               day.isMonthStart ? "font-bold" : "text-muted-foreground",
+                              // Today is the date itself in a filled pill, and
+                              // nothing else. Cell shading is already spoken
+                              // for by non-working days and an outline by the
+                              // range sweep; a third cell-wide treatment would
+                              // make all three ambiguous (§16.4.1).
+                              day.isToday &&
+                                "rounded-full bg-primary px-1.5 font-semibold text-primary-foreground",
                             )}
+                            title={day.isToday ? `Today · ${day.date}` : undefined}
                           >
                             {day.isMonthStart ? `${day.month}/${day.day}` : day.day}
                             {day.isNonWorking && (
-                              <X className="size-2.5 text-muted-foreground/70" aria-hidden />
+                              <X
+                                className={cn(
+                                  "size-2.5 text-muted-foreground/70",
+                                  day.isToday && "text-primary-foreground/80",
+                                )}
+                                aria-hidden
+                              />
                             )}
                           </span>
                           {notes.length > 0 && <NoteMarker notes={notes} onOpen={onSelectItem} />}
@@ -328,61 +382,68 @@ export function ScheduleGrid({
                 );
               })()}
 
-            {/* Bars float above the cells, positioned in column percentages so
-                they stay aligned with the grid at any width. */}
+            {/* Range elements float above the cells, positioned in column
+                percentages so they stay aligned with the grid at any width. */}
             <div className="pointer-events-none absolute inset-x-0 top-6">
-              {week.bars.map((bar) => (
-                <div
-                  key={`${bar.item.id}-${bar.startCol}`}
-                  style={{
-                    left: `${(bar.startCol / 7) * 100}%`,
-                    width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
-                    top: bar.lane * LANE_H,
-                    background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
-                  }}
-                  onPointerDown={(e) => beginItemDrag(e, bar.item)}
-                  onPointerUp={() => endItemPress(bar.item)}
-                  className={cn(
-                    "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
-                    !readOnly && "cursor-grab active:cursor-grabbing",
-                    bar.isStart && "rounded-l",
-                    bar.isEnd && "rounded-r",
-                    selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
-                  )}
-                  title={[
-                    `${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
-                      bar.workingDays,
-                    )}`,
-                    bar.item.body,
-                  ]
-                    .filter(Boolean)
-                    .join("\n")}
-                >
-                  {bar.isStart && !readOnly && (
-                    <span
-                      onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
-                      className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
-                    />
-                  )}
-                  {bar.isStart && (
-                    <span className="truncate">
-                      {bar.item.title}
-                      <span className="ml-1 opacity-80">{bar.workingDays}d</span>
-                      {linkedStatus(bar.item) && (
-                        <span className="ml-1 rounded bg-black/25 px-1 text-[9px] uppercase">
-                          {linkedStatus(bar.item)}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {bar.isEnd && !readOnly && (
-                    <span
-                      onPointerDown={(e) => beginItemDrag(e, bar.item, "end")}
-                      className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
-                    />
-                  )}
-                </div>
-              ))}
+              {week.bars.map((bar) =>
+                bar.item.kind === "arrow" ? (
+                  <ArrowSegment
+                    key={`${bar.item.id}-${bar.startCol}`}
+                    bar={bar}
+                    laneHeight={LANE_H}
+                    selected={selectedId === bar.item.id}
+                    readOnly={readOnly}
+                    status={linkedStatus(bar.item)}
+                    title={rangeTooltip(bar, t)}
+                    onDrag={beginItemDrag}
+                    onPress={endItemPress}
+                  />
+                ) : (
+                  <div
+                    key={`${bar.item.id}-${bar.startCol}`}
+                    style={{
+                      left: `${(bar.startCol / 7) * 100}%`,
+                      width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+                      top: bar.lane * LANE_H,
+                      background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
+                    }}
+                    onPointerDown={(e) => beginItemDrag(e, bar.item)}
+                    onPointerUp={() => endItemPress(bar.item)}
+                    className={cn(
+                      "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
+                      !readOnly && "cursor-grab active:cursor-grabbing",
+                      bar.isStart && "rounded-l",
+                      bar.isEnd && "rounded-r",
+                      selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
+                    )}
+                    title={rangeTooltip(bar, t)}
+                  >
+                    {bar.isStart && !readOnly && (
+                      <span
+                        onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
+                        className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
+                      />
+                    )}
+                    {bar.isStart && (
+                      <span className="truncate">
+                        {bar.item.title}
+                        <span className="ml-1 opacity-80">{bar.workingDays}d</span>
+                        {linkedStatus(bar.item) && (
+                          <span className="ml-1 rounded bg-black/25 px-1 text-[9px] uppercase">
+                            {linkedStatus(bar.item)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {bar.isEnd && !readOnly && (
+                      <span
+                        onPointerDown={(e) => beginItemDrag(e, bar.item, "end")}
+                        className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
+                      />
+                    )}
+                  </div>
+                ),
+              )}
             </div>
 
             {/* Milestones and task chips sit below the bar lanes. Notes are not
@@ -485,6 +546,112 @@ export function ScheduleGrid({
             Clear selection
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Tooltip for a range element: dates, working days, and the body when set. */
+function rangeTooltip(bar: LayoutBar, t: ReturnType<typeof strings>): string {
+  return [
+    `${bar.item.title} · ${t.range(bar.item.start, bar.item.end)} · ${t.workingDays(
+      bar.workingDays,
+    )}`,
+    bar.item.body,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * An `arrow` segment: a thin double-headed line instead of a filled band.
+ *
+ * An arrow means the same shape of thing as a bar — a span of days — but one
+ * that is still an estimate, so it has to read as *weaker* than a bar rather
+ * than as another bar in a different color. Hence no fill: the ink is a hairline
+ * plus two heads, and the title sits above it in the element's own color.
+ *
+ * The heads are drawn only on the segments that hold the real start and end, so
+ * a span crossing week rows shows one head at each true edge and none at the
+ * week boundaries it merely passes through.
+ */
+function ArrowSegment({
+  bar,
+  laneHeight,
+  selected,
+  readOnly,
+  status,
+  title,
+  onDrag,
+  onPress,
+}: {
+  bar: LayoutBar;
+  laneHeight: number;
+  selected: boolean;
+  readOnly?: boolean;
+  status?: string;
+  title: string;
+  onDrag: (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => void;
+  onPress: (item: ScheduleItem) => void;
+}) {
+  const color = bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray;
+  return (
+    <div
+      style={{
+        left: `${(bar.startCol / 7) * 100}%`,
+        width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+        top: bar.lane * laneHeight,
+      }}
+      onPointerDown={(e) => onDrag(e, bar.item)}
+      onPointerUp={() => onPress(bar.item)}
+      className={cn(
+        "pointer-events-auto absolute h-[18px]",
+        !readOnly && "cursor-grab active:cursor-grabbing",
+        selected && "rounded ring-1 ring-foreground",
+      )}
+      title={title}
+    >
+      {bar.isStart && !readOnly && (
+        <span
+          onPointerDown={(e) => onDrag(e, bar.item, "start")}
+          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize"
+        />
+      )}
+      {bar.isStart && (
+        <span
+          className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
+          style={{ color }}
+        >
+          <span className="truncate">{bar.item.title}</span>
+          <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
+          {status && (
+            <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
+              {status}
+            </span>
+          )}
+        </span>
+      )}
+      {/* The line itself, vertically centred under the label. */}
+      <div className="absolute inset-x-0 top-[13px] flex items-center">
+        {bar.isStart && (
+          <span
+            className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
+            style={{ borderRightColor: color }}
+          />
+        )}
+        <span className="h-px flex-1" style={{ background: color }} />
+        {bar.isEnd && (
+          <span
+            className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
+            style={{ borderLeftColor: color }}
+          />
+        )}
+      </div>
+      {bar.isEnd && !readOnly && (
+        <span
+          onPointerDown={(e) => onDrag(e, bar.item, "end")}
+          className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-ew-resize"
+        />
       )}
     </div>
   );
@@ -618,6 +785,12 @@ function DayMenuItems({
         onSelect={() => onCreateItem("bar", range.start, range.end)}
       >
         Add bar
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={readOnly}
+        onSelect={() => onCreateItem("arrow", range.start, range.end)}
+      >
+        Add arrow
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
