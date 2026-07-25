@@ -10,6 +10,7 @@ import {
   Keyboard,
   MessageSquarePlus,
   Mic,
+  MonitorUp,
   PenLine,
   Rocket,
   Sparkles,
@@ -164,11 +165,21 @@ Every task you hand to an agent — by launching it or by copying its prompt —
 - Line breaks are collapsed into spaces when the prompt is built, so a multi-line note stays a single valid command line. Leave the field empty to add nothing.
 - It applies equally to **Copy prompt**, so a prompt pasted into another terminal by hand carries the same instructions.`;
 
+const CLAUDE_DESKTOP_MD = `## Sending a task to Claude Desktop
+
+An AI task carries three buttons on its card, its list row, and its editor: **Launch agent** starts the agent in a terminal (or a herdr workspace), **Copy prompt** puts the generated prompt on the clipboard for a manual paste, and **Send to Claude Desktop** opens Claude Desktop on a new session with that same prompt already filled in — the one-click form of copy-and-paste.
+
+- **⚙ Settings → Commands → Send to Claude Desktop** picks what the button opens. *Code session* (the default) starts a Claude Code session with the vault as its folder, so the prompt behaves exactly as it does in a terminal: the same instructions, the same skills (\`task-start\`, \`task-report\`), the same working directory. *Chat* opens a plain chat instead, which has no skills and no vault access — it receives the task's Description and is meant for talking a task over, not working it.
+- The first time a session opens with a folder, **Claude Desktop asks you to confirm that folder**. That prompt is part of its own link handling and cannot be skipped.
+- Requires Claude Desktop to be installed — it is what registers the \`claude://\` links the button opens. Without it, the button reports that no handler is available.
+- Like **Copy prompt**, the sent prompt honors the task's confirm and worktree flags, the task file language, and your custom prompt.`;
+
 const ALL_MD = [
   SETUP_MD,
   TEMPLATE_MD,
   MEMORY_MD,
   CUSTOM_PROMPT_MD,
+  CLAUDE_DESKTOP_MD,
   INK_MD,
   QUICK_CAPTURE_MD,
   VOICE_MD,
@@ -646,6 +657,48 @@ export function HelpView() {
                 It applies equally to <span className="font-medium">Copy prompt</span>,
                 so a prompt pasted into another terminal by hand carries the same
                 instructions.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={MonitorUp}
+            title="Sending a task to Claude Desktop"
+            value="claude-desktop"
+            markdown={CLAUDE_DESKTOP_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              An AI task carries three buttons on its card, its list row, and its
+              editor: <span className="font-medium">Launch agent</span> starts the agent
+              in a terminal, <span className="font-medium">Copy prompt</span> puts the
+              generated prompt on the clipboard, and{" "}
+              <span className="font-medium">Send to Claude Desktop</span> opens Claude
+              Desktop on a new session with that same prompt already filled in.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium">
+                  ⚙ Settings → Commands → Send to Claude Desktop
+                </span>{" "}
+                picks what the button opens. <em>Code session</em> (the default) starts a
+                Claude Code session with the vault as its folder, so the prompt behaves
+                exactly as in a terminal — same instructions, same skills
+                (task-start, task-report), same working directory. <em>Chat</em> opens a
+                plain chat, which has no skills or vault access: it receives the
+                task&apos;s Description and is for talking a task over, not working it.
+              </li>
+              <li>
+                The first time a session opens with a folder,{" "}
+                <span className="font-medium">
+                  Claude Desktop asks you to confirm that folder
+                </span>
+                . That prompt is part of its own link handling and cannot be skipped.
+              </li>
+              <li>
+                Requires Claude Desktop to be installed — it is what registers the{" "}
+                <code>claude://</code> links the button opens.
               </li>
             </ul>
           </Section>

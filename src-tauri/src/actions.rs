@@ -534,11 +534,12 @@ fn parse_opencode_models(stdout: &str) -> Vec<String> {
         .collect()
 }
 
-/// Characters kept verbatim in the `path` query value of an `obsidian://`
-/// URI: unreserved chars plus `/` and `:` so a normalized Windows path stays
-/// readable (`C:/vault/tasks/...`). Everything else (spaces, `#`, `?`, `&`,
-/// multibyte) is percent-encoded.
-const OBSIDIAN_PATH_SET: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+/// Characters kept verbatim in a path carried as a query value of an app URI
+/// (`obsidian://open?path=`, `claude://code/new?folder=`): unreserved chars
+/// plus `/` and `:` so a normalized Windows path stays readable
+/// (`C:/vault/tasks/...`). Everything else (spaces, `#`, `?`, `&`, multibyte)
+/// is percent-encoded.
+const URI_PATH_SET: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
     .remove(b'/')
     .remove(b':')
     .remove(b'-')
@@ -553,7 +554,7 @@ fn obsidian_open_url(file: &str) -> String {
     let normalized = file.replace('\\', "/");
     format!(
         "obsidian://open?path={}",
-        percent_encoding::utf8_percent_encode(&normalized, OBSIDIAN_PATH_SET)
+        percent_encoding::utf8_percent_encode(&normalized, URI_PATH_SET)
     )
 }
 
@@ -561,6 +562,120 @@ fn obsidian_open_url(file: &str) -> String {
 /// the OS error if no handler is registered (Obsidian not installed).
 pub fn open_in_obsidian(file: &str) -> Result<(), String> {
     tauri_plugin_opener::open_url(obsidian_open_url(file), None::<&str>).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------
+// Claude Desktop deep links (T-0095)
+// ---------------------------------------------------------------------
+
+/// Character budget Claude Desktop applies to a deep link's `q` value
+/// (~14,000 chars per its documentation). Beyond it the prompt is silently
+/// truncated on their side, so cut it here — on a char boundary — instead.
+const CLAUDE_PROMPT_LIMIT: usize = 14_000;
+
+/// Characters kept verbatim in the `q` (prompt) value of a `claude://` URI.
+/// Only the unreserved set survives: a prompt carries spaces, `&`, `=`, `?`,
+/// backticks and multibyte text, all of which would otherwise be read as URI
+/// structure or mangled by the handler.
+const URI_QUERY_SET: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
+/// Truncates to at most `max` **characters**, never splitting a multibyte
+/// char (a byte-sliced Japanese prompt would panic).
+fn truncate_chars(s: &str, max: usize) -> &str {
+    match s.char_indices().nth(max) {
+        Some((byte_idx, _)) => &s[..byte_idx],
+        None => s,
+    }
+}
+
+/// Builds the `claude://` deep link that opens Claude Desktop with `prompt`
+/// prefilled.
+///
+/// Two modes, selected by the `claude_desktop_mode` setting:
+/// - `"chat"` — a plain Claude chat (`claude://claude.ai/new?q=`). No skills
+///   and no vault access, so this is for consulting about a task, not working
+///   it; `folder` is unused.
+/// - anything else (default `"code"`) — a Claude Code session
+///   (`claude://code/new?q=&folder=`) rooted at the vault, which is the agent
+///   harness home. That makes the session equivalent to a terminal launch:
+///   the same prompt, the same skills, the same working directory.
+///
+/// Claude Desktop asks the user to confirm the `folder` before it uses it;
+/// that dialog is part of its scheme handling and cannot be skipped.
+fn claude_desktop_url(prompt: &str, folder: &str, mode: &str) -> String {
+    let q = percent_encoding::utf8_percent_encode(
+        truncate_chars(prompt, CLAUDE_PROMPT_LIMIT),
+        URI_QUERY_SET,
+    );
+    if mode == "chat" {
+        return format!("claude://claude.ai/new?q={q}");
+    }
+    let normalized = folder.replace('\\', "/");
+    format!(
+        "claude://code/new?q={q}&folder={}",
+        percent_encoding::utf8_percent_encode(&normalized, URI_PATH_SET)
+    )
+}
+
+/// Builds the prompt for a Claude Desktop **chat** session. A plain chat has
+/// no skills and no vault file access, so `build_agent_prompt`'s harness
+/// instructions ("run the task-start skill", "…the task-report skill") would
+/// be dead text there. Send the task's own Description instead, framed as
+/// material for a discussion, with the file path for a vault-connected chat
+/// that *can* read it.
+pub fn build_desktop_chat_prompt(
+    task_id: &str,
+    task_title: &str,
+    task_file: &str,
+    description: &str,
+) -> String {
+    let body = description.trim();
+    let body_block = if body.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n{body}")
+    };
+    format!(
+        "I'd like to discuss task {task_id} — {task_title}.{body_block}\n\nTask file: {task_file}"
+    )
+}
+
+/// Opens Claude Desktop on a new session for a task, with the prompt already
+/// filled in — the one-click form of copying the prompt and pasting it by hand.
+///
+/// `mode` picks which prompt and which link flavor to use (see
+/// `claude_desktop_url`); `description` is only read in chat mode. Returns a
+/// short human-readable message for the UI status bar.
+pub fn send_task_to_claude_desktop(
+    params: &LaunchAgentForTaskParams<'_>,
+    mode: &str,
+    description: &str,
+) -> Result<String, String> {
+    let chat = mode == "chat";
+    if !chat && params.vault_path.trim().is_empty() {
+        return Err("no vault is configured".into());
+    }
+    let prompt = if chat {
+        build_desktop_chat_prompt(
+            params.task_id,
+            params.task_title,
+            params.task_file,
+            description,
+        )
+    } else {
+        build_agent_prompt(params)
+    };
+    let url = claude_desktop_url(&prompt, params.vault_path, mode);
+    tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())?;
+    Ok(format!(
+        "sent {} to Claude Desktop ({})",
+        params.task_id,
+        if chat { "chat" } else { "code session" }
+    ))
 }
 
 pub fn open_explorer(path: &str) -> Result<(), String> {
@@ -645,6 +760,66 @@ mod tests {
             obsidian_open_url("C:/a-b_c.d~e/f.md"),
             "obsidian://open?path=C:/a-b_c.d~e/f.md"
         );
+    }
+
+    #[test]
+    fn claude_code_url_carries_the_prompt_and_the_vault_folder() {
+        let url = claude_desktop_url("Please implement task T-1 & report.", "C:\\vault", "code");
+        assert_eq!(
+            url,
+            "claude://code/new?q=Please%20implement%20task%20T-1%20%26%20report.&folder=C:/vault"
+        );
+    }
+
+    #[test]
+    fn claude_chat_url_omits_the_folder() {
+        let url = claude_desktop_url("hi", "C:/vault", "chat");
+        assert_eq!(url, "claude://claude.ai/new?q=hi");
+        assert!(!url.contains("folder"));
+    }
+
+    #[test]
+    fn claude_url_encodes_multibyte_prompts() {
+        let url = claude_desktop_url("タスク", "C:/vault", "chat");
+        assert_eq!(url, "claude://claude.ai/new?q=%E3%82%BF%E3%82%B9%E3%82%AF");
+    }
+
+    #[test]
+    fn claude_url_truncates_a_long_prompt_on_a_char_boundary() {
+        // Multibyte input: a byte-wise cut at the limit would panic.
+        let prompt = "あ".repeat(CLAUDE_PROMPT_LIMIT + 500);
+        let url = claude_desktop_url(&prompt, "C:/vault", "chat");
+        // Each kept char encodes to 9 chars ("%E3%81%82").
+        let encoded_len = url.len() - "claude://claude.ai/new?q=".len();
+        assert_eq!(encoded_len, CLAUDE_PROMPT_LIMIT * 9);
+    }
+
+    #[test]
+    fn desktop_chat_prompt_carries_the_description_and_file() {
+        let prompt = build_desktop_chat_prompt("T-1", "title", "tasks/T-1.md", "  Do the thing.  ");
+        assert_eq!(
+            prompt,
+            "I'd like to discuss task T-1 — title.\n\nDo the thing.\n\nTask file: tasks/T-1.md"
+        );
+    }
+
+    #[test]
+    fn desktop_chat_prompt_omits_an_empty_description() {
+        let prompt = build_desktop_chat_prompt("T-1", "title", "tasks/T-1.md", "\n  \n");
+        assert_eq!(
+            prompt,
+            "I'd like to discuss task T-1 — title.\n\nTask file: tasks/T-1.md"
+        );
+    }
+
+    #[test]
+    fn code_session_send_requires_a_vault_but_chat_does_not() {
+        let mut params = test_params("claude-code", "");
+        params.vault_path = " ";
+        assert!(send_task_to_claude_desktop(&params, "code", "").is_err());
+        // Chat mode needs no folder, so it gets as far as the OS handler —
+        // which is absent in CI, so only the vault check is asserted here.
+        assert!(claude_desktop_url("x", " ", "chat") == "claude://claude.ai/new?q=x");
     }
 
     #[test]

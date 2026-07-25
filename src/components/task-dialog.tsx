@@ -17,6 +17,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Markdown } from "@/components/ui/markdown";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,11 +44,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { PriorityBadge } from "@/components/priority-badge";
-import { parseBody } from "@/lib/task-body";
+import { buildBody, parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
 export interface TaskDraft {
@@ -133,6 +141,9 @@ interface Props {
   onLaunchAgent?: (task: Task) => Promise<unknown>;
   /** Copies the agent prompt for the edited task to the clipboard. */
   onCopyTaskPrompt?: (task: Task) => Promise<unknown>;
+  onSendToClaudeDesktop?: (task: Task) => Promise<unknown>;
+  /** `claude_desktop_mode` setting, shown in the send button's tooltip. */
+  claudeDesktopMode?: string;
 }
 
 export function TaskDialog({
@@ -145,6 +156,8 @@ export function TaskDialog({
   onAutoSave,
   onLaunchAgent,
   onCopyTaskPrompt,
+  onSendToClaudeDesktop,
+  claudeDesktopMode,
 }: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
   // Keep the rendered mode stable while the dialog is closing so the footer
@@ -353,6 +366,34 @@ export function TaskDialog({
     setTimeout(() => onClose(), 700);
   }, [task, onAutoSave, onCopyTaskPrompt, onClose]);
 
+  // Send the prompt to a new Claude Desktop session. Same flush-then-close
+  // dance as handleCopyPrompt (the session may edit the task file), plus the
+  // draft's Description is folded into the body: chat mode sends the
+  // Description, and it should be the text the user is looking at.
+  const handleSendToClaudeDesktop = useCallback(async () => {
+    if (!task || !onSendToClaudeDesktop) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const d = draftRef.current;
+    if (onAutoSave && d.title.trim()) {
+      await onAutoSave(d);
+    }
+    await onSendToClaudeDesktop({
+      ...task,
+      title: d.title,
+      assignee: d.assignee,
+      project: d.project,
+      model: d.model,
+      confirm: d.confirm,
+      worktree: d.worktree,
+      body: buildBody(parseBody(task.body), d.content),
+    });
+    skipAutoSaveOnCloseRef.current = true;
+    setTimeout(() => onClose(), 700);
+  }, [task, onAutoSave, onSendToClaudeDesktop, onClose]);
+
   // Edit mode: jump to the task file in Obsidian. Mirrors handleLaunch —
   // flush the debounced autosave first so Obsidian shows current content,
   // then close without the autosave-on-close so a later dismiss cannot
@@ -415,11 +456,16 @@ export function TaskDialog({
         )}
       >
         <DialogHeader>
+          {/* The action row must never be squeezed: it keeps `shrink-0` and the
+              title truncates instead, so adding a button cannot wrap the title
+              onto a second line. Plan/Results live in a dropdown for the same
+              reason — they are the least-used controls here, and two labelled
+              buttons cost more width than every icon button combined. */}
           <div className="flex items-center justify-between gap-2 pr-6">
-            <DialogTitle>
+            <DialogTitle className="min-w-0 truncate">
               {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
             </DialogTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {displayMode === "edit" && (
                 <>
                   {task &&
@@ -428,32 +474,46 @@ export function TaskDialog({
                         {onCopyTaskPrompt && (
                           <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
                         )}
+                        {onSendToClaudeDesktop && (
+                          <ClaudeDesktopButton
+                            size="icon-sm"
+                            mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                            onSend={handleSendToClaudeDesktop}
+                          />
+                        )}
                         {onLaunchAgent && (
                           <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
                         )}
                       </>
                     )}
                   <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
-                  {hasPlan && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => setPlanOpen(true)}
-                    >
-                      <ClipboardList className="size-3.5" /> Plan
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs"
-                    onClick={() => setResultsOpen(true)}
-                  >
-                    <FileText className="size-3.5" /> Results
-                  </Button>
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label="Plan and Results"
+                          >
+                            <FileText />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Plan / Results</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem disabled={!hasPlan} onSelect={() => setPlanOpen(true)}>
+                        <ClipboardList />
+                        {hasPlan ? "Plan" : "Plan (none recorded)"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setResultsOpen(true)}>
+                        <FileText />
+                        Results
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </>
               )}
               <Button

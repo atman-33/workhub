@@ -67,6 +67,10 @@ export interface Settings {
    * alike). Empty = nothing appended; whitespace is normalized by the
    * backend so the prompt survives being quoted into a one-line command. */
   custom_prompt: string;
+  /** What "send to Claude Desktop" opens: "code" = a Claude Code session
+   * rooted at the vault (same prompt a terminal launch uses), "chat" = a plain
+   * chat with the task's Description (no skills, consultation only). */
+  claude_desktop_mode: string;
   /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
    * tasks/archive index via a headless agent). */
   tidy: TidySettings;

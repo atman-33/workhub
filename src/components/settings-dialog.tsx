@@ -91,6 +91,12 @@ const TASK_LANGUAGES: { id: string; label: string }[] = [
   { id: "ja", label: "日本語" },
 ];
 
+/** What "send to Claude Desktop" opens for a task. */
+const CLAUDE_DESKTOP_MODES: { id: string; label: string }[] = [
+  { id: "code", label: "Code session (vault as folder)" },
+  { id: "chat", label: "Chat (consultation only)" },
+];
+
 /** Calendar display language for the Schedule tab and its HTML export. */
 const SCHEDULE_LOCALES: { id: string; label: string }[] = [
   { id: "en", label: "English" },
@@ -123,6 +129,7 @@ const DEFAULTS: Settings = {
   voice_indicator_position: null,
   task_language: "en",
   custom_prompt: "",
+  claude_desktop_mode: "code",
   tidy: TIDY_DEFAULTS,
   schedule_assignee: "claude-code",
   schedule_model: "",
@@ -499,6 +506,33 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   Embed terminal (show herdr inside the app)
                 </label>
               )}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Send to Claude Desktop
+                </label>
+                <p className="text-[10px] leading-tight text-muted-foreground/70">
+                  What the Claude Desktop button on a task opens. A code session runs in the
+                  vault and carries the same prompt a terminal launch does, so skills like
+                  task-start and task-report work. A chat has no skills or vault access and
+                  receives the task's Description instead — for consulting, not for working the
+                  task. Claude Desktop asks you to confirm the folder the first time.
+                </p>
+                <Select
+                  value={draft.claude_desktop_mode}
+                  onValueChange={(v) => setDraft({ ...draft, claude_desktop_mode: v })}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CLAUDE_DESKTOP_MODES.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5 pt-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Task file language

@@ -264,6 +264,47 @@ pub fn copy_task_prompt(
         .map_err(|e| format!("failed to copy prompt: {e}"))
 }
 
+/// Opens Claude Desktop on a new session for a task with the prompt already
+/// filled in, via the `claude://` URL scheme (T-0095). `mode` is the
+/// `claude_desktop_mode` setting ("code" | "chat"); `description` is the task's
+/// `## Description` text, used only by chat mode.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn send_task_to_claude_desktop(
+    assignee: String,
+    task_id: String,
+    task_title: String,
+    task_file: String,
+    project: String,
+    model: String,
+    confirm: bool,
+    worktree: bool,
+    vault_path: String,
+    task_language: String,
+    custom_prompt: String,
+    mode: String,
+    description: String,
+) -> Result<String, String> {
+    let params = actions::LaunchAgentForTaskParams {
+        agent_cmd: "",
+        assignee: &assignee,
+        task_id: &task_id,
+        task_title: &task_title,
+        task_file: &task_file,
+        project: &project,
+        model: &model,
+        confirm,
+        worktree,
+        vault_path: &vault_path,
+        use_herdr: false,
+        herdr_cmd: "",
+        terminal_embed: false,
+        task_language: &task_language,
+        custom_prompt: &custom_prompt,
+    };
+    actions::send_task_to_claude_desktop(&params, &mode, &description)
+}
+
 /// Models available to the opencode CLI (`opencode models`), as
 /// `provider/model` ids for the task dialog's suggestions.
 #[tauri::command]

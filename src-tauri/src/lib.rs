@@ -138,6 +138,7 @@ pub fn run() {
             commands::open_terminal,
             commands::launch_agent,
             commands::copy_task_prompt,
+            commands::send_task_to_claude_desktop,
             commands::opencode_models,
             commands::open_explorer,
             commands::open_in_obsidian,

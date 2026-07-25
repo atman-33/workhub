@@ -1,5 +1,6 @@
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
@@ -21,13 +22,16 @@ interface Props {
   onOpen: (task: Task) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
+  onSendToClaudeDesktop: (task: Task) => Promise<unknown>;
+  /** `claude_desktop_mode` setting, shown in the send button's tooltip. */
+  claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpenInObsidian, onCyclePriority, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -96,6 +100,11 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onOpe
                   <CopyPromptButton
                     className="shrink-0"
                     onCopy={() => onCopyTaskPrompt(task)}
+                  />
+                  <ClaudeDesktopButton
+                    className="shrink-0"
+                    mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                    onSend={() => onSendToClaudeDesktop(task)}
                   />
                   <LaunchAgentButton
                     className="shrink-0"

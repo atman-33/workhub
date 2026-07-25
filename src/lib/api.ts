@@ -180,6 +180,41 @@ export const api = {
       customPrompt,
     }),
 
+  /** Opens Claude Desktop on a new session for the task with the prompt
+   * prefilled. `mode` is the `claude_desktop_mode` setting; `description` is
+   * the task's Description text, read only by chat mode. Returns a status
+   * message describing which kind of session was opened. */
+  sendTaskToClaudeDesktop: (
+    assignee: string,
+    taskId: string,
+    taskTitle: string,
+    taskFile: string,
+    project: string,
+    model: string,
+    confirm: boolean,
+    worktree: boolean,
+    vaultPath: string,
+    taskLanguage: string,
+    customPrompt: string,
+    mode: string,
+    description: string,
+  ) =>
+    invoke<string>("send_task_to_claude_desktop", {
+      assignee,
+      taskId,
+      taskTitle,
+      taskFile,
+      project,
+      model,
+      confirm,
+      worktree,
+      vaultPath,
+      taskLanguage,
+      customPrompt,
+      mode,
+      description,
+    }),
+
   // ---- embedded terminal (xterm.js + ConPTY running the herdr client) ----
   /** Returns true when an already-running PTY session was reused. Output is
    * streamed over `onOutput` (an ordered IPC channel — unlike events, safe
