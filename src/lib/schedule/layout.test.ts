@@ -421,7 +421,7 @@ describe("today marker", () => {
       locale: "en",
     });
     expect(html).toContain("today");
-    expect((html.match(/class="daynum[^"]*today[^"]*"/g) ?? [])).toHaveLength(1);
+    expect((html.match(/class="daycell[^"]*today[^"]*"/g) ?? [])).toHaveLength(1);
   });
 });
 

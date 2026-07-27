@@ -34,6 +34,15 @@ function itemColor(item: ScheduleItem): string {
   return item.color ? COLOR_HEX[item.color] : COLOR_HEX.gray;
 }
 
+/** Height of one bar lane, in px — the same lane pitch the screen grid uses. */
+const LANE_H = 18;
+/** Height of the day-number line, which is also where the bar lanes start. */
+const HEAD_H = 20;
+/** Minimum height of a day cell. Every week gets this much space whether or
+ * not it holds anything, so the grid keeps a constant week pitch instead of
+ * collapsing to the height of its contents. */
+const CELL_H = 96;
+
 /**
  * Print styling lives here rather than in a shared stylesheet because the
  * export is the only surface that is ever printed. A4 landscape matches the
@@ -58,26 +67,49 @@ table.grid th {
   border-bottom: 1px solid #d1d5db; text-align: left;
 }
 th.gutter, td.gutter { width: 44px; color: #6b7280; font-size: 11px; text-align: right; padding-right: 8px; }
+td.gutter { vertical-align: top; padding-top: 3px; }
+/* The weekday header wraps its own seven-column table, so the outer cell must
+   add no padding of its own — otherwise its column rules sit a few pixels off
+   from the ones in the week rows below. */
+table.grid th.daycols { padding: 0; }
 tr.week { break-inside: avoid; page-break-inside: avoid; }
 td.dayrow { padding: 0; border-bottom: 1px solid #e5e7eb; }
+.weekbox { position: relative; }
 table.days { width: 100%; border-collapse: collapse; table-layout: fixed; }
-table.days td { width: 14.285%; vertical-align: top; padding: 0; }
-.daynum { padding: 3px 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
-.nonworking { background: #f3f4f6; color: #9ca3af; }
+table.days td { width: 14.285%; padding: 0; }
+table.days th { width: 14.285%; padding: 4px 6px; border-right: 1px solid #e5e7eb; }
+/* A calendar reads as a calendar only if every week is the same block of
+   space and the seven columns are actually divided. Both are given here
+   rather than left to the content: a height on a table cell is a minimum, so
+   a week with more lanes than fit still grows. */
+td.daycell {
+  position: relative; vertical-align: top; height: ${CELL_H}px;
+  border-right: 1px solid #e5e7eb; padding: 0 0 3px;
+}
+td.daycell:last-child, table.days th:last-child { border-right: none; }
+/* The day number and any non-working label share one fixed-height line, so
+   the bar lanes below start at the same offset in every cell. */
+.dayhead { height: ${HEAD_H}px; padding: 3px 5px 0; white-space: nowrap; overflow: hidden; }
+.daynum { font-size: 11px; font-variant-numeric: tabular-nums; }
+.nonworking { background: #f3f4f6; }
+.nonworking .daynum { color: #9ca3af; }
 /* The x is what distinguishes a non-working day at a glance; the shading
    alone is easy to lose on a printed page. */
 .nwmark { margin-left: 2px; font-size: 9px; color: #9ca3af; }
-.outside { color: #d1d5db; }
+.outside .daynum { color: #d1d5db; }
 /* Today is outlined rather than filled: a printed page is often black and
    white, where a filled pill turns into a black blob and a solid block of
    toner. The header already states the export date, so this only has to say
    "here". */
-.today { display: inline-block; border: 1px solid #111827; border-radius: 999px;
-  padding: 1px 5px; font-weight: 700; color: #111827; }
-.monthstart { font-weight: 700; border-left: 2px solid #9ca3af; }
-.nwlabel { display: block; font-size: 9px; color: #9ca3af; padding: 0 5px 2px; }
-.lanes { padding: 0 0 4px; }
-.lane { position: relative; height: 18px; }
+.today .daynum { display: inline-block; border: 1px solid #111827; border-radius: 999px;
+  padding: 0 5px; font-weight: 700; color: #111827; }
+.monthstart { border-left: 2px solid #9ca3af; }
+.monthstart .daynum { font-weight: 700; }
+.nwlabel { margin-left: 4px; font-size: 9px; color: #9ca3af; }
+/* Bars span columns, so they cannot live inside a cell: they float over the
+   whole week, below the day-number line. */
+.lanes { position: absolute; left: 0; right: 0; top: ${HEAD_H}px; }
+.lane { position: relative; height: ${LANE_H}px; }
 .bar {
   position: absolute; height: 16px; line-height: 16px;
   padding: 0 5px; font-size: 10px; color: #fff; white-space: nowrap;
@@ -101,8 +133,10 @@ table.days td { width: 14.285%; vertical-align: top; padding: 0; }
   overflow: hidden; text-overflow: ellipsis; }
 .marker { position: absolute; top: 0; right: 0; width: 0; height: 0;
   border-top: 7px solid #b45309; border-left: 7px solid transparent; }
-.daycell { position: relative; }
-.points { padding: 0 4px 3px; }
+/* Reserves the space the floating lanes occupy, so points always sit below
+   the bars of their own week. */
+.spacer { height: 0; }
+.points { padding: 0 4px; }
 .point { display: block; font-size: 10px; line-height: 14px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 .dot { display: inline-block; width: 6px; height: 6px; margin-right: 3px; }
@@ -135,7 +169,7 @@ footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px;
 function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): string {
   const dayCells = week.days
     .map((d) => {
-      const classes = ["daynum"];
+      const classes = ["daycell"];
       if (d.isNonWorking) classes.push("nonworking");
       if (d.isOutside) classes.push("outside");
       if (d.isMonthStart) classes.push("monthstart");
@@ -148,9 +182,20 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
       const marker = d.points.some((p) => p.kind === "note")
         ? '<span class="marker"></span>'
         : "";
-      return `<td class="daycell">${marker}<div class="${classes.join(
+      const points = d.points
+        .filter((p) => p.kind !== "note")
+        .map(
+          (p) =>
+            `<span class="point"><span class="dot ${p.kind}" style="background:${itemColor(
+              p,
+            )}"></span>${esc(p.title)}</span>`,
+        )
+        .join("");
+      return `<td class="${classes.join(
         " ",
-      )}">${label}${mark}</div>${nw}</td>`;
+      )}">${marker}<div class="dayhead"><span class="daynum">${label}${mark}</span>${nw}</div><div class="spacer" style="height:${
+        week.lanes * LANE_H
+      }px"></div><div class="points">${points}</div></td>`;
     })
     .join("");
 
@@ -189,27 +234,13 @@ function renderWeek(week: Layout["weeks"][number], locale: ScheduleLocale): stri
     lanes.push(`<div class="lane">${bars}</div>`);
   }
 
-  const pointRow = week.days
-    .map((d) => {
-      const points = d.points
-        .filter((p) => p.kind !== "note")
-        .map(
-          (p) =>
-            `<span class="point"><span class="dot ${p.kind}" style="background:${itemColor(
-              p,
-            )}"></span>${esc(p.title)}</span>`,
-        )
-        .join("");
-      return `<td><div class="points">${points}</div></td>`;
-    })
-    .join("");
-
   return `<tr class="week">
   <td class="gutter">${esc(monthLabel(week.gutterMonth, locale))}</td>
   <td class="dayrow">
-    <table class="days"><tr>${dayCells}</tr></table>
-    <div class="lanes">${lanes.join("")}</div>
-    <table class="days"><tr>${pointRow}</tr></table>
+    <div class="weekbox">
+      <table class="days"><tr>${dayCells}</tr></table>
+      <div class="lanes">${lanes.join("")}</div>
+    </div>
   </td>
 </tr>`;
 }
@@ -298,7 +329,7 @@ export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions
   )}</div>
 </header>
 <table class="grid">
-  <thead><tr><th class="gutter"></th><th><table class="days"><tr>${headers}</tr></table></th></tr></thead>
+  <thead><tr><th class="gutter"></th><th class="daycols"><table class="days"><tr>${headers}</tr></table></th></tr></thead>
   <tbody>
 ${layout.weeks.map((w) => renderWeek(w, locale)).join("\n")}
   </tbody>

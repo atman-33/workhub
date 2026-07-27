@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.65.0 (2026-07-27)
+
+- **The schedule's HTML export reads as a calendar** (T-0099). Week rows used
+  to be only as tall as whatever they held, so the grid's rhythm changed from
+  week to week and a row with a bar towered over an empty one. Every day cell
+  now gets the same minimum height, the seven columns are separated by rules,
+  and a non-working day is shaded over its whole cell instead of behind its
+  date alone — the same treatment the on-screen grid already gave them. Bars
+  and milestones keep exactly the geometry the layout computes; only the space
+  around them changed. Taller rows mean fewer weeks per printed page, which is
+  the trade the readability is worth.
+
 ## 0.64.0 (2026-07-25)
 
 - **The schedule's side panel is resizable** (T-0096). Drag the divider between
