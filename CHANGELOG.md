@@ -11,6 +11,13 @@
   and milestones keep exactly the geometry the layout computes; only the space
   around them changed. Taller rows mean fewer weeks per printed page, which is
   the trade the readability is worth.
+- **Fixed:** editing an element in the schedule's side panel could revert a
+  change just made by dragging it on the grid (T-0101). The side panel and the
+  grid each kept their own copy of the selected element; a drag updated the
+  note but not the panel's copy, so the panel's next edit — a title, a color, a
+  kind — wrote the stale dates back over the note. The panel now reads the
+  selected element straight out of the note instead of keeping a copy, so a
+  grid gesture and a panel edit can no longer disagree about it.
 
 ## 0.64.0 (2026-07-25)
 
