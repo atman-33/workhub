@@ -43,6 +43,34 @@ and keep the callbacks in the dependency array identity-stable (`useCallback`
 with functional `setState`) so the listener is not torn down and rebuilt on
 every render. See `src/components/schedule/schedule-grid.tsx`.
 
+## Textarea that must fill, not grow: `min-h-0` + `field-sizing-fixed`
+
+The shared `Textarea` (`src/components/ui/textarea.tsx`) carries
+`field-sizing-content`, so it sizes itself to its content. That is the right
+default for a form field, but it is wrong for a textarea meant to fill the
+remaining height of a fixed-height layout — `h-full` alone does not stop it.
+
+Two things break at once. The flex item wrapping the textarea defaults to
+`min-height: auto`, so it cannot shrink below its content; and with no
+definite height on the wrapper, `height: 100%` on the textarea cannot
+resolve and falls back to content sizing. The row then grows past the
+container, and whatever sits below it is clipped by the container's
+`overflow-hidden` — silently, since nothing scrolls.
+
+When the textarea should fill and scroll instead:
+
+```tsx
+<div className="relative min-h-0 flex-1">
+  <Textarea className="h-full min-h-0 field-sizing-fixed resize-none overflow-auto" />
+</div>
+```
+
+`min-h-0` is needed on **both** the wrapper and the textarea. This bit the
+quick-capture window, where a long description hid the "Save to inbox" button
+entirely (T-0102); the maximized editor in `task-dialog.tsx` uses the same
+idiom. Textareas that genuinely should grow (`notes-dialog`,
+`settings-dialog`, `schedule/*`) keep the default.
+
 ## Selection state: keep the id, look up the object
 
 When a view owns a document and a side panel edits one element of it, store
