@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.65.1 (2026-07-28)
+
+- **Fixed:** the quick-capture window's Save to inbox button disappeared
+  behind a long description (T-0102). The description field grew with its
+  content and had no floor on its wrapper, so enough newlines pushed the
+  footer out of the window, where it was silently clipped instead of
+  scrolled. The field now fills the remaining space and scrolls internally,
+  and the window also carries a minimum size so a manual resize can't hide
+  the button either.
+
 ## 0.65.0 (2026-07-27)
 
 - **The schedule's HTML export reads as a calendar** (T-0099). Week rows used
