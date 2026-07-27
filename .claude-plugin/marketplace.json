@@ -9,8 +9,8 @@
     {
       "name": "workhub",
       "source": "./plugins/workhub",
-      "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall).",
-      "version": "0.17.0",
+      "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall), plus the workhub app's own release procedure (release-app).",
+      "version": "0.18.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -20,7 +20,7 @@
       "name": "engineering",
       "source": "./plugins/engineering",
       "description": "Engineering utilities and helpers for software development tasks.",
-      "version": "0.23.0",
+      "version": "0.24.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
@@ -30,7 +30,7 @@
       "name": "productivity",
       "source": "./plugins/productivity",
       "description": "Productivity helpers for administrative and daily tasks, including Zenn blog writing.",
-      "version": "0.22.0",
+      "version": "0.22.1",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"
