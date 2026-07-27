@@ -8,8 +8,8 @@ allowed-tools: Read Glob Grep Write Bash(git *) Bash(gh *)
 
 Release notes are for **users of the software**, not its developers — that
 distinction drives every step. A developer changelog (exhaustive, technical,
-commit-shaped) is `prepare-release`'s job in the engineering plugin; this
-skill produces the announcement.
+commit-shaped) belongs to whatever release procedure the repository itself
+defines; this skill produces the announcement.
 
 ## Steps
 

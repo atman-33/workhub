@@ -6,7 +6,7 @@ Engineering utilities and helpers for software development tasks.
 
 ### Skills
 
-- `capture-rule`, `commit-changes`, `create-feature-branch`, `create-pull-request`, `prepare-release` — day-to-day git/PR workflow helpers.
+- `capture-rule`, `commit-changes`, `create-feature-branch`, `create-pull-request` — day-to-day git/PR workflow helpers. Releasing is deliberately absent: a release procedure is repository-specific — which files carry the version, whether a PR is involved, what publishes the build — so it belongs in that repository's `.claude/rules/`, plus a repository-specific skill where it needs driving (e.g. `workhub:release-app`).
 - `create-review-guide` — generate a self-contained HTML code-review guide (overview, architecture diagram, file/class responsibility map, annotated change walkthrough). Output directory is set per machine in the skill's `config.json` (copy `config.example.json`).
 - `create-manual-test-guide` — generate a self-contained HTML manual-testing guide (setup, test-flow diagram, scenarios with expected results, interactive pass/fail checklist with Markdown export). Output directory is set per machine in the skill's `config.json` (copy `config.example.json`).
 - `create-onboarding-guide` — generate a self-contained HTML onboarding tour of a repository (architecture diagram, directory map, key flow walkthroughs, recommended reading order). Same per-machine `config.json` output-directory pattern as the other guide skills.
