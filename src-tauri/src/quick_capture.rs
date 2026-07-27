@@ -54,6 +54,8 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
     )
     .title("workhub — quick capture")
     .inner_size(width, height)
+    // Below this the form's footer (Save to inbox) stops fitting.
+    .min_inner_size(360.0, 260.0)
     .always_on_top(true)
     .skip_taskbar(true)
     .decorations(false)
