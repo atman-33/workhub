@@ -92,7 +92,11 @@ export function ScheduleView({ configVersion }: Props) {
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [aiRun, setAiRun] = useState<ScheduleEditRun | null>(null);
-  const [selected, setSelected] = useState<ScheduleItem | null>(null);
+  // Only the *id* of the selection is state; the element itself is looked up in
+  // the document below. Keeping a copy here would fork the truth: a drag on the
+  // grid edits `doc` without passing through the side panel, and the panel's
+  // next edit would write the pre-drag copy back over it (T-0101).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -176,7 +180,7 @@ export function ScheduleView({ configVersion }: Props) {
     void loadDoc(path);
     // Each note carries its own range; drop the window so the new note's is used.
     setWindow(null);
-    setSelected(null);
+    setSelectedId(null);
   }, [path, loadDoc]);
 
   // External edits (Obsidian, the AI agent) arrive as events rather than
@@ -249,7 +253,7 @@ export function ScheduleView({ configVersion }: Props) {
     if (!previous || !doc || aiRunning) return;
     undoStack.current = undoStack.current.slice(0, -1);
     redoStack.current = [...redoStack.current, doc];
-    setSelected(null);
+    setSelectedId(null);
     apply(previous);
   }, [doc, aiRunning, apply]);
 
@@ -258,7 +262,7 @@ export function ScheduleView({ configVersion }: Props) {
     if (!next || !doc || aiRunning) return;
     redoStack.current = redoStack.current.slice(0, -1);
     undoStack.current = [...undoStack.current, doc];
-    setSelected(null);
+    setSelectedId(null);
     apply(next);
   }, [doc, aiRunning, apply]);
 
@@ -268,6 +272,19 @@ export function ScheduleView({ configVersion }: Props) {
       mutate({ ...doc, items: doc.items.map((i) => (i.id === id ? patch(i) : i)) });
     },
     [doc, mutate],
+  );
+
+  /**
+   * The selected element, read out of the document rather than remembered.
+   *
+   * This is what keeps the side panel honest against every edit that does not
+   * originate in it — a drag, an arrow-key nudge, an undo, a reload after an
+   * Obsidian or agent edit. It also closes the panel on its own when the
+   * element goes away, since a deleted id simply finds nothing.
+   */
+  const selected = useMemo(
+    () => (selectedId ? (doc?.items.find((i) => i.id === selectedId) ?? null) : null),
+    [doc, selectedId],
   );
 
   const projectTasks = useMemo(
@@ -320,7 +337,7 @@ export function ScheduleView({ configVersion }: Props) {
         return;
       }
       if (e.key === "Escape") {
-        setSelected(null);
+        setSelectedId(null);
         return;
       }
       if (!selected) return;
@@ -328,7 +345,7 @@ export function ScheduleView({ configVersion }: Props) {
       if (e.key === "Delete") {
         e.preventDefault();
         if (doc) mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
-        setSelected(null);
+        setSelectedId(null);
         return;
       }
       const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
@@ -340,17 +357,13 @@ export function ScheduleView({ configVersion }: Props) {
         if (!isRangeKind(selected.kind)) return;
         const end = shiftDate(selected.end, step);
         if (end < selected.start) return;
-        const next = { ...selected, end };
-        setSelected(next);
-        patchItem(next.id, () => next);
+        patchItem(selected.id, () => ({ ...selected, end }));
       } else {
-        const next = {
+        patchItem(selected.id, () => ({
           ...selected,
           start: shiftDate(selected.start, step),
           end: shiftDate(selected.end, step),
-        };
-        setSelected(next);
-        patchItem(next.id, () => next);
+        }));
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -594,7 +607,7 @@ export function ScheduleView({ configVersion }: Props) {
                     return next;
                   })
                 }
-                onSelectItem={(item) => setSelected(item)}
+                onSelectItem={(item) => setSelectedId(item?.id ?? null)}
                 onToggleNonWorking={(date) => toggleNonWorking(date)}
                 onCreateItem={(kind, from, to) => createItem(kind, from, to)}
                 onMoveTaskDue={(taskId, date) => {
@@ -638,15 +651,12 @@ export function ScheduleView({ configVersion }: Props) {
                   <ItemEditor
                     item={selected}
                     tasks={projectTasks}
-                    onChange={(next) => {
-                      setSelected(next);
-                      patchItem(next.id, () => next);
-                    }}
+                    onChange={(next) => patchItem(next.id, () => next)}
                     onDelete={() => {
                       mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
-                      setSelected(null);
+                      setSelectedId(null);
                     }}
-                    onClose={() => setSelected(null)}
+                    onClose={() => setSelectedId(null)}
                   />
                 )}
                 {aiRun && (
@@ -704,7 +714,7 @@ export function ScheduleView({ configVersion }: Props) {
       ...(isRangeKind(kind) ? { color: "blue" as const } : {}),
     };
     mutate({ ...doc, items: [...doc.items, item] });
-    setSelected(item);
+    setSelectedId(item.id);
   }
 }
 

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -31,6 +30,12 @@ import type { Task } from "@/types";
  * `Details` is the element's body — the indented continuation lines under it
  * in the file. A note shows it on hover in the grid; every other kind shows it
  * in its tooltip, where it reads as a remark about the element.
+ *
+ * The panel holds **no draft state**: every field renders straight from `item`,
+ * and each edit is a patch on that same object. A local copy re-seeded from the
+ * prop looks equivalent but is not — a drag on the grid changes the document
+ * without going through this panel, and the copy would keep serving the dates
+ * from before the drag until the next edit wrote them back over it.
  */
 
 interface Props {
@@ -54,13 +59,8 @@ function collapseLines(value: string): string {
 }
 
 export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) {
-  const [draft, setDraft] = useState(item);
-
-  // Re-seed when the grid selects a different element (the panel is reused).
-  useEffect(() => setDraft(item), [item]);
-
   const commit = (patch: Partial<ScheduleItem>) => {
-    const next = { ...draft, ...patch };
+    const next = { ...item, ...patch };
     // A range element cannot end before it starts; pushing the far edge along is
     // less surprising than rejecting the edit the user just made.
     if (isRangeKind(next.kind) && next.end < next.start) {
@@ -68,7 +68,6 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
       else next.start = next.end;
     }
     if (!isRangeKind(next.kind)) next.end = next.start;
-    setDraft(next);
     onChange(next);
   };
 
@@ -76,9 +75,9 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
     // Width comes from the sidebar column, not from here — see schedule-view.
     <div className="shrink-0 space-y-3 border-b p-3 text-xs">
       <div className="flex items-center justify-between">
-        <span className="truncate font-mono text-[11px] text-muted-foreground">{draft.id}</span>
+        <span className="truncate font-mono text-[11px] text-muted-foreground">{item.id}</span>
         <Select
-          value={draft.kind}
+          value={item.kind}
           onValueChange={(v) => commit({ kind: v as ScheduleItem["kind"] })}
         >
           {/* `max-w` rather than a bare width: the column is resizable now, and
@@ -96,24 +95,24 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
       </div>
 
       <Input
-        value={draft.title}
+        value={item.title}
         placeholder="Title"
         className="h-8 text-xs"
         onChange={(e) => commit({ title: collapseLines(e.target.value) })}
       />
 
       <Textarea
-        value={draft.body ?? ""}
-        placeholder={draft.kind === "note" ? "Note text (shown on hover)" : "Details"}
-        rows={draft.kind === "note" ? 4 : 2}
+        value={item.body ?? ""}
+        placeholder={item.kind === "note" ? "Note text (shown on hover)" : "Details"}
+        rows={item.kind === "note" ? 4 : 2}
         className="resize-none text-xs"
         onChange={(e) => commit({ body: e.target.value })}
       />
 
       <div className="space-y-1.5">
-        <DatePicker value={draft.start} onChange={(v) => v && commit({ start: v })} />
-        {isRangeKind(draft.kind) && (
-          <DatePicker value={draft.end} onChange={(v) => v && commit({ end: v })} />
+        <DatePicker value={item.start} onChange={(v) => v && commit({ start: v })} />
+        {isRangeKind(item.kind) && (
+          <DatePicker value={item.end} onChange={(v) => v && commit({ end: v })} />
         )}
       </div>
 
@@ -127,14 +126,14 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
             style={{ background: COLOR_HEX[color as Color] }}
             className={cn(
               "size-5 rounded",
-              draft.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+              item.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
             )}
           />
         ))}
       </div>
 
       <Select
-        value={draft.task ?? NONE}
+        value={item.task ?? NONE}
         onValueChange={(v) => commit({ task: v === NONE ? undefined : v })}
       >
         <SelectTrigger className="h-7 text-xs">
