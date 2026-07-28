@@ -8,6 +8,7 @@ import type {
   GitInfo,
   GitLog,
   GraphOp,
+  InboxNote,
   ScheduleDoc,
   ScheduleEditRun,
   ScheduleFile,
@@ -29,6 +30,10 @@ export const api = {
   runVaultTidyNow: (force: boolean) =>
     invoke<string>("run_vault_tidy_now", { force }),
   resumeTidySession: () => invoke<string>("resume_tidy_session"),
+  // ---- inbox notes (the vault's `inbox/` folder, T-0104) ----
+  listInboxNotes: (vaultPath: string) =>
+    invoke<InboxNote[]>("list_inbox_notes", { vaultPath }),
+  readInboxNote: (path: string) => invoke<string>("read_inbox_note", { path }),
   gitStatus: (path: string) => invoke<GitInfo>("git_status", { path }),
   listBranches: (path: string) => invoke<BranchList>("list_branches", { path }),
   gitOp: (path: string, op: "fetch" | "pull" | "switch", branch?: string) =>

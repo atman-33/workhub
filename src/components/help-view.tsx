@@ -136,6 +136,16 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
 - **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
 
+const INBOX_MD = `## Notes waiting in the vault (Inbox)
+
+The **Inbox** tab shows the raw notes sitting in the vault's \`inbox/\` folder — the ones you dropped there to file later. Until now they were visible only in Obsidian, so anything you forgot about simply stayed forgotten.
+
+- The list is exactly what **Vault tidy** considers: \`README.md\` is ignored, and so is every folder listed under **⚙ Settings → Vault → Vault tidy → Exclude folders** (\`inbox/_wip/\` by default). A note you keep out of tidy's way stays out of this list too.
+- Each row shows when the note was last edited and how long it has been sitting. The age turns amber once it passes tidy's age threshold — that is the point at which a tidy run would act on the note.
+- A **proposal** badge means a tidy run looked at the note, could not decide where it belonged, and parked its suggestion. Select the note to read the proposed destination and the reason under the preview.
+- The tab is read-only for now: file the note in Obsidian (the gem button opens it there). Acting on a proposal from inside workhub comes later.
+- The list is re-read every time you open the tab, so changes made in Obsidian show up on your next visit.`;
+
 const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
 Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and refreshes the \`tasks/archive/_index.md\` summary — by launching an agent headlessly (no terminal window).
@@ -144,7 +154,7 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 - The app decides *whether* there is work with a cheap mechanical scan (no tokens) — a run only starts when \`inbox/\` has a note older than the age threshold, or the archive index has drifted.
 - **Schedule** is "first run at" + "run every N hours" (24 = daily, 168 = weekly). Because it counts from that anchor, a run missed while the app was closed is caught up on the next launch.
 - Notes you're still writing: keep them in **\`inbox/_wip/\`** (or any folder listed under "Exclude folders") — tidy never touches those.
-- Files that need human judgement (a new folder, a rename, unclear classification) are **not** filed silently. They surface as a single **\`#tidy-review\`** task on the board with a proposed plan per file — edit the proposals, then assign the task to an agent to execute them. Deferred files don't retrigger tidy runs until you touch them again.
+- Files that need human judgement (a new folder, a rename, unclear classification) are **not** filed silently. They surface as a single **\`#tidy-review\`** task on the board with a proposed plan per file — edit the proposals, then assign the task to an agent to execute them, and read the per-file proposal itself on the **Inbox** tab. Deferred files don't retrigger tidy runs until you touch them again.
 - **Agent / Model** pick which CLI (Claude Code or OpenCode) and model run the routine, just like a task.
 - **Run now** triggers it immediately, even when the schedule is off.
 - The routine runs with the same auto-approve permission mode a task-card agent launch uses, so it doesn't sit waiting on prompts. An operation it isn't allowed to do is skipped rather than asked about, which can leave a run half-finished.
@@ -186,6 +196,7 @@ const ALL_MD = [
   INK_MD,
   QUICK_CAPTURE_MD,
   VOICE_MD,
+  INBOX_MD,
   TIDY_MD,
 ].join("\n\n---\n\n");
 

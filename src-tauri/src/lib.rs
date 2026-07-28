@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod harness;
 mod herdr;
+mod inbox;
 mod ink;
 mod models;
 mod music;
@@ -122,6 +123,8 @@ pub fn run() {
             commands::tidy_status,
             commands::run_vault_tidy_now,
             commands::resume_tidy_session,
+            commands::list_inbox_notes,
+            commands::read_inbox_note,
             commands::check_vault_path,
             commands::git_status,
             commands::list_branches,
