@@ -13,6 +13,28 @@ bare divider is still hoverable/draggable. This applies to every
 `ResizablePanelGroup` (repos view, tasks view terminal panel, and any future
 split layouts).
 
+## Resizable panels: this is not the shadcn-documented API
+
+The `react-resizable-panels` version behind `src/components/ui/resizable.tsx`
+takes different props from the ones every shadcn example (and most search
+results) shows. Copying a snippet from the docs fails the typecheck with a
+misleading "Property 'direction' does not exist" error:
+
+```tsx
+<ResizablePanelGroup orientation="horizontal">   {/* not `direction` */}
+  <ResizablePanel id="list" defaultSize="30%" minSize="18%" className="min-h-0">
+  <ResizableHandle />
+  <ResizablePanel id="preview" defaultSize="70%" minSize="30%" className="min-h-0">
+</ResizablePanelGroup>
+```
+
+- The group's axis prop is **`orientation`**, not `direction`.
+- Sizes are **percent strings** (`"30%"`), not numbers.
+- Each `ResizablePanel` needs an **`id`** — it is what layout persistence keys
+  on (see `verticalLayout` in `src/components/repos-view.tsx`).
+- Give panels `min-h-0` when their content scrolls, for the usual flexbox
+  reason.
+
 ## Wheel gestures: register the listener yourself, non-passively
 
 React attaches its `wheel` listener at the root **passively**, so
