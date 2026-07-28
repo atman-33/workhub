@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.66.1 (2026-07-29)
+
+- **Reordered the top tab bar** (T-0106): Tasks, Repos, Schedule, Inbox,
+  Music, Timer, Voice, Help.
+
 ## 0.66.0 (2026-07-28)
 
 - **The notes waiting in `inbox/` are finally visible** (T-0104). The vault's
