@@ -4,6 +4,7 @@ import {
   FolderOpen,
   GitBranch,
   CalendarRange,
+  Inbox,
   ListTodo,
   Mic,
   Music,
@@ -11,6 +12,7 @@ import {
   Timer,
 } from "lucide-react";
 import { HelpView } from "@/components/help-view";
+import { InboxView } from "@/components/inbox-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
@@ -28,10 +30,19 @@ import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
 
-type Tab = "tasks" | "repos" | "schedule" | "music" | "timer" | "voice" | "help";
+type Tab =
+  | "tasks"
+  | "inbox"
+  | "repos"
+  | "schedule"
+  | "music"
+  | "timer"
+  | "voice"
+  | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
+  { key: "inbox", label: "Inbox", icon: Inbox },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "music", label: "Music", icon: Music },
@@ -160,6 +171,9 @@ export default function App() {
               configVersion={configVersion}
               onSettingsChange={(s) => setSettings(s)}
             />
+          </div>
+          <div className={cn("h-full", tab !== "inbox" && "hidden")}>
+            <InboxView configVersion={configVersion} active={tab === "inbox"} />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
             <ReposView configVersion={configVersion} active={tab === "repos"} />

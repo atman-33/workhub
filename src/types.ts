@@ -167,6 +167,31 @@ export interface TidyRun {
   stalled: boolean;
 }
 
+/** The tidy agent's parked filing proposal for an inbox note (T-0104). */
+export interface InboxPending {
+  /** Why the agent did not file the note itself. */
+  reason: string;
+  /** Where it thinks the note belongs — free text, often several candidates. */
+  proposal: string;
+}
+
+/** One unfiled note in the vault's `inbox/` folder. */
+export interface InboxNote {
+  /** Absolute path, forward slashes — the id used by `readInboxNote`. */
+  path: string;
+  /** Vault-relative path, forward slashes. */
+  rel_path: string;
+  /** File name without the `.md` extension. */
+  name: string;
+  /** Last-modified time, unix seconds. */
+  modified: number;
+  /** Whole days since `modified`. */
+  age_days: number;
+  /** Old enough for the tidy routine to act on (tidy `stale_days`). */
+  stale: boolean;
+  pending: InboxPending | null;
+}
+
 /** Per-model download/active status for Settings > Voice. */
 export interface SttModelStatus {
   model: string;

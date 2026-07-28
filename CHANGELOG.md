@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.66.0 (2026-07-28)
+
+- **The notes waiting in `inbox/` are finally visible** (T-0104). The vault's
+  `inbox/` folder could only be read in Obsidian, so notes dropped there to
+  file later just accumulated unseen — and when a vault-tidy run could not
+  decide where one belonged, the destination it proposed was written to a file
+  nothing ever displayed. A new **Inbox** tab lists those notes with their age
+  and previews them, flags the ones old enough for tidy to act on, and shows
+  the parked proposal and its reason beneath the note it belongs to. Filing is
+  still done in Obsidian (a button jumps there); acting on a proposal from
+  inside workhub comes later. The listing applies exactly the rules tidy uses
+  — `README.md` and the configured Exclude folders are left out — because both
+  now read the folder through the same code.
+
 ## 0.65.1 (2026-07-28)
 
 - **Fixed:** the quick-capture window's Save to inbox button disappeared

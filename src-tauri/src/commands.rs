@@ -84,6 +84,38 @@ pub fn resume_tidy_session(app: tauri::AppHandle) -> Result<String, String> {
     crate::tidy::resume(app)
 }
 
+// ---------------------------------------------------------------------
+// inbox notes (the vault's `inbox/` folder, T-0104)
+// ---------------------------------------------------------------------
+
+/// Lists the unfiled notes in the vault's `inbox/`, each with the tidy agent's
+/// parked filing proposal when it has one.
+///
+/// The exclusion rules and the stale threshold come from the tidy settings
+/// here rather than from the caller, so the tab cannot show a different set of
+/// notes than the tidy routine acts on.
+#[tauri::command]
+pub async fn list_inbox_notes(vault_path: String) -> Result<Vec<crate::inbox::InboxNote>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let tidy = storage::load().settings.tidy;
+        crate::inbox::list_notes(
+            &PathBuf::from(vault_path),
+            &tidy.exclude_dirs,
+            tidy.stale_days,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Raw Markdown of one inbox note, for the preview pane.
+#[tauri::command]
+pub async fn read_inbox_note(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::inbox::read_note(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn git_status(path: String) -> GitInfo {
     tauri::async_runtime::spawn_blocking(move || git::read_status(&path))
