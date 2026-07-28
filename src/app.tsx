@@ -42,9 +42,9 @@ type Tab =
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
-  { key: "inbox", label: "Inbox", icon: Inbox },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "schedule", label: "Schedule", icon: CalendarRange },
+  { key: "inbox", label: "Inbox", icon: Inbox },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
   { key: "voice", label: "Voice", icon: Mic },
@@ -172,14 +172,14 @@ export default function App() {
               onSettingsChange={(s) => setSettings(s)}
             />
           </div>
-          <div className={cn("h-full", tab !== "inbox" && "hidden")}>
-            <InboxView configVersion={configVersion} active={tab === "inbox"} />
-          </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
             <ReposView configVersion={configVersion} active={tab === "repos"} />
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
             <ScheduleView configVersion={configVersion} />
+          </div>
+          <div className={cn("h-full", tab !== "inbox" && "hidden")}>
+            <InboxView configVersion={configVersion} active={tab === "inbox"} />
           </div>
           <div className={cn("h-full", tab !== "music" && "hidden")}>
             <MusicView configVersion={configVersion} />
