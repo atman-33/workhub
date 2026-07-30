@@ -86,6 +86,54 @@ export interface Settings {
   /** Calendar display language, on screen and in the HTML export: "en" | "ja".
    * Display only — a schedule note never stores localized text. */
   schedule_locale: string;
+  /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
+   * local-time calendar arithmetic; the backend only persists them. */
+  recurring: RecurringRule[];
+}
+
+/** When a recurring rule fires. All times are the machine's local wall clock. */
+export interface RecurringSchedule {
+  /** "daily" | "weekly" | "monthly" */
+  kind: string;
+  /** daily: fire every N days counted from `start_date`. */
+  interval_days: number;
+  /** weekly: weekdays to fire on, 0 = Sunday .. 6 = Saturday. */
+  weekdays: number[];
+  /** monthly: day of month, clamped to the last day of shorter months. */
+  day_of_month: number;
+  /** Time of day, "HH:MM" (24h, local). */
+  time: string;
+  /** `YYYY-MM-DD`; no occurrence before this date. Empty = no lower bound. */
+  start_date: string;
+}
+
+/** One recurring-task rule: a task template plus its schedule (T-0110). */
+export interface RecurringRule {
+  /** Stable id (`R-001`), also the suffix of the `recurring/<id>` tag put on
+   * every task the rule generates. Never reused. */
+  id: string;
+  enabled: boolean;
+  title: string;
+  /** Body of the generated task; empty = the standard empty sections. */
+  body: string;
+  status: string;
+  assignee: string;
+  project: string;
+  priority: string;
+  model: string;
+  /** Extra tags on top of the mandatory `recurring/<id>` marker tag. */
+  tags: string[];
+  confirm: boolean;
+  worktree: boolean;
+  /** `due` = occurrence date + this many days; null = no due date. */
+  due_offset_days: number | null;
+  /** Skip the occurrence while a task from this rule is still open (status !=
+   * done, not archived). The slot is still consumed. */
+  skip_if_open: boolean;
+  schedule: RecurringSchedule;
+  /** Unix seconds of the occurrence this rule was last evaluated for
+   * (generated or deliberately skipped); null = never fired. */
+  last_generated: number | null;
 }
 
 /** One schedule note as the picker sees it (`list_schedules`). */

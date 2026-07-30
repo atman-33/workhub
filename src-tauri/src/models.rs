@@ -148,6 +148,11 @@ pub struct Settings {
     /// project it describes.
     #[serde(default)]
     pub schedule_export_dir: String,
+    /// Recurring task rules (T-0110): definitions the app turns into real tasks
+    /// on their own schedule. Evaluated by the frontend, which owns local-time
+    /// calendar arithmetic; the backend only persists them.
+    #[serde(default)]
+    pub recurring: Vec<RecurringRule>,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -318,8 +323,107 @@ impl Default for Settings {
             schedule_confirm: false,
             schedule_export_dir: String::new(),
             schedule_locale: default_schedule_locale(),
+            recurring: Vec::new(),
         }
     }
+}
+
+/// One recurring-task rule (T-0110): a task template plus the calendar that
+/// says when to stamp it out.
+///
+/// The schedule is wall-clock ("every weekday at 09:00"), so all evaluation
+/// happens in the frontend, which has the machine's local time zone; the
+/// backend only stores what the UI hands it. `last_generated` is the fired-slot
+/// bookkeeping that keeps one occurrence from being created twice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecurringRule {
+    /// Stable id (`R-001`), also the suffix of the `recurring/<id>` tag put on
+    /// every task the rule generates. Never reused.
+    pub id: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Title of the generated task.
+    #[serde(default)]
+    pub title: String,
+    /// Body of the generated task. Empty = the standard empty sections.
+    #[serde(default)]
+    pub body: String,
+    /// Frontmatter the generated task starts with.
+    #[serde(default = "default_recurring_status")]
+    pub status: String,
+    #[serde(default = "default_recurring_assignee")]
+    pub assignee: String,
+    #[serde(default)]
+    pub project: String,
+    #[serde(default = "default_recurring_priority")]
+    pub priority: String,
+    #[serde(default)]
+    pub model: String,
+    /// Extra tags on top of the mandatory `recurring/<id>` marker tag.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub confirm: bool,
+    #[serde(default)]
+    pub worktree: bool,
+    /// `due` = occurrence date + this many days; unset = no due date.
+    #[serde(default)]
+    pub due_offset_days: Option<i32>,
+    /// Skip the occurrence entirely while a task from this rule is still open
+    /// (status != done, not archived) — "don't add it if it's already there".
+    /// The slot is still consumed, so the rule doesn't fire again immediately.
+    #[serde(default = "default_true")]
+    pub skip_if_open: bool,
+    pub schedule: RecurringSchedule,
+    /// Unix seconds of the occurrence this rule was last evaluated for
+    /// (generated *or* deliberately skipped). Unset = never fired.
+    #[serde(default)]
+    pub last_generated: Option<u64>,
+}
+
+/// When a `RecurringRule` fires. All times are the machine's local wall clock.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecurringSchedule {
+    /// "daily" | "weekly" | "monthly".
+    #[serde(default = "default_recurring_kind")]
+    pub kind: String,
+    /// daily: fire every N days counted from `start_date`.
+    #[serde(default = "default_interval_days")]
+    pub interval_days: u32,
+    /// weekly: weekdays to fire on, 0 = Sunday .. 6 = Saturday.
+    #[serde(default)]
+    pub weekdays: Vec<u32>,
+    /// monthly: day of month, clamped to the last day of shorter months.
+    #[serde(default = "default_day_of_month")]
+    pub day_of_month: u32,
+    /// Time of day, "HH:MM" (24h, local).
+    #[serde(default = "default_recurring_time")]
+    pub time: String,
+    /// `YYYY-MM-DD`; no occurrence before this date. Empty = no lower bound.
+    #[serde(default)]
+    pub start_date: String,
+}
+
+fn default_recurring_status() -> String {
+    "todo".into()
+}
+fn default_recurring_assignee() -> String {
+    "me".into()
+}
+fn default_recurring_priority() -> String {
+    "medium".into()
+}
+fn default_recurring_kind() -> String {
+    "daily".into()
+}
+fn default_interval_days() -> u32 {
+    1
+}
+fn default_day_of_month() -> u32 {
+    1
+}
+fn default_recurring_time() -> String {
+    "09:00".into()
 }
 
 /// One schedule note as the picker sees it — enough to choose a file without

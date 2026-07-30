@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.67.0 (2026-07-30)
+
+- **Recurring tasks** (T-0110): work that comes back every day, week or month
+  no longer has to be typed onto the board by hand. **⚙ Settings → Recurring**
+  holds rules — a task template plus its schedule (daily every N days, weekly
+  on chosen weekdays, or monthly on a day clamped to short months, at a time of
+  day) — and the app creates the task when a rule comes due. The schedule is
+  local wall-clock time, and rules are re-checked at startup and every few
+  minutes, so a machine booted at 10:00 still gets its 09:00 task; only the
+  latest missed occurrence is created, so a week with the app closed produces
+  one task rather than seven. **Skip while the last one is still open** leaves
+  the occurrence alone while an earlier task from the same rule is unfinished,
+  which is what keeps a daily rule from stacking up copies of work you have not
+  got to yet. Generated tasks carry a `recurring/<rule-id>` tag, which is how
+  the app recognizes its own.
+
 ## 0.66.1 (2026-07-29)
 
 - **Reordered the top tab bar** (T-0106): Tasks, Repos, Schedule, Inbox,
