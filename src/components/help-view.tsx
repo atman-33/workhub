@@ -163,14 +163,14 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 
 const RECURRING_MD = `## Recurring tasks
 
-Rules that create a task for you on a schedule — a daily standup note, a weekly review, a monthly report. Set them up in **⚙ Settings → Recurring**.
+Rules that create a task for you on a schedule — a daily standup note, a weekly review, a monthly report. Set them up with the **Recurring** button on the **Tasks** tab (they are task content, so they live next to the board rather than in Settings).
 
 - **Repeat** is daily (every N days from the start date), weekly (pick the weekdays), or monthly (pick the day; it is clamped to the last day of shorter months), plus a time of day. Times are this machine's local clock.
 - The generated task uses the rule's title, status, assignee, project, priority, model and body, so it lands on the board ready to work. **Due offset** sets \`due\` to the occurrence date plus N days; leave it empty for no due date.
 - Rules are checked when the app starts and every few minutes after that, so a machine booted at 10:00 still gets its 09:00 task. Only the **latest** missed occurrence is created — a week with the app closed produces one task, not seven.
 - **Skip while the last one is still open** is the "don't add it if it's already there" switch: while an earlier task from the same rule is not done, the occurrence is skipped instead of putting a second copy on the board.
 - Every generated task carries the tag \`recurring/<rule-id>\` (e.g. \`recurring/R-001\`). That tag is how the app recognizes its own tasks — keep it if you edit the task in Obsidian.
-- **Run now** creates whatever is due right away, using the rules already saved on disk.`;
+- **Run now** saves the rules and then creates whatever is due right away.`;
 
 const MEMORY_MD = `## Long-term memory for AI agents
 
@@ -1105,8 +1105,10 @@ export function HelpView() {
           >
             <p>
               Rules that create a task for you on a schedule — a daily standup
-              note, a weekly review, a monthly report. Set them up in{" "}
-              <span className="font-medium">⚙ Settings → Recurring</span>.
+              note, a weekly review, a monthly report. Set them up with the{" "}
+              <span className="font-medium">Recurring</span> button on the{" "}
+              <span className="font-medium">Tasks</span> tab — they are task
+              content, so they live next to the board rather than in Settings.
             </p>
             <ul className="ml-4 list-disc space-y-1.5">
               <li>
@@ -1147,8 +1149,7 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">Run now</span>{" "}
-                creates whatever is due right away, using the rules already saved
-                on disk.
+                saves the rules and then creates whatever is due right away.
               </li>
             </ul>
           </Section>

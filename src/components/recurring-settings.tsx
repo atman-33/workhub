@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Play, Plus, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { describeSchedule, newRule, nextOccurrence } from "@/lib/recurring";
-import { generateDueTasks } from "@/lib/use-recurring-tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,18 +33,17 @@ const TIMESTAMP = new Intl.DateTimeFormat("en-US", {
 interface Props {
   rules: RecurringRule[];
   onChange: (rules: RecurringRule[]) => void;
-  /** True while the settings dialog is open (drives the model combobox). */
+  /** True while the hosting dialog is open (drives the model combobox). */
   open: boolean;
 }
 
 /**
- * Settings › Recurring (T-0110): the rule list that the app stamps tasks out
- * of. Editing here only changes the draft; the dialog's Save persists it.
+ * The recurring-rule list editor (T-0110): a controlled component that edits a
+ * draft array of rules. Persisting it — and running the rules — belongs to the
+ * hosting dialog (`recurring-dialog.tsx`).
  */
 export function RecurringSettings({ rules, onChange, open }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-  const [message, setMessage] = useState("");
 
   const patch = (id: string, changes: Partial<RecurringRule>) =>
     onChange(rules.map((r) => (r.id === id ? { ...r, ...changes } : r)));
@@ -55,26 +52,6 @@ export function RecurringSettings({ rules, onChange, open }: Props) {
     onChange(
       rules.map((r) => (r.id === id ? { ...r, schedule: { ...r.schedule, ...changes } } : r)),
     );
-
-  const runNow = async () => {
-    setRunning(true);
-    setMessage("");
-    try {
-      const result = await generateDueTasks();
-      // The run wrote `last_generated` straight to disk; pull the rules back so
-      // saving this dialog can't reinstate the stale slots and double-fire.
-      const cfg = await api.getConfig();
-      onChange(cfg.settings.recurring ?? []);
-      const parts: string[] = [];
-      if (result.created.length) parts.push(`created ${result.created.length}`);
-      if (result.skipped.length) parts.push(`skipped ${result.skipped.length} (still open)`);
-      setMessage(parts.length ? parts.join(", ") : "Nothing due right now.");
-    } catch (e) {
-      setMessage(String(e));
-    } finally {
-      setRunning(false);
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -438,18 +415,6 @@ export function RecurringSettings({ rules, onChange, open }: Props) {
           </div>
         );
       })}
-
-      {rules.length > 0 && (
-        <div className="flex items-center gap-3">
-          <Button type="button" size="sm" variant="outline" disabled={running} onClick={runNow}>
-            {running ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-            Run now
-          </Button>
-          <p className="text-[11px] text-muted-foreground">
-            {message || "Creates whatever is due from the rules saved on disk."}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

@@ -9,9 +9,11 @@ import {
   List,
   Plus,
   RefreshCw,
+  Repeat,
   Terminal as TerminalIcon,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { RecurringDialog } from "@/components/recurring-dialog";
 import { TaskDialog, type TaskDraft } from "@/components/task-dialog";
 import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
@@ -58,6 +60,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [tagFilter, setTagFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [archiveDoneOpen, setArchiveDoneOpen] = useState(false);
   const [status, setStatus] = useState("");
@@ -76,6 +79,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
 
   const vaultPath = config?.settings.vault_path ?? null;
   const terminalEnabled = config?.settings.terminal_embed ?? false;
+  const activeRuleCount = (config?.settings.recurring ?? []).filter((r) => r.enabled).length;
 
   const restoreTerminalSize = useCallback(() => {
     terminalMaximizedRef.current = false;
@@ -571,6 +575,19 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           <Archive className="size-3.5" /> Archived
         </button>
 
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => setRecurringOpen(true)}
+          title="Rules that put a task on the board on their own schedule"
+        >
+          <Repeat className="size-3.5" /> Recurring
+          {activeRuleCount > 0 && (
+            <span className="text-[11px] text-muted-foreground">{activeRuleCount}</span>
+          )}
+        </Button>
+
         {terminalEnabled && (
           <Button
             size="sm"
@@ -732,6 +749,18 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         onCopyTaskPrompt={dialog?.mode === "edit" ? copyTaskPrompt : undefined}
         onSendToClaudeDesktop={dialog?.mode === "edit" ? sendTaskToClaudeDesktop : undefined}
         claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
+      />
+
+      <RecurringDialog
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        // Keep the toolbar count (and any later config read) in step with what
+        // the dialog just wrote, without a full config reload.
+        onSaved={(recurring) =>
+          setConfig((prev) =>
+            prev ? { ...prev, settings: { ...prev.settings, recurring } } : prev,
+          )
+        }
       />
     </div>
   );

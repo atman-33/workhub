@@ -36,7 +36,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { ModelCombobox } from "@/components/model-combobox";
-import { RecurringSettings } from "@/components/recurring-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
 
@@ -330,12 +329,11 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           <DialogDescription>Configure workhub commands, vault, and behavior.</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="general" className="flex flex-col gap-3">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="voice">Voice</TabsTrigger>
             <TabsTrigger value="vault">Vault</TabsTrigger>
-            <TabsTrigger value="recurring">Recurring</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
               tabs, regardless of how much content each tab holds. The bottom
@@ -998,22 +996,15 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 {tidyMsg && <p className="text-xs text-muted-foreground">{tidyMsg}</p>}
               </div>
             </TabsContent>
-            <TabsContent value="recurring" className="mt-0 space-y-3">
-              <RecurringSettings
-                rules={draft.recurring}
-                onChange={(recurring) => setDraft({ ...draft, recurring })}
-                open={open}
-              />
-            </TabsContent>
           </div>
         </Tabs>
         {saveError && (
           <p className="text-xs text-destructive">Save failed: {saveError}</p>
         )}
         <DialogFooter>
-          {/* Recurring rules are content the user authored, not a knob with a
-              sensible default — a reset of the command templates must not
-              delete them. */}
+          {/* Recurring rules are content the user authored (edited from the
+              Tasks tab, not here), not a knob with a sensible default — a reset
+              of the command templates must not delete them. */}
           <Button variant="ghost" onClick={() => setDraft({ ...DEFAULTS, recurring: draft.recurring })}>
             Reset to defaults
           </Button>

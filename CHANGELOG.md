@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.67.0 (2026-07-30)
+## 0.67.0 (2026-07-31)
 
 - **Recurring tasks** (T-0110): work that comes back every day, week or month
-  no longer has to be typed onto the board by hand. **⚙ Settings → Recurring**
-  holds rules — a task template plus its schedule (daily every N days, weekly
-  on chosen weekdays, or monthly on a day clamped to short months, at a time of
-  day) — and the app creates the task when a rule comes due. The schedule is
+  no longer has to be typed onto the board by hand. The **Recurring** button on
+  the Tasks tab holds rules — a task template plus its schedule (daily every N
+  days, weekly on chosen weekdays, or monthly on a day clamped to short months,
+  at a time of day) — and the app creates the task when a rule comes due. The
+  rules sit next to the board rather than in Settings because they are task
+  content, not an app preference. The schedule is
   local wall-clock time, and rules are re-checked at startup and every few
   minutes, so a machine booted at 10:00 still gets its 09:00 task; only the
   latest missed occurrence is created, so a week with the app closed produces
