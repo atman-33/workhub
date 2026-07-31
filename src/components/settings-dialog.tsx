@@ -136,6 +136,7 @@ const DEFAULTS: Settings = {
   schedule_confirm: false,
   schedule_export_dir: "",
   schedule_locale: "en",
+  recurring: [],
 };
 
 interface Props {
@@ -1001,7 +1002,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           <p className="text-xs text-destructive">Save failed: {saveError}</p>
         )}
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setDraft(DEFAULTS)}>
+          {/* Recurring rules are content the user authored (edited from the
+              Tasks tab, not here), not a knob with a sensible default — a reset
+              of the command templates must not delete them. */}
+          <Button variant="ghost" onClick={() => setDraft({ ...DEFAULTS, recurring: draft.recurring })}>
             Reset to defaults
           </Button>
           <Button onClick={() => void save()} disabled={saving}>

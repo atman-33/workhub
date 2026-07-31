@@ -26,6 +26,7 @@ import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
@@ -62,6 +63,9 @@ export default function App() {
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   useTidyNotifications();
+  // Recurring task rules (T-0110): checked on start and every few minutes, so a
+  // machine booted after a rule's time still gets that occurrence's task.
+  useRecurringTasks(configVersion);
 
   const checkTemplate = useCallback(async (vaultPath: string) => {
     try {

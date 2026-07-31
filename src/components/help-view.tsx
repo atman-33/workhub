@@ -12,6 +12,7 @@ import {
   Mic,
   MonitorUp,
   PenLine,
+  Repeat,
   Rocket,
   Sparkles,
 } from "lucide-react";
@@ -160,6 +161,17 @@ Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and r
 - The routine runs with the same auto-approve permission mode a task-card agent launch uses, so it doesn't sit waiting on prompts. An operation it isn't allowed to do is skipped rather than asked about, which can leave a run half-finished.
 - **Resume session** picks up exactly where a run left off — after a failure, a stall, a killed process, or an app restart. The session id is shown next to the run status with a copy button, and is also written into the run log under \`_ai/logs/tidy/\`, so you can resume from a terminal yourself with \`claude --resume <id>\`. (OpenCode mints its own session ids, so there Resume just reopens the agent in the vault.)`;
 
+const RECURRING_MD = `## Recurring tasks
+
+Rules that create a task for you on a schedule — a daily standup note, a weekly review, a monthly report. Set them up with the **Recurring** button on the **Tasks** tab (they are task content, so they live next to the board rather than in Settings).
+
+- **Repeat** is daily (every N days from the start date), weekly (pick the weekdays), or monthly (pick the day; it is clamped to the last day of shorter months), plus a time of day. Times are this machine's local clock.
+- The generated task uses the rule's title, status, assignee, project, priority, model and body, so it lands on the board ready to work. **Due offset** sets \`due\` to the occurrence date plus N days; leave it empty for no due date.
+- Rules are checked when the app starts and every few minutes after that, so a machine booted at 10:00 still gets its 09:00 task. Only the **latest** missed occurrence is created — a week with the app closed produces one task, not seven.
+- **Skip while the last one is still open** is the "don't add it if it's already there" switch: while an earlier task from the same rule is not done, the occurrence is skipped instead of putting a second copy on the board.
+- Every generated task carries the tag \`recurring/<rule-id>\` (e.g. \`recurring/R-001\`). That tag is how the app recognizes its own tasks — keep it if you edit the task in Obsidian.
+- **Run now** saves the rules and then creates whatever is due right away.`;
+
 const MEMORY_MD = `## Long-term memory for AI agents
 
 Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
@@ -266,6 +278,7 @@ const SECTIONS = [
   { value: "voice", title: "Voice input", icon: Mic },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
+  { value: "recurring", title: "Recurring tasks", icon: Repeat },
 ] as const;
 
 const ALL_SECTION_VALUES = SECTIONS.map((s) => s.value as string);
@@ -1078,6 +1091,65 @@ export function HelpView() {
                 stalls or fails, you get a desktop notification and a{" "}
                 <span className="font-medium">Resume session</span> button opens
                 it in a terminal so you can finish it by hand.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Repeat}
+            title="Recurring tasks"
+            value="recurring"
+            markdown={RECURRING_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              Rules that create a task for you on a schedule — a daily standup
+              note, a weekly review, a monthly report. Set them up with the{" "}
+              <span className="font-medium">Recurring</span> button on the{" "}
+              <span className="font-medium">Tasks</span> tab — they are task
+              content, so they live next to the board rather than in Settings.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium text-foreground">Repeat</span> is
+                daily (every N days from the start date), weekly (pick the
+                weekdays), or monthly (pick the day; it is clamped to the last
+                day of shorter months), plus a time of day. Times are this
+                machine's local clock.
+              </li>
+              <li>
+                The generated task uses the rule's title, status, assignee,
+                project, priority, model and body, so it lands on the board ready
+                to work. <span className="font-medium">Due offset</span> sets{" "}
+                <span className="font-mono text-xs">due</span> to the occurrence
+                date plus N days; leave it empty for no due date.
+              </li>
+              <li>
+                Rules are checked when the app starts and every few minutes after
+                that, so a machine booted at 10:00 still gets its 09:00 task.
+                Only the <span className="font-medium">latest</span> missed
+                occurrence is created — a week with the app closed produces one
+                task, not seven.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Skip while the last one is still open
+                </span>{" "}
+                is the "don't add it if it's already there" switch: while an
+                earlier task from the same rule is not done, the occurrence is
+                skipped instead of putting a second copy on the board.
+              </li>
+              <li>
+                Every generated task carries the tag{" "}
+                <span className="font-mono text-xs">recurring/&lt;rule-id&gt;</span>{" "}
+                (e.g. <span className="font-mono text-xs">recurring/R-001</span>).
+                That tag is how the app recognizes its own tasks — keep it if you
+                edit the task in Obsidian.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Run now</span>{" "}
+                saves the rules and then creates whatever is due right away.
               </li>
             </ul>
           </Section>
