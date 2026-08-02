@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import { monthLabel, strings, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
   buildLayout,
@@ -49,6 +50,9 @@ import type { Task } from "@/types";
 
 /** Height of one bar lane, in px. Mirrored in the row height calculation. */
 const LANE_H = 22;
+/** Pointer travel that pans the window one week during a right-drag. Close to
+ * a typical row's height, so the gesture feels like moving the sheet itself. */
+const PX_PER_WEEK = 96;
 
 interface Props {
   doc: ScheduleDocModel;
@@ -230,6 +234,33 @@ export function ScheduleGrid({
     return () => el.removeEventListener("wheel", onWheel);
   }, [onPanWindow, onZoomWindow]);
 
+  /**
+   * Right-drag pans the window vertically — the direction the weeks run.
+   * Dragging down brings earlier weeks into view, like pulling the sheet down.
+   *
+   * Quantized to whole weeks, and deliberately at a fixed rate rather than
+   * measured against a row: a week row's height depends on how many bar lanes
+   * it needs, so tying the gesture to it would make the plan pan faster over
+   * its empty stretches. What matters is that the weekday columns never shift,
+   * which whole weeks guarantee.
+   */
+  const panRemainder = useRef(0);
+  const pan = usePanDrag({
+    disabled: readOnly,
+    onPan: useCallback(
+      (_dx: number, dy: number) => {
+        const exact = -dy / PX_PER_WEEK + panRemainder.current;
+        const whole = Math.trunc(exact);
+        panRemainder.current = exact - whole;
+        if (whole) onPanWindow(whole);
+      },
+      [onPanWindow],
+    ),
+  });
+  useEffect(() => {
+    if (!pan.panning) panRemainder.current = 0;
+  }, [pan.panning]);
+
   const beginItemDrag = (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => {
     if (readOnly || e.button !== 0) return;
     e.stopPropagation();
@@ -248,7 +279,12 @@ export function ScheduleGrid({
   const selection = drag?.kind === "range" ? drag : null;
 
   return (
-    <div ref={gridRef} className="select-none text-xs">
+    <div
+      ref={gridRef}
+      onPointerDown={pan.onPointerDown}
+      onContextMenuCapture={pan.onContextMenuCapture}
+      className={cn("select-none text-xs", pan.panning && "cursor-grabbing")}
+    >
       <div className="sticky top-0 z-10 flex border-b bg-background">
         <div className="w-11 shrink-0" />
         <div className="grid flex-1 grid-cols-7">

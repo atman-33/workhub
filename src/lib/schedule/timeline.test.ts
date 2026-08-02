@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exportScheduleHtml } from "./export";
+import { panWindow, panWindowDays } from "./layout";
 import { parseSchedule } from "./parse";
 import { buildTimeline, dateAtFrac, snapWeeks, timelineUnit } from "./timeline";
 
@@ -208,6 +209,23 @@ describe("exportScheduleHtml in timeline mode", () => {
     });
     expect(fallback).toContain('class="grid"');
     expect(fallback).not.toContain('class="timeline"');
+  });
+});
+
+describe("panWindowDays", () => {
+  const win = { start: "2026-07-01", end: "2026-07-10" };
+
+  it("moves the whole window, keeping its length", () => {
+    expect(panWindowDays(win, 3)).toEqual({ start: "2026-07-04", end: "2026-07-13" });
+    expect(panWindowDays(win, -1)).toEqual({ start: "2026-06-30", end: "2026-07-09" });
+  });
+
+  it("returns the same window for a zero move, so a still pointer is free", () => {
+    expect(panWindowDays(win, 0)).toBe(win);
+  });
+
+  it("agrees with the week-quantized pan the calendar uses", () => {
+    expect(panWindow(win, 2)).toEqual(panWindowDays(win, 14));
   });
 });
 

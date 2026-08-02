@@ -26,6 +26,12 @@
   usually adjusted in.
 - **HTML output follows the view**: exporting from the timeline produces the
   timeline, still as a single self-contained file that prints to A4 landscape.
+- **Right-drag moves the displayed range** on both Schedule views — grab the
+  plan and pull, instead of reaching for a modified wheel. The calendar pans
+  up and down a week at a time (its weekday columns must not shift); the
+  timeline pans left and right, following the pointer day for day. A
+  right-click that does not travel still opens the usual menu, so the gesture
+  and the menu stay out of each other's way.
 - Fixed: **New** on the Schedule tab was dead whenever the project dropdown was
   on "All projects", even with a schedule open — although an open schedule
   names its project perfectly well. It now creates the new note alongside the

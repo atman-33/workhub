@@ -126,6 +126,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
 - **Today** is the date shown in a filled pill. The **Today** button next to the date range scrolls to it — and if today is outside the displayed range, it moves the range onto today first.
 - **Change the displayed range without the date pickers**: over the calendar, **Shift** + **wheel** moves the range a week at a time, and **Ctrl** + **wheel** grows or shrinks it a week at a time (one week to a year). A plain wheel still just scrolls. The range is a view setting — moving it never edits the note.
+- **Drag with the right button to move the range** — grab the plan and pull. On the calendar that is up and down, a week at a time; on the timeline it is left and right, following the pointer day for day. A right-click that does not move still opens the menu, so the two do not get in each other's way.
 - **Drag an element** to move it — in any direction. Dragging straight down moves it a week, since the grid measures a drag in days rather than pixels. **Drag its left or right edge** to stretch or shrink it.
 - **Right-click a day** to add a **bar**, **arrow**, **milestone**, or **note** there. Sweep across several days first and a bar or arrow covers the whole sweep; a milestone or note always lands on the first day.
 - **A bar is a settled period; an arrow is an estimate.** An arrow covers a range of days exactly like a bar and behaves the same way when you drag or resize it, but it is drawn as a thin double-headed line instead of a filled band — so a period you are not yet committed to (a vendor lead time, a buffer, something running in parallel) reads as weaker than one you are. Switch a kind at any time in the edit panel.
@@ -958,6 +959,15 @@ export function HelpView() {
                 <span className="mx-1">wheel</span> grows or shrinks it a week at
                 a time (one week to a year). A plain wheel still just scrolls.
                 The range is a view setting — moving it never edits the note.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Drag with the right button to move the range
+                </span>{" "}
+                — grab the plan and pull. On the calendar that is up and down, a
+                week at a time; on the timeline it is left and right, following
+                the pointer day for day. A right-click that does not move still
+                opens the menu, so the two do not get in each other's way.
               </li>
               <li>
                 <span className="font-medium text-foreground">Drag</span> an

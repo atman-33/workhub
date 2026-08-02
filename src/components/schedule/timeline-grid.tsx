@@ -23,6 +23,7 @@ import {
   type TimelineBar,
   type TimelineLayout,
 } from "@/lib/schedule/timeline";
+import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -75,6 +76,9 @@ interface Props {
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   /** Move the displayed window by whole weeks (Shift + wheel). */
   onPanWindow: (weeks: number) => void;
+  /** Move the displayed window by days — what a right-drag pans with, since
+   * the axis here is continuous and a week-quantized pan would stutter. */
+  onPanWindowDays: (days: number) => void;
   /** Grow or shrink the displayed window by whole weeks (Ctrl + wheel). */
   onZoomWindow: (weeks: number) => void;
 }
@@ -111,6 +115,7 @@ export function TimelineGrid({
   onToggleNonWorking,
   onCreateItem,
   onPanWindow,
+  onPanWindowDays,
   onZoomWindow,
 }: Props) {
   const [drag, setDrag] = useState<Drag>(null);
@@ -201,6 +206,38 @@ export function TimelineGrid({
     return () => el.removeEventListener("wheel", onWheel);
   }, [onPanWindow, onZoomWindow]);
 
+  /**
+   * Right-drag pans the axis, at the axis's own scale: the pointer travel is
+   * converted through the track's width, so the day you grabbed stays under
+   * the pointer. Dragging right pulls earlier dates into view — the window
+   * moves back, like sliding a sheet of paper to the right.
+   *
+   * Fractions of a day are carried over between moves rather than being
+   * rounded away, so a slow drag across a year-wide window still moves instead
+   * of quantizing to nothing.
+   */
+  const panRemainder = useRef(0);
+  const pan = usePanDrag({
+    disabled: readOnly,
+    onPan: useCallback(
+      (dx: number) => {
+        const el = trackRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0) return;
+        const daysPerPx = layout.totalDays / rect.width;
+        const exact = -dx * daysPerPx + panRemainder.current;
+        const whole = Math.trunc(exact);
+        panRemainder.current = exact - whole;
+        if (whole) onPanWindowDays(whole);
+      },
+      [layout.totalDays, onPanWindowDays],
+    ),
+  });
+  useEffect(() => {
+    if (!pan.panning) panRemainder.current = 0;
+  }, [pan.panning]);
+
   const beginItemDrag = (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => {
     if (readOnly || e.button !== 0) return;
     e.stopPropagation();
@@ -231,7 +268,12 @@ export function TimelineGrid({
   const pointsHeight = layout.pointLaneCount * POINT_LANE_H;
 
   return (
-    <div ref={rootRef} className="select-none p-3 text-xs">
+    <div
+      ref={rootRef}
+      onPointerDown={pan.onPointerDown}
+      onContextMenuCapture={pan.onContextMenuCapture}
+      className={cn("select-none p-3 text-xs", pan.panning && "cursor-grabbing")}
+    >
       <div style={{ paddingLeft: TRACK_PAD, paddingRight: TRACK_PAD }}>
         <div ref={trackRef} className="relative">
           {/* Header: coarse band, columns, then the sprint strip. */}

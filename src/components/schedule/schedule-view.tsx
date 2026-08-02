@@ -38,6 +38,7 @@ import {
   calendarDays,
   formatRange,
   panWindow,
+  panWindowDays,
   parseRange,
   shiftDate,
   toISO,
@@ -423,6 +424,12 @@ export function ScheduleView({ configVersion }: Props) {
     setWindow((prev) => (prev ? panWindow(prev, weeks) : prev));
   }, []);
 
+  /** Day-precision pan, for the timeline's right-drag: its axis is continuous,
+   * so a week-quantized pan would stutter under a smooth gesture. */
+  const panDaysBy = useCallback((days: number) => {
+    setWindow((prev) => (prev ? panWindowDays(prev, days) : prev));
+  }, []);
+
   const zoomBy = useCallback((weeks: number) => {
     setWindow((prev) => (prev ? zoomWindow(prev, weeks) : prev));
   }, []);
@@ -759,6 +766,7 @@ export function ScheduleView({ configVersion }: Props) {
                 onToggleNonWorking={(date) => toggleNonWorking(date)}
                 onCreateItem={(kind, from, to) => createItem(kind, from, to)}
                 onPanWindow={panBy}
+                onPanWindowDays={panDaysBy}
                 onZoomWindow={zoomBy}
               />
             ) : doc && window_ ? (
