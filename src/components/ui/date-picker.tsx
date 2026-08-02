@@ -12,7 +12,20 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /**
+   * Whether the ✕ that clears the value is offered. Defaults to true, which is
+   * right for a form field. Pass false where the caller ignores an empty value
+   * — an ✕ that does nothing when pressed is worse than no ✕ at all.
+   */
+  clearable?: boolean;
 }
+
+/**
+ * Width note: the trigger is `w-full` because most callers are form fields in
+ * a column. In a **flex row** that makes it demand the whole container, so a
+ * toolbar must pass an explicit width (`className="w-32"`) — `cn` is
+ * tailwind-merge, so the caller's width wins.
+ */
 
 // Parse/format an ISO date locally so a JST (or any non-UTC) webview never
 // shifts the day. `new Date("2026-07-20")` would parse as UTC midnight.
@@ -40,7 +53,13 @@ const DISPLAY = new Intl.DateTimeFormat("en-US", {
  * `<input type="date">`, whose dropdown rendered in the OS locale (Japanese).
  * Displays and edits in English.
  */
-export function DatePicker({ value, onChange, placeholder = "Pick a date", className }: DatePickerProps) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = "Pick a date",
+  className,
+  clearable = true,
+}: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
   const selected = parseIso(value);
 
@@ -60,7 +79,7 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", class
           <span className="flex-1 truncate text-left">
             {selected ? DISPLAY.format(selected) : placeholder}
           </span>
-          {selected && (
+          {selected && clearable && (
             <XIcon
               className="size-3.5 shrink-0 opacity-50 hover:opacity-100"
               onClick={(e) => {

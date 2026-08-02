@@ -313,12 +313,26 @@ export function ScheduleView({ configVersion }: Props) {
     [tasks, project],
   );
 
+  /**
+   * The project a new schedule would be created in.
+   *
+   * The dropdown is the obvious source, but under "All projects" it names
+   * none — and an open note does, since every schedule belongs to exactly one
+   * project. Falling back to it is what lets "I am looking at this plan, give
+   * me another one like it" work without first re-picking the project the
+   * open file is already in. Empty only when neither is available, which is
+   * the one case New has nothing to act on.
+   */
+  const targetProject = useMemo(
+    () => project || files.find((f) => f.path === path)?.project || "",
+    [project, files, path],
+  );
+
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
-    const file = files.find((f) => f.path === path);
     const dir =
       config?.settings.schedule_export_dir?.trim() ||
-      `${vaultPath}/projects/${file?.project ?? project}/attachments`;
+      `${vaultPath}/projects/${targetProject}/attachments`;
     const name = `${(doc.title || "schedule").replace(/[\\/:*?"<>|]/g, "-")} ${window_.start}.html`;
     const out = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${name}`;
     // The export follows what is on screen: an approved plan is approved in
@@ -331,7 +345,7 @@ export function ScheduleView({ configVersion }: Props) {
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, window_, vaultPath, files, path, project, config, locale, mode]);
+  }, [doc, window_, vaultPath, targetProject, config, locale, mode]);
 
   /**
    * Keyboard editing: undo/redo, plus nudging the selected element.
@@ -505,7 +519,7 @@ export function ScheduleView({ configVersion }: Props) {
         {/* Calendar or timeline: the same note at two scales. Kept next to the
             file pickers rather than off to the right, because which drawing is
             on screen changes what every control after it means. */}
-        <div className="flex items-center rounded-md border p-0.5">
+        <div className="flex shrink-0 items-center rounded-md border p-0.5">
           {(["calendar", "timeline"] as const).map((value) => (
             <Button
               key={value}
@@ -531,16 +545,29 @@ export function ScheduleView({ configVersion }: Props) {
         </div>
 
         {window_ && (
+          // The date pickers carry an explicit width: `DatePicker` is `w-full`
+          // for the form fields it was built for, which in a flex row means
+          // "the whole toolbar". Without this the row overflows and the
+          // controls after it are drawn on top of each other.
           <div
-            className="flex items-center gap-1"
+            className="flex shrink-0 items-center gap-1"
             title="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it"
           >
             <DatePicker
               value={window_.start}
+              className="w-32"
+              // An empty value is ignored below, so offering the ✕ would put a
+              // control on screen that does nothing when pressed.
+              clearable={false}
               onChange={(v) => v && setWindow({ ...window_, start: v })}
             />
             <span className="text-muted-foreground">to</span>
-            <DatePicker value={window_.end} onChange={(v) => v && setWindow({ ...window_, end: v })} />
+            <DatePicker
+              value={window_.end}
+              className="w-32"
+              clearable={false}
+              onChange={(v) => v && setWindow({ ...window_, end: v })}
+            />
             <Button
               size="sm"
               variant="ghost"
@@ -559,24 +586,29 @@ export function ScheduleView({ configVersion }: Props) {
             reading only: at six weeks there is no sprint band to label and
             nothing to jump a quarter of. */}
         {mode === "timeline" && window_ && (
-          <div className="flex items-center gap-1">
-            {[
-              { label: "3m", weeks: 13 },
-              { label: "6m", weeks: 26 },
-              { label: "1y", weeks: 52 },
-            ].map((preset) => (
-              <Button
-                key={preset.label}
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => setWindowWeeks(preset.weeks)}
-                disabled={!doc}
-                title={`Show ${preset.weeks} weeks from the window start`}
-              >
-                {preset.label}
-              </Button>
-            ))}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Grouped in one bordered box, like the mode switch: the three are
+                one control ("how much time do I want on screen"), and loose
+                buttons read as three unrelated ones. */}
+            <div className="flex items-center rounded-md border p-0.5">
+              {[
+                { label: "3m", weeks: 13 },
+                { label: "6m", weeks: 26 },
+                { label: "1y", weeks: 52 },
+              ].map((preset) => (
+                <Button
+                  key={preset.label}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setWindowWeeks(preset.weeks)}
+                  disabled={!doc}
+                  title={`Show ${preset.weeks} weeks from the window start`}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
             {doc && (
               <SprintSettings
                 sprint={doc.sprint}
@@ -588,7 +620,7 @@ export function ScheduleView({ configVersion }: Props) {
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button
             size="sm"
             variant="ghost"
@@ -629,16 +661,24 @@ export function ScheduleView({ configVersion }: Props) {
                 size="sm"
                 variant="secondary"
                 className="h-7 text-xs"
-                // A schedule belongs to exactly one project, so "All projects"
-                // leaves nothing to create it in.
-                disabled={!project}
-                title={project ? `Create a schedule in ${project}` : "Pick a project first"}
+                // A schedule belongs to exactly one project. Under "All
+                // projects" the dropdown names none, but an open note does —
+                // see `targetProject`.
+                disabled={!targetProject}
+                title={
+                  targetProject
+                    ? `Create a schedule in ${targetProject}`
+                    : "Pick a project, or open a schedule, first"
+                }
               >
                 <Plus className="mr-1 size-3" />
                 New
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 space-y-2 p-3 text-xs">
+              <div className="text-muted-foreground">
+                New schedule in <span className="text-foreground">{targetProject}</span>
+              </div>
               <Input
                 value={newTitle}
                 placeholder="Schedule name"
@@ -654,7 +694,7 @@ export function ScheduleView({ configVersion }: Props) {
                     const win = window_ ?? defaultWindow();
                     const created = await api.createSchedule(
                       vaultPath,
-                      project,
+                      targetProject,
                       newTitle.trim(),
                       formatRange(win.start, win.end),
                     );

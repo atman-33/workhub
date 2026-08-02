@@ -26,6 +26,15 @@
   usually adjusted in.
 - **HTML output follows the view**: exporting from the timeline produces the
   timeline, still as a single self-contained file that prints to A4 landscape.
+- Fixed: **New** on the Schedule tab was dead whenever the project dropdown was
+  on "All projects", even with a schedule open — although an open schedule
+  names its project perfectly well. It now creates the new note alongside the
+  open one, and says which project that is.
+- Fixed: the Schedule toolbar's date pickers claimed the full width of the row,
+  so with enough controls on it the range and the buttons after it were drawn
+  on top of each other. The pickers now have a fixed width, the groups wrap
+  onto a second line instead of colliding, and the ✕ that cleared a date is
+  gone from the two pickers that ignored an empty value anyway.
 
 ## 0.67.0 (2026-07-31)
 
