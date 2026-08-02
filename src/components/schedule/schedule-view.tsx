@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   CalendarCheck,
+  CalendarDays,
   Download,
+  GanttChart,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -11,6 +13,8 @@ import {
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
+import { SprintSettings } from "@/components/schedule/sprint-settings";
+import { TimelineGrid } from "@/components/schedule/timeline-grid";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -31,8 +35,10 @@ import { api } from "@/lib/api";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
+  calendarDays,
   formatRange,
   panWindow,
+  panWindowDays,
   parseRange,
   shiftDate,
   toISO,
@@ -74,6 +80,21 @@ const SAVE_DEBOUNCE_MS = 600;
 const UNDO_LIMIT = 50;
 /** Default window when a note has no usable `range` (design note §3.1). */
 const DEFAULT_WEEKS = 6;
+/**
+ * Window the timeline opens on, in weeks (about six months).
+ *
+ * A long-range plan is the question the timeline exists to answer, and the
+ * six-week calendar window shows a single phase — arriving there zoomed that
+ * far in reads as the mode being broken. Applied only when the current window
+ * is *shorter*, so a window the user already widened is left alone.
+ */
+const TIMELINE_WEEKS = 26;
+/** Below this, switching to the timeline widens the window to `TIMELINE_WEEKS`. */
+const TIMELINE_MIN_WEEKS = 10;
+
+/** How the note is drawn. Session state, deliberately not persisted: which
+ * question you are asking of a plan changes several times an hour. */
+type ViewMode = "calendar" | "timeline";
 /** Starting width of the right column, in percent of the view. Roughly the
  * fixed 288px it replaced at a typical window size. */
 const SIDEBAR_DEFAULT_PCT = 22;
@@ -101,6 +122,7 @@ export function ScheduleView({ configVersion }: Props) {
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [mode, setMode] = useState<ViewMode>("calendar");
   // Session-only: the calendar reads better at full width when reviewing or
   // before an export, but that is a preference for a moment, not for a
   // machine, so it is deliberately not persisted to settings.
@@ -292,15 +314,31 @@ export function ScheduleView({ configVersion }: Props) {
     [tasks, project],
   );
 
+  /**
+   * The project a new schedule would be created in.
+   *
+   * The dropdown is the obvious source, but under "All projects" it names
+   * none — and an open note does, since every schedule belongs to exactly one
+   * project. Falling back to it is what lets "I am looking at this plan, give
+   * me another one like it" work without first re-picking the project the
+   * open file is already in. Empty only when neither is available, which is
+   * the one case New has nothing to act on.
+   */
+  const targetProject = useMemo(
+    () => project || files.find((f) => f.path === path)?.project || "",
+    [project, files, path],
+  );
+
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
-    const file = files.find((f) => f.path === path);
     const dir =
       config?.settings.schedule_export_dir?.trim() ||
-      `${vaultPath}/projects/${file?.project ?? project}/attachments`;
+      `${vaultPath}/projects/${targetProject}/attachments`;
     const name = `${(doc.title || "schedule").replace(/[\\/:*?"<>|]/g, "-")} ${window_.start}.html`;
     const out = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${name}`;
-    const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale });
+    // The export follows what is on screen: an approved plan is approved in
+    // the drawing it was read in.
+    const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale, mode });
     try {
       await api.exportScheduleHtml(out, html);
       setStatus(`Exported to ${out}`);
@@ -308,7 +346,7 @@ export function ScheduleView({ configVersion }: Props) {
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, window_, vaultPath, files, path, project, config, locale]);
+  }, [doc, window_, vaultPath, targetProject, config, locale, mode]);
 
   /**
    * Keyboard editing: undo/redo, plus nudging the selected element.
@@ -386,9 +424,42 @@ export function ScheduleView({ configVersion }: Props) {
     setWindow((prev) => (prev ? panWindow(prev, weeks) : prev));
   }, []);
 
+  /** Day-precision pan, for the timeline's right-drag: its axis is continuous,
+   * so a week-quantized pan would stutter under a smooth gesture. */
+  const panDaysBy = useCallback((days: number) => {
+    setWindow((prev) => (prev ? panWindowDays(prev, days) : prev));
+  }, []);
+
   const zoomBy = useCallback((weeks: number) => {
     setWindow((prev) => (prev ? zoomWindow(prev, weeks) : prev));
   }, []);
+
+  /** Sets the window to a whole number of weeks from its current start — the
+   * timeline's range presets. Like every other window change it is view state
+   * and never touches the note. */
+  const setWindowWeeks = useCallback((weeks: number) => {
+    setWindow((prev) => (prev ? { start: prev.start, end: shiftDate(prev.start, weeks * 7 - 1) } : prev));
+  }, []);
+
+  /**
+   * Switches drawing mode, widening a too-narrow window on the way into the
+   * timeline. Going back to the calendar leaves the window as it is: the user
+   * chose that span while looking at the plan, and silently re-cropping it
+   * would throw away the thing they just decided.
+   */
+  const switchMode = useCallback(
+    (next: ViewMode) => {
+      setMode(next);
+      if (next !== "timeline") return;
+      setWindow((prev) => {
+        if (!prev) return prev;
+        const weeks = Math.ceil(calendarDays(prev.start, prev.end) / 7);
+        if (weeks >= TIMELINE_MIN_WEEKS) return prev;
+        return { start: prev.start, end: shiftDate(prev.start, TIMELINE_WEEKS * 7 - 1) };
+      });
+    },
+    [],
+  );
 
   const scrollToTodayCell = useCallback(() => {
     scrollRef.current
@@ -452,17 +523,58 @@ export function ScheduleView({ configVersion }: Props) {
           </SelectContent>
         </Select>
 
+        {/* Calendar or timeline: the same note at two scales. Kept next to the
+            file pickers rather than off to the right, because which drawing is
+            on screen changes what every control after it means. */}
+        <div className="flex shrink-0 items-center rounded-md border p-0.5">
+          {(["calendar", "timeline"] as const).map((value) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={mode === value ? "secondary" : "ghost"}
+              className="h-6 px-2 text-xs capitalize"
+              onClick={() => switchMode(value)}
+              disabled={!path}
+              title={
+                value === "calendar"
+                  ? "Week grid — day-level planning"
+                  : "Long-range timeline — months, phases and sprints"
+              }
+            >
+              {value === "calendar" ? (
+                <CalendarDays className="mr-1 size-3" />
+              ) : (
+                <GanttChart className="mr-1 size-3" />
+              )}
+              {value}
+            </Button>
+          ))}
+        </div>
+
         {window_ && (
+          // The date pickers carry an explicit width: `DatePicker` is `w-full`
+          // for the form fields it was built for, which in a flex row means
+          // "the whole toolbar". Without this the row overflows and the
+          // controls after it are drawn on top of each other.
           <div
-            className="flex items-center gap-1"
+            className="flex shrink-0 items-center gap-1"
             title="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it"
           >
             <DatePicker
               value={window_.start}
+              className="w-32"
+              // An empty value is ignored below, so offering the ✕ would put a
+              // control on screen that does nothing when pressed.
+              clearable={false}
               onChange={(v) => v && setWindow({ ...window_, start: v })}
             />
             <span className="text-muted-foreground">to</span>
-            <DatePicker value={window_.end} onChange={(v) => v && setWindow({ ...window_, end: v })} />
+            <DatePicker
+              value={window_.end}
+              className="w-32"
+              clearable={false}
+              onChange={(v) => v && setWindow({ ...window_, end: v })}
+            />
             <Button
               size="sm"
               variant="ghost"
@@ -477,7 +589,45 @@ export function ScheduleView({ configVersion }: Props) {
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5">
+        {/* Range presets, and the sprint cadence, belong to the long-range
+            reading only: at six weeks there is no sprint band to label and
+            nothing to jump a quarter of. */}
+        {mode === "timeline" && window_ && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Grouped in one bordered box, like the mode switch: the three are
+                one control ("how much time do I want on screen"), and loose
+                buttons read as three unrelated ones. */}
+            <div className="flex items-center rounded-md border p-0.5">
+              {[
+                { label: "3m", weeks: 13 },
+                { label: "6m", weeks: 26 },
+                { label: "1y", weeks: 52 },
+              ].map((preset) => (
+                <Button
+                  key={preset.label}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setWindowWeeks(preset.weeks)}
+                  disabled={!doc}
+                  title={`Show ${preset.weeks} weeks from the window start`}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+            {doc && (
+              <SprintSettings
+                sprint={doc.sprint}
+                windowStart={window_.start}
+                disabled={aiRunning}
+                onChange={(sprint) => mutate({ ...doc, sprint })}
+              />
+            )}
+          </div>
+        )}
+
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button
             size="sm"
             variant="ghost"
@@ -518,16 +668,24 @@ export function ScheduleView({ configVersion }: Props) {
                 size="sm"
                 variant="secondary"
                 className="h-7 text-xs"
-                // A schedule belongs to exactly one project, so "All projects"
-                // leaves nothing to create it in.
-                disabled={!project}
-                title={project ? `Create a schedule in ${project}` : "Pick a project first"}
+                // A schedule belongs to exactly one project. Under "All
+                // projects" the dropdown names none, but an open note does —
+                // see `targetProject`.
+                disabled={!targetProject}
+                title={
+                  targetProject
+                    ? `Create a schedule in ${targetProject}`
+                    : "Pick a project, or open a schedule, first"
+                }
               >
                 <Plus className="mr-1 size-3" />
                 New
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 space-y-2 p-3 text-xs">
+              <div className="text-muted-foreground">
+                New schedule in <span className="text-foreground">{targetProject}</span>
+              </div>
               <Input
                 value={newTitle}
                 placeholder="Schedule name"
@@ -543,7 +701,7 @@ export function ScheduleView({ configVersion }: Props) {
                     const win = window_ ?? defaultWindow();
                     const created = await api.createSchedule(
                       vaultPath,
-                      project,
+                      targetProject,
                       newTitle.trim(),
                       formatRange(win.start, win.end),
                     );
@@ -577,7 +735,41 @@ export function ScheduleView({ configVersion }: Props) {
       >
         <ResizablePanel id="calendar" minSize="40%" className="min-h-0 min-w-0">
           <div ref={scrollRef} className="h-full overflow-y-auto">
-            {doc && window_ ? (
+            {doc && window_ && mode === "timeline" ? (
+              <TimelineGrid
+                doc={doc}
+                start={window_.start}
+                end={window_.end}
+                tasks={projectTasks}
+                locale={locale}
+                today={today}
+                selectedId={selected?.id ?? null}
+                readOnly={aiRunning}
+                onMoveItem={(id, delta) =>
+                  patchItem(id, (i) => ({
+                    ...i,
+                    start: shiftDate(i.start, delta),
+                    end: shiftDate(i.end, delta),
+                  }))
+                }
+                onResizeItem={(id, edge, delta) =>
+                  patchItem(id, (i) => {
+                    const next =
+                      edge === "start"
+                        ? { ...i, start: shiftDate(i.start, delta) }
+                        : { ...i, end: shiftDate(i.end, delta) };
+                    if (next.end < next.start) return i;
+                    return next;
+                  })
+                }
+                onSelectItem={(item) => setSelectedId(item?.id ?? null)}
+                onToggleNonWorking={(date) => toggleNonWorking(date)}
+                onCreateItem={(kind, from, to) => createItem(kind, from, to)}
+                onPanWindow={panBy}
+                onPanWindowDays={panDaysBy}
+                onZoomWindow={zoomBy}
+              />
+            ) : doc && window_ ? (
               <ScheduleGrid
                 doc={doc}
                 start={window_.start}

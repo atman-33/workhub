@@ -339,11 +339,21 @@ export interface ScheduleWindow {
 const MIN_WEEKS = 1;
 const MAX_WEEKS = 52;
 
-/** Moves the whole window by whole weeks, keeping its length. Whole weeks
- * rather than days so the grid's week rows keep the same weekday columns —
- * panning must not make the calendar appear to shift sideways. */
+/**
+ * Moves the whole window by whole weeks, keeping its length.
+ *
+ * Whole weeks rather than days so the grid's week rows keep the same weekday
+ * columns — panning must not make the calendar appear to shift sideways. The
+ * timeline has no weekday columns to protect and pans in days instead
+ * (`panWindowDays`).
+ */
 export function panWindow(win: ScheduleWindow, weeks: number): ScheduleWindow {
-  const days = weeks * 7;
+  return panWindowDays(win, weeks * 7);
+}
+
+/** Moves the whole window by a number of days, keeping its length. */
+export function panWindowDays(win: ScheduleWindow, days: number): ScheduleWindow {
+  if (!days) return win;
   return { start: shiftDate(win.start, days), end: shiftDate(win.end, days) };
 }
 
