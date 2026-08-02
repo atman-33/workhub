@@ -113,10 +113,34 @@ export interface NonWorking {
   ranges: NonWorkingRange[];
 }
 
+/**
+ * Sprint cadence of a schedule, as two flat frontmatter keys
+ * (`sprint_start` / `sprint_weeks`).
+ *
+ * It lives on the note rather than in the app settings because comparing two
+ * plans is the whole point of the feature: `案A.md` may run two-week sprints
+ * from July while `案B.md` runs three-week ones from August, and a machine-wide
+ * setting could not say that. Flat scalars keep the workhub frontmatter parser
+ * (and Obsidian's property UI) happy.
+ */
+export interface SprintConfig {
+  /** First day of sprint 1 (`YYYY-MM-DD`). */
+  start: string;
+  /** Sprint length in whole weeks. */
+  weeks: number;
+}
+
+/** Longest sprint the notation accepts, in weeks. Past a quarter the number
+ * stops describing a cadence, and an accidental `sprint_weeks: 100` would
+ * silently paint the whole plan as one sprint. */
+const MAX_SPRINT_WEEKS = 13;
+
 export interface ScheduleDocModel {
   title: string;
   /** Display range as written in the frontmatter (`YYYY-MM-DD..YYYY-MM-DD`). */
   range: string;
+  /** Sprint cadence, when the note declares a valid one. */
+  sprint?: SprintConfig;
   nonWorking: NonWorking;
   items: ScheduleItem[];
   /** Item lines the grammar did not recognize, preserved verbatim. */
@@ -300,6 +324,20 @@ function parseNonWorkingLine(
   return { range: { start: spec, end: spec, label: label.trim() } };
 }
 
+/**
+ * Reads the sprint cadence out of the frontmatter, or nothing when it is
+ * absent or unusable. A half-declared cadence (a start with no length) is not
+ * an error the user has to fix — it simply means the note has no sprints yet,
+ * so the timeline draws without them.
+ */
+function parseSprint(frontmatter: string): SprintConfig | undefined {
+  const start = frontmatterValue(frontmatter, "sprint_start");
+  const weeks = Number(frontmatterValue(frontmatter, "sprint_weeks"));
+  if (!isDate(start)) return undefined;
+  if (!Number.isInteger(weeks) || weeks < 1 || weeks > MAX_SPRINT_WEEKS) return undefined;
+  return { start, weeks };
+}
+
 export function parseSchedule(content: string): ScheduleDocModel {
   const s = splitSections(content);
   const doc: ScheduleDocModel = {
@@ -310,6 +348,8 @@ export function parseSchedule(content: string): ScheduleDocModel {
     rawItems: [],
     rawNonWorking: [],
   };
+  const sprint = parseSprint(s.frontmatter);
+  if (sprint) doc.sprint = sprint;
 
   for (const line of s.nonWorking.split("\n")) {
     if (!line.trim() || line.trim().startsWith("##")) continue;
@@ -411,7 +451,17 @@ export function serializeSchedule(
   today: string,
 ): string {
   const s = splitSections(content);
-  const frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
+  let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
+  // The cadence is editable from the timeline toolbar, so it round-trips like
+  // any other managed key: written when set, removed when cleared. Every other
+  // frontmatter key is still carried through untouched.
+  if (doc.sprint) {
+    frontmatter = setFrontmatterValue(frontmatter, "sprint_start", doc.sprint.start);
+    frontmatter = setFrontmatterValue(frontmatter, "sprint_weeks", String(doc.sprint.weeks));
+  } else {
+    frontmatter = removeFrontmatterKey(frontmatter, "sprint_start");
+    frontmatter = removeFrontmatterKey(frontmatter, "sprint_weeks");
+  }
 
   const nonWorkingBody = formatNonWorking(doc.nonWorking, doc.rawNonWorking).join("\n");
   const itemsBody = [...doc.items.map(formatItem), ...doc.rawItems].join("\n");
@@ -436,6 +486,18 @@ function setFrontmatterValue(frontmatter: string, key: string, value: string): s
   // No such key: insert before the closing `---`.
   const closing = lines.lastIndexOf("---");
   if (closing > 0) lines.splice(closing, 0, `${key}: ${value}`);
+  return lines.join("\n");
+}
+
+/** Drops one frontmatter key, if present. Used only for the sprint keys: a
+ * cleared cadence must leave no half-declaration behind for the next parse to
+ * puzzle over. */
+function removeFrontmatterKey(frontmatter: string, key: string): string {
+  if (!frontmatter) return frontmatter;
+  const lines = frontmatter.split("\n").filter((line) => {
+    const idx = line.indexOf(":");
+    return idx === -1 || line.slice(0, idx).trim() !== key;
+  });
   return lines.join("\n");
 }
 

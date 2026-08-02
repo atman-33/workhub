@@ -10,6 +10,21 @@ updated: {{DATE}}
 > per plan; copy it to compare alternatives (`2026Q3 案A.md` / `案B.md`).
 > The workhub app's **Schedule** tab reads and writes this file; you can also
 > edit it here in Obsidian.
+>
+> The tab draws this note two ways: **Calendar** (a continuous week grid, for
+> day-level planning) and **Timeline** (months across the top, for long-range
+> planning). Both read the same elements below.
+>
+> To number the timeline by sprint, add two optional frontmatter keys:
+>
+> ```yaml
+> sprint_start: 2026-07-06   # first day of sprint 1
+> sprint_weeks: 2            # sprint length in whole weeks (1-13)
+> ```
+>
+> The cadence lives on the note rather than in the app settings, so two plans
+> can compare different ones. Sprints are a reading of the calendar only —
+> they never move an element.
 
 ## Non-working
 

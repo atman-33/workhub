@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.68.0 (2026-08-02)
+
+- **Long-range planning on the Schedule tab** (T-0111): the tab now draws a
+  schedule note two ways, switched in its toolbar. **Calendar** is the existing
+  continuous week grid, for deciding which days work goes on. **Timeline** is
+  the long-range reading of the same note — months across the top, phases as
+  bands running left to right, milestones as diamonds on the line — which is
+  the shape a quarter or a year is actually drawn in, and which the week grid
+  turns into a wall of rows. It is one note either way: the elements, the
+  non-working days, the AI editing and the HTML export are shared, so a phase
+  moved on the timeline is the same line of Markdown moved on the calendar.
+  Switching to Timeline widens a short window to about six months, and
+  **3m / 6m / 1y** set it directly.
+- **Sprint numbering** (T-0111): a note can declare a cadence — the day sprint 1
+  starts and its length in weeks — and the timeline numbers its header `S1`,
+  `S2`, … with a boundary line at each sprint start. Set it from the
+  **Sprints** button, or by hand as `sprint_start` / `sprint_weeks` in the
+  note's frontmatter. It lives on the note rather than in app settings so two
+  plans of the same project can compare different cadences. Sprints are a
+  reading of the calendar only: nothing rounds a date to a boundary.
+- Timeline gestures match the calendar's — drag to move, drag an edge to
+  resize, sweep to pick a period, right-click to add — with **Shift** while
+  dragging snapping to whole weeks, which is the unit a long-range plan is
+  usually adjusted in.
+- **HTML output follows the view**: exporting from the timeline produces the
+  timeline, still as a single self-contained file that prints to A4 landscape.
+
 ## 0.67.0 (2026-07-31)
 
 - **Recurring tasks** (T-0110): work that comes back every day, week or month

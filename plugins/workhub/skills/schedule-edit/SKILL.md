@@ -93,6 +93,26 @@ Non-working line — one of:
 - 2026-08-13..2026-08-15 summer leave
 ```
 
+### Sprints
+
+A note may declare a sprint cadence with two optional frontmatter keys:
+
+```yaml
+sprint_start: 2026-07-06   # first day of sprint 1
+sprint_weeks: 2            # sprint length in whole weeks (1-13)
+```
+
+The app's timeline view numbers the header `S1`, `S2`, … from them. They are a
+*reading* of the calendar: sprint boundaries never move an element, and nothing
+in a plan has to line up with one.
+
+Treat them like any other frontmatter key — leave them alone unless the
+instruction is explicitly about the cadence ("make sprints three weeks",
+"start sprint 1 on the 13th"). In particular, do **not** silently round an
+element's dates to a sprint boundary; if an instruction asks for work "in
+sprint 3", compute that sprint's dates from these two keys and say which dates
+you used.
+
 ## Procedure
 
 1. **Read the whole file** before editing. You need the current dates to

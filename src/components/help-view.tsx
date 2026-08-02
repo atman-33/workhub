@@ -120,6 +120,9 @@ const SCHEDULE_MD = `## Planning dates (Schedule)
 The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
 
 - A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. Copy the file in Obsidian to compare alternatives.
+- **Calendar or Timeline** — the same note drawn two ways, switched in the toolbar. **Calendar** is the week grid below, for deciding days. **Timeline** is the long-range ("大日程") view: months across the top, phases as bands running left to right, milestones as diamonds — the shape you would draw on paper for a quarter or a year. Switching to Timeline widens a short range to about six months; **3m / 6m / 1y** set it directly. Elements are the same in both views, so a phase moved in one has moved in the other.
+- **Sprints on the timeline**: press **Sprints** (Timeline only) to number the header \`S1\`, \`S2\`, … Set the day sprint 1 starts and the length in weeks; boundaries appear as vertical lines. The cadence is stored in the note itself (\`sprint_start\` / \`sprint_weeks\` in its frontmatter), so two plans of the same project can compare different cadences. Sprints are only a reading of the calendar — they never move an element or round a date.
+- **On the timeline**, drag an element to move it and its edges to resize it, exactly as in the calendar; hold **Shift** while dragging to snap to whole weeks. Drag across empty chart to pick a period, then right-click to add an element or mark the day non-working. Tasks with a due date show as small dashed ticks under the axis (drag them on the calendar, where a day is wide enough to aim at).
 - Weeks run continuously down the page rather than being cut into months, so a plan spanning 7/20-8/20 stays readable in one piece. A new month shows as "8/1" on the day itself, with a divider and a month label in the left gutter.
 - **Today** is the date shown in a filled pill. The **Today** button next to the date range scrolls to it — and if today is outside the displayed range, it moves the range onto today first.
 - **Change the displayed range without the date pickers**: over the calendar, **Shift** + **wheel** moves the range a week at a time, and **Ctrl** + **wheel** grows or shrinks it a week at a time (one week to a year). A plain wheel still just scrolls. The range is a view setting — moving it never edits the note.
@@ -890,6 +893,47 @@ export function HelpView() {
                 . Pick a project, then <span className="font-medium">New</span>{" "}
                 to create one, or open an existing note from the second
                 dropdown. Copy the file in Obsidian to compare alternatives.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Calendar or Timeline
+                </span>{" "}
+                — the same note drawn two ways, switched in the toolbar.{" "}
+                <span className="font-medium">Calendar</span> is the week grid
+                described below, for deciding days.{" "}
+                <span className="font-medium">Timeline</span> is the long-range
+                view: months across the top, phases as bands running left to
+                right, milestones as diamonds — the shape you would draw on
+                paper for a quarter or a year. Switching to Timeline widens a
+                short range to about six months;{" "}
+                <span className="font-medium">3m / 6m / 1y</span> set it
+                directly. Elements are the same in both views, so a phase moved
+                in one has moved in the other.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Sprints on the timeline
+                </span>
+                : press <span className="font-medium">Sprints</span> (Timeline
+                only) to number the header S1, S2, … Set the day sprint 1 starts
+                and the length in weeks; boundaries appear as vertical lines.
+                The cadence is stored in the note itself (
+                <span className="font-mono text-xs">sprint_start</span> /{" "}
+                <span className="font-mono text-xs">sprint_weeks</span> in its
+                frontmatter), so two plans of the same project can compare
+                different cadences. Sprints are only a reading of the calendar —
+                they never move an element or round a date.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  On the timeline
+                </span>
+                , drag an element to move it and its edges to resize it, exactly
+                as in the calendar; hold <Kbd>Shift</Kbd> while dragging to snap
+                to whole weeks. Drag across empty chart to pick a period, then
+                right-click to add an element or mark the day non-working. Tasks
+                with a due date show as small dashed ticks under the axis (drag
+                them on the calendar, where a day is wide enough to aim at).
               </li>
               <li>
                 Weeks run <span className="font-medium">continuously</span> down

@@ -18,6 +18,7 @@
 import { monthLabel, strings, type ScheduleLocale } from "./i18n";
 import { buildLayout, countWorkingDays, type Layout } from "./layout";
 import { COLOR_HEX, type ScheduleDocModel, type ScheduleItem } from "./parse";
+import { buildTimeline, type TimelineLayout } from "./timeline";
 
 /** Minimal HTML escaping for the user-authored strings that go into the page
  * (titles, labels). Kept local rather than pulled from a library: the export
@@ -42,6 +43,12 @@ const HEAD_H = 20;
  * not it holds anything, so the grid keeps a constant week pitch instead of
  * collapsing to the height of its contents. */
 const CELL_H = 96;
+
+/** Lane pitch of the timeline's bars and point elements, in px. Slightly
+ * roomier than the calendar's: a timeline lane carries a full title where the
+ * calendar's carries a fragment. */
+const TL_LANE_H = 22;
+const TL_POINT_H = 16;
 
 /**
  * Print styling lives here rather than in a shared stylesheet because the
@@ -142,6 +149,34 @@ td.daycell:last-child, table.days th:last-child { border-right: none; }
 .dot { display: inline-block; width: 6px; height: 6px; margin-right: 3px; }
 .dot.milestone { transform: rotate(45deg); }
 .dot.note { border-radius: 50%; }
+/* Timeline (T-0111). Everything is positioned in percentages of one axis, so
+   the chart keeps its proportions at any paper size — there is no column grid
+   for a print engine to re-flow. */
+.timeline { position: relative; }
+.thead { position: relative; height: 18px; border-bottom: 1px solid #d1d5db; }
+.thead.cols { height: 16px; border-bottom: 1px solid #e5e7eb; }
+.tband { position: absolute; top: 0; bottom: 0; padding-left: 3px;
+  font-size: 11px; font-weight: 600; border-left: 1px solid #d1d5db;
+  white-space: nowrap; overflow: hidden; }
+.tcol { position: absolute; top: 0; bottom: 0; padding-left: 2px;
+  font-size: 9px; color: #6b7280; border-left: 1px solid #f3f4f6;
+  white-space: nowrap; overflow: hidden; }
+.tcol.mstart { border-left: 1px solid #9ca3af; }
+.tsprints { position: relative; height: 14px; border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb; }
+.tsprint { position: absolute; top: 0; bottom: 0; padding-left: 3px;
+  font-size: 9px; color: #6b7280; white-space: nowrap; overflow: hidden; }
+.tsprint.sstart { border-left: 2px solid #6b7280; }
+.tplot { position: relative; }
+.trule { position: absolute; top: 0; bottom: 0; border-left: 1px solid #f3f4f6; }
+.trule.mstart { border-left: 1px solid #d1d5db; }
+.trule.nonworking { background: #f3f4f6; }
+/* Today is a hairline rather than a filled marker: on a monochrome print a
+   filled one competes with the bars for the same ink. */
+.ttoday { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #111827; }
+.tbar { height: 18px; line-height: 18px; }
+.tpoint { position: absolute; font-size: 9px; line-height: 14px; white-space: nowrap;
+  max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
 footer { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 8px;
   font-size: 10px; color: #6b7280; }
 .notes { margin-top: 8px; }
@@ -294,6 +329,9 @@ export interface ExportOptions {
   /** Start of the exported window (`YYYY-MM-DD`). */
   start: string;
   end: string;
+  /** Which drawing to export. Defaults to the calendar grid, so callers that
+   * predate the timeline keep their output byte-for-byte. */
+  mode?: "calendar" | "timeline";
   /** Date stamped in the header, `YYYY-MM-DD`. Passed in rather than read from
    * the clock so the output is reproducible in tests. */
   today: string;
@@ -308,11 +346,14 @@ export interface ExportOptions {
  * window. The result is written to disk by `export_schedule_html`.
  */
 export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions): string {
-  const { start, end, today, locale } = options;
-  const layout = buildLayout(doc, start, end, today);
+  const { start, end, today, locale, mode = "calendar" } = options;
   const working = countWorkingDays(start, end, doc.nonWorking);
   const t = strings(locale);
-  const headers = t.weekdays.map((h) => `<th>${h}</th>`).join("");
+
+  const body =
+    mode === "timeline"
+      ? renderTimeline(buildTimeline(doc, start, end, today), locale)
+      : renderCalendar(buildLayout(doc, start, end, today), locale);
 
   return `<!doctype html>
 <html lang="${locale}">
@@ -328,14 +369,117 @@ export function exportScheduleHtml(doc: ScheduleDocModel, options: ExportOptions
     today,
   )}</div>
 </header>
-<table class="grid">
-  <thead><tr><th class="gutter"></th><th class="daycols"><table class="days"><tr>${headers}</tr></table></th></tr></thead>
-  <tbody>
-${layout.weeks.map((w) => renderWeek(w, locale)).join("\n")}
-  </tbody>
-</table>
+${body}
 <footer>${renderLegend(doc, locale)}${renderNotes(doc, start, end, locale)}</footer>
 </body>
 </html>
 `;
+}
+
+/** The calendar grid: the week table this module started as. */
+function renderCalendar(layout: Layout, locale: ScheduleLocale): string {
+  const headers = strings(locale)
+    .weekdays.map((h) => `<th>${h}</th>`)
+    .join("");
+  return `<table class="grid">
+  <thead><tr><th class="gutter"></th><th class="daycols"><table class="days"><tr>${headers}</tr></table></th></tr></thead>
+  <tbody>
+${layout.weeks.map((w) => renderWeek(w, locale)).join("\n")}
+  </tbody>
+</table>`;
+}
+
+/**
+ * The long-range timeline (T-0111), positioned in percentages of the window
+ * exactly as the screen does — `buildTimeline` is the same call the React
+ * component makes, so an exported plan cannot be a different plan.
+ *
+ * No table here: the chart is one continuous axis rather than a grid of days,
+ * and expressing it as absolute positions inside a fixed-height box is what
+ * makes it survive a print engine that would otherwise re-flow the columns.
+ */
+function renderTimeline(layout: TimelineLayout, locale: ScheduleLocale): string {
+  const pos = (span: { startFrac: number; widthFrac: number }) =>
+    `left:${span.startFrac * 100}%;width:${span.widthFrac * 100}%`;
+
+  const bands = layout.bands
+    .map(
+      (b) =>
+        `<div class="tband" style="${pos(b)}">${esc(
+          b.month ? monthLabel(b.month, locale) : b.label,
+        )}</div>`,
+    )
+    .join("");
+
+  const columns = layout.columns
+    .map((c) => {
+      const label =
+        layout.unit === "week" ? String(c.day) : `${monthLabel(c.month, locale)} ${c.workingDays}d`;
+      return `<div class="tcol${c.isMonthStart ? " mstart" : ""}" style="${pos(c)}">${esc(
+        label,
+      )}</div>`;
+    })
+    .join("");
+
+  const rules = layout.columns
+    .map(
+      (c) =>
+        `<div class="trule${c.isMonthStart ? " mstart" : ""}${
+          c.workingDays === 0 ? " nonworking" : ""
+        }" style="${pos(c)}"></div>`,
+    )
+    .join("");
+
+  const sprints = layout.sprints.length
+    ? `<div class="tsprints">${layout.sprints
+        .map(
+          (s) =>
+            `<div class="tsprint${s.isStart ? " sstart" : ""}" style="${pos(s)}">${
+              s.isStart ? `S${s.number}` : ""
+            }</div>`,
+        )
+        .join("")}</div>`
+    : "";
+
+  const bars = layout.bars
+    .map((b) => {
+      const color = itemColor(b.item);
+      const box = `${pos(b)};top:${b.lane * TL_LANE_H}px`;
+      const text = `${esc(b.item.title)} (${b.workingDays}d)`;
+      if (b.item.kind === "arrow") {
+        const head = (side: "l" | "r", edge: "left" | "right") =>
+          `<span class="ahead ${side}" style="border-${edge}-color:${color}"></span>`;
+        return `<div class="arrow" style="${box}"><span class="alabel" style="color:${color}">${text}</span><span class="aline" style="background:${color}"></span>${
+          b.isStart ? head("l", "right") : ""
+        }${b.isEnd ? head("r", "left") : ""}</div>`;
+      }
+      const edges = `${b.isStart ? " start" : ""}${b.isEnd ? " end" : ""}`;
+      return `<div class="bar tbar${edges}" style="${box};background:${color}">${text}</div>`;
+    })
+    .join("");
+
+  const points = layout.points
+    .map(
+      (p) =>
+        `<div class="tpoint" style="left:${p.frac * 100}%;top:${
+          Math.max(layout.laneCount, 1) * TL_LANE_H + p.lane * TL_POINT_H
+        }px"><span class="dot ${p.item.kind}" style="background:${itemColor(
+          p.item,
+        )}"></span>${esc(p.item.title)}</div>`,
+    )
+    .join("");
+
+  const today =
+    layout.todayFrac === null
+      ? ""
+      : `<div class="ttoday" style="left:${layout.todayFrac * 100}%"></div>`;
+
+  const plotHeight = Math.max(layout.laneCount, 1) * TL_LANE_H + layout.pointLaneCount * TL_POINT_H + 8;
+
+  return `<div class="timeline">
+  <div class="thead">${bands}</div>
+  <div class="thead cols">${columns}</div>
+  ${sprints}
+  <div class="tplot" style="height:${plotHeight}px">${rules}${today}${bars}${points}</div>
+</div>`;
 }
