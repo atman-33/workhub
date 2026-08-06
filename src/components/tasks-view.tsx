@@ -58,6 +58,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  /** "" = any, "blocked" = only waiting tasks, "unblocked" = what's actionable. */
+  const [blockedFilter, setBlockedFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
@@ -224,9 +226,11 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         if (assigneeFilter && t.assignee !== assigneeFilter) return false;
         if (projectFilter && t.project !== projectFilter) return false;
         if (tagFilter && !t.tags.includes(tagFilter)) return false;
+        if (blockedFilter === "blocked" && !t.blocked) return false;
+        if (blockedFilter === "unblocked" && t.blocked) return false;
         return true;
       }),
-    [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived],
+    [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, blockedFilter, showArchived],
   );
 
   // Returns the launch promise so callers (the animated LaunchAgentButton) can
@@ -366,6 +370,15 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [applyUpdates],
   );
 
+  // Badge click on a card/row: clearing the flag also clears the note and the
+  // date (see `update_task`), so an unblocked task carries nothing stale.
+  const unblockTask = useCallback(
+    (task: Task) => {
+      void applyUpdates([{ id: task.id, blocked: false }]);
+    },
+    [applyUpdates],
+  );
+
   // Non-archived Done tasks currently visible — the targets of a bulk archive.
   const doneToArchive = useMemo(
     () => visible.filter((t) => t.status === "done" && !t.archived),
@@ -413,6 +426,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           model: draft.model.trim(),
           confirm: draft.confirm,
           worktree: draft.worktree,
+          blocked: draft.blocked,
+          blockedNote: draft.blockedNote,
+          blockedSince: draft.blockedSince,
           due: draft.due,
           tags,
           body,
@@ -449,6 +465,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           model: draft.model.trim(),
           confirm: draft.confirm,
           worktree: draft.worktree,
+          blocked: draft.blocked,
+          blockedNote: draft.blockedNote,
+          blockedSince: draft.blockedSince,
           due: draft.due,
           tags,
           body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
@@ -563,6 +582,16 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             ))}
           </SelectContent>
         </Select>
+        <Select value={blockedFilter} onValueChange={setBlockedFilter}>
+          <SelectTrigger size="sm" className="min-w-[7.5rem]">
+            <SelectValue placeholder="Blocked: any" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Blocked: any</SelectItem>
+            <SelectItem value="blocked">Blocked only</SelectItem>
+            <SelectItem value="unblocked">Not blocked</SelectItem>
+          </SelectContent>
+        </Select>
 
         <button
           className={cn(
@@ -636,6 +665,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
+                onUnblock={unblockTask}
                 onArchive={setArchived}
                 onDelete={setDeleteTarget}
               />
@@ -650,6 +680,7 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
+                onUnblock={unblockTask}
                 onArchive={setArchived}
                 onArchiveDone={() => setArchiveDoneOpen(true)}
                 onDelete={setDeleteTarget}

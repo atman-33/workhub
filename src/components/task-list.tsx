@@ -1,5 +1,6 @@
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BlockedBadge } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -27,11 +28,13 @@ interface Props {
   claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
+  /** Clears a task's blocked flag (and its note/date) from the row badge. */
+  onUnblock: (task: Task) => void;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onUnblock, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -49,6 +52,8 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-md border bg-background px-3 py-2 hover:border-ring",
                 task.archived && "opacity-50",
+                // Blocked rows recede, but less than archived ones.
+                !task.archived && task.blocked && "opacity-75",
               )}
               onClick={() => onOpen(task)}
             >
@@ -62,6 +67,14 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                 <Badge variant="outline" className="shrink-0">
                   archived
                 </Badge>
+              )}
+              {task.blocked && (
+                <BlockedBadge
+                  note={task.blocked_note}
+                  since={task.blocked_since}
+                  onUnblock={() => onUnblock(task)}
+                  className="shrink-0"
+                />
               )}
               <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
               {parseBody(task.body).plan && (

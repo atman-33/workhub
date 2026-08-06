@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.69.0 (2026-08-06)
+
+- **Blocked tasks** (T-0124): a task that is waiting on someone else — a reply,
+  a review, a delivery — can now be marked **Blocked** with a one-line note of
+  what it is waiting on. It is deliberately not a new column: the task keeps
+  its status, because a block can happen in any of them, and what it is waiting
+  on is a different question from what stage it is at. The card and the list row
+  show a `Blocked · 3d` badge that counts the days since the wait started and
+  turns red after a week, which is the part that stops a stalled task from
+  quietly sitting there. Clicking the badge clears the block. A **Blocked**
+  filter in the toolbar narrows the board to what is waiting — or hides it, to
+  leave only what can actually be worked on today.
+- The three new frontmatter keys (`blocked`, `blocked_note`, `blocked_since`)
+  are written only while a task is blocked, so files that never use them are
+  untouched.
+
 ## 0.68.0 (2026-08-02)
 
 - **Long-range planning on the Schedule tab** (T-0111): the tab now draws a

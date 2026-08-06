@@ -93,6 +93,15 @@ archived: true      # optional; absent = false. Hidden from the board by
                     # default; the app files it under tasks/archive/
 confirm: true       # optional; absent = false. Plan-first approval before executing
 worktree: true      # optional; absent = false. Work in a dedicated git worktree
+blocked: true       # optional; absent = false. Waiting on someone else. Kept
+                    # separate from `status` on purpose — a task can be
+                    # blocked in any column
+blocked_note: waiting for the vendor quote
+                    # optional; one line, only while blocked. The longer story
+                    # belongs in the body
+blocked_since: 2026-08-06
+                    # optional; when the wait started, only while blocked. The
+                    # board counts the days from it
 created: 2026-07-10
 updated: 2026-07-10
 ```

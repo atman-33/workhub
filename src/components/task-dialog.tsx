@@ -49,6 +49,7 @@ import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { PriorityBadge } from "@/components/priority-badge";
+import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -61,6 +62,9 @@ export interface TaskDraft {
   model: string;
   confirm: boolean;
   worktree: boolean;
+  blocked: boolean;
+  blockedNote: string;
+  blockedSince: string;
   due: string;
   tags: string; // comma-separated for editing
   content: string;
@@ -75,6 +79,9 @@ const EMPTY_DRAFT: TaskDraft = {
   model: "",
   confirm: false,
   worktree: false,
+  blocked: false,
+  blockedNote: "",
+  blockedSince: "",
   due: "",
   tags: "",
   content: "",
@@ -90,6 +97,9 @@ function draftFromTask(task: Task): TaskDraft {
     model: task.model,
     confirm: task.confirm,
     worktree: task.worktree,
+    blocked: task.blocked,
+    blockedNote: task.blocked_note,
+    blockedSince: task.blocked_since,
     due: task.due,
     tags: task.tags.join(", "),
     content: parseBody(task.body).content,
@@ -652,6 +662,47 @@ export function TaskDialog({
               draft.worktree,
               (v) => setDraft({ ...draft, worktree: v }),
               draft.assignee === "me",
+            )}
+          </div>
+          <div className="space-y-3">
+            {toggle(
+              "Blocked",
+              "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+              draft.blocked,
+              (v) =>
+                // Turning it on stamps today so the wait is measured from the
+                // moment it was noticed; turning it off clears the details so
+                // no stale note survives into the next block.
+                setDraft(
+                  v
+                    ? {
+                        ...draft,
+                        blocked: true,
+                        blockedSince: draft.blockedSince || todayString(),
+                      }
+                    : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
+                ),
+              false,
+            )}
+            {draft.blocked && (
+              <div className="grid grid-cols-2 gap-3">
+                {field(
+                  "Waiting on",
+                  <Input
+                    value={draft.blockedNote}
+                    onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
+                    className="h-8 text-xs"
+                    placeholder="e.g. vendor quote, review from Sato"
+                  />,
+                )}
+                {field(
+                  "Blocked since",
+                  <DatePicker
+                    value={draft.blockedSince}
+                    onChange={(v) => setDraft({ ...draft, blockedSince: v })}
+                  />,
+                )}
+              </div>
             )}
           </div>
           <Accordion
