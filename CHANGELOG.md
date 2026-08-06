@@ -5,13 +5,24 @@
 - **Blocked tasks** (T-0124): a task that is waiting on someone else — a reply,
   a review, a delivery — can now be marked **Blocked** with a one-line note of
   what it is waiting on. It is deliberately not a new column: the task keeps
-  its status, because a block can happen in any of them, and what it is waiting
-  on is a different question from what stage it is at. The card and the list row
-  show a `Blocked · 3d` badge that counts the days since the wait started and
-  turns red after a week, which is the part that stops a stalled task from
-  quietly sitting there. Clicking the badge clears the block. A **Blocked**
-  filter in the toolbar narrows the board to what is waiting — or hides it, to
-  leave only what can actually be worked on today.
+  its status, because a block can happen in any of them, and what a task is
+  waiting on is a different question from what stage it is at. The card and the
+  list row carry the reason itself, so what is holding a task up is readable
+  without opening it.
+- Blocking is a right-click away — **Mark as blocked…** asks the one question
+  that matters and nothing else, dating the wait from today; **Unblock** clears
+  it. The reason on the card is also a button, which is the shortest way to
+  change it. The task editor still holds the full set, including the date, for
+  the times a block started before you noticed it.
+- The blocked marker is greyscale on purpose. Colour is the priority badge's
+  language — which task to do first — and a blocked task is one that cannot be
+  done at all, so the two competing for the same amber and red made them read
+  as variants of each other. A block that has gone unchased for a week instead
+  surfaces in the toolbar, which counts what is waiting across the whole board:
+  one signal in one place, rather than a warning on every card you cannot act
+  on. Clicking the counter narrows the board to those tasks.
+- A **Blocked** filter in the toolbar shows only what is waiting — or hides it,
+  to leave what can actually be worked on today.
 - The three new frontmatter keys (`blocked`, `blocked_note`, `blocked_since`)
   are written only while a task is blocked, so files that never use them are
   untouched.

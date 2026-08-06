@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { blockedDays, blockedLabel, blockedTone, todayString } from "./task-blocked";
+import { blockedAge, blockedDays, isStaleBlock, todayString } from "./task-blocked";
 
 function freezeToday(date: string) {
   vi.useFakeTimers();
@@ -33,26 +33,27 @@ describe("blockedDays", () => {
   });
 });
 
-describe("blockedLabel", () => {
+describe("blockedAge", () => {
   it("shows the day count when a date is known", () => {
     freezeToday("2026-08-10");
-    expect(blockedLabel("2026-08-07")).toBe("Blocked · 3d");
+    expect(blockedAge("2026-08-07")).toBe("3d");
   });
 
-  it("falls back to a bare label without a date", () => {
-    expect(blockedLabel("")).toBe("Blocked");
+  it("is empty without a date, so the badge shows the icon alone", () => {
+    expect(blockedAge("")).toBe("");
   });
 });
 
-describe("blockedTone", () => {
-  it("turns red only once the block is a week old", () => {
+describe("isStaleBlock", () => {
+  it("becomes true only once the block is a week old", () => {
     freezeToday("2026-08-10");
-    expect(blockedTone("2026-08-05")).toContain("amber");
-    expect(blockedTone("2026-08-03")).toContain("red");
+    expect(isStaleBlock("2026-08-04")).toBe(false); // 6 days
+    expect(isStaleBlock("2026-08-03")).toBe(true); // 7 days — the threshold
+    expect(isStaleBlock("2026-07-20")).toBe(true);
   });
 
   it("treats a dateless block as fresh", () => {
-    expect(blockedTone("")).toContain("amber");
+    expect(isStaleBlock("")).toBe(false);
   });
 });
 

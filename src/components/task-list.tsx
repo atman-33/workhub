@@ -28,13 +28,15 @@ interface Props {
   claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
-  /** Clears a task's blocked flag (and its note/date) from the row badge. */
+  /** Opens the one-field reason editor (blocking the task if it wasn't). */
+  onEditBlocked: (task: Task) => void;
+  /** Clears a task's blocked flag along with its note and date. */
   onUnblock: (task: Task) => void;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onUnblock, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -68,15 +70,16 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                   archived
                 </Badge>
               )}
+              <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
               {task.blocked && (
                 <BlockedBadge
                   note={task.blocked_note}
                   since={task.blocked_since}
-                  onUnblock={() => onUnblock(task)}
-                  className="shrink-0"
+                  onEdit={() => onEditBlocked(task)}
+                  // Capped so a long reason can't squeeze the title out.
+                  className="max-w-[16rem]"
                 />
               )}
-              <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
               {parseBody(task.body).plan && (
                 <span title="Plan recorded" className="flex shrink-0">
                   <ClipboardList
@@ -132,6 +135,13 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem onSelect={() => onEditBlocked(task)}>
+              {task.blocked ? "Edit blocked reason…" : "Mark as blocked…"}
+            </ContextMenuItem>
+            {task.blocked && (
+              <ContextMenuItem onSelect={() => onUnblock(task)}>Unblock</ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
               {task.archived ? "Unarchive" : "Archive"}
             </ContextMenuItem>

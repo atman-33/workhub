@@ -1,62 +1,71 @@
 import { PauseCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { blockedDays, blockedLabel } from "@/lib/task-blocked";
+import { blockedAge } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
 
-// Dark-only app. A fresh block is amber (informational); once it has been
-// sitting for a week it turns red, because that is the one that needs chasing.
-const freshStyle = "border-amber-500/30 bg-amber-500/15 text-amber-400";
-const staleStyle = "border-red-500/30 bg-red-500/15 text-red-400";
-
 interface Props {
-  /** One-line reason, shown in the tooltip. */
+  /** One-line reason. Shown inline (truncated) and in full in the tooltip. */
   note: string;
-  /** `YYYY-MM-DD`; drives the day count and the colour. */
+  /** `YYYY-MM-DD`; drives the age suffix. */
   since: string;
-  /** When provided, the badge becomes a button that clears the block on
-   *  click. Omit for a read-only display. */
-  onUnblock?: () => void;
+  /** When provided, the whole badge becomes a button that opens the reason
+   *  editor — the shortest route to recording or changing why a task waits. */
+  onEdit?: () => void;
   className?: string;
 }
 
-export function BlockedBadge({ note, since, onUnblock, className }: Props) {
-  const days = blockedDays(since);
-  const style = days !== null && days >= 7 ? staleStyle : freshStyle;
+/**
+ * The blocked marker on a card or row: pause icon, age, reason.
+ *
+ * Deliberately greyscale. Colour is priority's language — which task to do
+ * first — and a blocked task is one that cannot be done at all, so competing
+ * for the same amber/red vocabulary made the two badges read as variants of
+ * each other. A block that has gone stale is surfaced by the toolbar's counter
+ * instead, where it is one signal for the whole board rather than noise on
+ * every card.
+ */
+export function BlockedBadge({ note, since, onEdit, className }: Props) {
+  const age = blockedAge(since);
+  const hint = onEdit ? "Click to edit the reason" : "";
+  const title = [note || "Blocked", hint].filter(Boolean).join(" — ");
+
   const content = (
     <>
-      <PauseCircle className="size-3" />
-      {blockedLabel(since)}
+      <PauseCircle className="size-3 shrink-0" />
+      {age && <span className="shrink-0 tabular-nums">{age}</span>}
+      {note && (
+        <>
+          <span aria-hidden className="shrink-0 opacity-50">
+            ·
+          </span>
+          <span className="truncate">{note}</span>
+        </>
+      )}
     </>
   );
-  // The note is the whole point of the tooltip, so lead with it and keep the
-  // click hint as a suffix.
-  const hint = onUnblock ? "Click to unblock" : "";
-  const title = note ? (hint ? `${note} — ${hint}` : note) : hint || "Blocked";
 
-  if (!onUnblock) {
+  const shape =
+    "flex min-w-0 items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] leading-tight text-muted-foreground";
+
+  if (!onEdit) {
     return (
-      <Badge className={cn("gap-1", style, className)} title={title}>
+      <span className={cn(shape, className)} title={title}>
         {content}
-      </Badge>
+      </span>
     );
   }
 
   return (
-    <Badge
-      asChild
-      className={cn("cursor-pointer gap-1 transition-colors hover:brightness-125", style, className)}
+    <button
+      type="button"
+      className={cn(shape, "text-left transition-colors hover:bg-accent/60", className)}
+      title={title}
+      onClick={(e) => {
+        // Rows/cards open the editor on click — don't let that fire too.
+        e.stopPropagation();
+        onEdit();
+      }}
     >
-      <button
-        type="button"
-        title={title}
-        onClick={(e) => {
-          // Rows/cards open the editor on click — don't let that fire too.
-          e.stopPropagation();
-          onUnblock();
-        }}
-      >
-        {content}
-      </button>
-    </Badge>
+      {content}
+    </button>
   );
 }

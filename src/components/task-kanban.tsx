@@ -64,7 +64,9 @@ interface Props {
   claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
-  /** Clears a task's blocked flag (and its note/date) from the card badge. */
+  /** Opens the one-field reason editor (blocking the task if it wasn't). */
+  onEditBlocked: (task: Task) => void;
+  /** Clears a task's blocked flag along with its note and date. */
   onUnblock: (task: Task) => void;
   onArchive: (task: Task, archived: boolean) => void;
   /** Archives every non-archived task in the Done column in one action. */
@@ -72,7 +74,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -228,7 +230,8 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                     <BlockedBadge
                       note={task.blocked_note}
                       since={task.blocked_since}
-                      onUnblock={() => onUnblock(task)}
+                      onEdit={() => onEditBlocked(task)}
+                      className="w-full"
                     />
                   )}
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
@@ -273,6 +276,13 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                 </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
+                    <ContextMenuItem onSelect={() => onEditBlocked(task)}>
+                      {task.blocked ? "Edit blocked reason…" : "Mark as blocked…"}
+                    </ContextMenuItem>
+                    {task.blocked && (
+                      <ContextMenuItem onSelect={() => onUnblock(task)}>Unblock</ContextMenuItem>
+                    )}
+                    <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
                       {task.archived ? "Unarchive" : "Archive"}
                     </ContextMenuItem>

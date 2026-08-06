@@ -1,8 +1,15 @@
 /**
- * Helpers for the "blocked" badge — a task that is waiting on someone else.
- * The point of the badge is not the note but the elapsed time: a block nobody
- * chases turns into a stalled task, so the age drives the colour.
+ * Helpers for blocked tasks — the ones waiting on someone else.
+ *
+ * Colour belongs to priority (which task to do first). Blocked is a different
+ * axis — whether a task *can* be done at all — so the card badge is greyscale
+ * and never warns. A block nobody chases still has to surface somewhere, so
+ * the "stale" judgment moved to the toolbar, which counts them across the
+ * board instead of shouting from each card.
  */
+
+/** Days after which an unchased block counts as stale. */
+export const STALE_BLOCK_DAYS = 7;
 
 /** Local `YYYY-MM-DD` — the stamp used when a task becomes blocked. */
 export function todayString(): string {
@@ -30,17 +37,17 @@ export function blockedDays(blockedSince: string): number | null {
   return Math.max(0, days);
 }
 
-/** Badge label, e.g. `Blocked · 3d`, falling back to `Blocked` without a date. */
-export function blockedLabel(blockedSince: string): string {
+/**
+ * Age label for the badge, e.g. `12d`. Empty when no date is known — the
+ * pause icon alone already says "blocked", so there is nothing to pad with.
+ */
+export function blockedAge(blockedSince: string): string {
   const days = blockedDays(blockedSince);
-  return days === null ? "Blocked" : `Blocked · ${days}d`;
+  return days === null ? "" : `${days}d`;
 }
 
-/**
- * Text-colour class for the badge: amber for a fresh block, red once it has
- * been sitting for a week — the point at which it needs chasing.
- */
-export function blockedTone(blockedSince: string): string {
+/** Whether a block has gone unchased long enough to be worth surfacing. */
+export function isStaleBlock(blockedSince: string): boolean {
   const days = blockedDays(blockedSince);
-  return days !== null && days >= 7 ? "text-red-400" : "text-amber-400";
+  return days !== null && days >= STALE_BLOCK_DAYS;
 }
