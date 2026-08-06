@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.69.0 (2026-08-06)
+## 0.69.0 (2026-08-07)
 
 - **Blocked tasks** (T-0124): a task that is waiting on someone else — a reply,
   a review, a delivery — can now be marked **Blocked** with a one-line note of
