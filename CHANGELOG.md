@@ -14,16 +14,22 @@
   it. The reason on the card is also a button, which is the shortest way to
   change it. The task editor still holds the full set, including the date, for
   the times a block started before you noticed it.
-- A blocked card carries a rule down its left edge and a pause mark before its
-  title, which is how you spot one while scanning a column — position and shape
-  rather than another colour competing for attention.
-- The blocked marker is greyscale on purpose. Colour is the priority badge's
-  language — which task to do first — and a blocked task is one that cannot be
-  done at all, so the two competing for the same amber and red made them read
-  as variants of each other. A block that has gone unchased for a week instead
-  surfaces in the toolbar, which counts what is waiting across the whole board:
-  one signal in one place, rather than a warning on every card you cannot act
-  on. Clicking the counter narrows the board to those tasks.
+- A blocked task wears a 🛑 in front of its title, which is what you see before
+  reading anything. The rest of the marker stays grey — how long it has waited
+  and what for — because colour on a card now means something else.
+- **Priority tints the card**, not just its badge. It is centred on the default
+  rather than stacked upwards: `medium` is the plain background, `low` sinks
+  slightly into grey, `high` lifts into red. Tinting `medium` too would colour
+  most of the board — it is what a task gets when nobody chose — and a colour
+  that is everywhere says nothing. Done and archived tasks are never tinted:
+  the one thing needing no attention should not be the loudest thing on screen.
+- The two are deliberately different channels. Urgency is colour; being stuck
+  is a glyph. When they were both amber and red, the blocked badge and the
+  priority badge sat side by side reading as variants of each other.
+- A block that has gone unchased for a week surfaces in the toolbar, which
+  counts what is waiting across the whole board: one signal in one place,
+  rather than a warning on every card you cannot act on. Clicking the counter
+  narrows the board to those tasks.
 - A **Blocked** filter in the toolbar shows only what is waiting — or hides it,
   to leave what can actually be worked on today.
 - The three new frontmatter keys (`blocked`, `blocked_note`, `blocked_since`)

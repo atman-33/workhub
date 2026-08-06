@@ -1,6 +1,26 @@
-import { PauseCircle } from "lucide-react";
 import { blockedAge } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
+
+/**
+ * The 🛑 that prefixes a blocked task's title — the one thing on a card that
+ * says "blocked" before anything is read. It is deliberately not in priority's
+ * language: colour on a card means how urgent the task is, and this is a
+ * different question, so it gets a glyph of its own instead of a hue.
+ */
+export function BlockedMark({ className }: { className?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label="Blocked"
+      // Emoji come from a fallback font with taller metrics than the UI face,
+      // which would leave blocked titles standing a row apart from the rest.
+      // Pinning the size and collapsing the line box holds the line height.
+      className={cn("mr-1 inline-block align-baseline text-[0.9em] leading-none", className)}
+    >
+      🛑
+    </span>
+  );
+}
 
 interface Props {
   /** One-line reason. Shown inline (truncated) and in full in the tooltip. */
@@ -14,14 +34,13 @@ interface Props {
 }
 
 /**
- * The blocked marker on a card or row: pause icon, age, reason.
+ * How long a task has been waiting and what for, on a card or row.
  *
- * Deliberately greyscale. Colour is priority's language — which task to do
- * first — and a blocked task is one that cannot be done at all, so competing
- * for the same amber/red vocabulary made the two badges read as variants of
- * each other. A block that has gone stale is surfaced by the toolbar's counter
- * instead, where it is one signal for the whole board rather than noise on
- * every card.
+ * The 🛑 on the title already announces the block, so this carries no icon of
+ * its own — it answers the follow-up questions, and doubles as the button that
+ * edits the answer. Greyscale throughout: colour on a card belongs to priority.
+ * A block that has gone stale is surfaced by the toolbar's counter instead,
+ * where it is one signal for the whole board rather than noise on every card.
  */
 export function BlockedBadge({ note, since, onEdit, className }: Props) {
   const age = blockedAge(since);
@@ -30,15 +49,18 @@ export function BlockedBadge({ note, since, onEdit, className }: Props) {
 
   const content = (
     <>
-      <PauseCircle className="size-3 shrink-0" />
       {age && <span className="shrink-0 tabular-nums">{age}</span>}
-      {note && (
-        <>
-          <span aria-hidden className="shrink-0 opacity-50">
-            ·
-          </span>
-          <span className="truncate">{note}</span>
-        </>
+      {age && note && (
+        <span aria-hidden className="shrink-0 opacity-50">
+          ·
+        </span>
+      )}
+      {note ? (
+        <span className="truncate">{note}</span>
+      ) : (
+        // Neither a date nor a reason: without a fallback the badge would be an
+        // empty box that still has to be clickable to fix that.
+        !age && <span className="truncate">Blocked</span>
       )}
     </>
   );

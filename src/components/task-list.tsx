@@ -1,6 +1,6 @@
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { BlockedBadge } from "@/components/blocked-badge";
+import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/context-menu";
 import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
+import { priorityTintClass } from "@/lib/task-priority";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
 
@@ -53,13 +54,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
             <div
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-md border bg-background px-3 py-2 hover:border-ring",
+                priorityTintClass(task),
                 task.archived && "opacity-50",
-                // Blocked rows recede, but less than archived ones. The left
-                // rule matches the kanban card's, so a stack of rows is scanned
-                // down its edge without spending colour on unworkable tasks.
-                // No pause icon on the title here — unlike the card, the badge
-                // already sits right next to it.
-                !task.archived && task.blocked && "border-l-2 border-l-muted-foreground/50 opacity-75",
+                // Blocked rows recede, but less than archived ones.
+                !task.archived && task.blocked && "opacity-75",
               )}
               onClick={() => onOpen(task)}
             >
@@ -74,7 +72,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                   archived
                 </Badge>
               )}
-              <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {task.blocked && <BlockedMark />}
+                {task.title}
+              </span>
               {task.blocked && (
                 <BlockedBadge
                   note={task.blocked_note}
