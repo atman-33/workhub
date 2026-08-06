@@ -493,6 +493,20 @@ pub struct Task {
     /// parallel tasks don't collide. Absent in frontmatter means false.
     #[serde(default)]
     pub worktree: bool,
+    /// Waiting on something external: the task is still at its current
+    /// `status` but cannot move until someone else acts (a reply, a review,
+    /// a delivery). Orthogonal to `status` on purpose — a task can be blocked
+    /// in any column. Absent in frontmatter means false.
+    #[serde(default)]
+    pub blocked: bool,
+    /// One-line summary of what the task is waiting on; the longer story
+    /// belongs in the body. Empty when not blocked.
+    #[serde(default)]
+    pub blocked_note: String,
+    /// `YYYY-MM-DD` the task became blocked, so the board can show how long it
+    /// has been stalled. Empty when not blocked.
+    #[serde(default)]
+    pub blocked_since: String,
     pub created: String,
     pub updated: String,
     /// Absolute path to the task's Markdown file (forward slashes).

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.69.0 (2026-08-06)
+
+- **Blocked tasks** (T-0124): a task that is waiting on someone else — a reply,
+  a review, a delivery — can now be marked **Blocked** with a one-line note of
+  what it is waiting on. It is deliberately not a new column: the task keeps
+  its status, because a block can happen in any of them, and what a task is
+  waiting on is a different question from what stage it is at. The card and the
+  list row carry the reason itself, so what is holding a task up is readable
+  without opening it.
+- Blocking is a right-click away — **Mark as blocked…** asks the one question
+  that matters and nothing else, dating the wait from today; **Unblock** clears
+  it. The reason on the card is also a button, which is the shortest way to
+  change it. The task editor still holds the full set, including the date, for
+  the times a block started before you noticed it.
+- A blocked task wears a 🛑 in front of its title, which is what you see before
+  reading anything. The rest of the marker stays grey — how long it has waited
+  and what for — because colour on a card now means something else.
+- **Priority tints the card**, not just its badge. It is centred on the default
+  rather than stacked upwards: `medium` is the plain background, `low` sinks
+  slightly into grey, `high` lifts into red. Tinting `medium` too would colour
+  most of the board — it is what a task gets when nobody chose — and a colour
+  that is everywhere says nothing. Done and archived tasks are never tinted:
+  the one thing needing no attention should not be the loudest thing on screen.
+- The two are deliberately different channels. Urgency is colour; being stuck
+  is a glyph. When they were both amber and red, the blocked badge and the
+  priority badge sat side by side reading as variants of each other.
+- A block that has gone unchased for a week surfaces in the toolbar, which
+  counts what is waiting across the whole board: one signal in one place,
+  rather than a warning on every card you cannot act on. Clicking the counter
+  narrows the board to those tasks.
+- A **Blocked** filter in the toolbar shows only what is waiting — or hides it,
+  to leave what can actually be worked on today.
+- The three new frontmatter keys (`blocked`, `blocked_note`, `blocked_since`)
+  are written only while a task is blocked, so files that never use them are
+  untouched.
+
 ## 0.68.0 (2026-08-02)
 
 - **Long-range planning on the Schedule tab** (T-0111): the tab now draws a

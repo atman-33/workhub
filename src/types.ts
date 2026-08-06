@@ -387,6 +387,13 @@ export interface Task {
   /** git worktree mode: a launched agent works in a dedicated worktree so
    * parallel tasks on the same repo don't collide. */
   worktree: boolean;
+  /** Waiting on something external: the task keeps its status but cannot move
+   * until someone else acts. Orthogonal to status — any column can be blocked. */
+  blocked: boolean;
+  /** One-line summary of what the task is waiting on; empty when not blocked. */
+  blocked_note: string;
+  /** `YYYY-MM-DD` the task became blocked, for the stalled-days badge. */
+  blocked_since: string;
   created: string;
   updated: string;
   file: string;
@@ -402,6 +409,9 @@ export interface CreateTaskInput {
   model?: string;
   confirm?: boolean;
   worktree?: boolean;
+  blocked?: boolean;
+  blockedNote?: string;
+  blockedSince?: string;
   due?: string;
   tags?: string[];
   body?: string;
@@ -421,6 +431,11 @@ export interface UpdateTaskInput {
   archived?: boolean;
   confirm?: boolean;
   worktree?: boolean;
+  /** Toggling this wins over the two detail fields: unblocking clears them,
+   * blocking without a date stamps today (see `update_task` in tasks.rs). */
+  blocked?: boolean;
+  blockedNote?: string;
+  blockedSince?: string;
   body?: string;
 }
 

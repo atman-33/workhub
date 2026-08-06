@@ -1,5 +1,6 @@
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/context-menu";
 import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
+import { priorityTintClass } from "@/lib/task-priority";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
 
@@ -27,11 +29,15 @@ interface Props {
   claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
+  /** Opens the one-field reason editor (blocking the task if it wasn't). */
+  onEditBlocked: (task: Task) => void;
+  /** Clears a task's blocked flag along with its note and date. */
+  onUnblock: (task: Task) => void;
   onArchive: (task: Task, archived: boolean) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
@@ -48,7 +54,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
             <div
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-md border bg-background px-3 py-2 hover:border-ring",
+                priorityTintClass(task),
                 task.archived && "opacity-50",
+                // Blocked rows recede, but less than archived ones.
+                !task.archived && task.blocked && "opacity-75",
               )}
               onClick={() => onOpen(task)}
             >
@@ -63,7 +72,19 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                   archived
                 </Badge>
               )}
-              <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {task.blocked && <BlockedMark />}
+                {task.title}
+              </span>
+              {task.blocked && (
+                <BlockedBadge
+                  note={task.blocked_note}
+                  since={task.blocked_since}
+                  onEdit={() => onEditBlocked(task)}
+                  // Capped so a long reason can't squeeze the title out.
+                  className="max-w-[16rem]"
+                />
+              )}
               {parseBody(task.body).plan && (
                 <span title="Plan recorded" className="flex shrink-0">
                   <ClipboardList
@@ -119,6 +140,13 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem onSelect={() => onEditBlocked(task)}>
+              {task.blocked ? "Edit blocked reason…" : "Mark as blocked…"}
+            </ContextMenuItem>
+            {task.blocked && (
+              <ContextMenuItem onSelect={() => onUnblock(task)}>Unblock</ContextMenuItem>
+            )}
+            <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
               {task.archived ? "Unarchive" : "Archive"}
             </ContextMenuItem>

@@ -196,6 +196,21 @@ fn render_frontmatter(t: &Task) -> String {
     // files that never opt in stay byte-identical on round-trip.
     let confirm_line = if t.confirm { "confirm: true\n" } else { "" };
     let worktree_line = if t.worktree { "worktree: true\n" } else { "" };
+    // Same policy for the blocked trio: a task that was never blocked carries
+    // none of the three lines. The note/since lines are tied to the flag so a
+    // cleared block leaves no stale leftovers behind.
+    let blocked_lines = if t.blocked {
+        let mut s = String::from("blocked: true\n");
+        if !t.blocked_note.is_empty() {
+            s.push_str(&format!("blocked_note: {}\n", yaml_scalar(&t.blocked_note)));
+        }
+        if !t.blocked_since.is_empty() {
+            s.push_str(&format!("blocked_since: {}\n", t.blocked_since));
+        }
+        s
+    } else {
+        String::new()
+    };
     // Same policy: only tasks that specify a model carry the line.
     let model_line = if t.model.is_empty() {
         String::new()
@@ -203,7 +218,7 @@ fn render_frontmatter(t: &Task) -> String {
         format!("model: {}\n", yaml_scalar(&t.model))
     };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}{}{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
@@ -217,6 +232,7 @@ fn render_frontmatter(t: &Task) -> String {
         archived_line,
         confirm_line,
         worktree_line,
+        blocked_lines,
         t.created,
         t.updated,
     )
@@ -270,6 +286,9 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
             .get("worktree")
             .map(|v| v == "true")
             .unwrap_or(false),
+        blocked: raw.map.get("blocked").map(|v| v == "true").unwrap_or(false),
+        blocked_note: get("blocked_note"),
+        blocked_since: get("blocked_since"),
         created: get("created"),
         updated: get("updated"),
         file: path.to_string_lossy().replace('\\', "/"),
@@ -394,6 +413,9 @@ pub struct CreateTaskInput {
     pub model: Option<String>,
     pub confirm: Option<bool>,
     pub worktree: Option<bool>,
+    pub blocked: Option<bool>,
+    pub blocked_note: Option<String>,
+    pub blocked_since: Option<String>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
@@ -425,6 +447,9 @@ pub struct UpdateTaskInput {
     pub archived: Option<bool>,
     pub confirm: Option<bool>,
     pub worktree: Option<bool>,
+    pub blocked: Option<bool>,
+    pub blocked_note: Option<String>,
+    pub blocked_since: Option<String>,
     pub body: Option<String>,
 }
 
@@ -438,6 +463,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
     let now = today();
     let status = input.status.unwrap_or_else(|| "inbox".into());
     let order = next_order(&existing, &status);
+    let blocked = input.blocked.unwrap_or(false);
     let task = Task {
         id,
         title: input.title,
@@ -452,6 +478,22 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         archived: false,
         confirm: input.confirm.unwrap_or(false),
         worktree: input.worktree.unwrap_or(false),
+        blocked,
+        blocked_note: if blocked {
+            input.blocked_note.unwrap_or_default()
+        } else {
+            String::new()
+        },
+        blocked_since: if blocked {
+            let since = input.blocked_since.unwrap_or_default();
+            if since.is_empty() {
+                now.clone()
+            } else {
+                since
+            }
+        } else {
+            String::new()
+        },
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
@@ -523,6 +565,26 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     }
     if let Some(v) = input.worktree {
         task.worktree = v;
+    }
+    if let Some(v) = input.blocked_note {
+        task.blocked_note = v;
+    }
+    if let Some(v) = input.blocked_since {
+        task.blocked_since = v;
+    }
+    // Applied after the two detail fields so toggling the flag always wins:
+    // unblocking clears the details, and blocking stamps today when the caller
+    // didn't supply a date (the common case — a badge click or a bare toggle).
+    if let Some(v) = input.blocked {
+        task.blocked = v;
+        if v {
+            if task.blocked_since.is_empty() {
+                task.blocked_since = today();
+            }
+        } else {
+            task.blocked_note.clear();
+            task.blocked_since.clear();
+        }
     }
     if let Some(v) = input.body {
         task.body = v;
@@ -619,6 +681,9 @@ struct IndexEntry<'a> {
     archived: bool,
     confirm: bool,
     worktree: bool,
+    blocked: bool,
+    blocked_note: &'a str,
+    blocked_since: &'a str,
     created: &'a str,
     updated: &'a str,
     file: String,
@@ -643,6 +708,9 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             archived: t.archived,
             confirm: t.confirm,
             worktree: t.worktree,
+            blocked: t.blocked,
+            blocked_note: &t.blocked_note,
+            blocked_since: &t.blocked_since,
             created: &t.created,
             updated: &t.updated,
             file: t
@@ -1333,6 +1401,9 @@ mod tests {
                     archived: false,
                     confirm: false,
                     worktree: false,
+                    blocked: false,
+                    blocked_note: String::new(),
+                    blocked_since: String::new(),
                     created: today(),
                     updated: today(),
                     file: t3_path.to_string_lossy().replace('\\', "/"),
@@ -1546,6 +1617,114 @@ mod tests {
         let raw = fs::read_to_string(&task.file).unwrap();
         assert!(!raw.contains("confirm:"), "raw frontmatter: {raw}");
         assert!(!raw.contains("worktree:"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn blocked_round_trips_and_is_omitted_when_unset() {
+        let vault = temp_vault("blocked");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "waiting task".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // A task that was never blocked carries none of the three lines.
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("blocked"), "raw frontmatter: {raw}");
+
+        let blocked = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                blocked: Some(true),
+                blocked_note: Some("waiting for the vendor quote".into()),
+                blocked_since: Some("2026-08-01".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(blocked.blocked);
+        assert_eq!(blocked.blocked_note, "waiting for the vendor quote");
+        assert_eq!(blocked.blocked_since, "2026-08-01");
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(raw.contains("blocked: true\n"), "raw frontmatter: {raw}");
+        assert!(
+            raw.contains("blocked_note: waiting for the vendor quote\n"),
+            "raw frontmatter: {raw}"
+        );
+        assert!(
+            raw.contains("blocked_since: 2026-08-01\n"),
+            "raw frontmatter: {raw}"
+        );
+
+        // Re-scan and index carry the fields.
+        let scanned = scan_tasks(&vault).unwrap();
+        assert!(scanned[0].blocked);
+        assert_eq!(scanned[0].blocked_note, "waiting for the vendor quote");
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index[0]["blocked"], true);
+        assert_eq!(index[0]["blocked_since"], "2026-08-01");
+
+        // Unblocking clears the details along with the flag, so no stale note
+        // or date is left behind in the file.
+        let cleared = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                blocked: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(!cleared.blocked);
+        assert!(cleared.blocked_note.is_empty() && cleared.blocked_since.is_empty());
+        let raw = fs::read_to_string(&task.file).unwrap();
+        assert!(!raw.contains("blocked"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn blocking_without_a_date_stamps_today() {
+        let vault = temp_vault("blocked-today");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "badge click".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let blocked = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                blocked: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(blocked.blocked_since, today());
+
+        // A later edit that only touches the note keeps the original date.
+        let renoted = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                blocked_note: Some("still waiting".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(renoted.blocked_since, today());
+        assert_eq!(renoted.blocked_note, "still waiting");
 
         fs::remove_dir_all(&vault).ok();
     }

@@ -7,11 +7,13 @@ import {
   FolderOpen,
   LayoutGrid,
   List,
+  PauseCircle,
   Plus,
   RefreshCw,
   Repeat,
   Terminal as TerminalIcon,
 } from "lucide-react";
+import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { RecurringDialog } from "@/components/recurring-dialog";
 import { TaskDialog, type TaskDraft } from "@/components/task-dialog";
@@ -33,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { isStaleBlock } from "@/lib/task-blocked";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
@@ -58,10 +61,14 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  /** "" = any, "blocked" = only waiting tasks, "unblocked" = what's actionable. */
+  const [blockedFilter, setBlockedFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
+  /** Task whose blocked reason is being edited in the one-field dialog. */
+  const [blockedTarget, setBlockedTarget] = useState<Task | null>(null);
   const [archiveDoneOpen, setArchiveDoneOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
@@ -216,7 +223,10 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [tasks],
   );
 
-  const visible = useMemo(
+  // Everything except the blocked filter. The toolbar's blocked counter reads
+  // this rather than `visible`, so switching to "Not blocked" doesn't zero out
+  // the very number that says how much is waiting.
+  const scoped = useMemo(
     () =>
       tasks.filter((t) => {
         if (!showArchived && t.archived) return false;
@@ -227,6 +237,25 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
         return true;
       }),
     [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived],
+  );
+
+  const visible = useMemo(
+    () =>
+      scoped.filter((t) => {
+        if (blockedFilter === "blocked" && !t.blocked) return false;
+        if (blockedFilter === "unblocked" && t.blocked) return false;
+        return true;
+      }),
+    [scoped, blockedFilter],
+  );
+
+  // Blocked tasks in scope, and how many of those nobody has chased in a week.
+  // The stale count is the one warning left in colour anywhere in the feature:
+  // the cards stay quiet, and this is where a forgotten block surfaces.
+  const blockedCount = useMemo(() => scoped.filter((t) => t.blocked).length, [scoped]);
+  const staleBlockedCount = useMemo(
+    () => scoped.filter((t) => t.blocked && isStaleBlock(t.blocked_since)).length,
+    [scoped],
   );
 
   // Returns the launch promise so callers (the animated LaunchAgentButton) can
@@ -366,6 +395,26 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
     [applyUpdates],
   );
 
+  // Context menu / badge click: clearing the flag also clears the note and the
+  // date (see `update_task`), so an unblocked task carries nothing stale.
+  const unblockTask = useCallback(
+    (task: Task) => {
+      void applyUpdates([{ id: task.id, blocked: false }]);
+    },
+    [applyUpdates],
+  );
+
+  // Saving from the one-field dialog always blocks the task: it is reached
+  // both from an already-blocked task (editing the reason) and from a free one
+  // (recording the block), and `update_task` stamps today's date on the
+  // transition.
+  const saveBlockedNote = useCallback(
+    (task: Task, note: string) => {
+      void applyUpdates([{ id: task.id, blocked: true, blockedNote: note }]);
+    },
+    [applyUpdates],
+  );
+
   // Non-archived Done tasks currently visible — the targets of a bulk archive.
   const doneToArchive = useMemo(
     () => visible.filter((t) => t.status === "done" && !t.archived),
@@ -413,6 +462,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           model: draft.model.trim(),
           confirm: draft.confirm,
           worktree: draft.worktree,
+          blocked: draft.blocked,
+          blockedNote: draft.blockedNote,
+          blockedSince: draft.blockedSince,
           due: draft.due,
           tags,
           body,
@@ -449,6 +501,9 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           model: draft.model.trim(),
           confirm: draft.confirm,
           worktree: draft.worktree,
+          blocked: draft.blocked,
+          blockedNote: draft.blockedNote,
+          blockedSince: draft.blockedSince,
           due: draft.due,
           tags,
           body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
@@ -563,6 +618,37 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Select value={blockedFilter} onValueChange={setBlockedFilter}>
+            <SelectTrigger size="sm" className="min-w-[7.5rem]">
+              <SelectValue placeholder="Blocked: any" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Blocked: any</SelectItem>
+              <SelectItem value="blocked">Blocked only</SelectItem>
+              <SelectItem value="unblocked">Not blocked</SelectItem>
+            </SelectContent>
+          </Select>
+          {/* The cards say nothing about a block going stale — this does, once
+              for the whole board. Clicking it narrows to the waiting tasks. */}
+          {blockedCount > 0 && (
+            <button
+              className="flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50"
+              title={
+                staleBlockedCount > 0
+                  ? `${blockedCount} blocked · ${staleBlockedCount} waiting a week or more`
+                  : `${blockedCount} blocked`
+              }
+              onClick={() => setBlockedFilter("blocked")}
+            >
+              <PauseCircle className="size-3.5" />
+              {blockedCount}
+              {staleBlockedCount > 0 && (
+                <span className="size-1.5 rounded-full bg-amber-400" aria-hidden />
+              )}
+            </button>
+          )}
+        </div>
 
         <button
           className={cn(
@@ -636,6 +722,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
+                onEditBlocked={setBlockedTarget}
+                onUnblock={unblockTask}
                 onArchive={setArchived}
                 onDelete={setDeleteTarget}
               />
@@ -650,6 +738,8 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
                 onCyclePriority={cyclePriority}
+                onEditBlocked={setBlockedTarget}
+                onUnblock={unblockTask}
                 onArchive={setArchived}
                 onArchiveDone={() => setArchiveDoneOpen(true)}
                 onDelete={setDeleteTarget}
@@ -709,6 +799,12 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
           {tasks.length} tasks · {visible.length} shown
         </span>
       </footer>
+
+      <BlockedDialog
+        task={blockedTarget}
+        onSave={saveBlockedNote}
+        onClose={() => setBlockedTarget(null)}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}
