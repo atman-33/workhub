@@ -14,6 +14,9 @@
   it. The reason on the card is also a button, which is the shortest way to
   change it. The task editor still holds the full set, including the date, for
   the times a block started before you noticed it.
+- A blocked card carries a rule down its left edge and a pause mark before its
+  title, which is how you spot one while scanning a column — position and shape
+  rather than another colour competing for attention.
 - The blocked marker is greyscale on purpose. Colour is the priority badge's
   language — which task to do first — and a blocked task is one that cannot be
   done at all, so the two competing for the same amber and red made them read

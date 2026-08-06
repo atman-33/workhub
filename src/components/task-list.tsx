@@ -54,8 +54,12 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-md border bg-background px-3 py-2 hover:border-ring",
                 task.archived && "opacity-50",
-                // Blocked rows recede, but less than archived ones.
-                !task.archived && task.blocked && "opacity-75",
+                // Blocked rows recede, but less than archived ones. The left
+                // rule matches the kanban card's, so a stack of rows is scanned
+                // down its edge without spending colour on unworkable tasks.
+                // No pause icon on the title here — unlike the card, the badge
+                // already sits right next to it.
+                !task.archived && task.blocked && "border-l-2 border-l-muted-foreground/50 opacity-75",
               )}
               onClick={() => onOpen(task)}
             >

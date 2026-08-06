@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Archive, ClipboardList } from "lucide-react";
+import { Archive, ClipboardList, PauseCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BlockedBadge } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
@@ -212,12 +212,24 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                     (draggedId === task.id || task.archived) && "opacity-50",
                     // Blocked tasks aren't actionable right now, so they recede
                     // — but less than archived ones, which are gone for good.
-                    !task.archived && task.blocked && "opacity-75",
+                    // The left rule is what makes them findable again: a column
+                    // of cards is scanned down its left edge, so a mark there
+                    // is spotted without reading anything, and without spending
+                    // colour on a task that can't be worked on.
+                    !task.archived && task.blocked && "border-l-2 border-l-muted-foreground/50 opacity-75",
                   )}
                   onClick={() => onOpen(task)}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <span className="text-xs font-medium leading-tight">{task.title}</span>
+                    <span className="flex min-w-0 items-start gap-1 text-xs font-medium leading-tight">
+                      {task.blocked && (
+                        <PauseCircle
+                          className="mt-px size-3 shrink-0 text-muted-foreground"
+                          aria-label="Blocked"
+                        />
+                      )}
+                      <span className="min-w-0">{task.title}</span>
+                    </span>
                     <div className="flex shrink-0 items-center gap-1">
                       {task.archived && <Badge variant="outline">archived</Badge>}
                       <PriorityBadge
