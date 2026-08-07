@@ -53,6 +53,12 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<(), String> 
     {
         crate::voice::apply_shortcut(&app);
     }
+    // Start/stop/retarget the clips key listener when its settings change.
+    if config.settings.clips_enabled != before.clips_enabled
+        || config.settings.clips_gesture != before.clips_gesture
+    {
+        crate::clips::apply_gesture(&app);
+    }
     // Best-effort: keep the vault's .claude/project-context.json aligned with
     // the registered projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
@@ -776,6 +782,44 @@ pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), Str
 #[tauri::command]
 pub fn quick_capture_hide(app: tauri::AppHandle) {
     crate::quick_capture::hide(&app);
+}
+
+// ---------------------------------------------------------------------
+// clips: clibor-style snippet picker
+// ---------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn clips_list() -> Vec<crate::clips::store::Clip> {
+    tauri::async_runtime::spawn_blocking(|| crate::clips::store::load().clips)
+        .await
+        .unwrap_or_default()
+}
+
+/// Replace the whole snippet list (the editor sends it back after any edit or
+/// reorder — list order *is* the display order).
+#[tauri::command]
+pub async fn clips_save(clips: Vec<crate::clips::store::Clip>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::clips::store::save(&crate::clips::store::Clips { clips })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Hide the popup, restore focus to the app that had it, and paste the
+/// snippet there. Blocking (it sleeps around the injected keystrokes), so it
+/// runs off the UI thread.
+#[tauri::command]
+pub async fn clips_paste(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::clips::paste_clip(&app, &id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Hide the clips popup (Esc), remembering its position and size.
+#[tauri::command]
+pub fn clips_hide(app: tauri::AppHandle) {
+    crate::clips::hide(&app);
 }
 
 // ---------------------------------------------------------------------

@@ -5,6 +5,7 @@ import {
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
+  ClipboardList,
   Copy,
   FileDiff,
   Keyboard,
@@ -114,6 +115,19 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
+
+const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)
+
+Snippets you retype often — addresses, boilerplate replies, commands — pasted into any app without leaving the keyboard. Same idea as clibor.
+
+- **Double-tap Ctrl** (tap it twice on its own, quickly) to open the picker over whatever you are typing in.
+- A tap that is part of a shortcut never opens it: **Ctrl** + **C** and friends are ignored, and so is holding Ctrl down. Only a bare double tap counts.
+- Type to filter, **↑ ↓** to move, **Enter** to paste, **Ctrl** + **1**..**9** to pick one straight away, **Esc** (or clicking away) to close.
+- The picked snippet is pasted into the app that had focus before the picker opened; the previous clipboard content is restored afterwards. If focus cannot be handed back, the text is left on the clipboard so you can paste it by hand.
+- Edit the list in the **Clips** tab: add, edit, drag to reorder, delete, then **Save**. A snippet with no label shows its first line.
+- The gesture can be switched to **double-tap Shift** or turned off in the **Clips** tab. Alt is not offered — screen annotation owns it.
+- Snippets are stored in \`~/.workhub/clips.json\`.
+- workhub has no tray icon: closing its main window quits the app entirely, and the gesture stops working until you relaunch it.`;
 
 const SCHEDULE_MD = `## Planning dates (Schedule)
 
@@ -280,6 +294,7 @@ const SECTIONS = [
   { value: "ink", title: "Screen annotation", icon: PenLine },
   { value: "quick-capture", title: "Quick capture", icon: Keyboard },
   { value: "voice", title: "Voice input", icon: Mic },
+  { value: "clips", title: "Clips", icon: ClipboardList },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
   { value: "recurring", title: "Recurring tasks", icon: Repeat },
@@ -866,6 +881,71 @@ export function HelpView() {
               <li>
                 workhub has no tray icon: closing its main window quits the
                 app entirely, and the hotkey stops working until you
+                relaunch it.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={ClipboardList}
+            title="Paste a stored snippet anywhere (Clips)"
+            value="clips"
+            markdown={CLIPS_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              Snippets you retype often — addresses, boilerplate replies,
+              commands — pasted into any app without leaving the keyboard.
+              Same idea as clibor.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium">Double-tap Ctrl</span> (tap it
+                twice on its own, quickly) to open the picker over whatever
+                you are typing in.
+              </li>
+              <li>
+                A tap that is part of a shortcut never opens it:{" "}
+                <span className="font-medium">Ctrl</span> +{" "}
+                <span className="font-medium">C</span> and friends are
+                ignored, and so is holding Ctrl down. Only a bare double tap
+                counts.
+              </li>
+              <li>
+                Type to filter, <span className="font-medium">↑ ↓</span> to
+                move, <span className="font-medium">Enter</span> to paste,{" "}
+                <span className="font-medium">Ctrl</span> +{" "}
+                <span className="font-medium">1</span>..
+                <span className="font-medium">9</span> to pick one straight
+                away, <span className="font-medium">Esc</span> (or clicking
+                away) to close.
+              </li>
+              <li>
+                The picked snippet is pasted into the app that had focus
+                before the picker opened; the previous clipboard content is
+                restored afterwards. If focus cannot be handed back, the text
+                is left on the clipboard so you can paste it by hand.
+              </li>
+              <li>
+                Edit the list in the <span className="font-medium">Clips</span>{" "}
+                tab: add, edit, drag to reorder, delete, then{" "}
+                <span className="font-medium">Save</span>. A snippet with no
+                label shows its first line.
+              </li>
+              <li>
+                The gesture can be switched to{" "}
+                <span className="font-medium">double-tap Shift</span> or turned
+                off in the <span className="font-medium">Clips</span> tab. Alt
+                is not offered — screen annotation owns it.
+              </li>
+              <li>
+                Snippets are stored in{" "}
+                <code>~/.workhub/clips.json</code>.
+              </li>
+              <li>
+                workhub has no tray icon: closing its main window quits the
+                app entirely, and the gesture stops working until you
                 relaunch it.
               </li>
             </ul>

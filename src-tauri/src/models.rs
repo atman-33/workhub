@@ -111,6 +111,18 @@ pub struct Settings {
     /// user first drags it.
     #[serde(default)]
     pub voice_indicator_position: Option<(i32, i32)>,
+    /// Clips: a clibor-style snippet picker opened by a double-tapped
+    /// modifier, pasting the picked snippet into the app that had focus.
+    #[serde(default = "default_true")]
+    pub clips_enabled: bool,
+    /// Which gesture opens the picker: "ctrl-double" | "shift-double" |
+    /// "off". Alt is deliberately not offered — the ink overlay owns it.
+    #[serde(default = "default_clips_gesture")]
+    pub clips_gesture: String,
+    /// Last position/size of the clips popup (logical pixels), carried over
+    /// to the next open. Unset until first moved/closed.
+    #[serde(default)]
+    pub clips_rect: Option<WindowRect>,
     /// Language the AI writes the task file's `## Plan` and `## Results`
     /// sections in: "en" | "ja". Content only — never affects code, comments,
     /// commit messages, or other repository artifacts.
@@ -275,6 +287,9 @@ fn default_voice_model() -> String {
 fn default_voice_language() -> String {
     "auto".into()
 }
+fn default_clips_gesture() -> String {
+    "ctrl-double".into()
+}
 fn default_task_language() -> String {
     "en".into()
 }
@@ -314,6 +329,9 @@ impl Default for Settings {
             voice_model: default_voice_model(),
             voice_language: default_voice_language(),
             voice_indicator_position: None,
+            clips_enabled: true,
+            clips_gesture: default_clips_gesture(),
+            clips_rect: None,
             task_language: default_task_language(),
             custom_prompt: String::new(),
             claude_desktop_mode: default_claude_desktop_mode(),

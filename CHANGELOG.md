@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.70.0 (2026-08-07)
+
+- **Clips** (T-0122): the snippets you retype all day — addresses, boilerplate
+  replies, commands — pasted into any app without leaving the keyboard.
+  Double-tap **Ctrl** anywhere in Windows, pick from the list, and the text
+  lands in whatever you were typing in. Same idea as clibor, built into
+  workhub.
+- The gesture is a *bare* double tap, which is what makes Ctrl usable as a
+  trigger at all: a tap that is part of a shortcut — Ctrl+C, Ctrl+V, anything
+  held down — never opens the picker. It can be switched to double-tap Shift,
+  or turned off, in the new **Clips** tab. Alt is not offered; screen
+  annotation owns it.
+- The picker opens over what you were doing: type to filter, arrow keys to
+  move, **Enter** to paste, **Ctrl+1..9** to grab one straight away, **Esc** or
+  a click elsewhere to close. Focus goes back to the app you came from before
+  the paste, and your previous clipboard content is put back afterwards. If
+  Windows refuses to hand focus back, the snippet is left on the clipboard
+  rather than lost.
+- The list lives in the **Clips** tab, next to Voice: add, edit, drag to
+  reorder, delete. A snippet with no label shows its first line. Stored in
+  `~/.workhub/clips.json`.
+
 ## 0.69.0 (2026-08-07)
 
 - **Blocked tasks** (T-0124): a task that is waiting on someone else — a reply,
