@@ -22,6 +22,7 @@ mod update;
 mod voice;
 mod voice_chunk;
 mod voice_history;
+mod window_place;
 mod wsl;
 
 use tauri::Manager;

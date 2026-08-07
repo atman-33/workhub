@@ -1,5 +1,6 @@
 //! Quick capture: a global hotkey (default Ctrl+Alt+N) opens a small
-//! always-on-top window that turns the clipboard into an inbox task
+//! always-on-top window next to the cursor that turns the clipboard into an
+//! inbox task
 //! (title + description form; the frontend calls the existing `create_task`).
 //!
 //! The window is created hidden at startup and reused — never built from the
@@ -8,9 +9,7 @@
 //! for ~10s because the build waits on the very message pump it is holding
 //! (measured in the kakisute app; see its src-tauri/src/windows.rs).
 
-use tauri::{
-    AppHandle, Emitter, LogicalPosition, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::models::WindowRect;
@@ -45,9 +44,13 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window(WINDOW_LABEL).is_some() {
         return Ok(());
     }
-    let rect = storage::load().settings.quick_capture_rect;
-    let (width, height) = rect.map_or(DEFAULT_SIZE, |r| (r.width, r.height));
-    let win = WebviewWindowBuilder::new(
+    // Only the size is carried over; the window always opens at the cursor
+    // (see `window_place`), so the saved position is deliberately ignored.
+    let (width, height) = storage::load()
+        .settings
+        .quick_capture_rect
+        .map_or(DEFAULT_SIZE, |r| (r.width, r.height));
+    WebviewWindowBuilder::new(
         app,
         WINDOW_LABEL,
         WebviewUrl::App("quick-capture.html".into()),
@@ -64,9 +67,6 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
     // color so no white flashes before WebView2 renders (index.css --background).
     .background_color(tauri::window::Color(0x14, 0x15, 0x1c, 0xff))
     .build()?;
-    if let Some(r) = rect {
-        let _ = win.set_position(LogicalPosition::new(r.x, r.y));
-    }
     Ok(())
 }
 
@@ -74,14 +74,11 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(WINDOW_LABEL)
 }
 
-/// Show the window (at the remembered spot, else centered on the monitor
-/// under the cursor), focus it, and tell the frontend to (re)initialize the
-/// form from the clipboard.
+/// Show the window next to the mouse cursor, focus it, and tell the frontend
+/// to (re)initialize the form from the clipboard.
 pub fn show(app: &AppHandle) {
     let Some(win) = window(app) else { return };
-    if storage::load().settings.quick_capture_rect.is_none() {
-        center_on_cursor_monitor(app, &win);
-    }
+    crate::window_place::place_at_cursor(app, &win);
     let _ = win.show();
     let _ = win.set_focus();
     let _ = app.emit_to(WINDOW_LABEL, "quick-capture://activate", ());
@@ -120,19 +117,6 @@ fn current_rect(win: &WebviewWindow) -> Option<WindowRect> {
         width: size.width,
         height: size.height,
     })
-}
-
-fn center_on_cursor_monitor(app: &AppHandle, win: &WebviewWindow) {
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|pos| app.monitor_from_point(pos.x, pos.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    let Some(monitor) = monitor else { return };
-    let Ok(size) = win.outer_size() else { return };
-    let x = monitor.position().x + (monitor.size().width as i32 - size.width as i32) / 2;
-    let y = monitor.position().y + (monitor.size().height as i32 - size.height as i32) / 2;
-    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
 }
 
 /// (Re)register the global hotkey from the current settings. Tries the

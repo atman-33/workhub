@@ -10,7 +10,7 @@
 //! when the gesture fired is therefore remembered here, and focus is handed
 //! back to it before the snippet is pasted (see `paste_clip`).
 
-use tauri::{AppHandle, Emitter, LogicalPosition, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri::{Runtime, WebviewWindow};
 
 use crate::models::WindowRect;
@@ -24,8 +24,12 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window(WINDOW_LABEL).is_some() {
         return Ok(());
     }
-    let rect = storage::load().settings.clips_rect;
-    let (width, height) = rect.map_or(DEFAULT_SIZE, |r| (r.width, r.height));
+    // Only the size is carried over; the popup always opens at the cursor
+    // (see `window_place`), so the saved position is deliberately ignored.
+    let (width, height) = storage::load()
+        .settings
+        .clips_rect
+        .map_or(DEFAULT_SIZE, |r| (r.width, r.height));
     let win = WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::App("clips.html".into()))
         .title("workhub — clips")
         .inner_size(width, height)
@@ -38,36 +42,56 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
         // color so no white flashes before WebView2 renders (index.css).
         .background_color(tauri::window::Color(0x14, 0x15, 0x1c, 0xff))
         .build()?;
-    if let Some(r) = rect {
-        let _ = win.set_position(LogicalPosition::new(r.x, r.y));
-    }
     // Clicking away is the same as pressing Escape — a picker that lingers
     // behind the window you were typing into is just clutter.
+    //
+    // But a blur is not proof that the user clicked away: dragging the header
+    // calls `startDragging()`, which puts Windows into its window-move loop
+    // and blurs the webview while the popup itself stays foreground. Closing
+    // on that made the window impossible to drag, so the foreground window is
+    // checked before believing the blur.
     let app_handle = app.clone();
     win.on_window_event(move |event| {
         if let tauri::WindowEvent::Focused(false) = event {
+            if is_still_foreground(&app_handle) {
+                refocus(&app_handle);
+                return;
+            }
             hide(&app_handle);
         }
     });
     Ok(())
 }
 
+/// True when the popup is the foreground window despite having reported a
+/// blur — i.e. the "blur" is the window-move loop, not the user leaving.
+fn is_still_foreground(app: &AppHandle) -> bool {
+    let Some(win) = window(app) else { return false };
+    let Ok(hwnd) = win.hwnd() else { return false };
+    crate::paste::foreground_window() == Some(hwnd.0 as isize)
+}
+
+/// Hands keyboard focus back to the webview after a drag, so the filter box
+/// keeps working once the move loop ends.
+fn refocus(app: &AppHandle) {
+    if let Some(win) = window(app) {
+        let _ = win.set_focus();
+    }
+}
+
 fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(WINDOW_LABEL)
 }
 
-/// Show the popup centered on the monitor under the cursor (or at its
-/// remembered spot), remembering which window had focus so the paste can go
-/// back to it.
+/// Show the popup next to the mouse cursor, remembering which window had
+/// focus so the paste can go back to it.
 pub fn show(app: &AppHandle) {
     let Some(win) = window(app) else { return };
     if win.is_visible().unwrap_or(false) {
         return;
     }
     super::remember_paste_target(app);
-    if storage::load().settings.clips_rect.is_none() {
-        center_on_cursor_monitor(app, &win);
-    }
+    crate::window_place::place_at_cursor(app, &win);
     let _ = win.show();
     let _ = win.set_focus();
     let _ = app.emit_to(WINDOW_LABEL, "clips://activate", ());
@@ -109,17 +133,4 @@ fn current_rect<R: Runtime>(win: &WebviewWindow<R>) -> Option<WindowRect> {
         width: size.width,
         height: size.height,
     })
-}
-
-fn center_on_cursor_monitor(app: &AppHandle, win: &WebviewWindow) {
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|pos| app.monitor_from_point(pos.x, pos.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    let Some(monitor) = monitor else { return };
-    let Ok(size) = win.outer_size() else { return };
-    let x = monitor.position().x + (monitor.size().width as i32 - size.width as i32) / 2;
-    let y = monitor.position().y + (monitor.size().height as i32 - size.height as i32) / 2;
-    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
 }

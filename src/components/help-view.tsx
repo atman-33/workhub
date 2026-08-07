@@ -96,6 +96,7 @@ const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
 A global hotkey opens a small always-on-top window that turns a copied link into an \`inbox\` task, without switching to the app. Typical use: a Slack message is about to get buried — copy its link, hit the hotkey, save, reply later.
 
 - Press **Ctrl** + **Alt** + **N** (the default). If another app already holds that combination, workhub falls back to **Ctrl** + **Shift** + **N**.
+- The window opens next to the mouse pointer, kept clear of the screen edges and the taskbar. Its size is remembered; its position is not, since it follows the pointer each time.
 - The clipboard is pasted into the description **only when it is a link workhub recognizes** — a Slack message, a GitHub pull request, or a monday.com item. The task is tagged accordingly (\`slack\`, \`github-pr\`, \`monday\`).
 - Any other clipboard content is left out of the form and offered on a **Paste clipboard** button instead, so unrelated text never has to be deleted by hand.
 - Edit the title and description, then save — the task lands in the Tasks board with status \`inbox\`.
@@ -120,7 +121,7 @@ const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)
 
 Snippets you retype often — addresses, boilerplate replies, commands — pasted into any app without leaving the keyboard. Same idea as clibor.
 
-- **Double-tap Ctrl** (tap it twice on its own, quickly) to open the picker over whatever you are typing in.
+- **Double-tap Ctrl** (tap it twice on its own, quickly) to open the picker over whatever you are typing in. It opens next to the mouse pointer, kept clear of the screen edges and the taskbar.
 - A tap that is part of a shortcut never opens it: **Ctrl** + **C** and friends are ignored, and so is holding Ctrl down. Only a bare double tap counts.
 - Type to filter, **↑ ↓** to move, **Enter** to paste, **Ctrl** + **1**..**9** to pick one straight away, **Esc** (or clicking away) to close.
 - The picked snippet is pasted into the app that had focus before the picker opened; the previous clipboard content is restored afterwards. If focus cannot be handed back, the text is left on the clipboard so you can paste it by hand.
@@ -799,6 +800,11 @@ export function HelpView() {
                 falls back to <Kbd>Ctrl</Kbd> + <Kbd>Shift</Kbd> + <Kbd>N</Kbd>.
               </li>
               <li>
+                The window opens next to the mouse pointer, kept clear of the
+                screen edges and the taskbar. Its size is remembered; its
+                position is not, since it follows the pointer each time.
+              </li>
+              <li>
                 Edit the title and description, then save — the task lands in the
                 Tasks board with status{" "}
                 <span className="font-mono text-xs">inbox</span>.
@@ -903,7 +909,8 @@ export function HelpView() {
               <li>
                 <span className="font-medium">Double-tap Ctrl</span> (tap it
                 twice on its own, quickly) to open the picker over whatever
-                you are typing in.
+                you are typing in. It opens next to the mouse pointer, kept
+                clear of the screen edges and the taskbar.
               </li>
               <li>
                 A tap that is part of a shortcut never opens it:{" "}

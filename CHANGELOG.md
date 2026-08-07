@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.70.1 (2026-08-07)
+
+- The **Clips** picker and the **quick capture** window now open next to the
+  mouse pointer instead of wherever they were last left. Both are invoked from
+  inside another app, so the eye is already at the cursor; a window that
+  reopens somewhere else costs a search every time. They stay clear of the
+  screen edges and the taskbar. Their size is still remembered — their
+  position deliberately is not.
+- Fixed: dragging the Clips picker by its header closed it. Entering the
+  Windows window-move loop blurs the webview, and the picker took that as
+  "the user clicked away". It now checks whether it is still the foreground
+  window before believing a blur.
+
 ## 0.70.0 (2026-08-07)
 
 - **Clips** (T-0122): the snippets you retype all day — addresses, boilerplate
