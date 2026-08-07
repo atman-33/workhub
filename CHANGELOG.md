@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.71.0 (2026-08-07)
+
+- **Git graph commit rows** (T-0130): the relative "12h ago" timestamp is
+  replaced with an absolute date — old commits age into a meaningless
+  "254d ago" with no way to tell when they actually happened. The row now
+  shows `MM-DD HH:mm` for commits from this year and `YYYY-MM-DD` for older
+  ones; hovering still shows the full timestamp and the relative time. The
+  short commit hash is now shown next to the author too, for quick
+  cross-referencing against the log or a diff.
+
 ## 0.70.1 (2026-08-07)
 
 - The **Clips** picker and the **quick capture** window now open next to the
