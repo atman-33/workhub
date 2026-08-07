@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/git-graph";
+import { formatCommitDate, formatCommitDateFull } from "@/lib/commit-format";
 import { timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitRef, GraphOp } from "@/types";
@@ -336,9 +337,21 @@ export const CommitRow = memo(function CommitRow({
       ))}
       <span className="truncate text-[13px]">{entry.subject}</span>
       {!isWorktree && (
-        <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
-          {entry.author} · {timeAgo(entry.date)}
-        </span>
+        // The row shows an absolute date — "12h ago" alone never answers *when*.
+        // The relative form still reads faster when skimming, so it moves into
+        // the tooltip alongside the unabbreviated timestamp.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
+              <code className="font-mono">{entry.hash.slice(0, 7)}</code>
+              <span className="max-w-24 truncate">{entry.author}</span>
+              <span className="tabular-nums">· {formatCommitDate(entry.date)}</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {formatCommitDateFull(entry.date)} ({timeAgo(entry.date)})
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
