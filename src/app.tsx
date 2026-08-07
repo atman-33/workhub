@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   CircleHelp,
+  ClipboardList,
   FolderOpen,
   GitBranch,
   CalendarRange,
@@ -11,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
+import { ClipsView } from "@/components/clips-view";
 import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
@@ -39,6 +41,7 @@ type Tab =
   | "music"
   | "timer"
   | "voice"
+  | "clips"
   | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
@@ -49,6 +52,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
   { key: "voice", label: "Voice", icon: Mic },
+  { key: "clips", label: "Clips", icon: ClipboardList },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
 
@@ -193,6 +197,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "voice" && "hidden")}>
             <VoiceView />
+          </div>
+          <div className={cn("h-full", tab !== "clips" && "hidden")}>
+            <ClipsView configVersion={configVersion} />
           </div>
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />

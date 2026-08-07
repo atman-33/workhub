@@ -35,7 +35,10 @@ Backend (`src-tauri/src/`):
 | `git.rs` | git CLI integration (kept from devdeck for the repos module) |
 | `actions.rs` | external launches (VS Code, terminal, AI agent with task context) |
 | `storage.rs` | JSON persistence (`~/.workhub/config.json`; migrated from `%APPDATA%\workhub\` — see `storage::migrate_from_appdata`) |
-| `ink/` | screen-annotation overlay: Raw Input Alt double-press listener + transparent draw window (`overlay.html` / `src/overlay/main.ts`) |
+| `ink/` | screen-annotation overlay: Alt double-press gesture + transparent draw window (`overlay.html` / `src/overlay/main.ts`) |
+| `rawkey.rs` | the single, shared Raw Input keyboard listener behind `ink/` and `clips/` — registration is per-process, so features register a consumer here instead of their own listener (see `.claude/rules/global-keyboard-input.md`) |
+| `clips/` | clibor-style snippet picker: bare double-tap Ctrl opens a popup (`clips.html` / `src/clips-popup/`) that pastes the picked snippet into the previously focused app |
+| `paste.rs` | paste injection into the focused app (clipboard save/restore + synthesized Ctrl+V), shared by `voice.rs` and `clips/` |
 | `update.rs` | self-update against GitHub Releases (disabled by default; no releases yet) |
 
 Frontend (`src/`): React 19 + Tailwind v4 + shadcn/ui. `lib/api.ts` wraps

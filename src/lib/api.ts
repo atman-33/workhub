@@ -2,6 +2,7 @@ import { type Channel, invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
 import type {
   BranchList,
+  Clip,
   CommitFileChange,
   Config,
   CreateTaskInput,
@@ -237,6 +238,12 @@ export const api = {
   sttDownloadModel: (model: string) => invoke<void>("stt_download_model", { model }),
   sttDeleteModel: (model: string) => invoke<void>("stt_delete_model", { model }),
   voiceStopRecording: () => invoke<void>("voice_stop_recording"),
+
+  // ---- clips (clibor-style snippet picker) ----
+  clipsList: () => invoke<Clip[]>("clips_list"),
+  clipsSave: (clips: Clip[]) => invoke<void>("clips_save", { clips }),
+  clipsPaste: (id: string) => invoke<void>("clips_paste", { id }),
+  clipsHide: () => invoke<void>("clips_hide"),
 
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),

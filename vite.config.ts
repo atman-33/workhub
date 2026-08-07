@@ -22,6 +22,8 @@ export default defineConfig({
         "quick-capture": path.resolve(__dirname, "quick-capture.html"),
         // Voice-input recording/transcribing indicator (see src-tauri/src/voice.rs).
         "voice-indicator": path.resolve(__dirname, "voice-indicator.html"),
+        // Clips snippet picker popup (see src-tauri/src/clips/).
+        clips: path.resolve(__dirname, "clips.html"),
       },
     },
   },

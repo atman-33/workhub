@@ -1,4 +1,5 @@
 mod actions;
+mod clips;
 mod commands;
 mod git;
 mod harness;
@@ -7,7 +8,9 @@ mod inbox;
 mod ink;
 mod models;
 mod music;
+mod paste;
 mod quick_capture;
+mod rawkey;
 mod schedule;
 mod schedule_edit;
 mod storage;
@@ -19,6 +22,7 @@ mod update;
 mod voice;
 mod voice_chunk;
 mod voice_history;
+mod window_place;
 mod wsl;
 
 use tauri::Manager;
@@ -62,6 +66,7 @@ pub fn run() {
                 .build(),
         )
         .manage(quick_capture::QuickCaptureState::default())
+        .manage(clips::ClipsState::default())
         .manage(tasks::WatcherState::default())
         .manage(ink::InkState::default())
         .manage(terminal::TerminalState::default())
@@ -112,6 +117,12 @@ pub fn run() {
                 eprintln!("voice: failed to create indicator window: {e}");
             }
             voice::apply_shortcut(app.handle());
+            // Same rationale again: the clips popup is built hidden up front
+            // so the gesture handler only ever shows it.
+            if let Err(e) = clips::create_window(app.handle()) {
+                eprintln!("clips: failed to create popup window: {e}");
+            }
+            clips::apply_gesture(app.handle());
             // Background vault-tidy scheduler (T-0050). Cheap mechanical checks;
             // only launches an agent when there is actual housekeeping to do.
             tidy::start_scheduler(app.handle().clone());
@@ -179,6 +190,10 @@ pub fn run() {
             commands::terminal_resize,
             commands::terminal_close,
             commands::quick_capture_hide,
+            commands::clips_list,
+            commands::clips_save,
+            commands::clips_paste,
+            commands::clips_hide,
             commands::stt_model_status,
             commands::stt_download_model,
             commands::stt_delete_model,

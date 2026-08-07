@@ -59,6 +59,15 @@ export interface Settings {
    * top-left; managed by the backend, round-tripped here so saving settings
    * doesn't wipe it). */
   voice_indicator_position: [number, number] | null;
+  /** Clips: a clibor-style snippet picker opened by a double-tapped modifier,
+   * pasting the picked snippet into the app that had focus. */
+  clips_enabled: boolean;
+  /** Which gesture opens the picker: "ctrl-double" | "shift-double" | "off".
+   * Alt is deliberately not offered — the ink overlay owns it. */
+  clips_gesture: string;
+  /** Last clips popup window rect (managed by the backend; round-tripped here
+   * so saving settings doesn't wipe it). */
+  clips_rect: WindowRect | null;
   /** Language the AI writes the task file's `## Plan` and `## Results`
    * sections in: "en" | "ja". Content only — never affects code, comments,
    * commit messages, or other repository artifacts. */
@@ -255,6 +264,14 @@ export interface VoiceHistoryEntry {
   /** ISO 8601 UTC timestamp. */
   created: string;
   model: string;
+}
+
+/** One paste-ready snippet in the clips picker. Array order is the display
+ * order — the editor sends the whole list back after any edit or reorder. */
+export interface Clip {
+  id: string;
+  label: string;
+  text: string;
 }
 
 export interface WindowRect {

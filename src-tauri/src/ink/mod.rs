@@ -15,18 +15,18 @@ mod overlay;
 
 use tauri::AppHandle;
 
-/// Managed Tauri state holding the running keyboard hook (if any).
+/// Managed Tauri state tracking whether the key listener is registered.
 #[derive(Default)]
-pub struct InkState(#[cfg(windows)] std::sync::Mutex<Option<hook::InkHook>>);
+pub struct InkState(#[cfg(windows)] std::sync::Mutex<bool>);
 
-/// Create the (hidden) overlay window and install the keyboard hook.
-/// Idempotent: does nothing if the hook is already running.
+/// Create the (hidden) overlay window and start observing keys.
+/// Idempotent: does nothing if the listener is already registered.
 #[cfg(windows)]
 pub fn start(app: &AppHandle) {
     use tauri::Manager;
     let state = app.state::<InkState>();
-    let mut guard = state.0.lock().unwrap();
-    if guard.is_some() {
+    let mut running = state.0.lock().unwrap();
+    if *running {
         return;
     }
     if let Err(e) = overlay::create_overlay(app) {
@@ -34,20 +34,21 @@ pub fn start(app: &AppHandle) {
         return;
     }
     match hook::start(app) {
-        Ok(hook) => *guard = Some(hook),
-        Err(e) => eprintln!("ink: failed to install keyboard hook: {e}"),
+        Ok(()) => *running = true,
+        Err(e) => eprintln!("ink: failed to start the key listener: {e}"),
     }
 }
 
-/// Uninstall the keyboard hook and hide the overlay. The overlay window is
-/// kept (hidden) so re-enabling is cheap.
+/// Stop observing keys and hide the overlay. The overlay window is kept
+/// (hidden) so re-enabling is cheap.
 #[cfg(windows)]
 pub fn stop(app: &AppHandle) {
     use tauri::Manager;
     let state = app.state::<InkState>();
-    let hook = state.0.lock().unwrap().take();
-    if let Some(hook) = hook {
-        hook.stop();
+    let mut running = state.0.lock().unwrap();
+    if *running {
+        hook::stop();
+        *running = false;
     }
     overlay::deactivate(app);
 }

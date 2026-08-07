@@ -18,6 +18,8 @@ from the UI alone, the guide is the only place a user learns them.
 
 - ink gesture or shortcuts (`src-tauri/src/ink/`) — the double-press Alt hold,
   `Alt+S` color cycle, release-to-clear behavior, or its Settings toggle.
+- the clips picker (`src-tauri/src/clips/`) — the double-tap gesture, the
+  popup's keys, or where snippets are stored.
 - quick capture (`src-tauri/src/quick_capture.rs`) — the default/fallback
   hotkey, the capture flow, or its Settings shortcut field.
 - first-run setup or Settings fields a user must configure (vault path, plugin

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main window, the ink overlay, the quick-capture window, and the voice-indicator window",
-  "windows": ["main", "ink-overlay", "quick-capture", "voice-indicator"],
+  "description": "Capabilities for the main window, the ink overlay, the quick-capture window, the voice-indicator window, and the clips popup",
+  "windows": ["main", "ink-overlay", "quick-capture", "voice-indicator", "clips-popup"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

@@ -1,7 +1,7 @@
 //! Global voice-input dictation: a global hotkey toggles microphone
 //! recording, the audio is transcribed locally via `stt.rs`, and the result
-//! is pasted into whichever app currently has focus (clipboard + simulated
-//! Ctrl+V, with the original clipboard restored afterwards).
+//! is pasted into whichever app currently has focus (`paste.rs`: clipboard +
+//! simulated Ctrl+V, with the original clipboard restored afterwards).
 //!
 //! Follows the `quick_capture.rs` conventions: the indicator window is built
 //! hidden at startup and only ever shown/hidden from here (never built
@@ -529,7 +529,7 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             // the safety net for when the paste target lost focus (or the
             // paste otherwise failed) between recording and now.
             record_history_entry(&app, &text);
-            if let Err(e) = paste_text(&text) {
+            if let Err(e) = crate::paste::paste_text(&text) {
                 eprintln!("voice: paste failed: {e}");
             }
             set_phase(&app, Phase::Idle);
@@ -541,7 +541,7 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
 }
 
 /// Appends a completed transcript to the persistent voice history (a safety
-/// net independent of whether `paste_text` below succeeds) and notifies any
+/// net independent of whether `paste::paste_text` succeeds) and notifies any
 /// open windows so the Voice history tab can refresh live.
 fn record_history_entry(app: &AppHandle, text: &str) {
     let model = storage::load().settings.voice_model;
@@ -646,131 +646,6 @@ fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
         out.push(a + (b - a) * frac);
     }
     out
-}
-
-/// Copies `text` to the clipboard, sends Ctrl+V to whichever window
-/// currently has focus (never workhub's own — the indicator window is
-/// non-focusable), then restores whatever text was on the clipboard before.
-/// Win32 clipboard APIs, not the webview clipboard plugin: the app doesn't
-/// have focus when this runs, so the paste target is some other process.
-#[cfg(windows)]
-fn paste_text(text: &str) -> Result<(), String> {
-    let previous = clipboard::read_text();
-    clipboard::write_text(text)?;
-    std::thread::sleep(Duration::from_millis(50));
-    clipboard::send_ctrl_v();
-    std::thread::sleep(Duration::from_millis(150));
-    if let Some(prev) = previous {
-        let _ = clipboard::write_text(&prev);
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn paste_text(_text: &str) -> Result<(), String> {
-    Err("paste injection is only implemented on Windows".into())
-}
-
-#[cfg(windows)]
-mod clipboard {
-    use windows::Win32::Foundation::{HANDLE, HGLOBAL};
-    use windows::Win32::System::DataExchange::{
-        CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
-        OpenClipboard, SetClipboardData,
-    };
-    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
-    use windows::Win32::System::Ole::CF_UNICODETEXT;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
-    };
-
-    /// Current clipboard text, if any (used to save/restore around a paste).
-    pub fn read_text() -> Option<String> {
-        unsafe {
-            OpenClipboard(None).ok()?;
-            let text = (|| -> Option<String> {
-                IsClipboardFormatAvailable(CF_UNICODETEXT.0 as u32).ok()?;
-                let handle = GetClipboardData(CF_UNICODETEXT.0 as u32).ok()?;
-                let hglobal = HGLOBAL(handle.0);
-                let ptr = GlobalLock(hglobal);
-                if ptr.is_null() {
-                    return None;
-                }
-                let wide = std::slice::from_raw_parts(ptr as *const u16, wcslen(ptr as *const u16));
-                let s = String::from_utf16_lossy(wide);
-                let _ = GlobalUnlock(hglobal);
-                Some(s)
-            })();
-            let _ = CloseClipboard();
-            text
-        }
-    }
-
-    unsafe fn wcslen(ptr: *const u16) -> usize {
-        let mut len = 0usize;
-        while *ptr.add(len) != 0 {
-            len += 1;
-        }
-        len
-    }
-
-    pub fn write_text(text: &str) -> Result<(), String> {
-        unsafe {
-            OpenClipboard(None).map_err(|e| e.to_string())?;
-            let result = (|| -> Result<(), String> {
-                EmptyClipboard().map_err(|e| e.to_string())?;
-                let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
-                let bytes = wide.len() * std::mem::size_of::<u16>();
-                let hmem = GlobalAlloc(GMEM_MOVEABLE, bytes).map_err(|e| e.to_string())?;
-                if hmem.is_invalid() {
-                    return Err("GlobalAlloc failed".into());
-                }
-                let ptr = GlobalLock(hmem);
-                if ptr.is_null() {
-                    return Err("GlobalLock failed".into());
-                }
-                std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr.cast::<u16>(), wide.len());
-                let _ = GlobalUnlock(hmem);
-                SetClipboardData(CF_UNICODETEXT.0 as u32, Some(HANDLE(hmem.0)))
-                    .map_err(|e| e.to_string())?;
-                Ok(())
-            })();
-            let _ = CloseClipboard();
-            result
-        }
-    }
-
-    fn key_input(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY, up: bool) -> INPUT {
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: vk,
-                    dwFlags: if up {
-                        KEYEVENTF_KEYUP
-                    } else {
-                        Default::default()
-                    },
-                    ..Default::default()
-                },
-            },
-        }
-    }
-
-    /// Synthesizes Ctrl+V via `SendInput` — goes to whichever window
-    /// currently has OS keyboard focus (not this process's own windows,
-    /// since the indicator is non-focusable and never takes it).
-    pub fn send_ctrl_v() {
-        let inputs = [
-            key_input(VK_CONTROL, false),
-            key_input(VK_V, false),
-            key_input(VK_V, true),
-            key_input(VK_CONTROL, true),
-        ];
-        unsafe {
-            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-        }
-    }
 }
 
 /// (Re)register the global hotkey from the current settings. Mirrors

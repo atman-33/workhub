@@ -25,5 +25,20 @@ use the **Raw Input API** instead:
   `RI_KEY_E0`), unlike LL hooks which report `VK_LMENU`/`VK_RMENU`, and
   `RAWKEYBOARD` carries no timestamp — use `GetTickCount64()`.
 
-Keep gesture-detection logic (e.g. `ink/state.rs`) pure with injected
-timestamps so it stays unit-testable without live input.
+## There is exactly one listener per process — share it
+
+`RegisterRawInputDevices` registers a usage page/usage for the whole
+**process**. A second call for the keyboard usage silently replaces the first
+one's `hwndTarget`, so a feature that starts its own listener steals every key
+from the feature that started earlier — with no error anywhere.
+
+`src-tauri/src/rawkey.rs` therefore owns the single registration and fans
+`WM_INPUT` out to named consumers (`register(app, "ink", cb)` /
+`unregister("ink")`), starting the thread with the first consumer and stopping
+it with the last. **A new global-key feature registers a consumer there; it
+never calls `RegisterRawInputDevices` itself.** Consumer callbacks run on the
+listener thread and must hop to the main thread (`run_on_main_thread`) before
+touching windows.
+
+Keep gesture-detection logic (e.g. `ink/state.rs`, `clips/gesture.rs`) pure
+with injected timestamps so it stays unit-testable without live input.
