@@ -49,11 +49,17 @@ type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
   configVersion: number;
+  /**
+   * Bumped by the app shell when the Repos view changes the registered
+   * repositories; triggers a config reload so the Project field's suggestions
+   * stay current without an app restart.
+   */
+  projectsVersion?: number;
   /** Notifies the app shell that settings have changed so it can keep its own copy in sync. */
   onSettingsChange?: (settings: Settings) => void;
 }
 
-export function TasksView({ configVersion, onSettingsChange }: Props) {
+export function TasksView({ configVersion, projectsVersion = 0, onSettingsChange }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
@@ -155,6 +161,12 @@ export function TasksView({ configVersion, onSettingsChange }: Props) {
       }
     })();
   }, [configVersion]);
+
+  // ---- after a repo add/remove/rename: refresh the Project suggestions ----
+  useEffect(() => {
+    if (projectsVersion === 0) return;
+    void api.getConfig().then(setConfig);
+  }, [projectsVersion]);
 
   // ---- watch + initial load once a vault is configured ----
   useEffect(() => {

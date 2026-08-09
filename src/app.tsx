@@ -66,6 +66,10 @@ export default function App() {
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
+  // Bumped when the Repos view adds, removes or renames a repository. Kept
+  // separate from configVersion so the Repos view does not reload (and race
+  // its own just-persisted config) as a result of its own edit.
+  const [projectsVersion, setProjectsVersion] = useState(0);
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
   // machine booted after a rule's time still gets that occurrence's task.
@@ -177,11 +181,16 @@ export default function App() {
           <div className={cn("h-full", tab !== "tasks" && "hidden")}>
             <TasksView
               configVersion={configVersion}
+              projectsVersion={projectsVersion}
               onSettingsChange={(s) => setSettings(s)}
             />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
-            <ReposView configVersion={configVersion} active={tab === "repos"} />
+            <ReposView
+              configVersion={configVersion}
+              active={tab === "repos"}
+              onProjectsChange={() => setProjectsVersion((v) => v + 1)}
+            />
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
             <ScheduleView configVersion={configVersion} />
