@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.72.0 (2026-08-09)
+
+- **Commit graph fetches on open** (T-0141): opening a repository's commit
+  graph now runs `git fetch --prune` in the background, so remote branches and
+  tags are current without pressing **Fetch** first. The local log is drawn
+  immediately and the graph refreshes once the fetch returns, so nothing waits
+  on the network. A repository is auto-fetched at most once a minute, and a
+  fetch that cannot run (no remote, offline, credentials needed) leaves a
+  single quiet line in the status bar instead of an error.
+
 ## 0.71.1 (2026-08-09)
 
 - Fixed: a repository added in the **Repos** tab did not show up in a task's
