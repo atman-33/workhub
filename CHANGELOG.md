@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.71.1 (2026-08-09)
+
+- Fixed: a repository added in the **Repos** tab did not show up in a task's
+  **Project** dropdown until the app was restarted. Adding a repo saved it
+  without telling the Tasks view, which kept the project list it had loaded
+  at startup. Repo add/remove/rename now refreshes that list right away.
+
 ## 0.71.0 (2026-08-07)
 
 - **Git graph commit rows** (T-0130): the relative "12h ago" timestamp is
