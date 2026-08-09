@@ -36,6 +36,15 @@ import type { CommitEntry, GitLog, GraphOp } from "@/types";
 
 const PAGE = 500;
 const WORKTREE_HASH = "WORKTREE";
+/** Minimum gap between two automatic fetches of the same repository. */
+const AUTO_FETCH_COOLDOWN_MS = 60_000;
+
+/**
+ * When the graph was last auto-fetched, per repository path. Module scope on
+ * purpose: the view unmounts every time the sheet closes, and reopening it a
+ * few seconds later should not fire another fetch.
+ */
+const lastAutoFetchAt = new Map<string, number>();
 
 interface Props {
   path: string;
@@ -61,6 +70,7 @@ export function GitGraphView({
   const [status, setStatus] = useState("");
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
+  const [autoFetching, setAutoFetching] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(600);
 
@@ -127,6 +137,11 @@ export function GitGraphView({
       try {
         const msg = await api.gitGraphOp(path, op);
         setStatus(`${label} ok — ${msg}`);
+        // A manual fetch/pull refreshes the remote refs just as well, so it
+        // starts the auto-fetch cooldown too.
+        if (op.kind === "fetch" || op.kind === "pull") {
+          lastAutoFetchAt.set(path, Date.now());
+        }
         // After switching to a branch, offer to pull if it trails its upstream
         // (mirrors VS Code's Git Graph checkout flow).
         if (op.kind === "checkout") {
@@ -192,6 +207,50 @@ export function GitGraphView({
     },
     [path, reload, onRepoChanged, runOp],
   );
+
+  // Kept in refs so the auto-fetch effect below depends on `path` alone: it
+  // must fire once per opened repository, not again whenever the loaded
+  // commits (and therefore `reload`) change identity.
+  const reloadRef = useRef(reload);
+  const onRepoChangedRef = useRef(onRepoChanged);
+  useEffect(() => {
+    reloadRef.current = reload;
+    onRepoChangedRef.current = onRepoChanged;
+  }, [reload, onRepoChanged]);
+
+  // Opening the graph fetches from the remote, so remote branches and tags are
+  // current without pressing Fetch. It runs beside the initial `git log` rather
+  // than before it: the log is local and instant, the fetch is network-bound.
+  // Deliberately not routed through `runOp` — that sets `opBusy`, which would
+  // disable the whole header while a background job runs, and reports a failure
+  // the user did not ask for.
+  useEffect(() => {
+    const last = lastAutoFetchAt.get(path) ?? 0;
+    if (Date.now() - last < AUTO_FETCH_COOLDOWN_MS) return;
+    lastAutoFetchAt.set(path, Date.now());
+
+    let cancelled = false;
+    setAutoFetching(true);
+    void (async () => {
+      try {
+        await api.gitGraphOp(path, { kind: "fetch" });
+        if (cancelled) return;
+        await reloadRef.current();
+        onRepoChangedRef.current(path);
+        setStatus("Fetched from remote");
+      } catch (e) {
+        // No remote configured, offline, or credentials needed. A fetch the
+        // user did not ask for must not nag — one quiet line in the status bar.
+        if (!cancelled) setStatus(`Auto fetch skipped — ${e}`);
+      } finally {
+        if (!cancelled) setAutoFetching(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
 
   const copy = useCallback((text: string, what: string) => {
     void writeText(text).then(() => setStatus(`Copied ${what}`));
@@ -338,8 +397,16 @@ export function GitGraphView({
             </Button>
           }
         />
-        {(loading || opBusy) && <Loader2 className="size-3.5 animate-spin text-primary" />}
-        {opBusy && <span className="text-[11px] text-muted-foreground">{opBusy}…</span>}
+        {(loading || opBusy || autoFetching) && (
+          <Loader2 className="size-3.5 animate-spin text-primary" />
+        )}
+        {opBusy ? (
+          <span className="text-[11px] text-muted-foreground">{opBusy}…</span>
+        ) : (
+          autoFetching && (
+            <span className="text-[11px] text-muted-foreground">Fetching…</span>
+          )
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <Button
