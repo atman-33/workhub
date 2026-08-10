@@ -45,8 +45,13 @@ fn on_key(app: &AppHandle, event: KeyEvent) {
         } else {
             KeyInput::SDown
         }
-    } else {
+    } else if event.up {
+        // Releases of unrelated keys carry no information for the gesture.
         return;
+    } else {
+        // Every other key press poisons a gesture attempt in progress, so that
+        // an Alt shortcut is never mistaken for the first half of the gesture.
+        KeyInput::OtherDown
     };
     let ink_event: Option<InkEvent> = MACHINE
         .lock()
