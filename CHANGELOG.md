@@ -8,6 +8,13 @@
   place instead of growing inside `README.md`. The README keeps only the two
   or three links opened daily and points at `links.md` for the rest. Run the
   vault template sync to pick it up in an existing vault.
+- Fixed: the **Alt double-press** that starts screen annotation (ink) could
+  stop responding (T-0144). A recent Alt shortcut (Alt+Tab, Alt+F4) or a
+  long-held Alt left the gesture armed, so the *next* attempt's first press
+  silently activated and tore the overlay down again, leaving the second
+  press with nothing to do. The gesture now only arms on a bare, short tap
+  with no other key involved, and recovers on its own if a release is ever
+  lost (session lock, an elevated window stealing focus).
 
 ## 0.72.0 (2026-08-09)
 
