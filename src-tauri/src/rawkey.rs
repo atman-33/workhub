@@ -15,8 +15,9 @@
 //! *consumer* here, and this module owns the single registration.
 //!
 //! Consumers are called on the listener thread with the raw virtual-key code,
-//! whether it was a press or a release, and a `GetTickCount64()` timestamp
-//! (`RAWKEYBOARD` carries none). Anything touching windows must hop to the
+//! whether it was a press or a release, and the time the input was posted
+//! (`RAWKEYBOARD` carries no timestamp of its own — see `message_time_ms`).
+//! Anything touching windows must hop to the
 //! main thread itself — see `AppHandle::run_on_main_thread`.
 
 #![cfg(windows)]
@@ -33,7 +34,7 @@ use windows::Win32::UI::Input::{
     RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageTime, GetMessageW,
     PostThreadMessageW, RegisterClassW, TranslateMessage, HWND_MESSAGE, MSG, WINDOW_EX_STYLE,
     WINDOW_STYLE, WM_INPUT, WM_QUIT, WNDCLASSW,
 };
@@ -52,7 +53,9 @@ pub struct KeyEvent {
     pub vk: u16,
     /// True for a key release.
     pub up: bool,
-    /// `GetTickCount64()` at delivery.
+    /// When the key transition was *posted*, on the `GetTickCount64()` scale —
+    /// not when we got around to handling it. Gesture recognizers compare
+    /// these, so a stalled message queue must not stretch the gaps.
     pub time_ms: u64,
 }
 
@@ -211,6 +214,26 @@ unsafe fn listen(tx: std::sync::mpsc::Sender<Result<u32, String>>) {
     let _ = DestroyWindow(hwnd);
 }
 
+/// Post time of the message being dispatched, on the 64-bit tick scale.
+///
+/// `GetMessageTime()` is the accurate one — it is the tick count when the
+/// input was posted, so a queue that stalls (a busy main thread, a heavy
+/// foreground app) cannot stretch the gap between two key transitions. It is
+/// only 32 bits though, so rebase it onto `GetTickCount64()` to keep the
+/// timestamps monotonic across the 49-day wrap that the recognizers would
+/// otherwise see as an enormous gap.
+unsafe fn message_time_ms() -> u64 {
+    let now = GetTickCount64();
+    let lag = (now as u32).wrapping_sub(GetMessageTime() as u32) as u64;
+    // A nonsensical lag means the message did not come from the input queue;
+    // fall back to "now".
+    if lag > 60_000 {
+        now
+    } else {
+        now - lag
+    }
+}
+
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if msg == WM_INPUT {
         let mut raw = RAWINPUT::default();
@@ -227,7 +250,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             let event = KeyEvent {
                 vk: kb.VKey,
                 up: kb.Flags & RI_KEY_BREAK != 0,
-                time_ms: GetTickCount64(),
+                time_ms: message_time_ms(),
             };
             // Snapshot the callbacks and drop the lock before calling them:
             // a consumer is free to (un)register from inside its own handler.

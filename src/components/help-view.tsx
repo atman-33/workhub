@@ -89,6 +89,8 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 - Double-press **Alt** and hold the second press to start drawing.
 - **Alt** + **S** cycles the pen color.
 - Release **Alt** to clear the strokes.
+- The gesture is a *bare* double press: an **Alt** that carries a shortcut (**Alt** + **Tab** and friends) or that is held down does not count as the first press.
+- It cannot fire while a window running **as administrator** is in the foreground — Windows withholds keyboard input from a normal-privilege app there. Click a normal window first.
 - Can be disabled in **⚙ Settings**.`;
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
@@ -772,6 +774,17 @@ export function HelpView() {
               </li>
               <li>
                 Release <Kbd>Alt</Kbd> to clear the strokes.
+              </li>
+              <li>
+                The gesture is a <em>bare</em> double press: an <Kbd>Alt</Kbd>{" "}
+                that carries a shortcut (<Kbd>Alt</Kbd> + <Kbd>Tab</Kbd> and
+                friends) or that is held down does not count as the first press.
+              </li>
+              <li>
+                It cannot fire while a window running{" "}
+                <span className="font-medium">as administrator</span> is in the
+                foreground — Windows withholds keyboard input from a
+                normal-privilege app there. Click a normal window first.
               </li>
               <li>
                 Can be disabled in <span className="font-medium">⚙ Settings</span>.

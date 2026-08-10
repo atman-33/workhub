@@ -1,6 +1,16 @@
 //! Pure Alt double-press state machine for the ink overlay, ported from
 //! Desktop Ink's `KeyboardHookManager` (C#/WPF). Timestamps are injected so
 //! the logic is unit-testable without a live Win32 keyboard hook.
+//!
+//! Like the clips popup's `TapMachine`, the gesture only counts *bare* Alt
+//! taps: an Alt press that is part of a real shortcut (Alt+Tab, Alt+F4, ...)
+//! or that is held down for longer than the double-click threshold must not
+//! arm the machine. Without that restriction an ordinary Alt shortcut leaves
+//! the machine armed, the *first* press of the following gesture activates the
+//! overlay, and the second press does nothing — which is what "the double
+//! press sometimes does not work" looks like from the outside. Unlike the
+//! clips gesture, this one fires on the second *press*, because the second
+//! press is held down to draw.
 
 /// Raw key transitions fed in from the low-level keyboard hook.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,6 +19,8 @@ pub enum KeyInput {
     AltUp,
     SDown,
     SUp,
+    /// Any other key press — poisons the current gesture attempt.
+    OtherDown,
 }
 
 /// Actions the overlay must perform in response to key input.
@@ -23,14 +35,33 @@ pub enum InkEvent {
     CycleColor,
 }
 
+/// A gap this long between two Alt presses with no release in between cannot
+/// be key auto-repeat (the Windows repeat delay tops out at one second), so it
+/// means the release was never delivered — the overlay window took focus away
+/// from us, the session locked, an elevated window came up. Treat it as a
+/// desync and recover instead of ignoring Alt until the state happens to
+/// resynchronize.
+const DESYNC_GAP_MS: u64 = 1500;
+
 #[derive(Debug)]
 pub struct AltStateMachine {
-    /// Max gap between first release and second press (system double-click time).
+    /// Max gap between the first release and the second press, and max hold
+    /// time of the first press (system double-click time).
     threshold_ms: u64,
+    /// When the first tap's release landed.
     last_alt_release: u64,
+    /// A first complete tap is on record and a second press is expected.
+    armed: bool,
+    /// When the currently held Alt was pressed, while it is not (yet) a
+    /// drawing press. `None` means no Alt press is being tracked.
+    alt_down_at: Option<u64>,
+    /// The second press activated the overlay and is still held.
     is_alt_held: bool,
-    waiting_for_second_press: bool,
+    /// Another key was pressed during the current attempt.
+    poisoned: bool,
     is_s_held: bool,
+    /// Timestamp of the last Alt transition, for desync detection.
+    last_alt_event: u64,
 }
 
 impl AltStateMachine {
@@ -38,9 +69,12 @@ impl AltStateMachine {
         Self {
             threshold_ms,
             last_alt_release: 0,
+            armed: false,
+            alt_down_at: None,
             is_alt_held: false,
-            waiting_for_second_press: false,
+            poisoned: false,
             is_s_held: false,
+            last_alt_event: 0,
         }
     }
 
@@ -49,15 +83,23 @@ impl AltStateMachine {
             KeyInput::AltDown => self.on_alt_press(now_ms),
             KeyInput::AltUp => self.on_alt_release(now_ms),
             KeyInput::SDown => {
-                if self.is_alt_held && !self.is_s_held {
+                if self.is_alt_held {
+                    let fire = !self.is_s_held;
                     self.is_s_held = true;
-                    Some(InkEvent::CycleColor)
-                } else {
-                    None
+                    return fire.then_some(InkEvent::CycleColor);
                 }
+                self.is_s_held = true;
+                // Outside draw mode S is just another key: Alt+S in some other
+                // app must not arm the gesture.
+                self.poison();
+                None
             }
             KeyInput::SUp => {
                 self.is_s_held = false;
+                None
+            }
+            KeyInput::OtherDown => {
+                self.poison();
                 None
             }
         }
@@ -65,34 +107,71 @@ impl AltStateMachine {
 
     fn on_alt_press(&mut self, now_ms: u64) -> Option<InkEvent> {
         if self.is_alt_held {
-            // Key auto-repeat while holding — ignore.
-            return None;
-        }
-        if self.waiting_for_second_press {
-            self.waiting_for_second_press = false;
-            if now_ms.wrapping_sub(self.last_alt_release) <= self.threshold_ms {
-                self.is_alt_held = true;
-                return Some(InkEvent::Activate);
+            let stale = now_ms.wrapping_sub(self.last_alt_event) > DESYNC_GAP_MS;
+            self.last_alt_event = now_ms;
+            if !stale {
+                // Key auto-repeat while holding — ignore.
+                return None;
             }
+            // The release was lost. Tear the overlay down and let this press
+            // start a fresh gesture.
+            self.reset();
+            self.alt_down_at = Some(now_ms);
+            return Some(InkEvent::Deactivate);
         }
+        self.last_alt_event = now_ms;
+        self.poisoned = false;
+        if self.armed && now_ms.wrapping_sub(self.last_alt_release) <= self.threshold_ms {
+            self.armed = false;
+            self.alt_down_at = None;
+            self.is_alt_held = true;
+            return Some(InkEvent::Activate);
+        }
+        self.armed = false;
+        self.alt_down_at = Some(now_ms);
         None
     }
 
     fn on_alt_release(&mut self, now_ms: u64) -> Option<InkEvent> {
+        self.last_alt_event = now_ms;
         if self.is_alt_held {
-            self.is_alt_held = false;
-            self.waiting_for_second_press = false;
-            self.is_s_held = false;
-            Some(InkEvent::Deactivate)
-        } else if !self.waiting_for_second_press {
-            self.last_alt_release = now_ms;
-            self.waiting_for_second_press = true;
-            None
-        } else {
-            // Released again while waiting for the second press — cancel.
-            self.waiting_for_second_press = false;
-            None
+            self.reset();
+            return Some(InkEvent::Deactivate);
         }
+        let Some(pressed_at) = self.alt_down_at.take() else {
+            // A release with no press of ours on record — the other Alt key,
+            // or a press that arrived while we were not listening. Leave the
+            // pending arm alone rather than cancelling it.
+            return None;
+        };
+        // Only a bare, short tap arms the gesture: a held Alt (menu access)
+        // or one that carried a shortcut must not count as the first press.
+        self.armed = !self.poisoned && now_ms.wrapping_sub(pressed_at) <= self.threshold_ms;
+        self.last_alt_release = now_ms;
+        self.poisoned = false;
+        None
+    }
+
+    /// Cancel a pending arm, and mark a currently held (non-drawing) Alt press
+    /// as part of a shortcut so its release does not arm the gesture.
+    fn poison(&mut self) {
+        if self.is_alt_held {
+            // Shift snaps strokes; keys pressed while drawing are not our
+            // business.
+            return;
+        }
+        if self.alt_down_at.is_some() {
+            self.poisoned = true;
+        }
+        self.armed = false;
+    }
+
+    fn reset(&mut self) {
+        self.armed = false;
+        self.alt_down_at = None;
+        self.is_alt_held = false;
+        self.poisoned = false;
+        self.is_s_held = false;
     }
 }
 
@@ -175,5 +254,88 @@ mod tests {
         m.on_key(AltDown, 200);
         m.on_key(AltUp, 300); // Deactivate — must not count as "first release".
         assert_eq!(m.on_key(AltDown, 350), None);
+    }
+
+    #[test]
+    fn a_shortcut_does_not_arm_the_gesture() {
+        // Alt+Tab, then the gesture: the shortcut's release used to arm the
+        // machine, so the gesture's *first* press activated and its second
+        // press did nothing.
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        m.on_key(OtherDown, 20); // Tab
+        assert_eq!(m.on_key(AltUp, 50), None);
+        assert_eq!(m.on_key(AltDown, 100), None);
+        assert_eq!(m.on_key(AltUp, 150), None);
+        assert_eq!(m.on_key(AltDown, 200), Some(Activate));
+    }
+
+    #[test]
+    fn alt_s_in_another_app_does_not_arm_the_gesture() {
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        assert_eq!(m.on_key(SDown, 20), None);
+        m.on_key(SUp, 40);
+        assert_eq!(m.on_key(AltUp, 50), None);
+        assert_eq!(m.on_key(AltDown, 100), None);
+    }
+
+    #[test]
+    fn typing_between_the_taps_cancels_the_arm() {
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        m.on_key(AltUp, 50);
+        m.on_key(OtherDown, 80); // typed a letter
+        assert_eq!(m.on_key(AltDown, 120), None);
+    }
+
+    #[test]
+    fn a_long_first_press_does_not_arm_the_gesture() {
+        // Alt held for menu access, released, then pressed again promptly.
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        assert_eq!(m.on_key(AltUp, T + 1), None);
+        assert_eq!(m.on_key(AltDown, T + 100), None);
+        // The short tap that follows arms normally.
+        assert_eq!(m.on_key(AltUp, T + 150), None);
+        assert_eq!(m.on_key(AltDown, T + 200), Some(Activate));
+    }
+
+    #[test]
+    fn keys_pressed_while_drawing_do_not_break_the_session() {
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        m.on_key(AltUp, 50);
+        assert_eq!(m.on_key(AltDown, 100), Some(Activate));
+        m.on_key(OtherDown, 200); // Shift, to snap a stroke
+        assert_eq!(m.on_key(AltUp, 300), Some(Deactivate));
+    }
+
+    #[test]
+    fn a_lost_release_recovers_on_the_next_press() {
+        // The overlay is active and the Alt release never arrives (session
+        // locked, elevated window took focus). The next press must not be
+        // swallowed as auto-repeat forever.
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        m.on_key(AltUp, 50);
+        assert_eq!(m.on_key(AltDown, 100), Some(Activate));
+        // ...no AltUp...
+        assert_eq!(m.on_key(AltDown, 100 + DESYNC_GAP_MS + 1), Some(Deactivate));
+        let base = 100 + DESYNC_GAP_MS + 1;
+        assert_eq!(m.on_key(AltUp, base + 50), None);
+        assert_eq!(m.on_key(AltDown, base + 100), Some(Activate));
+    }
+
+    #[test]
+    fn the_other_alt_keys_release_does_not_cancel_the_arm() {
+        // Left Alt tapped (arms), then right Alt pressed and both released in
+        // the other order: the unmatched release must leave the arm intact.
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        m.on_key(AltUp, 50);
+        // A stray release with no press on record.
+        assert_eq!(m.on_key(AltUp, 80), None);
+        assert_eq!(m.on_key(AltDown, 120), Some(Activate));
     }
 }
