@@ -15,3 +15,4 @@ One line per notable document: link + one-sentence description.
 - [`README.md`](README.md) — project entry point (status, map, reading order)
 - [`prd.md`](prd.md) — product intent and scope
 - [`roadmap.md`](roadmap.md) — milestones and schedule
+- [`links.md`](links.md) — link collection (repos, environments, dashboards, references)
