@@ -23,7 +23,14 @@ use the **Raw Input API** instead:
   system hook chain, and inherently observe-only (keys are never consumed).
 - Note: raw input reports Alt as the generic `VK_MENU` (left/right via
   `RI_KEY_E0`), unlike LL hooks which report `VK_LMENU`/`VK_RMENU`, and
-  `RAWKEYBOARD` carries no timestamp — use `GetTickCount64()`.
+  `RAWKEYBOARD` carries no timestamp — take the *message post* time
+  (`GetMessageTime()`, rebased onto `GetTickCount64()`; see
+  `rawkey::message_time_ms`) rather than the tick count at handling time, or a
+  stalled queue stretches the gaps a gesture recognizer measures.
+- Raw input is subject to **UIPI**: while a window of a higher-integrity
+  (elevated) process is in the foreground, a normal-privilege process receives
+  no keyboard input at all. Global gestures are simply dead there; say so in
+  the help screen instead of trying to work around it.
 
 ## There is exactly one listener per process — share it
 
@@ -42,3 +49,27 @@ touching windows.
 
 Keep gesture-detection logic (e.g. `ink/state.rs`, `clips/gesture.rs`) pure
 with injected timestamps so it stays unit-testable without live input.
+
+## A modifier double-tap must be a *bare* double tap
+
+A recognizer that arms on any modifier release is wrong, and the symptom is
+misleading: the user reports that the gesture "sometimes does nothing". What
+actually happens is that an ordinary shortcut (Alt+Tab, Ctrl+C) armed the
+machine, so the gesture's **first** press completed it — fired and tore down
+again in a few hundred milliseconds — and the second press then found nothing
+armed. Both recognizers therefore require:
+
+- **No other key pressed during the attempt.** Feed every other key press into
+  the machine (`OtherDown` / `TapInput::OtherDown`); it poisons a modifier
+  currently held (Ctrl+C) *and* a pending arm (tap, then type).
+- **The tap is short.** A press held longer than the double-click threshold is
+  menu access or a shortcut, not the first half of a gesture.
+- **Recovery from a lost release.** A release is genuinely never delivered when
+  the session locks or an elevated window takes focus mid-gesture. Without
+  recovery the "modifier held" flag sticks and every later press is discarded
+  as auto-repeat. A press arriving long after the last transition (longer than
+  the 1 s maximum keyboard repeat delay) cannot be auto-repeat — treat it as a
+  desync, reset, and start over from that press.
+- **Ignore unmatched releases.** The left and right modifier keys arrive as one
+  generic VK, so a release with no press of ours on record is normal; it must
+  not cancel a pending arm.
