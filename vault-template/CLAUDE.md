@@ -131,6 +131,7 @@ filling in the placeholders. Layout:
 | `README.md` | Entry point — read first. Overview, current status, where things live, reading order, key links. Embeds the backlog Base. |
 | `prd.md` | Product intent, scope, goals — the single source of product intent |
 | `roadmap.md` | Milestones and schedule |
+| `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
 | `specs/` | Feature specs, one file per feature |
 | `backlog/` | Backlog items (`B-NNN-<title>.md`), one per file; `_backlog.base` renders them by status/priority |
 | `research/` | Investigations and technical spikes |

@@ -31,6 +31,7 @@ Link to the full spec in [`prd.md`](prd.md).
 |---|---|
 | [`prd.md`](prd.md) | Product intent, scope, goals (single source) |
 | [`roadmap.md`](roadmap.md) | Milestones and schedule |
+| [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
 | `specs/` | Feature specs, one file per feature |
 | `backlog/` | Backlog items; see the Base view below |
 | `research/` | Investigations and technical spikes |
@@ -52,6 +53,8 @@ Link to the full spec in [`prd.md`](prd.md).
 
 ## Key links
 
+The two or three links opened daily. Everything else — environments,
+dashboards, design files, references — lives in [`links.md`](links.md).
+
 - Repo: <path or URL>
 - Related tasks: `tasks/` (vault root) — the app's executable task list
-- <other links>

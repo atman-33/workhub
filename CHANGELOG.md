@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.72.1 (2026-08-10)
+
+- **Project link collection** (T-0143): the project template now ships a
+  `links.md` for a project's external links — repository, environments,
+  dashboards, design files and references — so they live in one predictable
+  place instead of growing inside `README.md`. The README keeps only the two
+  or three links opened daily and points at `links.md` for the rest. Run the
+  vault template sync to pick it up in an existing vault.
+
 ## 0.72.0 (2026-08-09)
 
 - **Commit graph fetches on open** (T-0141): opening a repository's commit

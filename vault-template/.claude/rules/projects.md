@@ -18,6 +18,8 @@ This is the working checklist when touching `projects/<slug>/`.
   - ideas / candidate work → `backlog/B-NNN-<title>.md`
   - investigations → `research/` · design notes → `dev-notes/`
   - task outputs → `deliverables/` (link from the task's `## Results`)
+  - external links (repos, environments, dashboards, references) → `links.md`
+    — never credentials or tokens; link to the console instead
 - **Backlog ≠ tasks.** `backlog/` is the idea pool; `tasks/` (vault root) is
   the app's executable task list. Promote a `ready` item into a real task via
   the app, then set `status: promoted` / `promoted: T-XXXX` on the item.
