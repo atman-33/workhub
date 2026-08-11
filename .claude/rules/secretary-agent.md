@@ -4,6 +4,7 @@ paths:
   - "plugins/workhub/agents/**"
   - "plugins/workhub/scripts/comms-cli.mjs"
   - "vault-template/.opencode/**"
+  - "**/agents/*.md"
 ---
 
 # Secretary agent: what makes the rule hold, and where it does not
@@ -25,14 +26,20 @@ parts with different failure modes:
 
 Two consequences worth keeping in mind before changing any of them:
 
-- **The gate needs a question *tool* to intercept.** It cannot catch an agent
-  that simply asks in prose, and it cannot exist at all on a CLI without such
-  a tool. OpenCode is exactly that case: its plugin API has
-  `tool.execute.before`, but there is no question tool to match, and
-  `.opencode/scripts/sync-claude-*.mjs` syncs commands and skills only — never
-  `agents/`. So an OpenCode session gets neither the secretary subagent nor
-  the gate. Any OpenCode support has to be built as its own mirror plugin, the
-  way `memory-plugin.ts` mirrors the memory hooks.
+- **The gate needs a question *tool* to intercept**, so it cannot catch an
+  agent that simply asks in prose. Only the injected rule covers that case, on
+  either harness.
+- **OpenCode gets there from the other direction.** It has no question tool to
+  hook, so `vault-template/.opencode/plugins/secretary-plugin.ts` *provides*
+  the sanctioned one (`ask_owner`) and puts the check inside it — enforcement
+  in our own code rather than a hook the model might route around. Two things
+  make that work: the `tool` helper is imported **dynamically** (it is a
+  runtime value, and a host without it must degrade to injection-only rather
+  than fail to load), and `sync-claude-skills.mjs` now carries plugin
+  `agents/` into `.opencode/agent/`, rewriting the frontmatter
+  (`claudeAgentToOpenCode`). `model:` is dropped there on purpose — Claude's
+  short aliases ("haiku") are not OpenCode model ids, and guessing a provider
+  would break every setup that uses a different one.
 - **The gate must never deadlock a session.** If the secretary is unreachable,
   an agent that keeps being denied has no way forward. `MAX_BLOCKS` in
   `secretary-state.mjs` is the safety valve: after that many blocks the gate

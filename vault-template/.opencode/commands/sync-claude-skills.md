@@ -1,9 +1,14 @@
 ---
 name: sync-claude-skills
-description: Copy skills from project-scope Claude plugins into .opencode/skills.
+description: Copy skills and agents from project-scope Claude plugins into .opencode.
 ---
 
-Copy skills from the project-scope plugins listed in `.claude/settings.json` into `.opencode/skills/`.
+Copy the skills and agents of the project-scope plugins listed in
+`.claude/settings.json` into `.opencode/skills/` and `.opencode/agent/`.
+
+Agents are rewritten into OpenCode's frontmatter on the way (`mode: subagent`,
+a tools map, no `model:` — Claude's short model aliases are not OpenCode model
+ids). Both directories are generated: edit the plugin source, then re-run this.
 
 Run:
 
@@ -11,7 +16,7 @@ Run:
 node .opencode/scripts/sync-claude-skills.mjs
 ```
 
-To overwrite skills that already exist in `.opencode/skills/`, run:
+To overwrite copies that already exist, run:
 
 ```bash
 node .opencode/scripts/sync-claude-skills.mjs --force

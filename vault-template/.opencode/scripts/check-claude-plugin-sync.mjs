@@ -31,6 +31,9 @@ function printBucket(label, bucket) {
 
 console.log("# Claude plugin sync drift report");
 printBucket("Project scope / skills", report.projectScope);
+if (report.projectAgents) {
+  printBucket("Project scope / agents", report.projectAgents);
+}
 let idx = 0;
 for (const bucket of report.userScope) {
   idx += 1;

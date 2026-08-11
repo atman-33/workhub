@@ -143,6 +143,10 @@ export function projectSkillsTargetRoot(cwd) {
   return path.join(cwd, ".opencode", "skills");
 }
 
+export function projectAgentsTargetRoot(cwd) {
+  return path.join(cwd, ".opencode", "agent");
+}
+
 export function userSkillsTargetRoot(openCodeGlobalRoot) {
   return path.join(openCodeGlobalRoot, "skills");
 }
@@ -228,6 +232,33 @@ export function discoverProjectScopeSources(cwd, claudePluginsRoot) {
         pluginRef: plugin.pluginRef,
         name,
         sourcePath: path.join(skillsDir, name),
+      });
+    }
+  }
+  return { sources, warnings, targetRoot };
+}
+
+/**
+ * Enumerate the agent definitions of project-scope plugins
+ * (`<plugin>/agents/*.md`). Claude finds these itself; OpenCode only reads
+ * `.opencode/agent/`, so they are synced there the same way skills are.
+ * A plugin without an `agents/` directory is simply skipped — most have none.
+ */
+export function discoverProjectScopeAgentSources(cwd, claudePluginsRoot) {
+  const targetRoot = projectAgentsTargetRoot(cwd);
+  const root = claudePluginsRoot || defaultClaudePluginsRoot();
+  const sources = [];
+  const warnings = [];
+  for (const plugin of readProjectEnabledPlugins(cwd)) {
+    const agentsDir = path.join(resolveProjectPluginRoot(plugin, root), "agents");
+    if (!existsSync(agentsDir)) continue;
+    for (const name of listChildNames(agentsDir, /*dirsOnly*/ false)) {
+      if (!name.endsWith(".md")) continue;
+      sources.push({
+        kind: "agent",
+        pluginRef: plugin.pluginRef,
+        name,
+        sourcePath: path.join(agentsDir, name),
       });
     }
   }
@@ -721,6 +752,27 @@ export function detectProjectScopeDrift({ cwd, claudePluginsRoot, manifestPath }
 }
 
 /**
+ * Drift for the project-scope agent bucket (`.opencode/agent/`). Separate from
+ * the skills bucket because it has its own target directory.
+ */
+export function detectProjectScopeAgentDrift({ cwd, claudePluginsRoot, manifestPath }) {
+  const discovery = discoverProjectScopeAgentSources(cwd, claudePluginsRoot);
+  const manifest = loadManifest(manifestPath || defaultProjectManifestPath(cwd)) || emptyManifest();
+
+  return {
+    scope: "project",
+    bucket: "agents",
+    targetRoot: discovery.targetRoot,
+    items: computeBucketDrift({
+      sources: discovery.sources,
+      targetDir: discovery.targetRoot,
+      manifestBucket: manifest.buckets?.["projectScope-agents"] || {},
+    }),
+    warnings: discovery.warnings,
+  };
+}
+
+/**
  * Drift for user scope (skills + commands, targets under ~/.config/opencode).
  */
 export function detectUserScopeDrift({
@@ -803,6 +855,12 @@ export async function detectFullDrift({
     manifestPath: projectManifestPath,
   });
 
+  const projectAgents = detectProjectScopeAgentDrift({
+    cwd,
+    claudePluginsRoot,
+    manifestPath: projectManifestPath,
+  });
+
   const userResult = detectUserScopeDrift({
     claudePluginsRoot,
     openCodeGlobalRoot,
@@ -814,6 +872,7 @@ export async function detectFullDrift({
 
   return {
     projectScope,
+    projectAgents,
     userScope: userScopeBuckets,
     warnings: warnings.concat(userWarnings),
   };
@@ -826,7 +885,11 @@ export async function detectFullDrift({
 const REMINDER_STATUSES = new Set(["missing", "stale-source", "diverged", "orphan"]);
 
 export function hasActionableDrift(report) {
-  const lists = [report.projectScope.items, ...report.userScope.map((b) => b.items)];
+  const lists = [
+    report.projectScope.items,
+    report.projectAgents?.items ?? [],
+    ...report.userScope.map((b) => b.items),
+  ];
   for (const items of lists) {
     for (const item of items) {
       if (REMINDER_STATUSES.has(item.status)) return true;
@@ -857,6 +920,14 @@ export function buildReminderXml(report) {
   if (projectLines.length) lines.push(...projectLines);
   else lines.push("(no drift)");
   lines.push("");
+
+  if (report.projectAgents) {
+    lines.push("## Project scope (.claude/settings.json -> .opencode/agent/)");
+    const agentLines = bucketSection(report.projectAgents);
+    if (agentLines.length) lines.push(...agentLines);
+    else lines.push("(no drift)");
+    lines.push("");
+  }
 
   for (const bucket of report.userScope) {
     const dir = bucket.bucket === "commands" ? "~/.config/opencode/command" : "~/.config/opencode/skills";
@@ -890,7 +961,96 @@ export function buildReminderXml(report) {
 // Copy operations (used by sync scripts; not by the reminder plugin)
 // ---------------------------------------------------------------------------
 
+// Claude tool names -> the OpenCode tools that do the same job. Anything not
+// listed (MCP tools, harness-specific tools) has no OpenCode counterpart and is
+// dropped rather than guessed at.
+const CLAUDE_TO_OPENCODE_TOOLS = {
+  read: "read",
+  grep: "grep",
+  glob: "glob",
+  edit: "edit",
+  write: "write",
+  bash: "bash",
+  webfetch: "webfetch",
+  task: "task",
+  todowrite: "todowrite",
+};
+
+// Tools an agent must not reach unless its Claude definition asked for them.
+// OpenCode grants everything by default, so a read-only agent stays read-only
+// only if the mutating tools are turned off explicitly.
+const OPENCODE_MUTATING_TOOLS = ["edit", "write", "bash", "patch"];
+
+/**
+ * Rewrite a Claude agent definition as an OpenCode one.
+ *
+ * The body (the agent's actual prompt) is carried over verbatim; only the
+ * frontmatter differs between the two harnesses:
+ *   - OpenCode takes the agent's name from the filename, so `name:` is dropped.
+ *   - `mode: subagent` marks it as something another agent delegates to.
+ *   - `tools:` becomes a map, with the mutating tools explicitly disabled.
+ *   - `model:` is deliberately dropped: Claude's short aliases ("haiku") are not
+ *     OpenCode model ids, and guessing a provider here would break the agent on
+ *     every setup that does not use that provider.
+ */
+export function claudeAgentToOpenCode(text) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
+  if (!match) return text;
+  const [, front, body] = match;
+
+  let description = "";
+  let toolsCsv = "";
+  for (const line of front.split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx <= 0 || /^\s/.test(line)) continue;
+    const key = line.slice(0, idx).trim().toLowerCase();
+    const value = line.slice(idx + 1).trim();
+    if (key === "description") description = value;
+    else if (key === "tools") toolsCsv = value;
+  }
+
+  const allowed = new Set();
+  for (const raw of toolsCsv.split(",")) {
+    const mapped = CLAUDE_TO_OPENCODE_TOOLS[raw.trim().toLowerCase()];
+    if (mapped) allowed.add(mapped);
+  }
+
+  const lines = ["---"];
+  if (description) lines.push(`description: ${quoteYamlValue(description)}`);
+  lines.push("mode: subagent");
+  if (toolsCsv) {
+    lines.push("tools:");
+    for (const tool of allowed) lines.push(`  ${tool}: true`);
+    for (const tool of OPENCODE_MUTATING_TOOLS) {
+      if (!allowed.has(tool)) lines.push(`  ${tool}: false`);
+    }
+  }
+  lines.push("---", "");
+  return `${lines.join("\n")}${body.replace(/^\r?\n/, "")}`;
+}
+
+function quoteYamlValue(value) {
+  const needsQuote = /^[>|&*!%@`{[]|:\s|#|^\s|\s$/.test(value);
+  return needsQuote ? `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"` : value;
+}
+
+/**
+ * Copy an agent definition, converting it to OpenCode's format on the way.
+ * Same contract as copySourceToTarget: existing targets are left alone unless
+ * `force`, so a hand-edited agent is not silently replaced.
+ */
+export function writeAgentToTarget(source, targetDir, force) {
+  const targetPath = path.join(targetDir, source.name);
+  if (existsSync(targetPath) && !force) {
+    return { copied: false, reason: "exists" };
+  }
+  mkdirSync(targetDir, { recursive: true });
+  writeFileSync(targetPath, claudeAgentToOpenCode(readFileSync(source.sourcePath, "utf8")));
+  return { copied: true };
+}
+
 export function copySourceToTarget(source, targetDir, force) {
+  if (source.kind === "agent") return writeAgentToTarget(source, targetDir, force);
   const targetPath = path.join(targetDir, source.name);
   const existedBefore = existsSync(targetPath);
   if (existedBefore && !force) {

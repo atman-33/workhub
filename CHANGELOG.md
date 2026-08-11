@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.74.0 (2026-08-12)
+
+- **The secretary agent now works in OpenCode too** (T-0155). OpenCode has no
+  question tool to intercept, so the vault's new
+  `.opencode/plugins/secretary-plugin.ts` supplies the sanctioned one instead:
+  the agent calls `ask_owner`, which refuses until the secretary has been
+  consulted and otherwise files the question into `_ai/comms/` — the same
+  files, ids and format Claude Code sessions produce. The same
+  `secretary_enabled` switch turns both off.
+- `sync-claude-skills` now carries plugin **agents** into `.opencode/agent/`,
+  rewritten into OpenCode's frontmatter, so an agent definition lives in one
+  place and reaches both CLIs. Alongside the secretary this also makes the
+  engineering plugin's `code-explore` / `implementer` / `heavy-implementer` /
+  `test-runner` available in OpenCode for the first time. Run
+  `/sync-claude-skills` in the vault to pick them up.
+
 ## 0.73.0 (2026-08-12)
 
 - **Secretary agent** (T-0154): agents now consult a `secretary` subagent

@@ -19,6 +19,7 @@ import path from "node:path";
 
 import {
   discoverProjectScopeSources,
+  discoverProjectScopeAgentSources,
   copySourceToTarget,
   hashArtifact,
   loadManifest,
@@ -37,6 +38,7 @@ const claudePluginsRoot = process.env.CLAUDE_PLUGINS_ROOT || undefined;
 const manifestPath = defaultProjectManifestPath(cwd);
 const targetSkillsRoot = projectSkillsTargetRoot(cwd);
 const scopeKey = "projectScope-skills";
+const agentsScopeKey = "projectScope-agents";
 
 const { sources, warnings } = discoverProjectScopeSources(cwd, claudePluginsRoot);
 
@@ -56,39 +58,61 @@ const seeded = [];
 
 const timestamp = nowIso();
 
-for (const source of sources) {
-  const targetPath = path.join(targetSkillsRoot, source.name);
-  const existedBefore = fs.existsSync(targetPath);
+function processBucket(bucketKey, bucketSources, targetRoot) {
+  for (const source of bucketSources) {
+    const targetPath = path.join(targetRoot, source.name);
 
-  if (existedBefore && !FORCE) {
-    skipped.push(source.name);
-    const bucket = manifest.buckets[scopeKey] || (manifest.buckets[scopeKey] = {});
-    if (!bucket[`skill/${source.name}`]) {
-      // First-time seeding: target predates the manifest (likely from the old
-      // non-manifest sync script). Record hashes so future drift detection works
-      // without forcing a mismatched copy.
-      const sourceHash = hashArtifact(source.sourcePath);
-      const targetHash = hashArtifact(targetPath);
-      manifestSet({ manifest, scopeKey, source, sourceHash, targetHash, copiedAt: timestamp });
-      seeded.push(`${source.pluginRef}/${source.name}`);
+    if (fs.existsSync(targetPath) && !FORCE) {
+      skipped.push(source.name);
+      const bucket = manifest.buckets[bucketKey] || (manifest.buckets[bucketKey] = {});
+      if (!bucket[`${source.kind}/${source.name}`]) {
+        // First-time seeding: target predates the manifest (likely from the old
+        // non-manifest sync script). Record hashes so future drift detection works
+        // without forcing a mismatched copy.
+        manifestSet({
+          manifest,
+          scopeKey: bucketKey,
+          source,
+          sourceHash: hashArtifact(source.sourcePath),
+          targetHash: hashArtifact(targetPath),
+          copiedAt: timestamp,
+        });
+        seeded.push(`${source.pluginRef}/${source.name}`);
+      }
+      continue;
     }
-    continue;
-  }
 
-  const result = copySourceToTarget(source, targetSkillsRoot, FORCE);
-  if (!result.copied) {
-    skipped.push(source.name);
-    continue;
-  }
+    if (!copySourceToTarget(source, targetRoot, FORCE).copied) {
+      skipped.push(source.name);
+      continue;
+    }
 
-  const sourceHash = hashArtifact(source.sourcePath);
-  const targetHash = hashArtifact(targetPath);
-  manifestSet({ manifest, scopeKey, source, sourceHash, targetHash, copiedAt: timestamp });
-  copied.push(`${source.pluginRef}/${source.name}`);
+    manifestSet({
+      manifest,
+      scopeKey: bucketKey,
+      source,
+      sourceHash: hashArtifact(source.sourcePath),
+      targetHash: hashArtifact(targetPath),
+      copiedAt: timestamp,
+    });
+    copied.push(`${source.pluginRef}/${source.name}`);
+  }
 }
+
+processBucket(scopeKey, sources, targetSkillsRoot);
+
+// Agents live in the same plugins but land in .opencode/agent/, converted to
+// OpenCode's frontmatter on the way (see claudeAgentToOpenCode).
+const agentDiscovery = discoverProjectScopeAgentSources(cwd, claudePluginsRoot);
+if (agentDiscovery.sources.length > 0) {
+  fs.mkdirSync(agentDiscovery.targetRoot, { recursive: true });
+  processBucket(agentsScopeKey, agentDiscovery.sources, agentDiscovery.targetRoot);
+}
+warnings.push(...agentDiscovery.warnings);
 
 // Drop manifest entries whose target disappeared (user rm'd the dir manually).
 pruneManifestMissingTargets(manifest, scopeKey, targetSkillsRoot);
+pruneManifestMissingTargets(manifest, agentsScopeKey, agentDiscovery.targetRoot);
 
 writeManifest(manifestPath, manifest);
 

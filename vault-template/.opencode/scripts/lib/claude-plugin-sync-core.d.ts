@@ -1,7 +1,7 @@
 // Type declarations for the .mjs core used by the TypeScript reminder plugin.
 // Kept in sync with the JSDoc/exports in claude-plugin-sync-core.mjs.
 
-export type ArtifactKind = "skill" | "command";
+export type ArtifactKind = "skill" | "command" | "agent";
 
 export interface ArtifactSource {
   kind: ArtifactKind;
@@ -51,6 +51,7 @@ export interface DriftReportBucket {
 
 export interface FullDriftReport {
   projectScope: DriftReportBucket;
+  projectAgents?: DriftReportBucket;
   userScope: DriftReportBucket[];
   warnings: string[];
 }
@@ -79,6 +80,7 @@ export function defaultOpenCodeGlobalRoot(): string;
 export function defaultProjectManifestPath(cwd: string): string;
 export function defaultUserManifestPath(openCodeGlobalRoot: string): string;
 export function projectSkillsTargetRoot(cwd: string): string;
+export function projectAgentsTargetRoot(cwd: string): string;
 export function userSkillsTargetRoot(openCodeGlobalRoot: string): string;
 export function userCommandsTargetRoot(openCodeGlobalRoot: string): string;
 export function userListCachePath(): string;
@@ -157,6 +159,12 @@ export function detectProjectScopeDrift(args: {
   manifestPath?: string;
 }): DriftReportBucket;
 
+export function detectProjectScopeAgentDrift(args: {
+  cwd: string;
+  claudePluginsRoot?: string;
+  manifestPath?: string;
+}): DriftReportBucket;
+
 export function detectUserScopeDrift(args: {
   claudePluginsRoot?: string;
   openCodeGlobalRoot?: string;
@@ -181,6 +189,14 @@ export function copySourceToTarget(
   targetDir: string,
   force: boolean,
 ): CopyResult;
+
+export function writeAgentToTarget(
+  source: ArtifactSource,
+  targetDir: string,
+  force: boolean,
+): CopyResult;
+
+export function claudeAgentToOpenCode(text: string): string;
 
 export function logSection(label: string, items: string[]): void;
 export function nowIso(): string;

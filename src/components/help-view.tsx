@@ -212,7 +212,8 @@ Agents ask you for a decision far more often than they need to, because nothing 
 - **How a session uses it**: before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
 - **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
 - **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules. The more you record there, the less the secretary escalates.
-- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (on by default). Consulting the secretary costs tokens because it is a subagent; with the switch off nothing is injected and nothing is consulted, so the cost is zero. Deleting the policy note has the same effect.`;
+- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (on by default). Consulting the secretary costs tokens because it is a subagent; with the switch off nothing is injected and nothing is consulted, so the cost is zero. Deleting the policy note has the same effect.
+- **Both agent CLIs**: Claude Code sessions get this through the workhub plugin's hooks. OpenCode sessions get it through \`.opencode/plugins/secretary-plugin.ts\`, where filing a question is a tool the agent calls (\`ask_owner\`). Run \`/sync-claude-skills\` in the vault once so the secretary agent itself lands in \`.opencode/agent/\`.`;
 
 const CUSTOM_PROMPT_MD = `## Your own instructions in every agent prompt
 
@@ -747,6 +748,19 @@ export function HelpView() {
                 (on by default). Consulting the secretary costs tokens because it is a
                 subagent; with the switch off nothing is injected and nothing is consulted,
                 so the cost is zero. Deleting the policy note has the same effect.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Both agent CLIs</span>: Claude
+                Code sessions get this through the workhub plugin&apos;s hooks. OpenCode
+                sessions get it through{" "}
+                <span className="font-mono text-xs">
+                  .opencode/plugins/secretary-plugin.ts
+                </span>
+                , where filing a question is a tool the agent calls (
+                <span className="font-mono text-xs">ask_owner</span>). Run{" "}
+                <span className="font-mono text-xs">/sync-claude-skills</span> in the vault
+                once so the secretary agent itself lands in{" "}
+                <span className="font-mono text-xs">.opencode/agent/</span>.
               </li>
             </ul>
           </Section>
