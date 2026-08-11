@@ -30,6 +30,9 @@ export interface Settings {
   memory_claude_code: boolean;
   /** Long-term memory adapter in OpenCode sessions (capture + inject). */
   memory_opencode: boolean;
+  /** Secretary agent (T-0154): agents consult a `secretary` subagent before
+   * interrupting the owner, and file what it escalates into `_ai/comms/`. */
+  secretary_enabled: boolean;
   /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
   ink_enabled: boolean;
   vault_path: string | null;

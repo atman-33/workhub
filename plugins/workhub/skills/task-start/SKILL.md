@@ -34,6 +34,17 @@ argument-hint: "<task-id>"
      often written in an earlier session that ran out of context, or by a
      different agent CLI. Treat it as settled: follow it instead of
      re-planning, say so up front, and ask before deviating from it.
+   - **Pick up answers waiting for this task.** A question filed for the owner
+     lives in `<vault>/_ai/comms/`; the answer arrives asynchronously, so a
+     resumed task must read it before doing anything else:
+
+     ```bash
+     node "${CLAUDE_PLUGIN_ROOT}/scripts/comms-cli.mjs" list --status answered --task <task-id>
+     ```
+
+     Read each listed file's `## Answer`, act on it, and clear the block with
+     `task-cli.mjs update <task-id> --blocked false`. Questions still
+     `pending` are unanswered — do not ask them again.
 3. **Resolve the target repository** from the `project` frontmatter key:
    - If it's an absolute path, use it directly.
    - Otherwise look for `C:/repos/<project>`.
@@ -76,6 +87,9 @@ argument-hint: "<task-id>"
 ## Rules
 
 - Allowed status transitions for AI: `inbox/todo → doing` only.
+- Before interrupting the owner with a question, consult the `secretary`
+  subagent; file what it escalates with `scripts/comms-cli.mjs ask` and mark
+  the task blocked instead of waiting on the terminal.
 - When the work is finished, always finish with the `task-report` skill —
   do not edit the task's `## Results` or status directly here.
 - The language of `## Plan` and `## Results` follows the workhub **Task

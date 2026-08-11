@@ -12,6 +12,7 @@
 //   node task-cli.mjs start  <id>
 //   node task-cli.mjs update <id> [--status s] [--assignee a] [--project p]
 //                                 [--priority p] [--model m] [--due d]
+//                                 [--blocked true|false] [--blocked-note "..."]
 //   node task-cli.mjs report <id>
 //   (all commands accept --vault <path>)
 //
@@ -101,10 +102,31 @@ function unquote(s) {
   return t;
 }
 
+// Keys this CLI knows how to render. Anything else in a task's frontmatter
+// (`confirm`, `worktree`, `blocked*`, hand-added keys) is carried through
+// verbatim — dropping it would silently lose task state on every write.
+const KNOWN_KEYS = new Set([
+  "id",
+  "title",
+  "status",
+  "assignee",
+  "project",
+  "priority",
+  "model",
+  "order",
+  "due",
+  "tags",
+  "archived",
+  "created",
+  "updated",
+]);
+
 function parseFrontmatter(front) {
   const map = {};
+  const extra = [];
   let tags = [];
   let inTagsBlock = false;
+  let inExtraBlock = false;
   for (const rawLine of front.split("\n")) {
     const line = rawLine.replace(/\s+$/, "");
     if (inTagsBlock) {
@@ -117,10 +139,21 @@ function parseFrontmatter(front) {
       }
       inTagsBlock = false;
     }
+    // Continuation lines (list items, indented values) belong to the key above.
+    if (inExtraBlock && (line.startsWith(" ") || line.startsWith("\t") || line.startsWith("- "))) {
+      extra.push(line);
+      continue;
+    }
+    inExtraBlock = false;
     const idx = line.indexOf(":");
     if (idx < 0) continue;
     const key = line.slice(0, idx).trim();
     const val = line.slice(idx + 1).trim();
+    if (!KNOWN_KEYS.has(key)) {
+      extra.push(line);
+      inExtraBlock = true;
+      continue;
+    }
     if (key === "tags") {
       if (val === "") {
         inTagsBlock = true;
@@ -138,7 +171,7 @@ function parseFrontmatter(front) {
       map[key] = unquote(val);
     }
   }
-  return { map, tags };
+  return { map, tags, extra };
 }
 
 function yamlScalar(s) {
@@ -162,6 +195,9 @@ function renderFrontmatter(t) {
   // JS String(3) is "3" (never "3.0"), matching the Rust render_order rule.
   const orderLine = t.order !== null && t.order !== undefined ? `order: ${String(t.order)}\n` : "";
   const archivedLine = t.archived ? "archived: true\n" : "";
+  // Keys the CLI does not manage, in their original order and position
+  // (between `archived` and `created`, matching the documented schema).
+  const extraLines = t.extra?.length ? `${t.extra.join("\n")}\n` : "";
   return (
     `---\n` +
     `id: ${t.id}\n` +
@@ -175,6 +211,7 @@ function renderFrontmatter(t) {
     `due: ${t.due}\n` +
     `tags: ${renderTags(t.tags)}\n` +
     archivedLine +
+    extraLines +
     `created: ${t.created}\n` +
     `updated: ${t.updated}\n` +
     `---\n`
@@ -184,7 +221,7 @@ function renderFrontmatter(t) {
 function parseTaskFile(file) {
   const content = fs.readFileSync(file, "utf-8");
   const { front, body } = splitFrontmatter(content);
-  const { map, tags } = parseFrontmatter(front);
+  const { map, tags, extra } = parseFrontmatter(front);
   const get = (k, dflt = "") => map[k] ?? dflt;
   const orderRaw = map.order !== undefined ? Number(map.order) : NaN;
   return {
@@ -199,6 +236,7 @@ function parseTaskFile(file) {
     due: get("due"),
     tags,
     archived: map.archived === "true",
+    extra,
     created: get("created"),
     updated: get("updated"),
     file: file.replaceAll("\\", "/"),
@@ -323,7 +361,33 @@ function applyUpdates(task, flags) {
       changed = true;
     }
   }
+  if (flags.blocked !== undefined) {
+    applyBlocked(task, flags);
+    changed = true;
+  }
   return changed;
+}
+
+/**
+ * `blocked` / `blocked_note` / `blocked_since` live in the carried-through
+ * `extra` lines. Blocking records today as the start of the wait (the board
+ * counts days from it); unblocking clears all three.
+ */
+function applyBlocked(task, flags) {
+  const existing = task.extra ?? [];
+  const keep = existing.filter((line) => !/^blocked(_note|_since)?\s*:/.test(line.trimStart()));
+  if (flags.blocked === "false") {
+    task.extra = keep;
+    return;
+  }
+  // Re-blocking an already-blocked task must not restart the day counter.
+  const since = existing.find((line) => /^blocked_since\s*:/.test(line.trimStart()));
+  const lines = ["blocked: true"];
+  if (typeof flags["blocked-note"] === "string") {
+    lines.push(`blocked_note: ${yamlScalar(flags["blocked-note"])}`);
+  }
+  lines.push(since ?? `blocked_since: ${today()}`);
+  task.extra = [...keep, ...lines];
 }
 
 function cmdStart(vault, id) {
@@ -349,7 +413,9 @@ function cmdStart(vault, id) {
 function cmdUpdate(vault, id, flags) {
   const task = findTask(vault, id);
   if (!applyUpdates(task, flags)) {
-    fail("nothing to update — pass at least one of --status/--assignee/--project/--priority/--model/--due");
+    fail(
+      "nothing to update — pass at least one of --status/--assignee/--project/--priority/--model/--due/--blocked",
+    );
   }
   task.updated = today();
   writeTaskFile(task);

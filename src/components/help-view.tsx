@@ -16,6 +16,7 @@ import {
   Repeat,
   Rocket,
   Sparkles,
+  UserRoundCheck,
 } from "lucide-react";
 import {
   Accordion,
@@ -203,6 +204,17 @@ Gives every agent session on the vault — Claude Code and OpenCode — a memory
 - **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
 - The setup banner can be disabled in **⚙ Settings → General → Notify when long-term memory is not set up on this machine**.`;
 
+const SECRETARY_MD = `## The secretary agent — fewer interruptions
+
+Agents ask you for a decision far more often than they need to, because nothing tells them what you would have said. The secretary is a small subagent that answers those questions from a policy you write once, and only forwards what it genuinely cannot decide.
+
+- **Write your policy first**: \`knowledge/profile/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, and how to handle the gray zone. The secretary treats it as its only authority — anything the note does not cover is escalated, so it errs toward asking.
+- **How a session uses it**: before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
+- **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
+- **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules. The more you record there, the less the secretary escalates.
+- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (on by default). Consulting the secretary costs tokens because it is a subagent; with the switch off nothing is injected and nothing is consulted, so the cost is zero. Deleting the policy note has the same effect.
+- **Both agent CLIs**: Claude Code sessions get this through the workhub plugin's hooks. OpenCode sessions get it through \`.opencode/plugins/secretary-plugin.ts\`, where filing a question is a tool the agent calls (\`ask_owner\`). Run \`/sync-claude-skills\` in the vault once so the secretary agent itself lands in \`.opencode/agent/\`.`;
+
 const CUSTOM_PROMPT_MD = `## Your own instructions in every agent prompt
 
 Every task you hand to an agent — by launching it or by copying its prompt — is sent with a generated prompt telling the agent which task to work and how to report back. **⚙ Settings → Commands → Custom prompt** lets you append your own standing instructions to it.
@@ -224,6 +236,7 @@ const ALL_MD = [
   SETUP_MD,
   TEMPLATE_MD,
   MEMORY_MD,
+  SECRETARY_MD,
   CUSTOM_PROMPT_MD,
   CLAUDE_DESKTOP_MD,
   INK_MD,
@@ -293,6 +306,7 @@ const SECTIONS = [
   { value: "setup", title: "Initial setup", icon: Rocket },
   { value: "template", title: "Vault template updates", icon: FileDiff },
   { value: "memory", title: "Long-term memory", icon: BrainCircuit },
+  { value: "secretary", title: "Secretary agent", icon: UserRoundCheck },
   { value: "custom-prompt", title: "Your own instructions", icon: MessageSquarePlus },
   { value: "ink", title: "Screen annotation", icon: PenLine },
   { value: "quick-capture", title: "Quick capture", icon: Keyboard },
@@ -671,6 +685,82 @@ export function HelpView() {
                   this machine
                 </span>
                 .
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={UserRoundCheck}
+            title="The secretary agent — fewer interruptions"
+            value="secretary"
+            markdown={SECRETARY_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              Agents ask you for a decision far more often than they need to, because
+              nothing tells them what you would have said. The secretary is a small
+              subagent that answers those questions from a policy you write once, and
+              only forwards what it genuinely cannot decide.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium text-foreground">Write your policy first</span>:{" "}
+                <span className="font-mono text-xs">
+                  knowledge/profile/decision-policy.md
+                </span>{" "}
+                in the vault (seeded by the vault template) lists what an agent may do
+                without asking, what must always come to you, and how to handle the gray
+                zone. The secretary treats it as its only authority — anything the note
+                does not cover is escalated, so it errs toward asking.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">How a session uses it</span>:
+                before interrupting you, the agent consults the secretary. A{" "}
+                <span className="font-medium">DECIDE</span> answer is acted on and logged
+                as one line in{" "}
+                <span className="font-mono text-xs">_ai/logs/decisions.md</span>, so you
+                can audit its judgement later and correct the policy where it got it
+                wrong. An <span className="font-medium">ESCALATE</span> answer is filed as
+                a question in <span className="font-mono text-xs">_ai/comms/</span> and the
+                task is marked blocked, so the agent stops waiting on the terminal and
+                moves on.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Answering</span>: filed
+                questions are ordinary Markdown — open{" "}
+                <span className="font-mono text-xs">_ai/comms/</span> in Obsidian, write
+                under <span className="font-mono text-xs">## Answer</span>, and set{" "}
+                <span className="font-mono text-xs">status: answered</span>. The next
+                session on that task reads the answer before doing anything else.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Growing it</span>: the
+                policy&apos;s <span className="font-medium">Past decisions</span> section is
+                where answered questions turn into standing rules. The more you record
+                there, the less the secretary escalates.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Switch</span>:{" "}
+                <span className="font-medium">
+                  ⚙ Settings → General → Consult the secretary before asking me
+                </span>{" "}
+                (on by default). Consulting the secretary costs tokens because it is a
+                subagent; with the switch off nothing is injected and nothing is consulted,
+                so the cost is zero. Deleting the policy note has the same effect.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Both agent CLIs</span>: Claude
+                Code sessions get this through the workhub plugin&apos;s hooks. OpenCode
+                sessions get it through{" "}
+                <span className="font-mono text-xs">
+                  .opencode/plugins/secretary-plugin.ts
+                </span>
+                , where filing a question is a tool the agent calls (
+                <span className="font-mono text-xs">ask_owner</span>). Run{" "}
+                <span className="font-mono text-xs">/sync-claude-skills</span> in the vault
+                once so the secretary agent itself lands in{" "}
+                <span className="font-mono text-xs">.opencode/agent/</span>.
               </li>
             </ul>
           </Section>
