@@ -52,6 +52,9 @@ argument-hint: "<task-id>"
   reviewing.
 - If the work is incomplete or blocked, still report: describe the blocker in
   `## Results`, keep `status: doing`, and leave the active-task marker in place.
+  When the blocker is a question filed for the owner (`_ai/comms/`), name the
+  question id and mark the task blocked so the board shows the wait:
+  `task-cli.mjs update <id> --blocked true --blocked-note "waiting on Q-0001"`.
 - Do not overwrite existing human notes; create new ones and link them.
 - Never modify the task's `## Plan` section — it is the approved plan and the
   user's approval record, not a place for results.

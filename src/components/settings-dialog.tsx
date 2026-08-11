@@ -115,6 +115,7 @@ const DEFAULTS: Settings = {
   check_memory_setup: true,
   memory_claude_code: true,
   memory_opencode: true,
+  secretary_enabled: true,
   ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
@@ -390,6 +391,22 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   />
                   Enabled in OpenCode sessions
                 </label>
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Secretary agent</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.secretary_enabled}
+                    onCheckedChange={(v) => setDraft({ ...draft, secretary_enabled: v === true })}
+                  />
+                  Consult the secretary before asking me
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Agents check your decision policy (
+                  <code>knowledge/profile/decision-policy.md</code>) through a secretary subagent
+                  and file what it cannot decide into <code>_ai/comms/</code> instead of
+                  interrupting you. Consulting costs tokens; turning this off skips it entirely.
+                </p>
               </div>
               <div className="space-y-2 rounded-md border p-3">
                 <p className="text-sm font-medium">Features</p>

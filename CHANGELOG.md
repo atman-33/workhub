@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.73.0 (2026-08-12)
+
+- **Secretary agent** (T-0154): agents now consult a `secretary` subagent
+  before interrupting you with a decision. It answers from your own policy in
+  `knowledge/profile/decision-policy.md` — seeded by the vault template — and
+  logs what it decides to `_ai/logs/decisions.md` so you can audit it. What it
+  cannot decide is filed as a question in `_ai/comms/` and the task is marked
+  blocked, so the agent stops waiting on a terminal you are not watching and
+  you answer in Obsidian when it suits you. **⚙ Settings → General → Consult
+  the secretary before asking me** turns the whole mechanism off; with it off
+  nothing is injected or consulted, so it costs no tokens. See the **Help** tab
+  for the full flow. Run the vault template sync to pick up the policy note.
+- Fixed: `task-cli` silently dropped frontmatter keys it does not manage —
+  `confirm`, `worktree` and the `blocked*` trio were erased from a task file
+  every time an agent started, updated or reported that task. Unknown keys are
+  now carried through untouched, and `update` gained
+  `--blocked true|false` / `--blocked-note` so agents stop hand-editing them.
+
 ## 0.72.1 (2026-08-10)
 
 - **Project link collection** (T-0143): the project template now ships a
