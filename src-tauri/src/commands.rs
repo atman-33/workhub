@@ -529,6 +529,22 @@ pub async fn create_schedule(
     .map_err(|e| e.to_string())?
 }
 
+/// Renames a schedule note: its frontmatter `title` and its file name move
+/// together, and its snapshot follows the new path. Returns the note at its new
+/// location, so the caller can reselect it (T-0157).
+#[tauri::command]
+pub async fn rename_schedule(
+    vault_path: String,
+    path: String,
+    title: String,
+) -> Result<ScheduleFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::rename_schedule(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Writes a frontend-generated, self-contained HTML export to disk (T-0090).
 #[tauri::command]
 pub async fn export_schedule_html(out_path: String, html: String) -> Result<(), String> {

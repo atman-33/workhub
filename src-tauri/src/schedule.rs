@@ -331,6 +331,100 @@ pub fn create_schedule(
     })
 }
 
+/// Renames a schedule note (T-0157). The frontmatter `title` and the file name
+/// move **together**: `create_schedule` derives one from the other, so letting
+/// them drift would leave a note whose name in the app and name in Obsidian
+/// disagree.
+///
+/// Everything else about the file is preserved — only `title` and `updated` are
+/// rewritten, and the body (including `## Memo`) is carried over untouched.
+/// The snapshot travels with the note, since it is keyed by path and an undo
+/// left behind at the old key could never be found again.
+pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<ScheduleFile, String> {
+    let title = new_title.trim();
+    if title.is_empty() {
+        return Err("a schedule name is required".into());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let Some((front, body)) = split_frontmatter(&content) else {
+        return Err("this file is not a schedule note (no frontmatter block)".into());
+    };
+    let dir = path
+        .parent()
+        .ok_or_else(|| "the schedule path has no parent folder".to_string())?;
+
+    // Same collision rule as `create_schedule`, except that the note's own file
+    // is not a collision — renaming "plan" to "plan" (or only changing its
+    // case) must not produce "plan 2".
+    let same_file = |candidate: &Path| norm_path(candidate).eq_ignore_ascii_case(&norm_path(path));
+    let mut target = dir.join(format!("{}.md", sanitize_filename(title)));
+    let mut n = 2;
+    while target.exists() && !same_file(&target) {
+        target = dir.join(format!("{} {n}.md", sanitize_filename(title)));
+        n += 1;
+    }
+
+    let now = today();
+    let mut front_out = String::new();
+    let (mut saw_title, mut saw_updated) = (false, false);
+    for line in front.lines() {
+        let key = line
+            .find(':')
+            .map(|i| line[..i].trim())
+            .unwrap_or_default()
+            .to_string();
+        match key.as_str() {
+            "title" => {
+                front_out.push_str(&format!("title: {title}\n"));
+                saw_title = true;
+            }
+            "updated" => {
+                front_out.push_str(&format!("updated: {now}\n"));
+                saw_updated = true;
+            }
+            _ => {
+                front_out.push_str(line);
+                front_out.push('\n');
+            }
+        }
+    }
+    if !saw_title {
+        front_out.push_str(&format!("title: {title}\n"));
+    }
+    if !saw_updated {
+        front_out.push_str(&format!("updated: {now}\n"));
+    }
+    let updated_content = format!("---\n{front_out}---\n{body}");
+    fs::write(path, &updated_content).map_err(|e| e.to_string())?;
+
+    // Compared exactly here, not case-insensitively: renaming "plan" to "Plan"
+    // is a real rename the user asked for, even though the two names collide on
+    // Windows.
+    if norm_path(&target) != norm_path(path) {
+        fs::rename(path, &target).map_err(|e| e.to_string())?;
+        let (old_snap, new_snap) = (snapshot_path(vault, path), snapshot_path(vault, &target));
+        if old_snap.exists() && old_snap != new_snap {
+            if let Some(parent) = new_snap.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            fs::rename(&old_snap, &new_snap).map_err(|e| e.to_string())?;
+        }
+    }
+
+    let project = dir
+        .parent()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    Ok(ScheduleFile {
+        path: norm_path(&target),
+        project,
+        title: title.to_string(),
+        range: frontmatter_value(&front, "range"),
+        updated: now,
+    })
+}
+
 /// Writes a generated HTML export. Kept in Rust (rather than a frontend
 /// download) so the default destination can be the project's `attachments/`
 /// folder inside the vault — the export is part of the project record, not a
@@ -481,6 +575,85 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         assert!(write_schedule(&path, "", 0).is_err());
         assert!(write_schedule(&path, "no frontmatter here", 0).is_err());
         assert!(write_schedule(&path, "---\ntype: schedule\n---\n\n## Items\n", 0).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_moves_the_title_and_the_file_together() {
+        let vault = temp_vault("rename");
+        let created = create_schedule(&vault, "demo", "plan", "2026-07-20..2026-08-31").unwrap();
+        let path = PathBuf::from(&created.path);
+        let with_memo = read_schedule(&path)
+            .unwrap()
+            .content
+            .replace("## Memo\n", "## Memo\n\nhuman prose\n");
+        write_schedule(&path, &with_memo, 0).unwrap();
+
+        let renamed = rename_schedule(&vault, &path, "  2026Q3 plan  ").unwrap();
+        assert!(renamed
+            .path
+            .ends_with("projects/demo/schedules/2026Q3 plan.md"));
+        assert_eq!(renamed.title, "2026Q3 plan");
+        assert_eq!(renamed.project, "demo");
+        assert_eq!(renamed.range, "2026-07-20..2026-08-31");
+        assert!(!path.exists());
+
+        let doc = read_schedule(&PathBuf::from(&renamed.path)).unwrap();
+        assert!(doc.content.contains("title: 2026Q3 plan"));
+        assert!(doc.content.contains(&format!("updated: {}", today())));
+        assert!(doc.content.contains("human prose"));
+
+        // The picker sees exactly one note, under its new name.
+        let listed = list_schedules(&vault, None).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].title, "2026Q3 plan");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_never_overwrites_another_note() {
+        let vault = temp_vault("rename-dup");
+        create_schedule(&vault, "demo", "taken", "").unwrap();
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+
+        let renamed = rename_schedule(&vault, &path, "taken").unwrap();
+        assert!(renamed.path.ends_with("taken 2.md"));
+        assert_eq!(list_schedules(&vault, None).unwrap().len(), 2);
+
+        // Renaming a note to the name it already has is not a collision.
+        let same = rename_schedule(&vault, &PathBuf::from(&renamed.path), "taken 2").unwrap();
+        assert_eq!(same.path, renamed.path);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_carries_the_snapshot_to_the_new_path() {
+        let vault = temp_vault("rename-snapshot");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+        let original = read_schedule(&path).unwrap().content;
+        save_snapshot(&vault, &path).unwrap();
+
+        let renamed = rename_schedule(&vault, &path, "later").unwrap();
+        let new_path = PathBuf::from(&renamed.path);
+        assert!(!has_snapshot(&vault, &path));
+        assert!(has_snapshot(&vault, &new_path));
+
+        // The undo still restores the pre-rename content (title included), so
+        // an AI edit made before the rename remains undoable after it.
+        let restored = restore_snapshot(&vault, &new_path).unwrap();
+        assert_eq!(restored.content, original);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_rejects_an_empty_title() {
+        let vault = temp_vault("rename-empty");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+        assert!(rename_schedule(&vault, &path, "   ").is_err());
+        assert!(path.exists());
         fs::remove_dir_all(&vault).ok();
     }
 

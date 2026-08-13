@@ -105,6 +105,10 @@ export const api = {
     invoke<number>("write_schedule", { path, content, expectedMtime }),
   createSchedule: (vaultPath: string, project: string, title: string, range: string) =>
     invoke<ScheduleFile>("create_schedule", { vaultPath, project, title, range }),
+  /** Renames a note: frontmatter `title` and file name move together. Returns
+   * the note at its new path, which the caller must reselect. */
+  renameSchedule: (vaultPath: string, path: string, title: string) =>
+    invoke<ScheduleFile>("rename_schedule", { vaultPath, path, title }),
   exportScheduleHtml: (outPath: string, html: string) =>
     invoke<void>("export_schedule_html", { outPath, html }),
   runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>
