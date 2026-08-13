@@ -1,6 +1,6 @@
 {
   "name": "workhub",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall), the secretary agent that fields the owner's decisions, plus the workhub app's own release procedure (release-app).",
   "author": {
     "name": "atman-33",

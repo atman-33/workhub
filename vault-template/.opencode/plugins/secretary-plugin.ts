@@ -16,9 +16,10 @@
 // stop a model that simply asks in prose. The injected rule is what covers
 // that case, on both harnesses.
 //
-// Everything no-ops when the workhub app setting `secretary_enabled` is false
-// (~/.workhub/config.json) or the vault has no decision policy for the
-// secretary to judge from.
+// Everything no-ops unless the workhub app setting `secretary_enabled` is
+// explicitly true (~/.workhub/config.json) — it is off by default, since
+// consulting a subagent costs tokens — or when the vault has no decision policy
+// for the secretary to judge from.
 import type { Plugin } from "@opencode-ai/plugin";
 import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
 import {
@@ -120,7 +121,7 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     ? join(vault, "knowledge", "profile", "decision-policy.md")
     : null;
   const active =
-    readAppConfig().settings?.secretary_enabled !== false &&
+    readAppConfig().settings?.secretary_enabled === true &&
     !!vault &&
     !!policyPath &&
     existsSync(policyPath);

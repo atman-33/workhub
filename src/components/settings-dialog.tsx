@@ -115,7 +115,7 @@ const DEFAULTS: Settings = {
   check_memory_setup: true,
   memory_claude_code: true,
   memory_opencode: true,
-  secretary_enabled: true,
+  secretary_enabled: false,
   ink_enabled: true,
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
@@ -405,7 +405,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   Agents check your decision policy (
                   <code>knowledge/profile/decision-policy.md</code>) through a secretary subagent
                   and file what it cannot decide into <code>_ai/comms/</code> instead of
-                  interrupting you. Consulting costs tokens; turning this off skips it entirely.
+                  interrupting you. Consulting costs tokens, so this is off by default; turn it on
+                  to enable it in both Claude Code and OpenCode sessions.
                 </p>
               </div>
               <div className="space-y-2 rounded-md border p-3">

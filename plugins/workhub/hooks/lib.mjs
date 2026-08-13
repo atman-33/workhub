@@ -33,11 +33,13 @@ export function resolveVault() {
 
 /**
  * Secretary agent switch from the workhub app settings. Consulting the
- * secretary costs tokens (it is a subagent), so the user can turn the whole
- * mechanism off in ⚙ Settings. Missing config or field means enabled.
+ * secretary costs tokens (it is a subagent), so it is off by default and the
+ * user turns it on in ⚙ Settings. Missing config or field means disabled —
+ * the app stores the same default, and a hook that assumed the opposite would
+ * run the secretary behind a Settings toggle that reads "off".
  */
 export function secretaryEnabled() {
-  return readConfig().settings?.secretary_enabled !== false;
+  return readConfig().settings?.secretary_enabled === true;
 }
 
 /** Read the hook payload from stdin as JSON. */

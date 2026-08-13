@@ -46,9 +46,12 @@ Two consequences worth keeping in mind before changing any of them:
   stands down for the rest of the session. Keep it small, and keep the state
   per-session (`~/.workhub/secretary/<session-id>.json`).
 
-Everything switches off through `settings.secretary_enabled` in
-`~/.workhub/config.json`, and every hook checks it first — with the feature off
-nothing is injected and nothing is consulted, which is the point (consulting a
-subagent costs tokens). The hooks also stay silent when the vault has no
+Everything hangs off `settings.secretary_enabled` in `~/.workhub/config.json`,
+and every hook checks it first — with the feature off nothing is injected and
+nothing is consulted, which is the point (consulting a subagent costs tokens).
+**The flag is off by default (T-0158), and a missing config or missing key
+counts as off**: hooks test `=== true`, never `!== false`, so a machine with no
+config never runs the secretary behind a Settings toggle that reads "off". The
+hooks also stay silent when the vault has no
 `knowledge/profile/decision-policy.md`, since the secretary would have no
 authority to judge from.
