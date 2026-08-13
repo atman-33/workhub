@@ -137,7 +137,7 @@ const SCHEDULE_MD = `## Planning dates (Schedule)
 
 The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
 
-- A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. Copy the file in Obsidian to compare alternatives.
+- A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. The pencil beside that dropdown renames the open schedule — the title and the file name move together. Copy the file in Obsidian to compare alternatives.
 - **Calendar or Timeline** — the same note drawn two ways, switched in the toolbar. **Calendar** is the week grid below, for deciding days. **Timeline** is the long-range ("大日程") view: months across the top, phases as bands running left to right, milestones as diamonds — the shape you would draw on paper for a quarter or a year. Switching to Timeline widens a short range to about six months; **3m / 6m / 1y** set it directly. Elements are the same in both views, so a phase moved in one has moved in the other.
 - **Sprints on the timeline**: press **Sprints** (Timeline only) to number the header \`S1\`, \`S2\`, … Set the day sprint 1 starts and the length in weeks; boundaries appear as vertical lines. The cadence is stored in the note itself (\`sprint_start\` / \`sprint_weeks\` in its frontmatter), so two plans of the same project can compare different cadences. Sprints are only a reading of the calendar — they never move an element or round a date.
 - **On the timeline**, drag an element to move it and its edges to resize it, exactly as in the calendar; hold **Shift** while dragging to snap to whole weeks. Drag across empty chart to pick a period, then right-click to add an element or mark the day non-working. Tasks with a due date show as small dashed ticks under the axis (drag them on the calendar, where a day is wide enough to aim at).
@@ -1083,7 +1083,9 @@ export function HelpView() {
                 </span>
                 . Pick a project, then <span className="font-medium">New</span>{" "}
                 to create one, or open an existing note from the second
-                dropdown. Copy the file in Obsidian to compare alternatives.
+                dropdown. The pencil beside that dropdown renames the open
+                schedule — the title and the file name move together. Copy the
+                file in Obsidian to compare alternatives.
               </li>
               <li>
                 <span className="font-medium text-foreground">

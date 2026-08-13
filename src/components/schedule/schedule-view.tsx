@@ -7,6 +7,7 @@ import {
   GanttChart,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   Plus,
   RefreshCw,
 } from "lucide-react";
@@ -122,6 +123,8 @@ export function ScheduleView({ configVersion }: Props) {
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameTitle, setRenameTitle] = useState("");
   const [mode, setMode] = useState<ViewMode>("calendar");
   // Session-only: the calendar reads better at full width when reviewing or
   // before an export, but that is a preference for a moment, not for a
@@ -235,6 +238,7 @@ export function ScheduleView({ configVersion }: Props) {
       setDoc(next);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
         void (async () => {
           const content = serializeSchedule(source.current.content, next, toISO(new Date()));
           try {
@@ -252,6 +256,23 @@ export function ScheduleView({ configVersion }: Props) {
     },
     [aiRunning, path, loadDoc],
   );
+
+  /**
+   * Writes a pending debounced edit now, so an operation that moves the file
+   * out from under the timer cannot lose it. Without this, a rename would let
+   * the timer fire against the old path — and since a guarded write skips its
+   * mtime check when the file is gone, that would *recreate* the note under its
+   * old name.
+   */
+  const flushSave = useCallback(async () => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    if (!doc || !path) return;
+    const content = serializeSchedule(source.current.content, doc, toISO(new Date()));
+    const mtime = await api.writeSchedule(path, content, source.current.mtime);
+    source.current = { content, mtime };
+  }, [doc, path]);
 
   /**
    * Applies a user edit: records the previous state for undo, then writes.
@@ -328,6 +349,27 @@ export function ScheduleView({ configVersion }: Props) {
     () => project || files.find((f) => f.path === path)?.project || "",
     [project, files, path],
   );
+
+  /**
+   * Renames the open note. The file name moves with the title, so the open path
+   * changes: reselect it and reload, or the next write would guard against an
+   * mtime the file no longer has.
+   */
+  const handleRename = useCallback(async () => {
+    const title = renameTitle.trim();
+    if (!vaultPath || !path || !title) return;
+    try {
+      await flushSave();
+      const renamed = await api.renameSchedule(vaultPath, path, title);
+      setRenaming(false);
+      await loadFiles();
+      setPath(renamed.path);
+      await loadDoc(renamed.path);
+      setStatus("");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [renameTitle, vaultPath, path, flushSave, loadFiles, loadDoc]);
 
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
@@ -522,6 +564,53 @@ export function ScheduleView({ configVersion }: Props) {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Renaming lives next to the picker that shows the name being
+            changed. The note's title and its file name move together, so this
+            is also how the file is renamed in the vault. */}
+        <Popover
+          open={renaming}
+          onOpenChange={(open) => {
+            setRenaming(open);
+            if (open) setRenameTitle(files.find((f) => f.path === path)?.title ?? "");
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              // While the agent holds the file, moving it would pull the file
+              // out from under the run.
+              disabled={!path || aiRunning}
+              title={aiRunning ? "An AI edit is running" : "Rename this schedule"}
+            >
+              <Pencil className="size-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 space-y-2 p-3 text-xs">
+            <div className="text-muted-foreground">
+              Renames the note and its file in the vault
+            </div>
+            <Input
+              value={renameTitle}
+              placeholder="Schedule name"
+              className="h-8 text-xs"
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameTitle.trim()) void handleRename();
+              }}
+            />
+            <Button
+              size="sm"
+              className="h-7 w-full text-xs"
+              disabled={!renameTitle.trim()}
+              onClick={() => void handleRename()}
+            >
+              Rename
+            </Button>
+          </PopoverContent>
+        </Popover>
 
         {/* Calendar or timeline: the same note at two scales. Kept next to the
             file pickers rather than off to the right, because which drawing is

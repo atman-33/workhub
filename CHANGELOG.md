@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.75.0 (2026-08-13)
+
+- **Schedules can be renamed** (T-0157). The pencil next to the schedule picker
+  renames the open note: the title in the app and the file name in the vault
+  move together, so a plan that outgrew its working name does not have to be
+  renamed twice — or recreated. An existing note is never overwritten (a
+  clashing name gets the same ` 2` suffix a new schedule would), the AI undo
+  snapshot follows the note to its new path, and an edit still waiting to be
+  saved is written before the file moves. The button is disabled while an AI
+  edit is running.
+
 ## 0.74.0 (2026-08-12)
 
 - **The secretary agent now works in OpenCode too** (T-0155). OpenCode has no

@@ -175,6 +175,7 @@ pub fn run() {
             commands::read_schedule,
             commands::write_schedule,
             commands::create_schedule,
+            commands::rename_schedule,
             commands::export_schedule_html,
             commands::run_schedule_edit,
             commands::schedule_edit_status,
