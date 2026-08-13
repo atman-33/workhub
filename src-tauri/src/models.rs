@@ -66,9 +66,10 @@ pub struct Settings {
     pub memory_opencode: bool,
     /// Secretary agent (T-0154): agents consult a `secretary` subagent before
     /// interrupting the owner, and file what it escalates into
-    /// `_ai/comms/`. Consulting costs tokens, so it can be turned off. Read by
-    /// the plugin hooks from this config file; the app only stores the flag.
-    #[serde(default = "default_true")]
+    /// `_ai/comms/`. Consulting costs tokens, so it is **off by default**
+    /// (T-0158) and turned on deliberately. Read by the plugin hooks from this
+    /// config file; the app only stores the flag.
+    #[serde(default)]
     pub secretary_enabled: bool,
     /// Screen-annotation overlay (double-press-and-hold Alt to draw),
     /// including its low-level keyboard hook.
@@ -323,7 +324,7 @@ impl Default for Settings {
             check_memory_setup: true,
             memory_claude_code: true,
             memory_opencode: true,
-            secretary_enabled: true,
+            secretary_enabled: false,
             ink_enabled: true,
             vault_path: None,
             worktree_root: default_worktree_root(),

@@ -31,7 +31,8 @@ export interface Settings {
   /** Long-term memory adapter in OpenCode sessions (capture + inject). */
   memory_opencode: boolean;
   /** Secretary agent (T-0154): agents consult a `secretary` subagent before
-   * interrupting the owner, and file what it escalates into `_ai/comms/`. */
+   * interrupting the owner, and file what it escalates into `_ai/comms/`.
+   * Off by default — consulting a subagent costs tokens (T-0158). */
   secretary_enabled: boolean;
   /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
   ink_enabled: boolean;
