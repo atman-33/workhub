@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.74.1 (2026-08-13)
+
+- **The secretary agent is now off by default** (T-0158). Consulting it costs
+  tokens on every question, which is not a cost a fresh install should pay
+  unasked, so it is opt-in: turn it on in **⚙ Settings → General → Consult the
+  secretary before asking me**. A setting you have already saved is kept as it
+  is — only machines with no value stored are affected. The hooks and the
+  OpenCode plugin now require the flag to be explicitly on, so the feature can
+  no longer run behind a Settings toggle that reads "off".
+
 ## 0.74.0 (2026-08-12)
 
 - **The secretary agent now works in OpenCode too** (T-0155). OpenCode has no
