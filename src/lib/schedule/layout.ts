@@ -186,24 +186,41 @@ export function countWorkingDays(start: string, end: string, nw: NonWorking): nu
 
 /**
  * Assigns each bar a lane so that overlapping bars stack instead of colliding.
- * First-fit over lanes, scanning bars in start order: the earliest bar keeps
- * the top lane, which makes the layout stable as the user drags — a bar that
- * moves by a day should not reshuffle every other bar on screen.
+ *
+ * First-fit over lanes, scanning bars in **document order** — the order their
+ * lines appear in `## Items`. That is what puts the stacking order in the
+ * user's hands: moving a line up in the file moves its bar up on screen
+ * (`reorder.ts`), which is the only handle the notation offers. Scanning in
+ * start-date order instead computes the same geometry but leaves the vertical
+ * order unreachable, since bars starting on the same day would be ordered by a
+ * tiebreak nobody can edit.
+ *
+ * It is equally stable under dragging: a bar that moves by a day keeps its
+ * place in the file, so nothing else on screen reshuffles.
+ *
+ * `bars` already arrives in document order — the caller builds it by walking
+ * `doc.items` — so there is nothing left to sort here.
+ *
+ * Each lane keeps every span placed in it rather than just the rightmost end.
+ * Scanning in date order, the last span was always the rightmost one and a
+ * single number sufficed; in document order a bar can arrive to the *left* of
+ * one already in the lane, and only the full list can tell whether it fits
+ * there.
  */
 function packBars(bars: LayoutBar[]): number {
-  const laneEnds: number[] = [];
-  const ordered = [...bars].sort((a, b) => a.startCol - b.startCol || a.endCol - b.endCol);
-  for (const bar of ordered) {
-    let lane = laneEnds.findIndex((end) => end < bar.startCol);
+  const lanes: { startCol: number; endCol: number }[][] = [];
+  for (const bar of bars) {
+    let lane = lanes.findIndex((occupants) =>
+      occupants.every((o) => bar.startCol > o.endCol || bar.endCol < o.startCol),
+    );
     if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(bar.endCol);
-    } else {
-      laneEnds[lane] = bar.endCol;
+      lane = lanes.length;
+      lanes.push([]);
     }
+    lanes[lane].push({ startCol: bar.startCol, endCol: bar.endCol });
     bar.lane = lane;
   }
-  return laneEnds.length;
+  return lanes.length;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ClipboardList, FileText, Gem, Maximize2, Minimize2 } from "lucide-react";
+import { Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,20 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Markdown } from "@/components/ui/markdown";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,6 +39,9 @@ import { PriorityBadge } from "@/components/priority-badge";
 import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
+
+/** The three views the shared pane switches between. */
+type PaneTab = "description" | "plan" | "results";
 
 export interface TaskDraft {
   title: string;
@@ -182,11 +172,10 @@ export function TaskDialog({
   // Description shows a rendered markdown preview (URLs clickable) until the
   // user clicks into it to edit — an Obsidian-like reading/editing toggle.
   const [descEditing, setDescEditing] = useState(false);
-  // Results are read-only; they open in a slide-over sheet from the header.
-  const [resultsOpen, setResultsOpen] = useState(false);
-  // Plan is also read-only in the app — it's the approval record, edited in
-  // Obsidian only — and opens in its own slide-over sheet.
-  const [planOpen, setPlanOpen] = useState(false);
+  // Which of Description / Plan / Results the shared pane is showing. Only
+  // Description is editable — Plan is the approval record and Results are the
+  // agent's report, both written in Obsidian and only ever displayed here.
+  const [pane, setPane] = useState<PaneTab>("description");
   // Near-fullscreen mode for long descriptions; the description field absorbs
   // the extra space.
   const [maximized, setMaximized] = useState(false);
@@ -198,8 +187,7 @@ export function TaskDialog({
   useEffect(() => {
     if (open) {
       setDescEditing(false);
-      setResultsOpen(false);
-      setPlanOpen(false);
+      setPane("description");
       setMaximized(false);
       setObsidianError(null);
       setCreating(false);
@@ -207,10 +195,13 @@ export function TaskDialog({
     }
   }, [open]);
 
-  const resultRaw = task ? parseBody(task.body).resultRaw : "";
-  // resultRaw always starts with the "## Results" header; treat "header only"
-  // (nothing after it) as empty so the sheet can show a placeholder instead.
-  const hasResults = resultRaw.replace(/^##\s*Results\s*/i, "").trim().length > 0;
+  // `resultRaw` always starts with the "## Results" header. The tab is already
+  // labelled Results, so the header is dropped rather than repeated — and what
+  // is left doubles as the emptiness test.
+  const results = task
+    ? parseBody(task.body).resultRaw.replace(/^##\s*Results\s*/i, "").trim()
+    : "";
+  const hasResults = results.length > 0;
   // Plan is already trimmed by parseBody, so a simple non-empty check suffices.
   const plan = task ? parseBody(task.body).plan : "";
   const hasPlan = plan.length > 0;
@@ -296,10 +287,71 @@ export function TaskDialog({
     </div>
   );
 
-  const hasOptionalDetails = Boolean(draft.due || draft.tags.trim());
+  // Shared shell for the long-form pane: in full screen it absorbs the freed
+  // height instead of the dialog growing a second scrollbar.
+  const paneShellClass = maximized ? "flex min-h-0 flex-1 flex-col" : undefined;
+  // Read-only rendering of Plan / Results. Same box as the description
+  // preview, so switching tabs does not resize the dialog.
+  const readerClass = cn(
+    "min-h-[8.5rem] max-h-[12rem] min-w-0 overflow-y-auto rounded-md border border-input bg-transparent px-3 py-2 text-sm",
+    maximized && "max-h-none flex-1",
+  );
+
+  // Reading/editing toggle, Obsidian-style: rendered markdown until clicked.
+  const descriptionPane = descEditing ? (
+    <Textarea
+      autoFocus
+      value={draft.content}
+      onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+      onBlur={() => setDescEditing(false)}
+      rows={6}
+      // Maximized: fill the freed space with a fixed-size scrolling editor
+      // instead of the default grow-with-content sizing.
+      className={maximized ? "min-h-0 flex-1 field-sizing-fixed resize-none" : undefined}
+      placeholder="Task description — this is the prompt context handed to AI agents."
+    />
+  ) : (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setDescEditing(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setDescEditing(true);
+        }
+      }}
+      className={cn(
+        "cursor-text hover:border-ring/50",
+        readerClass,
+      )}
+      title="Click to edit"
+    >
+      {draft.content.trim() ? (
+        <Markdown>{draft.content}</Markdown>
+      ) : (
+        <span className="text-muted-foreground">
+          Task description — this is the prompt context handed to AI agents.
+        </span>
+      )}
+    </div>
+  );
+
+  // What "Optional details" holds, and therefore when it opens by itself.
+  // The launch toggles and the blocked flag live in here because they are
+  // rarely touched — the first two do nothing at all for a task assigned to
+  // "me", and blocking is normally set from the board, which has its own
+  // dialog for it. Anything already set still opens the section on sight, so
+  // a blocked task never hides why it is blocked behind a click.
+  const hasOptionalDetails = Boolean(
+    draft.due || draft.tags.trim() || draft.confirm || draft.worktree || draft.blocked,
+  );
   const optionalSummary = [
     draft.due ? `Due: ${draft.due}` : "",
     draft.tags.trim() ? `Tags: ${draft.tags.trim()}` : "",
+    draft.confirm ? "Confirm" : "",
+    draft.worktree ? "Worktree" : "",
+    draft.blocked ? `Blocked${draft.blockedNote ? `: ${draft.blockedNote}` : ""}` : "",
   ]
     .filter(Boolean)
     .join(" · ") || "None set";
@@ -468,9 +520,7 @@ export function TaskDialog({
         <DialogHeader>
           {/* The action row must never be squeezed: it keeps `shrink-0` and the
               title truncates instead, so adding a button cannot wrap the title
-              onto a second line. Plan/Results live in a dropdown for the same
-              reason — they are the least-used controls here, and two labelled
-              buttons cost more width than every icon button combined. */}
+              onto a second line. */}
           <div className="flex items-center justify-between gap-2 pr-6">
             <DialogTitle className="min-w-0 truncate">
               {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
@@ -497,33 +547,6 @@ export function TaskDialog({
                       </>
                     )}
                   <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
-                  <DropdownMenu>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-sm"
-                            aria-label="Plan and Results"
-                          >
-                            <FileText />
-                          </Button>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>Plan / Results</TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled={!hasPlan} onSelect={() => setPlanOpen(true)}>
-                        <ClipboardList />
-                        {hasPlan ? "Plan" : "Plan (none recorded)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setResultsOpen(true)}>
-                        <FileText />
-                        Results
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </>
               )}
               <Button
@@ -648,63 +671,6 @@ export function TaskDialog({
               />,
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {toggle(
-              "Confirm mode",
-              "Agent drafts a plan and waits for your approval before executing.",
-              draft.confirm,
-              (v) => setDraft({ ...draft, confirm: v }),
-              draft.assignee === "me",
-            )}
-            {toggle(
-              "Git worktree",
-              "Agent works in a dedicated worktree so parallel tasks don't collide.",
-              draft.worktree,
-              (v) => setDraft({ ...draft, worktree: v }),
-              draft.assignee === "me",
-            )}
-          </div>
-          <div className="space-y-3">
-            {toggle(
-              "Blocked",
-              "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
-              draft.blocked,
-              (v) =>
-                // Turning it on stamps today so the wait is measured from the
-                // moment it was noticed; turning it off clears the details so
-                // no stale note survives into the next block.
-                setDraft(
-                  v
-                    ? {
-                        ...draft,
-                        blocked: true,
-                        blockedSince: draft.blockedSince || todayString(),
-                      }
-                    : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
-                ),
-              false,
-            )}
-            {draft.blocked && (
-              <div className="grid grid-cols-2 gap-3">
-                {field(
-                  "Waiting on",
-                  <Input
-                    value={draft.blockedNote}
-                    onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
-                    className="h-8 text-xs"
-                    placeholder="e.g. vendor quote, review from Sato"
-                  />,
-                )}
-                {field(
-                  "Blocked since",
-                  <DatePicker
-                    value={draft.blockedSince}
-                    onChange={(v) => setDraft({ ...draft, blockedSince: v })}
-                  />,
-                )}
-              </div>
-            )}
-          </div>
           <Accordion
             type="single"
             collapsible
@@ -741,54 +707,106 @@ export function TaskDialog({
                       />,
                     )}
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {toggle(
+                      "Confirm mode",
+                      "Agent drafts a plan and waits for your approval before executing.",
+                      draft.confirm,
+                      (v) => setDraft({ ...draft, confirm: v }),
+                      draft.assignee === "me",
+                    )}
+                    {toggle(
+                      "Git worktree",
+                      "Agent works in a dedicated worktree so parallel tasks don't collide.",
+                      draft.worktree,
+                      (v) => setDraft({ ...draft, worktree: v }),
+                      draft.assignee === "me",
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {toggle(
+                      "Blocked",
+                      "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+                      draft.blocked,
+                      (v) =>
+                        // Turning it on stamps today so the wait is measured from the
+                        // moment it was noticed; turning it off clears the details so
+                        // no stale note survives into the next block.
+                        setDraft(
+                          v
+                            ? {
+                                ...draft,
+                                blocked: true,
+                                blockedSince: draft.blockedSince || todayString(),
+                              }
+                            : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
+                        ),
+                      false,
+                    )}
+                    {draft.blocked && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {field(
+                          "Waiting on",
+                          <Input
+                            value={draft.blockedNote}
+                            onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
+                            className="h-8 text-xs"
+                            placeholder="e.g. vendor quote, review from Sato"
+                          />,
+                        )}
+                        {field(
+                          "Blocked since",
+                          <DatePicker
+                            value={draft.blockedSince}
+                            onChange={(v) => setDraft({ ...draft, blockedSince: v })}
+                          />,
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-          {field(
-            "Description",
-            descEditing ? (
-              <Textarea
-                autoFocus
-                value={draft.content}
-                onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                onBlur={() => setDescEditing(false)}
-                rows={6}
-                // Maximized: fill the freed space with a fixed-size scrolling
-                // editor instead of the default grow-with-content sizing.
-                className={
-                  maximized ? "min-h-0 flex-1 field-sizing-fixed resize-none" : undefined
-                }
-                placeholder="Task description — this is the prompt context handed to AI agents."
-              />
-            ) : (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setDescEditing(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setDescEditing(true);
-                  }
-                }}
-                className={cn(
-                  "min-h-[8.5rem] max-h-[12rem] min-w-0 cursor-text overflow-y-auto rounded-md border border-input bg-transparent px-3 py-2 text-sm hover:border-ring/50",
-                  maximized && "max-h-none flex-1",
-                )}
-                title="Click to edit"
+          {/* Description, Plan and Results share one pane. They are the three
+              long-form sections of the same file and are read one after the
+              other, so giving each its own slide-over meant losing sight of
+              the task while reading about it. Only Description is editable:
+              Plan is the approval record and Results the agent's report, both
+              written outside the app (see task-body.ts).
+
+              Create mode has no file yet, so it shows the description alone
+              rather than two permanently empty tabs. */}
+          {displayMode === "create"
+            ? field("Description", descriptionPane, paneShellClass)
+            : (
+              <Tabs
+                value={pane}
+                onValueChange={(v) => setPane(v as PaneTab)}
+                className={cn("gap-1.5", paneShellClass)}
               >
-                {draft.content.trim() ? (
-                  <Markdown>{draft.content}</Markdown>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Task description — this is the prompt context handed to AI agents.
-                  </span>
-                )}
-              </div>
-            ),
-            maximized ? "flex min-h-0 flex-1 flex-col" : undefined,
-          )}
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="description">Description</TabsTrigger>
+                  {/* Disabled rather than hidden when empty: the tabs are also
+                      how the user learns these sections exist at all. */}
+                  <TabsTrigger value="plan" disabled={!hasPlan}>
+                    {hasPlan ? "Plan" : "Plan (none)"}
+                  </TabsTrigger>
+                  <TabsTrigger value="results" disabled={!hasResults}>
+                    {hasResults ? "Results" : "Results (none)"}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="description" className={paneShellClass}>
+                  {descriptionPane}
+                </TabsContent>
+                <TabsContent value="plan" className={readerClass}>
+                  <Markdown>{plan}</Markdown>
+                </TabsContent>
+                <TabsContent value="results" className={readerClass}>
+                  <Markdown>{results}</Markdown>
+                </TabsContent>
+              </Tabs>
+            )}
         </div>
         {obsidianError && (
           <p className="text-[10px] text-destructive/80">
@@ -818,51 +836,6 @@ export function TaskDialog({
           </DialogFooter>
         )}
       </DialogContent>
-
-      {/* Read-only Plan preview. The approved implementation plan — written
-          by an AI agent (with human approval) or by hand in Obsidian; the
-          app only ever displays it, never edits it (see task-body.ts). */}
-      <Sheet open={planOpen} onOpenChange={setPlanOpen}>
-        <SheetContent side="right" className="w-[90vw] gap-0 sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>{task?.id ? `${task.id} — Plan` : "Plan"}</SheetTitle>
-            <SheetDescription className="sr-only">
-              Rendered implementation plan for this task.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-            {hasPlan ? (
-              <Markdown>{plan}</Markdown>
-            ) : (
-              <p className="mt-8 text-center text-sm text-muted-foreground">
-                No plan recorded yet.
-              </p>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Read-only Results preview. Rendered markdown with copyable code blocks;
-          the app never writes this section (see task-body.ts). */}
-      <Sheet open={resultsOpen} onOpenChange={setResultsOpen}>
-        <SheetContent side="right" className="w-[90vw] gap-0 sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>{task?.id ? `${task.id} — Results` : "Results"}</SheetTitle>
-            <SheetDescription className="sr-only">
-              Rendered results for this task.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-            {hasResults ? (
-              <Markdown>{resultRaw}</Markdown>
-            ) : (
-              <p className="mt-8 text-center text-sm text-muted-foreground">
-                No results recorded yet.
-              </p>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
     </Dialog>
   );
 }

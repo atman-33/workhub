@@ -56,6 +56,7 @@ import {
   type ScheduleDocModel,
   type ScheduleItem,
 } from "@/lib/schedule/parse";
+import { moveItem, type MoveDirection } from "@/lib/schedule/reorder";
 import type { Config, ScheduleEditRun, ScheduleFile, Task } from "@/types";
 
 /**
@@ -318,6 +319,24 @@ export function ScheduleView({ configVersion }: Props) {
   );
 
   /**
+   * Moves one element up or down among the elements it shares screen space
+   * with. The order lives in the file — `## Items` line order is what the
+   * lane packers read — so this is an ordinary document edit, undoable and
+   * saved like any other.
+   */
+  const reorderItem = useCallback(
+    (id: string, dir: MoveDirection) => {
+      if (!doc) return;
+      const items = moveItem(doc.items, id, dir);
+      // `moveItem` returns the same array when there is nothing to swap with;
+      // writing then would stamp `updated` for a no-op.
+      if (items === doc.items) return;
+      mutate({ ...doc, items });
+    },
+    [doc, mutate],
+  );
+
+  /**
    * The selected element, read out of the document rather than remembered.
    *
    * This is what keeps the side panel honest against every edit that does not
@@ -428,6 +447,14 @@ export function ScheduleView({ configVersion }: Props) {
         setSelectedId(null);
         return;
       }
+      // Alt + up/down reorders instead of moving dates: the vertical axis of
+      // the grid is stacking order, not time. Plain up/down is left to the
+      // scrolling it already does.
+      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault();
+        reorderItem(selected.id, e.key === "ArrowUp" ? -1 : 1);
+        return;
+      }
       const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
       if (!step) return;
       e.preventDefault();
@@ -448,7 +475,7 @@ export function ScheduleView({ configVersion }: Props) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selected, doc, aiRunning, undo, redo, mutate, patchItem]);
+  }, [selected, doc, aiRunning, undo, redo, mutate, patchItem, reorderItem]);
 
   /**
    * The displayed window: moved by whole weeks, grown or shrunk from its end,
@@ -889,6 +916,7 @@ export function ScheduleView({ configVersion }: Props) {
                   })
                 }
                 onSelectItem={(item) => setSelectedId(item?.id ?? null)}
+                onReorderItem={reorderItem}
                 onToggleNonWorking={(date) => toggleNonWorking(date)}
                 onCreateItem={(kind, from, to) => createItem(kind, from, to)}
                 onMoveTaskDue={(taskId, date) => {
