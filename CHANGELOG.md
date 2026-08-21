@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.76.0 (2026-08-21)
+
+- **Schedule elements can be stacked in the order you choose** (T-0175). Which
+  element sits on top used to be decided by its start date, so two milestones
+  on the same day — or two overlapping bars — landed in an order nobody could
+  change. The order is now the order of the lines in the note: **right-click an
+  element → Move up / Move down**, or **Alt + ↑ / ↓** with it selected, swaps it
+  with the nearest element it competes with. Milestones, notes, bars and arrows
+  all follow the same rule, in the calendar, the timeline and the exported
+  HTML. Elements that never overlap cannot be swapped, since nothing on screen
+  would change.
+- **Plan and Results are tabs in the task card** (T-0176). They used to open as
+  a slide-over that covered the task you were reading about; now Description,
+  Plan and Results share one pane and switch with a tab, with Plan and Results
+  read-only as before (they are written in Obsidian and by agents). A section
+  with nothing in it shows as a disabled tab rather than an empty panel.
+- **Confirm mode, Git worktree and Blocked moved into Optional details**
+  (T-0176). The first two do nothing for a task assigned to "me" and blocking
+  is normally set from the board, so they no longer take up room in the middle
+  of the card. Anything already set still opens the section on sight, and the
+  section's summary line names it.
+
 ## 0.75.0 (2026-08-13)
 
 - **Schedules can be renamed** (T-0157). The pencil next to the schedule picker
