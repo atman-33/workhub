@@ -97,7 +97,8 @@ describe("buildTimeline", () => {
 
   it("keeps point elements out of the bar lanes", () => {
     const layout = buildTimeline(doc, "2026-07-01", "2026-12-31");
-    expect(layout.points.map((p) => p.item.id)).toEqual(["I-005", "I-004"]);
+    // Document order, not date order: file order is what decides stacking.
+    expect(layout.points.map((p) => p.item.id)).toEqual(["I-004", "I-005"]);
     expect(layout.pointLaneCount).toBe(1);
     expect(layout.bars.every((b) => b.item.kind === "bar" || b.item.kind === "arrow")).toBe(true);
   });

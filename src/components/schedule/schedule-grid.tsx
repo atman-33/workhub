@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -21,6 +21,7 @@ import {
   type LayoutBar,
 } from "@/lib/schedule/layout";
 import { COLOR_HEX, type ItemKind, type ScheduleDocModel, type ScheduleItem } from "@/lib/schedule/parse";
+import { canMoveItem, type MoveDirection } from "@/lib/schedule/reorder";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -72,6 +73,8 @@ interface Props {
   onMoveItem: (id: string, deltaDays: number) => void;
   onResizeItem: (id: string, edge: "start" | "end", deltaDays: number) => void;
   onSelectItem: (item: ScheduleItem | null) => void;
+  /** Move an element one step up or down among the elements it stacks with. */
+  onReorderItem: (id: string, dir: MoveDirection) => void;
   onToggleNonWorking: (date: string) => void;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onMoveTaskDue: (taskId: string, date: string) => void;
@@ -113,6 +116,7 @@ export function ScheduleGrid({
   onMoveItem,
   onResizeItem,
   onSelectItem,
+  onReorderItem,
   onToggleNonWorking,
   onCreateItem,
   onMoveTaskDue,
@@ -421,10 +425,16 @@ export function ScheduleGrid({
             {/* Range elements float above the cells, positioned in column
                 percentages so they stay aligned with the grid at any width. */}
             <div className="pointer-events-none absolute inset-x-0 top-6">
-              {week.bars.map((bar) =>
-                bar.item.kind === "arrow" ? (
+              {week.bars.map((bar) => (
+                <ReorderMenu
+                  key={`${bar.item.id}-${bar.startCol}`}
+                  items={doc.items}
+                  id={bar.item.id}
+                  readOnly={readOnly}
+                  onReorder={onReorderItem}
+                >
+                {bar.item.kind === "arrow" ? (
                   <ArrowSegment
-                    key={`${bar.item.id}-${bar.startCol}`}
                     bar={bar}
                     laneHeight={LANE_H}
                     selected={selectedId === bar.item.id}
@@ -436,7 +446,6 @@ export function ScheduleGrid({
                   />
                 ) : (
                   <div
-                    key={`${bar.item.id}-${bar.startCol}`}
                     style={{
                       left: `${(bar.startCol / 7) * 100}%`,
                       width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
@@ -478,8 +487,9 @@ export function ScheduleGrid({
                       />
                     )}
                   </div>
-                ),
-              )}
+                )}
+                </ReorderMenu>
+              ))}
             </div>
 
             {/* Milestones and task chips sit below the bar lanes. Notes are not
@@ -493,8 +503,14 @@ export function ScheduleGrid({
                   {day.points
                     .filter((p) => p.kind === "milestone")
                     .map((point) => (
-                      <div
+                      <ReorderMenu
                         key={point.id}
+                        items={doc.items}
+                        id={point.id}
+                        readOnly={readOnly}
+                        onReorder={onReorderItem}
+                      >
+                      <div
                         onPointerDown={(e) => beginItemDrag(e, point)}
                         onPointerUp={() => endItemPress(point)}
                         className={cn(
@@ -523,6 +539,7 @@ export function ScheduleGrid({
                           </span>
                         )}
                       </div>
+                      </ReorderMenu>
                     ))}
                   {(tasksByDate.get(day.date) ?? []).map((task) => (
                     <div
@@ -597,6 +614,59 @@ function rangeTooltip(bar: LayoutBar, t: ReturnType<typeof strings>): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * Right-click menu that moves an element up or down the stack.
+ *
+ * Stacking order needs a control of its own because every gesture on the grid
+ * is already spoken for: vertical dragging means "change the date" (the whole
+ * grid measures drags in days, so dragging down is +7 days), which leaves no
+ * pointer gesture free for "draw this one above that one". A menu also states
+ * the two things a drag cannot: which moves are possible at all, and that the
+ * move is a step among *competing* elements rather than free placement.
+ *
+ * The entries are disabled rather than hidden when nothing can move, so the
+ * menu keeps the same shape wherever it is opened.
+ *
+ * `contents` on the wrapper: the elements below are absolutely positioned
+ * inside the week body, and a wrapper with a box of its own would become their
+ * containing block and move them.
+ */
+function ReorderMenu({
+  items,
+  id,
+  readOnly,
+  onReorder,
+  children,
+}: {
+  items: ScheduleItem[];
+  id: string;
+  readOnly?: boolean;
+  onReorder: (id: string, dir: MoveDirection) => void;
+  children: React.ReactNode;
+}) {
+  if (readOnly) return <>{children}</>;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="contents">{children}</div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          disabled={!canMoveItem(items, id, -1)}
+          onSelect={() => onReorder(id, -1)}
+        >
+          <ChevronUp />
+          Move up
+        </ContextMenuItem>
+        <ContextMenuItem disabled={!canMoveItem(items, id, 1)} onSelect={() => onReorder(id, 1)}>
+          <ChevronDown />
+          Move down
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 /**

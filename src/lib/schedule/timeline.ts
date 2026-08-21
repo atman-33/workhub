@@ -151,28 +151,37 @@ function spanOf(
 }
 
 /**
- * First-fit lane packing over date spans, scanning in start order.
+ * First-fit lane packing over date spans, scanning in **document order** — the
+ * order the lines appear in `## Items`.
+ *
+ * The grid packs its bar lanes the same way and for the same reason: file
+ * order is the one thing the user can edit (`reorder.ts`), so it, and not the
+ * start date, decides what ends up on top. Both views therefore stack the same
+ * elements in the same order.
  *
  * `gapDays` is what keeps labels apart: two elements that merely touch would
  * collide as text long before they collide as geometry, so a lane is only
  * reused once the previous element has been over for that many days.
+ *
+ * Each lane keeps every span placed in it rather than just the rightmost end:
+ * in document order an element can arrive to the *left* of one already in the
+ * lane, and only the full list can tell whether it still fits.
  */
 function packLanes<T extends { start: string; end: string }>(
   spans: T[],
   gapDays: number,
 ): { item: T; lane: number }[] {
-  const laneEnds: string[] = [];
-  const ordered = [...spans].sort(
-    (a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end),
-  );
-  return ordered.map((item) => {
-    const lane = laneEnds.findIndex((end) => end < item.start);
+  const lanes: { start: string; end: string }[][] = [];
+  return spans.map((item) => {
     const gapEnd = shiftDate(item.end, gapDays);
+    let lane = lanes.findIndex((occupants) =>
+      occupants.every((o) => item.start > o.end || gapEnd < o.start),
+    );
     if (lane === -1) {
-      laneEnds.push(gapEnd);
-      return { item, lane: laneEnds.length - 1 };
+      lane = lanes.length;
+      lanes.push([]);
     }
-    laneEnds[lane] = gapEnd;
+    lanes[lane].push({ start: item.start, end: gapEnd });
     return { item, lane };
   });
 }

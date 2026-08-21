@@ -307,6 +307,26 @@ describe("buildLayout", () => {
     expect(lane("I-103")).toBe(0);
   });
 
+  it("assigns lanes in document order, so reordering the lines reorders the lanes", () => {
+    const items = [
+      { kind: "bar" as const, id: "I-101", start: "2026-07-22", end: "2026-07-24", title: "a" },
+      { kind: "bar" as const, id: "I-102", start: "2026-07-20", end: "2026-07-24", title: "b" },
+    ];
+    const laneOf = (docItems: typeof items, id: string) =>
+      buildLayout({ ...doc, items: docItems }, "2026-07-19", "2026-07-25").weeks[0].bars.find(
+        (b) => b.item.id === id,
+      )?.lane;
+
+    // The later-starting bar is written first, so it takes the top lane —
+    // start date does not decide the stacking order, the file does.
+    expect(laneOf(items, "I-101")).toBe(0);
+    expect(laneOf(items, "I-102")).toBe(1);
+
+    const swapped = [items[1], items[0]];
+    expect(laneOf(swapped, "I-102")).toBe(0);
+    expect(laneOf(swapped, "I-101")).toBe(1);
+  });
+
   it("places point elements on their own day only", () => {
     const layout = buildLayout(doc, "2026-07-26", "2026-08-01");
     const days = layout.weeks[0].days;

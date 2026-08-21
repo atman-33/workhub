@@ -152,6 +152,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
 - **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; every other kind shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
 - **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right, above the AI box — it never changes the panel's width on its own, so the calendar does not shift under your pointer. **Drag the divider** to give the calendar or the panel more room (the width lasts for the session), or hide the panel entirely with the panel button in the toolbar.
+- **Stacking order is the order of the lines in the note.** When several elements share a day or overlap, the one written first sits on top. **Right-click an element → Move up / Move down** (or **Alt** + **↑** / **↓** with it selected) swaps it with the nearest element it competes with, in the calendar and the timeline alike. Elements that never overlap cannot be swapped, since nothing on screen would change.
 - **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar or arrow, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
@@ -1227,6 +1228,20 @@ export function HelpView() {
                 calendar or the panel more room (the width lasts for the
                 session), or hide the panel entirely with the panel button in
                 the toolbar.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Stacking order is the order of the lines in the note.
+                </span>{" "}
+                When several elements share a day or overlap, the one written
+                first sits on top.{" "}
+                <span className="font-medium">
+                  Right-click an element → Move up / Move down
+                </span>{" "}
+                (or <Kbd>Alt</Kbd>+<Kbd>↑</Kbd> / <Kbd>↓</Kbd> with it selected)
+                swaps it with the nearest element it competes with, in the
+                calendar and the timeline alike. Elements that never overlap
+                cannot be swapped, since nothing on screen would change.
               </li>
               <li>
                 <span className="font-medium text-foreground">Keyboard</span>:
