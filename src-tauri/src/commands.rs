@@ -59,11 +59,14 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<(), String> 
     {
         crate::clips::apply_gesture(&app);
     }
-    // Best-effort: keep the vault's .claude/project-context.json aligned with
-    // the registered projects so agent sessions see them (harness contract).
+    // Best-effort: keep the vault's harness config (.claude/project-context.json
+    // and opencode.json's directory permissions) aligned with the registered
+    // projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
         if !vault.trim().is_empty() {
-            let _ = harness::sync_project_context(std::path::Path::new(vault), &config.projects);
+            let vault = std::path::Path::new(vault);
+            let _ = harness::sync_project_context(vault, &config.projects);
+            let _ = harness::sync_opencode_permissions(vault, &config.projects);
         }
     }
     Ok(())
@@ -610,6 +613,7 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
         // (best-effort — a fresh vault already has the template default).
         let config = storage::load();
         let _ = harness::sync_project_context(&vault, &config.projects);
+        let _ = harness::sync_opencode_permissions(&vault, &config.projects);
         Ok(())
     })
     .await
