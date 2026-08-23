@@ -14,6 +14,12 @@
   a sensible command policy: commands run without prompting, except the
   destructive or outward-facing ones (`git push`, `rm -rf`, `npm publish`, …),
   which still ask first.
+- productivity plugin 0.23.0: new `draft-deck` skill. Iterating a slide deck
+  inside Claude Design is expensive — every round regenerates design nobody is
+  judging yet. `draft-deck` builds a wireframe proof instead: one self-contained
+  HTML file that steps through the slides, so slide order, length against the
+  time budget, and whether a slide's text actually fits are settled before any
+  design work starts. `prepare-proposal-deck` now goes through it.
 
 ## 0.77.0 (2026-08-22)
 
