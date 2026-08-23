@@ -67,10 +67,27 @@ Design's generation.
    *Done when:* every objection raised by `grilling` is either answered in the
    Q&A or recorded as an open question. None are silently dropped.
 
-4. **Write the two outputs.**
+4. **Prove the structure before writing the prompt.**
+
+   Invoke the `draft-deck` skill, handing it the surviving sections as the
+   structure. It builds an HTML proof that steps through the slides in
+   wireframe, so the deck's order, its length against the meeting slot, and
+   whether each slide's text actually fits are settled in this session rather
+   than through rounds of regeneration in Claude Design.
+
+   A section that overflows its slide gets cut or split here, not later.
+
+   *Done when:* the user has stepped through the proof and calls the structure
+   settled, and no slide overflows.
+
+5. **Write the two outputs.**
 
    Ask where they should go. Default to `projects/<project>/deliverables/` when
    a project is identifiable, otherwise ask outright.
+
+   The design prompt is written out of the proof, which stays the single source
+   of truth: a later change goes into the proof first, then the prompt is
+   rewritten from it.
 
    - `<slug>-brief.md` — the material from steps 1–3, following
      [BRIEF.md](BRIEF.md). This is what the user rereads before the meeting and
