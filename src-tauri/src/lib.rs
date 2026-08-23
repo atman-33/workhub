@@ -171,6 +171,7 @@ pub fn run() {
             commands::preview_vault_template_file,
             commands::watch_vault,
             commands::list_schedule_projects,
+            commands::create_vault_project,
             commands::list_schedules,
             commands::read_schedule,
             commands::write_schedule,

@@ -761,6 +761,16 @@ use sha2::{Digest, Sha256};
 
 static VAULT_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../vault-template");
 
+/// Location of the project scaffold inside the embedded template.
+pub(crate) const PROJECT_TEMPLATE_DIR: &str = "templates/project";
+
+/// The embedded `templates/project/` subtree, for scaffolding a new vault
+/// project from the Schedule view (T-0178). `None` only in a build where the
+/// template folder was removed — the caller turns that into an error.
+pub(crate) fn project_template() -> Option<&'static Dir<'static>> {
+    VAULT_TEMPLATE.get_dir(PROJECT_TEMPLATE_DIR)
+}
+
 /// Name of the data-driven classification file living at the template root.
 /// Never copied into a vault (see `walk_template_files`).
 const TEMPLATE_POLICY_FILE: &str = ".template-policy.json";

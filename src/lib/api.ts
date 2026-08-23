@@ -95,6 +95,10 @@ export const api = {
    * first schedule impossible to create. */
   listScheduleProjects: (vaultPath: string) =>
     invoke<string[]>("list_schedule_projects", { vaultPath }),
+  /** Creates `projects/<slug>/` from the bundled scaffold, filling its
+   * placeholders (`name` falls back to the slug when empty) (T-0178). */
+  createVaultProject: (vaultPath: string, slug: string, name: string) =>
+    invoke<void>("create_vault_project", { vaultPath, slug, name }),
   /** `project` narrows to one project slug; pass "" for every project. */
   listSchedules: (vaultPath: string, project = "") =>
     invoke<ScheduleFile[]>("list_schedules", { vaultPath, project }),

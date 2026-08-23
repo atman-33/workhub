@@ -137,6 +137,7 @@ const SCHEDULE_MD = `## Planning dates (Schedule)
 
 The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
 
+- A schedule lives inside a **vault project** — a folder under \`projects/\` in the vault (not one of the repositories registered on the Repos tab). Create one from the project dropdown's **New project…** entry; while the vault has no projects at all, the middle of the tab offers a **Create your first project** button instead. The folder is scaffolded from the bundled template (README, prd, roadmap, …).
 - A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. The pencil beside that dropdown renames the open schedule — the title and the file name move together. Copy the file in Obsidian to compare alternatives.
 - **Calendar or Timeline** — the same note drawn two ways, switched in the toolbar. **Calendar** is the week grid below, for deciding days. **Timeline** is the long-range ("大日程") view: months across the top, phases as bands running left to right, milestones as diamonds — the shape you would draw on paper for a quarter or a year. Switching to Timeline widens a short range to about six months; **3m / 6m / 1y** set it directly. Elements are the same in both views, so a phase moved in one has moved in the other.
 - **Sprints on the timeline**: press **Sprints** (Timeline only) to number the header \`S1\`, \`S2\`, … Set the day sprint 1 starts and the length in weeks; boundaries appear as vertical lines. The cadence is stored in the note itself (\`sprint_start\` / \`sprint_weeks\` in its frontmatter), so two plans of the same project can compare different cadences. Sprints are only a reading of the calendar — they never move an element or round a date.
@@ -1077,6 +1078,19 @@ export function HelpView() {
               plan.
             </p>
             <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                A schedule lives inside a{" "}
+                <span className="font-medium text-foreground">vault project</span>{" "}
+                — a folder under{" "}
+                <span className="font-mono text-xs">projects/</span> in the vault
+                (not one of the repositories registered on the Repos tab).
+                Create one from the project dropdown&apos;s{" "}
+                <span className="font-medium">New project…</span> entry; while the
+                vault has no projects at all, the middle of the tab offers a{" "}
+                <span className="font-medium">Create your first project</span>{" "}
+                button instead. The folder is scaffolded from the bundled
+                template (README, prd, roadmap, …).
+              </li>
               <li>
                 A schedule lives in the vault as{" "}
                 <span className="font-mono text-xs">
