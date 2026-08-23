@@ -22,6 +22,7 @@
 //! so `## Memo` and any unmanaged frontmatter key survive by construction.
 
 use crate::models::{ScheduleDoc, ScheduleFile};
+use include_dir::Dir;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -126,6 +127,88 @@ pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
     }
     out.sort();
     Ok(out)
+}
+
+/// Creates `projects/<slug>/` from the embedded project scaffold (T-0178).
+///
+/// The picker above lists folders under `projects/`, and until now a vault
+/// with no projects dead-ended the Schedule tab: nothing to pick, and no way
+/// to make one from inside the app. `name` fills the scaffold's
+/// `<Project name>` placeholder (the slug stands in when it is empty), the
+/// slug fills `<project-slug>`, and `{{DATE}}` becomes today. Files whose
+/// names contain "example" demonstrate the notation and are skipped, so a
+/// fresh project starts clean.
+///
+/// An existing folder is refused rather than merged: scaffolding is for
+/// starting a project, and the template update flow owns any later changes.
+pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String> {
+    let slug = slug.trim();
+    if slug.is_empty() {
+        return Err("a project slug is required".into());
+    }
+    if slug == ".." || slug.contains(['/', '\\']) {
+        return Err("a project slug cannot contain path separators".into());
+    }
+    // `list_projects` skips such folders, so creating one would make a
+    // project that exists on disk but can never be picked.
+    if slug.starts_with('_') || slug.starts_with('.') {
+        return Err("a project slug cannot start with '_' or '.'".into());
+    }
+    let dir = projects_dir(vault).join(slug);
+    if dir.exists() {
+        return Err(format!("a project named '{slug}' already exists"));
+    }
+
+    let template = crate::tasks::project_template()
+        .ok_or_else(|| "the project template is missing from this build".to_string())?;
+    let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
+    let display_name = match name.trim() {
+        "" => slug,
+        n => n,
+    };
+    let now = today();
+
+    let mut files = Vec::new();
+    walk_project_template(template, &mut files);
+    for file in files {
+        let full = norm_path(file.path());
+        let Some(rel) = full.strip_prefix(&prefix) else {
+            continue;
+        };
+        let file_name = rel.rsplit('/').next().unwrap_or(rel);
+        if file_name.contains("example") {
+            continue;
+        }
+        let dst = dir.join(rel);
+        if let Some(parent) = dst.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        match std::str::from_utf8(file.contents()) {
+            Ok(text) => {
+                let rendered = text
+                    .replace("<Project name>", display_name)
+                    .replace("<project-slug>", slug)
+                    .replace("{{DATE}}", &now);
+                fs::write(&dst, rendered).map_err(|e| e.to_string())?;
+            }
+            // Every scaffold file is text today; a future binary one must be
+            // copied verbatim, not lossy-converted.
+            Err(_) => fs::write(&dst, file.contents()).map_err(|e| e.to_string())?,
+        }
+    }
+    // The scaffold's only `schedules/` content is the excluded example note,
+    // so the folder would otherwise be missing until the first schedule.
+    fs::create_dir_all(dir.join(SCHEDULES_DIR)).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn walk_project_template<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
+    for file in dir.files() {
+        out.push(file);
+    }
+    for sub in dir.dirs() {
+        walk_project_template(sub, out);
+    }
 }
 
 /// Lists schedule notes across the vault, optionally narrowed to one project
@@ -692,6 +775,64 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
         assert_eq!(list_projects(&vault).unwrap(), vec!["alpha", "beta"]);
         assert!(list_schedules(&vault, None).unwrap().is_empty());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_scaffolds_the_template() {
+        let vault = temp_vault("project-create");
+        create_project(&vault, "demo", "Demo project").unwrap();
+
+        let readme = fs::read_to_string(vault.join("projects/demo/README.md")).unwrap();
+        assert!(readme.contains("title: Demo project"), "README: {readme}");
+        assert!(readme.contains("project: demo"), "README: {readme}");
+        assert!(
+            readme.contains(&format!("updated: {}", today())),
+            "README: {readme}"
+        );
+        assert!(!readme.contains("<Project name>"), "README: {readme}");
+        // The (example-free) schedules folder exists from the start.
+        assert!(vault.join("projects/demo/schedules").is_dir());
+        // The notation demos are not part of a fresh project.
+        assert!(!vault.join("projects/demo/schedules/_example.md").exists());
+        assert!(!vault.join("projects/demo/specs/_example.md").exists());
+        assert!(!vault
+            .join("projects/demo/backlog/B-000-example.md")
+            .exists());
+        // The new project shows up in the picker.
+        assert_eq!(list_projects(&vault).unwrap(), vec!["demo"]);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_defaults_the_display_name_to_the_slug() {
+        let vault = temp_vault("project-noname");
+        create_project(&vault, "demo", "  ").unwrap();
+        let readme = fs::read_to_string(vault.join("projects/demo/README.md")).unwrap();
+        assert!(readme.contains("title: demo"), "README: {readme}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_refuses_an_existing_folder() {
+        let vault = temp_vault("project-exists");
+        create_project(&vault, "demo", "").unwrap();
+        let err = create_project(&vault, "demo", "").unwrap_err();
+        assert!(err.contains("already exists"), "error: {err}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_rejects_unusable_slugs() {
+        let vault = temp_vault("project-slug");
+        for slug in ["", "  ", "a/b", "a\\b", "..", "_wip", ".hidden"] {
+            assert!(
+                create_project(&vault, slug, "x").is_err(),
+                "slug {slug:?} was accepted"
+            );
+        }
+        // Nothing was created on disk.
+        assert!(list_projects(&vault).unwrap().is_empty());
         fs::remove_dir_all(&vault).ok();
     }
 

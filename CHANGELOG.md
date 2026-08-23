@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.77.0 (2026-08-22)
+
+- **Vault projects can be created from the Schedule tab** (T-0178). A schedule
+  lives inside a folder under the vault's `projects/`, but until now that
+  folder could only be made by hand — a fresh vault offered an empty project
+  dropdown and a permanently disabled **New** button, with no hint of what was
+  missing. The project dropdown now ends in a **New project…** entry, and a
+  vault with no projects shows a **Create your first project** guide in the
+  middle of the tab instead of a dead end. The new folder is scaffolded from
+  the bundled project template (README, prd, roadmap, …) with its
+  placeholders filled in; the template's example notes are left out so the
+  project starts clean.
+
 ## 0.76.0 (2026-08-21)
 
 - **Schedule elements can be stacked in the order you choose** (T-0175). Which

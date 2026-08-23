@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Download,
+  FolderPlus,
   GanttChart,
   PanelRightClose,
   PanelRightOpen,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { ItemEditor } from "@/components/schedule/item-editor";
+import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
 import { SprintSettings } from "@/components/schedule/sprint-settings";
@@ -29,6 +31,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -110,6 +113,9 @@ export function ScheduleView({ configVersion }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  // The "no projects yet" guide must not flash while the first scan is still
+  // in flight — an empty array before that means "unknown", not "none".
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [project, setProject] = useState("");
   const [path, setPath] = useState("");
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
@@ -124,6 +130,7 @@ export function ScheduleView({ configVersion }: Props) {
   const [window_, setWindow] = useState<{ start: string; end: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
   const [mode, setMode] = useState<ViewMode>("calendar");
@@ -176,6 +183,12 @@ export function ScheduleView({ configVersion }: Props) {
     setFiles(await api.listSchedules(vaultPath, project));
   }, [vaultPath, project]);
 
+  const loadProjects = useCallback(async () => {
+    if (!vaultPath) return;
+    setProjects(await api.listScheduleProjects(vaultPath));
+    setProjectsLoaded(true);
+  }, [vaultPath]);
+
   const loadDoc = useCallback(async (target: string) => {
     if (!target) {
       setDoc(null);
@@ -199,8 +212,8 @@ export function ScheduleView({ configVersion }: Props) {
   useEffect(() => {
     if (!vaultPath) return;
     void api.listTasks(vaultPath).then(setTasks);
-    void api.listScheduleProjects(vaultPath).then(setProjects);
-  }, [vaultPath]);
+    void loadProjects();
+  }, [vaultPath, loadProjects]);
 
   useEffect(() => {
     void loadDoc(path);
@@ -565,7 +578,21 @@ export function ScheduleView({ configVersion }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs">
-        <Select value={project || "__all__"} onValueChange={(v) => setProject(v === "__all__" ? "" : v)}>
+        {/* A schedule lives inside a vault project (a folder under
+            `projects/`), which used to be creatable only by hand in the file
+            system — a vault with none dead-ended this tab (T-0178). The
+            sentinel entry opens the creation dialog without disturbing the
+            controlled selection. */}
+        <Select
+          value={project || "__all__"}
+          onValueChange={(v) => {
+            if (v === "__new__") {
+              setProjectDialogOpen(true);
+              return;
+            }
+            setProject(v === "__all__" ? "" : v);
+          }}
+        >
           <SelectTrigger className="h-7 w-40 text-xs">
             <SelectValue placeholder="Project" />
           </SelectTrigger>
@@ -576,6 +603,13 @@ export function ScheduleView({ configVersion }: Props) {
                 {slug}
               </SelectItem>
             ))}
+            <SelectSeparator />
+            <SelectItem value="__new__">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <FolderPlus className="size-3" />
+                New project…
+              </span>
+            </SelectItem>
           </SelectContent>
         </Select>
 
@@ -927,9 +961,30 @@ export function ScheduleView({ configVersion }: Props) {
                 onPanWindow={panBy}
                 onZoomWindow={zoomBy}
               />
+            ) : projectsLoaded && projects.length === 0 ? (
+              /* The vault has no project folder yet. Until T-0178 this read
+                 "select a schedule or pick a project" with neither possible —
+                 a dead end, not an empty state. Now it says what a project is
+                 and offers to make one. */
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+                <FolderPlus className="size-8 text-muted-foreground" />
+                <div className="max-w-md space-y-1">
+                  <p className="text-sm font-medium">No projects yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    A schedule lives inside a project — a folder under the vault at
+                    projects/&lt;slug&gt;/schedules/. Create your first project to
+                    start planning.
+                  </p>
+                </div>
+                <Button size="sm" onClick={() => setProjectDialogOpen(true)}>
+                  <Plus className="mr-1 size-3.5" />
+                  Create your first project
+                </Button>
+              </div>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
-                Select a schedule, or pick a project and create one.
+                Select a schedule, or pick a project and press New. A new project can be
+                created from the project dropdown.
               </div>
             )}
           </div>
@@ -990,6 +1045,16 @@ export function ScheduleView({ configVersion }: Props) {
           </>
         )}
       </ResizablePanelGroup>
+
+      <ProjectCreateDialog
+        vaultPath={vaultPath}
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onCreated={(slug) => {
+          void loadProjects();
+          setProject(slug);
+        }}
+      />
     </div>
   );
 

@@ -477,6 +477,21 @@ pub async fn list_schedule_projects(vault_path: String) -> Result<Vec<String>, S
     .map_err(|e| e.to_string())?
 }
 
+/// Creates a vault project (`projects/<slug>/`) from the bundled scaffold, so
+/// the schedule picker's project list can grow from inside the app (T-0178).
+#[tauri::command]
+pub async fn create_vault_project(
+    vault_path: String,
+    slug: String,
+    name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        schedule::create_project(&PathBuf::from(vault_path), &slug, &name)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Lists schedule notes, optionally narrowed to one project slug (pass an
 /// empty string for "all projects").
 #[tauri::command]
