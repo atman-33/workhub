@@ -3,6 +3,15 @@
   "permission": {
     "external_directory": {
       "~/**": "allow"
+    },
+    "bash": {
+      "*": "allow",
+      "git push*": "ask",
+      "git reset --hard*": "ask",
+      "rm -rf*": "ask",
+      "git worktree remove*": "ask",
+      "npm publish*": "ask",
+      "gh pr merge*": "ask"
     }
   },
   "watcher": {

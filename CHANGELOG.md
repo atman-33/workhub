@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.78.0 (2026-08-23)
+
+- **Registering a repo now also lets OpenCode reach it** (T-0180). Adding a
+  repository on the **Repos** tab already told Claude Code about it, through
+  the vault's `.claude/project-context.json`. OpenCode sessions started in the
+  vault knew nothing about it and asked for directory access every single time,
+  so the allow rules had to be written into `opencode.json` by hand. They are
+  now kept in sync with the registered repositories automatically. Rules you
+  wrote yourself are never touched — a path you deliberately set to *ask* stays
+  *ask*, and removing a repository from the app leaves its rule in place rather
+  than silently revoking access you may still want. New vaults also start with
+  a sensible command policy: commands run without prompting, except the
+  destructive or outward-facing ones (`git push`, `rm -rf`, `npm publish`, …),
+  which still ask first.
+
 ## 0.77.0 (2026-08-22)
 
 - **Vault projects can be created from the Schedule tab** (T-0178). A schedule
