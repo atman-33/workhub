@@ -119,3 +119,25 @@ prop rather than seeding a local draft from it. A draft re-seeded by
 `useEffect` is the same stale copy one level down. If a field ever does need a
 draft (an in-progress text edit that must not round-trip), scope it to that
 field and reconcile it explicitly — do not draft the whole element.
+
+## Scrolling a pane instead of the page: check the whole height chain
+
+`flex-1` and `min-h-0` constrain nothing while any ancestor is still sized by
+its content. A pane that asks for `min-h-0 flex-1 overflow-y-auto` will keep
+growing — and the page will scroll instead — unless every ancestor up to the
+shell has a height of its own.
+
+The music view is the worked example (`src/components/music/music-view.tsx`):
+the track list carried that exact class list and still did not scroll, because
+the `grid lg:grid-cols-2` between it and the `h-full` root had no height. Giving
+the grid `lg:min-h-0 lg:flex-1` fixed it.
+
+Two things to keep in mind when building one:
+
+- **Only constrain the layout that has height to share.** The two-column layout
+  hands the grid the remaining height and hides the root's overflow; the
+  stacked one-column layout (below `lg`) keeps scrolling the page, since
+  splitting the height there would squash both halves.
+- **Verify by measuring, not by looking.** `scrollHeight` vs `clientHeight` on
+  the root, the pane, and the scroller says which element actually overflows;
+  a screenshot cannot tell a page scrollbar from a pane scrollbar.
