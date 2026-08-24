@@ -14,8 +14,18 @@
     -->
     <style>
       html,
+      body,
+      #root {
+        height: 100%;
+      }
+      html,
       body {
         margin: 0;
+        /* The shell sizes itself against this rather than 100vh: WebView2 can
+           report a viewport a few pixels shorter than 100vh, which left a
+           permanent scrollbar down the side of the window. Every tab scrolls
+           its own content, so the window itself never needs to. */
+        overflow: hidden;
         /* Keep in sync with the `.dark` --background token in src/index.css. */
         background: #16181f;
         background: oklch(0.165 0.012 265);

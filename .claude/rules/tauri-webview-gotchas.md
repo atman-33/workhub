@@ -1,6 +1,8 @@
 ---
 paths:
   - "src/**/*.tsx"
+  - "index.html"
+  - "src/index.css"
   - "src-tauri/tauri.conf.json"
   - "src-tauri/capabilities/**"
 ---
@@ -42,3 +44,13 @@ paths:
   lives in `src/lib/date-time.ts` and is unit-tested.
   The same trap applies to `Date#toLocaleString()` / `toLocaleDateString()`
   in UI strings — pass an explicit `"en-US"` `Intl.DateTimeFormat`.
+- **Never size the window shell with `100vh`.** WebView2 can report a viewport
+  a few pixels shorter than `100vh`, so a `h-screen` shell overhangs the window
+  and leaves a scrollbar down its side on *every* tab. Chromium reports the two
+  as equal, so this does not reproduce in a browser against the same dev server
+  — only in the app. `index.html` gives `html`/`body`/`#root` a real
+  `height: 100%` (plus `body { overflow: hidden }`, since every tab scrolls its
+  own content), and the shell in `src/app.tsx` fills it with `h-full`. Those
+  styles live in `index.html`'s inline block on purpose: it is the main
+  window's own document, so the quick-capture, clips and voice-indicator
+  popups — which share `src/index.css` — are unaffected.

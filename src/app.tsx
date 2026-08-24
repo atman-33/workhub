@@ -121,7 +121,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex h-screen flex-col">
+      <div className="flex h-full flex-col overflow-hidden">
         {update && (
           <UpdateBanner update={update} currentVersion={version} onDismiss={() => setUpdate(null)} />
         )}

@@ -84,12 +84,17 @@ export function MusicView({ configVersion }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
+    // Two-column layout keeps the page itself fixed and scrolls the track list
+    // on its own; the stacked one-column layout has no height to share, so it
+    // falls back to scrolling the whole page.
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4 lg:overflow-hidden">
       {status && <p className="text-xs text-destructive">{status}</p>}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PlayerPane />
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+        <div className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-y-auto">
+          <PlayerPane />
+        </div>
         {hydrated && (
-          <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
             <PlaylistTabs />
             <AddUrlForm />
             <div className="min-h-0 flex-1 overflow-y-auto">
