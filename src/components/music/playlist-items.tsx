@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   closestCenter,
   DndContext,
@@ -44,6 +44,22 @@ function SortableItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
   });
+  const rowRef = useRef<HTMLLIElement | null>(null);
+
+  // dnd-kit owns setNodeRef, so keep a second handle on the same node for the
+  // scroll-into-view below.
+  const setRefs = (node: HTMLLIElement | null) => {
+    rowRef.current = node;
+    setNodeRef(node);
+  };
+
+  // Follow the track that is playing. "nearest" leaves the list alone when the
+  // row is already visible, and dragging is excluded so a reorder in progress
+  // is never yanked out from under the pointer.
+  useEffect(() => {
+    if (!isCurrent || isDragging) return;
+    rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isCurrent, isDragging]);
 
   const targetPlaylists = playlists.filter((playlist) => playlist.id !== activePlaylistId);
 
@@ -65,7 +81,7 @@ function SortableItem({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <li
-          ref={setNodeRef}
+          ref={setRefs}
           style={style}
           className={cn(
             "flex items-center rounded-md border text-sm",

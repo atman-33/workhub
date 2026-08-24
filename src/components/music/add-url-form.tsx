@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ListPlus, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import { extractVideoId } from "@/lib/music/playlist-helpers";
 import { extractPlaylistId, hasPlaylistParam } from "@/lib/music/playlist-import";
 import { useMusicStore } from "@/stores/music";
 import { usePlaylistImport } from "./use-playlist-import";
+
+const NOTICE_TIMEOUT_MS = 4000;
 
 export function AddUrlForm() {
   const [inputUrl, setInputUrl] = useState("");
@@ -30,6 +32,14 @@ export function AddUrlForm() {
     setNotice(added === 1 ? "Added 1 video." : `Added ${added} videos.`);
     clearInput();
   });
+
+  // The confirmation is a transient acknowledgement, not a status line: clear
+  // it on its own instead of leaving it under the input until the next edit.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), NOTICE_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const videoId = useMemo(() => extractVideoId(inputUrl), [inputUrl]);
   const playlistId = useMemo(() => extractPlaylistId(inputUrl), [inputUrl]);
