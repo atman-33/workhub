@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.79.0 (2026-08-25)
+
+- **A YouTube playlist can be added to Music in one go** (T-0183). Songs had to
+  be pasted in one URL at a time, which made a favourite playlist not worth
+  moving over. Paste the playlist's URL now and the whole thing comes in: the
+  form shows how many tracks are new and how many are already there, then
+  fetches their titles. Nothing has to be set up for it — no API key to issue,
+  no Google account to sign in to — because the ids come from the YouTube
+  player the app already embeds. A URL that carries both a video and a playlist
+  asks which one you meant. Playlists longer than 200 tracks come in truncated
+  (the player's own ceiling, and the form says so), and mixes, liked videos and
+  watch later cannot be read at all — they exist per viewer or per signed-in
+  account, and the form explains that rather than failing quietly.
+- **The Music track list scrolls on its own** (T-0184). With enough songs the
+  whole tab used to scroll, pushing the player and the playlist tabs off the
+  top just when a long list made them most useful. The list now takes the full
+  height beside the player and scrolls inside itself, and the track that is
+  playing is kept in view — worth having with shuffle on, where the current
+  song would otherwise sit somewhere off-screen. Narrow windows, where there is
+  no height to share between the two columns, still scroll the tab as a whole.
+- **The stray scrollbar down the side of the window is gone** (T-0184). Every
+  tab carried a second, near-useless scrollbar at the right edge: the app's
+  frame was sized in a way the Windows WebView measures a few pixels short, so
+  it always overhung its own window by a hair.
+
 ## 0.78.0 (2026-08-23)
 
 - **Registering a repo now also lets OpenCode reach it** (T-0180). Adding a
