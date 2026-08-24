@@ -27,6 +27,11 @@ export interface YouTubePlayerLike {
   cueVideoById: (id: string) => void;
   playVideo: () => void;
   pauseVideo: () => void;
+  stopVideo: () => void;
+  /** Loads a whole playlist without playing it; the ids then become readable
+   *  through getPlaylist(). Used only by the import player. */
+  cuePlaylist: (args: { listType: string; list: string }) => void;
+  getPlaylist: () => string[] | null | undefined;
   destroy?: () => void;
 }
 
@@ -36,6 +41,13 @@ export interface PlaylistSlice {
   canCreatePlaylist: boolean;
   activePlaylistId: string;
   addToPlaylist: (item: PlaylistItem, playlistId?: string) => boolean;
+  /** Appends several items in a single update (used by the playlist import).
+   *  Items already in the target playlist — and duplicates inside the batch —
+   *  are skipped, and playback is deliberately left untouched. */
+  addManyToPlaylist: (
+    items: PlaylistItem[],
+    playlistId?: string,
+  ) => { added: number; skipped: number };
   removeFromPlaylist: (index: number, playlistId?: string) => void;
   reorderPlaylist: (fromIndex: number, toIndex: number, playlistId?: string) => void;
   /** Reorders the playlists themselves (tab order). */

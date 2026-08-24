@@ -128,3 +128,72 @@ describe("importPlaylists", () => {
     expect(useMusicStore.getState().playlists).toBe(before);
   });
 });
+
+describe("addManyToPlaylist", () => {
+  it("appends every new item in one update and reports the counts", () => {
+    const outcome = useMusicStore.getState().addManyToPlaylist([
+      { id: "v4", title: "title-v4" },
+      { id: "v5", title: "title-v5" },
+    ]);
+
+    expect(outcome).toEqual({ added: 2, skipped: 0 });
+    expect(itemIdsOf("a")).toEqual(["v1", "v2", "v3", "v4", "v5"]);
+  });
+
+  it("skips items already in the target playlist, and duplicates within the batch", () => {
+    const outcome = useMusicStore.getState().addManyToPlaylist([
+      { id: "v2", title: "title-v2" },
+      { id: "v4", title: "title-v4" },
+      { id: "v4", title: "title-v4 again" },
+    ]);
+
+    expect(outcome).toEqual({ added: 1, skipped: 2 });
+    expect(itemIdsOf("a")).toEqual(["v1", "v2", "v3", "v4"]);
+  });
+
+  it("leaves the state untouched when nothing new arrives", () => {
+    const before = useMusicStore.getState().playlists;
+
+    const outcome = useMusicStore.getState().addManyToPlaylist([{ id: "v1", title: "title-v1" }]);
+
+    expect(outcome).toEqual({ added: 0, skipped: 1 });
+    expect(useMusicStore.getState().playlists).toBe(before);
+  });
+
+  it("adds to a named playlist without touching the active one", () => {
+    const outcome = useMusicStore
+      .getState()
+      .addManyToPlaylist([{ id: "v7", title: "title-v7" }], "b");
+
+    expect(outcome).toEqual({ added: 1, skipped: 0 });
+    expect(itemIdsOf("b")).toEqual(["v9", "v7"]);
+    expect(itemIdsOf("a")).toEqual(["v1", "v2", "v3"]);
+  });
+
+  it("does not disturb playback of the current track", () => {
+    useMusicStore.setState({ currentIndex: 1, currentVideoId: "v2", isPlaying: true });
+
+    useMusicStore.getState().addManyToPlaylist([{ id: "v4", title: "title-v4" }]);
+
+    const state = useMusicStore.getState();
+    expect(state.currentIndex).toBe(1);
+    expect(state.currentVideoId).toBe("v2");
+    expect(state.isPlaying).toBe(true);
+  });
+
+  it("starts the index at the first track when the playlist was empty", () => {
+    seed([playlist("empty", [])], "empty", null);
+
+    useMusicStore.getState().addManyToPlaylist([{ id: "v1", title: "title-v1" }]);
+
+    expect(useMusicStore.getState().currentIndex).toBe(0);
+  });
+
+  it("ignores an unknown playlist id", () => {
+    const outcome = useMusicStore
+      .getState()
+      .addManyToPlaylist([{ id: "v7", title: "title-v7" }], "missing");
+
+    expect(outcome).toEqual({ added: 0, skipped: 1 });
+  });
+});

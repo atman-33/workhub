@@ -48,6 +48,51 @@ export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) =>
 
     return true;
   },
+  addManyToPlaylist: (items, playlistId) => {
+    const state = get();
+    const targetPlaylistId = playlistId || state.activePlaylistId;
+    const targetPlaylist = state.playlists.find((playlist) => playlist.id === targetPlaylistId);
+
+    if (!targetPlaylist) {
+      return { added: 0, skipped: items.length };
+    }
+
+    const seen = new Set(targetPlaylist.items.map((item) => item.id));
+    const newItems = items.filter((item) => {
+      if (seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
+
+    if (newItems.length === 0) {
+      return { added: 0, skipped: items.length };
+    }
+
+    // One set() for the whole batch: the vault save is driven by a store
+    // subscription, so adding items one at a time would queue a write per item.
+    set((currentState) => {
+      const updatedPlaylists = currentState.playlists.map((playlist) =>
+        playlist.id === targetPlaylistId
+          ? { ...playlist, items: [...playlist.items, ...newItems] }
+          : playlist,
+      );
+      const shouldResetShuffle =
+        currentState.isShuffle && targetPlaylistId === currentState.activePlaylistId;
+      return {
+        playlists: updatedPlaylists,
+        // Same rule as addToPlaylist: only seed the index, never move it, so an
+        // import cannot interrupt the song that is playing.
+        currentIndex: currentState.currentIndex === null ? 0 : currentState.currentIndex,
+        shuffleQueue: shouldResetShuffle
+          ? resetQueueForPlaylist(currentState.shuffleQueue, targetPlaylistId)
+          : currentState.shuffleQueue,
+      };
+    });
+
+    return { added: newItems.length, skipped: items.length - newItems.length };
+  },
   removeFromPlaylist: (index, playlistId) => {
     const state = get();
     const targetPlaylistId = playlistId || state.activePlaylistId;
