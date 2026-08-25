@@ -350,65 +350,70 @@ export function GitGraphView({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* header */}
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <Button size="icon" variant="ghost" className="size-8" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
-        <span className="text-[13px] font-semibold">{name}</span>
-        {/* Same solid tone as the checked-out ref badge in the graph, so the
-            header tells you what to look for and the graph shows you where. */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge
-              variant="outline"
-              className={cn(
-                "h-5 gap-1 px-1.5 text-[11px] font-bold",
-                refTone(detached ? "head" : "branch", true),
-              )}
-            >
-              <GitBranch className="size-3" />
-              <span className="max-w-40 truncate">
-                {detached ? "detached HEAD" : log?.current_branch}
-              </span>
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
-          </TooltipContent>
-        </Tooltip>
-        {/* Switch to any local or remote branch, filterable by typing — handy
-            when a repo has many branches that aren't decorated in the graph.
-            Lives inside a modal Sheet, so the popover is modal too (otherwise
-            the Sheet's scroll/pointer guard eats wheel and click). */}
-        <BranchCombobox
-          path={path}
-          current={detached ? "" : (log?.current_branch ?? "")}
-          onSwitch={(branch) => void runOp("Checkout", { kind: "checkout", branch })}
-          disabled={!!opBusy}
-          modal
-          trigger={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 w-52 justify-between px-2 text-xs font-normal"
-            >
-              <span className="truncate">Switch branch…</span>
-              <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
-            </Button>
-          }
-        />
-        {(loading || opBusy || autoFetching) && (
-          <Loader2 className="size-3.5 animate-spin text-primary" />
-        )}
-        {opBusy ? (
-          <span className="text-[11px] text-muted-foreground">{opBusy}…</span>
-        ) : (
-          autoFetching && (
-            <span className="text-[11px] text-muted-foreground">Fetching…</span>
-          )
-        )}
+        {/* Left half is the one that shrinks. A long repo or branch name used
+            to push the right-hand controls past the sheet's right edge, and the
+            maximize button — last in the row — disappeared with it. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+          <span className="truncate text-[13px] font-semibold">{name}</span>
+          {/* Same solid tone as the checked-out ref badge in the graph, so the
+              header tells you what to look for and the graph shows you where. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-5 min-w-0 gap-1 px-1.5 text-[11px] font-bold",
+                  refTone(detached ? "head" : "branch", true),
+                )}
+              >
+                <GitBranch className="size-3 shrink-0" />
+                <span className="max-w-40 truncate">
+                  {detached ? "detached HEAD" : log?.current_branch}
+                </span>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
+            </TooltipContent>
+          </Tooltip>
+          {/* Switch to any local or remote branch, filterable by typing — handy
+              when a repo has many branches that aren't decorated in the graph.
+              Lives inside a modal Sheet, so the popover is modal too (otherwise
+              the Sheet's scroll/pointer guard eats wheel and click). */}
+          <BranchCombobox
+            path={path}
+            current={detached ? "" : (log?.current_branch ?? "")}
+            onSwitch={(branch) => void runOp("Checkout", { kind: "checkout", branch })}
+            disabled={!!opBusy}
+            modal
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 w-52 justify-between px-2 text-xs font-normal"
+              >
+                <span className="truncate">Switch branch…</span>
+                <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
+              </Button>
+            }
+          />
+          {(loading || opBusy || autoFetching) && (
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
+          )}
+          {opBusy ? (
+            <span className="truncate text-[11px] text-muted-foreground">{opBusy}…</span>
+          ) : (
+            autoFetching && (
+              <span className="truncate text-[11px] text-muted-foreground">Fetching…</span>
+            )
+          )}
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             size="sm"
             variant="outline"
