@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindo
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::storage;
+use crate::window_place;
 
 pub const WINDOW_LABEL: &str = "voice-indicator";
 const WINDOW_SIZE: (f64, f64) = (340.0, 48.0);
@@ -144,15 +145,76 @@ fn restore_saved_position(app: &AppHandle, win: &WebviewWindow) -> bool {
     true
 }
 
+/// Places the indicator next to whatever the user is looking at: the focused
+/// app's text caret, or — when no caret could be located — the mouse cursor.
+/// Both probes read the state of the *other* app, so this must run before the
+/// indicator is shown (it is non-focusable, so showing it does not disturb
+/// them, but the caret probe is the slow part and there is nothing to gain
+/// from showing an unplaced window first).
+fn position_at_caret(app: &AppHandle, win: &WebviewWindow) {
+    match crate::caret::probe_with_timeout() {
+        Some(caret) if window_place::place_near_caret(app, win, caret) => {}
+        // No caret (an app with no text focus, or a provider that reports
+        // none) — the mouse is the next best guess at where the eye is.
+        _ => window_place::place_at_cursor(app, win),
+    }
+}
+
+/// Restores the placement the "fixed" mode remembers: the last dragged
+/// position, else bottom-center of the primary monitor.
+fn position_fixed(app: &AppHandle, win: &WebviewWindow) {
+    if !restore_saved_position(app, win) {
+        position_bottom_center(app, win);
+    }
+}
+
 fn show_indicator(app: &AppHandle) {
     let Some(win) = window(app) else { return };
     // Position only on the hidden→shown transition: phase changes mid-session
     // (recording→transcribing, errors) re-enter here, and repositioning then
     // would yank the window away from wherever the user just dragged it.
-    if !win.is_visible().unwrap_or(false) && !restore_saved_position(app, &win) {
-        position_bottom_center(app, &win);
+    if !win.is_visible().unwrap_or(false) {
+        if storage::load().settings.voice_indicator_placement == "caret" {
+            // Reached when a phase after Recording is the first to show the
+            // indicator (a recording too short for its own placement to land,
+            // or an error raised before it started). The mouse cursor stands
+            // in for the caret here: it is close enough and, unlike the caret
+            // probe, cannot block.
+            window_place::place_at_cursor(app, &win);
+        } else {
+            position_fixed(app, &win);
+        }
     }
     let _ = win.show();
+}
+
+/// Shows the indicator for a starting recording. In "caret" placement the
+/// caret probe can block for up to a few hundred milliseconds, and
+/// `start_recording` is reached from the global-shortcut handler — which on
+/// Windows runs inside WndProc — so the probe, the placement and the show all
+/// happen on a worker thread. The indicator therefore appears a few tens of
+/// milliseconds after the hotkey; recording itself has already started.
+fn show_indicator_for_recording(app: &AppHandle) {
+    if storage::load().settings.voice_indicator_placement != "caret" {
+        show_indicator(app);
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Some(win) = window(&app) else { return };
+        // A recording always re-anchors, even if the indicator is somehow
+        // still visible from a previous phase: the caret is where the user
+        // is looking *now*.
+        position_at_caret(&app, &win);
+        // The phase may have moved on (a very short recording) while the
+        // probe was running; showing then would leave a stuck indicator.
+        if matches!(
+            *app.state::<VoiceState>().phase.lock().unwrap(),
+            Phase::Recording
+        ) {
+            let _ = win.show();
+        }
+    });
 }
 
 fn hide_indicator(app: &AppHandle) {
@@ -164,7 +226,14 @@ fn hide_indicator(app: &AppHandle) {
 /// Persists the last known dragged position to config. Called only when the
 /// indicator is hidden (not on every `Moved` event), so this is a single
 /// write with no debounce needed.
+///
+/// Only "fixed" placement has anywhere to restore a saved position to; in
+/// "caret" placement every recording re-anchors, so remembering a drag would
+/// only grow config noise.
 fn persist_indicator_position(app: &AppHandle) {
+    if storage::load().settings.voice_indicator_placement == "caret" {
+        return;
+    }
     let state = app.state::<VoiceState>();
     let Some(pos) = *state.indicator_pos.lock().unwrap() else {
         return;
@@ -198,6 +267,9 @@ fn reset_to_pill_size(app: &AppHandle) {
 fn grow_to_preview_size(app: &AppHandle) {
     let Some(win) = window(app) else { return };
     resize_keep_top_left(&win, PREVIEW_WINDOW_SIZE);
+    // Anchored to a caret near the bottom of the screen, the taller preview
+    // window would otherwise hang off the work area.
+    window_place::clamp_to_work_area(app, &win);
 }
 
 #[derive(Serialize, Clone)]
@@ -234,7 +306,7 @@ fn set_phase(app: &AppHandle, phase: Phase) {
         }
         Phase::Recording => {
             reset_to_pill_size(app);
-            show_indicator(app);
+            show_indicator_for_recording(app);
         }
         // Keep whatever size Recording left it at (pill if no preview text
         // arrived yet, preview if it did) — the worker keeps draining and

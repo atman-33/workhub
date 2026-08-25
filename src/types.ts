@@ -62,6 +62,7 @@ export interface Settings {
   /** Last dragged position of the voice indicator window (physical pixels,
    * top-left; managed by the backend, round-tripped here so saving settings
    * doesn't wipe it). */
+  voice_indicator_placement: "caret" | "fixed";
   voice_indicator_position: [number, number] | null;
   /** Clips: a clibor-style snippet picker opened by a double-tapped modifier,
    * pasting the picked snippet into the app that had focus. */

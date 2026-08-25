@@ -113,9 +113,15 @@ pub struct Settings {
     /// Transcription language: "auto" or an ISO code (e.g. "en", "ja").
     #[serde(default = "default_voice_language")]
     pub voice_language: String,
+    /// Where the voice indicator appears when a recording starts:
+    /// "caret" (next to the focused app's text caret, falling back to the
+    /// mouse cursor) or "fixed" (the position it was last dragged to, or
+    /// bottom-center of the primary monitor).
+    #[serde(default = "default_voice_indicator_placement")]
+    pub voice_indicator_placement: String,
     /// Last dragged position of the voice indicator window (physical
-    /// pixels, top-left), carried over to the next show. Unset until the
-    /// user first drags it.
+    /// pixels, top-left), carried over to the next show. Only consulted in
+    /// "fixed" placement. Unset until the user first drags it.
     #[serde(default)]
     pub voice_indicator_position: Option<(i32, i32)>,
     /// Clips: a clibor-style snippet picker opened by a double-tapped
@@ -294,6 +300,9 @@ fn default_voice_model() -> String {
 fn default_voice_language() -> String {
     "auto".into()
 }
+fn default_voice_indicator_placement() -> String {
+    "caret".into()
+}
 fn default_clips_gesture() -> String {
     "ctrl-double".into()
 }
@@ -336,6 +345,7 @@ impl Default for Settings {
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),
             voice_language: default_voice_language(),
+            voice_indicator_placement: default_voice_indicator_placement(),
             voice_indicator_position: None,
             clips_enabled: true,
             clips_gesture: default_clips_gesture(),
