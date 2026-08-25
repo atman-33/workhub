@@ -138,6 +138,7 @@ filling in the placeholders. Layout:
 | `dev-notes/` | Development notes, design decisions, architecture |
 | `deliverables/` | Task deliverable notes (`T-XXXX-<title>`), linked from a task's `## Results` |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
+| `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
 | `attachments/` | Images and binaries for this project |
 | `_index.md` | Machine-readable index, maintained by `/kb-index` |
 
@@ -198,6 +199,47 @@ Non-working days drive the working-day counts the grid shows. Schedule
 elements are **not** tasks: they are candidates under consideration, and
 putting them on the board would break its meaning. A task appears on the
 calendar through its own `due` date, or via a `task:` link.
+
+### Mindmap notes
+
+`mindmaps/` holds the project's idea maps. One file is one map; the app's
+**Mindmap** tab renders it as a mindmap and writes changes straight back, so
+the note stays editable in Obsidian at the same time.
+
+Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`); the
+content lives in one managed `## Nodes` section, plus a `## Memo` section
+neither the app nor the AI ever rewrites:
+
+```markdown
+## Nodes
+
+- N-001 workhub #blue
+  - N-002 tasks #green task:T-0042
+    - N-003 kanban ^collapsed
+  - N-004 schedule #amber
+    lead times are still guesses
+```
+
+Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed]`
+
+- Nesting is indentation, two spaces per level — an ordinary nested bullet
+  list, which is what makes the file editable by hand.
+- `<id>` is `N-` + a number, unique in the file. **Never change or reuse one** —
+  it is how the app and the AI identify a node across edits. A node typed by
+  hand without an id gets one the next time the app reads the file.
+- `#<color>` is one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. A
+  branch inherits the nearest coloured ancestor's colour, so colour the branch
+  head rather than every node.
+- `task:<task-id>` links the node to a task in `tasks/`.
+- `^collapsed` hides the node's children **in the app**; the subtree itself is
+  untouched.
+- A node may carry extra lines of text on **indented continuation lines**
+  beneath it, which the app shows on hover.
+
+Node positions are deliberately **not** stored: the app lays the map out from
+the tree every time it draws it. The tab's "mermaid" button copies the map as a
+mermaid `mindmap` code block for pasting into a document — that export is
+one-way, since mermaid cannot carry ids, colours or task links.
 
 ### Backlog vs tasks
 

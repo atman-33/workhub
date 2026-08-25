@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.81.0 (2026-08-26)
+
+- **A new Mindmap tab maps ideas the way the Schedule tab plans dates**
+  (T-0188). Branching ideas had nowhere to live: a nested bullet list in
+  Obsidian says the structure but never shows it, and reaching for a separate
+  mindmapping app meant the result stopped being part of the vault. The tab
+  draws one note as a mindmap — root in the middle, branches out to both sides,
+  colour inherited down a branch — and edits it in place. **Tab** adds a child,
+  **Enter** a sibling, **F2** renames, dragging a node moves its whole subtree,
+  and the circle beside a node collapses it. Right-drag pans and the wheel
+  zooms, as on the Schedule tab.
+- **A mindmap is a plain nested bullet list in the vault**, at
+  `projects/<project-slug>/mindmaps/<name>.md`, so the same map is editable in
+  Obsidian, by an agent, and in the app at once. Node positions are never
+  stored — the layout is computed every time the map is drawn — which is what
+  keeps the file readable and diffable. Writes are guarded by the file's mtime,
+  so an edit made elsewhere in the meantime is reported instead of overwritten.
+- **The map copies out as mermaid**, or exports as a single self-contained HTML
+  page or a 2x PNG, into the project's `attachments/`. Deleting a mindmap moves
+  it to `_ai/memory/mindmap-trash/` rather than erasing it.
+- **Mindmaps can be edited with AI** in the same way schedules can: describe the
+  change, press Ctrl+Enter, and undo the whole run with one button. Pick the
+  agent and model under **⚙ Settings → Vault → Mindmap**.
+
 ## 0.80.0 (2026-08-26)
 
 - **The voice indicator now appears next to the text cursor** (T-0187). While

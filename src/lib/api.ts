@@ -10,6 +10,9 @@ import type {
   GitLog,
   GraphOp,
   InboxNote,
+  MindmapDoc,
+  MindmapEditRun,
+  MindmapFile,
   ScheduleDoc,
   ScheduleEditRun,
   ScheduleFile,
@@ -120,6 +123,36 @@ export const api = {
   scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
   restoreScheduleSnapshot: (path: string) =>
     invoke<ScheduleDoc>("restore_schedule_snapshot", { path }),
+
+  // ---- mindmap notes (projects/<slug>/mindmaps/*.md) ----
+  /** `project` narrows to one project slug; pass "" for every project. */
+  listMindmaps: (vaultPath: string, project = "") =>
+    invoke<MindmapFile[]>("list_mindmaps", { vaultPath, project }),
+  readMindmap: (path: string) => invoke<MindmapDoc>("read_mindmap", { path }),
+  /** Returns the new mtime. Rejects when the file changed on disk since it was
+   * read; pass `expectedMtime: 0` to write unconditionally. */
+  writeMindmap: (path: string, content: string, expectedMtime: number) =>
+    invoke<number>("write_mindmap", { path, content, expectedMtime }),
+  createMindmap: (vaultPath: string, project: string, title: string) =>
+    invoke<MindmapFile>("create_mindmap", { vaultPath, project, title }),
+  /** Renames a note: frontmatter `title` and file name move together. Returns
+   * the note at its new path, which the caller must reselect. */
+  renameMindmap: (vaultPath: string, path: string, title: string) =>
+    invoke<MindmapFile>("rename_mindmap", { vaultPath, path, title }),
+  /** Moves the note into `_ai/memory/mindmap-trash/` rather than deleting it,
+   * and returns where it went. */
+  deleteMindmap: (vaultPath: string, path: string) =>
+    invoke<string>("delete_mindmap", { vaultPath, path }),
+  exportMindmapFile: (outPath: string, content: string) =>
+    invoke<void>("export_mindmap_file", { outPath, content }),
+  /** `base64Data` is the payload of a `data:image/png;base64,...` URL. */
+  exportMindmapPng: (outPath: string, base64Data: string) =>
+    invoke<void>("export_mindmap_png", { outPath, base64Data }),
+  runMindmapEdit: (path: string, instruction: string, confirm: boolean) =>
+    invoke<string>("run_mindmap_edit", { path, instruction, confirm }),
+  mindmapEditStatus: () => invoke<MindmapEditRun>("mindmap_edit_status"),
+  restoreMindmapSnapshot: (path: string) =>
+    invoke<MindmapDoc>("restore_mindmap_snapshot", { path }),
 
   // ---- music player (vault-backed) ----
   loadMusicData: (vaultPath: string) =>

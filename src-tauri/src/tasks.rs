@@ -27,6 +27,9 @@ const TASKS_CHANGED_EVENT: &str = "tasks-changed";
 /// Emitted when a `projects/*/schedules/*.md` file changes, so the Schedule
 /// view reloads after an Obsidian or agent edit (T-0088).
 const SCHEDULES_CHANGED_EVENT: &str = "schedules-changed";
+/// Emitted when a `projects/*/mindmaps/*.md` file changes, so the Mindmap
+/// view reloads after an Obsidian or agent edit (T-0188).
+const MINDMAPS_CHANGED_EVENT: &str = "mindmaps-changed";
 const DEBOUNCE: Duration = Duration::from_millis(300);
 
 fn tasks_dir(vault: &Path) -> PathBuf {
@@ -1178,26 +1181,28 @@ impl Default for WatcherState {
     }
 }
 
-/// True for a path under `projects/<slug>/schedules/` ending in `.md`.
+/// True for a path under `projects/<slug>/<folder>/` ending in `.md`.
 ///
 /// `projects/` as a whole is a human writing area with far more churn than
-/// `tasks/`, so the watcher subscribes to the tree but only *reports* schedule
-/// notes — otherwise every note edit in Obsidian would round-trip a reload
-/// through the Schedule view (design note §10.4).
-fn is_schedule_path(p: &Path) -> bool {
+/// `tasks/`, so the watcher subscribes to the tree but only *reports* the note
+/// kinds a view is showing — otherwise every note edit in Obsidian would
+/// round-trip a reload through the Schedule and Mindmap views (schedule design
+/// note §10.4).
+fn is_note_path(p: &Path, folder: &str) -> bool {
     if p.extension().and_then(|e| e.to_str()) != Some("md") {
         return false;
     }
     p.parent()
         .and_then(|d| d.file_name())
         .and_then(|n| n.to_str())
-        == Some("schedules")
+        == Some(folder)
 }
 
 /// Starts (or restarts) watching `<vault>/tasks` and `<vault>/projects` for
 /// changes, debouncing bursts of events (e.g. an editor's
 /// save-as-temp-then-rename) into a single emit per affected area:
-/// `tasks-changed` for the task tree, `schedules-changed` for schedule notes.
+/// `tasks-changed` for the task tree, `schedules-changed` for schedule notes,
+/// `mindmaps-changed` for mindmap notes.
 /// Any per-event error from `notify` (a transient OS/FS hiccup) is treated as
 /// "the tasks changed" rather than killing the loop, so the watcher stays
 /// alive for the app's lifetime.
@@ -1233,11 +1238,14 @@ pub fn start_watcher(
         // Block for the first event of a new burst.
         let mut tasks_touched = false;
         let mut schedules_touched = false;
+        let mut mindmaps_touched = false;
         let mut classify = |ev: &Result<Event, notify::Error>| match ev {
             Ok(event) => {
                 for path in &event.paths {
-                    if is_schedule_path(path) {
+                    if is_note_path(path, "schedules") {
                         schedules_touched = true;
+                    } else if is_note_path(path, "mindmaps") {
+                        mindmaps_touched = true;
                     } else if !path.starts_with(&projects) {
                         tasks_touched = true;
                     }
@@ -1266,6 +1274,9 @@ pub fn start_watcher(
         }
         if schedules_touched {
             let _ = app.emit(SCHEDULES_CHANGED_EVENT, ());
+        }
+        if mindmaps_touched {
+            let _ = app.emit(MINDMAPS_CHANGED_EVENT, ());
         }
     });
 

@@ -22,259 +22,45 @@
 //! so `## Memo` and any unmanaged frontmatter key survive by construction.
 
 use crate::models::{ScheduleDoc, ScheduleFile};
-use include_dir::Dir;
+use crate::vault_note::{
+    frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs, norm_path,
+    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
+    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
+};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::path::Path;
 
 /// Subfolder of a project that holds its schedule notes.
 const SCHEDULES_DIR: &str = "schedules";
 
-/// Where `run_schedule_edit` parks a copy of the file before an agent touches
-/// it, so the UI can offer a one-generation undo (design note §9.5).
-const SNAPSHOT_DIR: &[&str] = &["_ai", "memory", "schedule-snapshots"];
+/// Note kind written into a schedule note's `type:` frontmatter key.
+const KIND: &str = "schedule";
 
-fn norm_path(p: &Path) -> String {
-    p.to_string_lossy().replace('\\', "/")
-}
-
-fn mtime_secs(p: &Path) -> u64 {
-    fs::metadata(p)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-/// Splits `---\n<frontmatter>\n---\n<body>`; same contract as the task parser.
-/// Returns `None` for a file with no (or an unterminated) frontmatter block —
-/// such a file is simply not a schedule note and is skipped by the scan.
-fn split_frontmatter(content: &str) -> Option<(String, String)> {
-    let mut lines = content.split_inclusive('\n');
-    let first = lines.next()?;
-    if first.trim_end_matches(['\r', '\n']) != "---" {
-        return None;
-    }
-    let mut consumed = first.len();
-    let mut front = String::new();
-    let mut closed = false;
-    for line in lines {
-        consumed += line.len();
-        if line.trim_end_matches(['\r', '\n']) == "---" {
-            closed = true;
-            break;
-        }
-        front.push_str(line);
-    }
-    if !closed {
-        return None;
-    }
-    Some((front, content[consumed..].to_string()))
-}
-
-fn unquote(s: &str) -> String {
-    let s = s.trim();
-    if s.len() >= 2 {
-        let b = s.as_bytes();
-        if (b[0] == b'"' && b[s.len() - 1] == b'"') || (b[0] == b'\'' && b[s.len() - 1] == b'\'') {
-            return s[1..s.len() - 1].to_string();
-        }
-    }
-    s.to_string()
-}
-
-/// Reads the flat scalars the schedule picker needs. Unknown keys are ignored
-/// (and preserved on write, since writes carry the whole file).
-fn frontmatter_value(front: &str, key: &str) -> String {
-    for line in front.lines() {
-        let Some(idx) = line.find(':') else { continue };
-        if line[..idx].trim() == key {
-            return unquote(&line[idx + 1..]);
-        }
-    }
-    String::new()
-}
-
-fn projects_dir(vault: &Path) -> PathBuf {
-    vault.join("projects")
-}
-
-/// Project slugs the vault has, i.e. the folder names under `projects/`.
-///
-/// The picker cannot derive this from existing schedule notes: a vault with no
-/// schedules yet would offer no projects, and "create a schedule" needs a
-/// project first — which is a deadlock, not an empty state.
-///
-/// Folders starting with `_` (the zone index and any scratch area) are not
-/// projects and are skipped.
-pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
-    let root = projects_dir(vault);
-    if !root.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut out = Vec::new();
-    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('_') || name.starts_with('.') {
-            continue;
-        }
-        out.push(name);
-    }
-    out.sort();
-    Ok(out)
-}
-
-/// Creates `projects/<slug>/` from the embedded project scaffold (T-0178).
-///
-/// The picker above lists folders under `projects/`, and until now a vault
-/// with no projects dead-ended the Schedule tab: nothing to pick, and no way
-/// to make one from inside the app. `name` fills the scaffold's
-/// `<Project name>` placeholder (the slug stands in when it is empty), the
-/// slug fills `<project-slug>`, and `{{DATE}}` becomes today. Files whose
-/// names contain "example" demonstrate the notation and are skipped, so a
-/// fresh project starts clean.
-///
-/// An existing folder is refused rather than merged: scaffolding is for
-/// starting a project, and the template update flow owns any later changes.
-pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String> {
-    let slug = slug.trim();
-    if slug.is_empty() {
-        return Err("a project slug is required".into());
-    }
-    if slug == ".." || slug.contains(['/', '\\']) {
-        return Err("a project slug cannot contain path separators".into());
-    }
-    // `list_projects` skips such folders, so creating one would make a
-    // project that exists on disk but can never be picked.
-    if slug.starts_with('_') || slug.starts_with('.') {
-        return Err("a project slug cannot start with '_' or '.'".into());
-    }
-    let dir = projects_dir(vault).join(slug);
-    if dir.exists() {
-        return Err(format!("a project named '{slug}' already exists"));
-    }
-
-    let template = crate::tasks::project_template()
-        .ok_or_else(|| "the project template is missing from this build".to_string())?;
-    let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
-    let display_name = match name.trim() {
-        "" => slug,
-        n => n,
-    };
-    let now = today();
-
-    let mut files = Vec::new();
-    walk_project_template(template, &mut files);
-    for file in files {
-        let full = norm_path(file.path());
-        let Some(rel) = full.strip_prefix(&prefix) else {
-            continue;
-        };
-        let file_name = rel.rsplit('/').next().unwrap_or(rel);
-        if file_name.contains("example") {
-            continue;
-        }
-        let dst = dir.join(rel);
-        if let Some(parent) = dst.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        match std::str::from_utf8(file.contents()) {
-            Ok(text) => {
-                let rendered = text
-                    .replace("<Project name>", display_name)
-                    .replace("<project-slug>", slug)
-                    .replace("{{DATE}}", &now);
-                fs::write(&dst, rendered).map_err(|e| e.to_string())?;
-            }
-            // Every scaffold file is text today; a future binary one must be
-            // copied verbatim, not lossy-converted.
-            Err(_) => fs::write(&dst, file.contents()).map_err(|e| e.to_string())?,
-        }
-    }
-    // The scaffold's only `schedules/` content is the excluded example note,
-    // so the folder would otherwise be missing until the first schedule.
-    fs::create_dir_all(dir.join(SCHEDULES_DIR)).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-fn walk_project_template<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
-    for file in dir.files() {
-        out.push(file);
-    }
-    for sub in dir.dirs() {
-        walk_project_template(sub, out);
-    }
-}
+/// Folder under `_ai/memory/` where `run_schedule_edit` parks a copy of the
+/// file before an agent touches it, so the UI can offer a one-generation undo
+/// (design note §9.5).
+const SNAPSHOT_DIR: &str = "schedule-snapshots";
 
 /// Lists schedule notes across the vault, optionally narrowed to one project
-/// slug. Files that are not schedule notes (no frontmatter, or `type` set to
-/// something else) are skipped rather than failing the scan, so a stray note
-/// dropped into `schedules/` never breaks the picker.
+/// slug. See `vault_note::scan_notes` for what a scan skips and why.
 pub fn list_schedules(vault: &Path, project: Option<&str>) -> Result<Vec<ScheduleFile>, String> {
-    let root = projects_dir(vault);
-    let mut out = Vec::new();
-    if !root.is_dir() {
-        return Ok(out);
-    }
-    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let slug = entry.file_name().to_string_lossy().to_string();
-        if let Some(want) = project {
-            if !want.is_empty() && want != slug {
-                continue;
-            }
-        }
-        let dir = entry.path().join(SCHEDULES_DIR);
-        if !dir.is_dir() {
-            continue;
-        }
-        for file in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-            let file = file.map_err(|e| e.to_string())?;
-            let path = file.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if name.starts_with('_') {
-                continue; // `_index.md`, `_example.md`, and friends
-            }
-            let Ok(content) = fs::read_to_string(&path) else {
-                continue;
+    let notes = scan_notes(vault, SCHEDULES_DIR, KIND, project)?;
+    Ok(notes
+        .into_iter()
+        .map(|note| {
+            let title = match frontmatter_value(&note.front, "title") {
+                t if t.is_empty() => note.name.clone(),
+                t => t,
             };
-            let Some((front, _)) = split_frontmatter(&content) else {
-                continue;
-            };
-            let kind = frontmatter_value(&front, "type");
-            if !kind.is_empty() && kind != "schedule" {
-                continue;
-            }
-            let title = {
-                let t = frontmatter_value(&front, "title");
-                if t.is_empty() {
-                    name.trim_end_matches(".md").to_string()
-                } else {
-                    t
-                }
-            };
-            out.push(ScheduleFile {
-                path: norm_path(&path),
-                project: slug.clone(),
+            ScheduleFile {
+                path: norm_path(&note.path),
+                project: note.project,
                 title,
-                range: frontmatter_value(&front, "range"),
-                updated: frontmatter_value(&front, "updated"),
-            });
-        }
-    }
-    out.sort_by(|a, b| (&a.project, &a.title).cmp(&(&b.project, &b.title)));
-    Ok(out)
+                range: frontmatter_value(&note.front, "range"),
+                updated: frontmatter_value(&note.front, "updated"),
+            }
+        })
+        .collect())
 }
 
 pub fn read_schedule(path: &Path) -> Result<ScheduleDoc, String> {
@@ -330,47 +116,6 @@ pub fn write_schedule(path: &Path, content: &str, expected_mtime: u64) -> Result
     Ok(mtime_secs(path))
 }
 
-fn sanitize_filename(title: &str) -> String {
-    let cleaned: String = title
-        .chars()
-        .map(|c| match c {
-            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
-            c => c,
-        })
-        .collect();
-    let trimmed = cleaned.trim().trim_matches('.');
-    if trimmed.is_empty() {
-        "schedule".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-fn today() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let (y, m, d) = civil_from_days((secs / 86_400) as i64);
-    format!("{y:04}-{m:02}-{d:02}")
-}
-
-/// Howard Hinnant's `civil_from_days` (same rationale as `tasks.rs`: a single
-/// "today" stamp does not justify a date/time crate).
-fn civil_from_days(z: i64) -> (i32, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let y = if m <= 2 { y + 1 } else { y };
-    (y as i32, m, d)
-}
-
 /// Creates `projects/<project>/schedules/<title>.md` from the skeleton. The
 /// weekend default in `## Non-working` is what makes a fresh note immediately
 /// useful — the working-day count is the point of the feature, and a note with
@@ -385,20 +130,17 @@ pub fn create_schedule(
     if project.is_empty() {
         return Err("a project is required to create a schedule".into());
     }
-    let dir = projects_dir(vault).join(project).join(SCHEDULES_DIR);
+    let dir = crate::vault_note::projects_dir(vault)
+        .join(project)
+        .join(SCHEDULES_DIR);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let title = if title.trim().is_empty() {
-        "schedule"
+        KIND
     } else {
         title.trim()
     };
-    let mut path = dir.join(format!("{}.md", sanitize_filename(title)));
     // Never clobber an existing note: suffix until the name is free.
-    let mut n = 2;
-    while path.exists() {
-        path = dir.join(format!("{} {n}.md", sanitize_filename(title)));
-        n += 1;
-    }
+    let path = unique_note_path(&dir, title, KIND, None);
     let now = today();
     let content = format!(
         "---\ntype: schedule\ntitle: {title}\nrange: {range}\ncreated: {now}\nupdated: {now}\n---\n\n\
@@ -439,44 +181,10 @@ pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<Sch
     // Same collision rule as `create_schedule`, except that the note's own file
     // is not a collision — renaming "plan" to "plan" (or only changing its
     // case) must not produce "plan 2".
-    let same_file = |candidate: &Path| norm_path(candidate).eq_ignore_ascii_case(&norm_path(path));
-    let mut target = dir.join(format!("{}.md", sanitize_filename(title)));
-    let mut n = 2;
-    while target.exists() && !same_file(&target) {
-        target = dir.join(format!("{} {n}.md", sanitize_filename(title)));
-        n += 1;
-    }
+    let target = unique_note_path(dir, title, KIND, Some(path));
 
     let now = today();
-    let mut front_out = String::new();
-    let (mut saw_title, mut saw_updated) = (false, false);
-    for line in front.lines() {
-        let key = line
-            .find(':')
-            .map(|i| line[..i].trim())
-            .unwrap_or_default()
-            .to_string();
-        match key.as_str() {
-            "title" => {
-                front_out.push_str(&format!("title: {title}\n"));
-                saw_title = true;
-            }
-            "updated" => {
-                front_out.push_str(&format!("updated: {now}\n"));
-                saw_updated = true;
-            }
-            _ => {
-                front_out.push_str(line);
-                front_out.push('\n');
-            }
-        }
-    }
-    if !saw_title {
-        front_out.push_str(&format!("title: {title}\n"));
-    }
-    if !saw_updated {
-        front_out.push_str(&format!("updated: {now}\n"));
-    }
+    let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
     let updated_content = format!("---\n{front_out}---\n{body}");
     fs::write(path, &updated_content).map_err(|e| e.to_string())?;
 
@@ -485,13 +193,7 @@ pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<Sch
     // Windows.
     if norm_path(&target) != norm_path(path) {
         fs::rename(path, &target).map_err(|e| e.to_string())?;
-        let (old_snap, new_snap) = (snapshot_path(vault, path), snapshot_path(vault, &target));
-        if old_snap.exists() && old_snap != new_snap {
-            if let Some(parent) = new_snap.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            fs::rename(&old_snap, &new_snap).map_err(|e| e.to_string())?;
-        }
+        move_snapshot(vault, SNAPSHOT_DIR, path, &target)?;
     }
 
     let project = dir
@@ -523,56 +225,28 @@ pub fn export_html(out_path: &Path, html: &str) -> Result<(), String> {
 // snapshots (undo for AI edits)
 // ---------------------------------------------------------------------
 
-fn snapshot_dir(vault: &Path) -> PathBuf {
-    SNAPSHOT_DIR
-        .iter()
-        .fold(vault.to_path_buf(), |p, s| p.join(s))
-}
-
-/// One snapshot per schedule file, keyed by a flattened form of its
-/// vault-relative path. Only one generation is kept: the undo this backs is
-/// "that AI run was wrong, put it back", and a deeper history would need a UI
-/// to choose from — the vault's git backup covers anything older (§9.5).
-fn snapshot_path(vault: &Path, target: &Path) -> PathBuf {
-    let rel = norm_path(target)
-        .strip_prefix(&norm_path(vault))
-        .unwrap_or(&norm_path(target))
-        .trim_start_matches('/')
-        .replace(['/', ' '], "_");
-    snapshot_dir(vault).join(format!("{rel}.bak"))
-}
-
 pub fn save_snapshot(vault: &Path, target: &Path) -> Result<(), String> {
-    let content = fs::read_to_string(target).map_err(|e| e.to_string())?;
-    let path = snapshot_path(vault, target);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(&path, content).map_err(|e| e.to_string())
+    note_save_snapshot(vault, SNAPSHOT_DIR, target)
 }
 
 /// Restores the schedule from its snapshot and consumes it, so "undo" is
 /// exactly one generation deep and cannot be pressed twice against a snapshot
-/// that no longer describes a state the user wants back.
-///
-/// The mtime check is deliberately *not* applied: the whole point is to
-/// discard whatever an agent just wrote.
+/// that no longer describes a state the user wants back (§9.5).
 pub fn restore_snapshot(vault: &Path, target: &Path) -> Result<ScheduleDoc, String> {
-    let path = snapshot_path(vault, target);
-    let content = fs::read_to_string(&path)
-        .map_err(|_| "no snapshot is available for this schedule".to_string())?;
-    fs::write(target, &content).map_err(|e| e.to_string())?;
-    let _ = fs::remove_file(&path);
+    note_restore_snapshot(vault, SNAPSHOT_DIR, target, KIND)?;
     read_schedule(target)
 }
 
 pub fn has_snapshot(vault: &Path, target: &Path) -> bool {
-    snapshot_path(vault, target).exists()
+    note_has_snapshot(vault, SNAPSHOT_DIR, target)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vault_note::{create_project, list_projects};
+    use std::path::PathBuf;
+    use std::time::UNIX_EPOCH;
 
     fn temp_vault(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()

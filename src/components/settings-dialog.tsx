@@ -139,6 +139,9 @@ const DEFAULTS: Settings = {
   schedule_assignee: "claude-code",
   schedule_model: "",
   schedule_confirm: false,
+  mindmap_assignee: "claude-code",
+  mindmap_model: "",
+  mindmap_confirm: false,
   schedule_export_dir: "",
   schedule_locale: "en",
   recurring: [],
@@ -854,6 +857,57 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     onChange={(e) => setDraft({ ...draft, schedule_export_dir: e.target.value })}
                     placeholder="blank = the project's attachments/"
                     className="h-8 font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Mindmap AI edits (T-0188) */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Mindmap</p>
+                  <p className="text-xs text-muted-foreground">
+                    Agent used when you edit a mindmap with a natural-language instruction.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                    <Select
+                      value={draft.mindmap_assignee}
+                      // Clear the model when the agent changes: model ids are
+                      // per-CLI, so a claude id left behind on an opencode run
+                      // would be passed straight through to `--model` and fail.
+                      onValueChange={(v) =>
+                        setDraft({ ...draft, mindmap_assignee: v, mindmap_model: "" })
+                      }
+                    >
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="claude-code">Claude Code</SelectItem>
+                        <SelectItem value="opencode">OpenCode</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Model</label>
+                    <ModelCombobox
+                      assignee={draft.mindmap_assignee}
+                      value={draft.mindmap_model}
+                      onChange={(model) => setDraft({ ...draft, mindmap_model: model })}
+                      active={open}
+                      modal
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Show what would change and wait for approval instead of applying immediately.
+                  </p>
+                  <Switch
+                    checked={draft.mindmap_confirm}
+                    onCheckedChange={(v) => setDraft({ ...draft, mindmap_confirm: v })}
                   />
                 </div>
               </div>

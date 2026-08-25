@@ -9,6 +9,7 @@ import {
   ListTodo,
   Mic,
   Music,
+  Network,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { ClipsView } from "@/components/clips-view";
 import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
+import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
 import { ReposView } from "@/components/repos-view";
 import { ScheduleView } from "@/components/schedule/schedule-view";
@@ -38,6 +40,7 @@ type Tab =
   | "inbox"
   | "repos"
   | "schedule"
+  | "mindmap"
   | "music"
   | "timer"
   | "voice"
@@ -48,6 +51,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "schedule", label: "Schedule", icon: CalendarRange },
+  { key: "mindmap", label: "Mindmap", icon: Network },
   { key: "inbox", label: "Inbox", icon: Inbox },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
@@ -194,6 +198,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
             <ScheduleView configVersion={configVersion} />
+          </div>
+          <div className={cn("h-full", tab !== "mindmap" && "hidden")}>
+            <MindmapView configVersion={configVersion} />
           </div>
           <div className={cn("h-full", tab !== "inbox" && "hidden")}>
             <InboxView configVersion={configVersion} active={tab === "inbox"} />

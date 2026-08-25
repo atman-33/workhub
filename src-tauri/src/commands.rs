@@ -1,12 +1,15 @@
+use crate::mindmap;
+use crate::mindmap_edit;
 use crate::models::{
-    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, ScheduleDoc, ScheduleFile,
-    Task, Worktree,
+    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, MindmapDoc, MindmapFile,
+    ScheduleDoc, ScheduleFile, Task, Worktree,
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
 use crate::schedule_edit;
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::terminal::{self, TerminalState};
+use crate::vault_note;
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -474,7 +477,7 @@ pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn list_schedule_projects(vault_path: String) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        schedule::list_projects(&PathBuf::from(vault_path))
+        vault_note::list_projects(&PathBuf::from(vault_path))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -489,7 +492,7 @@ pub async fn create_vault_project(
     name: String,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        schedule::create_project(&PathBuf::from(vault_path), &slug, &name)
+        vault_note::create_project(&PathBuf::from(vault_path), &slug, &name)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -598,6 +601,128 @@ pub fn restore_schedule_snapshot(
     path: String,
 ) -> Result<ScheduleDoc, String> {
     schedule_edit::undo(app, path)
+}
+
+// ---- mindmap notes (T-0188) ---------------------------------------------
+
+/// Lists mindmap notes, optionally narrowed to one project slug (pass an empty
+/// string for "all projects").
+#[tauri::command]
+pub async fn list_mindmaps(
+    vault_path: String,
+    project: String,
+) -> Result<Vec<MindmapFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let project = (!project.trim().is_empty()).then_some(project);
+        mindmap::list_mindmaps(&PathBuf::from(vault_path), project.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_mindmap(path: String) -> Result<MindmapDoc, String> {
+    tauri::async_runtime::spawn_blocking(move || mindmap::read_mindmap(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Writes a mindmap note, refusing when the file changed on disk since the
+/// caller read it. Returns the new mtime for the next guarded write. Pass
+/// `expected_mtime: 0` to write unconditionally.
+#[tauri::command]
+pub async fn write_mindmap(
+    path: String,
+    content: String,
+    expected_mtime: u64,
+) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::write_mindmap(&PathBuf::from(path), &content, expected_mtime)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn create_mindmap(
+    vault_path: String,
+    project: String,
+    title: String,
+) -> Result<MindmapFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::create_mindmap(&PathBuf::from(vault_path), &project, &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Renames a mindmap note: its frontmatter `title` and its file name move
+/// together, and its snapshot follows the new path.
+#[tauri::command]
+pub async fn rename_mindmap(
+    vault_path: String,
+    path: String,
+    title: String,
+) -> Result<MindmapFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::rename_mindmap(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Moves a mindmap note into `_ai/memory/mindmap-trash/`. Returns where it
+/// went, so the UI can tell the user where to find it.
+#[tauri::command]
+pub async fn delete_mindmap(vault_path: String, path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::delete_mindmap(&PathBuf::from(vault_path), &PathBuf::from(path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes a frontend-generated, self-contained HTML or SVG export to disk.
+#[tauri::command]
+pub async fn export_mindmap_file(out_path: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::export_file(&PathBuf::from(out_path), &content)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes a frontend-rendered PNG (base64, as `canvas.toDataURL` produces it).
+#[tauri::command]
+pub async fn export_mindmap_png(out_path: String, base64_data: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mindmap::export_binary(&PathBuf::from(out_path), &base64_data)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Launches a headless agent to apply a natural-language edit to a mindmap
+/// note. Returns immediately; progress arrives on `mindmap-edit:status`.
+#[tauri::command]
+pub fn run_mindmap_edit(
+    app: tauri::AppHandle,
+    path: String,
+    instruction: String,
+    confirm: bool,
+) -> Result<String, String> {
+    mindmap_edit::run(app, path, instruction, confirm)
+}
+
+#[tauri::command]
+pub fn mindmap_edit_status(app: tauri::AppHandle) -> mindmap_edit::MindmapEditRun {
+    mindmap_edit::snapshot(&app)
+}
+
+/// Restores the snapshot taken before the last AI edit of this mindmap.
+#[tauri::command]
+pub fn restore_mindmap_snapshot(app: tauri::AppHandle, path: String) -> Result<MindmapDoc, String> {
+    mindmap_edit::undo(app, path)
 }
 
 /// `vault-template/` is embedded into the binary at compile time (see
