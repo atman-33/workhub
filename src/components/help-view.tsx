@@ -113,8 +113,9 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe, or click the stop button on the indicator. Recording auto-stops after 2 minutes.
 - The first time, download a model in **⚙ Settings → Voice** (\`tiny\`/\`base\`/\`small\` plus quantized variants; larger models are more accurate but slower). \`small-q5_1\` is a good speed/accuracy default on CPU; \`large-v3-turbo-q5_0\` is the most accurate and fast on a GPU. Transcription won't work until a model is downloaded.
 - Transcription runs on the GPU (Vulkan) when one is available, and falls back to CPU automatically otherwise.
-- A small indicator at the bottom of the screen shows recording (with elapsed time), transcribing, or an error. While speaking, it grows into a live preview of the transcript so far, built from short chunks transcribed as you go — no need to wait for the final pass.
-- The indicator can be dragged anywhere on screen; workhub remembers where you left it and reopens it there next time.
+- A small indicator shows recording (with elapsed time), transcribing, or an error. While speaking, it grows into a live preview of the transcript so far, built from short chunks transcribed as you go — no need to wait for the final pass.
+- By default the indicator appears next to the text cursor of the app you are dictating into, so it is where you are already looking. When no text cursor can be found (some apps don't report one), it appears next to the mouse pointer instead.
+- Prefer it to stay put? Set **⚙ Settings → Voice → Indicator position** to **Fixed**: the indicator then opens where you last dragged it, or bottom-center of the primary screen.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.
@@ -963,15 +964,27 @@ export function HelpView() {
                 available, and falls back to CPU automatically otherwise.
               </li>
               <li>
-                A small indicator at the bottom of the screen shows
-                recording (with elapsed time), transcribing, or an error.
-                While speaking, it grows into a live preview of the
-                transcript so far, built from short chunks transcribed as
-                you go — no need to wait for the final pass.
+                A small indicator shows recording (with elapsed time),
+                transcribing, or an error. While speaking, it grows into a
+                live preview of the transcript so far, built from short
+                chunks transcribed as you go — no need to wait for the final
+                pass.
               </li>
               <li>
-                The indicator can be dragged anywhere on screen; workhub
-                remembers where you left it and reopens it there next time.
+                By default the indicator appears next to the text cursor of
+                the app you are dictating into, so it is where you are
+                already looking. When no text cursor can be found (some apps
+                don't report one), it appears next to the mouse pointer
+                instead.
+              </li>
+              <li>
+                Prefer it to stay put? Set{" "}
+                <span className="font-medium">
+                  ⚙ Settings → Voice → Indicator position
+                </span>{" "}
+                to <span className="font-medium">Fixed</span>: the indicator
+                then opens where you last dragged it, or bottom-center of the
+                primary screen.
               </li>
               <li>
                 The transcript is copied to the clipboard, pasted into the

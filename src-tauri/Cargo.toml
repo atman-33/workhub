@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.79.1"
+version = "0.80.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -78,6 +78,14 @@ windows = { version = "0.61", features = [
     "Win32_System_DataExchange",
     "Win32_System_Ole",
     "Win32_System_Memory",
+    # voice indicator placement: the text caret of the *focused* app, read
+    # via GetGUIThreadInfo (Win32 controls) and UI Automation (Chromium,
+    # Electron, VS Code, ...) — see src-tauri/src/caret.rs.
+    "Win32_UI_Accessibility",
+    "Win32_System_Com",
+    # ClientToScreen, for turning the client-relative caret rect returned by
+    # GetGUIThreadInfo into screen coordinates.
+    "Win32_Graphics_Gdi",
 ] }
 
 # whisper-rs-sys 0.13.1 passes the MSVC-only /utf-8 flag to g++ on every

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.80.0 (2026-08-26)
+
+- **The voice indicator now appears next to the text cursor** (T-0187). While
+  dictating, the little recording pill sat at the bottom of the screen (or
+  wherever it had last been dragged), so the elapsed time and the live
+  transcript preview were nowhere near the text being spoken into — checking
+  either meant looking away from the writing. It now opens beside the text
+  cursor of the app being dictated into, just under the line, flipping above
+  it when there is no room below. Apps that report no text cursor fall back to
+  the mouse pointer. To keep the old behaviour, set **⚙ Settings → Voice →
+  Indicator position** to **Fixed**.
+
 ## 0.79.1 (2026-08-25)
 
 - **The commit graph's maximize button no longer goes missing** (T-0186). Open a

@@ -1,4 +1,5 @@
 mod actions;
+mod caret;
 mod clips;
 mod commands;
 mod git;

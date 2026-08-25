@@ -127,6 +127,7 @@ const DEFAULTS: Settings = {
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
   voice_language: "auto",
+  voice_indicator_placement: "caret",
   voice_indicator_position: null,
   clips_enabled: true,
   clips_gesture: "ctrl-double",
@@ -652,6 +653,33 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Indicator position
+                    </label>
+                    <Select
+                      value={draft.voice_indicator_placement}
+                      onValueChange={(v) =>
+                        setDraft({
+                          ...draft,
+                          voice_indicator_placement: v as Settings["voice_indicator_placement"],
+                        })
+                      }
+                    >
+                      <SelectTrigger size="sm" className="w-full">
+                        <SelectValue className="truncate" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="caret">Follow the text cursor</SelectItem>
+                        <SelectItem value="fixed">Fixed (remembers where you drag it)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {draft.voice_indicator_placement === "caret"
+                        ? "The indicator appears next to the text cursor of the app you are dictating into, or by the mouse pointer when no text cursor can be found."
+                        : "The indicator appears where you last dragged it, or bottom-center of the primary screen."}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Local models</p>
