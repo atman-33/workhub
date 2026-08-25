@@ -20,6 +20,15 @@
 - **The map copies out as mermaid**, or exports as a single self-contained HTML
   page or a 2x PNG, into the project's `attachments/`. Deleting a mindmap moves
   it to `_ai/memory/mindmap-trash/` rather than erasing it.
+- **Fixes found in the first hands-on pass**: clicking empty canvas no longer
+  makes the map disappear (the side panel is now always part of the layout
+  instead of being added and removed, which collapsed the canvas); the map
+  fits the window when the tab is first opened and whenever it is resized;
+  dragging a node shows a ghost that follows the pointer and snaps to a nearby
+  drop target instead of demanding an exact hit; **Enter** on the centre node
+  adds a branch rather than a second, stacked map; and holding **Enter** no
+  longer produces a run of unnamed nodes, which are now discarded if their name
+  box is abandoned.
 - **Mindmaps can be edited with AI** in the same way schedules can: describe the
   change, press Ctrl+Enter, and undo the whole run with one button. Pick the
   agent and model under **⚙ Settings → Vault → Mindmap**.

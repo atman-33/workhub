@@ -47,6 +47,13 @@ interface Props {
 }
 
 const MIN_ZOOM = 0.2;
+/** Travel, in screen px, before a press on a node becomes a drag rather than a
+ * click. Mirrors `usePanDrag`'s threshold so both gestures arbitrate alike. */
+const DRAG_THRESHOLD_PX = 4;
+/** How far from a box a drop still counts as landing on it. The boxes are
+ * small and the gaps between them are not; without this, a drag that stops two
+ * pixels short of the target silently does nothing. */
+const SNAP_RADIUS = 44;
 const MAX_ZOOM = 2.5;
 /** Padding around the map when fitting it to the viewport. */
 const FIT_PADDING = 48;
@@ -55,6 +62,20 @@ interface Camera {
   x: number;
   y: number;
   zoom: number;
+}
+
+interface DragState {
+  id: string;
+  /** Where the press landed, in diagram coordinates. */
+  originX: number;
+  originY: number;
+  /** Where the pointer is now. */
+  x: number;
+  y: number;
+  /** Drop target under (or nearest to) the pointer. */
+  over: string | null;
+  /** False until the press has travelled far enough to be a drag. */
+  active: boolean;
 }
 
 export function MindmapCanvas({
@@ -73,18 +94,37 @@ export function MindmapCanvas({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [layout, setLayout] = useState<MindmapLayout>(() => layoutMindmap(roots));
-  const [drag, setDrag] = useState<{ id: string; x: number; y: number; over: string | null } | null>(
-    null,
-  );
+  const [drag, setDrag] = useState<DragState | null>(null);
+  /**
+   * The canvas's own size, tracked rather than read on demand.
+   *
+   * The app shell keeps every tab mounted and hides the inactive ones, so on
+   * first mount this element measures 0x0 and any fit computed then is
+   * meaningless. Watching the box means the first fit happens when the tab is
+   * actually shown, and again whenever the window or the side panel resizes it.
+   */
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  /** A fit was asked for and has not been satisfiable yet (no size, no nodes). */
+  const pendingFit = useRef(true);
 
   useEffect(() => {
     setLayout(layoutMindmap(roots));
   }, [roots]);
 
-  const fit = useCallback(() => {
+  useEffect(() => {
     const el = wrapRef.current;
-    if (!el || !layout.nodes.length) return;
-    const { width, height } = el.getBoundingClientRect();
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const fit = useCallback((): boolean => {
+    const { width, height } = size;
+    if (!width || !height || !layout.nodes.length) return false;
     const scale = Math.min(
       (width - FIT_PADDING * 2) / Math.max(layout.bounds.width, 1),
       (height - FIT_PADDING * 2) / Math.max(layout.bounds.height, 1),
@@ -98,15 +138,26 @@ export function MindmapCanvas({
       x: width / 2 - (layout.bounds.x + layout.bounds.width / 2) * zoom,
       y: height / 2 - (layout.bounds.y + layout.bounds.height / 2) * zoom,
     });
-  }, [layout]);
+    return true;
+  }, [layout, size]);
 
-  // Re-fit when the view asks for it. Deliberately not on every layout change:
-  // adding a node while zoomed in must not yank the camera away from what the
-  // user is looking at.
+  // The view asks for a fit by bumping the token; it is recorded rather than
+  // acted on, because the request usually arrives one render before the layout
+  // and the size are both known.
   useEffect(() => {
-    fit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    pendingFit.current = true;
   }, [fitToken]);
+
+  // Satisfy a pending request as soon as it can be satisfied. Deliberately not
+  // a fit on every layout change: adding a node while zoomed in must not yank
+  // the camera away from what the user is looking at.
+  useEffect(() => {
+    if (!pendingFit.current) return;
+    if (fit()) pendingFit.current = false;
+    // `fitToken` is a dependency as well as the trigger above: pressing Fit
+    // when neither the layout nor the size has changed leaves `fit` with the
+    // same identity, and the request would never be acted on.
+  }, [fit, fitToken]);
 
   const pan = useCallback((dx: number, dy: number) => {
     setCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
@@ -150,30 +201,78 @@ export function MindmapCanvas({
     };
   };
 
-  const nodeAt = (x: number, y: number): PositionedNode | null =>
-    layout.nodes.find((n) => x >= n.x && x <= n.x + n.width && y >= n.y && y <= n.y + n.height) ??
-    null;
+  /** True when `id` is `ancestorId` or sits somewhere beneath it. */
+  const isWithin = (id: string, ancestorId: string): boolean => {
+    let cursor: string | undefined = id;
+    while (cursor) {
+      if (cursor === ancestorId) return true;
+      cursor = layout.byId.get(cursor)?.parentId;
+    }
+    return false;
+  };
+
+  /**
+   * The node a drop would land on: the box under the pointer, or — when the
+   * pointer is between boxes — the nearest one within reach.
+   *
+   * Requiring an exact hit made the gesture feel broken: the boxes are small,
+   * the gaps between them are large, and a drag that lands two pixels short
+   * silently did nothing. `moving` is excluded along with its whole subtree,
+   * since a node cannot become its own descendant.
+   */
+  const dropTargetAt = (x: number, y: number, moving: string): string | null => {
+    let best: { id: string; distance: number } | null = null;
+    for (const node of layout.nodes) {
+      if (isWithin(node.id, moving)) continue;
+      const dx = Math.max(node.x - x, 0, x - (node.x + node.width));
+      const dy = Math.max(node.y - y, 0, y - (node.y + node.height));
+      const distance = Math.hypot(dx, dy);
+      if (distance > SNAP_RADIUS) continue;
+      if (!best || distance < best.distance) best = { id: node.id, distance };
+    }
+    return best?.id ?? null;
+  };
 
   const startNodeDrag = (e: React.PointerEvent, node: PositionedNode) => {
     // The root has nowhere to move to, and a locked file moves nowhere at all.
     if (locked || node.depth === 0 || editingId) return;
     e.stopPropagation();
     const at = toDiagram(e.clientX, e.clientY);
-    setDrag({ id: node.id, x: at.x, y: at.y, over: null });
+    setDrag({
+      id: node.id,
+      originX: at.x,
+      originY: at.y,
+      x: at.x,
+      y: at.y,
+      over: null,
+      active: false,
+    });
   };
 
   useEffect(() => {
     if (!drag) return;
     const onMove = (e: PointerEvent) => {
       const at = toDiagram(e.clientX, e.clientY);
-      const hit = nodeAt(at.x, at.y);
-      setDrag((d) =>
-        d ? { ...d, x: at.x, y: at.y, over: hit && hit.id !== d.id ? hit.id : null } : d,
-      );
+      setDrag((d) => {
+        if (!d) return d;
+        // A press that never travels is a click on the node, not a drag — the
+        // same arbitration `usePanDrag` makes for the right button.
+        const active =
+          d.active ||
+          Math.abs(at.x - d.originX) * camera.zoom + Math.abs(at.y - d.originY) * camera.zoom >=
+            DRAG_THRESHOLD_PX;
+        return {
+          ...d,
+          x: at.x,
+          y: at.y,
+          active,
+          over: active ? dropTargetAt(at.x, at.y, d.id) : null,
+        };
+      });
     };
     const onUp = () => {
       setDrag((d) => {
-        if (d?.over) onReparent(d.id, d.over);
+        if (d?.active && d.over) onReparent(d.id, d.over);
         return null;
       });
     };
@@ -184,6 +283,8 @@ export function MindmapCanvas({
       window.removeEventListener("pointerup", onUp);
     };
   });
+
+  const dragged = drag?.active ? (layout.byId.get(drag.id) ?? null) : null;
 
   return (
     <div
@@ -219,7 +320,7 @@ export function MindmapCanvas({
               key={node.id}
               node={node}
               selected={node.id === selectedId}
-              dragging={drag?.id === node.id}
+              dragging={Boolean(drag?.active) && drag?.id === node.id}
               dropTarget={drag?.over === node.id}
               editing={node.id === editingId}
               locked={locked}
@@ -231,16 +332,61 @@ export function MindmapCanvas({
               onDragStart={startNodeDrag}
             />
           ))}
+
+          {/* The node being dragged, redrawn under the pointer. Without a
+              ghost the gesture gave no feedback at all — the box stayed put
+              and only faded, so the map read as "nothing is moving". */}
+          {dragged && drag && (
+            <g pointerEvents="none" opacity={0.9}>
+              {drag.over && (
+                <path
+                  d={dropLine(layout.byId.get(drag.over)!, drag)}
+                  fill="none"
+                  className="stroke-primary"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                />
+              )}
+              <rect
+                x={drag.x - dragged.width / 2}
+                y={drag.y - dragged.height / 2}
+                width={dragged.width}
+                height={dragged.height}
+                rx={8}
+                className="fill-card stroke-primary"
+                strokeWidth={2}
+              />
+              <text
+                x={drag.x}
+                y={drag.y + 5}
+                textAnchor="middle"
+                fontSize={14}
+                className="fill-foreground select-none"
+              >
+                {dragged.lines[0]}
+              </text>
+            </g>
+          )}
         </g>
       </svg>
 
-      <Minimap layout={layout} camera={camera} wrap={wrapRef} selectedId={selectedId} />
+      <Minimap layout={layout} camera={camera} size={size} selectedId={selectedId} />
 
       <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
         {Math.round(camera.zoom * 100)}%
       </div>
     </div>
   );
+}
+
+/** Line from the prospective parent to the ghost, so the drop reads as "this
+ * node goes under that one" rather than "this node lands here". */
+function dropLine(parent: PositionedNode, drag: { x: number; y: number }): string {
+  const fromRight = drag.x >= parent.x + parent.width / 2;
+  const x1 = fromRight ? parent.x + parent.width : parent.x;
+  const y1 = parent.y + parent.height / 2;
+  const dx = (drag.x - x1) / 2;
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${drag.x - dx} ${drag.y}, ${drag.x} ${drag.y}`;
 }
 
 interface NodeProps {
@@ -438,23 +584,24 @@ function NodeInput({
 function Minimap({
   layout,
   camera,
-  wrap,
+  size,
   selectedId,
 }: {
   layout: MindmapLayout;
   camera: Camera;
-  wrap: React.RefObject<HTMLDivElement | null>;
+  /** The canvas's size, tracked by its ResizeObserver — reading the ref during
+   * render would give nothing on the first pass and never correct itself. */
+  size: { width: number; height: number };
   selectedId: string | null;
 }) {
-  const size = { width: 168, height: 112 };
-  const rect = wrap.current?.getBoundingClientRect();
-  if (!layout.nodes.length || !rect) return null;
+  const box = { width: 168, height: 112 };
+  if (!layout.nodes.length || !size.width || !size.height) return null;
 
   const visible = {
     x: -camera.x / camera.zoom,
     y: -camera.y / camera.zoom,
-    width: rect.width / camera.zoom,
-    height: rect.height / camera.zoom,
+    width: size.width / camera.zoom,
+    height: size.height / camera.zoom,
   };
   if (
     visible.x <= layout.bounds.x &&
@@ -475,8 +622,8 @@ function Minimap({
   return (
     <svg
       className="pointer-events-none absolute bottom-2 left-2 rounded border bg-background/80"
-      width={size.width}
-      height={size.height}
+      width={box.width}
+      height={box.height}
       viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
       preserveAspectRatio="xMidYMid meet"
       role="presentation"
@@ -500,7 +647,7 @@ function Minimap({
         height={visible.height}
         fill="none"
         className="stroke-ring"
-        strokeWidth={(maxX - minX) / size.width}
+        strokeWidth={(maxX - minX) / box.width}
       />
     </svg>
   );

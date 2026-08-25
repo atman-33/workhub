@@ -307,18 +307,23 @@ export function MindmapView({ configVersion }: Props) {
       const roots = cloneNodes(doc.roots);
       const fresh: MindmapNode = { id: nextNodeId(roots), title: "", children: [] };
 
+      // A sibling of the root would be a *second* root, which stacks below the
+      // first as a separate map — never what pressing Enter on the centre
+      // means. Treat it as "add a branch", the way a mindmapping tool does.
+      const parent = relativeTo && as === "sibling" ? findParent(roots, relativeTo) : null;
+      const target = as === "child" || (as === "sibling" && !parent) ? "child" : "sibling";
+
       if (!relativeTo || !roots.length) {
         roots.push(fresh);
-      } else if (as === "child") {
-        const parent = findNode(roots, relativeTo);
-        if (!parent) return;
+      } else if (target === "child") {
+        const node = findNode(roots, relativeTo);
+        if (!node) return;
         // Adding to a collapsed node would put the new node somewhere the user
         // cannot see; expanding is the only reading of the gesture that works.
-        delete parent.collapsed;
-        parent.children.push(fresh);
+        delete node.collapsed;
+        node.children.push(fresh);
       } else {
-        const parent = findParent(roots, relativeTo);
-        const siblings = parent ? parent.children : roots;
+        const siblings = parent!.children;
         siblings.splice(siblings.findIndex((n) => n.id === relativeTo) + 1, 0, fresh);
       }
       mutate({ ...doc, roots });
@@ -343,6 +348,31 @@ export function MindmapView({ configVersion }: Props) {
       setSelectedId(parent?.id ?? null);
     },
     [doc, mutate],
+  );
+
+  /**
+   * Ends an inline rename, dropping the node when nothing was typed.
+   *
+   * A node is created empty and opens straight into its name box, so
+   * abandoning that box (Escape, or a click elsewhere) would otherwise leave a
+   * blank box on the map — and a run of them if the user was pressing Enter.
+   * Only a childless node is dropped: an empty *branch* head is a structure
+   * someone built, not a leftover.
+   */
+  const finishEdit = useCallback(
+    (id: string, title: string | null) => {
+      setEditingId(null);
+      if (!doc) return;
+      const node = findNode(doc.roots, id);
+      if (!node) return;
+      const next = title === null ? node.title : title;
+      if (!next.trim() && !node.children.length) {
+        deleteNode(id);
+        return;
+      }
+      if (title !== null && title !== node.title) patchNode(id, { title });
+    },
+    [doc, deleteNode, patchNode],
   );
 
   const toggleCollapse = useCallback(
@@ -407,6 +437,11 @@ export function MindmapView({ configVersion }: Props) {
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable='true']")) return;
       if (aiRunning || !doc) return;
+      // A node opens straight into its name box, and the box takes focus one
+      // frame later. Without this, a second Enter in that gap reached this
+      // handler instead of the field and created another empty node — a run of
+      // them, if the user was typing at speed.
+      if (editingId) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -452,7 +487,7 @@ export function MindmapView({ configVersion }: Props) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [aiRunning, doc, selectedId, addNode, deleteNode, navigate, undo, redo]);
+  }, [aiRunning, doc, editingId, selectedId, addNode, deleteNode, navigate, undo, redo]);
 
   // ---- file commands ------------------------------------------------------
 
@@ -802,52 +837,58 @@ export function MindmapView({ configVersion }: Props) {
                 fitToken={fitToken}
                 onSelect={setSelectedId}
                 onStartEdit={setEditingId}
-                onCommitEdit={(id, title) => {
-                  setEditingId(null);
-                  patchNode(id, { title });
-                }}
-                onCancelEdit={() => setEditingId(null)}
+                onCommitEdit={(id, title) => finishEdit(id, title)}
+                onCancelEdit={() => editingId && finishEdit(editingId, null)}
                 onToggleCollapse={toggleCollapse}
                 onReparent={reparent}
               />
               <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
-                Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove · drag: move ·
-                right-drag: pan · wheel: zoom
+                Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove · drag
+                onto a node: move · right-drag: pan · wheel: zoom
               </div>
             </div>
           </ResizablePanel>
-          {(selected || aiOpen) && <ResizableHandle />}
-          {(selected || aiOpen) && (
-            <ResizablePanel
-              id="mindmap-side"
-              defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
-              minSize="16%"
-              className="min-h-0"
-            >
-              <div className="flex h-full min-h-0 flex-col">
-                {selected && (
-                  <NodeEditor
-                    node={selected}
-                    tasks={tasks}
-                    disabled={aiRunning}
-                    onChange={(patch) => patchNode(selected.id, patch)}
-                    onAddChild={() => addNode(selected.id, "child")}
-                    onAddSibling={() => addNode(selected.id, "sibling")}
-                    onDelete={() => deleteNode(selected.id)}
-                  />
-                )}
-                {aiOpen && aiRun && (
-                  <MindmapAiPanel
-                    run={aiRun}
-                    defaultConfirm={config?.settings.mindmap_confirm ?? false}
-                    disabled={!path}
-                    onRun={(instruction, confirm) => void runAiEdit(instruction, confirm)}
-                    onUndo={() => void undoAiEdit()}
-                  />
-                )}
-              </div>
-            </ResizablePanel>
-          )}
+          <ResizableHandle />
+          {/* Rendered unconditionally, even when it has nothing to show.
+              `react-resizable-panels` recomputes its layout when the number of
+              panels changes, and taking this one away mid-session collapsed the
+              canvas panel to zero height — the map simply vanished on a click
+              that cleared the selection (T-0188 follow-up). */}
+          <ResizablePanel
+            id="mindmap-side"
+            defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
+            minSize="16%"
+            className="min-h-0"
+          >
+            <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+              {selected ? (
+                <NodeEditor
+                  node={selected}
+                  tasks={tasks}
+                  disabled={aiRunning}
+                  onChange={(patch) => patchNode(selected.id, patch)}
+                  onAddChild={() => addNode(selected.id, "child")}
+                  onAddSibling={() => addNode(selected.id, "sibling")}
+                  onDelete={() => deleteNode(selected.id)}
+                />
+              ) : (
+                !aiOpen && (
+                  <p className="p-3 text-xs text-muted-foreground">
+                    Pick a node to edit it, or press Tab to add one.
+                  </p>
+                )
+              )}
+              {aiOpen && aiRun && (
+                <MindmapAiPanel
+                  run={aiRun}
+                  defaultConfirm={config?.settings.mindmap_confirm ?? false}
+                  disabled={!path}
+                  onRun={(instruction, confirm) => void runAiEdit(instruction, confirm)}
+                  onUndo={() => void undoAiEdit()}
+                />
+              )}
+            </div>
+          </ResizablePanel>
         </ResizablePanelGroup>
       )}
 
