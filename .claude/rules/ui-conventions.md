@@ -141,3 +141,35 @@ Two things to keep in mind when building one:
 - **Verify by measuring, not by looking.** `scrollHeight` vs `clientHeight` on
   the root, the pane, and the scroller says which element actually overflows;
   a screenshot cannot tell a page scrollbar from a pane scrollbar.
+
+## Toolbar headers: information truncates, controls never shrink
+
+A header row that mixes variable-length information (a repo name, a branch, a
+status line) with action buttons is a single non-wrapping flex row. Nothing in
+it shrinks by default, so long text pushes the trailing buttons past the
+container's right edge, where they are simply clipped — the failure looks
+intermittent because it depends on the name length and the window width.
+
+Split such a header into two halves and say which one gives way:
+
+```tsx
+<header className="flex items-center gap-2 border-b px-3 py-2">
+  <div className="flex min-w-0 flex-1 items-center gap-2">
+    {/* information: `truncate` on every text node, `min-w-0` on badges */}
+  </div>
+  <div className="flex shrink-0 items-center gap-2">
+    {/* controls: always fully visible */}
+  </div>
+</header>
+```
+
+- The left wrapper needs **both** `min-w-0` and `flex-1`; without `min-w-0` its
+  automatic minimum size is its content and `truncate` inside it never engages.
+- Icons inside a truncating element need `shrink-0` so the text, not the icon,
+  is what gives way.
+- The controls half takes `shrink-0` instead of relying on `ml-auto` alone —
+  `ml-auto` positions the group but does not stop it being squeezed out.
+
+The commit-graph header (`src/components/graph/git-graph-view.tsx`) shipped the
+unsplit version: with a long repo name the maximize button at the end of the
+row vanished (T-0186).
