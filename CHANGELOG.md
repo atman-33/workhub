@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.79.1 (2026-08-25)
+
+- **The commit graph's maximize button no longer goes missing** (T-0186). Open a
+  repository's graph from the **Repos** tab and the button that widens the sheet
+  to the full window was sometimes simply not there. It was: the header packed
+  the repository name, the branch, the branch picker and every action button
+  into one row that could not shrink, so a long repository or branch name — or a
+  narrow window — pushed the last button off the right edge. The header now
+  shortens the names instead of the buttons, so the controls stay put whatever
+  the repository is called.
+
 ## 0.79.0 (2026-08-25)
 
 - **A YouTube playlist can be added to Music in one go** (T-0183). Songs had to
