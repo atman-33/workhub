@@ -205,8 +205,8 @@ mod win {
     /// height, ...]` array of doubles) and returns the last one.
     unsafe fn last_rect(range: &IUIAutomationTextRange) -> Option<CaretRect> {
         let values = read_f64_array(range.GetBoundingRectangles().ok()?);
-        let chunk = values.chunks_exact(4).next_back()?;
-        let (left, top, width, height) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+        let (rects, _) = values.as_chunks::<4>();
+        let &[left, top, width, height] = rects.last()?;
         if height <= 0.0 || width < 0.0 {
             return None;
         }
