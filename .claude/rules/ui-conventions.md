@@ -173,3 +173,32 @@ Split such a header into two halves and say which one gives way:
 The commit-graph header (`src/components/graph/git-graph-view.tsx`) shipped the
 unsplit version: with a long repo name the maximize button at the end of the
 row vanished (T-0186).
+
+## A tab's root element takes `h-full`, never `flex-1`
+
+`src/app.tsx` mounts every tab inside a plain block div:
+
+```tsx
+<div className={cn("h-full", tab !== "mindmap" && "hidden")}>
+  <MindmapView … />
+</div>
+```
+
+That wrapper is **not** a flex container, so `flex-1` on the tab's own root
+resolves to no height at all. The root then sizes to its content, and anything
+below it that needs a definite height — a `ResizablePanelGroup` above all —
+collapses to a few pixels. Nothing errors; the tab just renders as a sliver.
+
+```tsx
+// correct — matches tasks-view, schedule-view, repos-view
+<div className="flex h-full min-h-0 flex-col">
+```
+
+The same applies to a tab's early-return states (the "no vault configured" and
+empty-state screens): they are the root for that render, so they take `h-full`
+too. Inside the root, `flex-1` is right again — it is a flex item there.
+
+The Mindmap tab shipped with `flex min-h-0 flex-1 flex-col` and rendered as a
+~30px strip with the whole map clipped out of view (T-0188 follow-up). The
+symptom looks like a canvas or layout bug, which is what makes it worth
+recognising: check the root's height before investigating anything downstream.

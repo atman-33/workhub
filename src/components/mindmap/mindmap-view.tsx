@@ -636,7 +636,7 @@ export function MindmapView({ configVersion }: Props) {
 
   if (!vaultPath) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
         Set a vault path in Settings to use mindmaps.
       </div>
     );
@@ -644,7 +644,7 @@ export function MindmapView({ configVersion }: Props) {
 
   if (projectsLoaded && !projects.length) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
         This vault has no projects yet.
         <Button size="sm" onClick={() => setProjectDialogOpen(true)}>
           <FolderPlus className="mr-1 size-3.5" />
@@ -665,8 +665,11 @@ export function MindmapView({ configVersion }: Props) {
 
   const nodeCount = doc ? countNodes(doc.roots) : 0;
 
+  // `h-full`, not `flex-1`: the app shell mounts each tab in a plain `h-full`
+  // div, which is not a flex container — a `flex-1` root there has no height to
+  // take, and the panel group below collapses to a few pixels.
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
         <Select
           value={project || ALL_PROJECTS}
