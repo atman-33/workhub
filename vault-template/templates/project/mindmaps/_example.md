@@ -19,7 +19,7 @@ updated: {{DATE}}
 
 ## Nodes
 
-<!-- - <id> <title> [#<color>] [task:<task-id>] [^collapsed]
+<!-- - <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]
      Nesting is indentation: two spaces per level.
      id: `N-` + a number, unique in this file — never change or reuse one.
        A node typed here without an id gets one the next time the app reads
@@ -27,6 +27,8 @@ updated: {{DATE}}
      color: blue | green | amber | red | purple | gray. A branch inherits the
        nearest coloured ancestor's colour, so colour the branch head.
      ^collapsed: hides the node's children in the app; the subtree is kept.
+     ^left / ^right: which side of the centre a branch is drawn on (only on a
+       child of a root). Without it, branches alternate by position.
 
      A node can carry extra text on indented continuation lines beneath it,
      which the app shows on hover:

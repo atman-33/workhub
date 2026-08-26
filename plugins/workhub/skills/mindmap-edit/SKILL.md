@@ -44,7 +44,7 @@ Free-form prose. Never rewritten by this skill.
 Node line:
 
 ```text
-- <id> <title> [#<color>] [task:<task-id>] [^collapsed]
+- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]
 ```
 
 | Field | Rule |
@@ -54,6 +54,7 @@ Node line:
 | `#<color>` | Optional, one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. |
 | `task:<id>` | Optional link to a task in `tasks/`. |
 | `^collapsed` | Optional. The node's children are hidden **in the app**; the subtree is unaffected. |
+| `^left` / `^right` | Optional, and only meaningful on a **child of a root**: which side of the centre that branch is drawn on. Without it, branches alternate by their position in the list. |
 
 **Nesting is indentation**: two spaces per level, exactly as Obsidian renders a
 nested bullet list. A node's parent is the nearest node one level shallower
@@ -74,6 +75,14 @@ The note belongs to its node: when you move a node, **move its continuation
 lines and its whole subtree with it**, and never merge a note into the node's
 first line (the first line is the grammar line, and a newline in it would
 produce a second, unparsable node).
+
+Sides are the user's arrangement of the map, not decoration: keep `^left` /
+`^right` exactly as you found them unless the instruction is about which side
+something is on ("move the release branch to the left"). When you add a branch
+beside an existing one, give it the same side as its neighbour — and if the
+neighbours have no explicit side, write the side each one is *currently* drawn
+on onto all of them first, so that inserting into the middle of the list does
+not shuffle the others across the centre.
 
 Colour is **inherited down a branch** in the app: a node with no `#colour` of
 its own is drawn in the nearest coloured ancestor's colour. Colour the branch
@@ -114,6 +123,8 @@ head rather than every node in it.
   everything indented under it — say so in the report, with the count.
 - **Never re-order siblings** the instruction did not mention. Sibling order is
   the author's, and the layout follows it.
+- **Never drop a `^left` / `^right`.** Removing one lets the branch jump to the
+  other side of the map on the next render.
 - **Never remove or reorder frontmatter keys** you do not recognize. Update
   `updated:` to today's date and leave the rest alone.
 - **Never edit any file other than the target mindmap.** In particular, do not

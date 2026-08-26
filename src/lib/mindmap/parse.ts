@@ -67,6 +67,17 @@ export interface MindmapNode {
   /** Children are hidden on the canvas; the subtree itself is untouched. */
   collapsed?: boolean;
   /**
+   * Which side of the root this branch grows on. Only meaningful on a child of
+   * a root; ignored anywhere else, since a deeper node always follows its
+   * branch.
+   *
+   * Absent means "wherever the layout puts it" — see `rootChildSide`. The app
+   * writes it as soon as the user's action implies a side (adding a sibling of
+   * a branch, dragging a branch across the root), because a side that is
+   * recomputed on every edit moves branches around under the user's hands.
+   */
+  side?: "left" | "right";
+  /**
    * Free text continued on indented lines under the node. Empty when the node
    * is a single line. The canvas shows it in the node's tooltip rather than on
    * the node, so a long explanation never distorts the layout.
@@ -199,6 +210,7 @@ function parseNodeLine(line: string): ParsedLine | null {
   let color: Color | undefined;
   let task: string | undefined;
   let collapsed = false;
+  let side: "left" | "right" | undefined;
   const titleTokens: string[] = [];
   // Modifiers may appear in any order; anything left over is the title. A
   // title is free text, so an unrecognized `#word` stays part of it rather
@@ -210,6 +222,8 @@ function parseNodeLine(line: string): ParsedLine | null {
       task = tok.slice(5);
     } else if (tok === "^collapsed") {
       collapsed = true;
+    } else if (tok === "^left" || tok === "^right") {
+      side = tok.slice(1) as "left" | "right";
     } else {
       titleTokens.push(tok);
     }
@@ -225,6 +239,7 @@ function parseNodeLine(line: string): ParsedLine | null {
       ...(color ? { color } : {}),
       ...(task ? { task } : {}),
       ...(collapsed ? { collapsed: true } : {}),
+      ...(side ? { side } : {}),
     },
   };
 }
@@ -370,6 +385,7 @@ export function formatNode(node: MindmapNode, depth = 0): string[] {
   if (node.color) parts.push(`#${node.color}`);
   if (node.task) parts.push(`task:${node.task}`);
   if (node.collapsed) parts.push("^collapsed");
+  if (node.side) parts.push(`^${node.side}`);
 
   const out = [`${pad}- ${parts.join(" ")}`];
   const note = (node.note ?? "").replace(/\s+$/, "");
@@ -416,6 +432,30 @@ function setFrontmatterValue(frontmatter: string, key: string, value: string): s
 // ---------------------------------------------------------------------------
 // tree edits
 // ---------------------------------------------------------------------------
+
+/**
+ * Which side of the root a branch grows on.
+ *
+ * An explicit `^left` / `^right` wins; otherwise branches alternate by their
+ * position in the list. Alternating (rather than balancing by subtree size,
+ * which is what this started as) is what makes the map hold still: appending a
+ * branch cannot change where any existing branch sits, so the map the user is
+ * looking at does not rearrange itself as they type.
+ */
+export function rootChildSide(node: MindmapNode, index: number): "left" | "right" {
+  return node.side ?? (index % 2 === 0 ? "right" : "left");
+}
+
+/**
+ * Writes out the side every branch is currently drawn on, so that an insertion
+ * or a removal in the middle of the list cannot shift the others across the
+ * root. Called before any edit that changes the shape of a root's child list.
+ */
+export function freezeRootChildSides(root: MindmapNode): void {
+  root.children.forEach((child, index) => {
+    child.side = rootChildSide(child, index);
+  });
+}
 
 /** Deep copy, so an edit can be applied to a candidate tree and discarded. */
 export function cloneNodes(nodes: MindmapNode[]): MindmapNode[] {

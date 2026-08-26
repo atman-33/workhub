@@ -50,23 +50,36 @@ describe("layoutMindmap", () => {
     }
   });
 
-  it("balances by subtree size rather than alternating", () => {
-    // One heavy branch, then three light ones: the heavy one takes a side by
-    // itself.
-    const layout = layoutMindmap(
-      tree([
-        "- N-001 root",
-        "  - N-002 heavy",
-        "    - N-006 x",
-        "    - N-007 y",
-        "    - N-008 z",
-        "  - N-003 a",
-        "  - N-004 b",
-      ]),
+  it("alternates branches by position, so appending never moves an existing one", () => {
+    const before = layoutMindmap(tree(["- N-001 root", "  - N-002 a", "  - N-003 b"]));
+    const after = layoutMindmap(
+      tree(["- N-001 root", "  - N-002 a", "  - N-003 b", "  - N-004 c", "  - N-005 d"]),
     );
-    const heavy = layout.byId.get("N-002")!.side;
-    expect(layout.byId.get("N-003")!.side).not.toBe(heavy);
-    expect(layout.byId.get("N-004")!.side).not.toBe(heavy);
+    // The two branches that were already there keep their sides — this is what
+    // stops the map rearranging itself while the user types into it.
+    for (const id of ["N-002", "N-003"]) {
+      expect(after.byId.get(id)!.side).toBe(before.byId.get(id)!.side);
+    }
+    expect(after.byId.get("N-002")!.side).toBe("right");
+    expect(after.byId.get("N-003")!.side).toBe("left");
+  });
+
+  it("honours an explicit side over the alternating default", () => {
+    const layout = layoutMindmap(
+      tree(["- N-001 root", "  - N-002 a ^left", "  - N-003 b ^left", "  - N-004 c ^right"]),
+    );
+    expect(layout.byId.get("N-002")!.side).toBe("left");
+    expect(layout.byId.get("N-003")!.side).toBe("left");
+    expect(layout.byId.get("N-004")!.side).toBe("right");
+  });
+
+  it("keeps a whole branch on its head's side", () => {
+    const layout = layoutMindmap(
+      tree(["- N-001 root", "  - N-002 a ^left", "    - N-003 a1", "      - N-004 a2"]),
+    );
+    for (const id of ["N-002", "N-003", "N-004"]) {
+      expect(layout.byId.get(id)!.side).toBe("left");
+    }
   });
 
   it("never overlaps two siblings vertically", () => {

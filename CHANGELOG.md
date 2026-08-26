@@ -31,6 +31,15 @@
   adds a branch rather than a second, stacked map; and holding **Enter** no
   longer produces a run of unnamed nodes, which are now discarded if their name
   box is abandoned.
+- **Branches hold still while you edit.** The left/right split was recomputed
+  from subtree sizes on every change, so branches swapped sides as nodes were
+  added. Branches now alternate by position and can be pinned with a `^left` /
+  `^right` flag, which the app writes whenever an action implies a side —
+  **Enter** adds a branch on the same side as the one it was pressed on, and
+  dragging a branch across the centre moves it there. The map also keeps its
+  zoom: saving no longer re-frames the view.
+- **The rename box is legible and grows with the text** — on the centre node it
+  was white on white, and it stayed the width of the old name while typing.
 - **Mindmaps can be edited with AI** in the same way schedules can: describe the
   change, press Ctrl+Enter, and undo the whole run with one button. Pick the
   agent and model under **⚙ Settings → Vault → Mindmap**.

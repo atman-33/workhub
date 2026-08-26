@@ -220,7 +220,7 @@ neither the app nor the AI ever rewrites:
     lead times are still guesses
 ```
 
-Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed]`
+Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]`
 
 - Nesting is indentation, two spaces per level — an ordinary nested bullet
   list, which is what makes the file editable by hand.
@@ -233,6 +233,11 @@ Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed]`
 - `task:<task-id>` links the node to a task in `tasks/`.
 - `^collapsed` hides the node's children **in the app**; the subtree itself is
   untouched.
+- `^left` / `^right` pins a branch to one side of the root (only meaningful on
+  a child of a root). Without it, branches alternate by their position in the
+  list. The app writes it whenever an action implies a side — adding a branch
+  beside another, or dragging one across the root — so branches never swap
+  sides while the map is being edited.
 - A node may carry extra lines of text on **indented continuation lines**
   beneath it, which the app shows on hover.
 

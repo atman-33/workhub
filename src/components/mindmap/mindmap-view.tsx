@@ -40,6 +40,7 @@ import {
   cloneNodes,
   findNode,
   findParent,
+  freezeRootChildSides,
   moveNode,
   nextNodeId,
   parseMindmap,
@@ -148,20 +149,32 @@ export function MindmapView({ configVersion }: Props) {
     setProjectsLoaded(true);
   }, [vaultPath]);
 
-  const loadDoc = useCallback(async (target: string) => {
-    if (!target) {
-      setDoc(null);
-      return;
-    }
-    const read = await api.readMindmap(target);
-    source.current = { content: read.content, mtime: read.mtime };
-    // A reload means the file, not the user, decided the current state — the
-    // stack would otherwise let Ctrl+Z "undo" someone else's edit.
-    undoStack.current = [];
-    redoStack.current = [];
-    setDoc(parseMindmap(read.content));
-    setFitToken((n) => n + 1);
-  }, []);
+  /**
+   * Reads a note into the view.
+   *
+   * `fit` frames the map, and is for opening a *different* note — re-framing on
+   * every reload threw the user's zoom away each time the watcher reported a
+   * save. `skipUnchanged` drops the reload entirely when the file on disk is
+   * the one we just wrote, which is what that watcher event usually is.
+   */
+  const loadDoc = useCallback(
+    async (target: string, { fit = false, skipUnchanged = false } = {}) => {
+      if (!target) {
+        setDoc(null);
+        return;
+      }
+      const read = await api.readMindmap(target);
+      if (skipUnchanged && read.mtime === source.current.mtime) return;
+      source.current = { content: read.content, mtime: read.mtime };
+      // A reload means the file, not the user, decided the current state — the
+      // stack would otherwise let Ctrl+Z "undo" someone else's edit.
+      undoStack.current = [];
+      redoStack.current = [];
+      setDoc(parseMindmap(read.content));
+      if (fit) setFitToken((n) => n + 1);
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadFiles();
@@ -174,7 +187,7 @@ export function MindmapView({ configVersion }: Props) {
   }, [vaultPath, loadProjects]);
 
   useEffect(() => {
-    void loadDoc(path);
+    void loadDoc(path, { fit: true });
     setSelectedId(null);
     setEditingId(null);
   }, [path, loadDoc]);
@@ -185,8 +198,9 @@ export function MindmapView({ configVersion }: Props) {
     const unlisten = listen("mindmaps-changed", () => {
       void loadFiles();
       // A pending local edit is the newer intent; letting the reload win would
-      // throw away what the user typed a moment ago.
-      if (path && !saveTimer.current) void loadDoc(path);
+      // throw away what the user typed a moment ago. The event is usually the
+      // echo of our own save, which `skipUnchanged` drops.
+      if (path && !saveTimer.current) void loadDoc(path, { skipUnchanged: true });
     });
     return () => {
       void unlisten.then((fn) => fn());
@@ -324,7 +338,16 @@ export function MindmapView({ configVersion }: Props) {
         node.children.push(fresh);
       } else {
         const siblings = parent!.children;
-        siblings.splice(siblings.findIndex((n) => n.id === relativeTo) + 1, 0, fresh);
+        const at = siblings.findIndex((n) => n.id === relativeTo) + 1;
+        if (roots.includes(parent!)) {
+          // A branch of the root: the new one belongs on the same side as the
+          // branch the user was on. Freezing the rest first stops the
+          // insertion from shifting any of them across the root, since the
+          // default side is derived from position.
+          freezeRootChildSides(parent!);
+          fresh.side = siblings[at - 1].side;
+        }
+        siblings.splice(at, 0, fresh);
       }
       mutate({ ...doc, roots });
       setSelectedId(fresh.id);
@@ -385,7 +408,7 @@ export function MindmapView({ configVersion }: Props) {
   );
 
   const reparent = useCallback(
-    (id: string, parentId: string) => {
+    (id: string, parentId: string, dropSide: "left" | "right") => {
       if (!doc) return;
       const roots = moveNode(doc.roots, id, parentId);
       // `null` means the drop was into the node's own subtree, or onto itself.
@@ -394,7 +417,21 @@ export function MindmapView({ configVersion }: Props) {
         return;
       }
       const parent = findNode(roots, parentId);
+      const moved = findNode(roots, id);
       if (parent) delete parent.collapsed;
+      if (parent && moved) {
+        if (roots.includes(parent)) {
+          // Dropped onto the root: which side of it the pointer was on is the
+          // whole content of the gesture — it is how a branch is moved from
+          // the left of the map to the right.
+          freezeRootChildSides(parent);
+          moved.side = dropSide;
+        } else {
+          // Anywhere else, a branch follows its new parent and has no side of
+          // its own to assert.
+          delete moved.side;
+        }
+      }
       mutate({ ...doc, roots });
     },
     [doc, mutate],

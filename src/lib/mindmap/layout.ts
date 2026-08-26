@@ -13,7 +13,7 @@
  * contiguous vertical band so that no two subtrees can overlap.
  */
 
-import type { Color, MindmapNode } from "./parse";
+import { rootChildSide, type Color, type MindmapNode } from "./parse";
 
 export type Side = "left" | "right";
 
@@ -35,8 +35,10 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   fontSize: 14,
 };
 
-/** Padding inside a node box. */
-const PAD_X = 12;
+/** Padding inside a node box. Exported because the canvas sizes the inline
+ * rename box with it, so a node grows as it is typed into. */
+export const NODE_PAD_X = 12;
+const PAD_X = NODE_PAD_X;
 const PAD_Y = 8;
 /** Line height as a multiple of the font size. */
 const LINE_HEIGHT = 1.45;
@@ -202,27 +204,19 @@ function measureTree(node: MindmapNode, opts: LayoutOptions): Measured {
 }
 
 /**
- * Splits the root's branches between the two sides, keeping the drawing
- * balanced.
+ * Splits the root's branches between the two sides.
  *
- * Greedy by height rather than alternating: alternating looks tidy on a tree
- * whose branches are all the same size and lopsided on every real one, where
- * a single branch often carries most of the nodes.
+ * The decision belongs to the document, not to this function: `rootChildSide`
+ * honours an explicit `^left` / `^right` and otherwise alternates by position.
+ *
+ * This started out as a greedy balance by subtree height, which draws a nicer
+ * picture and is unusable to edit — every added node re-balanced the whole map,
+ * so a branch would jump to the other side of the root while the user was
+ * typing into it. Predictability wins: adding a branch at the end cannot move
+ * any existing branch.
  */
 function assignSides(children: Measured[]): Side[] {
-  const sides: Side[] = [];
-  let right = 0;
-  let left = 0;
-  for (const child of children) {
-    if (right <= left) {
-      sides.push("right");
-      right += child.extent;
-    } else {
-      sides.push("left");
-      left += child.extent;
-    }
-  }
-  return sides;
+  return children.map((child, index) => rootChildSide(child.node, index));
 }
 
 export function layoutMindmap(

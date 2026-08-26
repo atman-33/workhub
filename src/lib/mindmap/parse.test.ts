@@ -3,9 +3,11 @@ import {
   cloneNodes,
   findNode,
   findParent,
+  freezeRootChildSides,
   moveNode,
   nextNodeId,
   parseMindmap,
+  rootChildSide,
   serializeMindmap,
   subtreeIds,
 } from "./parse";
@@ -133,6 +135,59 @@ describe("serializeMindmap", () => {
     const out = serializeMindmap(content, doc, "2026-08-26");
     expect(out).toContain("- N-001 first\n");
     expect(out).not.toContain("second");
+  });
+});
+
+describe("branch sides", () => {
+  const roots = () =>
+    parseMindmap(
+      note(
+        [
+          "- N-001 root",
+          "  - N-002 a ^left",
+          "  - N-003 b",
+          "  - N-004 c ^right",
+          "  - N-005 d",
+        ].join("\n"),
+      ),
+    ).roots;
+
+  it("reads an explicit side and round-trips it", () => {
+    const content = note(["- N-001 root", "  - N-002 a ^left", "  - N-003 b ^right"].join("\n"));
+    const doc = parseMindmap(content);
+    expect(doc.roots[0].children.map((n) => n.side)).toEqual(["left", "right"]);
+    expect(serializeMindmap(content, doc, "2026-08-26")).toBe(content);
+  });
+
+  it("alternates by position when no side is stated", () => {
+    const children = roots()[0].children;
+    expect(rootChildSide(children[1], 1)).toBe("left");
+    expect(rootChildSide(children[3], 3)).toBe("left");
+    // Position 2 would be "right" by default anyway; position 0 proves it.
+    expect(rootChildSide({ id: "x", title: "", children: [] }, 0)).toBe("right");
+    expect(rootChildSide({ id: "x", title: "", children: [] }, 1)).toBe("left");
+  });
+
+  it("lets an explicit side win over the position default", () => {
+    const children = roots()[0].children;
+    // Position 0 defaults to right, but this one says left.
+    expect(rootChildSide(children[0], 0)).toBe("left");
+  });
+
+  it("freezes the sides every branch is currently drawn on", () => {
+    const tree = roots();
+    freezeRootChildSides(tree[0]);
+    expect(tree[0].children.map((n) => n.side)).toEqual(["left", "left", "right", "left"]);
+  });
+
+  it("keeps frozen sides put when a branch is inserted in the middle", () => {
+    const tree = roots();
+    freezeRootChildSides(tree[0]);
+    const before = tree[0].children.map((n) => [n.id, n.side] as const);
+    tree[0].children.splice(1, 0, { id: "N-009", title: "new", children: [], side: "left" });
+    for (const [id, side] of before) {
+      expect(findNode(tree, id)!.side).toBe(side);
+    }
   });
 });
 

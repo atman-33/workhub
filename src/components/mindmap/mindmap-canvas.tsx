@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import {
+  DEFAULT_LAYOUT,
   layoutMindmap,
+  NODE_PAD_X,
+  textWidth,
   type MindmapLayout,
   type PositionedNode,
 } from "@/lib/mindmap/layout";
@@ -40,8 +43,10 @@ interface Props {
   onCommitEdit: (id: string, title: string) => void;
   onCancelEdit: () => void;
   onToggleCollapse: (id: string) => void;
-  /** A finished re-parent drag: put `id` under `parentId`. */
-  onReparent: (id: string, parentId: string) => void;
+  /** A finished re-parent drag: put `id` under `parentId`. `dropSide` is which
+   * side of the new parent the pointer was on, which is what decides where a
+   * branch of the root ends up. */
+  onReparent: (id: string, parentId: string, dropSide: "left" | "right") => void;
   /** Bumped by the view to re-fit the map (a new file, or the Fit button). */
   fitToken: number;
 }
@@ -110,6 +115,25 @@ export function MindmapCanvas({
   useEffect(() => {
     setLayout(layoutMindmap(roots));
   }, [roots]);
+
+  /**
+   * What is currently typed in the rename box.
+   *
+   * Held here, rather than only inside the input, so the box can grow with the
+   * text: the node's own width comes from the *saved* title, so without this a
+   * long name is typed into a box the size of the old one and most of it is
+   * invisible.
+   */
+  const [draft, setDraft] = useState("");
+  useEffect(() => {
+    setDraft(editingId ? (layout.byId.get(editingId)?.title ?? "") : "");
+    // Re-seeded when the rename target changes, not when the layout does — the
+    // layout changes on every keystroke via the draft itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
+
+  /** Width the box needs for the text being typed into it. */
+  const draftWidth = Math.ceil(textWidth(draft, DEFAULT_LAYOUT.fontSize)) + NODE_PAD_X * 2 + 16;
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -272,7 +296,11 @@ export function MindmapCanvas({
     };
     const onUp = () => {
       setDrag((d) => {
-        if (d?.active && d.over) onReparent(d.id, d.over);
+        if (d?.active && d.over) {
+          const parent = layout.byId.get(d.over);
+          const side = parent && d.x < parent.x + parent.width / 2 ? "left" : "right";
+          onReparent(d.id, d.over, side);
+        }
         return null;
       });
     };
@@ -323,6 +351,9 @@ export function MindmapCanvas({
               dragging={Boolean(drag?.active) && drag?.id === node.id}
               dropTarget={drag?.over === node.id}
               editing={node.id === editingId}
+              editingWidth={draftWidth}
+              draft={draft}
+              onDraftChange={setDraft}
               locked={locked}
               onSelect={onSelect}
               onStartEdit={onStartEdit}
@@ -395,6 +426,10 @@ interface NodeProps {
   dragging: boolean;
   dropTarget: boolean;
   editing: boolean;
+  /** Width the rename box needs for what is typed in it so far. */
+  editingWidth: number;
+  draft: string;
+  onDraftChange: (value: string) => void;
   locked?: boolean;
   onSelect: (id: string) => void;
   onStartEdit: (id: string) => void;
@@ -410,6 +445,9 @@ function NodeBox({
   dragging,
   dropTarget,
   editing,
+  editingWidth,
+  draft,
+  onDraftChange,
   locked,
   onSelect,
   onStartEdit,
@@ -421,6 +459,10 @@ function NodeBox({
   const color = node.color ?? node.branchColor;
   const stroke = color ? COLOR_HEX[color] : undefined;
   const isRoot = node.depth === 0;
+  // While being renamed the box grows with the text, from its own centre so it
+  // does not crawl sideways as it widens.
+  const width = editing ? Math.max(node.width, editingWidth) : node.width;
+  const x = node.x - (width - node.width) / 2;
   const lineHeight = 14 * 1.45;
   const firstBaseline =
     node.y + node.height / 2 - ((node.lines.length - 1) * lineHeight) / 2 + 14 * 0.36;
@@ -441,9 +483,9 @@ function NodeBox({
       className="cursor-pointer"
     >
       <rect
-        x={node.x}
+        x={x}
         y={node.y}
-        width={node.width}
+        width={width}
         height={node.height}
         rx={isRoot ? node.height / 2 : 8}
         className={cn(
@@ -455,9 +497,9 @@ function NodeBox({
       />
       {(selected || dropTarget) && (
         <rect
-          x={node.x - 3}
+          x={x - 3}
           y={node.y - 3}
-          width={node.width + 6}
+          width={width + 6}
           height={node.height + 6}
           rx={isRoot ? node.height / 2 + 3 : 11}
           fill="none"
@@ -468,9 +510,10 @@ function NodeBox({
       )}
 
       {editing ? (
-        <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}>
+        <foreignObject x={x} y={node.y} width={width} height={node.height}>
           <NodeInput
-            initial={node.title}
+            value={draft}
+            onChange={onDraftChange}
             onCommit={(value) => onCommitEdit(node.id, value)}
             onCancel={onCancelEdit}
           />
@@ -479,7 +522,7 @@ function NodeBox({
         node.lines.map((line, i) => (
           <text
             key={`${node.id}-${i}`}
-            x={node.x + node.width / 2}
+            x={x + width / 2}
             y={firstBaseline + i * lineHeight}
             textAnchor="middle"
             fontSize={14}
@@ -493,7 +536,7 @@ function NodeBox({
 
       {node.task && !editing && (
         <text
-          x={node.x + node.width / 2}
+          x={x + width / 2}
           y={node.y + node.height + 11}
           textAnchor="middle"
           fontSize={9}
@@ -538,17 +581,22 @@ function NodeBox({
 }
 
 /** Inline rename. Enter commits, Escape abandons, blur commits — the same
- * bargain the task board's inline fields make. */
+ * bargain the task board's inline fields make.
+ *
+ * The value lives in the canvas so the box can size itself to the text; this
+ * component only owns focus.
+ */
 function NodeInput({
-  initial,
+  value,
+  onChange,
   onCommit,
   onCancel,
 }: {
-  initial: string;
+  value: string;
+  onChange: (value: string) => void;
   onCommit: (value: string) => void;
   onCancel: () => void;
 }) {
-  const [value, setValue] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     ref.current?.focus();
@@ -558,7 +606,7 @@ function NodeInput({
     <input
       ref={ref}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={(e) => onChange(e.target.value)}
       onBlur={() => onCommit(value)}
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -570,7 +618,10 @@ function NodeInput({
           onCancel();
         }
       }}
-      className="size-full rounded bg-transparent px-2 text-center text-sm outline-none"
+      // Its own background and text colour rather than the node's: the root is
+      // drawn in the foreground colour, so an inherited-colour field on it was
+      // white text on white.
+      className="size-full rounded border border-ring bg-background px-2 text-center text-sm text-foreground outline-none"
     />
   );
 }
