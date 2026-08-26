@@ -7,6 +7,8 @@ mod harness;
 mod herdr;
 mod inbox;
 mod ink;
+mod mindmap;
+mod mindmap_edit;
 mod models;
 mod music;
 mod paste;
@@ -20,6 +22,7 @@ mod tasks;
 mod terminal;
 mod tidy;
 mod update;
+mod vault_note;
 mod voice;
 mod voice_chunk;
 mod voice_history;
@@ -75,6 +78,7 @@ pub fn run() {
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
         .manage(schedule_edit::ScheduleEditState::default())
+        .manage(mindmap_edit::MindmapEditState::default())
         .setup(|app| {
             // Closing the main window used to leave the process running
             // (the hidden quick-capture/voice windows below keep Tauri
@@ -182,6 +186,17 @@ pub fn run() {
             commands::run_schedule_edit,
             commands::schedule_edit_status,
             commands::restore_schedule_snapshot,
+            commands::list_mindmaps,
+            commands::read_mindmap,
+            commands::write_mindmap,
+            commands::create_mindmap,
+            commands::rename_mindmap,
+            commands::delete_mindmap,
+            commands::export_mindmap_file,
+            commands::export_mindmap_png,
+            commands::run_mindmap_edit,
+            commands::mindmap_edit_status,
+            commands::restore_mindmap_snapshot,
             commands::launch_agent_for_task,
             commands::load_music_data,
             commands::save_music_data,

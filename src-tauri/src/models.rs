@@ -168,6 +168,18 @@ pub struct Settings {
     /// apply on approval) instead of applying immediately.
     #[serde(default)]
     pub schedule_confirm: bool,
+    /// Agent CLI used for AI mindmap edits: "claude-code" | "opencode"
+    /// (T-0188). Kept separate from `schedule_assignee` so the two surfaces
+    /// can run on different agents.
+    #[serde(default = "default_schedule_assignee")]
+    pub mindmap_assignee: String,
+    /// Model passed to that agent via `--model`; empty = the agent's default.
+    #[serde(default)]
+    pub mindmap_model: String,
+    /// Default an AI mindmap edit to the confirm-first mode (show what would
+    /// change, apply on approval) instead of applying immediately.
+    #[serde(default)]
+    pub mindmap_confirm: bool,
     /// Default destination for HTML exports. Empty = the project's own
     /// `attachments/` folder, which is what keeps an export attached to the
     /// project it describes.
@@ -357,6 +369,9 @@ impl Default for Settings {
             schedule_assignee: default_schedule_assignee(),
             schedule_model: String::new(),
             schedule_confirm: false,
+            mindmap_assignee: default_schedule_assignee(),
+            mindmap_model: String::new(),
+            mindmap_confirm: false,
             schedule_export_dir: String::new(),
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),
@@ -484,6 +499,29 @@ pub struct ScheduleDoc {
     pub path: String,
     pub content: String,
     /// Unix seconds; pass back to `write_schedule` for conflict detection.
+    pub mtime: u64,
+}
+
+/// One mindmap note as the picker sees it — enough to choose a file without
+/// reading every note's body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindmapFile {
+    /// Absolute path, forward slashes.
+    pub path: String,
+    /// Owning project slug (the `projects/<slug>/` folder name).
+    pub project: String,
+    pub title: String,
+    pub updated: String,
+}
+
+/// A mindmap note's full text. The node notation is interpreted on the
+/// frontend (see `mindmap.rs` module docs), so the backend hands over the
+/// whole file and the mtime that guards the next write.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindmapDoc {
+    pub path: String,
+    pub content: String,
+    /// Unix seconds; pass back to `write_mindmap` for conflict detection.
     pub mtime: u64,
 }
 

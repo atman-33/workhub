@@ -11,6 +11,7 @@ import {
   Keyboard,
   MessageSquarePlus,
   Mic,
+  Network,
   MonitorUp,
   PenLine,
   Repeat,
@@ -161,6 +162,24 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
 - **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
 - **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
+
+const MINDMAP_MD = `## Mapping ideas (Mindmap)
+
+The **Mindmap** tab is for thinking in branches — the shape you would draw on a whiteboard when an idea has parts, and the parts have parts.
+
+- A mindmap lives in the vault as \`projects/<project-slug>/mindmaps/<name>.md\`, beside that project's schedules. Pick a project, then **+** to create one, or open an existing map from the second dropdown. The pencil renames it — the title and the file name move together.
+- **The file is an ordinary nested bullet list.** Node positions are never stored: the map is laid out from the tree every time it is drawn. That is what keeps the note readable and editable in Obsidian, and it is why there is no "arrange" command — there is nothing to arrange.
+- **Keyboard**: **Tab** adds a child of the selected node, **Enter** adds a sibling, **F2** (or a double-click) renames, **Delete** removes the node and everything under it, and the **arrow keys** walk the tree. A new node opens straight into its name box. **Ctrl** + **Z** undoes, **Ctrl** + **Shift** + **Z** redoes.
+- **Drag a node onto another node** to move it — its whole subtree travels with it. A drop that would put a node inside itself is refused.
+- **The circle beside a node with children** collapses and expands it; the number shown is how many children are hidden. Collapsing is only a way of looking at the map — the subtree stays in the file, and exports still include it. The map is anchored on its root, and the node you collapse stays under the pointer, so folding a branch away does not slide everything else around.
+- **The width picker** decides how wide the boxes are: **Auto width** sizes each box to its own text, **Even siblings** gives the children of one parent a common width, and **Even by level** lines the whole map up in columns. The setting belongs to the note (\`node_width\` in its frontmatter), so two maps can differ and an export looks like what was on screen.
+- **Right-drag pans and the wheel zooms** toward the pointer, as on the Schedule tab. **Fit** frames the whole map again. A minimap appears in the corner once the map is larger than the window.
+- **Colour a branch head**, not every node: a node with no colour of its own is drawn in the nearest coloured ancestor's colour. Clicking the current colour again clears it. The side panel also links a node to a task and holds a longer note, shown on hover.
+- **mermaid** copies the map as a mermaid \`mindmap\` code block, ready to paste into a document or a README. The copy is one-way — mermaid cannot carry ids, colours or task links, so the note stays the editable form.
+- **HTML** writes a single self-contained page (default: the project's \`attachments/\`) with the diagram and its mermaid source; **PNG** writes an image of the same diagram at 2x.
+- **Delete moves the note to \`_ai/memory/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
+- **Edit with AI**: describe the change in plain language ("group the UI ideas under a new branch") and press Ctrl+Enter. The canvas is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Mindmap**.
+- Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.`;
 
 const INBOX_MD = `## Notes waiting in the vault (Inbox)
 
@@ -316,6 +335,7 @@ const SECTIONS = [
   { value: "voice", title: "Voice input", icon: Mic },
   { value: "clips", title: "Clips", icon: ClipboardList },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
+  { value: "mindmap", title: "Mapping ideas", icon: Network },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
   { value: "recurring", title: "Recurring tasks", icon: Repeat },
 ] as const;
@@ -1316,6 +1336,118 @@ export function HelpView() {
                 English and Japanese — in the calendar and across the whole
                 exported HTML. Menus and buttons stay English. It is display
                 only: a schedule note never stores localized text.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Network}
+            title="Mapping ideas (Mindmap)"
+            value="mindmap"
+            markdown={MINDMAP_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Mindmap</span> tab is for
+              thinking in branches — the shape you would draw on a whiteboard
+              when an idea has parts, and the parts have parts.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                A mindmap lives in the vault as{" "}
+                <span className="font-mono text-xs">projects/&lt;project-slug&gt;/mindmaps/&lt;name&gt;.md</span>,
+                beside that project&apos;s schedules. Pick a project, then{" "}
+                <span className="font-medium text-foreground">+</span> to create one, or open an existing map from the
+                second dropdown. The pencil renames it — the title and the file
+                name move together.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The file is an ordinary nested bullet list.</span> Node
+                positions are never stored: the map is laid out from the tree
+                every time it is drawn. That is what keeps the note readable and
+                editable in Obsidian, and it is why there is no
+                &quot;arrange&quot; command — there is nothing to arrange.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Keyboard</span>: <span className="font-medium text-foreground">Tab</span> adds a
+                child of the selected node, <span className="font-medium text-foreground">Enter</span> adds a
+                sibling, <span className="font-medium text-foreground">F2</span> (or a double-click) renames,{" "}
+                <span className="font-medium text-foreground">Delete</span> removes the node and everything under
+                it, and the <span className="font-medium text-foreground">arrow keys</span> walk the tree. A new
+                node opens straight into its name box. <span className="font-medium text-foreground">Ctrl</span> +{" "}
+                <span className="font-medium text-foreground">Z</span> undoes, <span className="font-medium text-foreground">Ctrl</span> +{" "}
+                <span className="font-medium text-foreground">Shift</span> + <span className="font-medium text-foreground">Z</span> redoes.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Drag a node onto another node</span> to move it — its
+                whole subtree travels with it. A drop that would put a node
+                inside itself is refused.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The circle beside a node with children</span> collapses
+                and expands it; the number shown is how many children are
+                hidden. Collapsing is only a way of looking at the map — the
+                subtree stays in the file, and exports still include it. The
+                map is anchored on its root, and the node you collapse stays
+                under the pointer, so folding a branch away does not slide
+                everything else around.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The width picker</span> decides how wide the boxes
+                are: <span className="font-medium text-foreground">Auto width</span> sizes each box to its own
+                text, <span className="font-medium text-foreground">Even siblings</span> gives the children of one
+                parent a common width, and <span className="font-medium text-foreground">Even by level</span> lines
+                the whole map up in columns. The setting belongs to the note
+                (<span className="font-mono text-xs">node_width</span> in its
+                frontmatter), so two maps can differ and an export looks like
+                what was on screen.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Right-drag pans and the wheel zooms</span> toward the
+                pointer, as on the Schedule tab. <span className="font-medium text-foreground">Fit</span> frames the
+                whole map again. A minimap appears in the corner once the map is
+                larger than the window.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Colour a branch head</span>, not every node: a node
+                with no colour of its own is drawn in the nearest coloured
+                ancestor&apos;s colour. Clicking the current colour again clears
+                it. The side panel also links a node to a task and holds a
+                longer note, shown on hover.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">mermaid</span> copies the map as a mermaid{" "}
+                <span className="font-mono text-xs">mindmap</span> code block, ready to paste into a
+                document or a README. The copy is one-way — mermaid cannot carry
+                ids, colours or task links, so the note stays the editable form.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">HTML</span> writes a single self-contained page
+                (default: the project&apos;s <span className="font-mono text-xs">attachments/</span>)
+                with the diagram and its mermaid source; <span className="font-medium text-foreground">PNG</span>{" "}
+                writes an image of the same diagram at 2x.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Delete moves the note to{" "}
+                <span className="font-mono text-xs">_ai/memory/mindmap-trash/</span></span> rather than
+                erasing it, so a mis-click costs a trip to the vault folder and
+                nothing else.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Edit with AI</span>: describe the change in plain
+                language (&quot;group the UI ideas under a new branch&quot;) and
+                press Ctrl+Enter. The canvas is locked while the agent works,
+                and the ↺ button restores the note to how it was just before the
+                run. Choose the agent and model in{" "}
+                <span className="font-medium text-foreground">⚙ Settings → Vault → Mindmap</span>.
+              </li>
+              <li>
+                Edits save automatically a moment after you stop; the note stays
+                open and editable in Obsidian at the same time, and changes made
+                there appear here immediately. If the file changed underneath an
+                edit, the save is refused and the note reloads rather than
+                overwriting the other change.
               </li>
             </ul>
           </Section>

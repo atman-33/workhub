@@ -95,6 +95,13 @@ export interface Settings {
   /** Default AI schedule edits to confirm-first (show the diff) instead of
    * applying immediately. */
   schedule_confirm: boolean;
+  /** Agent CLI used for AI mindmap edits: "claude-code" | "opencode". */
+  mindmap_assignee: string;
+  /** Model passed to that agent via --model; empty = the agent's default. */
+  mindmap_model: string;
+  /** Default AI mindmap edits to confirm-first instead of applying
+   * immediately. */
+  mindmap_confirm: boolean;
   /** Default HTML export destination; empty = the project's `attachments/`. */
   schedule_export_dir: string;
   /** Calendar display language, on screen and in the HTML export: "en" | "ja".
@@ -193,6 +200,49 @@ export interface ScheduleEditRun {
   stalled: boolean;
   can_undo: boolean;
   history: ScheduleEditEntry[];
+}
+
+/** One mindmap note as the picker sees it (`list_mindmaps`). */
+export interface MindmapFile {
+  /** Absolute path, forward slashes — the id used by every other command. */
+  path: string;
+  /** Owning project slug (the `projects/<slug>/` folder name). */
+  project: string;
+  title: string;
+  updated: string;
+}
+
+/** A mindmap note's full text plus the mtime that guards the next write. */
+export interface MindmapDoc {
+  path: string;
+  content: string;
+  mtime: number;
+}
+
+/** One past AI mindmap edit, newest first in `MindmapEditRun.history`. */
+export interface MindmapEditEntry {
+  instruction: string;
+  /** "completed" | "failed" */
+  state: string;
+  message: string;
+  seconds: number;
+  at: number;
+}
+
+/** Live state of the AI mindmap-edit runner (`mindmap_edit_status` /
+ * `mindmap-edit:status`). `state === "running"` also means the canvas is
+ * locked against app-side writes. */
+export interface MindmapEditRun {
+  /** "idle" | "running" | "completed" | "failed" */
+  state: string;
+  path: string | null;
+  instruction: string | null;
+  since: number | null;
+  summary: string | null;
+  error: string | null;
+  stalled: boolean;
+  can_undo: boolean;
+  history: MindmapEditEntry[];
 }
 
 /** Config for the built-in vault-tidy routine (T-0050). */

@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.81.0 (2026-08-26)
+
+- **A new Mindmap tab maps ideas the way the Schedule tab plans dates**
+  (T-0188). Branching ideas had nowhere to live: a nested bullet list in
+  Obsidian says the structure but never shows it, and reaching for a separate
+  mindmapping app meant the result stopped being part of the vault. The tab
+  draws one note as a mindmap — root in the middle, branches out to both sides,
+  colour inherited down a branch — and edits it in place. **Tab** adds a child,
+  **Enter** a sibling, **F2** renames, dragging a node moves its whole subtree,
+  and the circle beside a node collapses it. Right-drag pans and the wheel
+  zooms, as on the Schedule tab.
+- **A mindmap is a plain nested bullet list in the vault**, at
+  `projects/<project-slug>/mindmaps/<name>.md`, so the same map is editable in
+  Obsidian, by an agent, and in the app at once. Node positions are never
+  stored — the layout is computed every time the map is drawn — which is what
+  keeps the file readable and diffable. Writes are guarded by the file's mtime,
+  so an edit made elsewhere in the meantime is reported instead of overwritten.
+- **The map copies out as mermaid**, or exports as a single self-contained HTML
+  page or a 2x PNG, into the project's `attachments/`. Deleting a mindmap moves
+  it to `_ai/memory/mindmap-trash/` rather than erasing it.
+- **Fixes found in the first hands-on passes**: the tab now fills the window —
+  its root took `flex-1` inside a non-flex wrapper, so it rendered as a ~30px
+  strip with the map clipped out of view; clicking empty canvas no longer
+  makes the map disappear (the side panel is now always part of the layout
+  instead of being added and removed, which collapsed the canvas); the map
+  fits the window when the tab is first opened and whenever it is resized;
+  dragging a node shows a ghost that follows the pointer and snaps to a nearby
+  drop target instead of demanding an exact hit; **Enter** on the centre node
+  adds a branch rather than a second, stacked map; and holding **Enter** no
+  longer produces a run of unnamed nodes, which are now discarded if their name
+  box is abandoned.
+- **Branches hold still while you edit.** The left/right split was recomputed
+  from subtree sizes on every change, so branches swapped sides as nodes were
+  added. Branches now alternate by position and can be pinned with a `^left` /
+  `^right` flag, which the app writes whenever an action implies a side —
+  **Enter** adds a branch on the same side as the one it was pressed on, and
+  dragging a branch across the centre moves it there. The map also keeps its
+  zoom: saving no longer re-frames the view.
+- **Collapsing a branch no longer slides the whole map.** The layout was
+  anchored on the top of the tallest side, so folding anything away changed
+  that height and moved the root — and with it everything else — under a camera
+  that had not moved. The map is now anchored on its root, and the camera
+  absorbs whatever the collapsed node itself moved by, so the node you clicked
+  stays under the pointer.
+- **A width picker in the Mindmap tab** decides how wide the boxes are drawn:
+  *Auto width* (each box to its own text, the default), *Even siblings* (the
+  children of one parent share a width), or *Even by level* (a whole level
+  shares one, lining the map up in columns). The choice is stored in the note
+  as `node_width`, not in the app's settings — different maps want different
+  answers, and an HTML or PNG export has to look like what was on screen.
+- **The rename box is legible and grows with the text** — on the centre node it
+  was white on white, and it stayed the width of the old name while typing.
+- **Mindmaps can be edited with AI** in the same way schedules can: describe the
+  change, press Ctrl+Enter, and undo the whole run with one button. Pick the
+  agent and model under **⚙ Settings → Vault → Mindmap**.
+
 ## 0.80.0 (2026-08-26)
 
 - **The voice indicator now appears next to the text cursor** (T-0187). While
