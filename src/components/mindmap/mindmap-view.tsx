@@ -46,8 +46,10 @@ import {
   parseMindmap,
   serializeMindmap,
   visit,
+  NODE_WIDTHS,
   type MindmapDocModel,
   type MindmapNode,
+  type NodeWidth,
 } from "@/lib/mindmap/parse";
 import type { Config, MindmapEditRun, MindmapFile, Task } from "@/types";
 
@@ -78,6 +80,14 @@ const SAVE_DEBOUNCE_MS = 600;
 const UNDO_LIMIT = 50;
 /** Starting width of the right column, in percent of the view. */
 const SIDEBAR_DEFAULT_PCT = 24;
+
+/** Wording for the box-width picker. The stored values stay short because they
+ * are written into the note's frontmatter, where a human reads them too. */
+const NODE_WIDTH_LABEL: Record<NodeWidth, string> = {
+  auto: "Auto width",
+  siblings: "Even siblings",
+  depth: "Even by level",
+};
 
 /** Sentinel values for the pickers — Radix rejects an empty string. */
 const ALL_PROJECTS = "__all__";
@@ -278,6 +288,21 @@ export function MindmapView({ configVersion }: Props) {
       apply(next);
     },
     [aiRunning, doc, apply],
+  );
+
+  /**
+   * Changes the note's box-width setting.
+   *
+   * Goes through `mutate` like any other edit: it is written to the file's
+   * frontmatter, so it belongs on the undo stack and travels with the note
+   * rather than living in the app.
+   */
+  const changeNodeWidth = useCallback(
+    (value: NodeWidth) => {
+      if (!doc) return;
+      mutate({ ...doc, nodeWidth: value });
+    },
+    [doc, mutate],
   );
 
   /** Replaces one node in place, leaving the rest of the tree alone. */
@@ -599,6 +624,7 @@ export function MindmapView({ configVersion }: Props) {
           title: doc.title,
           exportedOn: todayISO(),
           mermaid: toMermaidBlock(doc.roots),
+          nodeWidth: doc.nodeWidth,
         }),
       );
       setStatus(`Exported to ${out}`);
@@ -618,7 +644,7 @@ export function MindmapView({ configVersion }: Props) {
    */
   const exportPng = useCallback(async () => {
     if (!doc || !vaultPath) return;
-    const svg = toSvg(doc.roots, { title: doc.title });
+    const svg = toSvg(doc.roots, { title: doc.title, nodeWidth: doc.nodeWidth });
     const width = Number(/width="(\d+)"/.exec(svg)?.[1] ?? 800);
     const height = Number(/height="(\d+)"/.exec(svg)?.[1] ?? 600);
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -792,6 +818,23 @@ export function MindmapView({ configVersion }: Props) {
           </Button>
         )}
 
+        <Select
+          value={doc?.nodeWidth ?? "auto"}
+          disabled={!doc || aiRunning}
+          onValueChange={(v) => changeNodeWidth(v as NodeWidth)}
+        >
+          <SelectTrigger className="h-7 w-32 text-xs" title="How wide node boxes are">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {NODE_WIDTHS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {NODE_WIDTH_LABEL[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <div className="ml-auto flex items-center gap-1.5">
           {status && <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>}
           {nodeCount > 0 && (
@@ -871,6 +914,7 @@ export function MindmapView({ configVersion }: Props) {
             <div className="flex h-full min-h-0 flex-col">
               <MindmapCanvas
                 roots={doc.roots}
+                nodeWidth={doc.nodeWidth}
                 selectedId={selectedId}
                 editingId={editingId}
                 locked={aiRunning}

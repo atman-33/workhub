@@ -171,7 +171,8 @@ The **Mindmap** tab is for thinking in branches — the shape you would draw on 
 - **The file is an ordinary nested bullet list.** Node positions are never stored: the map is laid out from the tree every time it is drawn. That is what keeps the note readable and editable in Obsidian, and it is why there is no "arrange" command — there is nothing to arrange.
 - **Keyboard**: **Tab** adds a child of the selected node, **Enter** adds a sibling, **F2** (or a double-click) renames, **Delete** removes the node and everything under it, and the **arrow keys** walk the tree. A new node opens straight into its name box. **Ctrl** + **Z** undoes, **Ctrl** + **Shift** + **Z** redoes.
 - **Drag a node onto another node** to move it — its whole subtree travels with it. A drop that would put a node inside itself is refused.
-- **The circle beside a node with children** collapses and expands it; the number shown is how many children are hidden. Collapsing is only a way of looking at the map — the subtree stays in the file, and exports still include it.
+- **The circle beside a node with children** collapses and expands it; the number shown is how many children are hidden. Collapsing is only a way of looking at the map — the subtree stays in the file, and exports still include it. The map is anchored on its root, and the node you collapse stays under the pointer, so folding a branch away does not slide everything else around.
+- **The width picker** decides how wide the boxes are: **Auto width** sizes each box to its own text, **Even siblings** gives the children of one parent a common width, and **Even by level** lines the whole map up in columns. The setting belongs to the note (\`node_width\` in its frontmatter), so two maps can differ and an export looks like what was on screen.
 - **Right-drag pans and the wheel zooms** toward the pointer, as on the Schedule tab. **Fit** frames the whole map again. A minimap appears in the corner once the map is larger than the window.
 - **Colour a branch head**, not every node: a node with no colour of its own is drawn in the nearest coloured ancestor's colour. Clicking the current colour again clears it. The side panel also links a node to a task and holds a longer note, shown on hover.
 - **mermaid** copies the map as a mermaid \`mindmap\` code block, ready to paste into a document or a README. The copy is one-way — mermaid cannot carry ids, colours or task links, so the note stays the editable form.
@@ -1387,7 +1388,20 @@ export function HelpView() {
                 <span className="font-medium text-foreground">The circle beside a node with children</span> collapses
                 and expands it; the number shown is how many children are
                 hidden. Collapsing is only a way of looking at the map — the
-                subtree stays in the file, and exports still include it.
+                subtree stays in the file, and exports still include it. The
+                map is anchored on its root, and the node you collapse stays
+                under the pointer, so folding a branch away does not slide
+                everything else around.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The width picker</span> decides how wide the boxes
+                are: <span className="font-medium text-foreground">Auto width</span> sizes each box to its own
+                text, <span className="font-medium text-foreground">Even siblings</span> gives the children of one
+                parent a common width, and <span className="font-medium text-foreground">Even by level</span> lines
+                the whole map up in columns. The setting belongs to the note
+                (<span className="font-mono text-xs">node_width</span> in its
+                frontmatter), so two maps can differ and an export looks like
+                what was on screen.
               </li>
               <li>
                 <span className="font-medium text-foreground">Right-drag pans and the wheel zooms</span> toward the

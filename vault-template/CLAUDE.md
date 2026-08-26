@@ -206,9 +206,9 @@ calendar through its own `due` date, or via a `task:` link.
 **Mindmap** tab renders it as a mindmap and writes changes straight back, so
 the note stays editable in Obsidian at the same time.
 
-Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`); the
-content lives in one managed `## Nodes` section, plus a `## Memo` section
-neither the app nor the AI ever rewrites:
+Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`, and the
+optional `node_width`); the content lives in one managed `## Nodes` section,
+plus a `## Memo` section neither the app nor the AI ever rewrites:
 
 ```markdown
 ## Nodes
@@ -242,9 +242,23 @@ Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^righ
   beneath it, which the app shows on hover.
 
 Node positions are deliberately **not** stored: the app lays the map out from
-the tree every time it draws it. The tab's "mermaid" button copies the map as a
-mermaid `mindmap` code block for pasting into a document — that export is
-one-way, since mermaid cannot carry ids, colours or task links.
+the tree every time it draws it, anchored on the root — so collapsing a branch
+re-flows that branch without moving the centre of the map. The tab's "mermaid"
+button copies the map as a mermaid `mindmap` code block for pasting into a
+document — that export is one-way, since mermaid cannot carry ids, colours or
+task links.
+
+`node_width` decides how wide the boxes are drawn, and is set from the picker
+in the Mindmap tab. It belongs to the note rather than to the app because the
+right answer differs per map, and because an export has to look like what was
+on screen when it was made:
+
+- `auto` (the default, written as the absence of the key) sizes every box to
+  its own text;
+- `siblings` gives the children of one parent a common width;
+- `depth` gives every node at the same distance from the root a common width,
+  which lines the map up in columns at the cost of one long title widening
+  every box on its level.
 
 ### Backlog vs tasks
 

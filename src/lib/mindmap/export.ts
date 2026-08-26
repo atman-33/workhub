@@ -16,7 +16,7 @@
  */
 
 import { DEFAULT_LAYOUT, layoutMindmap, type MindmapLayout, type PositionedNode } from "./layout";
-import { COLOR_HEX, type MindmapNode } from "./parse";
+import { COLOR_HEX, type MindmapNode, type NodeWidth } from "./parse";
 
 /** Minimal escaping for the user-authored strings that go into the markup.
  * Kept local rather than pulled from a library: the export must stay
@@ -97,6 +97,8 @@ export interface SvgOptions {
   /** Title drawn above the map. Omit for a bare diagram. */
   title?: string;
   fontSize?: number;
+  /** The note's box-width setting, so the export matches the screen. */
+  nodeWidth?: NodeWidth;
 }
 
 /**
@@ -107,7 +109,10 @@ export interface SvgOptions {
  */
 export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
   const fontSize = options.fontSize ?? DEFAULT_LAYOUT.fontSize;
-  const layout = layoutMindmap(roots, { fontSize });
+  const layout = layoutMindmap(roots, {
+    fontSize,
+    nodeWidth: options.nodeWidth ?? DEFAULT_LAYOUT.nodeWidth,
+  });
   const titleHeight = options.title ? fontSize * 2.5 : 0;
 
   const { bounds } = layout;
@@ -141,9 +146,9 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
  */
 export function toHtml(
   roots: MindmapNode[],
-  options: { title: string; exportedOn: string; mermaid?: string },
+  options: { title: string; exportedOn: string; mermaid?: string; nodeWidth?: NodeWidth },
 ): string {
-  const svg = toSvg(roots);
+  const svg = toSvg(roots, { ...(options.nodeWidth ? { nodeWidth: options.nodeWidth } : {}) });
   const mermaid = options.mermaid
     ? `<h2>mermaid</h2><pre><code>${esc(options.mermaid)}</code></pre>`
     : "";

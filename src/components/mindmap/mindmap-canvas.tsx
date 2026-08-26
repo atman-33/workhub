@@ -8,7 +8,7 @@ import {
   type MindmapLayout,
   type PositionedNode,
 } from "@/lib/mindmap/layout";
-import { COLOR_HEX, type MindmapNode } from "@/lib/mindmap/parse";
+import { COLOR_HEX, type MindmapNode, type NodeWidth } from "@/lib/mindmap/parse";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,6 +33,8 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   roots: MindmapNode[];
+  /** The note's box-width setting, applied by the layout. */
+  nodeWidth: NodeWidth;
   selectedId: string | null;
   /** Node currently being renamed inline; its box renders an input. */
   editingId: string | null;
@@ -85,6 +87,7 @@ interface DragState {
 
 export function MindmapCanvas({
   roots,
+  nodeWidth,
   selectedId,
   editingId,
   locked,
@@ -98,7 +101,7 @@ export function MindmapCanvas({
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [layout, setLayout] = useState<MindmapLayout>(() => layoutMindmap(roots));
+  const [layout, setLayout] = useState<MindmapLayout>(() => layoutMindmap(roots, { nodeWidth }));
   const [drag, setDrag] = useState<DragState | null>(null);
   /**
    * The canvas's own size, tracked rather than read on demand.
@@ -112,9 +115,37 @@ export function MindmapCanvas({
   /** A fit was asked for and has not been satisfiable yet (no size, no nodes). */
   const pendingFit = useRef(true);
 
+  /**
+   * The layout the camera is currently aimed at, and the node the next layout
+   * should be pinned to.
+   *
+   * Collapsing a branch re-flows everything above and below it, so the node
+   * whose badge was clicked slides out from under the pointer. Remembering it
+   * across the re-layout lets the camera absorb the difference, which is the
+   * only way to keep a gesture's own target still — the file has no
+   * coordinates to hold anything in place.
+   */
+  const layoutRef = useRef(layout);
+  const anchorId = useRef<string | null>(null);
+
   useEffect(() => {
-    setLayout(layoutMindmap(roots));
-  }, [roots]);
+    const next = layoutMindmap(roots, { nodeWidth });
+    const anchor = anchorId.current;
+    anchorId.current = null;
+    if (anchor) {
+      const before = layoutRef.current.byId.get(anchor);
+      const after = next.byId.get(anchor);
+      if (before && after) {
+        const dx = after.x - before.x;
+        const dy = after.y - before.y;
+        // Screen position of a diagram point is `camera + p * zoom`, so
+        // undoing a move of `d` means shifting the camera by `-d * zoom`.
+        if (dx || dy) setCamera((c) => ({ ...c, x: c.x - dx * c.zoom, y: c.y - dy * c.zoom }));
+      }
+    }
+    layoutRef.current = next;
+    setLayout(next);
+  }, [roots, nodeWidth]);
 
   /**
    * What is currently typed in the rename box.
@@ -359,7 +390,10 @@ export function MindmapCanvas({
               onStartEdit={onStartEdit}
               onCommitEdit={onCommitEdit}
               onCancelEdit={onCancelEdit}
-              onToggleCollapse={onToggleCollapse}
+              onToggleCollapse={(id) => {
+                anchorId.current = id;
+                onToggleCollapse(id);
+              }}
               onDragStart={startNodeDrag}
             />
           ))}

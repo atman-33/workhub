@@ -180,3 +180,72 @@ describe("layoutMindmap", () => {
     expect(loose.byId.get("N-002")!.x).toBeGreaterThan(tight.byId.get("N-002")!.x);
   });
 });
+
+describe("root anchoring", () => {
+  const open = [
+    "- N-001 root",
+    "  - N-002 branch",
+    "    - N-004 leaf one",
+    "    - N-005 leaf two",
+    "  - N-003 other",
+  ];
+  const shut = [
+    "- N-001 root",
+    "  - N-002 branch ^collapsed",
+    "    - N-004 leaf one",
+    "    - N-005 leaf two",
+    "  - N-003 other",
+  ];
+
+  it("leaves the root where it was when a branch is collapsed", () => {
+    const before = layoutMindmap(tree(open)).byId.get("N-001")!;
+    const after = layoutMindmap(tree(shut)).byId.get("N-001")!;
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+  });
+
+  it("still re-flows the branch that changed", () => {
+    const before = layoutMindmap(tree(open));
+    const after = layoutMindmap(tree(shut));
+    expect(after.byId.has("N-004")).toBe(false);
+    expect(after.bounds.height).toBeLessThan(before.bounds.height);
+  });
+});
+
+describe("nodeWidth", () => {
+  const lines = [
+    "- N-001 root",
+    "  - N-002 b ^right",
+    "    - N-004 a rather long child title",
+    "    - N-005 x",
+    "  - N-003 a much longer branch title ^right",
+    "    - N-006 y",
+  ];
+  const widthOf = (mode: "auto" | "siblings" | "depth", id: string) =>
+    layoutMindmap(tree(lines), { nodeWidth: mode }).byId.get(id)!.width;
+
+  it("sizes every box to its own text by default", () => {
+    expect(widthOf("auto", "N-002")).toBeLessThan(widthOf("auto", "N-003"));
+    expect(widthOf("auto", "N-005")).toBeLessThan(widthOf("auto", "N-004"));
+  });
+
+  it("gives the children of one parent a common width", () => {
+    expect(widthOf("siblings", "N-002")).toBe(widthOf("siblings", "N-003"));
+    expect(widthOf("siblings", "N-004")).toBe(widthOf("siblings", "N-005"));
+    // A different parent is a different group, so this one keeps its own size.
+    expect(widthOf("siblings", "N-006")).toBeLessThan(widthOf("siblings", "N-004"));
+  });
+
+  it("gives a whole level a common width", () => {
+    expect(widthOf("depth", "N-004")).toBe(widthOf("depth", "N-006"));
+    expect(widthOf("depth", "N-002")).toBe(widthOf("depth", "N-003"));
+  });
+
+  it("never shrinks a box below what its own text needs", () => {
+    for (const mode of ["siblings", "depth"] as const) {
+      for (const id of ["N-002", "N-003", "N-004", "N-005", "N-006"]) {
+        expect(widthOf(mode, id)).toBeGreaterThanOrEqual(widthOf("auto", id));
+      }
+    }
+  });
+});

@@ -38,6 +38,18 @@
   **Enter** adds a branch on the same side as the one it was pressed on, and
   dragging a branch across the centre moves it there. The map also keeps its
   zoom: saving no longer re-frames the view.
+- **Collapsing a branch no longer slides the whole map.** The layout was
+  anchored on the top of the tallest side, so folding anything away changed
+  that height and moved the root — and with it everything else — under a camera
+  that had not moved. The map is now anchored on its root, and the camera
+  absorbs whatever the collapsed node itself moved by, so the node you clicked
+  stays under the pointer.
+- **A width picker in the Mindmap tab** decides how wide the boxes are drawn:
+  *Auto width* (each box to its own text, the default), *Even siblings* (the
+  children of one parent share a width), or *Even by level* (a whole level
+  shares one, lining the map up in columns). The choice is stored in the note
+  as `node_width`, not in the app's settings — different maps want different
+  answers, and an HTML or PNG export has to look like what was on screen.
 - **The rename box is legible and grows with the text** — on the centre node it
   was white on white, and it stayed the width of the old name while typing.
 - **Mindmaps can be edited with AI** in the same way schedules can: describe the

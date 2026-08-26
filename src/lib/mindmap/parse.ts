@@ -49,6 +49,22 @@ export const COLOR_HEX: Record<Color, string> = {
   gray: "#6b7280",
 };
 
+/**
+ * How wide a node box is allowed to be.
+ *
+ * `auto` sizes every box to its own text, which packs the map tightest and is
+ * the default. The other two trade that density for a tidier grid, and which
+ * one reads better depends on the map — hence a per-note setting rather than
+ * one global answer:
+ *
+ * - `siblings` gives the children of one parent a common width;
+ * - `depth` gives every node at the same distance from the root a common
+ *   width, which lines the whole map up in columns at the cost of one long
+ *   title widening every box on its level.
+ */
+export const NODE_WIDTHS = ["auto", "siblings", "depth"] as const;
+export type NodeWidth = (typeof NODE_WIDTHS)[number];
+
 /** Spaces of indentation that make up one level of nesting. */
 const INDENT = "  ";
 
@@ -89,6 +105,16 @@ export interface MindmapNode {
 export interface MindmapDocModel {
   /** `title` from the frontmatter; the file name stands in when absent. */
   title: string;
+  /**
+   * `node_width` from the frontmatter — whether boxes are widened to a common
+   * width, and per what grouping.
+   *
+   * Lives in the note rather than in the app's settings for the same reason
+   * the schedule's sprint cadence does: two maps of the same project can want
+   * different answers, and an export has to look like what was on screen when
+   * it was made, on any machine.
+   */
+  nodeWidth: NodeWidth;
   /**
    * Top-level nodes. Usually exactly one — a mindmap has a centre — but the
    * grammar allows several, because a file that grew two roots in Obsidian
@@ -155,6 +181,13 @@ function nextHeading(text: string, from: number): number {
   const rest = text.slice(from + 1);
   const at = rest.search(re);
   return at === -1 ? -1 : from + 1 + at;
+}
+
+/** An unknown or missing `node_width` falls back to `auto` rather than being
+ * rejected: the value is a display preference, and a typo in it should not
+ * stop a note from opening. */
+function parseNodeWidth(value: string): NodeWidth {
+  return (NODE_WIDTHS as readonly string[]).includes(value) ? (value as NodeWidth) : "auto";
 }
 
 export function frontmatterValue(frontmatter: string, key: string): string {
@@ -261,6 +294,7 @@ export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocMod
   const s = splitSections(content);
   const doc: MindmapDocModel = {
     title: frontmatterValue(s.frontmatter, "title") || fallbackTitle,
+    nodeWidth: parseNodeWidth(frontmatterValue(s.frontmatter, "node_width")),
     roots: [],
     rawNodes: [],
     mintedIds: false,
@@ -404,12 +438,28 @@ export function formatNode(node: MindmapNode, depth = 0): string[] {
  */
 export function serializeMindmap(content: string, doc: MindmapDocModel, today: string): string {
   const s = splitSections(content);
-  const frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
+  let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
+  // `auto` is the default, so it is written as the absence of the key — a note
+  // only carries the setting once it has been changed away from the default.
+  frontmatter =
+    doc.nodeWidth === "auto"
+      ? removeFrontmatterKey(frontmatter, "node_width")
+      : setFrontmatterValue(frontmatter, "node_width", doc.nodeWidth);
 
   const body = [...doc.roots.flatMap((root) => formatNode(root)), ...doc.rawNodes].join("\n");
   const nodes = `## Nodes\n\n${body}${body ? "\n" : ""}\n`;
 
   return `${frontmatter}${s.preamble}${nodes}${s.tail}`;
+}
+
+/** Drops one frontmatter key, leaving every other line as it was. */
+function removeFrontmatterKey(frontmatter: string, key: string): string {
+  if (!frontmatter) return frontmatter;
+  const lines = frontmatter.split("\n").filter((line) => {
+    const idx = line.indexOf(":");
+    return idx === -1 || line.slice(0, idx).trim() !== key;
+  });
+  return lines.join("\n");
 }
 
 /** Rewrites one frontmatter key in place, appending it when absent. */

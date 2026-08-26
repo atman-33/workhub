@@ -255,3 +255,37 @@ describe("tree edits", () => {
     expect(subtreeIds(findNode(roots, "N-002")!)).toEqual(new Set(["N-002", "N-003"]));
   });
 });
+
+describe("node_width", () => {
+  it("defaults to `auto` and does not write the key", () => {
+    const content = note("- N-001 root");
+    expect(parseMindmap(content).nodeWidth).toBe("auto");
+    expect(serializeMindmap(content, parseMindmap(content), "2026-08-26")).not.toContain(
+      "node_width",
+    );
+  });
+
+  it("round-trips a changed setting through the frontmatter", () => {
+    const content = note("- N-001 root");
+    const doc = { ...parseMindmap(content), nodeWidth: "depth" as const };
+    const out = serializeMindmap(content, doc, "2026-08-26");
+    expect(out).toContain("node_width: depth");
+    expect(parseMindmap(out).nodeWidth).toBe("depth");
+  });
+
+  it("drops the key again when the setting goes back to `auto`", () => {
+    const content =
+      "---\n" + "type: mindmap\n" + "node_width: siblings\n" + "updated: 2026-01-01\n---\n\n" +
+      "## Nodes\n\n- N-001 root\n";
+    const doc = parseMindmap(content);
+    expect(doc.nodeWidth).toBe("siblings");
+    const out = serializeMindmap(content, { ...doc, nodeWidth: "auto" }, "2026-08-26");
+    expect(out).not.toContain("node_width");
+    expect(out).toContain("type: mindmap");
+  });
+
+  it("falls back to `auto` on a value it does not know", () => {
+    const content = "---\ntype: mindmap\nnode_width: huge\n---\n\n## Nodes\n\n- N-001 root\n";
+    expect(parseMindmap(content).nodeWidth).toBe("auto");
+  });
+});

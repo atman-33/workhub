@@ -126,7 +126,10 @@ head rather than every node in it.
 - **Never drop a `^left` / `^right`.** Removing one lets the branch jump to the
   other side of the map on the next render.
 - **Never remove or reorder frontmatter keys** you do not recognize. Update
-  `updated:` to today's date and leave the rest alone.
+  `updated:` to today's date and leave the rest alone. `node_width`
+  (`auto` / `siblings` / `depth`) is the note's box-width setting — a display
+  preference the user sets in the app, not something an instruction about the
+  tree should change.
 - **Never edit any file other than the target mindmap.** In particular, do not
   create or update tasks in `tasks/` — the `task:` link is a reference, and
   making a task is a separate, explicit request.

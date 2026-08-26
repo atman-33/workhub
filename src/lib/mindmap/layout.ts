@@ -13,7 +13,7 @@
  * contiguous vertical band so that no two subtrees can overlap.
  */
 
-import { rootChildSide, type Color, type MindmapNode } from "./parse";
+import { rootChildSide, type Color, type MindmapNode, type NodeWidth } from "./parse";
 
 export type Side = "left" | "right";
 
@@ -26,6 +26,8 @@ export interface LayoutOptions {
   maxWidth: number;
   /** Font size the title is measured at. */
   fontSize: number;
+  /** Which boxes are widened to a common width. */
+  nodeWidth: NodeWidth;
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
@@ -33,6 +35,7 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   vGap: 14,
   maxWidth: 220,
   fontSize: 14,
+  nodeWidth: "auto",
 };
 
 /** Padding inside a node box. Exported because the canvas sizes the inline
@@ -204,6 +207,46 @@ function measureTree(node: MindmapNode, opts: LayoutOptions): Measured {
 }
 
 /**
+ * Widens boxes so that a group shares one width, per `LayoutOptions.nodeWidth`.
+ *
+ * Runs after `measureTree` and before placement, and only ever grows a box, so
+ * a title can still not overflow its box. Widths do not feed back into
+ * `extent` (that is a vertical measure), which is why this can be a separate
+ * pass rather than part of the measurement.
+ *
+ * A collapsed node's hidden children are not in the tree here, so they cannot
+ * pull a level wider than what is actually on screen.
+ */
+function normalizeWidths(root: Measured, mode: NodeWidth): void {
+  if (mode === "auto") return;
+
+  if (mode === "depth") {
+    const byDepth = new Map<number, Measured[]>();
+    const walk = (m: Measured, depth: number) => {
+      const group = byDepth.get(depth);
+      if (group) group.push(m);
+      else byDepth.set(depth, [m]);
+      for (const child of m.children) walk(child, depth + 1);
+    };
+    walk(root, 0);
+    for (const group of byDepth.values()) widenToMax(group);
+    return;
+  }
+
+  const walk = (m: Measured) => {
+    widenToMax(m.children);
+    for (const child of m.children) walk(child);
+  };
+  walk(root);
+}
+
+function widenToMax(group: Measured[]): void {
+  if (group.length < 2) return;
+  const width = Math.max(...group.map((m) => m.width));
+  for (const m of group) m.width = width;
+}
+
+/**
  * Splits the root's branches between the two sides.
  *
  * The decision belongs to the document, not to this function: `rootChildSide`
@@ -281,9 +324,12 @@ export function layoutMindmap(
     return positioned;
   };
 
-  let rootTop = 0;
+  // Where the next root's band starts. `null` until the first root has been
+  // placed, because the first root is not stacked — it is the origin.
+  let bandTop: number | null = null;
   for (const root of roots) {
     const m = measureTree(root, opts);
+    normalizeWidths(m, opts.nodeWidth);
     const sides = assignSides(m.children);
     const rightKids = m.children.filter((_, i) => sides[i] === "right");
     const leftKids = m.children.filter((_, i) => sides[i] === "left");
@@ -294,9 +340,18 @@ export function layoutMindmap(
     const leftHeight = bandHeight(leftKids);
     const height = Math.max(m.height, rightHeight, leftHeight);
 
-    // The root is centred on the taller of the two sides, so the two halves
-    // meet at the same middle line.
-    const rootY = rootTop + (height - m.height) / 2;
+    /**
+     * The map is anchored on the root, not on the top of its band.
+     *
+     * The first root's centre is the origin, and the branches grow away from
+     * it in both directions. Anchoring on the band's top instead meant that
+     * collapsing anything changed the band's height and therefore moved the
+     * root — so the whole map slid across the screen under a camera that had
+     * not moved. With the root fixed, only the branches that actually changed
+     * re-flow.
+     */
+    const centerY: number = bandTop === null ? 0 : bandTop + height / 2;
+    const rootY = centerY - m.height / 2;
     const rootNode: PositionedNode = {
       id: m.node.id,
       title: m.node.title,
@@ -315,18 +370,18 @@ export function layoutMindmap(
     };
     nodes.push(rootNode);
 
-    let cursor = rootTop + (height - rightHeight) / 2;
+    let cursor = centerY - rightHeight / 2;
     for (const child of rightKids) {
       place(child, 1, "right", cursor, rootNode.x + rootNode.width + opts.hGap, child.node.color, rootNode);
       cursor += child.extent + opts.vGap;
     }
-    cursor = rootTop + (height - leftHeight) / 2;
+    cursor = centerY - leftHeight / 2;
     for (const child of leftKids) {
       place(child, 1, "left", cursor, rootNode.x - opts.hGap, child.node.color, rootNode);
       cursor += child.extent + opts.vGap;
     }
 
-    rootTop += height + opts.vGap * 3;
+    bandTop = centerY + height / 2 + opts.vGap * 3;
   }
 
   return { nodes, edges, bounds: boundsOf(nodes), byId: new Map(nodes.map((n) => [n.id, n])) };
