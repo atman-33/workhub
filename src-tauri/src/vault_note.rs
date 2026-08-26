@@ -292,6 +292,50 @@ pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String
     Ok(())
 }
 
+/// Renders one file of the project scaffold into an existing project, but
+/// only when it is missing — an existing file is never touched.
+///
+/// Creating a whole project is `create_project`; this is the single-file form
+/// the Projects tab needs when a project predates a scaffold file it now has
+/// to write into (linking a repo needs `_index.md`, and the vault's oldest
+/// projects have none). Additive by construction, so it is safe to call on a
+/// human-maintained folder.
+pub fn ensure_scaffold_file(
+    vault: &Path,
+    slug: &str,
+    name: &str,
+    rel: &str,
+) -> Result<PathBuf, String> {
+    let dst = projects_dir(vault).join(slug).join(rel);
+    if dst.exists() {
+        return Ok(dst);
+    }
+    let template = crate::tasks::project_template()
+        .ok_or_else(|| "the project template is missing from this build".to_string())?;
+    let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
+    let mut files = Vec::new();
+    walk_project_template(template, &mut files);
+    let file = files
+        .iter()
+        .find(|f| norm_path(f.path()).strip_prefix(&prefix) == Some(rel))
+        .ok_or_else(|| format!("'{rel}' is not part of the project template"))?;
+    let text = std::str::from_utf8(file.contents())
+        .map_err(|_| format!("'{rel}' is not a text template"))?;
+    let display_name = match name.trim() {
+        "" => slug,
+        n => n,
+    };
+    let rendered = text
+        .replace("<Project name>", display_name)
+        .replace("<project-slug>", slug)
+        .replace("{{DATE}}", &today());
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&dst, rendered).map_err(|e| e.to_string())?;
+    Ok(dst)
+}
+
 fn walk_project_template<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
     for file in dir.files() {
         out.push(file);

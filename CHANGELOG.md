@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.82.0 (2026-08-27)
+
+- **A new Projects tab shows what a vault project actually holds** (T-0190).
+  The Schedule and Mindmap tabs both start from `projects/<slug>/`, but the
+  project itself had no screen — there was no way to see a project's contents,
+  create or retire one, or notice that the vault's layout conventions had
+  quietly stopped being followed. The tab lists every project with its task
+  count, when it was last touched, and a health badge, and shows the selected
+  one's README summary, subfolder contents and findings side by side.
+- **It reconciles rather than files.** The findings list reports missing
+  required files (`README.md`, `prd.md`, `roadmap.md`, `links.md`,
+  `_index.md`), documented folders that are absent, folders nobody documented,
+  and task deliverable notes (`T-XXXX-…`) left in a project's root instead of
+  its `deliverables/`. Tasks are reconciled too: a task's `project:` is free
+  text, so any value no project folder answers to is listed under the projects
+  with its task count — a typo used to orphan a task silently.
+- **Projects and repositories are linked, not merged.** A project can name a
+  registered repository with `repo:` in its `_index.md` (written from the
+  detail pane, and the file is scaffolded if the project predates it). The link
+  is stored rather than guessed, because the two do not share a naming scheme.
+  The detail pane's buttons open the project's README in Obsidian and jump to
+  the Tasks, Schedule, Mindmap and Repos tabs already scoped to it.
+- **Archiving replaces deleting.** A project moves to
+  `archive/projects/<slug>/` and comes back from the same button. There is no
+  delete: a project folder holds months of hand-written prose, and the same
+  argument that made the mindmap delete a move-to-trash applies here with more
+  force.
+
 ## 0.81.0 (2026-08-26)
 
 - **A new Mindmap tab maps ideas the way the Schedule tab plans dates**

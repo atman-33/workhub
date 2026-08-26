@@ -149,6 +149,18 @@ Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
 
+`_index.md` also carries an optional `repo:` key naming the registered
+repository this project belongs to — an absolute path, or the repository's
+name as it is registered in the app. It is stored rather than inferred because
+a project folder and its repository do not share a naming scheme (the vault's
+`multi-agent-ff15` is the repository `multi-agent-ff15-vscode`). The app's
+**Projects** tab reads and writes it.
+
+A project that is finished or parked moves to `archive/projects/<slug>/` —
+under `archive/projects/`, not `archive/<slug>/`, so the folder's origin
+survives the move. The **Projects** tab archives and restores it; a project
+folder is never deleted, because it holds months of hand-written prose.
+
 ### Schedule notes
 
 `schedules/` holds the project's date planning. One file is one plan; copy it

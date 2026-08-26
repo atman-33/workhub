@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import type { TabFocus } from "@/lib/tab-focus";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
@@ -107,9 +108,11 @@ const SIDEBAR_DEFAULT_PCT = 22;
 interface Props {
   /** Bumped by the app shell after settings are saved. */
   configVersion: number;
+  /** A project the Projects tab asked this view to open (T-0190). */
+  focus?: TabFocus;
 }
 
-export function ScheduleView({ configVersion }: Props) {
+export function ScheduleView({ configVersion, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
@@ -161,6 +164,15 @@ export function ScheduleView({ configVersion }: Props) {
   const aiRunning = aiRun?.state === "running";
   const rawLocale = config?.settings.schedule_locale ?? "en";
   const locale: ScheduleLocale = isScheduleLocale(rawLocale) ? rawLocale : "en";
+
+  // A project handed over by the Projects tab. Keyed on the request counter
+  // rather than the object, so a parent re-render never re-applies it over a
+  // project the user picked here since.
+  const focusN = focus?.n ?? 0;
+  const focusProject = focus?.value ?? "";
+  useEffect(() => {
+    if (focusN > 0 && focusProject) setProject(focusProject);
+  }, [focusN, focusProject]);
 
   useEffect(() => {
     void api.getConfig().then(setConfig);

@@ -525,6 +525,56 @@ pub struct MindmapDoc {
     pub mtime: u64,
 }
 
+/// One subfolder of a vault project, with how much is in it. Folders the
+/// documented layout does not name are included too — an undocumented folder
+/// is a finding, not something to hide.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultProjectFolder {
+    pub name: String,
+    /// Notes (`*.md`) in the folder, or files of any type for `attachments/`.
+    pub count: usize,
+    /// False when the documented layout does not name this folder.
+    pub known: bool,
+}
+
+/// One way a project's folder departs from the layout documented in the
+/// vault's CLAUDE.md. Carrying the machine-readable `kind` alongside the
+/// human `detail` lets the UI group findings without re-parsing prose.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultProjectIssue {
+    /// missing-file | missing-folder | misfiled-deliverable | unknown-folder
+    pub kind: String,
+    /// warn | info
+    pub severity: String,
+    /// The path or name the finding is about, relative to the project folder.
+    pub target: String,
+}
+
+/// A vault project (`projects/<slug>/`) as the Projects tab sees it: what the
+/// folder holds, and where it departs from the documented layout.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultProject {
+    /// Folder name under `projects/` — the id every other command takes.
+    pub slug: String,
+    /// `title` from README.md, falling back to the slug.
+    pub name: String,
+    /// Absolute path, forward slashes.
+    pub path: String,
+    /// `status` from README.md (active | paused | done); empty when unset.
+    pub status: String,
+    /// Registered repository this project belongs to, from the `repo:` key of
+    /// `_index.md` (or README.md). Empty when the project has no repo.
+    pub repo: String,
+    /// First prose paragraph of README.md, for the list's one-line summary.
+    pub summary: String,
+    /// Newest mtime under the folder, in unix seconds.
+    pub updated: u64,
+    pub folders: Vec<VaultProjectFolder>,
+    pub issues: Vec<VaultProjectIssue>,
+    /// True when the folder lives under `archive/projects/` instead.
+    pub archived: bool,
+}
+
 /// A task's frontmatter fields plus location and body — the app's view of
 /// one `tasks/<id> <title>.md` file in the vault.
 #[derive(Debug, Clone, Serialize, Deserialize)]

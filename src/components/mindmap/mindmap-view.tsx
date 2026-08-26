@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import type { TabFocus } from "@/lib/tab-focus";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -102,9 +103,11 @@ function todayISO(): string {
 interface Props {
   /** Bumped by the app shell after settings are saved. */
   configVersion: number;
+  /** A project the Projects tab asked this view to open (T-0190). */
+  focus?: TabFocus;
 }
 
-export function MindmapView({ configVersion }: Props) {
+export function MindmapView({ configVersion, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -143,6 +146,15 @@ export function MindmapView({ configVersion }: Props) {
   );
   const current = files.find((f) => f.path === path) ?? null;
   const targetProject = project || current?.project || projects[0] || "";
+
+  // A project handed over by the Projects tab. Keyed on the request counter
+  // rather than the object, so a parent re-render never re-applies it over a
+  // project the user picked here since.
+  const focusN = focus?.n ?? 0;
+  const focusProject = focus?.value ?? "";
+  useEffect(() => {
+    if (focusN > 0 && focusProject) setProject(focusProject);
+  }, [focusN, focusProject]);
 
   useEffect(() => {
     void api.getConfig().then(setConfig);
