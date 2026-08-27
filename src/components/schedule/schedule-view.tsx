@@ -38,6 +38,7 @@ import {
 import { api } from "@/lib/api";
 import type { TabFocus } from "@/lib/tab-focus";
 import { projectOfNotePath } from "@/lib/vault-project";
+import { readViewState, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
@@ -104,6 +105,9 @@ const TIMELINE_MIN_WEEKS = 10;
 type ViewMode = "calendar" | "timeline";
 /** Starting width of the right column, in percent of the view. Roughly the
  * fixed 288px it replaced at a typical window size. */
+/** Key this view's remembered project/note are stored under. */
+const VIEW_ID = "schedule";
+
 const SIDEBAR_DEFAULT_PCT = 22;
 
 interface Props {
@@ -119,12 +123,17 @@ interface Props {
 export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
+  // An empty list before the first scan means "unknown", not "no notes" — the
+  // auto-open below must not read it as a reason to drop the restored path.
+  const [filesLoaded, setFilesLoaded] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
   // The "no projects yet" guide must not flash while the first scan is still
   // in flight — an empty array before that means "unknown", not "none".
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [project, setProject] = useState("");
-  const [path, setPath] = useState("");
+  // Restored from the last session, so a restart lands back on the plan that
+  // was being worked on instead of on an empty grid.
+  const [project, setProject] = useState(() => readViewState(VIEW_ID).project);
+  const [path, setPath] = useState(() => readViewState(VIEW_ID).path);
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [aiRun, setAiRun] = useState<ScheduleEditRun | null>(null);
@@ -197,6 +206,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   const loadFiles = useCallback(async () => {
     if (!vaultPath) return;
     setFiles(await api.listSchedules(vaultPath, project));
+    setFilesLoaded(true);
   }, [vaultPath, project]);
 
   const loadProjects = useCallback(async () => {
@@ -271,6 +281,25 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   useEffect(() => {
     if (projectsLoaded && project && !projects.includes(project)) setProject("");
   }, [projectsLoaded, projects, project]);
+
+  // Open a note automatically: a picker showing files over an empty grid is a
+  // click the user never wants to make. The restored path wins while it is
+  // still in the list; once it is gone, the first note takes over.
+  useEffect(() => {
+    if (!filesLoaded) return;
+    if (path && files.some((f) => f.path === path)) return;
+    setPath(files[0]?.path ?? "");
+  }, [files, filesLoaded, path]);
+
+  // Remember where the user was. Written on every change rather than on unmount
+  // because the view is never unmounted — the tab bar only hides it.
+  useEffect(() => {
+    writeViewState(VIEW_ID, "path", path);
+  }, [path]);
+
+  useEffect(() => {
+    writeViewState(VIEW_ID, "project", project);
+  }, [project]);
 
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the calendar follows the file without a refresh button.

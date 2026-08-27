@@ -36,6 +36,7 @@ import {
 import { api } from "@/lib/api";
 import type { TabFocus } from "@/lib/tab-focus";
 import { projectOfNotePath } from "@/lib/vault-project";
+import { readViewState, writeViewState } from "@/lib/view-state";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -92,6 +93,9 @@ const NODE_WIDTH_LABEL: Record<NodeWidth, string> = {
 };
 
 /** Sentinel values for the pickers — Radix rejects an empty string. */
+/** Key this view's remembered project/note are stored under. */
+const VIEW_ID = "mindmap";
+
 const ALL_PROJECTS = "__all__";
 const NEW_PROJECT = "__new__";
 
@@ -115,9 +119,14 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [project, setProject] = useState("");
+  // Restored from the last session, so a restart lands back on the map that was
+  // being worked on rather than on whatever the scan happens to list first.
+  const [project, setProject] = useState(() => readViewState(VIEW_ID).project);
   const [files, setFiles] = useState<MindmapFile[]>([]);
-  const [path, setPath] = useState("");
+  // An empty list before the first scan means "unknown", not "no notes" — the
+  // auto-open below must not read it as a reason to drop the restored path.
+  const [filesLoaded, setFilesLoaded] = useState(false);
+  const [path, setPath] = useState(() => readViewState(VIEW_ID).path);
   const [doc, setDoc] = useState<MindmapDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -167,6 +176,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const loadFiles = useCallback(async () => {
     if (!vaultPath) return;
     setFiles(await api.listMindmaps(vaultPath, project));
+    setFilesLoaded(true);
   }, [vaultPath, project]);
 
   const loadProjects = useCallback(async () => {
@@ -278,9 +288,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   // Open the first note of the project automatically: a picker showing one
   // file and an empty canvas is a click the user never wants to make.
   useEffect(() => {
+    if (!filesLoaded) return;
     if (path && files.some((f) => f.path === path)) return;
     setPath(files[0]?.path ?? "");
-  }, [files, path]);
+  }, [files, filesLoaded, path]);
+
+  // Remember where the user was. Written on every change rather than on unmount
+  // because the view is never unmounted — the tab bar only hides it.
+  useEffect(() => {
+    writeViewState(VIEW_ID, "path", path);
+  }, [path]);
+
+  useEffect(() => {
+    writeViewState(VIEW_ID, "project", project);
+  }, [project]);
 
   /**
    * Writes a model to state and schedules the file write, without touching the
