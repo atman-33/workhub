@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import type { TabFocus } from "@/lib/tab-focus";
+import { projectOfNotePath } from "@/lib/vault-project";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -103,11 +104,14 @@ function todayISO(): string {
 interface Props {
   /** Bumped by the app shell after settings are saved. */
   configVersion: number;
+  /** Bumped by the Projects tab after a project is created, archived or
+   * restored; reloads the project picker (T-0190). */
+  projectsVersion?: number;
   /** A project the Projects tab asked this view to open (T-0190). */
   focus?: TabFocus;
 }
 
-export function MindmapView({ configVersion, focus }: Props) {
+export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -169,7 +173,10 @@ export function MindmapView({ configVersion, focus }: Props) {
     if (!vaultPath) return;
     setProjects(await api.listScheduleProjects(vaultPath));
     setProjectsLoaded(true);
-  }, [vaultPath]);
+    // `projectsVersion` is not read here — it is a reload trigger, and listing
+    // it as a dependency is what makes the effect below re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultPath, projectsVersion]);
 
   /**
    * Reads a note into the view.
@@ -213,6 +220,37 @@ export function MindmapView({ configVersion, focus }: Props) {
     setSelectedId(null);
     setEditingId(null);
   }, [path, loadDoc]);
+
+  // The open note's project may be the one that just left. Judged from the
+  // note's own path rather than from the file list, because switching the
+  // picker to another project also empties the list of it — and that is not a
+  // reason to close what the user is editing. Holding on to the path would
+  // leave the editor writing into `archive/projects/` behind the user's back.
+  useEffect(() => {
+    if (!path || !projectsLoaded) return;
+    const owner = projectOfNotePath(path);
+    if (owner && !projects.includes(owner)) setPath("");
+  }, [path, projects, projectsLoaded]);
+
+  // A project folder appearing or disappearing (created here, in the Projects
+  // tab, in Obsidian, or by an agent) changes what the picker may offer.
+  // Archiving is a *move* to `archive/projects/`, so an archived project drops
+  // out of this list on its own — there is no separate exclusion to apply.
+  useEffect(() => {
+    const unlisten = listen("projects-changed", () => {
+      void loadProjects();
+      void loadFiles();
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [loadProjects, loadFiles]);
+
+  // The selected project may be the one that just left. Falling back to "all
+  // projects" is what keeps the picker from showing a value it no longer has.
+  useEffect(() => {
+    if (projectsLoaded && project && !projects.includes(project)) setProject("");
+  }, [projectsLoaded, projects, project]);
 
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the canvas follows the file without a refresh button.

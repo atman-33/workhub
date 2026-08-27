@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
   ArchiveRestore,
@@ -77,9 +78,19 @@ interface Props {
   /** Opens another tab focused on this project (or, for `repos`, on the
    * repository path it is linked to). */
   onNavigate: (target: ProjectTarget, value: string) => void;
+  /** Called after this view creates, archives or restores a project, so the
+   * project pickers in the other tabs reload. The watcher's
+   * `projects-changed` event reports the same thing for writers outside the
+   * app; this is the deterministic path for the app's own actions. */
+  onProjectsChange?: () => void;
 }
 
-export function ProjectsView({ configVersion, active, onNavigate }: Props) {
+export function ProjectsView({
+  configVersion,
+  active,
+  onNavigate,
+  onProjectsChange,
+}: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<VaultProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -93,6 +104,10 @@ export function ProjectsView({ configVersion, active, onNavigate }: Props) {
 
   const vaultPath = config?.settings.vault_path ?? null;
   const repos = config?.projects ?? [];
+  // Held in a ref because the app shell passes a fresh arrow every render;
+  // depending on it directly would rebuild every callback below on each one.
+  const onProjectsChangeRef = useRef(onProjectsChange);
+  onProjectsChangeRef.current = onProjectsChange;
 
   const load = useCallback(async () => {
     if (!vaultPath) return;
@@ -117,12 +132,20 @@ export function ProjectsView({ configVersion, active, onNavigate }: Props) {
     void load();
   }, [load]);
 
-  // Obsidian and agents write these folders too, and unlike notes there is no
-  // watcher for them — re-reading when the tab is brought forward is what
-  // keeps the findings from describing yesterday's vault.
+  // Obsidian and agents write these folders too. Re-read when the tab is
+  // brought forward (a note edited in Obsidian changes a folder's counts and
+  // its last-touched time, which no event reports), and again whenever a
+  // project folder itself appears or disappears.
   useEffect(() => {
     if (active) void load();
   }, [active, load]);
+
+  useEffect(() => {
+    const unlisten = listen("projects-changed", () => void load());
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [load]);
 
   const counts = useMemo(() => taskCountsByProject(tasks), [tasks]);
   const orphans = useMemo(
@@ -163,12 +186,19 @@ export function ProjectsView({ configVersion, active, onNavigate }: Props) {
     !!current &&
     !current.issues.some((i) => i.kind === "missing-file" && i.target === "README.md");
 
+  /** Re-reads the vault and tells the other tabs' project pickers to do the
+   * same. Every mutation this view performs ends here. */
+  const refresh = useCallback(async () => {
+    await load();
+    onProjectsChangeRef.current?.();
+  }, [load]);
+
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setError("");
     setStatus(label);
     try {
       await fn();
-      await load();
+      await refresh();
       setStatus("");
     } catch (e) {
       setStatus("");
@@ -505,7 +535,7 @@ export function ProjectsView({ configVersion, active, onNavigate }: Props) {
         onOpenChange={setCreateOpen}
         onCreated={(created) => {
           setSlug(created);
-          void load();
+          void refresh();
         }}
       />
       {current && (

@@ -98,6 +98,22 @@ export function unknownProjects(tasks: Task[], projects: VaultProject[]): Unknow
 }
 
 /**
+ * Owning project slug of a note path (`…/projects/<slug>/<kind>/<name>.md`),
+ * or `""` when the path is not under a project.
+ *
+ * Read back out of the path rather than kept in state because the case it
+ * exists for is the note *leaving* the list: once a project is archived its
+ * notes are gone from every listing, so the listing can no longer say which
+ * project the still-open note belonged to.
+ */
+export function projectOfNotePath(path: string): string {
+  const parts = path.replace(/\\/g, "/").split("/");
+  const at = parts.lastIndexOf("projects");
+  if (at < 0) return "";
+  return parts[at + 1] ?? "";
+}
+
+/**
  * Registered repository path a project points at, or null when the link is
  * unset or names a repo that is no longer registered.
  *

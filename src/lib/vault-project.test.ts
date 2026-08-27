@@ -4,6 +4,7 @@ import {
   health,
   issueLabel,
   linkedRepo,
+  projectOfNotePath,
   taskCountsByProject,
   unknownProjects,
 } from "./vault-project";
@@ -142,5 +143,21 @@ describe("linkedRepo", () => {
   it("returns null for an unset link or one naming a repo that is gone", () => {
     expect(linkedRepo(project({ repo: "" }), repos)).toBeNull();
     expect(linkedRepo(project({ repo: "C:/repos/deleted" }), repos)).toBeNull();
+  });
+});
+
+describe("projectOfNotePath", () => {
+  it("reads the slug out of a note path, either separator", () => {
+    expect(projectOfNotePath("C:/vault/projects/demo/schedules/plan.md")).toBe("demo");
+    expect(projectOfNotePath("C:\\vault\\projects\\demo\\mindmaps\\ideas.md")).toBe("demo");
+  });
+
+  it("takes the last `projects` segment, so a vault called projects still works", () => {
+    expect(projectOfNotePath("C:/projects/vault/projects/demo/mindmaps/a.md")).toBe("demo");
+  });
+
+  it("returns nothing for a path outside a project", () => {
+    expect(projectOfNotePath("")).toBe("");
+    expect(projectOfNotePath("C:/vault/tasks/T-0001 a.md")).toBe("");
   });
 });

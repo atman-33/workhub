@@ -22,6 +22,13 @@
   is stored rather than guessed, because the two do not share a naming scheme.
   The detail pane's buttons open the project's README in Obsidian and jump to
   the Tasks, Schedule, Mindmap and Repos tabs already scoped to it.
+- **Every project picker follows the vault live.** A project created,
+  archived or restored — in the Projects tab, in Obsidian, or by an agent —
+  now reaches the Schedule and Mindmap pickers immediately instead of at the
+  next app start. Archiving needs no separate exclusion: the folder moves out
+  of `projects/`, so an archived project leaves the pickers on its own. A note
+  left open when its project is archived is closed rather than kept pointing
+  into `archive/projects/`.
 - **Archiving replaces deleting.** A project moves to
   `archive/projects/<slug>/` and comes back from the same button. There is no
   delete: a project folder holds months of hand-written prose, and the same

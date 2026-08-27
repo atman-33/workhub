@@ -30,6 +30,13 @@ const SCHEDULES_CHANGED_EVENT: &str = "schedules-changed";
 /// Emitted when a `projects/*/mindmaps/*.md` file changes, so the Mindmap
 /// view reloads after an Obsidian or agent edit (T-0188).
 const MINDMAPS_CHANGED_EVENT: &str = "mindmaps-changed";
+/// Emitted when a project folder appears under or disappears from `projects/`,
+/// so every project picker in the app reloads (T-0190). Without it the pickers
+/// were read once at mount and never again: a project created in the Projects
+/// tab, in Obsidian, or by an agent stayed invisible until the app restarted,
+/// and an archived one stayed selectable after its folder had moved to
+/// `archive/projects/`.
+const PROJECTS_CHANGED_EVENT: &str = "projects-changed";
 const DEBOUNCE: Duration = Duration::from_millis(300);
 
 fn tasks_dir(vault: &Path) -> PathBuf {
@@ -1188,6 +1195,17 @@ impl Default for WatcherState {
 /// kinds a view is showing — otherwise every note edit in Obsidian would
 /// round-trip a reload through the Schedule and Mindmap views (schedule design
 /// note §10.4).
+/// True for `projects/<slug>` itself — the creation, removal or rename of a
+/// project folder.
+///
+/// Matched on the *parent* rather than on depth so that only the top level
+/// counts: `projects/<slug>/specs` is a folder inside a project, not a project.
+/// These paths currently fall through every arm of the watcher's classifier and
+/// are discarded, so reporting them adds no reload that was not wanted.
+fn is_project_dir_path(p: &Path, projects_root: &Path) -> bool {
+    p.parent() == Some(projects_root)
+}
+
 fn is_note_path(p: &Path, folder: &str) -> bool {
     if p.extension().and_then(|e| e.to_str()) != Some("md") {
         return false;
@@ -1239,10 +1257,13 @@ pub fn start_watcher(
         let mut tasks_touched = false;
         let mut schedules_touched = false;
         let mut mindmaps_touched = false;
+        let mut projects_touched = false;
         let mut classify = |ev: &Result<Event, notify::Error>| match ev {
             Ok(event) => {
                 for path in &event.paths {
-                    if is_note_path(path, "schedules") {
+                    if is_project_dir_path(path, &projects) {
+                        projects_touched = true;
+                    } else if is_note_path(path, "schedules") {
                         schedules_touched = true;
                     } else if is_note_path(path, "mindmaps") {
                         mindmaps_touched = true;
@@ -1278,6 +1299,9 @@ pub fn start_watcher(
         if mindmaps_touched {
             let _ = app.emit(MINDMAPS_CHANGED_EVENT, ());
         }
+        if projects_touched {
+            let _ = app.emit(PROJECTS_CHANGED_EVENT, ());
+        }
     });
 
     let mut guard = state
@@ -1299,6 +1323,26 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("workhub-test-{name}-{nanos}"));
         fs::create_dir_all(dir.join("tasks")).unwrap();
         dir
+    }
+
+    #[test]
+    fn only_the_top_level_of_projects_counts_as_a_project_folder() {
+        let projects = PathBuf::from("C:/vault/projects");
+        assert!(is_project_dir_path(&projects.join("demo"), &projects));
+        // Inside a project: a subfolder, and a note the note-kind arms own.
+        assert!(!is_project_dir_path(
+            &projects.join("demo/specs"),
+            &projects
+        ));
+        assert!(!is_project_dir_path(
+            &projects.join("demo/schedules/a.md"),
+            &projects
+        ));
+        // Outside it entirely.
+        assert!(!is_project_dir_path(
+            &PathBuf::from("C:/vault/tasks/T-0001 a.md"),
+            &projects
+        ));
     }
 
     #[test]

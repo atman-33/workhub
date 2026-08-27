@@ -78,6 +78,11 @@ export default function App() {
   // separate from configVersion so the Repos view does not reload (and race
   // its own just-persisted config) as a result of its own edit.
   const [projectsVersion, setProjectsVersion] = useState(0);
+  // Bumped when the Projects view creates, archives or restores a vault
+  // project. The `projects-changed` watcher event covers the same ground for
+  // writers outside the app (Obsidian, an agent), but the app's own actions
+  // must not depend on an event arriving — this is the deterministic half.
+  const [vaultProjectsVersion, setVaultProjectsVersion] = useState(0);
   // Cross-tab focus: the Projects tab hands another tab a project slug (or a
   // repository path) to select. Carried with a counter rather than the value
   // alone so that asking for the *same* project twice still re-focuses it —
@@ -211,6 +216,7 @@ export default function App() {
               configVersion={configVersion}
               active={tab === "projects"}
               onNavigate={focusOn}
+              onProjectsChange={() => setVaultProjectsVersion((v) => v + 1)}
             />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
@@ -222,10 +228,18 @@ export default function App() {
             />
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
-            <ScheduleView configVersion={configVersion} focus={focusFor("schedule")} />
+            <ScheduleView
+              configVersion={configVersion}
+              projectsVersion={vaultProjectsVersion}
+              focus={focusFor("schedule")}
+            />
           </div>
           <div className={cn("h-full", tab !== "mindmap" && "hidden")}>
-            <MindmapView configVersion={configVersion} focus={focusFor("mindmap")} />
+            <MindmapView
+              configVersion={configVersion}
+              projectsVersion={vaultProjectsVersion}
+              focus={focusFor("mindmap")}
+            />
           </div>
           <div className={cn("h-full", tab !== "inbox" && "hidden")}>
             <InboxView configVersion={configVersion} active={tab === "inbox"} />

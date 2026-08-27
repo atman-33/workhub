@@ -145,7 +145,7 @@ The **Projects** tab is the screen for a *vault project* — a folder under \`pr
 - **Task project values with no folder** appears under the list when a task's \`project:\` names something \`projects/\` does not have. That field is free text, so a typo silently orphans a task — this is where you notice.
 - **Repository** links the project to one of the repositories registered on the Repos tab. The link is stored as \`repo:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme.
 - **New project** scaffolds \`projects/<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from.
-- **Archive** moves the folder to \`archive/projects/<slug>/\` and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible.
+- **Archive** moves the folder to \`archive/projects/<slug>/\` and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
 - The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Schedule**, **Mindmap** and **Repos** tabs already scoped to it.`;
 
 const SCHEDULE_MD = `## Planning dates (Schedule)
@@ -1187,7 +1187,12 @@ export function HelpView() {
                 </span>{" "}
                 and <span className="font-medium">Restore</span> brings it back.
                 There is no delete: a project folder holds months of hand-written
-                prose, so archiving is the only removal, and it is reversible.
+                prose, so archiving is the only removal, and it is reversible. An
+                archived project also disappears from the Schedule and Mindmap
+                project pickers — its folder has left{" "}
+                <span className="font-mono text-xs">projects/</span> — and a note
+                left open from it is closed rather than kept pointing into the
+                archive.
               </li>
               <li>
                 The buttons across the top of the detail pane open the
