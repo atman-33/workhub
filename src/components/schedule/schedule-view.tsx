@@ -36,6 +36,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import type { TabFocus } from "@/lib/tab-focus";
+import { projectOfNotePath } from "@/lib/vault-project";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
@@ -107,9 +109,14 @@ const SIDEBAR_DEFAULT_PCT = 22;
 interface Props {
   /** Bumped by the app shell after settings are saved. */
   configVersion: number;
+  /** Bumped by the Projects tab after a project is created, archived or
+   * restored; reloads the project picker (T-0190). */
+  projectsVersion?: number;
+  /** A project the Projects tab asked this view to open (T-0190). */
+  focus?: TabFocus;
 }
 
-export function ScheduleView({ configVersion }: Props) {
+export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
@@ -162,6 +169,15 @@ export function ScheduleView({ configVersion }: Props) {
   const rawLocale = config?.settings.schedule_locale ?? "en";
   const locale: ScheduleLocale = isScheduleLocale(rawLocale) ? rawLocale : "en";
 
+  // A project handed over by the Projects tab. Keyed on the request counter
+  // rather than the object, so a parent re-render never re-applies it over a
+  // project the user picked here since.
+  const focusN = focus?.n ?? 0;
+  const focusProject = focus?.value ?? "";
+  useEffect(() => {
+    if (focusN > 0 && focusProject) setProject(focusProject);
+  }, [focusN, focusProject]);
+
   useEffect(() => {
     void api.getConfig().then(setConfig);
   }, [configVersion]);
@@ -187,7 +203,10 @@ export function ScheduleView({ configVersion }: Props) {
     if (!vaultPath) return;
     setProjects(await api.listScheduleProjects(vaultPath));
     setProjectsLoaded(true);
-  }, [vaultPath]);
+    // `projectsVersion` is not read here — it is a reload trigger, and listing
+    // it as a dependency is what makes the effect below re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultPath, projectsVersion]);
 
   const loadDoc = useCallback(async (target: string) => {
     if (!target) {
@@ -221,6 +240,37 @@ export function ScheduleView({ configVersion }: Props) {
     setWindow(null);
     setSelectedId(null);
   }, [path, loadDoc]);
+
+  // The open note's project may be the one that just left. Judged from the
+  // note's own path rather than from the file list, because switching the
+  // picker to another project also empties the list of it — and that is not a
+  // reason to close what the user is editing. Holding on to the path would
+  // leave the editor writing into `archive/projects/` behind the user's back.
+  useEffect(() => {
+    if (!path || !projectsLoaded) return;
+    const owner = projectOfNotePath(path);
+    if (owner && !projects.includes(owner)) setPath("");
+  }, [path, projects, projectsLoaded]);
+
+  // A project folder appearing or disappearing (created here, in the Projects
+  // tab, in Obsidian, or by an agent) changes what the picker may offer.
+  // Archiving is a *move* to `archive/projects/`, so an archived project drops
+  // out of this list on its own — there is no separate exclusion to apply.
+  useEffect(() => {
+    const unlisten = listen("projects-changed", () => {
+      void loadProjects();
+      void loadFiles();
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [loadProjects, loadFiles]);
+
+  // The selected project may be the one that just left. Falling back to "all
+  // projects" is what keeps the picker from showing a value it no longer has.
+  useEffect(() => {
+    if (projectsLoaded && project && !projects.includes(project)) setProject("");
+  }, [projectsLoaded, projects, project]);
 
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the calendar follows the file without a refresh button.

@@ -10,6 +10,7 @@ import {
   Mic,
   Music,
   Network,
+  FolderKanban,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { InboxView } from "@/components/inbox-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
+import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
 import { ScheduleView } from "@/components/schedule/schedule-view";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -37,6 +39,7 @@ import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
 
 type Tab =
   | "tasks"
+  | "projects"
   | "inbox"
   | "repos"
   | "schedule"
@@ -49,6 +52,7 @@ type Tab =
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
+  { key: "projects", label: "Projects", icon: FolderKanban },
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "mindmap", label: "Mindmap", icon: Network },
@@ -74,6 +78,23 @@ export default function App() {
   // separate from configVersion so the Repos view does not reload (and race
   // its own just-persisted config) as a result of its own edit.
   const [projectsVersion, setProjectsVersion] = useState(0);
+  // Bumped when the Projects view creates, archives or restores a vault
+  // project. The `projects-changed` watcher event covers the same ground for
+  // writers outside the app (Obsidian, an agent), but the app's own actions
+  // must not depend on an event arriving — this is the deterministic half.
+  const [vaultProjectsVersion, setVaultProjectsVersion] = useState(0);
+  // Cross-tab focus: the Projects tab hands another tab a project slug (or a
+  // repository path) to select. Carried with a counter rather than the value
+  // alone so that asking for the *same* project twice still re-focuses it —
+  // the receiving view may have been navigated away from in between.
+  const [focus, setFocus] = useState<{ tab: Tab; value: string; n: number } | null>(null);
+  const focusOn = useCallback((target: ProjectTarget, value: string) => {
+    setFocus((prev) => ({ tab: target, value, n: (prev?.n ?? 0) + 1 }));
+    setTab(target);
+  }, []);
+  const focusFor = (t: Tab) =>
+    focus && focus.tab === t ? { value: focus.value, n: focus.n } : undefined;
+
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
   // machine booted after a rule's time still gets that occurrence's task.
@@ -186,21 +207,39 @@ export default function App() {
             <TasksView
               configVersion={configVersion}
               projectsVersion={projectsVersion}
+              focus={focusFor("tasks")}
               onSettingsChange={(s) => setSettings(s)}
+            />
+          </div>
+          <div className={cn("h-full", tab !== "projects" && "hidden")}>
+            <ProjectsView
+              configVersion={configVersion}
+              active={tab === "projects"}
+              onNavigate={focusOn}
+              onProjectsChange={() => setVaultProjectsVersion((v) => v + 1)}
             />
           </div>
           <div className={cn("h-full", tab !== "repos" && "hidden")}>
             <ReposView
               configVersion={configVersion}
               active={tab === "repos"}
+              focus={focusFor("repos")}
               onProjectsChange={() => setProjectsVersion((v) => v + 1)}
             />
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
-            <ScheduleView configVersion={configVersion} />
+            <ScheduleView
+              configVersion={configVersion}
+              projectsVersion={vaultProjectsVersion}
+              focus={focusFor("schedule")}
+            />
           </div>
           <div className={cn("h-full", tab !== "mindmap" && "hidden")}>
-            <MindmapView configVersion={configVersion} />
+            <MindmapView
+              configVersion={configVersion}
+              projectsVersion={vaultProjectsVersion}
+              focus={focusFor("mindmap")}
+            />
           </div>
           <div className={cn("h-full", tab !== "inbox" && "hidden")}>
             <InboxView configVersion={configVersion} active={tab === "inbox"} />

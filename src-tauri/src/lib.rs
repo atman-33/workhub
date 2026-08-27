@@ -23,6 +23,7 @@ mod terminal;
 mod tidy;
 mod update;
 mod vault_note;
+mod vault_project;
 mod voice;
 mod voice_chunk;
 mod voice_history;
@@ -177,6 +178,10 @@ pub fn run() {
             commands::watch_vault,
             commands::list_schedule_projects,
             commands::create_vault_project,
+            commands::list_vault_projects,
+            commands::archive_vault_project,
+            commands::restore_vault_project,
+            commands::set_vault_project_repo,
             commands::list_schedules,
             commands::read_schedule,
             commands::write_schedule,

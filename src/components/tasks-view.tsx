@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
@@ -57,9 +58,16 @@ interface Props {
   projectsVersion?: number;
   /** Notifies the app shell that settings have changed so it can keep its own copy in sync. */
   onSettingsChange?: (settings: Settings) => void;
+  /** A project the Projects tab asked this view to filter down to (T-0190). */
+  focus?: TabFocus;
 }
 
-export function TasksView({ configVersion, projectsVersion = 0, onSettingsChange }: Props) {
+export function TasksView({
+  configVersion,
+  projectsVersion = 0,
+  onSettingsChange,
+  focus,
+}: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
@@ -143,6 +151,15 @@ export function TasksView({ configVersion, projectsVersion = 0, onSettingsChange
   }, []);
 
   // ---- startup + after app-level settings saves: load config ----
+  // A project handed over by the Projects tab. Keyed on the request counter
+  // rather than the object, so a parent re-render never re-applies it over a
+  // filter the user changed here since.
+  const focusN = focus?.n ?? 0;
+  const focusProject = focus?.value ?? "";
+  useEffect(() => {
+    if (focusN > 0 && focusProject) setProjectFilter(focusProject);
+  }, [focusN, focusProject]);
+
   useEffect(() => {
     setVaultExists(null);
     void (async () => {

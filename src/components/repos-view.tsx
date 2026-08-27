@@ -48,6 +48,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { api, nowUnix } from "@/lib/api";
+import type { TabFocus } from "@/lib/tab-focus";
 import { cn } from "@/lib/utils";
 import type { Config, GitInfo } from "@/types";
 
@@ -62,6 +63,8 @@ interface Props {
    * would otherwise keep the config they loaded at startup.
    */
   onProjectsChange?: () => void;
+  /** A repository the Projects tab asked this view to select (T-0190). */
+  focus?: TabFocus;
 }
 
 /** How often the visible Repos list re-reads each repo's git status, in ms. */
@@ -70,7 +73,7 @@ const STATUS_POLL_MS = 5000;
 /** Identity of the repo list as far as other views care: their names. */
 const projectsKey = (cfg: Config) => JSON.stringify(cfg.projects.map((p) => p.name));
 
-export function ReposView({ configVersion, active, onProjectsChange }: Props) {
+export function ReposView({ configVersion, active, onProjectsChange, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
   const [showWorktrees, setShowWorktrees] = useState(false);
@@ -95,6 +98,16 @@ export function ReposView({ configVersion, active, onProjectsChange }: Props) {
   const [graphMaximized, setGraphMaximized] = useState(
     () => localStorage.getItem("repos.graphMaximized") === "1",
   );
+
+  // A repository handed over by the Projects tab. Keyed on the request counter
+  // rather than the object, so a parent re-render never re-applies it over a
+  // selection the user made here since. Not persisted: this is a "show me that
+  // one" jump, not a saved working set.
+  const focusN = focus?.n ?? 0;
+  const focusRepo = focus?.value ?? "";
+  useEffect(() => {
+    if (focusN > 0 && focusRepo) setSelected(new Set([focusRepo]));
+  }, [focusN, focusRepo]);
 
   useEffect(() => {
     localStorage.setItem("repos.showChanges", showChanges ? "1" : "0");

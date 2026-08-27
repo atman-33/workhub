@@ -2,7 +2,7 @@ use crate::mindmap;
 use crate::mindmap_edit;
 use crate::models::{
     BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, MindmapDoc, MindmapFile,
-    ScheduleDoc, ScheduleFile, Task, Worktree,
+    ScheduleDoc, ScheduleFile, Task, VaultProject, Worktree,
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
@@ -10,6 +10,7 @@ use crate::schedule_edit;
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::terminal::{self, TerminalState};
 use crate::vault_note;
+use crate::vault_project;
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -493,6 +494,59 @@ pub async fn create_vault_project(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         vault_note::create_project(&PathBuf::from(vault_path), &slug, &name)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---- vault projects (T-0190) --------------------------------------------
+
+/// Every project folder under the vault's `projects/`, with what it holds and
+/// where it departs from the documented layout. `include_archived` adds the
+/// folders under `archive/projects/`.
+#[tauri::command]
+pub async fn list_vault_projects(
+    vault_path: String,
+    include_archived: bool,
+) -> Result<Vec<VaultProject>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::list_projects(&PathBuf::from(vault_path), include_archived)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Moves `projects/<slug>/` to `archive/projects/<slug>/`. Returns the new
+/// path. There is no delete: see the `vault_project` module docs.
+#[tauri::command]
+pub async fn archive_vault_project(vault_path: String, slug: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::archive_project(&PathBuf::from(vault_path), &slug)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Moves an archived project back under `projects/`.
+#[tauri::command]
+pub async fn restore_vault_project(vault_path: String, slug: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::restore_project(&PathBuf::from(vault_path), &slug)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Links a project to a registered repository by writing `repo:` into its
+/// `_index.md` frontmatter. An empty `repo` clears the link.
+#[tauri::command]
+pub async fn set_vault_project_repo(
+    vault_path: String,
+    slug: String,
+    repo: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::set_project_repo(&PathBuf::from(vault_path), &slug, &repo)
     })
     .await
     .map_err(|e| e.to_string())?

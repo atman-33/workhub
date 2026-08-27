@@ -158,6 +158,47 @@ export interface RecurringRule {
 }
 
 /** One schedule note as the picker sees it (`list_schedules`). */
+/** One subfolder of a vault project, with how much is in it. */
+export interface VaultProjectFolder {
+  name: string;
+  /** Notes (`*.md`), or files of any type for `attachments/`. */
+  count: number;
+  /** False when the documented layout does not name this folder. */
+  known: boolean;
+}
+
+/** One way a project departs from the layout documented in the vault's
+ * CLAUDE.md. */
+export interface VaultProjectIssue {
+  kind: "missing-file" | "missing-folder" | "misfiled-deliverable" | "unknown-folder";
+  severity: "warn" | "info";
+  /** The path or name the finding is about, relative to the project folder. */
+  target: string;
+}
+
+/** A vault project (`projects/<slug>/`) as the Projects tab sees it. Distinct
+ * from `Project`, which is a *registered repository* in the Repos tab — the
+ * two are linked by `repo`, never merged (see `vault_project.rs`). */
+export interface VaultProject {
+  slug: string;
+  name: string;
+  /** Absolute path, forward slashes. */
+  path: string;
+  /** `status` from README.md (active | paused | done); empty when unset. */
+  status: string;
+  /** Path of the registered repository this project belongs to; empty when
+   * the project has no repo. */
+  repo: string;
+  /** First prose paragraph of README.md. */
+  summary: string;
+  /** Newest mtime under the folder, in unix seconds. */
+  updated: number;
+  folders: VaultProjectFolder[];
+  issues: VaultProjectIssue[];
+  /** True when the folder lives under `archive/projects/` instead. */
+  archived: boolean;
+}
+
 export interface ScheduleFile {
   /** Absolute path, forward slashes — the id used by every other command. */
   path: string;

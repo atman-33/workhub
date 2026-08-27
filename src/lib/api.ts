@@ -22,6 +22,7 @@ import type {
   TidyRun,
   UpdateInfo,
   UpdateTaskInput,
+  VaultProject,
   VoiceHistoryEntry,
   Worktree,
 } from "@/types";
@@ -92,6 +93,22 @@ export const api = {
     invoke<void>("apply_vault_template", { vaultPath, paths, overwrite }),
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
+  // ---- vault projects (projects/<slug>/, T-0190) ----
+  /** Every project folder under the vault's `projects/`, with what it holds
+   * and where it departs from the documented layout. */
+  listVaultProjects: (vaultPath: string, includeArchived: boolean) =>
+    invoke<VaultProject[]>("list_vault_projects", { vaultPath, includeArchived }),
+  /** Moves the project to `archive/projects/<slug>/`; returns the new path.
+   * There is no delete — archiving is the only removal, and it is reversible
+   * with `restoreVaultProject`. */
+  archiveVaultProject: (vaultPath: string, slug: string) =>
+    invoke<string>("archive_vault_project", { vaultPath, slug }),
+  restoreVaultProject: (vaultPath: string, slug: string) =>
+    invoke<string>("restore_vault_project", { vaultPath, slug }),
+  /** Links the project to a registered repository (`repo:` in its
+   * `_index.md`). Pass an empty string to clear the link. */
+  setVaultProjectRepo: (vaultPath: string, slug: string, repo: string) =>
+    invoke<void>("set_vault_project_repo", { vaultPath, slug, repo }),
   // ---- schedule notes (projects/<slug>/schedules/*.md) ----
   /** Project slugs under the vault's `projects/`, including ones with no
    * schedule note yet — deriving the list from existing notes would make the

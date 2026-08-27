@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Copy,
   FileDiff,
+  FolderKanban,
   Keyboard,
   MessageSquarePlus,
   Mic,
@@ -134,6 +135,18 @@ Snippets you retype often — addresses, boilerplate replies, commands — paste
 - The gesture can be switched to **double-tap Shift** or turned off in the **Clips** tab. Alt is not offered — screen annotation owns it.
 - Snippets are stored in \`~/.workhub/clips.json\`.
 - workhub has no tray icon: closing its main window quits the app entirely, and the gesture stops working until you relaunch it.`;
+
+const PROJECTS_MD = `## Projects (the vault's project folders)
+
+The **Projects** tab is the screen for a *vault project* — a folder under \`projects/\` in the vault. It is not the Repos tab: a repository is a checkout on disk, a project is where that work's notes, schedules, mindmaps and deliverables live. Some projects have no repository, and some repositories have no project.
+
+- **The list** shows every project with its task count, when it was last touched, and whether the folder matches the layout the vault's CLAUDE.md documents. **Archived** also lists the ones filed under \`archive/projects/\`.
+- **Layout findings** are the point of the tab. It reports required files that are missing (\`README.md\`, \`prd.md\`, \`roadmap.md\`, \`links.md\`, \`_index.md\`), documented folders that are absent, folders nobody documented, and task deliverable notes (\`T-XXXX-…\`) sitting in the project root instead of \`deliverables/\`. Findings are reported, never fixed automatically.
+- **Task project values with no folder** appears under the list when a task's \`project:\` names something \`projects/\` does not have. That field is free text, so a typo silently orphans a task — this is where you notice.
+- **Repository** links the project to one of the repositories registered on the Repos tab. The link is stored as \`repo:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme.
+- **New project** scaffolds \`projects/<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from.
+- **Archive** moves the folder to \`archive/projects/<slug>/\` and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
+- The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Schedule**, **Mindmap** and **Repos** tabs already scoped to it.`;
 
 const SCHEDULE_MD = `## Planning dates (Schedule)
 
@@ -334,6 +347,7 @@ const SECTIONS = [
   { value: "quick-capture", title: "Quick capture", icon: Keyboard },
   { value: "voice", title: "Voice input", icon: Mic },
   { value: "clips", title: "Clips", icon: ClipboardList },
+  { value: "projects", title: "Projects", icon: FolderKanban },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "mindmap", title: "Mapping ideas", icon: Network },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
@@ -1092,6 +1106,102 @@ export function HelpView() {
                 workhub has no tray icon: closing its main window quits the
                 app entirely, and the gesture stops working until you
                 relaunch it.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={FolderKanban}
+            title="Projects (the vault's project folders)"
+            value="projects"
+            markdown={PROJECTS_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Projects</span> tab is the screen
+              for a{" "}
+              <span className="font-medium text-foreground">vault project</span> —
+              a folder under{" "}
+              <span className="font-mono text-xs">projects/</span> in the vault. It
+              is not the Repos tab: a repository is a checkout on disk, a project
+              is where that work&apos;s notes, schedules, mindmaps and deliverables
+              live. Some projects have no repository, and some repositories have no
+              project.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium">The list</span> shows every project
+                with its task count, when it was last touched, and whether the
+                folder matches the layout the vault&apos;s CLAUDE.md documents.{" "}
+                <span className="font-medium">Archived</span> also lists the ones
+                filed under{" "}
+                <span className="font-mono text-xs">archive/projects/</span>.
+              </li>
+              <li>
+                <span className="font-medium">Layout findings</span> are the point
+                of the tab. It reports required files that are missing (
+                <span className="font-mono text-xs">README.md</span>,{" "}
+                <span className="font-mono text-xs">prd.md</span>,{" "}
+                <span className="font-mono text-xs">roadmap.md</span>,{" "}
+                <span className="font-mono text-xs">links.md</span>,{" "}
+                <span className="font-mono text-xs">_index.md</span>), documented
+                folders that are absent, folders nobody documented, and task
+                deliverable notes (
+                <span className="font-mono text-xs">T-XXXX-…</span>) sitting in the
+                project root instead of{" "}
+                <span className="font-mono text-xs">deliverables/</span>. Findings
+                are reported, never fixed automatically.
+              </li>
+              <li>
+                <span className="font-medium">
+                  Task project values with no folder
+                </span>{" "}
+                appears under the list when a task&apos;s{" "}
+                <span className="font-mono text-xs">project:</span> names something{" "}
+                <span className="font-mono text-xs">projects/</span> does not have.
+                That field is free text, so a typo silently orphans a task — this
+                is where you notice.
+              </li>
+              <li>
+                <span className="font-medium">Repository</span> links the project
+                to one of the repositories registered on the Repos tab. The link is
+                stored as <span className="font-mono text-xs">repo:</span> in the
+                project&apos;s{" "}
+                <span className="font-mono text-xs">_index.md</span> (created from
+                the scaffold if the project predates it) rather than guessed from
+                the name, because the two do not share a naming scheme.
+              </li>
+              <li>
+                <span className="font-medium">New project</span> scaffolds{" "}
+                <span className="font-mono text-xs">
+                  projects/&lt;slug&gt;/
+                </span>{" "}
+                from the bundled template — the same folder the Schedule and
+                Mindmap tabs pick from.
+              </li>
+              <li>
+                <span className="font-medium">Archive</span> moves the folder to{" "}
+                <span className="font-mono text-xs">
+                  archive/projects/&lt;slug&gt;/
+                </span>{" "}
+                and <span className="font-medium">Restore</span> brings it back.
+                There is no delete: a project folder holds months of hand-written
+                prose, so archiving is the only removal, and it is reversible. An
+                archived project also disappears from the Schedule and Mindmap
+                project pickers — its folder has left{" "}
+                <span className="font-mono text-xs">projects/</span> — and a note
+                left open from it is closed rather than kept pointing into the
+                archive.
+              </li>
+              <li>
+                The buttons across the top of the detail pane open the
+                project&apos;s README in Obsidian and jump to the{" "}
+                <span className="font-medium">Tasks</span>,{" "}
+                <span className="font-medium">Schedule</span>,{" "}
+                <span className="font-medium">Mindmap</span> and{" "}
+                <span className="font-medium">Repos</span> tabs already scoped to
+                it.
               </li>
             </ul>
           </Section>
