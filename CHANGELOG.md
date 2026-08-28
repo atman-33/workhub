@@ -26,6 +26,11 @@
 
 ## 0.83.0 (2026-08-28)
 
+- **The Schedule and Mindmap tabs reopen the note you were last working on**
+  (T-0191). Switching tabs already kept their state, but a restart dropped it:
+  Schedule came back to an empty grid, and Mindmap only looked like it
+  remembered, because it opened whichever file the scan happened to list first.
+  Both now restore the open note and the project filter.
 - **The Projects tab can rename a project and edit its description** (T-0192).
   The detail pane used to show the README title and the first prose paragraph
   as read-only; changing either meant opening the file in Obsidian. Name and
