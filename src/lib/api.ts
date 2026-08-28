@@ -10,6 +10,7 @@ import type {
   GitLog,
   GraphOp,
   InboxNote,
+  InputListenerDiagnostics,
   MindmapDoc,
   MindmapEditRun,
   MindmapFile,
@@ -68,6 +69,11 @@ export const api = {
   openExplorer: (path: string) => invoke<void>("open_explorer", { path }),
   openInObsidian: (path: string) => invoke<void>("open_in_obsidian", { path }),
   appVersion: () => invoke<string>("app_version"),
+  // ---- global keyboard listener health (ink / clips gestures) ----
+  inputListenerDiagnostics: () =>
+    invoke<InputListenerDiagnostics>("input_listener_diagnostics"),
+  restartInputListener: () =>
+    invoke<InputListenerDiagnostics>("restart_input_listener"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),
   restartApp: () => invoke<void>("restart_app"),

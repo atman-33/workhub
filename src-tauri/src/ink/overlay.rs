@@ -51,7 +51,23 @@ struct ActivatePayload {
 /// Show the overlay on the monitor currently under the mouse cursor and start
 /// accepting strokes.
 pub fn activate(app: &AppHandle) {
+    // The window is created once at startup, but it can be gone by now (a
+    // webview crash, a close that got through). Rebuild it instead of
+    // silently doing nothing, which from the outside is indistinguishable
+    // from the gesture never being recognized.
+    if window(app).is_none() {
+        if let Err(e) = create_overlay(app) {
+            eprintln!("ink: failed to re-create the overlay window: {e}");
+            return;
+        }
+    }
     let Some(win) = window(app) else { return };
+    // Another always-on-top window (a screen-share toolbar, a game overlay)
+    // may have taken the top of the z-order since the last activation, which
+    // leaves the strokes drawn but invisible. Assert the flag again.
+    if let Err(e) = win.set_always_on_top(true) {
+        eprintln!("ink: failed to re-assert always-on-top: {e}");
+    }
     let cursor = app.cursor_position().ok();
     let monitor = cursor
         .and_then(|pos| app.monitor_from_point(pos.x, pos.y).ok().flatten())
@@ -67,7 +83,12 @@ pub fn activate(app: &AppHandle) {
             });
         }
     }
-    let _ = win.show();
+    if let Err(e) = win.show() {
+        // Swallowing this used to turn a window-manager failure into "the
+        // Alt gesture does nothing", with nothing anywhere to say otherwise.
+        eprintln!("ink: failed to show the overlay window: {e}");
+        return;
+    }
     let _ = win.set_ignore_cursor_events(false);
     let _ = app.emit_to(OVERLAY_LABEL, "ink://activate", payload);
 }

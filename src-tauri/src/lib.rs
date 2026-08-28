@@ -163,6 +163,8 @@ pub fn run() {
             commands::open_explorer,
             commands::open_in_obsidian,
             commands::app_version,
+            commands::input_listener_diagnostics,
+            commands::restart_input_listener,
             commands::check_update,
             commands::apply_update,
             commands::restart_app,

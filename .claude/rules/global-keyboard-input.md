@@ -50,6 +50,41 @@ touching windows.
 Keep gesture-detection logic (e.g. `ink/state.rs`, `clips/gesture.rs`) pure
 with injected timestamps so it stays unit-testable without live input.
 
+## A registration that was accepted can stop delivering — recover from it
+
+`RegisterRawInputDevices` succeeding at startup is not a promise that
+`WM_INPUT` keeps arriving. Delivery can stop later, with **no error reported
+anywhere**: locking the session, an RDP disconnect/reconnect, a fast user
+switch, resuming from sleep, or a display/device reconfiguration. From the
+user's side this is "the gesture works until I use the machine for a while,
+and an app restart fixes it" — which is easy to misread as a bug in the
+gesture recognizer, so check the listener first.
+
+`rawkey.rs` therefore does three things, and a new global-key feature inherits
+all of them for free by registering a consumer:
+
+- **Re-register on the events that break delivery** — `WM_WTSSESSION_CHANGE`
+  (needs `WTSRegisterSessionNotification`), `WM_DISPLAYCHANGE`,
+  `WM_INPUT_DEVICE_CHANGE` (needs the `RIDEV_DEVNOTIFY` flag), and
+  `WM_POWERBROADCAST`. Re-registering the same `hwndTarget` is idempotent and
+  cheap, so acting on a false positive costs nothing.
+- **Watch for silence** — a timer re-registers, with a doubling backoff, after
+  a long stretch with no `WM_INPUT` at all. Silence is not proof of breakage
+  (the user may be away), which is exactly why the response has to be a
+  harmless re-registration rather than anything louder.
+- **Report health** — `rawkey::diagnostics()` behind the
+  `input_listener_diagnostics` command, rendered by
+  `src/components/input-listener-panel.tsx`. Without it, "the gesture stopped
+  working" cannot be told apart from a gesture that is recognized but whose
+  effect is invisible.
+
+**Re-applying a feature's settings must reach the registration.** Toggling a
+feature off and on is what users do when a gesture dies, so `rawkey::register`
+asks the listener to re-register whenever it is already running, and the
+feature-level `start`/`apply_gesture` functions must not early-return on their
+own "already running" flag — that flag drifting out of sync with the real state
+is precisely the case that needs recovering.
+
 ## A modifier double-tap must be a *bare* double tap
 
 A recognizer that arms on any modifier release is wrong, and the symptom is

@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { ModelCombobox } from "@/components/model-combobox";
+import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
 
@@ -447,6 +448,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   </div>
                 )}
               </div>
+              <InputListenerPanel />
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>

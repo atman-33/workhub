@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.85.0 (2026-08-28)
+
+- **The global gestures recover on their own when Windows stops delivering
+  keys** (T-0193). Screen annotation (double-press Alt) and the clips popup
+  share one Raw Input registration, and that registration can silently stop
+  delivering after a session lock, a remote-desktop reconnect, a fast user
+  switch, a resume from sleep, or a display change — the symptom being a
+  gesture that works until the machine has been in use for a while and comes
+  back only after restarting the app. The listener now re-registers itself on
+  each of those events, and a watchdog re-registers (with a backoff) after a
+  long stretch with no keyboard input at all.
+- **Settings → General → Input listener** shows whether keystrokes are still
+  reaching the app — uptime, when the last key was seen, how often the
+  listener has re-registered and why — and offers a **Restart listener**
+  button that rebuilds the listener without restarting workhub. It also says
+  when an app running as administrator is in the foreground, since Windows
+  withholds every key from workhub in that case and no restart can help.
+- **Turning a gesture off and on again now actually re-registers it.** When
+  the other gesture feature was enabled the shared listener stayed alive, so
+  the toggle left the broken registration untouched — the one recovery a user
+  would try by hand did nothing.
+- **The ink overlay no longer fails silently.** Activation re-creates the
+  overlay window if it has been lost and re-asserts always-on-top, so another
+  topmost window cannot leave the strokes invisible.
+
 ## 0.84.0 (2026-08-28)
 
 - **Mindmaps take sticky notes** (T-0194). A node could already carry a note,
