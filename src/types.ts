@@ -422,6 +422,27 @@ export interface UpdateInfo {
   url: string;
 }
 
+/** Health of the shared global keyboard listener behind the ink (double-press
+ * Alt) and clips (double-tap Ctrl) gestures, from `input_listener_diagnostics`.
+ * Durations are milliseconds; `null` means it has never happened. */
+export interface InputListenerDiagnostics {
+  running: boolean;
+  consumers: string[];
+  uptime_ms: number | null;
+  /** Time since the last key transition the listener saw. A large value while
+   * the user is actively typing means the registration went dead. */
+  last_input_ms_ago: number | null;
+  input_count: number;
+  reregistrations: number;
+  restarts: number;
+  last_reregister_ms_ago: number | null;
+  last_reregister_reason: string | null;
+  last_error: string | null;
+  /** An elevated app is in the foreground, so Windows withholds every key
+   * from workhub (UIPI) — not something the listener can fix. */
+  elevated_foreground: boolean;
+}
+
 /** Per-file comparison state between the shipped vault template and the
  * configured vault, from `check_vault_template` (T-0061). */
 export type TemplateFileState = "added" | "updatable" | "conflict" | "up_to_date";

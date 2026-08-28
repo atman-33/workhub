@@ -803,6 +803,33 @@ pub enum GraphOp {
     },
 }
 
+/// Health snapshot of the shared Raw Input keyboard listener (`rawkey.rs`),
+/// shown by the settings screen so a "the Alt gesture stopped working" report
+/// can be diagnosed without a rebuild. Durations are milliseconds, and `None`
+/// means "never happened".
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct InputListenerDiagnostics {
+    /// Whether the listener thread is up at all.
+    pub running: bool,
+    /// Features currently listening (`ink`, `clips`).
+    pub consumers: Vec<String>,
+    /// How long the current listener has been registered.
+    pub uptime_ms: Option<u64>,
+    /// Time since the last observed key transition. A large value while the
+    /// user is actively typing is the signature of a dead registration.
+    pub last_input_ms_ago: Option<u64>,
+    pub input_count: u64,
+    pub reregistrations: u64,
+    pub restarts: u64,
+    pub last_reregister_ms_ago: Option<u64>,
+    /// Why the last re-registration happened (`session-change`, `watchdog`, ...).
+    pub last_reregister_reason: Option<String>,
+    pub last_error: Option<String>,
+    /// A window of an elevated process is in the foreground, so UIPI is
+    /// withholding every key from this process — not a listener fault.
+    pub elevated_foreground: bool,
+}
+
 #[cfg(test)]
 mod settings_parity_tests {
     use super::Settings;

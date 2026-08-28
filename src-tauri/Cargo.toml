@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.84.0"
+version = "0.85.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -72,6 +72,10 @@ windows = { version = "0.61", features = [
     "Win32_System_LibraryLoader",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    # ink/clips: WTSRegisterSessionNotification, so the raw-input listener
+    # hears about session lock/unlock and RDP connect/disconnect and can
+    # re-register (see src-tauri/src/rawkey.rs).
+    "Win32_System_RemoteDesktop",
     # voice input: clipboard save/restore around the paste-injection (the
     # focused app, not workhub, owns the clipboard target — Win32 clipboard
     # APIs work regardless of which window has focus).

@@ -20,22 +20,28 @@ use tauri::AppHandle;
 pub struct InkState(#[cfg(windows)] std::sync::Mutex<bool>);
 
 /// Create the (hidden) overlay window and start observing keys.
-/// Idempotent: does nothing if the listener is already registered.
+///
+/// Idempotent, but deliberately **not** a no-op when the listener is already
+/// marked as running: calling this again re-creates a lost overlay window and
+/// makes `rawkey` re-register its raw-input device. Turning the feature off
+/// and on again is how a user says "the gesture stopped working", and the
+/// earlier early-return meant that gesture did nothing whenever the flag and
+/// the real state had drifted apart.
 #[cfg(windows)]
 pub fn start(app: &AppHandle) {
     use tauri::Manager;
     let state = app.state::<InkState>();
     let mut running = state.0.lock().unwrap();
-    if *running {
-        return;
-    }
     if let Err(e) = overlay::create_overlay(app) {
         eprintln!("ink: failed to create overlay window: {e}");
         return;
     }
     match hook::start(app) {
         Ok(()) => *running = true,
-        Err(e) => eprintln!("ink: failed to start the key listener: {e}"),
+        Err(e) => {
+            *running = false;
+            eprintln!("ink: failed to start the key listener: {e}");
+        }
     }
 }
 

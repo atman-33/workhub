@@ -94,10 +94,16 @@ mod imp {
             Some(_) => {
                 let threshold = unsafe { GetDoubleClickTime() } as u64;
                 *MACHINE.lock().unwrap() = Some(TapMachine::new(threshold));
-                if !*running {
-                    match rawkey::register(app, CONSUMER, on_key) {
-                        Ok(()) => *running = true,
-                        Err(e) => eprintln!("clips: failed to start the key listener: {e}"),
+                // Register again even when already running: `rawkey::register`
+                // replaces the consumer under the same key rather than
+                // stacking one up, and re-applying the settings is how a user
+                // asks for a listener that stopped delivering to be
+                // re-registered.
+                match rawkey::register(app, CONSUMER, on_key) {
+                    Ok(()) => *running = true,
+                    Err(e) => {
+                        *running = false;
+                        eprintln!("clips: failed to start the key listener: {e}");
                     }
                 }
             }

@@ -1,8 +1,8 @@
 use crate::mindmap;
 use crate::mindmap_edit;
 use crate::models::{
-    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, MindmapDoc, MindmapFile,
-    ScheduleDoc, ScheduleFile, Task, VaultProject, Worktree,
+    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, InputListenerDiagnostics,
+    MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task, VaultProject, Worktree,
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
@@ -372,6 +372,44 @@ pub fn open_in_obsidian(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()
+}
+
+/// Health of the shared global keyboard listener behind the ink and clips
+/// gestures. Exposed so a user reporting "the Alt double-press stopped
+/// working" can see whether keys are still arriving at all.
+#[tauri::command]
+pub fn input_listener_diagnostics() -> InputListenerDiagnostics {
+    #[cfg(windows)]
+    {
+        crate::rawkey::diagnostics()
+    }
+    #[cfg(not(windows))]
+    {
+        InputListenerDiagnostics::default()
+    }
+}
+
+/// Manual recovery for a listener that stopped delivering: re-apply the
+/// gesture features from the current settings (so a consumer that got lost
+/// comes back), then rebuild the listener thread and its raw-input
+/// registration. Returns the fresh diagnostics so the UI can show the result.
+#[tauri::command]
+pub fn restart_input_listener(app: tauri::AppHandle) -> Result<InputListenerDiagnostics, String> {
+    #[cfg(windows)]
+    {
+        let settings = storage::load().settings;
+        if settings.ink_enabled {
+            crate::ink::start(&app);
+        }
+        crate::clips::apply_gesture(&app);
+        crate::rawkey::restart()?;
+        Ok(crate::rawkey::diagnostics())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        Ok(InputListenerDiagnostics::default())
+    }
 }
 
 #[derive(Serialize)]
