@@ -1,5 +1,6 @@
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { currentTrackTitle } from "@/lib/music/track-title";
 import { cn } from "@/lib/utils";
 import { useMusicStore } from "@/stores/music";
 import { useYouTubePlayer } from "./use-youtube-player";
@@ -23,11 +24,7 @@ export function PlayerPane() {
   useYouTubePlayer(PLAYER_ELEMENT_ID);
 
   const activePlaylist = getActivePlaylist();
-  const currentVideoTitle =
-    currentVideoId && activePlaylist
-      ? (activePlaylist.items.find((item) => item.id === currentVideoId)?.title ??
-        `Video ${currentVideoId.substring(0, 5)}`)
-      : null;
+  const currentVideoTitle = currentTrackTitle(activePlaylist, currentVideoId);
 
   return (
     <div className="flex flex-col gap-3">
