@@ -20,6 +20,7 @@ import { InboxView } from "@/components/inbox-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
+import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
 import { ScheduleView } from "@/components/schedule/schedule-view";
@@ -183,9 +184,12 @@ export default function App() {
               {label}
             </button>
           ))}
+          {/* Pushes the status cluster below to the right edge of the nav bar. */}
+          <div className="ml-auto" />
+          <NavMusicControl onOpenMusic={() => setTab("music")} />
           {settings?.vault_path && (
             <span
-              className="ml-auto flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground"
+              className="flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground"
               title={settings.vault_path}
             >
               <FolderOpen className="size-3 shrink-0" />
