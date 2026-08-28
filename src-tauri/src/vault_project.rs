@@ -154,7 +154,15 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
                 .filter(|r| !r.trim().is_empty())
         })
         .unwrap_or_default();
-    let summary = readme.as_ref().map(|n| excerpt(&n.1)).unwrap_or_default();
+    let description = readme
+        .as_ref()
+        .map(|n| frontmatter_value(&n.0, "description"))
+        .unwrap_or_default();
+    let summary = if !description.trim().is_empty() {
+        description.trim().to_string()
+    } else {
+        readme.as_ref().map(|n| excerpt(&n.1)).unwrap_or_default()
+    };
 
     let (folders, mut issues) = inspect_folders(dir);
     for file in REQUIRED_FILES {
@@ -465,6 +473,59 @@ pub fn set_project_repo(vault: &Path, slug: &str, repo: &str) -> Result<(), Stri
     fs::write(&path, format!("---\n{front}---\n{body}")).map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------------
+// name / description
+// ---------------------------------------------------------------------
+
+/// Collapses any whitespace (including newlines) so a description can live
+/// on one frontmatter line. YAML in these notes is flat scalars; a raw
+/// newline would close the block.
+fn one_line(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Writes the project's display name and description into README.md
+/// frontmatter (`title` / `description`).
+///
+/// The folder slug is not renamed: tasks name a project by slug in
+/// `project:`, and renaming the folder would silently orphan them. The
+/// body of the README is left untouched — the Overview section is the
+/// human-written spec, and this command is not a licence to rewrite it.
+/// An empty `summary` clears `description`; the next scan then falls back
+/// to the README excerpt, which is how projects without a dedicated blurb
+/// already look.
+pub fn set_project_details(
+    vault: &Path,
+    slug: &str,
+    name: &str,
+    summary: &str,
+) -> Result<(), String> {
+    let slug = check_slug(slug)?;
+    let name = one_line(name);
+    if name.is_empty() {
+        return Err("a project name is required".into());
+    }
+    let dir = project_dir(vault, slug, false);
+    if !dir.is_dir() {
+        return Err(format!("no project named '{slug}' is in projects/"));
+    }
+    let path = ensure_scaffold_file(vault, slug, &name, "README.md")?;
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let (front, body) = split_frontmatter(&content)
+        .ok_or_else(|| "README.md has no frontmatter block".to_string())?;
+    let now = today();
+    let description = one_line(summary);
+    let front = rewrite_frontmatter(
+        &front,
+        &[
+            ("title", &name),
+            ("description", &description),
+            ("updated", &now),
+        ],
+    );
+    fs::write(&path, format!("---\n{front}---\n{body}")).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -602,6 +663,68 @@ mod tests {
 
         set_project_repo(&vault, "demo", "").unwrap();
         assert_eq!(list_projects(&vault, false).unwrap()[0].repo, "");
+    }
+
+    #[test]
+    fn name_and_description_round_trip_through_the_readme() {
+        let vault = temp_vault("details");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\nstatus: active\n---\n\n# Demo\n\n> agents read this\n\nA demo project.\n",
+        );
+
+        set_project_details(&vault, "demo", "Renamed", "A short blurb.").unwrap();
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert_eq!(p.name, "Renamed");
+        assert_eq!(p.summary, "A short blurb.");
+
+        let content = fs::read_to_string(dir.join("README.md")).unwrap();
+        assert!(content.contains("title: Renamed"));
+        assert!(content.contains("description: A short blurb."));
+        assert!(content.contains("status: active"));
+        assert!(content.contains("# Demo"));
+        assert!(content.contains("A demo project."));
+    }
+
+    #[test]
+    fn empty_description_falls_back_to_the_readme_excerpt() {
+        let vault = temp_vault("details-excerpt");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\n---\n\n# Demo\n\n> agents read this\n\nA demo project.\n",
+        );
+
+        set_project_details(&vault, "demo", "Demo", "line one\nline two").unwrap();
+        assert_eq!(
+            list_projects(&vault, false).unwrap()[0].summary,
+            "line one line two"
+        );
+
+        set_project_details(&vault, "demo", "Demo", "  ").unwrap();
+        assert_eq!(
+            list_projects(&vault, false).unwrap()[0].summary,
+            "A demo project."
+        );
+    }
+
+    #[test]
+    fn an_empty_name_is_rejected() {
+        let vault = temp_vault("details-empty-name");
+        write(
+            vault.join("projects").join("demo").join("README.md"),
+            "---\ntitle: Demo\n---\n",
+        );
+        assert!(set_project_details(&vault, "demo", "  ", "x").is_err());
+        assert_eq!(list_projects(&vault, false).unwrap()[0].name, "Demo");
+    }
+
+    #[test]
+    fn details_cannot_escape_the_projects_folder() {
+        let vault = temp_vault("details-escape");
+        assert!(set_project_details(&vault, "../tasks", "x", "y").is_err());
+        assert!(set_project_details(&vault, "missing", "x", "y").is_err());
     }
 
     #[test]

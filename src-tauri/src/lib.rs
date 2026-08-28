@@ -182,6 +182,7 @@ pub fn run() {
             commands::archive_vault_project,
             commands::restore_vault_project,
             commands::set_vault_project_repo,
+            commands::set_vault_project_details,
             commands::list_schedules,
             commands::read_schedule,
             commands::write_schedule,

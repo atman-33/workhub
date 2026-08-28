@@ -565,7 +565,7 @@ pub struct VaultProject {
     /// Registered repository this project belongs to, from the `repo:` key of
     /// `_index.md` (or README.md). Empty when the project has no repo.
     pub repo: String,
-    /// First prose paragraph of README.md, for the list's one-line summary.
+    /// `description` from README.md, or the first prose paragraph when unset.
     pub summary: String,
     /// Newest mtime under the folder, in unix seconds.
     pub updated: u64,

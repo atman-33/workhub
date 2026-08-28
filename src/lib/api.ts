@@ -109,6 +109,10 @@ export const api = {
    * `_index.md`). Pass an empty string to clear the link. */
   setVaultProjectRepo: (vaultPath: string, slug: string, repo: string) =>
     invoke<void>("set_vault_project_repo", { vaultPath, slug, repo }),
+  /** Writes the display name and description into README.md frontmatter.
+   * The folder slug is not renamed. */
+  setVaultProjectDetails: (vaultPath: string, slug: string, name: string, summary: string) =>
+    invoke<void>("set_vault_project_details", { vaultPath, slug, name, summary }),
   // ---- schedule notes (projects/<slug>/schedules/*.md) ----
   /** Project slugs under the vault's `projects/`, including ones with no
    * schedule note yet — deriving the list from existing notes would make the

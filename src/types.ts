@@ -189,7 +189,7 @@ export interface VaultProject {
   /** Path of the registered repository this project belongs to; empty when
    * the project has no repo. */
   repo: string;
-  /** First prose paragraph of README.md. */
+  /** `description` from README.md, or the first prose paragraph when unset. */
   summary: string;
   /** Newest mtime under the folder, in unix seconds. */
   updated: number;
