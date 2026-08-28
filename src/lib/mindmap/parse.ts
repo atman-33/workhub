@@ -50,6 +50,26 @@ export const COLOR_HEX: Record<Color, string> = {
 };
 
 /**
+ * Paper colours for sticky notes: a pale tint of each palette colour, with
+ * `COLOR_HEX` serving as the border.
+ *
+ * Deliberately light in both the app and the exports even though the app is
+ * dark-only — a sticky reads as a piece of paper laid on the map, and a dark
+ * one reads as just another node box.
+ */
+export const STICKY_FILL_HEX: Record<Color, string> = {
+  blue: "#dbeafe",
+  green: "#dcfce7",
+  amber: "#fef3c7",
+  red: "#fee2e2",
+  purple: "#f3e8ff",
+  gray: "#e5e7eb",
+};
+
+/** Text colour on sticky paper. Fixed, because the paper is fixed. */
+export const STICKY_INK = "#1f2937";
+
+/**
  * How wide a node box is allowed to be.
  *
  * `auto` sizes every box to its own text, which packs the map tightest and is
@@ -102,6 +122,47 @@ export interface MindmapNode {
   children: MindmapNode[];
 }
 
+/**
+ * A sticky note pinned to a node.
+ *
+ * Stickies live in their own `## Stickies` section rather than in the tree,
+ * because a sticky is an annotation and not a member of the map: keeping it
+ * out of `## Nodes` is what leaves the layout, the mermaid export, the node
+ * count and the AI edit skill untouched by the feature.
+ *
+ * Its position *is* stored — but only ever relative to the node it is pinned
+ * to, so the rule the whole feature hangs off still holds: there are no
+ * absolute coordinates in the file, the tree is still laid out from scratch
+ * every time it is drawn, and a sticky follows its node through any re-flow.
+ */
+export interface Sticky {
+  /**
+   * Stable, file-unique id (`S-001`). Never reassigned and never reused — the
+   * same contract as a node id, and for the same reason.
+   */
+  id: string;
+  /** Id of the node this sticky is pinned to. */
+  nodeId: string;
+  /**
+   * Offset from the node's centre to the sticky's top-left corner, in diagram
+   * pixels. Anchored on the centre rather than on a corner because a node's
+   * box grows and shrinks with its title, and its centre moves half as far.
+   */
+  dx: number;
+  dy: number;
+  /** Paper colour. Absent means `amber`, the default. */
+  color?: Color;
+  /** Body text. May span several lines — continuation lines in the file. */
+  text: string;
+}
+
+/** Where a sticky lands when the file does not say, so that a hand-written
+ * `- S-001 node:N-004 text` still appears somewhere sensible. */
+export const STICKY_DEFAULT_OFFSET = { dx: 32, dy: 24 };
+
+/** The colour a sticky is drawn in when it carries none of its own. */
+export const STICKY_DEFAULT_COLOR: Color = "amber";
+
 export interface MindmapDocModel {
   /** `title` from the frontmatter; the file name stands in when absent. */
   title: string;
@@ -125,6 +186,19 @@ export interface MindmapDocModel {
   rawNodes: string[];
   /** True when parsing had to mint at least one id (a hand-written tree). */
   mintedIds: boolean;
+  /** Sticky notes from `## Stickies`, in file order. */
+  stickies: Sticky[];
+  /** Lines under `## Stickies` the grammar did not recognize, kept verbatim. */
+  rawStickies: string[];
+  /**
+   * `stickies: hidden` from the frontmatter — the note's own answer to "are
+   * the stickies in the way right now".
+   *
+   * Kept in the note rather than in the app for the same reason `node_width`
+   * is: an export has to look like what was on screen when it was made, and
+   * the answer belongs to the map, not to the machine it is opened on.
+   */
+  stickiesHidden: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,9 +207,13 @@ export interface MindmapDocModel {
 
 interface Sections {
   frontmatter: string;
-  /** Text between the frontmatter and `## Nodes`. */
+  /** Text between the frontmatter and the first managed section. */
   preamble: string;
   nodes: string;
+  /** Text between the two managed sections, if a human put any there. */
+  between: string;
+  /** `## Stickies`, empty when the note has none. */
+  stickies: string;
   /** `## Memo` and everything after it — never touched. */
   tail: string;
 }
@@ -144,6 +222,10 @@ interface Sections {
  * Splits the file into the regions serialization needs. A note missing
  * `## Nodes` still parses (the section comes back empty and is written back in
  * place), so a hand-started file is usable rather than rejected.
+ *
+ * There are two managed sections. `## Stickies` is optional and normally sits
+ * straight after `## Nodes`; a file that puts it somewhere else still parses,
+ * and is written back with the two in the canonical order.
  */
 function splitSections(content: string): Sections {
   let frontmatter = "";
@@ -158,16 +240,44 @@ function splitSections(content: string): Sections {
     }
   }
 
-  const nodesAt = findHeading(rest, "Nodes");
-  // The first heading after `## Nodes` ends the managed region. Everything
-  // from there on (`## Memo` and any other human section) is opaque tail.
-  const tailAt = nodesAt === -1 ? -1 : nextHeading(rest, nodesAt);
+  // Each managed section runs from its heading to the next heading of any
+  // kind: everything else (`## Memo`, a human's own sections) is opaque and
+  // copied through byte-for-byte.
+  const region = (name: string): { at: number; end: number } | null => {
+    const at = findHeading(rest, name);
+    if (at === -1) return null;
+    const next = nextHeading(rest, at);
+    return { at, end: next === -1 ? rest.length : next };
+  };
+  const nodes = region("Nodes");
+  const stickies = region("Stickies");
 
-  const preamble = nodesAt === -1 ? rest : rest.slice(0, nodesAt);
-  const nodes = nodesAt === -1 ? "" : rest.slice(nodesAt, tailAt === -1 ? rest.length : tailAt);
-  const tail = nodesAt === -1 ? "" : tailAt === -1 ? "" : rest.slice(tailAt);
+  if (!nodes) {
+    // No `## Nodes` at all: nothing is managed, so the whole body is preamble
+    // and serialization writes the section in at the end of it.
+    return { frontmatter, preamble: rest, nodes: "", between: "", stickies: "", tail: "" };
+  }
+  if (!stickies) {
+    return {
+      frontmatter,
+      preamble: rest.slice(0, nodes.at),
+      nodes: rest.slice(nodes.at, nodes.end),
+      between: "",
+      stickies: "",
+      tail: rest.slice(nodes.end),
+    };
+  }
 
-  return { frontmatter, preamble, nodes, tail };
+  const first = Math.min(nodes.at, stickies.at);
+  const second = Math.max(nodes.end, stickies.end);
+  return {
+    frontmatter,
+    preamble: rest.slice(0, first),
+    nodes: rest.slice(nodes.at, nodes.end),
+    between: rest.slice(Math.min(nodes.end, stickies.end), Math.max(nodes.at, stickies.at)),
+    stickies: rest.slice(stickies.at, stickies.end),
+    tail: rest.slice(second),
+  };
 }
 
 function findHeading(text: string, name: string): number {
@@ -284,6 +394,137 @@ function isContinuation(line: string): boolean {
   return /^\s+/.test(line) && !/^\s*-\s/.test(line);
 }
 
+const STICKY_ID_RE = /^S-\d+$/;
+/** `@24,-36` — the offset from the pinned node's centre. */
+const OFFSET_RE = /^@(-?\d+),(-?\d+)$/;
+
+/** `- S-001 node:N-004 @24,-36 #amber 見積りは仮` */
+function parseStickyLine(line: string): { sticky: Sticky; hadId: boolean } | null {
+  const m = /^\s*-\s+(.*)$/.exec(line);
+  if (!m) return null;
+  const body = m[1].trim();
+  if (!body) return null;
+
+  const tokens = body.split(/\s+/).filter(Boolean);
+  let id = "";
+  let hadId = false;
+  if (STICKY_ID_RE.test(tokens[0])) {
+    id = tokens[0];
+    hadId = true;
+    tokens.shift();
+  }
+
+  let nodeId = "";
+  let color: Color | undefined;
+  let dx: number | undefined;
+  let dy: number | undefined;
+  const textTokens: string[] = [];
+  // Modifiers may appear in any order, exactly as on a node line; whatever is
+  // left over is the sticky's text, so an unrecognized `#word` or a stray `@`
+  // in the prose stays part of it.
+  for (const tok of tokens) {
+    const offset = OFFSET_RE.exec(tok);
+    if (tok.startsWith("node:") && tok.length > 5 && !nodeId) {
+      nodeId = tok.slice(5);
+    } else if (offset && dx === undefined) {
+      dx = Number(offset[1]);
+      dy = Number(offset[2]);
+    } else if (tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1))) {
+      color = tok.slice(1) as Color;
+    } else {
+      textTokens.push(tok);
+    }
+  }
+  // Without a node there is nothing to pin to, so the line is not a sticky —
+  // the caller keeps it verbatim rather than inventing an anchor for it.
+  if (!nodeId) return null;
+
+  return {
+    hadId,
+    sticky: {
+      id,
+      nodeId,
+      dx: dx ?? STICKY_DEFAULT_OFFSET.dx,
+      dy: dy ?? STICKY_DEFAULT_OFFSET.dy,
+      text: textTokens.join(" "),
+      ...(color ? { color } : {}),
+    },
+  };
+}
+
+/**
+ * Parses the `## Stickies` section.
+ *
+ * Forgiving in the same way the node grammar is: a line it cannot read is
+ * handed back to be written out untouched, so hand-editing the section in
+ * Obsidian can never cost the user a sticky.
+ */
+function parseStickies(section: string, doc: MindmapDocModel): void {
+  const notes = new Map<Sticky, string[]>();
+  let open: Sticky | null = null;
+
+  for (const line of section.split("\n")) {
+    if (/^##\s+/.test(line)) continue; // the `## Stickies` heading itself
+    if (!line.trim()) continue;
+
+    const parsed = parseStickyLine(line);
+    if (parsed) {
+      doc.stickies.push(parsed.sticky);
+      if (!parsed.hadId) doc.mintedIds = true;
+      open = parsed.sticky;
+      continue;
+    }
+    if (open && isContinuation(line)) {
+      const collected = notes.get(open);
+      if (collected) collected.push(line.trim());
+      else notes.set(open, [line.trim()]);
+      continue;
+    }
+    open = null;
+    doc.rawStickies.push(line.trimEnd());
+  }
+
+  for (const [sticky, collected] of notes) {
+    sticky.text = [sticky.text, ...collected].filter(Boolean).join("\n");
+  }
+
+  assignMissingStickyIds(doc);
+}
+
+/** Gives every id-less sticky an id, and repairs duplicates — the node rule,
+ * applied to the other id space. */
+function assignMissingStickyIds(doc: MindmapDocModel): void {
+  const seen = new Set<string>();
+  let max = 0;
+  for (const sticky of doc.stickies) {
+    const n = /^S-(\d+)$/.exec(sticky.id);
+    if (n) max = Math.max(max, Number(n[1]));
+  }
+  for (const sticky of doc.stickies) {
+    if (!sticky.id || seen.has(sticky.id)) {
+      max += 1;
+      sticky.id = `S-${String(max).padStart(3, "0")}`;
+      doc.mintedIds = true;
+    }
+    seen.add(sticky.id);
+  }
+}
+
+/** Next free `S-NNN` for this document. Ids are never reused. */
+export function nextStickyId(stickies: Sticky[]): string {
+  let max = 0;
+  for (const sticky of stickies) {
+    const n = /^S-(\d+)$/.exec(sticky.id);
+    if (n) max = Math.max(max, Number(n[1]));
+  }
+  return `S-${String(max + 1).padStart(3, "0")}`;
+}
+
+/** The stickies pinned to one node, in file order. */
+export function stickiesOf(stickies: Sticky[], nodeId: string): Sticky[] {
+  return stickies.filter((s) => s.nodeId === nodeId);
+}
+
 /**
  * Parses a mindmap note.
  *
@@ -298,6 +539,9 @@ export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocMod
     roots: [],
     rawNodes: [],
     mintedIds: false,
+    stickies: [],
+    rawStickies: [],
+    stickiesHidden: frontmatterValue(s.frontmatter, "stickies") === "hidden",
   };
 
   // `stack[d]` is the node most recently opened at depth d — the parent a node
@@ -335,6 +579,7 @@ export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocMod
   for (const [node, collected] of notes) node.note = collected.join("\n");
 
   assignMissingIds(doc);
+  parseStickies(s.stickies, doc);
   return doc;
 }
 
@@ -445,11 +690,33 @@ export function serializeMindmap(content: string, doc: MindmapDocModel, today: s
     doc.nodeWidth === "auto"
       ? removeFrontmatterKey(frontmatter, "node_width")
       : setFrontmatterValue(frontmatter, "node_width", doc.nodeWidth);
+  frontmatter = doc.stickiesHidden
+    ? setFrontmatterValue(frontmatter, "stickies", "hidden")
+    : removeFrontmatterKey(frontmatter, "stickies");
 
   const body = [...doc.roots.flatMap((root) => formatNode(root)), ...doc.rawNodes].join("\n");
   const nodes = `## Nodes\n\n${body}${body ? "\n" : ""}\n`;
 
-  return `${frontmatter}${s.preamble}${nodes}${s.tail}`;
+  // A note with no stickies carries no `## Stickies` section at all, so the
+  // feature costs nothing to a map that does not use it.
+  const stickyBody = [...doc.stickies.flatMap(formatSticky), ...doc.rawStickies].join("\n");
+  const stickies = stickyBody ? `## Stickies\n\n${stickyBody}\n\n` : "";
+
+  return `${frontmatter}${s.preamble}${nodes}${s.between}${stickies}${s.tail}`;
+}
+
+/** Renders one sticky: its grammar line plus any further lines of its text. */
+export function formatSticky(sticky: Sticky): string[] {
+  const parts = [sticky.id, `node:${sticky.nodeId}`, `@${Math.round(sticky.dx)},${Math.round(sticky.dy)}`];
+  if (sticky.color) parts.push(`#${sticky.color}`);
+
+  const lines = sticky.text.replace(/\s+$/, "").split("\n");
+  const first = lines[0]?.trim() ?? "";
+  if (first) parts.push(first);
+
+  const out = [`- ${parts.join(" ")}`];
+  for (const line of lines.slice(1)) out.push(`${INDENT}${line}`);
+  return out;
 }
 
 /** Drops one frontmatter key, leaving every other line as it was. */

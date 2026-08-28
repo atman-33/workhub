@@ -43,6 +43,26 @@ describe("toSvg", () => {
   it("renders an empty document without failing", () => {
     expect(toSvg([])).toContain("<svg");
   });
+
+  it("draws the stickies it is given, and none when it is given none", () => {
+    const stickies = [{ id: "S-001", nodeId: "N-002", dx: 96, dy: 24, text: "check me" }];
+    const withStickies = toSvg(sample(), { stickies });
+
+    expect(withStickies).toContain("check me");
+    // The sticky adds its paper to the rect count and its leader line to the
+    // path count.
+    expect(withStickies.match(/<rect /g)).toHaveLength(5);
+    expect(withStickies.match(/<path /g)).toHaveLength(3);
+    // A hidden map passes none, and the export then matches the screen.
+    expect(toSvg(sample())).not.toContain("check me");
+  });
+
+  it("escapes sticky text", () => {
+    const svg = toSvg(sample(), {
+      stickies: [{ id: "S-001", nodeId: "N-001", dx: 0, dy: 0, text: "<script>" }],
+    });
+    expect(svg).not.toContain("<script>");
+  });
 });
 
 describe("toHtml", () => {

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.84.0 (2026-08-28)
+
+- **Mindmaps take sticky notes** (T-0194). A node could already carry a note,
+  but only as text that appeared on hover — there was no way to leave a remark
+  *on* the map, where it can be read without hunting for it. A node now takes
+  any number of stickies: add one from the side panel, drag it where it should
+  sit, double-click to edit it, Delete to remove it.
+- **A sticky's position is stored relative to its node**, which is the only
+  coordinate anywhere in a mindmap note. The tree is still laid out from
+  scratch every time it is drawn, so a sticky follows its node through a
+  collapse, a re-parent or a rename, and holds its place while the map is
+  panned and zoomed. Stickies take no part in the layout — they are notes laid
+  over the map, not members of it — but they do count towards Fit and the
+  exports, so one dropped off to the side is never cropped.
+- **They can be hidden all at once** from the toolbar, for when the map has
+  more remarks than room. The setting lives in the note (`stickies: hidden`)
+  rather than in the app, so it travels with the map and an HTML or PNG export
+  looks like what was on screen.
+- **The file keeps a new optional `## Stickies` section**, between `## Nodes`
+  and `## Memo`, as an ordinary bullet list
+  (`- S-001 node:N-004 @96,24 #amber text`) that stays editable in Obsidian. A
+  map with no stickies carries no such section at all, and the `mindmap-edit`
+  skill can now write them.
+
 ## 0.83.0 (2026-08-28)
 
 - **The Projects tab can rename a project and edit its description** (T-0192).

@@ -1,6 +1,6 @@
 ---
 name: mindmap-edit
-description: Edit a workhub mindmap note (projects/<slug>/mindmaps/*.md) from a natural-language instruction — add, rename, move, group, colour or link the nodes in `## Nodes`. Use when asked to restructure a mindmap, group ideas under a new branch, prune a subtree, or when the workhub app launches a mindmap edit.
+description: Edit a workhub mindmap note (projects/<slug>/mindmaps/*.md) from a natural-language instruction — add, rename, move, group, colour or link the nodes in `## Nodes`, and annotate them with sticky notes in `## Stickies`. Use when asked to restructure a mindmap, group ideas under a new branch, prune a subtree, pin a note to a node, or when the workhub app launches a mindmap edit.
 argument-hint: "<mindmap-file-path> <instruction>"
 ---
 
@@ -14,7 +14,8 @@ the file path and the instruction. It also works when invoked by hand.
 
 ## The file
 
-A mindmap note is Markdown with flat frontmatter and one managed section:
+A mindmap note is Markdown with flat frontmatter and two managed sections —
+`## Nodes` (the tree) and the optional `## Stickies` (notes pinned to nodes):
 
 ```markdown
 ---
@@ -33,6 +34,11 @@ updated: 2026-08-26
   - N-004 schedule #amber
     lead times are still guesses
   - N-005 mindmap
+
+## Stickies
+
+- S-001 node:N-004 @96,24 #amber lead time is a guess
+  confirm with the vendor first
 
 ## Memo
 
@@ -88,6 +94,44 @@ Colour is **inherited down a branch** in the app: a node with no `#colour` of
 its own is drawn in the nearest coloured ancestor's colour. Colour the branch
 head rather than every node in it.
 
+### Sticky notes
+
+`## Stickies` is optional: a map that has none carries no such section, and you
+only add the heading when you add the first sticky. Put it **between `## Nodes`
+and `## Memo`**.
+
+Sticky line:
+
+```text
+- <id> node:<node-id> @<dx>,<dy> [#<color>] [<text>]
+```
+
+| Field | Rule |
+|---|---|
+| `<id>` | `S-` + a zero-padded number, unique in the file. **Never change or reuse one.** Retired numbers stay retired. |
+| `node:<id>` | **Required** — the node the sticky is pinned to. A line without it is not a sticky and the app keeps it verbatim. |
+| `@<dx>,<dy>` | Integer offset, in pixels, from the pinned node's **centre** to the sticky's top-left corner. Optional; `@32,24` is assumed. |
+| `#<color>` | Optional, same palette as a node. Absent means `amber`. |
+| `<text>` | Free text, continued on indented lines beneath the sticky exactly like a node's note. |
+
+The offset is the **only** coordinate anywhere in the file, and it is relative
+on purpose: the map is still laid out from the tree every time it is drawn, so
+a sticky follows its node wherever the layout puts it. Leave an offset alone
+unless the instruction is about where a sticky sits — it is the user's own
+arrangement, like `^left` / `^right`.
+
+Stickies do not affect the layout, so a new one can land on top of something.
+When you add several to one node, stagger them (about 96,24 for the first and
+roughly 14,18 further along for each after it).
+
+A sticky is deleted when the node it is pinned to is deleted: a sticky whose
+`node:` no longer exists is kept in the file but can never be shown.
+
+The frontmatter key `stickies: hidden` means the user has hidden every sticky
+on the map. It is a display setting — leave it as you found it, and if the
+instruction asks you to add a sticky to a note that has it, say that the map is
+currently hiding them.
+
 ## Procedure
 
 1. **Read the whole file** before editing. A relative instruction ("group these
@@ -107,7 +151,9 @@ head rather than every node in it.
    - a new node uses the next unused number, zero-padded to three digits;
    - colours are from the list above;
    - no node lost its `task:` link, its `^collapsed` flag or its note lines
-     unless the instruction asked for that.
+     unless the instruction asked for that;
+   - every sticky still names a node that exists, keeps its id and its offset,
+     and `## Stickies` still sits between `## Nodes` and `## Memo`.
 6. **Write the file**, then **report** in one paragraph: which node ids changed,
    what happened to them, and anything you declined to do.
 
@@ -127,9 +173,11 @@ head rather than every node in it.
   other side of the map on the next render.
 - **Never remove or reorder frontmatter keys** you do not recognize. Update
   `updated:` to today's date and leave the rest alone. `node_width`
-  (`auto` / `siblings` / `depth`) is the note's box-width setting — a display
-  preference the user sets in the app, not something an instruction about the
-  tree should change.
+  (`auto` / `siblings` / `depth`) and `stickies: hidden` are the note's display
+  settings — preferences the user sets in the app, not something an instruction
+  about the tree should change.
+- **Never move a sticky you were not asked to move.** Its `@dx,dy` is where the
+  user dropped it, and it is the only position the file records.
 - **Never edit any file other than the target mindmap.** In particular, do not
   create or update tasks in `tasks/` — the `task:` link is a reference, and
   making a task is a separate, explicit request.
@@ -170,3 +218,14 @@ moved one level deeper. No titles or flags changed.
 
 Report: `N-004` recoloured amber → red and linked to `T-0090`; its note line is
 unchanged, and its children inherit the new colour.
+
+**"Pin a reminder to the schedule branch that the dates need re-checking."**
+
+```diff
++## Stickies
++
++- S-001 node:N-004 @96,24 #amber re-check the dates after the vendor call
+```
+
+Report: added sticky `S-001` on `N-004`. The note had no `## Stickies` section,
+so it was created between `## Nodes` and `## Memo`; nothing in the tree changed.
