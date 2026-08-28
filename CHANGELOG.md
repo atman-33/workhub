@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.85.0 (2026-08-28)
+## 0.85.0 (2026-08-29)
 
 - **The global gestures recover on their own when Windows stops delivering
   keys** (T-0193). Screen annotation (double-press Alt) and the clips popup
@@ -24,6 +24,11 @@
 - **The ink overlay no longer fails silently.** Activation re-creates the
   overlay window if it has been lost and re-asserts always-on-top, so another
   topmost window cannot leave the strokes invisible.
+- **Music can be paused from any tab** (T-0195). The player keeps running when
+  you leave the Music tab, which is the point of it — but stopping it meant
+  going back there first. The nav bar now shows a play/pause button and the
+  current track whenever something is loaded, and the track name takes you to
+  the Music tab.
 
 ## 0.84.0 (2026-08-28)
 
