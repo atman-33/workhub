@@ -6,9 +6,11 @@ import {
   freezeRootChildSides,
   moveNode,
   nextNodeId,
+  nextStickyId,
   parseMindmap,
   rootChildSide,
   serializeMindmap,
+  stickiesOf,
   subtreeIds,
 } from "./parse";
 
@@ -287,5 +289,146 @@ describe("node_width", () => {
   it("falls back to `auto` on a value it does not know", () => {
     const content = "---\ntype: mindmap\nnode_width: huge\n---\n\n## Nodes\n\n- N-001 root\n";
     expect(parseMindmap(content).nodeWidth).toBe("auto");
+  });
+});
+
+describe("stickies", () => {
+  const withStickies = (stickies: string) =>
+    `---\ntype: mindmap\ntitle: ideas\ncreated: 2026-08-26\nupdated: 2026-08-26\n---\n\n` +
+    `## Nodes\n\n- N-001 workhub\n  - N-002 schedule\n\n` +
+    `## Stickies\n\n${stickies}\n\n## Memo\n\nhuman prose\n`;
+
+  it("reads a sticky's node, offset, colour and text", () => {
+    const doc = parseMindmap(withStickies("- S-001 node:N-002 @24,-36 #amber 見積りは仮"));
+
+    expect(doc.stickies).toHaveLength(1);
+    const sticky = doc.stickies[0];
+    expect(sticky.id).toBe("S-001");
+    expect(sticky.nodeId).toBe("N-002");
+    expect(sticky.dx).toBe(24);
+    expect(sticky.dy).toBe(-36);
+    expect(sticky.color).toBe("amber");
+    expect(sticky.text).toBe("見積りは仮");
+  });
+
+  it("reads the modifiers in any order and keeps the rest as text", () => {
+    const doc = parseMindmap(withStickies("- S-002 #red @0,0 node:N-001 a #b c"));
+    expect(doc.stickies[0].nodeId).toBe("N-001");
+    expect(doc.stickies[0].color).toBe("red");
+    expect(doc.stickies[0].text).toBe("a #b c");
+  });
+
+  it("collects continuation lines into the sticky's text", () => {
+    const doc = parseMindmap(
+      withStickies(["- S-001 node:N-002 @10,10 first line", "  second line"].join("\n")),
+    );
+    expect(doc.stickies[0].text).toBe("first line\nsecond line");
+  });
+
+  it("defaults the offset when the file gives none", () => {
+    const doc = parseMindmap(withStickies("- S-001 node:N-002 hand written"));
+    expect(doc.stickies[0].dx).toBe(32);
+    expect(doc.stickies[0].dy).toBe(24);
+  });
+
+  it("mints ids for stickies written without one", () => {
+    const doc = parseMindmap(
+      withStickies(["- node:N-001 @0,0 one", "- S-004 node:N-002 @0,0 two"].join("\n")),
+    );
+    expect(doc.mintedIds).toBe(true);
+    expect(doc.stickies.map((s) => s.id)).toEqual(["S-005", "S-004"]);
+  });
+
+  it("keeps a line with no node as an unrecognized line rather than dropping it", () => {
+    const content = withStickies("- S-001 @0,0 who am I pinned to?");
+    const doc = parseMindmap(content);
+    expect(doc.stickies).toHaveLength(0);
+    expect(doc.rawStickies).toEqual(["- S-001 @0,0 who am I pinned to?"]);
+    expect(serializeMindmap(content, doc, "2026-08-28")).toContain(
+      "- S-001 @0,0 who am I pinned to?",
+    );
+  });
+
+  it("keeps a sticky whose node no longer exists", () => {
+    const content = withStickies("- S-001 node:N-999 @0,0 orphan");
+    const doc = parseMindmap(content);
+    expect(doc.stickies[0].nodeId).toBe("N-999");
+    expect(serializeMindmap(content, doc, "2026-08-28")).toContain(
+      "- S-001 node:N-999 @0,0 orphan",
+    );
+  });
+
+  it("round-trips the section and leaves the memo alone", () => {
+    const content = withStickies(
+      [
+        "- S-001 node:N-002 @24,-36 #amber 見積りは仮",
+        "  次回確認",
+        "- S-002 node:N-001 @0,8 メモ",
+      ].join("\n"),
+    );
+    const out = serializeMindmap(content, parseMindmap(content), "2026-08-28");
+
+    expect(out).toContain(
+      "## Stickies\n\n- S-001 node:N-002 @24,-36 #amber 見積りは仮\n  次回確認\n- S-002 node:N-001 @0,8 メモ",
+    );
+    expect(out).toContain("## Memo\n\nhuman prose");
+    expect(out).toContain("updated: 2026-08-28");
+    expect(parseMindmap(out).stickies).toEqual(parseMindmap(content).stickies);
+  });
+
+  it("writes no section at all when the note has no stickies", () => {
+    const content = note("- N-001 root");
+    const out = serializeMindmap(content, parseMindmap(content), "2026-08-28");
+    expect(out).not.toContain("## Stickies");
+  });
+
+  it("adds the section to a note that never had one", () => {
+    const content = note("- N-001 root");
+    const doc = parseMindmap(content);
+    doc.stickies.push({ id: "S-001", nodeId: "N-001", dx: 10, dy: 20, text: "new" });
+    const out = serializeMindmap(content, doc, "2026-08-28");
+
+    expect(out).toContain("## Stickies\n\n- S-001 node:N-001 @10,20 new");
+    expect(out.indexOf("## Nodes")).toBeLessThan(out.indexOf("## Stickies"));
+    expect(out.indexOf("## Stickies")).toBeLessThan(out.indexOf("## Memo"));
+    expect(parseMindmap(out).stickies).toHaveLength(1);
+  });
+
+  it("rounds a fractional offset on the way out", () => {
+    const content = note("- N-001 root");
+    const doc = parseMindmap(content);
+    doc.stickies.push({ id: "S-001", nodeId: "N-001", dx: 10.6, dy: -20.2, text: "x" });
+    expect(serializeMindmap(content, doc, "2026-08-28")).toContain("@11,-20");
+  });
+
+  it("carries the hidden flag through the frontmatter", () => {
+    const content = note("- N-001 root");
+    const doc = parseMindmap(content);
+    expect(doc.stickiesHidden).toBe(false);
+
+    const hidden = serializeMindmap(content, { ...doc, stickiesHidden: true }, "2026-08-28");
+    expect(hidden).toContain("stickies: hidden");
+    expect(parseMindmap(hidden).stickiesHidden).toBe(true);
+
+    const shown = serializeMindmap(hidden, parseMindmap(content), "2026-08-28");
+    expect(shown).not.toContain("stickies: hidden");
+  });
+
+  it("numbers the next sticky above the highest used", () => {
+    expect(nextStickyId([])).toBe("S-001");
+    expect(nextStickyId([{ id: "S-007", nodeId: "N-001", dx: 0, dy: 0, text: "" }])).toBe("S-008");
+  });
+
+  it("lists the stickies of one node in file order", () => {
+    const doc = parseMindmap(
+      withStickies(
+        [
+          "- S-001 node:N-002 @0,0 a",
+          "- S-002 node:N-001 @0,0 b",
+          "- S-003 node:N-002 @0,0 c",
+        ].join("\n"),
+      ),
+    );
+    expect(stickiesOf(doc.stickies, "N-002").map((s) => s.id)).toEqual(["S-001", "S-003"]);
   });
 });

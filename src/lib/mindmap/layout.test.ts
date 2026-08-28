@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYOUT, layoutMindmap, textWidth, wrapTitle } from "./layout";
-import { parseMindmap } from "./parse";
+import {
+  DEFAULT_LAYOUT,
+  layoutMindmap,
+  STICKY_WIDTH,
+  textWidth,
+  wrapStickyText,
+  wrapTitle,
+} from "./layout";
+import { parseMindmap, type Sticky } from "./parse";
 
 const tree = (lines: string[]) =>
   parseMindmap(`---\ntype: mindmap\ntitle: t\n---\n\n## Nodes\n\n${lines.join("\n")}\n`).roots;
@@ -247,5 +254,74 @@ describe("nodeWidth", () => {
         expect(widthOf(mode, id)).toBeGreaterThanOrEqual(widthOf("auto", id));
       }
     }
+  });
+});
+
+describe("stickies", () => {
+  const roots = tree(["- N-001 root", "  - N-002 branch"]);
+  const sticky = (over: Partial<Sticky> = {}): Sticky => ({
+    id: "S-001",
+    nodeId: "N-002",
+    dx: 40,
+    dy: -20,
+    text: "note",
+    ...over,
+  });
+
+  it("places a sticky at its offset from the node's centre", () => {
+    const layout = layoutMindmap(roots, { stickies: [sticky()] });
+    const node = layout.byId.get("N-002")!;
+    const placed = layout.stickies[0];
+
+    expect(placed.x).toBe(node.x + node.width / 2 + 40);
+    expect(placed.y).toBe(node.y + node.height / 2 - 20);
+    expect(placed.width).toBe(STICKY_WIDTH);
+    expect(placed.color).toBe("amber");
+    // The unwrapped text travels with the placement, so an inline edit offers
+    // what the user wrote rather than the lines it was broken into.
+    expect(placed.text).toBe("note");
+  });
+
+  it("leaves the tree's own layout untouched", () => {
+    const plain = layoutMindmap(roots);
+    const withSticky = layoutMindmap(roots, { stickies: [sticky({ dx: 400, dy: 400 })] });
+    expect(withSticky.nodes).toEqual(plain.nodes);
+  });
+
+  it("counts stickies in the bounds, so a fit cannot crop one", () => {
+    const plain = layoutMindmap(roots);
+    const withSticky = layoutMindmap(roots, { stickies: [sticky({ dx: 400, dy: 400 })] });
+    expect(withSticky.bounds.width).toBeGreaterThan(plain.bounds.width);
+    expect(withSticky.bounds.height).toBeGreaterThan(plain.bounds.height);
+  });
+
+  it("draws nothing for a sticky whose node is gone", () => {
+    const layout = layoutMindmap(roots, { stickies: [sticky({ nodeId: "N-999" })] });
+    expect(layout.stickies).toHaveLength(0);
+  });
+
+  it("draws nothing for a sticky under a collapsed branch", () => {
+    const collapsed = tree(["- N-001 root ^collapsed", "  - N-002 branch"]);
+    expect(layoutMindmap(collapsed, { stickies: [sticky()] }).stickies).toHaveLength(0);
+  });
+
+  it("draws none at all when the caller passes none", () => {
+    expect(layoutMindmap(roots).stickies).toEqual([]);
+  });
+
+  it("anchors the leader line on the node's own box", () => {
+    const layout = layoutMindmap(roots, { stickies: [sticky({ dx: 400, dy: 0 })] });
+    const node = layout.byId.get("N-002")!;
+    const placed = layout.stickies[0];
+
+    expect(placed.anchorX).toBe(node.x + node.width);
+    expect(placed.anchorY).toBeGreaterThanOrEqual(node.y);
+    expect(placed.anchorY).toBeLessThanOrEqual(node.y + node.height);
+  });
+
+  it("wraps a sticky's text and keeps the line breaks it was given", () => {
+    const lines = wrapStickyText("first\nsecond");
+    expect(lines).toEqual(["first", "second"]);
+    expect(wrapStickyText("").length).toBe(1);
   });
 });

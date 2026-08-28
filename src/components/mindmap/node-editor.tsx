@@ -1,4 +1,4 @@
-import { CornerDownRight, Plus, Trash2 } from "lucide-react";
+import { CornerDownRight, Plus, StickyNote, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,7 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { COLOR_HEX, COLORS, type Color, type MindmapNode } from "@/lib/mindmap/parse";
+import {
+  COLOR_HEX,
+  COLORS,
+  STICKY_DEFAULT_COLOR,
+  type Color,
+  type MindmapNode,
+  type Sticky,
+} from "@/lib/mindmap/parse";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
@@ -32,6 +39,14 @@ interface Props {
   /** Tasks of the current project, offered for the `task:` link. */
   tasks: Task[];
   disabled?: boolean;
+  /** The sticky notes pinned to this node. */
+  stickies: Sticky[];
+  /** True while the note hides every sticky — an added one would land
+   * somewhere invisible, so the panel says so. */
+  stickiesHidden: boolean;
+  onAddSticky: () => void;
+  onChangeSticky: (id: string, patch: Partial<Sticky>) => void;
+  onDeleteSticky: (id: string) => void;
   onChange: (patch: Partial<MindmapNode>) => void;
   onAddChild: () => void;
   onAddSibling: () => void;
@@ -53,6 +68,11 @@ export function NodeEditor({
   node,
   tasks,
   disabled,
+  stickies,
+  stickiesHidden,
+  onAddSticky,
+  onChangeSticky,
+  onDeleteSticky,
   onChange,
   onAddChild,
   onAddSibling,
@@ -130,6 +150,70 @@ export function NodeEditor({
           ))}
         </SelectContent>
       </Select>
+
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">
+            Sticky notes
+            {stickiesHidden && stickies.length > 0 && " (hidden on the map)"}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            disabled={disabled}
+            onClick={onAddSticky}
+            title="Pin a sticky note to this node"
+          >
+            <StickyNote className="mr-1 size-3" />
+            Add
+          </Button>
+        </div>
+
+        {stickies.map((sticky) => (
+          <div key={sticky.id} className="space-y-1.5 rounded border p-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-muted-foreground">{sticky.id}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="size-5 p-0"
+                disabled={disabled}
+                onClick={() => onDeleteSticky(sticky.id)}
+                title="Remove this sticky"
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+            <Textarea
+              value={sticky.text}
+              placeholder="Sticky text"
+              rows={2}
+              disabled={disabled}
+              className="resize-none text-xs"
+              onChange={(e) => onChangeSticky(sticky.id, { text: e.target.value })}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
+            <div className="flex flex-wrap gap-1">
+              {COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  title={color}
+                  disabled={disabled}
+                  onClick={() => onChangeSticky(sticky.id, { color: color as Color })}
+                  style={{ background: COLOR_HEX[color as Color] }}
+                  className={cn(
+                    "size-4 rounded",
+                    (sticky.color ?? STICKY_DEFAULT_COLOR) === color &&
+                      "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="flex flex-wrap gap-1.5">
         <Button

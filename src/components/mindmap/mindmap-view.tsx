@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Sparkles,
+  StickyNote,
   Trash2,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
@@ -48,11 +49,15 @@ import {
   nextNodeId,
   parseMindmap,
   serializeMindmap,
+  nextStickyId,
+  stickiesOf,
+  subtreeIds,
   visit,
   NODE_WIDTHS,
   type MindmapDocModel,
   type MindmapNode,
   type NodeWidth,
+  type Sticky,
 } from "@/lib/mindmap/parse";
 import type { Config, MindmapEditRun, MindmapFile, Task } from "@/types";
 
@@ -84,6 +89,17 @@ const UNDO_LIMIT = 50;
 /** Starting width of the right column, in percent of the view. */
 const SIDEBAR_DEFAULT_PCT = 24;
 
+/**
+ * Where a newly added sticky lands, as an offset from its node's centre, and
+ * how far each further sticky on the same node is staggered from the last.
+ *
+ * Far enough to the right of a normal box that the paper does not start life
+ * on top of the node it annotates; staggered so that adding three in a row
+ * gives three readable notes rather than one pile.
+ */
+const NEW_STICKY_OFFSET = { dx: 96, dy: 24 };
+const NEW_STICKY_STAGGER = { dx: 14, dy: 18 };
+
 /** Wording for the box-width picker. The stored values stay short because they
  * are written into the note's frontmatter, where a human reads them too. */
 const NODE_WIDTH_LABEL: Record<NodeWidth, string> = {
@@ -98,6 +114,10 @@ const VIEW_ID = "mindmap";
 
 const ALL_PROJECTS = "__all__";
 const NEW_PROJECT = "__new__";
+
+/** A stable empty array, so "no stickies" does not re-trigger the canvas's
+ * layout effect on every render. */
+const EMPTY_STICKIES: Sticky[] = [];
 
 function todayISO(): string {
   const d = new Date();
@@ -131,6 +151,10 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Sticky selection is kept apart from node selection, and the two are
+  // mutually exclusive: Delete has to know which of the two it is deleting.
+  const [selectedStickyId, setSelectedStickyId] = useState<string | null>(null);
+  const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [copied, setCopied] = useState(false);
   const [fitToken, setFitToken] = useState(0);
@@ -156,6 +180,15 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const selected = useMemo(
     () => (doc && selectedId ? findNode(doc.roots, selectedId) : null),
     [doc, selectedId],
+  );
+  /**
+   * The stickies the canvas and the exports draw: none while the note hides
+   * them. Memoized because the canvas re-lays the map out whenever this array
+   * changes identity.
+   */
+  const visibleStickies = useMemo(
+    () => (doc && !doc.stickiesHidden ? doc.stickies : EMPTY_STICKIES),
+    [doc],
   );
   const current = files.find((f) => f.path === path) ?? null;
   const targetProject = project || current?.project || projects[0] || "";
@@ -395,6 +428,100 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     [doc, mutate],
   );
 
+  /** Selecting a node clears any selected sticky, and the other way round —
+   * one cursor, two kinds of thing under it. */
+  const selectNode = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) setSelectedStickyId(null);
+  }, []);
+
+  const selectSticky = useCallback((id: string | null) => {
+    setSelectedStickyId(id);
+    if (id) setSelectedId(null);
+  }, []);
+
+  /** Replaces one sticky in place. */
+  const patchSticky = useCallback(
+    (id: string, patch: Partial<Sticky>) => {
+      if (!doc) return;
+      const stickies = doc.stickies.map((sticky) =>
+        sticky.id === id ? { ...sticky, ...patch } : sticky,
+      );
+      // `undefined` in a patch means "clear it" — the same contract as
+      // `patchNode`, so the serializer does not write the key back out.
+      for (const sticky of stickies) {
+        if (sticky.id !== id) continue;
+        const fields = sticky as unknown as Record<string, unknown>;
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) delete fields[key];
+        }
+      }
+      mutate({ ...doc, stickies });
+    },
+    [doc, mutate],
+  );
+
+  const addSticky = useCallback(
+    (nodeId: string) => {
+      if (!doc) return;
+      const existing = stickiesOf(doc.stickies, nodeId).length;
+      const sticky: Sticky = {
+        id: nextStickyId(doc.stickies),
+        nodeId,
+        dx: NEW_STICKY_OFFSET.dx + existing * NEW_STICKY_STAGGER.dx,
+        dy: NEW_STICKY_OFFSET.dy + existing * NEW_STICKY_STAGGER.dy,
+        text: "",
+      };
+      // Adding a sticky while they are hidden would put it somewhere the user
+      // cannot see; showing them again is the only reading of the gesture that
+      // works — the same call the collapse handling makes for a hidden child.
+      mutate({ ...doc, stickies: [...doc.stickies, sticky], stickiesHidden: false });
+      selectSticky(sticky.id);
+      // A new sticky is empty, so it opens straight into its editor.
+      setEditingStickyId(sticky.id);
+    },
+    [doc, mutate, selectSticky],
+  );
+
+  const deleteSticky = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      mutate({ ...doc, stickies: doc.stickies.filter((sticky) => sticky.id !== id) });
+      if (selectedStickyId === id) setSelectedStickyId(null);
+      if (editingStickyId === id) setEditingStickyId(null);
+    },
+    [doc, mutate, selectedStickyId, editingStickyId],
+  );
+
+  /**
+   * Ends an inline sticky edit, dropping the sticky when nothing was typed —
+   * the bargain `finishEdit` makes for a node, for the same reason: a sticky
+   * is created empty, and an abandoned one would otherwise be blank paper left
+   * on the map.
+   */
+  const finishStickyEdit = useCallback(
+    (id: string, text: string | null) => {
+      setEditingStickyId(null);
+      if (!doc) return;
+      const sticky = doc.stickies.find((s) => s.id === id);
+      if (!sticky) return;
+      const next = text === null ? sticky.text : text;
+      if (!next.trim()) {
+        deleteSticky(id);
+        return;
+      }
+      if (text !== null && text !== sticky.text) patchSticky(id, { text });
+    },
+    [doc, deleteSticky, patchSticky],
+  );
+
+  /** Shows or hides every sticky at once. Written to the note's frontmatter,
+   * so it travels with the map and the exports match the screen. */
+  const toggleStickies = useCallback(() => {
+    if (!doc) return;
+    mutate({ ...doc, stickiesHidden: !doc.stickiesHidden });
+  }, [doc, mutate]);
+
   const undo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (!prev || !doc) return;
@@ -462,8 +589,16 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       const siblings = parent ? parent.children : roots;
       const idx = siblings.findIndex((n) => n.id === id);
       if (idx === -1) return;
+      // A sticky is pinned to a node; when the node goes, so does its paper —
+      // and the same for every node in the subtree that goes with it. Leaving
+      // them behind would strand lines in the file that can never be shown.
+      const gone = subtreeIds(siblings[idx]);
       siblings.splice(idx, 1);
-      mutate({ ...doc, roots });
+      mutate({
+        ...doc,
+        roots,
+        stickies: doc.stickies.filter((sticky) => !gone.has(sticky.nodeId)),
+      });
       setSelectedId(parent?.id ?? null);
     },
     [doc, mutate],
@@ -574,7 +709,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       // frame later. Without this, a second Enter in that gap reached this
       // handler instead of the field and created another empty node — a run of
       // them, if the user was typing at speed.
-      if (editingId) return;
+      if (editingId || editingStickyId) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -590,6 +725,12 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       if (e.key === "Escape") {
         setEditingId(null);
         setSelectedId(null);
+        setSelectedStickyId(null);
+        return;
+      }
+      if (e.key === "Delete" && selectedStickyId) {
+        e.preventDefault();
+        deleteSticky(selectedStickyId);
         return;
       }
       if (e.key === "Tab") {
@@ -620,7 +761,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [aiRunning, doc, editingId, selectedId, addNode, deleteNode, navigate, undo, redo]);
+  }, [
+    aiRunning,
+    doc,
+    editingId,
+    editingStickyId,
+    selectedId,
+    selectedStickyId,
+    addNode,
+    deleteNode,
+    deleteSticky,
+    navigate,
+    undo,
+    redo,
+  ]);
 
   // ---- file commands ------------------------------------------------------
 
@@ -696,6 +850,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           exportedOn: todayISO(),
           mermaid: toMermaidBlock(doc.roots),
           nodeWidth: doc.nodeWidth,
+          stickies: visibleStickies,
         }),
       );
       setStatus(`Exported to ${out}`);
@@ -703,7 +858,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, vaultPath, exportDir]);
+  }, [doc, vaultPath, exportDir, visibleStickies]);
 
   /**
    * PNG export: rasterize the very SVG the HTML export uses.
@@ -715,7 +870,11 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
    */
   const exportPng = useCallback(async () => {
     if (!doc || !vaultPath) return;
-    const svg = toSvg(doc.roots, { title: doc.title, nodeWidth: doc.nodeWidth });
+    const svg = toSvg(doc.roots, {
+      title: doc.title,
+      nodeWidth: doc.nodeWidth,
+      stickies: visibleStickies,
+    });
     const width = Number(/width="(\d+)"/.exec(svg)?.[1] ?? 800);
     const height = Number(/height="(\d+)"/.exec(svg)?.[1] ?? 600);
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -743,7 +902,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, vaultPath, exportDir]);
+  }, [doc, vaultPath, exportDir, visibleStickies]);
 
   const runAiEdit = useCallback(
     async (instruction: string, confirm: boolean) => {
@@ -798,6 +957,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   }
 
   const nodeCount = doc ? countNodes(doc.roots) : 0;
+  const stickyCount = doc?.stickies.length ?? 0;
 
   // `h-full`, not `flex-1`: the app shell mounts each tab in a plain `h-full`
   // div, which is not a flex container — a `flex-1` root there has no height to
@@ -921,6 +1081,23 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           >
             <Maximize2 className="size-3.5" />
           </Button>
+          {stickyCount > 0 && (
+            <Button
+              size="sm"
+              variant={doc?.stickiesHidden ? "outline" : "secondary"}
+              className="h-7 text-xs"
+              disabled={!doc || aiRunning}
+              onClick={toggleStickies}
+              title={
+                doc?.stickiesHidden
+                  ? `Show the ${stickyCount} sticky notes`
+                  : `Hide the ${stickyCount} sticky notes`
+              }
+            >
+              <StickyNote className="mr-1 size-3.5" />
+              {stickyCount}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -986,11 +1163,21 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <MindmapCanvas
                 roots={doc.roots}
                 nodeWidth={doc.nodeWidth}
+                stickies={visibleStickies}
                 selectedId={selectedId}
+                selectedStickyId={selectedStickyId}
+                editingStickyId={editingStickyId}
                 editingId={editingId}
                 locked={aiRunning}
                 fitToken={fitToken}
-                onSelect={setSelectedId}
+                onSelectSticky={selectSticky}
+                onStartEditSticky={setEditingStickyId}
+                onCommitStickyText={(id, text) => finishStickyEdit(id, text)}
+                onCancelStickyEdit={() =>
+                  editingStickyId && finishStickyEdit(editingStickyId, null)
+                }
+                onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
+                onSelect={selectNode}
                 onStartEdit={setEditingId}
                 onCommitEdit={(id, title) => finishEdit(id, title)}
                 onCancelEdit={() => editingId && finishEdit(editingId, null)}
@@ -999,7 +1186,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               />
               <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                 Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove · drag
-                onto a node: move · right-drag: pan · wheel: zoom
+                onto a node: move · right-drag: pan · wheel: zoom · sticky: drag to place,
+                double-click to edit
               </div>
             </div>
           </ResizablePanel>
@@ -1021,6 +1209,11 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                   node={selected}
                   tasks={tasks}
                   disabled={aiRunning}
+                  stickies={stickiesOf(doc.stickies, selected.id)}
+                  stickiesHidden={doc.stickiesHidden}
+                  onAddSticky={() => addSticky(selected.id)}
+                  onChangeSticky={patchSticky}
+                  onDeleteSticky={deleteSticky}
                   onChange={(patch) => patchNode(selected.id, patch)}
                   onAddChild={() => addNode(selected.id, "child")}
                   onAddSibling={() => addNode(selected.id, "sibling")}

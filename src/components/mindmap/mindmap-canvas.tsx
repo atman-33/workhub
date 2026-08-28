@@ -4,11 +4,21 @@ import {
   DEFAULT_LAYOUT,
   layoutMindmap,
   NODE_PAD_X,
+  STICKY_FONT_SIZE,
+  STICKY_PAD,
   textWidth,
   type MindmapLayout,
   type PositionedNode,
+  type PositionedSticky,
 } from "@/lib/mindmap/layout";
-import { COLOR_HEX, type MindmapNode, type NodeWidth } from "@/lib/mindmap/parse";
+import {
+  COLOR_HEX,
+  STICKY_FILL_HEX,
+  STICKY_INK,
+  type MindmapNode,
+  type NodeWidth,
+  type Sticky,
+} from "@/lib/mindmap/parse";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,7 +45,20 @@ interface Props {
   roots: MindmapNode[];
   /** The note's box-width setting, applied by the layout. */
   nodeWidth: NodeWidth;
+  /** Sticky notes to draw. Empty while the note hides them. */
+  stickies: Sticky[];
   selectedId: string | null;
+  /** The selected sticky, if the last click landed on one. Selecting a sticky
+   * and selecting a node are mutually exclusive — the view enforces that. */
+  selectedStickyId: string | null;
+  /** Sticky currently being edited inline; its paper renders a textarea. */
+  editingStickyId: string | null;
+  onSelectSticky: (id: string | null) => void;
+  onStartEditSticky: (id: string) => void;
+  onCommitStickyText: (id: string, text: string) => void;
+  onCancelStickyEdit: () => void;
+  /** A finished sticky drag: the new offset from its node's centre. */
+  onMoveSticky: (id: string, dx: number, dy: number) => void;
   /** Node currently being renamed inline; its box renders an input. */
   editingId: string | null;
   /** True while an AI edit holds the file: the canvas is look-only. */
@@ -85,12 +108,36 @@ interface DragState {
   active: boolean;
 }
 
+/** A sticky being dragged to a new offset. Kept apart from `DragState`: a
+ * node drag re-parents, a sticky drag only moves paper. */
+interface StickyDragState {
+  id: string;
+  /** Pointer position when the press landed, in diagram coordinates. */
+  fromX: number;
+  fromY: number;
+  /** The sticky's offset when the press landed. */
+  dx: number;
+  dy: number;
+  /** How far the pointer has travelled since, in diagram coordinates. */
+  moveX: number;
+  moveY: number;
+  active: boolean;
+}
+
 export function MindmapCanvas({
   roots,
   nodeWidth,
+  stickies,
   selectedId,
+  selectedStickyId,
+  editingStickyId,
   editingId,
   locked,
+  onSelectSticky,
+  onStartEditSticky,
+  onCommitStickyText,
+  onCancelStickyEdit,
+  onMoveSticky,
   onSelect,
   onStartEdit,
   onCommitEdit,
@@ -101,8 +148,11 @@ export function MindmapCanvas({
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [layout, setLayout] = useState<MindmapLayout>(() => layoutMindmap(roots, { nodeWidth }));
+  const [layout, setLayout] = useState<MindmapLayout>(() =>
+    layoutMindmap(roots, { nodeWidth, stickies }),
+  );
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [stickyDrag, setStickyDrag] = useState<StickyDragState | null>(null);
   /**
    * The canvas's own size, tracked rather than read on demand.
    *
@@ -129,7 +179,7 @@ export function MindmapCanvas({
   const anchorId = useRef<string | null>(null);
 
   useEffect(() => {
-    const next = layoutMindmap(roots, { nodeWidth });
+    const next = layoutMindmap(roots, { nodeWidth, stickies });
     const anchor = anchorId.current;
     anchorId.current = null;
     if (anchor) {
@@ -145,7 +195,7 @@ export function MindmapCanvas({
     }
     layoutRef.current = next;
     setLayout(next);
-  }, [roots, nodeWidth]);
+  }, [roots, nodeWidth, stickies]);
 
   /**
    * What is currently typed in the rename box.
@@ -343,6 +393,55 @@ export function MindmapCanvas({
     };
   });
 
+  const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
+    if (locked || editingStickyId) return;
+    e.stopPropagation();
+    const at = toDiagram(e.clientX, e.clientY);
+    const source = stickies.find((s) => s.id === sticky.id);
+    if (!source) return;
+    setStickyDrag({
+      id: sticky.id,
+      fromX: at.x,
+      fromY: at.y,
+      dx: source.dx,
+      dy: source.dy,
+      moveX: 0,
+      moveY: 0,
+      active: false,
+    });
+  };
+
+  // The move is committed once, on release, rather than on every pointer
+  // event: each commit is a file write and an undo entry, and a drag would
+  // otherwise fill the undo stack with a hundred intermediate positions.
+  useEffect(() => {
+    if (!stickyDrag) return;
+    const onMove = (e: PointerEvent) => {
+      const at = toDiagram(e.clientX, e.clientY);
+      setStickyDrag((d) => {
+        if (!d) return d;
+        const moveX = at.x - d.fromX;
+        const moveY = at.y - d.fromY;
+        const active =
+          d.active ||
+          (Math.abs(moveX) + Math.abs(moveY)) * camera.zoom >= DRAG_THRESHOLD_PX;
+        return { ...d, moveX, moveY, active };
+      });
+    };
+    const onUp = () => {
+      setStickyDrag((d) => {
+        if (d?.active) onMoveSticky(d.id, Math.round(d.dx + d.moveX), Math.round(d.dy + d.moveY));
+        return null;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  });
+
   const dragged = drag?.active ? (layout.byId.get(drag.id) ?? null) : null;
 
   return (
@@ -357,7 +456,10 @@ export function MindmapCanvas({
       // A click on the empty canvas clears the selection, which is what makes
       // "press Escape or click away" work without a global handler.
       onClick={(e) => {
-        if (e.target === e.currentTarget || (e.target as Element).tagName === "svg") onSelect(null);
+        if (e.target === e.currentTarget || (e.target as Element).tagName === "svg") {
+          onSelect(null);
+          onSelectSticky(null);
+        }
       }}
     >
       <svg className="absolute inset-0 size-full" role="presentation">
@@ -395,6 +497,25 @@ export function MindmapCanvas({
                 onToggleCollapse(id);
               }}
               onDragStart={startNodeDrag}
+            />
+          ))}
+
+          {/* Stickies are drawn last, so a note the user dropped over a
+              branch stays readable instead of disappearing under it. */}
+          {layout.stickies.map((sticky) => (
+            <StickyPaper
+              key={sticky.id}
+              sticky={sticky}
+              offsetX={stickyDrag?.active && stickyDrag.id === sticky.id ? stickyDrag.moveX : 0}
+              offsetY={stickyDrag?.active && stickyDrag.id === sticky.id ? stickyDrag.moveY : 0}
+              selected={sticky.id === selectedStickyId}
+              editing={sticky.id === editingStickyId}
+              locked={locked}
+              onSelect={onSelectSticky}
+              onStartEdit={onStartEditSticky}
+              onCommit={onCommitStickyText}
+              onCancel={onCancelStickyEdit}
+              onDragStart={startStickyDrag}
             />
           ))}
 
@@ -656,6 +777,156 @@ function NodeInput({
       // drawn in the foreground colour, so an inherited-colour field on it was
       // white text on white.
       className="size-full rounded border border-ring bg-background px-2 text-center text-sm text-foreground outline-none"
+    />
+  );
+}
+
+/**
+ * One sticky note.
+ *
+ * Drawn in diagram coordinates like everything else, so it pans and zooms with
+ * the map it annotates and its offset from its node never changes on screen.
+ * A leader line runs back to the node, which is what keeps a sticky legible
+ * once it has been dragged clear of the box it belongs to.
+ */
+function StickyPaper({
+  sticky,
+  offsetX,
+  offsetY,
+  selected,
+  editing,
+  locked,
+  onSelect,
+  onStartEdit,
+  onCommit,
+  onCancel,
+  onDragStart,
+}: {
+  sticky: PositionedSticky;
+  /** Live drag displacement, applied while the pointer is down. */
+  offsetX: number;
+  offsetY: number;
+  selected: boolean;
+  editing: boolean;
+  locked?: boolean;
+  onSelect: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onCommit: (id: string, text: string) => void;
+  onCancel: () => void;
+  onDragStart: (e: React.PointerEvent, sticky: PositionedSticky) => void;
+}) {
+  const x = sticky.x + offsetX;
+  const y = sticky.y + offsetY;
+  const lineHeight = STICKY_FONT_SIZE * 1.45;
+  const firstBaseline = y + STICKY_PAD + STICKY_FONT_SIZE * 0.9;
+
+  return (
+    <g
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        onSelect(sticky.id);
+        onDragStart(e, sticky);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!locked) onStartEdit(sticky.id);
+      }}
+      className="cursor-pointer"
+    >
+      <path
+        d={`M ${sticky.anchorX} ${sticky.anchorY} L ${x + sticky.width / 2} ${y + sticky.height / 2}`}
+        stroke={COLOR_HEX[sticky.color]}
+        strokeOpacity={0.5}
+        strokeWidth={1}
+        strokeDasharray="3 3"
+        fill="none"
+      />
+      <rect
+        x={x}
+        y={y}
+        width={sticky.width}
+        height={sticky.height}
+        rx={3}
+        fill={STICKY_FILL_HEX[sticky.color]}
+        stroke={COLOR_HEX[sticky.color]}
+        strokeWidth={1}
+      />
+      {selected && (
+        <rect
+          x={x - 3}
+          y={y - 3}
+          width={sticky.width + 6}
+          height={sticky.height + 6}
+          rx={6}
+          fill="none"
+          className="stroke-ring"
+          strokeWidth={2}
+        />
+      )}
+      {editing ? (
+        <foreignObject x={x} y={y} width={sticky.width} height={sticky.height}>
+          <StickyInput
+            value={sticky.text}
+            onCommit={(text) => onCommit(sticky.id, text)}
+            onCancel={onCancel}
+          />
+        </foreignObject>
+      ) : (
+        sticky.lines.map((line, i) => (
+          <text
+            key={`${sticky.id}-${i}`}
+            x={x + STICKY_PAD}
+            y={firstBaseline + i * lineHeight}
+            fontSize={STICKY_FONT_SIZE}
+            fill={STICKY_INK}
+            className="select-none"
+          >
+            {line}
+          </text>
+        ))
+      )}
+    </g>
+  );
+}
+
+/** Inline sticky editing. Multi-line, so Enter is a line break and the commit
+ * gestures are blur and Ctrl+Enter; Escape abandons, as everywhere else. */
+function StickyInput({
+  value,
+  onCommit,
+  onCancel,
+}: {
+  value: string;
+  onCommit: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  return (
+    <textarea
+      ref={ref}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          onCommit(draft);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      // Paper colours rather than theme colours: the field sits on the sticky,
+      // and a themed field on pale paper is unreadable in the dark app.
+      style={{ background: "#ffffff", color: STICKY_INK }}
+      className="size-full resize-none rounded-[3px] border border-ring px-1.5 py-1 text-[11px] leading-[1.45] outline-none"
     />
   );
 }

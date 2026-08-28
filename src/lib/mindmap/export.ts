@@ -15,8 +15,23 @@
  * three slightly different pictures.
  */
 
-import { DEFAULT_LAYOUT, layoutMindmap, type MindmapLayout, type PositionedNode } from "./layout";
-import { COLOR_HEX, type MindmapNode, type NodeWidth } from "./parse";
+import {
+  DEFAULT_LAYOUT,
+  layoutMindmap,
+  STICKY_FONT_SIZE,
+  STICKY_PAD,
+  type MindmapLayout,
+  type PositionedNode,
+  type PositionedSticky,
+} from "./layout";
+import {
+  COLOR_HEX,
+  STICKY_FILL_HEX,
+  STICKY_INK,
+  type MindmapNode,
+  type NodeWidth,
+  type Sticky,
+} from "./parse";
 
 /** Minimal escaping for the user-authored strings that go into the markup.
  * Kept local rather than pulled from a library: the export must stay
@@ -93,12 +108,39 @@ function renderEdges(layout: MindmapLayout): string {
     .join("");
 }
 
+/** One sticky, drawn exactly as the canvas draws it — the leader line, the
+ * paper, the text. The export and the screen share the layout, so sharing the
+ * rendering rules is what stops the two pictures from drifting apart. */
+function renderSticky(sticky: PositionedSticky): string {
+  const lineHeight = STICKY_FONT_SIZE * 1.45;
+  const firstBaseline = sticky.y + STICKY_PAD + STICKY_FONT_SIZE * 0.9;
+  const lines = sticky.lines
+    .map(
+      (line, i) =>
+        `<text x="${sticky.x + STICKY_PAD}" y="${firstBaseline + i * lineHeight}" ` +
+        `font-size="${STICKY_FONT_SIZE}" fill="${STICKY_INK}">${esc(line)}</text>`,
+    )
+    .join("");
+
+  return (
+    `<g><path d="M ${sticky.anchorX} ${sticky.anchorY} L ${sticky.x + sticky.width / 2} ` +
+    `${sticky.y + sticky.height / 2}" fill="none" stroke="${COLOR_HEX[sticky.color]}" ` +
+    `stroke-opacity="0.5" stroke-width="1" stroke-dasharray="3 3" />` +
+    `<rect x="${sticky.x}" y="${sticky.y}" width="${sticky.width}" height="${sticky.height}" ` +
+    `rx="3" ry="3" fill="${STICKY_FILL_HEX[sticky.color]}" stroke="${COLOR_HEX[sticky.color]}" ` +
+    `stroke-width="1" />${lines}</g>`
+  );
+}
+
 export interface SvgOptions {
   /** Title drawn above the map. Omit for a bare diagram. */
   title?: string;
   fontSize?: number;
   /** The note's box-width setting, so the export matches the screen. */
   nodeWidth?: NodeWidth;
+  /** Stickies to draw. The caller passes none when the note hides them, which
+   * is what makes the export match what was on screen. */
+  stickies?: Sticky[];
 }
 
 /**
@@ -112,6 +154,7 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
   const layout = layoutMindmap(roots, {
     fontSize,
     nodeWidth: options.nodeWidth ?? DEFAULT_LAYOUT.nodeWidth,
+    stickies: options.stickies ?? [],
   });
   const titleHeight = options.title ? fontSize * 2.5 : 0;
 
@@ -132,6 +175,7 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
     `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${PAPER}" />` +
     `${heading}${renderEdges(layout)}` +
     `${layout.nodes.map((n) => renderNode(n, fontSize)).join("")}` +
+    `${layout.stickies.map(renderSticky).join("")}` +
     `</svg>`
   );
 }
@@ -146,9 +190,18 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
  */
 export function toHtml(
   roots: MindmapNode[],
-  options: { title: string; exportedOn: string; mermaid?: string; nodeWidth?: NodeWidth },
+  options: {
+    title: string;
+    exportedOn: string;
+    mermaid?: string;
+    nodeWidth?: NodeWidth;
+    stickies?: Sticky[];
+  },
 ): string {
-  const svg = toSvg(roots, { ...(options.nodeWidth ? { nodeWidth: options.nodeWidth } : {}) });
+  const svg = toSvg(roots, {
+    ...(options.nodeWidth ? { nodeWidth: options.nodeWidth } : {}),
+    ...(options.stickies ? { stickies: options.stickies } : {}),
+  });
   const mermaid = options.mermaid
     ? `<h2>mermaid</h2><pre><code>${esc(options.mermaid)}</code></pre>`
     : "";

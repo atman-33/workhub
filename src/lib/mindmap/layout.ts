@@ -13,7 +13,14 @@
  * contiguous vertical band so that no two subtrees can overlap.
  */
 
-import { rootChildSide, type Color, type MindmapNode, type NodeWidth } from "./parse";
+import {
+  rootChildSide,
+  STICKY_DEFAULT_COLOR,
+  type Color,
+  type MindmapNode,
+  type NodeWidth,
+  type Sticky,
+} from "./parse";
 
 export type Side = "left" | "right";
 
@@ -82,13 +89,55 @@ export interface LayoutEdge {
   side: Side;
 }
 
+/**
+ * A sticky note placed on the diagram.
+ *
+ * Its position comes from the file, but only as an offset from the node it is
+ * pinned to — so a sticky is placed *after* the tree has been laid out, and
+ * takes no part in that layout. Two stickies can therefore overlap; that is
+ * the price of putting them exactly where the user dropped them, and the
+ * bargain the feature is asking for.
+ */
+export interface PositionedSticky {
+  id: string;
+  nodeId: string;
+  /** The text as the file holds it. Carried through so the inline editor can
+   * offer the user what they wrote, not the wrapped lines. */
+  text: string;
+  /** Body text split into the lines the paper renders. */
+  lines: string[];
+  color: Color;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Point on the pinned node the leader line runs to. */
+  anchorX: number;
+  anchorY: number;
+}
+
 export interface MindmapLayout {
   nodes: PositionedNode[];
   edges: LayoutEdge[];
+  /** Sticky notes, empty when the note hides them. */
+  stickies: PositionedSticky[];
   /** Bounding box of everything drawn, before any padding the view adds. */
   bounds: { x: number; y: number; width: number; height: number };
   byId: Map<string, PositionedNode>;
 }
+
+/** How wide a sticky's paper is. Fixed rather than sized to its text: a wall
+ * of stickies reads as a wall only if they are the same shape, and a sticky
+ * that grew sideways would drift out from under the offset the user set. */
+export const STICKY_WIDTH = 180;
+/** Font size of a sticky's text — smaller than a node's, because a sticky is
+ * an aside and must not compete with the map it annotates. */
+export const STICKY_FONT_SIZE = 11;
+/** Padding inside a sticky. Exported because the canvas and the export both
+ * place the text with it. */
+export const STICKY_PAD = 8;
+/** Smallest paper, so an empty sticky is still visible and clickable. */
+const STICKY_MIN_HEIGHT = 34;
 
 // ---------------------------------------------------------------------------
 // text measurement
@@ -262,9 +311,63 @@ function assignSides(children: Measured[]): Side[] {
   return children.map((child, index) => rootChildSide(child.node, index));
 }
 
+/**
+ * Wraps a sticky's text, honouring the line breaks the user typed.
+ *
+ * `wrapTitle` measures against a node's padding, so the width handed to it is
+ * corrected for the sticky's own — the alternative is a second wrapper, and
+ * two wrappers drift.
+ */
+export function wrapStickyText(text: string, width = STICKY_WIDTH): string[] {
+  const budget = width - STICKY_PAD * 2 + PAD_X * 2;
+  const lines = text.split("\n").flatMap((line) => wrapTitle(line, budget, STICKY_FONT_SIZE));
+  return lines.length ? lines : [""];
+}
+
+/** Places one sticky against the node it is pinned to. Returns `null` for a
+ * sticky whose node is gone or hidden — the line stays in the file, but there
+ * is nothing on screen to pin it to. */
+function placeSticky(sticky: Sticky, byId: Map<string, PositionedNode>): PositionedSticky | null {
+  const node = byId.get(sticky.nodeId);
+  if (!node) return null;
+
+  const lines = wrapStickyText(sticky.text);
+  const height = Math.max(
+    STICKY_MIN_HEIGHT,
+    Math.ceil(lines.length * STICKY_FONT_SIZE * LINE_HEIGHT) + STICKY_PAD * 2,
+  );
+  const centreX = node.x + node.width / 2;
+  const centreY = node.y + node.height / 2;
+  const x = centreX + sticky.dx;
+  const y = centreY + sticky.dy;
+
+  // The leader line ends on the edge of the node nearest the sticky, rather
+  // than at its centre, so it reads as "this paper belongs to that box".
+  const anchorX = Math.max(node.x, Math.min(x + STICKY_WIDTH / 2, node.x + node.width));
+  const anchorY = Math.max(node.y, Math.min(y + height / 2, node.y + node.height));
+
+  return {
+    id: sticky.id,
+    nodeId: sticky.nodeId,
+    text: sticky.text,
+    lines,
+    color: sticky.color ?? STICKY_DEFAULT_COLOR,
+    x,
+    y,
+    width: STICKY_WIDTH,
+    height,
+    anchorX,
+    anchorY,
+  };
+}
+
 export function layoutMindmap(
   roots: MindmapNode[],
-  options: Partial<LayoutOptions> = {},
+  options: Partial<LayoutOptions> & {
+    /** Stickies to place. Omitted — or empty, when the note hides them — the
+     * layout is exactly what it was before the feature existed. */
+    stickies?: Sticky[];
+  } = {},
 ): MindmapLayout {
   const opts = { ...DEFAULT_LAYOUT, ...options };
   const nodes: PositionedNode[] = [];
@@ -384,16 +487,27 @@ export function layoutMindmap(
     bandTop = centerY + height / 2 + opts.vGap * 3;
   }
 
-  return { nodes, edges, bounds: boundsOf(nodes), byId: new Map(nodes.map((n) => [n.id, n])) };
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const stickies = (options.stickies ?? [])
+    .map((sticky) => placeSticky(sticky, byId))
+    .filter((s): s is PositionedSticky => s !== null);
+
+  // Stickies count towards the bounds even though they took no part in the
+  // layout: Fit and every export frame the map by this box, and a sticky the
+  // user dropped off to one side must not be the thing that gets cropped.
+  return { nodes, edges, stickies, bounds: boundsOf(nodes, stickies), byId };
 }
 
-function boundsOf(nodes: PositionedNode[]): MindmapLayout["bounds"] {
+function boundsOf(
+  nodes: PositionedNode[],
+  stickies: PositionedSticky[] = [],
+): MindmapLayout["bounds"] {
   if (!nodes.length) return { x: 0, y: 0, width: 0, height: 0 };
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const n of nodes) {
+  for (const n of [...nodes, ...stickies]) {
     minX = Math.min(minX, n.x);
     minY = Math.min(minY, n.y);
     maxX = Math.max(maxX, n.x + n.width);

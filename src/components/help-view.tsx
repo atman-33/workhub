@@ -189,6 +189,7 @@ The **Mindmap** tab is for thinking in branches — the shape you would draw on 
 - **The width picker** decides how wide the boxes are: **Auto width** sizes each box to its own text, **Even siblings** gives the children of one parent a common width, and **Even by level** lines the whole map up in columns. The setting belongs to the note (\`node_width\` in its frontmatter), so two maps can differ and an export looks like what was on screen.
 - **Right-drag pans and the wheel zooms** toward the pointer, as on the Schedule tab. **Fit** frames the whole map again. A minimap appears in the corner once the map is larger than the window.
 - **Colour a branch head**, not every node: a node with no colour of its own is drawn in the nearest coloured ancestor's colour. Clicking the current colour again clears it. The side panel also links a node to a task and holds a longer note, shown on hover.
+- **Sticky notes** are the always-visible kind of note: pick a node and press **Add** under *Sticky notes* in the side panel. Drag a sticky to place it, double-click it to edit (**Ctrl** + **Enter** commits, **Escape** abandons), and **Delete** removes the selected one. Its position is stored as an offset from its node, so it follows the node through any re-layout and holds still as you pan or zoom. The toolbar's sticky button hides them all at once when the map gets busy — that setting lives in the note (\`stickies\` in its frontmatter) and applies to the exports too. Deleting a node deletes its stickies.
 - **mermaid** copies the map as a mermaid \`mindmap\` code block, ready to paste into a document or a README. The copy is one-way — mermaid cannot carry ids, colours or task links, so the note stays the editable form.
 - **HTML** writes a single self-contained page (default: the project's \`attachments/\`) with the diagram and its mermaid source; **PNG** writes an image of the same diagram at 2x.
 - **Delete moves the note to \`_ai/memory/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
@@ -1536,6 +1537,23 @@ export function HelpView() {
                 ancestor&apos;s colour. Clicking the current colour again clears
                 it. The side panel also links a node to a task and holds a
                 longer note, shown on hover.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Sticky notes</span> are the always-visible kind of
+                note: pick a node and press <span className="font-medium text-foreground">Add</span> under{" "}
+                <span className="font-medium text-foreground">Sticky notes</span> in the side panel. Drag a sticky
+                to place it, double-click it to edit
+                (<span className="font-medium text-foreground">Ctrl</span> +{" "}
+                <span className="font-medium text-foreground">Enter</span> commits,{" "}
+                <span className="font-medium text-foreground">Escape</span> abandons), and{" "}
+                <span className="font-medium text-foreground">Delete</span> removes the selected one. Its position
+                is stored as an offset from its node, so it follows the node
+                through any re-layout and holds still as you pan or zoom. The
+                toolbar&apos;s sticky button hides them all at once when the map
+                gets busy — that setting lives in the note
+                (<span className="font-mono text-xs">stickies</span> in its
+                frontmatter) and applies to the exports too. Deleting a node
+                deletes its stickies.
               </li>
               <li>
                 <span className="font-medium text-foreground">mermaid</span> copies the map as a mermaid{" "}

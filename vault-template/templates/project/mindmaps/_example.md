@@ -39,6 +39,27 @@ updated: {{DATE}}
 
 - N-001 <Mindmap name>
 
+## Stickies
+
+<!-- Sticky notes pinned to a node and always visible on the map, unlike a
+     node's continuation lines. Delete this section if the map has none.
+
+     - <id> node:<node-id> @<dx>,<dy> [#<color>] [<text>]
+     id: `S-` + a number, unique in this file — never change or reuse one.
+     node: required — the node the sticky is pinned to. Deleting that node
+       deletes its stickies with it.
+     @dx,dy: integer offset in pixels from the node's centre to the sticky's
+       top-left corner. It is relative, so the sticky follows its node
+       wherever the layout puts it. Default: @32,24.
+     color: the same palette as a node; absent means amber.
+     Longer text continues on indented lines, like a node's note.
+
+     Set `stickies: hidden` in the frontmatter to hide them all at once —
+     the Mindmap tab's sticky button writes exactly that.
+
+       - S-001 node:N-001 @96,24 #amber re-check after the vendor call
+-->
+
 ## Memo
 
 Free-form notes. Neither the app nor the AI rewrites anything from here down.

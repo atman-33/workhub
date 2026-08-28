@@ -219,8 +219,9 @@ calendar through its own `due` date, or via a `task:` link.
 the note stays editable in Obsidian at the same time.
 
 Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`, and the
-optional `node_width`); the content lives in one managed `## Nodes` section,
-plus a `## Memo` section neither the app nor the AI ever rewrites:
+optional `node_width` / `stickies`); the content lives in two managed sections
+— `## Nodes` and the optional `## Stickies` — plus a `## Memo` section neither
+the app nor the AI ever rewrites:
 
 ```markdown
 ## Nodes
@@ -230,6 +231,10 @@ plus a `## Memo` section neither the app nor the AI ever rewrites:
     - N-003 kanban ^collapsed
   - N-004 schedule #amber
     lead times are still guesses
+
+## Stickies
+
+- S-001 node:N-004 @96,24 #amber re-check the dates after the vendor call
 ```
 
 Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]`
@@ -252,6 +257,26 @@ Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^righ
   sides while the map is being edited.
 - A node may carry extra lines of text on **indented continuation lines**
   beneath it, which the app shows on hover.
+
+Sticky line: `- <id> node:<node-id> @<dx>,<dy> [#<color>] [<text>]`
+
+A sticky is a note pinned to a node and drawn on the map beside it — always
+visible, unlike a node's own continuation lines, which only appear on hover.
+
+- `<id>` is `S-` + a number, unique in the file. **Never change or reuse one.**
+- `node:<node-id>` is required: it is what the sticky is pinned to. Deleting a
+  node deletes its stickies.
+- `@<dx>,<dy>` is an integer offset in pixels from the pinned node's **centre**
+  to the sticky's top-left corner — the only coordinate in the file, and a
+  relative one, so a sticky follows its node through any re-layout. Omitted, it
+  defaults to `@32,24`.
+- `#<color>` is from the same palette as a node's; absent means `amber`.
+- Longer text continues on **indented continuation lines**, like a node's note.
+- `## Stickies` goes between `## Nodes` and `## Memo`, and a map with no
+  stickies carries no such section at all.
+- The frontmatter key `stickies: hidden` hides every sticky on the map at once
+  (the Mindmap tab's sticky button). It is a display setting; it hides them in
+  the exports too, so a hand-out matches the screen.
 
 Node positions are deliberately **not** stored: the app lays the map out from
 the tree every time it draws it, anchored on the root — so collapsing a branch
