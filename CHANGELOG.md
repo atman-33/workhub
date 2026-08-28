@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.83.0 (2026-08-28)
+
+- **The Projects tab can rename a project and edit its description** (T-0192).
+  The detail pane used to show the README title and the first prose paragraph
+  as read-only; changing either meant opening the file in Obsidian. Name and
+  description are now fields on that pane, saved into README.md frontmatter
+  (`title:` / `description:`). The folder slug is left alone, because tasks
+  name a project by slug in `project:` and renaming the folder would orphan
+  them. An empty description falls back to the README excerpt, so projects
+  that never set a blurb still summarise themselves the way they did.
+
 ## 0.82.0 (2026-08-27)
 
 - **A new Projects tab shows what a vault project actually holds** (T-0190).

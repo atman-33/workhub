@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -101,6 +102,8 @@ export function ProjectsView({
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editSummary, setEditSummary] = useState("");
 
   const vaultPath = config?.settings.vault_path ?? null;
   const repos = config?.projects ?? [];
@@ -177,6 +180,11 @@ export function ProjectsView({
   }, [visible, slug]);
 
   const current = visible.find((p) => p.slug === slug) ?? null;
+  useEffect(() => {
+    if (!current) return;
+    setEditName(current.name);
+    setEditSummary(current.summary);
+  }, [current?.slug, current?.name, current?.summary]);
   const currentRepo = current ? linkedRepo(current, repos) : null;
   const currentCounts = current ? counts.get(current.slug) : undefined;
   // The scan already told us whether the entry point exists; Obsidian's URL
@@ -211,6 +219,24 @@ export function ProjectsView({
     const repo = value === NO_REPO ? "" : value;
     void run("Linking…", async () => {
       await api.setVaultProjectRepo(vaultPath, current.slug, repo);
+    });
+  };
+
+  const detailsDirty =
+    !!current &&
+    (editName.trim() !== current.name || editSummary.trim() !== current.summary);
+
+  const saveDetails = () => {
+    if (!vaultPath || !current || current.archived) return;
+    const name = editName.trim();
+    if (!name) return;
+    void run("Saving…", async () => {
+      await api.setVaultProjectDetails(
+        vaultPath,
+        current.slug,
+        name,
+        editSummary.trim(),
+      );
     });
   };
 
@@ -339,11 +365,65 @@ export function ProjectsView({
           ) : (
             <div className="h-full space-y-4 overflow-y-auto p-4">
               <div>
-                <h2 className="text-base font-semibold">{current.name}</h2>
-                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                {current.archived ? (
+                  <>
+                    <h2 className="text-base font-semibold">{current.name}</h2>
+                    {current.summary && (
+                      <p className="mt-2 text-sm">{current.summary}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-muted-foreground">Name</span>
+                      <Input
+                        value={editName}
+                        className="h-8 text-sm font-semibold"
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveDetails();
+                        }}
+                      />
+                    </label>
+                    <label className="mt-2 block space-y-1">
+                      <span className="text-xs text-muted-foreground">
+                        Description
+                      </span>
+                      <Textarea
+                        value={editSummary}
+                        placeholder="A short description of this project"
+                        className="min-h-16 text-sm"
+                        onChange={(e) => setEditSummary(e.target.value)}
+                      />
+                    </label>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7"
+                        disabled={!detailsDirty || !editName.trim()}
+                        onClick={saveDetails}
+                      >
+                        Save
+                      </Button>
+                      {detailsDirty && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7"
+                          onClick={() => {
+                            setEditName(current.name);
+                            setEditSummary(current.summary);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+                <p className="mt-2 font-mono text-[11px] text-muted-foreground">
                   {current.path}
                 </p>
-                {current.summary && <p className="mt-2 text-sm">{current.summary}</p>}
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                   {current.status && <span>status: {current.status}</span>}
                   <span>updated {current.updated ? timeAgo(current.updated) : "—"}</span>

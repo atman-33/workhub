@@ -144,6 +144,7 @@ The **Projects** tab is the screen for a *vault project* — a folder under \`pr
 - **Layout findings** are the point of the tab. It reports required files that are missing (\`README.md\`, \`prd.md\`, \`roadmap.md\`, \`links.md\`, \`_index.md\`), documented folders that are absent, folders nobody documented, and task deliverable notes (\`T-XXXX-…\`) sitting in the project root instead of \`deliverables/\`. Findings are reported, never fixed automatically.
 - **Task project values with no folder** appears under the list when a task's \`project:\` names something \`projects/\` does not have. That field is free text, so a typo silently orphans a task — this is where you notice.
 - **Repository** links the project to one of the repositories registered on the Repos tab. The link is stored as \`repo:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme.
+- **Name and description** are edited in the detail pane and stored as \`title:\` and \`description:\` in the project's README.md. The folder slug does not change, so task \`project:\` values stay valid. An empty description falls back to the first prose paragraph of the README.
 - **New project** scaffolds \`projects/<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from.
 - **Archive** moves the folder to \`archive/projects/<slug>/\` and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
 - The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Schedule**, **Mindmap** and **Repos** tabs already scoped to it.`;
@@ -1171,6 +1172,16 @@ export function HelpView() {
                 <span className="font-mono text-xs">_index.md</span> (created from
                 the scaffold if the project predates it) rather than guessed from
                 the name, because the two do not share a naming scheme.
+              </li>
+              <li>
+                <span className="font-medium">Name and description</span> are
+                edited in the detail pane and stored as{" "}
+                <span className="font-mono text-xs">title:</span> and{" "}
+                <span className="font-mono text-xs">description:</span> in the
+                project&apos;s README.md. The folder slug does not change, so
+                task <span className="font-mono text-xs">project:</span> values
+                stay valid. An empty description falls back to the first prose
+                paragraph of the README.
               </li>
               <li>
                 <span className="font-medium">New project</span> scaffolds{" "}

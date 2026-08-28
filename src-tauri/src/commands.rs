@@ -552,6 +552,22 @@ pub async fn set_vault_project_repo(
     .map_err(|e| e.to_string())?
 }
 
+/// Writes the project's display name and description into README.md
+/// frontmatter. The folder slug is not renamed.
+#[tauri::command]
+pub async fn set_vault_project_details(
+    vault_path: String,
+    slug: String,
+    name: String,
+    summary: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::set_project_details(&PathBuf::from(vault_path), &slug, &name, &summary)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Lists schedule notes, optionally narrowed to one project slug (pass an
 /// empty string for "all projects").
 #[tauri::command]
