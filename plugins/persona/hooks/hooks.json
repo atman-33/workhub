@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/persona-activate.mjs\"",
+            "timeout": 10,
+            "statusMessage": "ペルソナ読込中..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/persona-mode-tracker.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

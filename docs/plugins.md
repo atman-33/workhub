@@ -44,6 +44,7 @@ something this marketplace needs to maintain.
 | `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, proposal deck preparation (`prepare-proposal-deck`, `draft-deck`), Zenn blog writing (`zenn-blog-writing`, `zenn-markdown`), and skill-writing helpers (`grilling`, `handoff`, `writing-great-skills`). No vault or project-context dependency. |
 | `team-ops` | Optional | project | Team operations on a shared folder as SSoT: team knowledge base, file-based backlog + sprints, multi-repo dev-main tracking, daily burndown/spec reporting. Needs `.claude/team-context.json` (see `plugins/team-ops/docs/design.html`). |
 | `obsidian` | Optional (pre-enabled in the vault template) | project or user | Generic Obsidian format helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, defuddle). Vault-agnostic — useful in the workhub vault and any other vault. |
+| `persona` | Optional | project or user | Switchable response personas over a shared token-reduction engine. Bundled characters (`genshijin`, `noctis`, `lunafreya`) live in the plugin; user-defined ones live in `~/.claude/personas/` so they survive plugin updates. Three compression levels, persisted across sessions in `~/.claude/persona.json`. Character-agnostic subskills (commit, review, compress, stats, crew), three compressed-output subagents, and the `persona-shrink` MCP proxy. Derived from genshijin (MIT). No vault or project-context dependency — install at either scope. Do not enable alongside the standalone genshijin plugin; both inject per-turn style instructions. |
 | `stack-cloudflare` | Optional | project | Cloudflare (Workers, Pages, R2, D1) development helpers. |
 | `stack-dnd-kit` | Optional | project | dnd-kit drag-and-drop UI helpers. |
 | `stack-opencode` | Optional | project | OpenCode configuration and extension helpers. |
@@ -51,6 +52,10 @@ something this marketplace needs to maintain.
 
 `stack-*` plugins are toggled per vault/project depending on the tech stack of
 the active target repositories.
+
+Adding a persona character is a `persona` concern, not a marketplace one: `/persona-new <id>` writes to `~/.claude/personas/<id>/character.md`, outside the
+plugin directory, because plugins are unpacked per version and anything written
+inside `plugins/persona/characters/` would not carry across an update.
 
 ## Setup summary
 
