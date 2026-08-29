@@ -30,10 +30,15 @@
 //!
 //! - **Inside the listener thread** — re-register on the system events that
 //!   are known to break delivery (`WM_WTSSESSION_CHANGE`, `WM_DISPLAYCHANGE`,
-//!   `WM_INPUT_DEVICE_CHANGE`, `WM_POWERBROADCAST`), plus a watchdog timer
-//!   that re-registers (with a backoff) after a long stretch with no
-//!   `WM_INPUT` at all. This covers a registration that went stale while the
-//!   thread itself is healthy.
+//!   `WM_POWERBROADCAST`), plus a watchdog timer that re-registers (with a
+//!   backoff) after a long stretch with no `WM_INPUT` at all. This covers a
+//!   registration that went stale while the thread itself is healthy. Every
+//!   one of those re-registrations goes through a minimum interval
+//!   (`MIN_REREGISTER_INTERVAL_MS`), because a re-registration that can be
+//!   triggered by a message the re-registration itself produces is a message
+//!   storm that saturates this thread and stops every gesture dead — which
+//!   is exactly what `RIDEV_DEVNOTIFY` + `WM_INPUT_DEVICE_CHANGE` did in
+//!   0.85.0.
 //! - **Outside it** — a separate watchdog thread checks, periodically, that
 //!   the listener thread is still alive (`JoinHandle::is_finished`) and that
 //!   the keyboard usage is *actually* still registered against this
@@ -69,15 +74,14 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Input::{
     GetRawInputData, GetRegisteredRawInputDevices, RegisterRawInputDevices, HRAWINPUT, RAWINPUT,
-    RAWINPUTDEVICE, RAWINPUTHEADER, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT,
-    RIM_TYPEKEYBOARD,
+    RAWINPUTDEVICE, RAWINPUTHEADER, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
     GetMessageTime, GetMessageW, GetWindowThreadProcessId, KillTimer, PostMessageW,
     PostThreadMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DISPLAYCHANGE, WM_INPUT, WM_INPUT_DEVICE_CHANGE,
-    WM_POWERBROADCAST, WM_QUIT, WM_TIMER, WNDCLASSW,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DISPLAYCHANGE, WM_INPUT, WM_POWERBROADCAST, WM_QUIT,
+    WM_TIMER, WNDCLASSW,
 };
 
 /// `RAWKEYBOARD.Flags` bit: this is a key release (break), not a press.
@@ -105,6 +109,17 @@ const IDLE_BEFORE_REREGISTER_MS: u64 = 120_000;
 /// re-register every two minutes all night.
 const WATCHDOG_BACKOFF_BASE_MS: u64 = 60_000;
 const WATCHDOG_BACKOFF_MAX_MS: u64 = 900_000;
+
+/// Floor between two event-driven re-registrations. Re-registering is cheap,
+/// but it is not free of consequences: it can produce window messages of its
+/// own, and a handler that re-registers in response to such a message is a
+/// self-sustaining storm that saturates the listener thread and starves
+/// `WM_INPUT` (0.85.0's `RIDEV_DEVNOTIFY` + `WM_INPUT_DEVICE_CHANGE` pair did
+/// exactly that). The floor makes that failure mode structurally impossible
+/// for any future trigger, at the cost of collapsing a burst of genuine
+/// events into one re-registration — which is all a burst deserves anyway,
+/// since re-registering the same target is idempotent.
+const MIN_REREGISTER_INTERVAL_MS: u64 = 1_000;
 
 /// Poll period of the *external* watchdog (the one that can rebuild a dead
 /// listener). It only ever acts on an unambiguously dead state, so a slow
@@ -522,9 +537,18 @@ unsafe fn register_device(hwnd: HWND) -> Result<(), String> {
         usUsage: HID_USAGE_GENERIC_KEYBOARD,
         // INPUTSINK: deliver input to this window's queue even while some
         // other window (including our own webview) has focus.
-        // DEVNOTIFY: also deliver WM_INPUT_DEVICE_CHANGE, which is one of the
-        // moments worth re-registering on.
-        dwFlags: RIDEV_INPUTSINK | RIDEV_DEVNOTIFY,
+        //
+        // Deliberately *not* RIDEV_DEVNOTIFY. It exists to deliver
+        // `WM_INPUT_DEVICE_CHANGE`, and `RegisterRawInputDevices` answers
+        // every registration with one arrival notification per attached
+        // keyboard. Re-registering in response to those notifications (which
+        // 0.85.0 did) therefore feeds itself: each re-registration posts as
+        // many notifications as there are keyboards, the listener thread
+        // never drains its queue again, and `WM_INPUT` is starved from
+        // startup onwards. The registration is per usage page anyway, so it
+        // survives a keyboard being plugged in or pulled out and has nothing
+        // to gain from the notification.
+        dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
     RegisterRawInputDevices(&[device], std::mem::size_of::<RAWINPUTDEVICE>() as u32)
@@ -535,8 +559,11 @@ unsafe fn register_device(hwnd: HWND) -> Result<(), String> {
 /// recorded for the diagnostics UI; `watchdog` additionally widens the
 /// backoff so an idle machine stops retrying every couple of minutes.
 unsafe fn reregister(hwnd: HWND, reason: &str) {
-    let result = register_device(hwnd);
     let now = GetTickCount64();
+    if !reregister_allowed(now, lock(&HEALTH).last_reregister_at) {
+        return;
+    }
+    let result = register_device(hwnd);
     let mut health = lock(&HEALTH);
     health.last_reregister_at = now;
     health.last_reregister_reason = Some(reason.to_string());
@@ -553,6 +580,14 @@ unsafe fn reregister(hwnd: HWND, reason: &str) {
     if reason == WATCHDOG_REASON {
         health.watchdog_backoff_ms = next_backoff(health.watchdog_backoff_ms);
     }
+}
+
+/// Whether an event-driven re-registration may run now. Pure so the floor is
+/// unit-testable: the first one is always allowed, and after that they are at
+/// least `MIN_REREGISTER_INTERVAL_MS` apart.
+fn reregister_allowed(now_ms: u64, last_reregister_at: u64) -> bool {
+    last_reregister_at == 0
+        || now_ms.saturating_sub(last_reregister_at) >= MIN_REREGISTER_INTERVAL_MS
 }
 
 /// The `reason` recorded for a watchdog-driven re-registration. Also the flag
@@ -761,10 +796,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             reregister(hwnd, "display-change");
             LRESULT(0)
         }
-        WM_INPUT_DEVICE_CHANGE => {
-            reregister(hwnd, "device-change");
-            LRESULT(0)
-        }
         WM_POWERBROADCAST => {
             reregister(hwnd, "power-broadcast");
             LRESULT(1)
@@ -873,6 +904,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_first_reregistration_is_allowed_and_a_burst_collapses() {
+        // Nothing registered yet: the first attempt always runs.
+        assert!(reregister_allowed(5_000, 0));
+        // A storm of triggers arriving back to back (the shape that killed
+        // the listener in 0.85.0) collapses into one re-registration.
+        assert!(!reregister_allowed(5_000, 5_000));
+        assert!(!reregister_allowed(
+            5_000 + MIN_REREGISTER_INTERVAL_MS - 1,
+            5_000
+        ));
+        // Once the floor has elapsed, a genuine later event gets through.
+        assert!(reregister_allowed(
+            5_000 + MIN_REREGISTER_INTERVAL_MS,
+            5_000
+        ));
+    }
+
     fn device(
         us_usage_page: u16,
         usage: u16,
@@ -892,11 +941,11 @@ mod tests {
         let ours = device(
             HID_USAGE_PAGE_GENERIC,
             HID_USAGE_GENERIC_KEYBOARD,
-            RIDEV_INPUTSINK | RIDEV_DEVNOTIFY,
+            RIDEV_INPUTSINK,
             0x1000,
         );
         // tao's own mouse entry coexists in the same list.
-        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_DEVNOTIFY, 0x2000);
+        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_INPUTSINK, 0x2000);
         assert!(keyboard_registration_ok(&[mouse, ours], 0x1000));
     }
 
@@ -906,7 +955,7 @@ mod tests {
         let stolen = device(
             HID_USAGE_PAGE_GENERIC,
             HID_USAGE_GENERIC_KEYBOARD,
-            RIDEV_DEVNOTIFY,
+            RIDEV_INPUTSINK,
             0x2000,
         );
         assert!(!keyboard_registration_ok(&[stolen], 0x1000));
@@ -917,7 +966,7 @@ mod tests {
         let weak = device(
             HID_USAGE_PAGE_GENERIC,
             HID_USAGE_GENERIC_KEYBOARD,
-            RIDEV_DEVNOTIFY,
+            RAWINPUTDEVICE_FLAGS(0),
             0x1000,
         );
         // Without INPUTSINK the window only receives keys while it has focus,
@@ -927,7 +976,7 @@ mod tests {
 
     #[test]
     fn a_missing_keyboard_registration_is_rejected() {
-        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_DEVNOTIFY, 0x2000);
+        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_INPUTSINK, 0x2000);
         assert!(!keyboard_registration_ok(&[mouse], 0x1000));
         assert!(!keyboard_registration_ok(&[], 0x1000));
     }

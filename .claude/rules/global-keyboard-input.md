@@ -64,10 +64,28 @@ gesture recognizer, so check the listener first.
 all of it for free by registering a consumer:
 
 - **Re-register on the events that break delivery** — `WM_WTSSESSION_CHANGE`
-  (needs `WTSRegisterSessionNotification`), `WM_DISPLAYCHANGE`,
-  `WM_INPUT_DEVICE_CHANGE` (needs the `RIDEV_DEVNOTIFY` flag), and
+  (needs `WTSRegisterSessionNotification`), `WM_DISPLAYCHANGE` and
   `WM_POWERBROADCAST`. Re-registering the same `hwndTarget` is idempotent and
   cheap, so acting on a false positive costs nothing.
+- **Never re-register in response to a message that re-registering produces.**
+  `RegisterRawInputDevices` with `RIDEV_DEVNOTIFY` answers *every*
+  registration with one `WM_INPUT_DEVICE_CHANGE` arrival per attached
+  keyboard. 0.85.0 re-registered on that message, so each re-registration
+  posted two more of them: the listener thread never drained its queue again
+  and `WM_INPUT` was starved from startup onwards — both global gestures dead
+  in a freshly launched app, with the thread alive, the registration valid and
+  the diagnostics panel reporting perfect health. (Measured with a standalone
+  probe: with the pairing, the message pump never completes a single second;
+  without it, two arrival messages and silence.) The registration is per usage
+  page and survives a keyboard being plugged or unplugged, so it wants no
+  device notification at all — `rawkey.rs` registers with `RIDEV_INPUTSINK`
+  alone. Re-registration also runs behind a minimum interval
+  (`MIN_REREGISTER_INTERVAL_MS`) so no future trigger can rebuild the storm.
+- **A saturated listener thread looks exactly like a healthy one.** Liveness
+  checks (`JoinHandle::is_finished`, `GetRegisteredRawInputDevices`) all pass
+  while the thread spins on its own message flood, so no watchdog built on
+  them can see it. When gestures are dead but every health signal is green,
+  suspect the message loop's *throughput*, not its existence.
 - **Watch for silence** — a timer re-registers, with a doubling backoff, after
   a long stretch with no `WM_INPUT` at all. Silence is not proof of breakage
   (the user may be away), which is exactly why the response has to be a
