@@ -2,10 +2,10 @@
 //
 // It fills the task editor window (src/task-editor/, src-tauri/src/
 // task_editor.rs) rather than a dialog inside the board, so it lays itself out
-// against the window — `h-screen`, a header that drags the window, and a body
-// that hands its spare height to the Description/Plan/Results pane. Resizing
-// the window is therefore how the description is made bigger; there is no
-// full-screen toggle to do it with.
+// against the window — `h-screen`, a header that stands in for the window's
+// title bar, and a body that hands its spare height to the
+// Description/Plan/Results pane. Resizing the window is therefore how the
+// description is made bigger; there is no full-screen toggle to do it with.
 //
 // The component owns the draft and the autosave debounce; everything that
 // touches the vault or another process is a prop, so the window around it
@@ -46,12 +46,6 @@ import { PriorityBadge } from "@/components/priority-badge";
 import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
-
-/** True for the header's own buttons, which must keep their click and must
- *  not drag or maximize the window. */
-function isHeaderControl(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.closest("button") !== null;
-}
 
 /** The three views the shared pane switches between. */
 type PaneTab = "description" | "plan" | "results";
@@ -510,26 +504,18 @@ export function TaskEditorForm({
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       {/* The window is undecorated, so the header has to be its title bar:
-          drag to move, double-click to toggle maximize — what every other
-          window on the desktop does.
+          drag to move, double-click to toggle maximize.
 
-          Both go through the JS API rather than `data-tauri-drag-region`,
-          which only fires when the element directly under the cursor carries
-          the attribute, leaving the title and the gaps between buttons as dead
-          zones. Neither `start_dragging` nor `toggle_maximize` is part of
-          `core:default`, and an ACL rejection is silent, so the promises are
-          caught rather than discarded (see .claude/rules/
-          tauri-webview-gotchas.md). */}
+          `data-tauri-drag-region="deep"` gives both, for the whole subtree,
+          with the header's own buttons excluded automatically — Tauri's
+          injected handler treats BUTTON/A/INPUT/... as clickable and refuses
+          to drag from them. Doing it by hand does not work: `startDragging()`
+          hands the gesture to the OS on the first mousedown, so the mouseup
+          never reaches the webview and `dblclick` can never fire. Tauri's own
+          handler dodges that by branching on `e.detail === 2` inside
+          mousedown; reusing it beats reimplementing it. */}
       <header
-        onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          if (isHeaderControl(e.target)) return;
-          getCurrentWindow().startDragging().catch(console.error);
-        }}
-        onDoubleClick={(e) => {
-          if (isHeaderControl(e.target)) return;
-          getCurrentWindow().toggleMaximize().catch(console.error);
-        }}
+        data-tauri-drag-region="deep"
         className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
       >
         <span className="min-w-0 truncate text-sm font-medium">

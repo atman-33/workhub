@@ -11,28 +11,31 @@
 //! window is meant to sit open next to the board, and dismissing a form that
 //! is being typed into by a stray Esc is a hard mistake to undo.
 //!
-//! Three deliberate departures from the other helper windows, all for the
-//! same reason — this is a window the user parks on a second screen and works
-//! in, not a pop-up that appears at the cursor and disappears again:
+//! Two deliberate departures from the other helper windows, both because this
+//! is a window the user works in for a while rather than a pop-up that appears
+//! and disappears:
 //!
-//! - **Position is restored, not re-derived.** `window_place` explains why the
-//!   pop-ups only remember their size and always open at the cursor; here the
-//!   whole point is to reopen where it was left, so the saved position is
-//!   applied and then clamped back into a work area (a second screen that is
-//!   no longer attached would otherwise put it out of reach).
 //! - **Not always-on-top.** It stays open for long stretches, so floating over
 //!   every other app would make it a nuisance rather than a convenience.
 //! - **Not hidden from the taskbar.** On a multi-screen desk a window with no
 //!   taskbar entry is a window you cannot get back once something covers it.
 //!
-//! Being undecorated, the header has to re-supply what a real title bar does:
-//! dragging moves the window and double-clicking it toggles maximize (both in
-//! task-editor-form.tsx). Whether it was left maximized is remembered
-//! separately from its rect, so un-maximizing returns it to where it was.
+//! **Where it opens follows the house rule**, though: like every pop-up here it
+//! remembers only its size and opens at the cursor (`window_place` explains
+//! why — a window that reappears somewhere the user is not looking costs a
+//! search every time). Restoring the last position was tried and rejected: the
+//! editor is opened by clicking a card, so coming up on another screen meant
+//! hunting for it. Parking it on a second screen still works, by leaving it
+//! open — an already-visible window is never moved, only re-pointed at the
+//! task that was just clicked.
+//!
+//! Being undecorated, the header stands in for the title bar: dragging moves
+//! the window and double-clicking it toggles maximize, both from Tauri's
+//! `data-tauri-drag-region` (see task-editor-form.tsx). Whether it was left
+//! maximized *is* remembered, so it reopens the way it was closed.
 
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalSize, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 use crate::models::WindowRect;
@@ -96,36 +99,34 @@ pub fn open(app: &AppHandle, payload: serde_json::Value) -> tauri::Result<()> {
     let Some(win) = window(app) else {
         return Ok(());
     };
-    restore_rect(app, &win);
-    let _ = win.show();
+    // Only a window coming back from hidden gets placed. One that is already up
+    // is being used — parked on another screen, most likely — and moving it
+    // because a card was clicked would undo the user's own placement.
+    if !win.is_visible().unwrap_or(false) {
+        restore_geometry(app, &win);
+        let _ = win.show();
+    }
     let _ = win.unminimize();
     let _ = win.set_focus();
     app.emit_to(WINDOW_LABEL, "task-editor://open", payload)
 }
 
-/// Restore how the window was left: maximized, or at its saved position and
-/// size pulled back into a work area. The clamp is what makes an unplugged
-/// second screen recoverable — the saved coordinates then resolve to no
-/// monitor, `clamp_to_work_area` falls back to the primary one, and the window
-/// lands somewhere reachable.
-///
-/// The saved rect is applied even when reopening maximized, so un-maximizing
-/// drops the window back where it used to be rather than wherever Windows
-/// would guess.
-fn restore_rect(app: &AppHandle, win: &WebviewWindow) {
+/// Size the window from what was saved, put it where the user is looking, then
+/// re-maximize if that is how it was left. Order matters: `place_at_cursor`
+/// keeps the window inside a work area, which it can only do once the window is
+/// the size it is going to be.
+fn restore_geometry(app: &AppHandle, win: &WebviewWindow) {
     let settings = storage::load().settings;
-    let Some(rect) = settings.task_editor_rect else {
-        // Never positioned by the user yet: put it where they are looking.
-        crate::window_place::place_at_cursor(app, win);
-        return;
-    };
+    // Un-maximize first so the size below lands on the restored geometry —
+    // that is what the window drops back to when the user un-maximizes it.
     let _ = win.unmaximize();
-    let _ = win.set_size(LogicalSize::new(
-        rect.width.max(MIN_SIZE.0),
-        rect.height.max(MIN_SIZE.1),
-    ));
-    let _ = win.set_position(LogicalPosition::new(rect.x, rect.y));
-    crate::window_place::clamp_to_work_area(app, win);
+    if let Some(rect) = settings.task_editor_rect {
+        let _ = win.set_size(LogicalSize::new(
+            rect.width.max(MIN_SIZE.0),
+            rect.height.max(MIN_SIZE.1),
+        ));
+    }
+    crate::window_place::place_at_cursor(app, win);
     if settings.task_editor_maximized {
         let _ = win.maximize();
     }
@@ -139,9 +140,9 @@ pub fn hide(app: &AppHandle) {
     let mut cfg = storage::load();
     let mut dirty = cfg.settings.task_editor_maximized != maximized;
     cfg.settings.task_editor_maximized = maximized;
-    // A maximized window reports the maximized geometry, which is not a
-    // position to reopen at — keep the last restored rect so un-maximizing has
-    // somewhere to go back to.
+    // A maximized window reports the maximized size, which is not a size to
+    // reopen at — keep the last restored one so un-maximizing has somewhere to
+    // go back to.
     if !maximized {
         if let Some(rect) = current_rect(&win) {
             cfg.settings.task_editor_rect = Some(rect);
@@ -156,22 +157,25 @@ pub fn hide(app: &AppHandle) {
     let _ = win.hide();
 }
 
+/// The window's current size, as a `WindowRect` whose position is zeroed: only
+/// the size survives a close, so there is nothing to put in `x` and `y`.
+/// `WindowRect` is the shape every window's saved geometry uses, and the
+/// pop-ups that also discard their position store it the same way.
 fn current_rect(win: &WebviewWindow) -> Option<WindowRect> {
     let (pos, size, scale) = (
         win.outer_position().ok()?,
         win.inner_size().ok()?,
         win.scale_factor().ok()?,
     );
-    // A minimized window reports coordinates like (-32000, -32000); don't
-    // remember those or the next open would be off-screen.
+    // A minimized window reports coordinates like (-32000, -32000) and a zero
+    // size — nothing there is worth remembering.
     if pos.x <= -30000 || pos.y <= -30000 || size.width == 0 {
         return None;
     }
-    let pos = pos.to_logical::<f64>(scale);
     let size = size.to_logical::<f64>(scale);
     Some(WindowRect {
-        x: pos.x,
-        y: pos.y,
+        x: 0.0,
+        y: 0.0,
         width: size.width,
         height: size.height,
     })

@@ -115,10 +115,9 @@ pub struct Settings {
     /// the next open. Unset until first moved/closed.
     #[serde(default)]
     pub ink_preview_rect: Option<WindowRect>,
-    /// Last position *and* size of the task editor window (logical pixels),
-    /// restored on the next open. Unlike the pop-up helpers above, this window
-    /// is meant to live on a second screen, so where it was left is the point
-    /// (see task_editor.rs). Unset until first closed.
+    /// Last size of the task editor window (logical pixels), carried over to
+    /// the next open; the position is deliberately not kept (see
+    /// task_editor.rs). Unset until first closed.
     #[serde(default)]
     pub task_editor_rect: Option<WindowRect>,
     /// Whether the task editor window was maximized when it was last closed.
