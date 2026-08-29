@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **Vault template updates that cannot lose your work no longer ask** (T-0196).
+  Every app update used to open the template review dialog, even when the only
+  changes were files the vault was missing or files you had never touched —
+  and the answer was always the same "yes". Those two cases are now applied on
+  startup and reported in a dismissible note listing exactly what changed; a
+  file you edited yourself still raises the banner and still asks, so nothing
+  hand-written is ever replaced silently. **⚙ Settings → General → Apply safe
+  template updates without asking** turns the old per-file prompt back on.
+- **`CLAUDE.local.md` holds your own instructions for AI agents** (T-0196).
+  The vault's `CLAUDE.md` is managed by the app and re-applied on every
+  update, so custom instructions added to it turned into a conflict on each
+  release. New vaults get a `CLAUDE.local.md` beside it that the app seeds
+  once and never touches again; `CLAUDE.md` and `AGENTS.md` point agents at
+  it, and it takes precedence over both. A new vault rule also tells agents to
+  leave app-managed files alone and write standing instructions there instead.
+
 ## 0.86.0 (2026-08-29)
 
 - **The global gestures work again** (T-0198). 0.85.0 asked Windows to notify

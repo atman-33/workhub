@@ -23,6 +23,10 @@ export interface Settings {
   /** Check the vault template for updates against the current vault on
    * startup (T-0061). */
   check_template_updates: boolean;
+  /** Apply the vault template updates that cannot destroy user content
+   * (missing files, and files still identical to the last-applied baseline)
+   * without asking (T-0196). Conflicting files always keep asking. */
+  auto_apply_template_updates: boolean;
   /** Notify on startup when the long-term memory engine is not set up on
    * this machine (T-0060). The notice points at the memory-setup skill. */
   check_memory_setup: boolean;

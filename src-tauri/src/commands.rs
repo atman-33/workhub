@@ -885,6 +885,20 @@ pub async fn apply_vault_template(
     .map_err(|e| e.to_string())?
 }
 
+/// Applies only the template updates that cannot destroy user content —
+/// missing files (including seed-only ones the vault never received) and
+/// files whose vault copy still matches the last-applied baseline.
+/// Conflicting files are left for the update dialog. Returns the relative
+/// paths that were written.
+#[tauri::command]
+pub async fn apply_safe_template_updates(vault_path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::apply_safe_template_updates(&PathBuf::from(vault_path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Renders the unified diff between the vault's current copy of `path` and
 /// the embedded template's version, for previewing a template update (and in
 /// particular what an overwrite of a conflicting file would discard).

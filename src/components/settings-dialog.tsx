@@ -113,6 +113,7 @@ const DEFAULTS: Settings = {
   herdr_cmd: "herdr",
   check_updates: true,
   check_template_updates: true,
+  auto_apply_template_updates: true,
   check_memory_setup: true,
   memory_claude_code: true,
   memory_opencode: true,
@@ -370,6 +371,20 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   />
                   Check for vault template updates
                 </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.auto_apply_template_updates}
+                    disabled={!draft.check_template_updates}
+                    onCheckedChange={(v) =>
+                      setDraft({ ...draft, auto_apply_template_updates: v === true })
+                    }
+                  />
+                  Apply safe template updates without asking
+                </label>
+                <p className="pl-6 text-xs text-muted-foreground">
+                  New files and files you have not edited are updated silently. Files you
+                  edited yourself still ask before anything is changed.
+                </p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.check_memory_setup}

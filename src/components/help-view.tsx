@@ -78,6 +78,8 @@ const TEMPLATE_MD = `## Vault template updates
 The vault template (\`CLAUDE.md\`, skill configuration, and other shared files) can change between workhub versions. On startup, workhub compares the configured vault against the bundled template and, if anything differs, shows a banner.
 
 - Each file is one of: **added** (missing in the vault, will be created), **updatable** (you haven't edited it and the template changed — safe to overwrite), **conflict** (you edited it *and* the template changed), or up to date (no action).
+- **added** and **updatable** files are applied automatically on startup — neither can lose anything you wrote — and reported in a dismissible note listing what changed. Only **conflict** files raise the banner and ask. Turn this off in **⚙ Settings → General → Apply safe template updates without asking** to be asked about every file as before.
+- Keep your own standing instructions for AI agents in \`CLAUDE.local.md\` at the vault root rather than in \`CLAUDE.md\`. The app seeds it once and never updates it, so it never conflicts; \`CLAUDE.md\` points agents at it and it takes precedence.
 - A few files — such as \`.claude/project-context.json\`, \`.claude/settings.json\`, and the \`_index.md\` files kept up to date by \`/kb-index\` — are **seed files**: they're created once when missing and never compared or overwritten again, so this check never touches your registered repos or generated indexes.
 - Press **Review** on the banner to see the list and pick which files to update. **added** and **updatable** files are pre-checked; **conflict** files are left unchecked.
 - **Show diff** on any file renders the unified diff between your vault's copy and the incoming template content, so you can see exactly what an update would change before applying it.
@@ -638,6 +640,27 @@ export function HelpView() {
                 <span className="font-medium text-foreground">seed files</span>: they're
                 created once when missing and never compared or overwritten again, so this
                 check never touches your registered repos or generated indexes.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">added</span> and{" "}
+                <span className="font-medium text-foreground">updatable</span> files are
+                applied automatically on startup — neither can lose anything you wrote —
+                and reported in a dismissible note listing what changed. Only{" "}
+                <span className="font-medium text-foreground">conflict</span> files raise
+                the banner and ask. Turn this off in{" "}
+                <span className="font-medium">
+                  ⚙ Settings → General → Apply safe template updates without asking
+                </span>{" "}
+                to be asked about every file as before.
+              </li>
+              <li>
+                Keep your own standing instructions for AI agents in{" "}
+                <span className="font-mono text-xs">CLAUDE.local.md</span> at the vault
+                root rather than in{" "}
+                <span className="font-mono text-xs">CLAUDE.md</span>. The app seeds it
+                once and never updates it, so it never conflicts;{" "}
+                <span className="font-mono text-xs">CLAUDE.md</span> points agents at it
+                and it takes precedence.
               </li>
               <li>
                 Press <span className="font-medium">Review</span> on the banner to see
