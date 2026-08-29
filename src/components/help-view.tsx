@@ -163,7 +163,7 @@ const SCHEDULE_MD = `## Planning dates (Schedule)
 The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
 
 - A schedule lives inside a **vault project** — a folder under \`projects/\` in the vault (not one of the repositories registered on the Repos tab). Create one from the project dropdown's **New project…** entry; while the vault has no projects at all, the middle of the tab offers a **Create your first project** button instead. The folder is scaffolded from the bundled template (README, prd, roadmap, …).
-- A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **New** to create one, or open an existing note from the second dropdown. The pencil beside that dropdown renames the open schedule — the title and the file name move together. Copy the file in Obsidian to compare alternatives.
+- A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **+** to create one, or open an existing note from the second dropdown. The pencil beside it renames the open schedule — the title and the file name move together. Copy the file in Obsidian to compare alternatives.
 - **Calendar or Timeline** — the same note drawn two ways, switched in the toolbar. **Calendar** is the week grid below, for deciding days. **Timeline** is the long-range ("大日程") view: months across the top, phases as bands running left to right, milestones as diamonds — the shape you would draw on paper for a quarter or a year. Switching to Timeline widens a short range to about six months; **3m / 6m / 1y** set it directly. Elements are the same in both views, so a phase moved in one has moved in the other.
 - **Sprints on the timeline**: press **Sprints** (Timeline only) to number the header \`S1\`, \`S2\`, … Set the day sprint 1 starts and the length in weeks; boundaries appear as vertical lines. The cadence is stored in the note itself (\`sprint_start\` / \`sprint_weeks\` in its frontmatter), so two plans of the same project can compare different cadences. Sprints are only a reading of the calendar — they never move an element or round a date.
 - **On the timeline**, drag an element to move it and its edges to resize it, exactly as in the calendar; hold **Shift** while dragging to snap to whole weeks. Drag across empty chart to pick a period, then right-click to add an element or mark the day non-working. Tasks with a due date show as small dashed ticks under the axis (drag them on the calendar, where a day is wide enough to aim at).
@@ -177,13 +177,14 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **Non-working days** are shaded and carry a small **✕** next to the date, so they stay distinguishable from a selection. Toggle one from the day's right-click menu. Weekends come from the \`weekly:\` line in the note and cannot be toggled here — edit that line to change them. Clearing one day inside a multi-day entry (say a three-day leave) takes just that day back rather than cancelling the whole entry. Every bar shows the working days it actually covers.
 - **Notes are comments on a day**, like a cell comment in Excel: a small triangle in the day's corner, with the text on hover. Click the triangle to edit it.
 - **Any element can carry extra lines of text** — the **Details** box in the edit panel. A note shows them on hover; every other kind shows them in its tooltip. In the file they are indented lines under the element, so they stay readable in Obsidian and in a diff.
-- **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right, above the AI box — it never changes the panel's width on its own, so the calendar does not shift under your pointer. **Drag the divider** to give the calendar or the panel more room (the width lasts for the session), or hide the panel entirely with the panel button in the toolbar.
+- **Click an element** to edit its title, dates, color, and the task it links to. The editor opens in the side panel on the right — it never changes the panel's width on its own, so the calendar does not shift under your pointer. **Drag the divider** to give the calendar or the panel more room (the width lasts for the session), or hide the panel entirely with the panel button in the toolbar.
 - **Stacking order is the order of the lines in the note.** When several elements share a day or overlap, the one written first sits on top. **Right-click an element → Move up / Move down** (or **Alt** + **↑** / **↓** with it selected) swaps it with the nearest element it competes with, in the calendar and the timeline alike. Elements that never overlap cannot be swapped, since nothing on screen would change.
 - **Keyboard**: with an element selected, **←** / **→** move it a day, **Shift** + **←** / **→** stretch or shrink a bar or arrow, **Delete** removes it, **Esc** deselects. **Ctrl** + **Z** undoes the last change (drag, resize, create, delete) and **Ctrl** + **Shift** + **Z** redoes it.
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
-- **Edit with AI**: describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
+- **The trash button moves the note to \`_ai/memory/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
+- **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
 - **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)
@@ -1300,11 +1301,11 @@ export function HelpView() {
                 <span className="font-mono text-xs">
                   projects/&lt;project-slug&gt;/schedules/&lt;name&gt;.md
                 </span>
-                . Pick a project, then <span className="font-medium">New</span>{" "}
+                . Pick a project, then <span className="font-medium">+</span>{" "}
                 to create one, or open an existing note from the second
-                dropdown. The pencil beside that dropdown renames the open
-                schedule — the title and the file name move together. Copy the
-                file in Obsidian to compare alternatives.
+                dropdown. The pencil beside it renames the open schedule — the
+                title and the file name move together. Copy the file in Obsidian
+                to compare alternatives.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -1439,9 +1440,9 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Click</span> an
                 element to edit its title, dates, color, and the task it links
-                to. The editor opens in the side panel on the right, above the
-                AI box — it never changes the panel's width on its own, so the
-                calendar does not shift under your pointer.{" "}
+                to. The editor opens in the side panel on the right — it never
+                changes the panel's width on its own, so the calendar does not
+                shift under your pointer.{" "}
                 <span className="font-medium">Drag the divider</span> to give the
                 calendar or the panel more room (the width lasts for the
                 session), or hide the panel entirely with the panel button in
@@ -1491,11 +1492,23 @@ export function HelpView() {
                 footer, since a printed page has no hover.
               </li>
               <li>
+                <span className="font-medium text-foreground">
+                  The trash button moves the note to{" "}
+                  <span className="font-mono text-xs">
+                    _ai/memory/schedule-trash/
+                  </span>
+                </span>{" "}
+                rather than erasing it, so a mis-click costs a trip to the vault
+                folder and nothing else. It is unavailable while an AI edit is
+                running.
+              </li>
+              <li>
                 <span className="font-medium text-foreground">Edit with AI</span>:
-                describe the change in plain language and press{" "}
-                <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd>. The calendar is locked while
-                the agent works, and the undo button restores the note to how it
-                was just before the run. Choose the agent and model in{" "}
+                press the ✨ button to open the box, describe the change in plain
+                language and press <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd>. The calendar
+                is locked while the agent works, and the undo button restores the
+                note to how it was just before the run. Choose the agent and model
+                in{" "}
                 <span className="font-medium">⚙ Settings → Vault → Schedule</span>
                 .
               </li>
