@@ -157,14 +157,18 @@ renderChip();
 
 let toastTimer: number | undefined;
 
-function showToast(message: string, isError = false) {
+type ToastKind = "info" | "saving" | "ok" | "error";
+
+function showToast(message: string, kind: ToastKind = "info", ms = 2200) {
   toast.textContent = message;
-  toast.classList.toggle("error", isError);
+  toast.classList.toggle("error", kind === "error");
+  toast.classList.toggle("saving", kind === "saving");
+  toast.classList.toggle("ok", kind === "ok");
   toast.style.opacity = "1";
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     toast.style.opacity = "0";
-  }, 2200);
+  }, ms);
 }
 
 /**
@@ -174,17 +178,26 @@ function showToast(message: string, isError = false) {
  *
  * The chip is left out of the export: it marks the pen, not the annotation.
  */
+let saving = false;
+
 async function save() {
+  if (saving) return;
   if (strokes.length === 0 && !active) {
     showToast("Nothing drawn yet");
     return;
   }
+  saving = true;
+  // Instant feedback that the gesture registered; the compose+encode+copy can
+  // take a beat on a large monitor, and silence there reads as "did nothing".
+  showToast("Saving…", "saving", 30000);
   const data = canvas.toDataURL("image/png").split(",")[1] ?? "";
   try {
     const path = await invoke<string>("save_ink_capture", { base64Data: data });
-    showToast(`Saved ${path.split("/").pop() ?? path} — copied to clipboard`);
+    showToast(`Saved ${path.split("/").pop() ?? path} — copied to clipboard`, "ok", 3000);
   } catch (e) {
-    showToast(String(e), true);
+    showToast(String(e), "error", 4000);
+  } finally {
+    saving = false;
   }
 }
 
