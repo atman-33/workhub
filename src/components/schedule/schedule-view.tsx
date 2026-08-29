@@ -710,6 +710,66 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           </SelectContent>
         </Select>
 
+        {/* Create and rename sit next to the picker that names the note, in
+            the same order as the Mindmap tab: pick, add, rename. */}
+        <Popover open={creating} onOpenChange={setCreating}>
+          <Hint
+            label={
+              targetProject
+                ? `Create a schedule in ${targetProject}`
+                : "Pick a project, or open a schedule, first"
+            }
+            disabled={!targetProject}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                // A schedule belongs to exactly one project. Under "All
+                // projects" the dropdown names none, but an open note does —
+                // see `targetProject`.
+                disabled={!targetProject}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </PopoverTrigger>
+          </Hint>
+          <PopoverContent className="w-64 space-y-2 p-3 text-xs">
+            <div className="text-muted-foreground">
+              New schedule in <span className="text-foreground">{targetProject}</span>
+            </div>
+            <Input
+              value={newTitle}
+              placeholder="Schedule name"
+              className="h-8 text-xs"
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+            <Button
+              size="sm"
+              className="h-7 w-full text-xs"
+              disabled={!newTitle.trim()}
+              onClick={() => {
+                void (async () => {
+                  const win = window_ ?? defaultWindow();
+                  const created = await api.createSchedule(
+                    vaultPath,
+                    targetProject,
+                    newTitle.trim(),
+                    formatRange(win.start, win.end),
+                  );
+                  setNewTitle("");
+                  setCreating(false);
+                  await loadFiles();
+                  setPath(created.path);
+                })();
+              }}
+            >
+              Create
+            </Button>
+          </PopoverContent>
+        </Popover>
+
         {/* Renaming lives next to the picker that shows the name being
             changed. The note's title and its file name move together, so this
             is also how the file is renamed in the vault. */}
@@ -725,10 +785,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             disabled={!path || aiRunning}
           >
             <PopoverTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={!path || aiRunning}>
+              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!path || aiRunning}>
                 {/* While the agent holds the file, moving it would pull the file
                     out from under the run. */}
-                <Pencil className="size-3" />
+                <Pencil className="size-3.5" />
               </Button>
             </PopoverTrigger>
           </Hint>
@@ -871,26 +931,28 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => void loadDoc(path)}
-            disabled={!path}
-          >
-            <RefreshCw className="mr-1 size-3" />
-            Reload
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => void handleExport()}
-            disabled={!doc}
-          >
-            <Download className="mr-1 size-3" />
-            Export HTML
-          </Button>
+          <Hint label="Reload this schedule from disk" disabled={!path}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => void loadDoc(path)}
+              disabled={!path}
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Export a single-file HTML page" disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => void handleExport()}
+              disabled={!doc}
+            >
+              <Download className="size-3.5" />
+            </Button>
+          </Hint>
           <Hint label="Edit with AI" disabled={!doc}>
             <Button
               size="sm"
@@ -908,7 +970,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           >
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => {
                 if (sidebarCollapsed) sidebarPanel.current?.expand();
@@ -917,70 +979,12 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               disabled={!path}
             >
               {sidebarCollapsed ? (
-                <PanelRightOpen className="size-3" />
+                <PanelRightOpen className="size-3.5" />
               ) : (
-                <PanelRightClose className="size-3" />
+                <PanelRightClose className="size-3.5" />
               )}
             </Button>
           </Hint>
-          <Popover open={creating} onOpenChange={setCreating}>
-          <Hint
-            label={
-              targetProject
-                ? `Create a schedule in ${targetProject}`
-                : "Pick a project, or open a schedule, first"
-            }
-            disabled={!targetProject}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                // A schedule belongs to exactly one project. Under "All
-                // projects" the dropdown names none, but an open note does —
-                // see `targetProject`.
-                disabled={!targetProject}
-              >
-                <Plus className="mr-1 size-3" />
-                New
-              </Button>
-            </PopoverTrigger>
-          </Hint>
-            <PopoverContent className="w-64 space-y-2 p-3 text-xs">
-              <div className="text-muted-foreground">
-                New schedule in <span className="text-foreground">{targetProject}</span>
-              </div>
-              <Input
-                value={newTitle}
-                placeholder="Schedule name"
-                className="h-8 text-xs"
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
-              <Button
-                size="sm"
-                className="h-7 w-full text-xs"
-                disabled={!newTitle.trim()}
-                onClick={() => {
-                  void (async () => {
-                    const win = window_ ?? defaultWindow();
-                    const created = await api.createSchedule(
-                      vaultPath,
-                      targetProject,
-                      newTitle.trim(),
-                      formatRange(win.start, win.end),
-                    );
-                    setNewTitle("");
-                    setCreating(false);
-                    await loadFiles();
-                    setPath(created.path);
-                  })();
-                }}
-              >
-                Create
-              </Button>
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
 
