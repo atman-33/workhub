@@ -11,7 +11,11 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
+import { usePanelRef } from "react-resizable-panels";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
@@ -150,16 +154,19 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [mode, setMode] = useState<ViewMode>("calendar");
   // Session-only: the calendar reads better at full width when reviewing or
   // before an export, but that is a preference for a moment, not for a
   // machine, so it is deliberately not persisted to settings.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Width of the right column, in percent, kept here rather than left to the
-  // panel group: hiding the sidebar unmounts its panel, and without a
-  // remembered size every collapse/expand round trip would snap it back to the
-  // default. Session-only for the same reason as the collapse flag.
-  const [sidebarSize, setSidebarSize] = useState(SIDEBAR_DEFAULT_PCT);
+  // The side panel stays mounted and is collapsed through the panel group's own
+  // API, which remembers the width it was dragged to across a collapse/expand
+  // round trip — so no width has to be tracked here.
+  const sidebarPanel = usePanelRef();
+  // Whether the AI instruction panel is open. Closed by default, opened from
+  // the toolbar, the same as the Mindmap tab's panel.
+  const [aiOpen, setAiOpen] = useState(false);
   // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
   // "that drag went somewhere I didn't mean", not for history — the file's git
   // backup and the AI-edit snapshot cover the durable cases.
@@ -483,6 +490,30 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
     }
   }, [renameTitle, vaultPath, path, flushSave, loadFiles, loadDoc]);
 
+  /**
+   * Moves the open note to the vault's trash folder and clears the selection.
+   *
+   * A pending debounced write is dropped rather than flushed: the file is on
+   * its way out, and writing to the path first would only race the move.
+   */
+  const handleDelete = useCallback(async () => {
+    if (!vaultPath || !path) return;
+    setDeleteOpen(false);
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    try {
+      const moved = await api.deleteSchedule(vaultPath, path);
+      setPath("");
+      setSelectedId(null);
+      await loadFiles();
+      setStatus(`Moved to ${moved}`);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [vaultPath, path, loadFiles]);
+
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
     const dir =
@@ -706,6 +737,66 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           </SelectContent>
         </Select>
 
+        {/* Create and rename sit next to the picker that names the note, in
+            the same order as the Mindmap tab: pick, add, rename. */}
+        <Popover open={creating} onOpenChange={setCreating}>
+          <Hint
+            label={
+              targetProject
+                ? `Create a schedule in ${targetProject}`
+                : "Pick a project, or open a schedule, first"
+            }
+            disabled={!targetProject}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                // A schedule belongs to exactly one project. Under "All
+                // projects" the dropdown names none, but an open note does —
+                // see `targetProject`.
+                disabled={!targetProject}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </PopoverTrigger>
+          </Hint>
+          <PopoverContent className="w-64 space-y-2 p-3 text-xs">
+            <div className="text-muted-foreground">
+              New schedule in <span className="text-foreground">{targetProject}</span>
+            </div>
+            <Input
+              value={newTitle}
+              placeholder="Schedule name"
+              className="h-8 text-xs"
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+            <Button
+              size="sm"
+              className="h-7 w-full text-xs"
+              disabled={!newTitle.trim()}
+              onClick={() => {
+                void (async () => {
+                  const win = window_ ?? defaultWindow();
+                  const created = await api.createSchedule(
+                    vaultPath,
+                    targetProject,
+                    newTitle.trim(),
+                    formatRange(win.start, win.end),
+                  );
+                  setNewTitle("");
+                  setCreating(false);
+                  await loadFiles();
+                  setPath(created.path);
+                })();
+              }}
+            >
+              Create
+            </Button>
+          </PopoverContent>
+        </Popover>
+
         {/* Renaming lives next to the picker that shows the name being
             changed. The note's title and its file name move together, so this
             is also how the file is renamed in the vault. */}
@@ -721,10 +812,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             disabled={!path || aiRunning}
           >
             <PopoverTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={!path || aiRunning}>
+              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!path || aiRunning}>
                 {/* While the agent holds the file, moving it would pull the file
                     out from under the run. */}
-                <Pencil className="size-3" />
+                <Pencil className="size-3.5" />
               </Button>
             </PopoverTrigger>
           </Hint>
@@ -867,102 +958,78 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => void loadDoc(path)}
-            disabled={!path}
-          >
-            <RefreshCw className="mr-1 size-3" />
-            Reload
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => void handleExport()}
-            disabled={!doc}
-          >
-            <Download className="mr-1 size-3" />
-            Export HTML
-          </Button>
+          <Hint label="Reload this schedule from disk" disabled={!path}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => void loadDoc(path)}
+              disabled={!path}
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Export a single-file HTML page" disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => void handleExport()}
+              disabled={!doc}
+            >
+              <Download className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Edit with AI" disabled={!doc}>
+            <Button
+              size="sm"
+              variant={aiOpen ? "secondary" : "outline"}
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={() => setAiOpen((v) => !v)}
+            >
+              <Sparkles className="size-3.5" />
+            </Button>
+          </Hint>
           <Hint
             label={sidebarCollapsed ? "Show the side panel" : "Hide the side panel"}
             disabled={!path}
           >
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
-              onClick={() => setSidebarCollapsed((v) => !v)}
+              onClick={() => {
+                if (sidebarCollapsed) sidebarPanel.current?.expand();
+                else sidebarPanel.current?.collapse();
+              }}
               disabled={!path}
             >
               {sidebarCollapsed ? (
-                <PanelRightOpen className="size-3" />
+                <PanelRightOpen className="size-3.5" />
               ) : (
-                <PanelRightClose className="size-3" />
+                <PanelRightClose className="size-3.5" />
               )}
             </Button>
           </Hint>
-          <Popover open={creating} onOpenChange={setCreating}>
           <Hint
             label={
-              targetProject
-                ? `Create a schedule in ${targetProject}`
-                : "Pick a project, or open a schedule, first"
+              aiRunning ? "An AI edit is running" : "Move this schedule to the trash"
             }
-            disabled={!targetProject}
+            disabled={!path || aiRunning}
           >
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                // A schedule belongs to exactly one project. Under "All
-                // projects" the dropdown names none, but an open note does —
-                // see `targetProject`.
-                disabled={!targetProject}
-              >
-                <Plus className="mr-1 size-3" />
-                New
-              </Button>
-            </PopoverTrigger>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              // While the agent holds the file, moving it would pull the file
+              // out from under the run — the same guard the rename carries.
+              disabled={!path || aiRunning}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
           </Hint>
-            <PopoverContent className="w-64 space-y-2 p-3 text-xs">
-              <div className="text-muted-foreground">
-                New schedule in <span className="text-foreground">{targetProject}</span>
-              </div>
-              <Input
-                value={newTitle}
-                placeholder="Schedule name"
-                className="h-8 text-xs"
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
-              <Button
-                size="sm"
-                className="h-7 w-full text-xs"
-                disabled={!newTitle.trim()}
-                onClick={() => {
-                  void (async () => {
-                    const win = window_ ?? defaultWindow();
-                    const created = await api.createSchedule(
-                      vaultPath,
-                      targetProject,
-                      newTitle.trim(),
-                      formatRange(win.start, win.end),
-                    );
-                    setNewTitle("");
-                    setCreating(false);
-                    await loadFiles();
-                    setPath(created.path);
-                  })();
-                }}
-              >
-                Create
-              </Button>
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
 
@@ -972,14 +1039,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         </div>
       )}
 
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        onLayoutChanged={(layout) => {
-          const size = layout.sidebar;
-          if (typeof size === "number") setSidebarSize(size);
-        }}
-      >
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel id="calendar" minSize="40%" className="min-h-0 min-w-0">
           <div ref={scrollRef} className="h-full overflow-y-auto">
             {doc && window_ && mode === "timeline" ? (
@@ -1096,51 +1156,63 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             Dragging the divider is a different thing from that: the width
             changes because the user asked it to, at the moment they asked, so
             the elements moving with it reads as the resize working rather than
-            as the calendar running away. */}
-        {path && !sidebarCollapsed && (
-          <>
-            <ResizableHandle />
-            <ResizablePanel
-              id="sidebar"
-              defaultSize={`${sidebarSize}%`}
-              minSize="15%"
-              maxSize="45%"
-              className="min-h-0 min-w-0"
-            >
-              <aside className="flex h-full flex-col overflow-y-auto">
-                {selected && doc && (
-                  <ItemEditor
-                    item={selected}
-                    tasks={projectTasks}
-                    onChange={(next) => patchItem(next.id, () => next)}
-                    onDelete={() => {
-                      mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
-                      setSelectedId(null);
-                    }}
-                    onClose={() => setSelectedId(null)}
-                  />
-                )}
-                {aiRun && (
-                  <ScheduleAiPanel
-                    run={aiRun}
-                    defaultConfirm={config?.settings.schedule_confirm ?? false}
-                    onRun={(instruction, confirm) => {
-                      void api
-                        .runScheduleEdit(path, instruction, confirm)
-                        .catch((e) => setStatus(String(e)));
-                    }}
-                    onUndo={() => {
-                      void api
-                        .restoreScheduleSnapshot(path)
-                        .then(() => loadDoc(path))
-                        .catch((e) => setStatus(String(e)));
-                    }}
-                  />
-                )}
-              </aside>
-            </ResizablePanel>
-          </>
-        )}
+            as the calendar running away.
+
+            It also stays mounted while hidden: `react-resizable-panels`
+            recomputes its layout when the number of panels changes, so taking
+            this one away to hide it risks collapsing the calendar beside it —
+            the same trap the Mindmap tab hit in the T-0188 follow-up. Hiding
+            it is the panel group's own collapse instead. */}
+        <ResizableHandle />
+        <ResizablePanel
+          id="sidebar"
+          panelRef={sidebarPanel}
+          defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
+          minSize="15%"
+          maxSize="45%"
+          collapsible
+          collapsedSize={0}
+          onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
+          className="min-h-0 min-w-0"
+        >
+          <aside className="flex h-full flex-col overflow-y-auto">
+            {selected && doc && (
+              <ItemEditor
+                item={selected}
+                tasks={projectTasks}
+                onChange={(next) => patchItem(next.id, () => next)}
+                onDelete={() => {
+                  mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
+                  setSelectedId(null);
+                }}
+                onClose={() => setSelectedId(null)}
+              />
+            )}
+            {doc && !selected && !aiOpen && (
+              <p className="p-3 text-xs text-muted-foreground">
+                Pick an element to edit it, or open Edit with AI.
+              </p>
+            )}
+            {aiOpen && aiRun && (
+              <ScheduleAiPanel
+                run={aiRun}
+                defaultConfirm={config?.settings.schedule_confirm ?? false}
+                disabled={!path}
+                onRun={(instruction, confirm) => {
+                  void api
+                    .runScheduleEdit(path, instruction, confirm)
+                    .catch((e) => setStatus(String(e)));
+                }}
+                onUndo={() => {
+                  void api
+                    .restoreScheduleSnapshot(path)
+                    .then(() => loadDoc(path))
+                    .catch((e) => setStatus(String(e)));
+                }}
+              />
+            )}
+          </aside>
+        </ResizablePanel>
       </ResizablePanelGroup>
 
       <ProjectCreateDialog
@@ -1151,6 +1223,16 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           void loadProjects();
           setProject(slug);
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Move this schedule to the trash?"
+        description={`"${files.find((f) => f.path === path)?.title ?? ""}" is moved to _ai/memory/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
+        confirmLabel="Move to trash"
+        destructive
+        onConfirm={() => void handleDelete()}
+        onClose={() => setDeleteOpen(false)}
       />
     </div>
   );
