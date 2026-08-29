@@ -115,6 +115,12 @@ pub struct Settings {
     /// the next open. Unset until first moved/closed.
     #[serde(default)]
     pub ink_preview_rect: Option<WindowRect>,
+    /// Last position *and* size of the task editor window (logical pixels),
+    /// restored on the next open. Unlike the pop-up helpers above, this window
+    /// is meant to live on a second screen, so where it was left is the point
+    /// (see task_editor.rs). Unset until first closed.
+    #[serde(default)]
+    pub task_editor_rect: Option<WindowRect>,
     /// Voice input: global hotkey toggles local speech-to-text dictation,
     /// pasted into whatever app has focus.
     #[serde(default = "default_true")]
@@ -371,6 +377,7 @@ impl Default for Settings {
             quick_capture_shortcut: default_quick_capture_shortcut(),
             quick_capture_rect: None,
             ink_preview_rect: None,
+            task_editor_rect: None,
             voice_enabled: true,
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),

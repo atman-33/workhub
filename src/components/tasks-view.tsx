@@ -16,7 +16,6 @@ import {
 import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { RecurringDialog } from "@/components/recurring-dialog";
-import { TaskDialog, type TaskDraft } from "@/components/task-dialog";
 import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
@@ -36,9 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import {
+  copyTaskPrompt as copyPromptForTask,
+  launchAgentForTask,
+  sendTaskToClaudeDesktop as sendToClaudeDesktop,
+} from "@/lib/task-actions";
+import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
-import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import { cn } from "@/lib/utils";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
 
@@ -46,7 +50,6 @@ import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, Up
 const TERMINAL_PANEL_SIZE = 35;
 
 type ViewMode = "list" | "kanban";
-type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
 
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
@@ -79,7 +82,6 @@ export function TasksView({
   /** "" = any, "blocked" = only waiting tasks, "unblocked" = what's actionable. */
   const [blockedFilter, setBlockedFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [dialog, setDialog] = useState<DialogState>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   /** Task whose blocked reason is being edited in the one-field dialog. */
@@ -288,63 +290,36 @@ export function TasksView({
     [scoped],
   );
 
+  // In embedded mode the panel (which starts the herdr client) has to be up
+  // before Rust launches — Rust polls briefly for the server to come up instead
+  // of spawning an external `wt` window (see herdr::ensure_server).
+  const prepareTerminalForLaunch = useCallback(() => {
+    if (config?.settings.terminal_embed && config.settings.use_herdr) {
+      openTerminalPanel();
+    }
+  }, [config, openTerminalPanel]);
+
   // Returns the launch promise so callers (the animated LaunchAgentButton) can
   // sync their feedback to it; still surfaces the outcome in the status bar.
   const launchAgent = useCallback(
     async (task: Task) => {
       if (!config) return;
-      const agentCmd =
-        task.assignee === "opencode" ? config.settings.opencode_cmd : config.settings.agent_cmd;
-      // In embedded mode, open the panel (which starts the herdr client) before
-      // asking Rust to launch — Rust polls briefly for the server to come up
-      // instead of spawning an external `wt` window (see herdr::ensure_server).
-      if (config.settings.terminal_embed && config.settings.use_herdr) {
-        openTerminalPanel();
-      }
+      prepareTerminalForLaunch();
       try {
-        const message = await api.launchAgentForTask(
-          agentCmd,
-          task.assignee,
-          task.id,
-          task.title,
-          task.file,
-          task.project,
-          task.model,
-          task.confirm,
-          task.worktree,
-          config.settings.vault_path ?? "",
-          config.settings.use_herdr,
-          config.settings.herdr_cmd,
-          config.settings.terminal_embed,
-          config.settings.task_language,
-          config.settings.custom_prompt,
-        );
-        setStatus(message);
+        setStatus(await launchAgentForTask(config, task));
       } catch (e) {
         setStatus(`Agent launch failed — ${e}`);
         throw e;
       }
     },
-    [config, openTerminalPanel],
+    [config, prepareTerminalForLaunch],
   );
 
   const copyTaskPrompt = useCallback(
     async (task: Task) => {
       if (!config) return;
       try {
-        await api.copyTaskPrompt(
-          task.assignee,
-          task.id,
-          task.title,
-          task.file,
-          task.project,
-          task.model,
-          task.confirm,
-          task.worktree,
-          config.settings.vault_path ?? "",
-          config.settings.task_language,
-          config.settings.custom_prompt,
-        );
+        await copyPromptForTask(config, task);
         setStatus(`Copied prompt for ${task.id}`);
       } catch (e) {
         setStatus(`Copy prompt failed — ${e}`);
@@ -358,24 +333,7 @@ export function TasksView({
     async (task: Task) => {
       if (!config) return;
       try {
-        const message = await api.sendTaskToClaudeDesktop(
-          task.assignee,
-          task.id,
-          task.title,
-          task.file,
-          task.project,
-          task.model,
-          task.confirm,
-          task.worktree,
-          config.settings.vault_path ?? "",
-          config.settings.task_language,
-          config.settings.custom_prompt,
-          config.settings.claude_desktop_mode,
-          // Only chat mode uses the Description; parsing it here keeps the
-          // command free of the task body's Plan/Results sections.
-          parseBody(task.body).content,
-        );
-        setStatus(message);
+        setStatus(await sendToClaudeDesktop(config, task));
       } catch (e) {
         setStatus(`Send to Claude Desktop failed — ${e}`);
         throw e;
@@ -383,6 +341,15 @@ export function TasksView({
     },
     [config],
   );
+
+  // The editor runs in its own window, so an agent launched from there cannot
+  // open the terminal panel itself — it asks for it here instead.
+  useEffect(() => {
+    const unlisten = listen(TASK_EDITOR_TERMINAL_PANEL_EVENT, () => prepareTerminalForLaunch());
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [prepareTerminalForLaunch]);
 
   // Jump straight to the task file in Obsidian from a card/row, without
   // opening the edit dialog. Errors land in the status bar; rethrown so the
@@ -470,80 +437,17 @@ export function TasksView({
     }
   }, [vaultPath, deleteTarget, refreshTasks]);
 
-  // Returns the created task so the dialog can chain follow-up actions
-  // (e.g. opening the new file in Obsidian); null when creation failed.
-  const createTask = useCallback(
-    async (draft: TaskDraft): Promise<Task | null> => {
-      if (!vaultPath) return null;
-      const tags = draft.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      const body = draft.content.trim()
-        ? buildBody(parseBody(DEFAULT_BODY), draft.content)
-        : undefined;
-      try {
-        const created = await api.createTask(vaultPath, {
-          title: draft.title,
-          status: draft.status,
-          assignee: draft.assignee,
-          project: draft.project,
-          priority: draft.priority,
-          model: draft.model.trim(),
-          confirm: draft.confirm,
-          worktree: draft.worktree,
-          blocked: draft.blocked,
-          blockedNote: draft.blockedNote,
-          blockedSince: draft.blockedSince,
-          due: draft.due,
-          tags,
-          body,
-        });
-        refreshTasks(vaultPath);
-        return created;
-      } catch (e) {
-        setStatus(`Create failed — ${e}`);
-        return null;
-      }
+  // Opening a task hands the whole form off to the editor window: it owns
+  // the draft, the autosave and the create call from here on. Nothing comes
+  // back — the vault watcher's `tasks-changed` refreshes the board when the
+  // editor writes (see tasks.rs::start_watcher).
+  const openEditor = useCallback(
+    (mode: "create" | "edit", task: Task | null) => {
+      void api.openTaskEditor({ mode, task, knownProjects }).catch((e) => {
+        setStatus(`Could not open the task editor — ${e}`);
+      });
     },
-    [vaultPath, refreshTasks],
-  );
-
-  const editingTask = dialog?.mode === "edit" ? dialog.task : null;
-
-  const autoSaveTask = useCallback(
-    async (draft: TaskDraft) => {
-      if (!vaultPath || !editingTask) return;
-      const tags = draft.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      try {
-        const parsed = parseBody(editingTask.body);
-        const bodyChanged = draft.content !== parsed.content;
-        await api.updateTask(vaultPath, {
-          id: editingTask.id,
-          title: draft.title,
-          status: draft.status,
-          assignee: draft.assignee,
-          project: draft.project,
-          priority: draft.priority,
-          model: draft.model.trim(),
-          confirm: draft.confirm,
-          worktree: draft.worktree,
-          blocked: draft.blocked,
-          blockedNote: draft.blockedNote,
-          blockedSince: draft.blockedSince,
-          due: draft.due,
-          tags,
-          body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
-        });
-        refreshTasks(vaultPath);
-      } catch (e) {
-        setStatus(`Auto-save failed — ${e}`);
-      }
-    },
-    [vaultPath, editingTask, refreshTasks],
+    [knownProjects],
   );
 
   if (!config || vaultExists === null) return null;
@@ -573,7 +477,7 @@ export function TasksView({
     <div className="flex h-full flex-col">
       {/* toolbar */}
       <div className="flex items-center gap-2 overflow-x-auto border-b px-4 py-2">
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setDialog({ mode: "create" })}>
+        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => openEditor("create", null)}>
           <Plus className="size-3.5" /> New task
         </Button>
         <Button
@@ -751,7 +655,7 @@ export function TasksView({
             viewMode === "list" ? (
               <TaskList
                 tasks={visible}
-                onOpen={(task) => setDialog({ mode: "edit", task })}
+                onOpen={(task) => openEditor("edit", task)}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
                 onSendToClaudeDesktop={sendTaskToClaudeDesktop}
@@ -766,7 +670,7 @@ export function TasksView({
             ) : (
               <TaskKanban
                 tasks={visible}
-                onOpen={(task) => setDialog({ mode: "edit", task })}
+                onOpen={(task) => openEditor("edit", task)}
                 onMove={(updates) => void applyUpdates(updates)}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
@@ -867,20 +771,6 @@ export function TasksView({
         confirmLabel="Archive"
         onConfirm={confirmArchiveDone}
         onClose={() => setArchiveDoneOpen(false)}
-      />
-
-      <TaskDialog
-        open={dialog !== null}
-        mode={dialog?.mode ?? "create"}
-        task={editingTask}
-        knownProjects={knownProjects}
-        onClose={() => setDialog(null)}
-        onCreate={dialog?.mode === "create" ? createTask : undefined}
-        onAutoSave={dialog?.mode === "edit" ? (draft) => autoSaveTask(draft) : undefined}
-        onLaunchAgent={dialog?.mode === "edit" ? launchAgent : undefined}
-        onCopyTaskPrompt={dialog?.mode === "edit" ? copyTaskPrompt : undefined}
-        onSendToClaudeDesktop={dialog?.mode === "edit" ? sendTaskToClaudeDesktop : undefined}
-        claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
       />
 
       <RecurringDialog

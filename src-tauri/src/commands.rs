@@ -477,6 +477,40 @@ pub fn ink_preview_hide(app: tauri::AppHandle) {
     crate::ink_preview::hide(&app);
 }
 
+/// Opens the task editor window on `payload` (the form's whole input; see
+/// task_editor::open for why it is passed through opaquely).
+#[tauri::command]
+pub fn open_task_editor(app: tauri::AppHandle, payload: serde_json::Value) -> Result<(), String> {
+    crate::task_editor::open(&app, payload).map_err(|e| e.to_string())
+}
+
+/// Hides the task editor window — its ✕ lands here.
+#[tauri::command]
+pub fn task_editor_hide(app: tauri::AppHandle) {
+    crate::task_editor::hide(&app);
+}
+
+/// Asks the board to open the embedded terminal panel, because the editor
+/// window is about to launch an agent into it. Emitted from Rust rather than
+/// with the frontend's `emit` so it needs no extra ACL grant, like every other
+/// cross-window event here. The name is the bridge module's
+/// `TASK_EDITOR_TERMINAL_PANEL_EVENT`.
+#[tauri::command]
+pub fn task_editor_request_terminal_panel(app: tauri::AppHandle) {
+    let _ = app.emit_to("main", "task-editor://open-terminal-panel", ());
+}
+
+/// Brings the main window to the front. Used after the editor window starts an
+/// agent: the terminal panel the agent runs in lives in the main window, so
+/// leaving the board behind the editor would hide the thing just launched.
+#[tauri::command]
+pub fn focus_main_window(app: tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
+}
+
 #[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()

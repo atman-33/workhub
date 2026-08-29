@@ -20,6 +20,7 @@ mod schedule;
 mod schedule_edit;
 mod storage;
 mod stt;
+mod task_editor;
 mod tasks;
 mod terminal;
 mod tidy;
@@ -124,6 +125,11 @@ pub fn run() {
             if let Err(e) = ink_preview::create_window(app.handle()) {
                 eprintln!("ink-preview: failed to create window: {e}");
             }
+            // Same rationale: the task editor is built hidden up front so
+            // opening a task from the board is a show, not a build.
+            if let Err(e) = task_editor::create_window(app.handle()) {
+                eprintln!("task-editor: failed to create window: {e}");
+            }
             // Same rationale: build the (hidden) voice indicator window up
             // front so the hotkey handler only ever shows/hides it.
             if let Err(e) = voice::create_window(app.handle()) {
@@ -180,6 +186,10 @@ pub fn run() {
             commands::delete_ink_capture,
             commands::open_ink_preview,
             commands::ink_preview_hide,
+            commands::open_task_editor,
+            commands::task_editor_hide,
+            commands::task_editor_request_terminal_panel,
+            commands::focus_main_window,
             commands::input_listener_diagnostics,
             commands::restart_input_listener,
             commands::check_update,
