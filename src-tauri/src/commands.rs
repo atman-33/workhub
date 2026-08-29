@@ -14,7 +14,7 @@ use crate::vault_project;
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[tauri::command]
@@ -395,11 +395,23 @@ pub fn ink_capture_dir() -> String {
     ink_dir().to_string_lossy().replace('\\', "/")
 }
 
+/// Tells the main window that the captures folder changed, so the Ink tab
+/// refreshes its list without a manual pass. An Alt+C save happens in the
+/// overlay, far from the tab that displays the result — without this the
+/// list only caught up after a refresh click or a tab switch.
+fn notify_captures_changed(app: &tauri::AppHandle) {
+    let _ = app.emit_to("main", "ink://captures-changed", ());
+}
+
 /// Composes the overlay's strokes (base64 PNG, transparent) onto the screen
 /// grab taken when drawing started, saves it, and copies it to the clipboard.
 #[tauri::command]
 pub fn save_ink_capture(app: tauri::AppHandle, base64_data: String) -> Result<String, String> {
-    crate::ink::store::save_capture(&app, &ink_dir(), &base64_data)
+    let result = crate::ink::store::save_capture(&app, &ink_dir(), &base64_data);
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
 }
 
 /// Saves a cropped region of an existing capture beside it, and copies it.
@@ -409,7 +421,11 @@ pub fn save_ink_crop(
     source_path: String,
     base64_data: String,
 ) -> Result<String, String> {
-    crate::ink::store::save_crop(&app, &PathBuf::from(source_path), &base64_data)
+    let result = crate::ink::store::save_crop(&app, &PathBuf::from(source_path), &base64_data);
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
 }
 
 #[tauri::command]
@@ -441,8 +457,12 @@ pub fn copy_ink_png(app: tauri::AppHandle, base64_data: String) -> Result<(), St
 
 /// Sends a capture to the recycle bin, so a mis-click is recoverable.
 #[tauri::command]
-pub fn delete_ink_capture(path: String) -> Result<(), String> {
-    crate::ink::store::delete(&PathBuf::from(path))
+pub fn delete_ink_capture(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let result = crate::ink::store::delete(&PathBuf::from(path));
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
 }
 
 #[tauri::command]

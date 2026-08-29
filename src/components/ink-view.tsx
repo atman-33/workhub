@@ -8,6 +8,7 @@
 // shared input-listener panel stays in Settings — it belongs to the keyboard
 // listener that Clips uses too, not to this feature.
 import { useCallback, useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { Copy, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { InkCaptureDialog } from "@/components/ink-capture-dialog";
@@ -116,6 +117,16 @@ export function InkView({ configVersion }: { configVersion: number }) {
       await refresh();
     })();
   }, [configVersion, refresh]);
+
+  // Captures change outside this window — Alt+C saves in the overlay, crops
+  // and their saves in the preview window — and the backend announces every
+  // change, so the list follows along instead of waiting for a manual refresh.
+  useEffect(() => {
+    const unlisten = listen("ink://captures-changed", () => void refresh());
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [refresh]);
 
   /** Feature settings save immediately — there is nothing to review. */
   const patchSettings = useCallback(
