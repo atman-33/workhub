@@ -94,7 +94,7 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 - Release **Alt** to clear the strokes.
 - The gesture is a *bare* double press: an **Alt** that carries a shortcut (**Alt** + **Tab** and friends) or that is held down does not count as the first press.
 - It cannot fire while a window running **as administrator** is in the foreground — Windows withholds keyboard input from a normal-privilege app there. Click a normal window first.
-- **If the gesture stops responding**, open **⚙ Settings → General → Input listener**: it shows whether keystrokes are still reaching workhub and offers **Restart listener**. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. workhub recovers from those on its own; the button is for the cases it misses, so restarting the whole app is not necessary.
+- **If the gesture stops responding**, open **⚙ Settings → General → Input listener**: it shows whether keystrokes are still reaching workhub and offers **Restart listener**. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. A watchdog recovers from those on its own — it even rebuilds a dead listener automatically, and the panel's **Auto rebuilds** count shows when it did. The button is for the cases it misses, so restarting the whole app is not necessary.
 - Can be disabled in **⚙ Settings**.`;
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
@@ -928,9 +928,11 @@ export function HelpView() {
                 offers <span className="font-medium">Restart listener</span>.
                 Locking the session, reconnecting over remote desktop, or
                 changing displays can stop Windows from delivering keys to the
-                app. workhub recovers from those on its own; the button is for
-                the cases it misses, so restarting the whole app is not
-                necessary.
+                app. A watchdog recovers from those on its own — it even
+                rebuilds a dead listener automatically, and the panel's{" "}
+                <span className="font-medium">Auto rebuilds</span> count shows
+                when it did. The button is for the cases it misses, so
+                restarting the whole app is not necessary.
               </li>
               <li>
                 Can be disabled in <span className="font-medium">⚙ Settings</span>.

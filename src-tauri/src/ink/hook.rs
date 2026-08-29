@@ -21,13 +21,22 @@ static MACHINE: Mutex<Option<AltStateMachine>> = Mutex::new(None);
 
 pub fn start(app: &AppHandle) -> Result<(), String> {
     let threshold = unsafe { GetDoubleClickTime() } as u64;
-    *MACHINE.lock().unwrap() = Some(AltStateMachine::new(threshold));
+    // Poison-tolerant: a panicking consumer must not wedge the machine for
+    // every later key event (the shared listener survives panics now).
+    *machine() = Some(AltStateMachine::new(threshold));
     rawkey::register(app, CONSUMER, on_key)
 }
 
 pub fn stop() {
     rawkey::unregister(CONSUMER);
-    *MACHINE.lock().unwrap() = None;
+    *machine() = None;
+}
+
+/// Poison-tolerant access to the state machine slot.
+fn machine() -> std::sync::MutexGuard<'static, Option<AltStateMachine>> {
+    MACHINE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn on_key(app: &AppHandle, event: KeyEvent) {
@@ -53,10 +62,10 @@ fn on_key(app: &AppHandle, event: KeyEvent) {
         // an Alt shortcut is never mistaken for the first half of the gesture.
         KeyInput::OtherDown
     };
-    let ink_event: Option<InkEvent> = MACHINE
-        .lock()
-        .ok()
-        .and_then(|mut m| m.as_mut().and_then(|m| m.on_key(key, event.time_ms)));
+    let ink_event: Option<InkEvent> = {
+        let mut guard = machine();
+        guard.as_mut().and_then(|m| m.on_key(key, event.time_ms))
+    };
     if let Some(ink_event) = ink_event {
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || super::dispatch(&handle, ink_event));

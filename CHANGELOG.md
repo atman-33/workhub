@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.86.0 (2026-08-29)
+
+- **A dead keyboard listener now rebuilds itself** (T-0198). The 0.85.0
+  recovery re-registered the Raw Input device and watched for silence — but
+  all of that lived *inside* the listener thread, so a thread that had exited
+  or a registration that had been removed outright stayed dead until the app
+  was restarted, while the diagnostics panel kept claiming the listener was
+  running. A separate watchdog thread now checks, every 30 seconds, that the
+  listener thread is alive and that the keyboard usage is really still
+  registered against the listener's own window — and rebuilds the listener
+  when either check fails. Consumer panics no longer take the listener down,
+  and every automatic rebuild is recorded for the diagnostics panel
+  (**Auto rebuilds** with the reason).
+
 ## 0.85.0 (2026-08-29)
 
 - **The global gestures recover on their own when Windows stops delivering

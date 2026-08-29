@@ -435,6 +435,10 @@ export interface InputListenerDiagnostics {
   input_count: number;
   reregistrations: number;
   restarts: number;
+  /** Times the external watchdog rebuilt a dead listener thread or a
+   * registration that no longer pointed at the listener. */
+  rebuilds: number;
+  last_rebuild_reason: string | null;
   last_reregister_ms_ago: number | null;
   last_reregister_reason: string | null;
   last_error: string | null;

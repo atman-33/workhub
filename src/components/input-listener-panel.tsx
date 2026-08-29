@@ -115,6 +115,12 @@ export function InputListenerPanel() {
                 info.last_reregister_ms_ago,
               )})`}
           </span>
+          <span className="text-muted-foreground">Auto rebuilds</span>
+          <span>
+            {info.rebuilds}
+            {info.last_rebuild_reason &&
+              ` (last: ${info.last_rebuild_reason})`}
+          </span>
           <span className="text-muted-foreground">Manual restarts</span>
           <span>{info.restarts}</span>
         </div>
