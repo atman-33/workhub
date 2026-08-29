@@ -18,13 +18,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Check, Copy, Crop, Loader2, Save, Scissors, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import {
   CURSORS,
   MIN_DRAG,
@@ -39,27 +36,14 @@ function hide() {
 }
 
 /**
- * Header button with a shadcn/ui tooltip instead of the browser's `title`.
- * The button rides inside a span because a disabled button swallows pointer
- * events and would never show its tooltip; when disabled it gets
- * `pointer-events-none` so the span becomes the hover target (radix's own
- * recommendation for disabled triggers). Enabled buttons keep their clicks.
+ * Header icon button: shadcn Tooltip via the shared `Hint`, with the
+ * disabled-button hover workaround baked in there.
  */
 function TipButton({ label, ...props }: ComponentProps<typeof Button> & { label: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            {...props}
-            className={cn(props.className, props.disabled && "pointer-events-none")}
-          />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
+    <Hint label={label} disabled={props.disabled}>
+      <Button size="icon-sm" variant="ghost" {...props} />
+    </Hint>
   );
 }
 
@@ -261,10 +245,12 @@ export function PreviewApp() {
           }}
           className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
         >
-          <Scissors className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate text-xs font-medium" title={path}>
+        <Scissors className="size-3.5 shrink-0 text-muted-foreground" />
+        <Hint label={path}>
+          <span className="min-w-0 truncate text-xs font-medium">
             {name || "Ink preview"}
           </span>
+        </Hint>
           <span className="shrink-0 text-[11px] text-muted-foreground">
             {selection ? `${selection} selected` : natural}
           </span>
@@ -322,21 +308,21 @@ export function PreviewApp() {
                 />
               )}
             </div>
-          ) : error ? (
-            <p className="max-w-full truncate p-4 text-xs text-destructive" title={error}>
-              {error}
-            </p>
-          ) : (
+        ) : error ? (
+          <Hint label={error}>
+            <p className="max-w-full truncate p-4 text-xs text-destructive">{error}</p>
+          </Hint>
+        ) : (
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
-          {error ? (
-            <p className="min-w-0 flex-1 truncate text-[11px] text-destructive" title={error}>
-              {error}
-            </p>
-          ) : savedNote ? (
+        {error ? (
+          <Hint label={error}>
+            <p className="min-w-0 flex-1 truncate text-[11px] text-destructive">{error}</p>
+          </Hint>
+        ) : savedNote ? (
             <p className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-emerald-500">
               <Check className="size-3 shrink-0" />
               {savedNote}

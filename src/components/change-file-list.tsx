@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { buildFileTree, type TreeNode } from "@/lib/file-tree";
 import { statusTone } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
@@ -92,9 +93,9 @@ export function ChangeFileList({
                 <ChevronDown className="size-3.5 shrink-0" />
               )}
               <Folder className="size-3.5 shrink-0 text-sky-400/70" />
-              <span className="min-w-0 truncate text-[11px]" title={node.path}>
-                {node.name}
-              </span>
+              <Hint label={node.path}>
+                <span className="min-w-0 truncate text-[11px]">{node.name}</span>
+              </Hint>
             </button>
             {!isCollapsed && renderNodes(node.children, depth + 1)}
           </div>
@@ -120,26 +121,28 @@ export function ChangeFileList({
           Files
         </span>
         <div className="ml-auto flex items-center">
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn("size-6", view === "tree" && "text-primary")}
-            title="Tree view"
-            aria-pressed={view === "tree"}
-            onClick={() => setView("tree")}
-          >
-            <ListTree className="size-3.5" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn("size-6", view === "flat" && "text-primary")}
-            title="Flat view"
-            aria-pressed={view === "flat"}
-            onClick={() => setView("flat")}
-          >
-            <List className="size-3.5" />
-          </Button>
+          <Hint label="Tree view">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn("size-6", view === "tree" && "text-primary")}
+              aria-pressed={view === "tree"}
+              onClick={() => setView("tree")}
+            >
+              <ListTree className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Flat view">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn("size-6", view === "flat" && "text-primary")}
+              aria-pressed={view === "flat"}
+              onClick={() => setView("flat")}
+            >
+              <List className="size-3.5" />
+            </Button>
+          </Hint>
         </div>
       </div>
 
@@ -201,9 +204,9 @@ function FileRow({
       >
         {change.status}
       </Badge>
-      <span className="min-w-0 flex-1 truncate text-[11px]" title={change.path}>
-        {label}
-      </span>
+      <Hint label={change.path}>
+        <span className="min-w-0 flex-1 truncate text-[11px]">{label}</span>
+      </Hint>
       {change.additions !== null && (
         <span className="shrink-0 text-[10px] text-emerald-400">+{change.additions}</span>
       )}

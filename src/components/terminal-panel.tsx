@@ -7,6 +7,7 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -219,25 +220,30 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
     >
       <div ref={containerRef} className="h-full w-full px-2 py-1" />
       <div className="absolute right-2 top-1 z-10 flex items-center gap-0.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          onClick={() => void restart()}
+        <Hint
+          label="Restart the terminal (herdr workspaces and agents keep running)"
           disabled={restarting}
-          title="Restart the terminal (herdr workspaces and agents keep running)"
         >
-          <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          onClick={onToggleMaximize}
-          title={maximized ? "Restore terminal size" : "Maximize terminal"}
-        >
-          {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground hover:text-foreground"
+            onClick={() => void restart()}
+            disabled={restarting}
+          >
+            <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} />
+          </Button>
+        </Hint>
+        <Hint label={maximized ? "Restore terminal size" : "Maximize terminal"}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground hover:text-foreground"
+            onClick={onToggleMaximize}
+          >
+            {maximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+          </Button>
+        </Hint>
       </div>
       {exited && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">

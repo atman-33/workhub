@@ -27,6 +27,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 
 // NOTE: This screen documents user-facing operations and setup steps. When an
@@ -313,17 +314,18 @@ function CopyButton({
 
   if (iconOnly) {
     return (
-      <Button
-        type="button"
-        size="icon-xs"
-        variant="ghost"
-        aria-label={label}
-        title={label}
-        className={cn("text-muted-foreground", copied && "text-green-500", className)}
-        onClick={() => onCopy(id, markdown)}
-      >
-        <Icon className="size-3.5" />
-      </Button>
+      <Hint label={label}>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          aria-label={label}
+          className={cn("text-muted-foreground", copied && "text-green-500", className)}
+          onClick={() => onCopy(id, markdown)}
+        >
+          <Icon className="size-3.5" />
+        </Button>
+      </Hint>
     );
   }
 

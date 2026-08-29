@@ -5,43 +5,47 @@ paths:
 
 # UI conventions
 
-## Tooltips: shadcn/ui Tooltip, never the native `title`
+## Tooltips: the shared `Hint` component, never the native `title`
 
 Any tooltip the user is meant to read — hover hints on icon buttons, action
 labels with their shortcut, truncation hints on a file path or an error string
-— uses the shared shadcn Tooltip (`src/components/ui/tooltip.tsx`):
+— goes through `src/components/ui/hint.tsx`, which wraps the shadcn Tooltip
+(`src/components/ui/tooltip.tsx`) and handles the disabled-trigger case:
 
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Hint } from "@/components/ui/hint";
 
-<Tooltip>
-  <TooltipTrigger asChild>
-    <Button size="icon-sm" variant="ghost" onClick={…} aria-label="Copy">
-      <Copy />
-    </Button>
-  </TooltipTrigger>
-  <TooltipContent side="bottom">Copy selection (Ctrl+C)</TooltipContent>
-</Tooltip>
+<Hint label="Copy selection (Ctrl+C)">
+  <Button size="icon-sm" variant="ghost" onClick={…} aria-label="Copy">
+    <Copy />
+  </Button>
+</Hint>
+
+// disabled controls stay hoverable; label can be undefined when there is
+// nothing to say yet, in which case the child renders bare
+<Hint label="Rename this schedule" disabled={!path || aiRunning}>
+  <Button … disabled={!path || aiRunning} />
+</Hint>
 ```
 
 The native `title` attribute renders a browser-styled popup that clashes with
 the app's dark theme and cannot be styled; the owner rejected it (T-0197
 feedback). `aria-label` is for assistive tech, not a tooltip substitute — pair
-it with a TooltipContent.
+it with a `Hint`. A component prop *named* `title` (ConfirmDialog, the help
+`Section`s, project-row's `Chip`) is not a native tooltip and stays as is.
 
-Two things the radix wrapper changes:
+Two things to know:
 
 - **Helper windows need their own provider.** `TooltipProvider` is mounted in
   `app.tsx`, which only covers the main window. `quick-capture`, `ink-preview`,
   `voice-indicator`, and `clips-popup` are separate React roots — mount a
-  `TooltipProvider` at that window's root too (`src/ink-preview/preview-app.tsx`
-  does). The plain overlay (`overlay.html`, no React) cannot use the component
-  at all; if it ever needs a hover hint, style one with CSS.
-- **Disabled buttons swallow hover events**, so a radix tooltip on one never
-  opens. Wrap the button in a `<span className="inline-flex">` as the trigger
-  and give the disabled button `pointer-events-none`; the span becomes the
-  hover target while enabled buttons keep their clicks. `TipButton` in
-  `src/ink-preview/preview-app.tsx` is the reference implementation.
+  `TooltipProvider` at that window's root too (`ink-preview` and
+  `voice-indicator` do). The plain overlay (`overlay.html`, no React) cannot
+  use the component at all; if it ever needs a hover hint, style one with CSS.
+- **Hint may wrap a radix trigger component** (`PopoverTrigger asChild`,
+  `DropdownMenuTrigger asChild`, …) — Slot composition carries the handlers —
+  but never put a `Hint` *inside* another trigger's `asChild` chain: `Hint`
+  does not forward props/ref, so the outer trigger would lose its events.
 
 ## ResizableHandle: never pass `withHandle`
 

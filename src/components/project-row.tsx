@@ -32,6 +32,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Hint } from "@/components/ui/hint";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -161,16 +162,17 @@ export const ProjectRow = memo(function ProjectRow({
         onCheckedChange={onToggle}
         aria-label={`select ${project.name}`}
       />
-      <button
-        className="text-muted-foreground transition-colors hover:text-amber-400"
-        onClick={(e) => {
-          e.stopPropagation();
-          onAction({ kind: "favorite" });
-        }}
-        title="favorite (pinned to top)"
-      >
-        <Star className={cn("size-4", project.favorite && "fill-amber-400 text-amber-400")} />
-      </button>
+      <Hint label="favorite (pinned to top)">
+        <button
+          className="text-muted-foreground transition-colors hover:text-amber-400"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAction({ kind: "favorite" });
+          }}
+        >
+          <Star className={cn("size-4", project.favorite && "fill-amber-400 text-amber-400")} />
+        </button>
+      </Hint>
 
       <span className="max-w-48 truncate text-[13px] font-semibold">{project.name}</span>
       {tags.map((t) => (
@@ -190,16 +192,17 @@ export const ProjectRow = memo(function ProjectRow({
         <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">
           {project.path}
         </span>
-        <button
-          className="shrink-0 text-muted-foreground opacity-70 transition-colors hover:text-foreground group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAction({ kind: "copyPath" });
-          }}
-          title="copy path"
-        >
-          <Copy className="size-3.5" />
-        </button>
+        <Hint label="copy path">
+          <button
+            className="shrink-0 text-muted-foreground opacity-70 transition-colors hover:text-foreground group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction({ kind: "copyPath" });
+            }}
+          >
+            <Copy className="size-3.5" />
+          </button>
+        </Hint>
       </span>
 
       {busy && <Loader2 className="size-3.5 animate-spin text-primary" />}

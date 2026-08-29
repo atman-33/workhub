@@ -16,6 +16,7 @@ import {
 import { api, timeAgo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -977,16 +978,17 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span className="shrink-0">Session</span>
                         <code className="truncate font-mono">{tidySessionId}</code>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-5 shrink-0"
-                          title="Copy session id"
-                          onClick={() => void copySessionId()}
-                        >
-                          <Copy className="size-3" />
-                        </Button>
+                        <Hint label="Copy session id">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-5 shrink-0"
+                            onClick={() => void copySessionId()}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                        </Hint>
                       </div>
                     )}
                   </div>

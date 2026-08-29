@@ -24,6 +24,7 @@ import { ProjectRow, type RowAction } from "@/components/project-row";
 import { ChangesPanel } from "@/components/repos/changes-panel";
 import { WorktreesPanel } from "@/components/worktrees-panel";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -514,15 +515,16 @@ export function ReposView({ configVersion, active, onProjectsChange, focus }: Pr
           >
             <TreeDeciduous className="size-3.5" /> Worktrees
           </Button>
-          <Button
-            size="sm"
-            variant={showChanges ? "secondary" : "outline"}
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => setShowChanges((v) => !v)}
-            title="Toggle the working-tree changes panel"
-          >
-            <PanelBottom className="size-3.5" /> Changes
-          </Button>
+          <Hint label="Toggle the working-tree changes panel">
+            <Button
+              size="sm"
+              variant={showChanges ? "secondary" : "outline"}
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setShowChanges((v) => !v)}
+            >
+              <PanelBottom className="size-3.5" /> Changes
+            </Button>
+          </Hint>
   
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

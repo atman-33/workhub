@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -219,13 +220,14 @@ function WorktreeRow({
         <span className="max-w-40 truncate">{wt.branch || "(detached)"}</span>
       </Badge>
       {wt.dirty && (
-        <Badge
-          variant="outline"
-          className="h-5 border-amber-500/30 bg-amber-500/10 px-1.5 text-[11px] text-amber-400"
-          title="uncommitted changes"
-        >
-          dirty
-        </Badge>
+        <Hint label="uncommitted changes">
+          <Badge
+            variant="outline"
+            className="h-5 border-amber-500/30 bg-amber-500/10 px-1.5 text-[11px] text-amber-400"
+          >
+            dirty
+          </Badge>
+        </Hint>
       )}
       {wt.locked && (
         <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">
@@ -238,47 +240,51 @@ function WorktreeRow({
 
       {busy && <Loader2 className="size-3.5 animate-spin text-primary" />}
 
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-7 opacity-60 group-hover:opacity-100"
-        title="Open in VS Code"
-        onClick={onOpenVscode}
-      >
-        <Code2 className="size-4" />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-7 opacity-60 group-hover:opacity-100"
-        title="Open in Explorer"
-        onClick={() => void api.openExplorer(wt.path)}
-      >
-        <FolderOpen className="size-4" />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-7 opacity-60 group-hover:opacity-100"
-        title="Open terminal"
-        onClick={() =>
-          void api
-            .openTerminal(terminalCmd, wt.path)
-            .catch((e) => onStatus(`Terminal launch failed — ${e}`))
-        }
-      >
-        <SquareTerminal className="size-4" />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-7 text-muted-foreground opacity-60 hover:text-destructive group-hover:opacity-100"
-        title="Remove worktree"
-        disabled={busy}
-        onClick={onRemove}
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      <Hint label="Open in VS Code">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 opacity-60 group-hover:opacity-100"
+          onClick={onOpenVscode}
+        >
+          <Code2 className="size-4" />
+        </Button>
+      </Hint>
+      <Hint label="Open in Explorer">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 opacity-60 group-hover:opacity-100"
+          onClick={() => void api.openExplorer(wt.path)}
+        >
+          <FolderOpen className="size-4" />
+        </Button>
+      </Hint>
+      <Hint label="Open terminal">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 opacity-60 group-hover:opacity-100"
+          onClick={() =>
+            void api
+              .openTerminal(terminalCmd, wt.path)
+              .catch((e) => onStatus(`Terminal launch failed — ${e}`))
+          }
+        >
+          <SquareTerminal className="size-4" />
+        </Button>
+      </Hint>
+      <Hint label="Remove worktree" disabled={busy}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 text-muted-foreground opacity-60 hover:text-destructive group-hover:opacity-100"
+          disabled={busy}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </Hint>
     </div>
   );
 }

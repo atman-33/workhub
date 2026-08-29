@@ -21,6 +21,7 @@ import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -661,58 +662,64 @@ export function TasksView({
           {/* The cards say nothing about a block going stale — this does, once
               for the whole board. Clicking it narrows to the waiting tasks. */}
           {blockedCount > 0 && (
-            <button
-              className="flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50"
-              title={
+            <Hint
+              label={
                 staleBlockedCount > 0
                   ? `${blockedCount} blocked · ${staleBlockedCount} waiting a week or more`
                   : `${blockedCount} blocked`
               }
-              onClick={() => setBlockedFilter("blocked")}
             >
-              <PauseCircle className="size-3.5" />
-              {blockedCount}
-              {staleBlockedCount > 0 && (
-                <span className="size-1.5 rounded-full bg-amber-400" aria-hidden />
-              )}
-            </button>
+              <button
+                className="flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50"
+                onClick={() => setBlockedFilter("blocked")}
+              >
+                <PauseCircle className="size-3.5" />
+                {blockedCount}
+                {staleBlockedCount > 0 && (
+                  <span className="size-1.5 rounded-full bg-amber-400" aria-hidden />
+                )}
+              </button>
+            </Hint>
           )}
         </div>
 
-        <button
-          className={cn(
-            "flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
-            showArchived ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent/50",
-          )}
-          title={showArchived ? "Hide archived tasks" : "Show archived tasks"}
-          onClick={() => setShowArchived((v) => !v)}
-        >
-          <Archive className="size-3.5" /> Archived
-        </button>
+        <Hint label={showArchived ? "Hide archived tasks" : "Show archived tasks"}>
+          <button
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
+              showArchived ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent/50",
+            )}
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <Archive className="size-3.5" /> Archived
+          </button>
+        </Hint>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 text-xs"
-          onClick={() => setRecurringOpen(true)}
-          title="Rules that put a task on the board on their own schedule"
-        >
-          <Repeat className="size-3.5" /> Recurring
-          {activeRuleCount > 0 && (
-            <span className="text-[11px] text-muted-foreground">{activeRuleCount}</span>
-          )}
-        </Button>
-
-        {terminalEnabled && (
+        <Hint label="Rules that put a task on the board on their own schedule">
           <Button
             size="sm"
-            variant={terminalOpen ? "secondary" : "outline"}
+            variant="outline"
             className="h-8 gap-1.5 text-xs"
-            onClick={toggleTerminalPanel}
-            title="Toggle the embedded terminal (herdr)"
+            onClick={() => setRecurringOpen(true)}
           >
-            <TerminalIcon className="size-3.5" /> Terminal
+            <Repeat className="size-3.5" /> Recurring
+            {activeRuleCount > 0 && (
+              <span className="text-[11px] text-muted-foreground">{activeRuleCount}</span>
+            )}
           </Button>
+        </Hint>
+
+        {terminalEnabled && (
+          <Hint label="Toggle the embedded terminal (herdr)">
+            <Button
+              size="sm"
+              variant={terminalOpen ? "secondary" : "outline"}
+              className="h-8 gap-1.5 text-xs"
+              onClick={toggleTerminalPanel}
+            >
+              <TerminalIcon className="size-3.5" /> Terminal
+            </Button>
+          </Hint>
         )}
 
         <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">

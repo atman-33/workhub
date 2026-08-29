@@ -36,6 +36,7 @@ import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
 import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
@@ -214,13 +215,12 @@ export default function App() {
           <div className="ml-auto" />
           <NavMusicControl onOpenMusic={() => setTab("music")} />
           {settings?.vault_path && (
-            <span
-              className="flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground"
-              title={settings.vault_path}
-            >
-              <FolderOpen className="size-3 shrink-0" />
-              {settings.vault_path}
-            </span>
+            <Hint label={settings.vault_path}>
+              <span className="flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground">
+                <FolderOpen className="size-3 shrink-0" />
+                {settings.vault_path}
+              </span>
+            </Hint>
           )}
           <span className="text-[11px] text-muted-foreground">v{version}</span>
           <Button
