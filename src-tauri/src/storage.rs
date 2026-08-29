@@ -1,4 +1,5 @@
 use crate::models::Config;
+use crate::vault_settings;
 use std::path::PathBuf;
 
 /// `~/.workhub` — the single home directory for everything workhub persists
@@ -33,6 +34,9 @@ pub fn load() -> Config {
         Err(_) => Config::default(),
     };
     migrate_default_templates(&mut cfg);
+    // The configured vault's own settings win over the local copy for the
+    // keys it owns (T-0206); see `vault_settings` for the split.
+    vault_settings::overlay(&mut cfg);
     cfg
 }
 
@@ -62,7 +66,11 @@ pub fn save(cfg: &Config) -> Result<(), String> {
     let text =
         serde_json::to_string_pretty(cfg).map_err(|e| format!("cannot serialize config: {e}"))?;
     let file = config_file();
-    std::fs::write(&file, text).map_err(|e| format!("cannot write {}: {e}", file.display()))
+    std::fs::write(&file, text).map_err(|e| format!("cannot write {}: {e}", file.display()))?;
+    // Mirror the vault-scoped keys into the vault so another machine that
+    // clones it gets them (T-0206). The local file keeps them too, which is
+    // what makes deleting the vault file a safe way back.
+    vault_settings::write(cfg)
 }
 
 /// One-time migration from the old `%APPDATA%\workhub` home to the new

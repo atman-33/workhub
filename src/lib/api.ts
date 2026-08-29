@@ -32,7 +32,9 @@ import type {
 
 export const api = {
   getConfig: () => invoke<Config>("get_config"),
-  saveConfig: (config: Config) => invoke<void>("save_config", { config }),
+  /// Returns the config that took effect — it differs from what was sent
+  /// when the vault changed and its own settings were adopted (T-0206).
+  saveConfig: (config: Config) => invoke<Config>("save_config", { config }),
   // ---- vault tidy (T-0050) ----
   tidyStatus: () => invoke<TidyRun>("tidy_status"),
   runVaultTidyNow: (force: boolean) =>

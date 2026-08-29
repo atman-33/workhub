@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Settings that belong to the vault now travel with it** (T-0206). Workhub
+  kept every setting on the machine it was set on, so a second PC started from
+  defaults: the custom prompt, the task-file language, the agents and models
+  chosen for schedule and mindmap edits, the recurring-task rules and the
+  vault-tidy policy all had to be entered again. Those now live in the vault
+  itself, in `.workhub/settings.json` — and since the vault is usually its own
+  git repository, cloning it on another machine brings them along. Settings
+  that describe one machine (folder paths, command templates, hotkeys, window
+  positions, voice setup) deliberately stay local, and the ones that do travel
+  are marked with a "Vault" badge in the Settings dialog. Nothing is lost on
+  upgrade: the vault file is created from the settings already in use, and the
+  local copy is kept as a fallback.
 - **The tab bar fits a narrow window** (T-0207). With twelve tabs and the
   status cluster on the right, the navigation bar needed more width than the
   app's own default window size gave it, so the tabs at the end were cut off

@@ -168,8 +168,10 @@ export default function App() {
     // Merge into the latest on-disk config so we never clobber projects/presets
     // persisted by the views after our initial load.
     const cfg = await api.getConfig();
-    await api.saveConfig({ ...cfg, settings: next });
-    setSettings(next);
+    // Render what took effect, not what was sent: switching to a vault that
+    // already carries its own settings adopts those (T-0206).
+    const saved = await api.saveConfig({ ...cfg, settings: next });
+    setSettings(saved.settings);
     setConfigVersion((v) => v + 1);
   }, []);
 

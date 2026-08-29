@@ -5,6 +5,7 @@ paths:
   - "opencode.json"
   - ".claude/**"
   - ".opencode/**"
+  - ".workhub/**"
 ---
 
 # App-managed files (do not edit)
@@ -17,6 +18,14 @@ conflict the owner has to resolve by hand.
 `_ai/template-manifest.json` lists every managed path (its `files` keys). The
 usual ones are `CLAUDE.md`, `AGENTS.md`, `opencode.json`, and everything under
 `.claude/` and `.opencode/`.
+
+`.workhub/settings.json` is app-owned too, though it arrives by a different
+route: the app writes it from its Settings dialog rather than copying it from
+the template. It carries the settings that belong to this vault (task
+language, custom prompt, schedule/mindmap agent choices, recurring rules,
+tidy policy) so a second machine gets them from git. Never hand-edit it to
+change how agents behave — the running app will write its own values back
+over yours.
 
 **Rules for agents**
 
