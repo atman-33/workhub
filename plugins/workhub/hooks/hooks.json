@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/secretary-inject.mjs\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/profile-inject.mjs\""
           }
         ]
       }

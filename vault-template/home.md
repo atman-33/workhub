@@ -15,7 +15,7 @@ tasks and knowledge shared between you and your AI agents.
 
 - [[tasks/_index|Tasks index]]
 - [[knowledge/_index|Knowledge index]]
-- [[knowledge/profile/about-me|About me]] — who you are, for your AI agents
+- [[profile/about-me|About me]] — who you are, for your AI agents
 
 ## Zones
 

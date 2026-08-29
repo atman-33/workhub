@@ -251,15 +251,16 @@ Gives every agent session on the vault — Claude Code and OpenCode — a memory
 - **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
 - The setup banner can be disabled in **⚙ Settings → General → Notify when long-term memory is not set up on this machine**.`;
 
-const SECRETARY_MD = `## The secretary agent — fewer interruptions
+const SECRETARY_MD = `## Your profile — fewer, better questions
 
-Agents ask you for a decision far more often than they need to, because nothing tells them what you would have said. The secretary is a small subagent that answers those questions from a policy you write once, and only forwards what it genuinely cannot decide.
+Agents ask you for a decision far more often than they need to, and when they do ask they hand you an open choice, because nothing tells them what you would have said. The vault's \`profile/\` folder is the answer to both halves: \`about-me.md\` is who you are, \`decision-policy.md\` is how you decide.
 
-- **Write your policy first**: \`knowledge/profile/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, and how to handle the gray zone. The secretary treats it as its only authority — anything the note does not cover is escalated, so it errs toward asking.
-- **How a session uses it**: before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
+- **Write your policy first**: \`profile/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, how to handle the gray zone, and — under **Preferences** — the leanings a recommendation is built from. It sits at the vault root rather than under \`knowledge/\` because it is operational: hooks, skills and the secretary agent all read it.
+- **Always on: questions arrive with a recommendation**. As soon as that note exists, every session is told to read it and to never put a bare choice to you — it works out the answer you would most likely give, offers it as the recommended option with the reason, and writes what you decide back into **Past decisions**. This costs nothing but the instruction itself, so it does not depend on the secretary switch below.
+- **Optional: the secretary answers for you.** Turned on, a small subagent judges each question against the same policy and only forwards what it genuinely cannot decide. Before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
 - **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
-- **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules. The more you record there, the less the secretary escalates.
-- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (**off by default** — turn it on to use the secretary at all). Consulting the secretary costs tokens because it is a subagent; with the switch off nothing is injected and nothing is consulted, so the cost is zero. Deleting the policy note has the same effect.
+- **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules, and *Preferences* is where standing leanings go. Agents are told to append there whenever you settle something, so the note grows on its own. The more it holds, the less you are asked.
+- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (**off by default**) controls the subagent only. Consulting it costs tokens; with the switch off nothing is consulted, but your profile is still read and questions still arrive with a recommendation. Deleting the policy note turns off both.
 - **Both agent CLIs**: Claude Code sessions get this through the workhub plugin's hooks. OpenCode sessions get it through \`.opencode/plugins/secretary-plugin.ts\`, where filing a question is a tool the agent calls (\`ask_owner\`). Run \`/sync-claude-skills\` in the vault once so the secretary agent itself lands in \`.opencode/agent/\`.`;
 
 const CUSTOM_PROMPT_MD = `## Your own instructions in every agent prompt
@@ -762,32 +763,54 @@ export function HelpView() {
 
           <Section
             icon={UserRoundCheck}
-            title="The secretary agent — fewer interruptions"
+            title="Your profile — fewer, better questions"
             value="secretary"
             markdown={SECRETARY_MD}
             copiedId={copiedId}
             onCopy={handleCopy}
           >
             <p>
-              Agents ask you for a decision far more often than they need to, because
-              nothing tells them what you would have said. The secretary is a small
-              subagent that answers those questions from a policy you write once, and
-              only forwards what it genuinely cannot decide.
+              Agents ask you for a decision far more often than they need to, and when
+              they do ask they hand you an open choice, because nothing tells them what
+              you would have said. The vault&apos;s{" "}
+              <span className="font-mono text-xs">profile/</span> folder is the answer to
+              both halves:{" "}
+              <span className="font-mono text-xs">about-me.md</span> is who you are,{" "}
+              <span className="font-mono text-xs">decision-policy.md</span> is how you
+              decide.
             </p>
             <ul className="ml-4 list-disc space-y-1.5">
               <li>
                 <span className="font-medium text-foreground">Write your policy first</span>:{" "}
                 <span className="font-mono text-xs">
-                  knowledge/profile/decision-policy.md
+                  profile/decision-policy.md
                 </span>{" "}
                 in the vault (seeded by the vault template) lists what an agent may do
-                without asking, what must always come to you, and how to handle the gray
-                zone. The secretary treats it as its only authority — anything the note
-                does not cover is escalated, so it errs toward asking.
+                without asking, what must always come to you, how to handle the gray zone,
+                and — under <span className="font-medium">Preferences</span> — the leanings
+                a recommendation is built from. It sits at the vault root rather than under{" "}
+                <span className="font-mono text-xs">knowledge/</span> because it is
+                operational: hooks, skills and the secretary agent all read it.
               </li>
               <li>
-                <span className="font-medium text-foreground">How a session uses it</span>:
-                before interrupting you, the agent consults the secretary. A{" "}
+                <span className="font-medium text-foreground">
+                  Always on: questions arrive with a recommendation
+                </span>
+                . As soon as that note exists, every session is told to read it and to
+                never put a bare choice to you — it works out the answer you would most
+                likely give, offers it as the recommended option with the reason, and
+                writes what you decide back into{" "}
+                <span className="font-medium">Past decisions</span>. This costs nothing but
+                the instruction itself, so it does not depend on the secretary switch
+                below.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Optional: the secretary answers for you
+                </span>
+                . Turned on, a small subagent judges each question against the same policy
+                and only forwards what it genuinely cannot decide. Before interrupting you,
+                the agent consults the secretary. A{" "}
                 <span className="font-medium">DECIDE</span> answer is acted on and logged
                 as one line in{" "}
                 <span className="font-mono text-xs">_ai/logs/decisions.md</span>, so you
@@ -808,17 +831,20 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Growing it</span>: the
                 policy&apos;s <span className="font-medium">Past decisions</span> section is
-                where answered questions turn into standing rules. The more you record
-                there, the less the secretary escalates.
+                where answered questions turn into standing rules, and{" "}
+                <span className="font-medium">Preferences</span> is where standing leanings
+                go. Agents are told to append there whenever you settle something, so the
+                note grows on its own. The more it holds, the less you are asked.
               </li>
               <li>
                 <span className="font-medium text-foreground">Switch</span>:{" "}
                 <span className="font-medium">
                   ⚙ Settings → General → Consult the secretary before asking me
                 </span>{" "}
-                (on by default). Consulting the secretary costs tokens because it is a
-                subagent; with the switch off nothing is injected and nothing is consulted,
-                so the cost is zero. Deleting the policy note has the same effect.
+                (off by default) controls the subagent only. Consulting it costs tokens;
+                with the switch off nothing is consulted, but your profile is still read
+                and questions still arrive with a recommendation. Deleting the policy note
+                turns off both.
               </li>
               <li>
                 <span className="font-medium text-foreground">Both agent CLIs</span>: Claude

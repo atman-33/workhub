@@ -10,16 +10,22 @@ tags:
 
 What an agent may decide on its own, and what has to come back to you.
 
-The `secretary` subagent reads this note to answer questions the main agent
-would otherwise interrupt you with. Anything this note does not cover is
-escalated, so the more you write here, the fewer interruptions you get. Start
-with the defaults below and correct them as real questions come in — the
-`## Past decisions` section is where those corrections accumulate.
+Every agent session reads this note. It uses `## Preferences` to build a
+recommendation *before* putting a question to you, so a question arrives with a
+proposed answer attached rather than as an open choice.
+
+When the secretary agent is turned on, the `secretary` subagent reads the same
+note to answer questions the main agent would otherwise interrupt you with.
+Anything this note does not cover is escalated, so the more you write here, the
+fewer interruptions you get. Start with the defaults below and correct them as
+real questions come in — the `## Past decisions` section is where those
+corrections accumulate, and agents are told to append to it whenever you settle
+a question yourself.
 
 This note is seeded once and never overwritten by a template sync — edit it
-freely. Delete it to turn the secretary off by omission (the hooks stay
-silent when it is missing); the ⚙ Settings toggle does the same thing without
-losing the content.
+freely. Delete it and agents fall back to asking you plainly: the hooks stay
+silent when it is missing, which also turns the secretary off by omission (the
+⚙ Settings toggle does that without losing the content).
 
 ## Proceed without asking
 
@@ -40,6 +46,19 @@ losing the content.
   requirements.
 - Heavy new dependencies (build, distribution or licensing impact).
 - User-visible behaviour and wording changes.
+
+## Preferences
+
+How you want an agent to work, in enough detail that it can pick a
+recommendation for you. This is the section that decides what a proposal looks
+like, so write the leanings, not just the rules.
+
+<!-- e.g.
+     - Prefer the simplest feature that solves the problem; reject scope creep.
+     - Two options at most when asking, with one marked recommended.
+     - Explain the conclusion and the reason; keep the detail for follow-ups.
+     - Reuse an existing note/module/convention over introducing a new one.
+     - Languages: chat in <language>, repository artifacts in <language>. -->
 
 ## Gray-zone principles
 
