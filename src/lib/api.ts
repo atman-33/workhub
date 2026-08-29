@@ -149,6 +149,10 @@ export const api = {
    * the note at its new path, which the caller must reselect. */
   renameSchedule: (vaultPath: string, path: string, title: string) =>
     invoke<ScheduleFile>("rename_schedule", { vaultPath, path, title }),
+  /** Moves the note into `_ai/memory/schedule-trash/` rather than deleting it,
+   * and returns where it went. */
+  deleteSchedule: (vaultPath: string, path: string) =>
+    invoke<string>("delete_schedule", { vaultPath, path }),
   exportScheduleHtml: (outPath: string, html: string) =>
     invoke<void>("export_schedule_html", { outPath, html }),
   runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>

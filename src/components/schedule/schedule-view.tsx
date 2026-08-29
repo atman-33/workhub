@@ -12,8 +12,10 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { usePanelRef } from "react-resizable-panels";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
@@ -152,6 +154,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [mode, setMode] = useState<ViewMode>("calendar");
   // Session-only: the calendar reads better at full width when reviewing or
   // before an export, but that is a preference for a moment, not for a
@@ -486,6 +489,30 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       setStatus(String(e));
     }
   }, [renameTitle, vaultPath, path, flushSave, loadFiles, loadDoc]);
+
+  /**
+   * Moves the open note to the vault's trash folder and clears the selection.
+   *
+   * A pending debounced write is dropped rather than flushed: the file is on
+   * its way out, and writing to the path first would only race the move.
+   */
+  const handleDelete = useCallback(async () => {
+    if (!vaultPath || !path) return;
+    setDeleteOpen(false);
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    try {
+      const moved = await api.deleteSchedule(vaultPath, path);
+      setPath("");
+      setSelectedId(null);
+      await loadFiles();
+      setStatus(`Moved to ${moved}`);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [vaultPath, path, loadFiles]);
 
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
@@ -985,6 +1012,24 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               )}
             </Button>
           </Hint>
+          <Hint
+            label={
+              aiRunning ? "An AI edit is running" : "Move this schedule to the trash"
+            }
+            disabled={!path || aiRunning}
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              // While the agent holds the file, moving it would pull the file
+              // out from under the run — the same guard the rename carries.
+              disabled={!path || aiRunning}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </Hint>
         </div>
       </div>
 
@@ -1178,6 +1223,16 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           void loadProjects();
           setProject(slug);
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Move this schedule to the trash?"
+        description={`"${files.find((f) => f.path === path)?.title ?? ""}" is moved to _ai/memory/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
+        confirmLabel="Move to trash"
+        destructive
+        onConfirm={() => void handleDelete()}
+        onClose={() => setDeleteOpen(false)}
       />
     </div>
   );

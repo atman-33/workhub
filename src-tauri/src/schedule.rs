@@ -41,6 +41,9 @@ const KIND: &str = "schedule";
 /// (design note §9.5).
 const SNAPSHOT_DIR: &str = "schedule-snapshots";
 
+/// Folder under `_ai/memory/` that a deleted note is moved into.
+const TRASH_DIR: &str = "schedule-trash";
+
 /// Lists schedule notes across the vault, optionally narrowed to one project
 /// slug. See `vault_note::scan_notes` for what a scan skips and why.
 pub fn list_schedules(vault: &Path, project: Option<&str>) -> Result<Vec<ScheduleFile>, String> {
@@ -210,6 +213,38 @@ pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<Sch
     })
 }
 
+/// Moves a schedule note into `_ai/memory/schedule-trash/` and returns where
+/// it went.
+///
+/// Deliberately not an unlink, for the same reasons as the mindmap's delete:
+/// these files are shared with Obsidian and with agents, they can hold
+/// hand-written prose under `## Memo`, and the app's delete is one click behind
+/// one confirmation — a recoverable move is the proportionate operation.
+/// Anything older than the last delete of a given note is covered by the
+/// vault's git backup.
+pub fn delete_schedule(vault: &Path, path: &Path) -> Result<String, String> {
+    if !path.is_file() {
+        return Err("this schedule no longer exists".into());
+    }
+    let dir = vault.join("_ai").join("memory").join(TRASH_DIR);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = path
+        .file_stem()
+        .and_then(|n| n.to_str())
+        .unwrap_or(KIND)
+        .to_string();
+    // Two projects may hold a note of the same name, and the same note may be
+    // deleted twice; suffix rather than overwrite what is already in the trash.
+    let target = unique_note_path(&dir, &format!("{name} {}", today()), KIND, None);
+    fs::rename(path, &target).map_err(|e| e.to_string())?;
+    // The snapshot describes a file that is no longer there. Leaving it would
+    // make a later note that happens to reuse the path inherit a stranger's
+    // undo.
+    let snapshot = crate::vault_note::snapshot_path(vault, SNAPSHOT_DIR, path);
+    let _ = fs::remove_file(snapshot);
+    Ok(norm_path(&target))
+}
+
 /// Writes a generated HTML export. Kept in Rust (rather than a frontend
 /// download) so the default destination can be the project's `attachments/`
 /// folder inside the vault — the export is part of the project record, not a
@@ -285,6 +320,38 @@ mod tests {
         let b = create_schedule(&vault, "demo", "plan", "").unwrap();
         assert_ne!(a.path, b.path);
         assert!(b.path.ends_with("plan 2.md"));
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_moves_the_note_to_the_trash_instead_of_unlinking() {
+        let vault = temp_vault("delete");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+
+        let moved = delete_schedule(&vault, &path).unwrap();
+        assert!(!path.exists());
+        assert!(moved.contains("_ai/memory/schedule-trash/"));
+        assert!(PathBuf::from(&moved).is_file());
+        assert!(list_schedules(&vault, None).unwrap().is_empty());
+
+        // A second delete of the same name lands beside the first.
+        let again = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let moved2 = delete_schedule(&vault, &PathBuf::from(&again.path)).unwrap();
+        assert_ne!(moved, moved2);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_drops_the_ai_snapshot_with_the_note() {
+        let vault = temp_vault("delete-snapshot");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+
+        save_snapshot(&vault, &path).unwrap();
+        assert!(has_snapshot(&vault, &path));
+        delete_schedule(&vault, &path).unwrap();
+        assert!(!has_snapshot(&vault, &path));
         fs::remove_dir_all(&vault).ok();
     }
 
