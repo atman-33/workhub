@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Your preferences now shape every question an agent asks** (T-0205). Agents
+  interrupted you with open choices — "A or B?" — even though the vault already
+  held a note saying which way you lean, because only the secretary subagent
+  ever read it and the secretary is off by default. The owner's notes have moved
+  out of `knowledge/` into a `profile/` folder at the vault root, where they
+  belong: they are read by hooks, skills and agents, not consulted like
+  reference material. `decision-policy.md` gains a **Preferences** section for
+  the leanings a proposal is built from, and every session — with the secretary
+  on or off — is now told to read it, to bring you a recommended answer with its
+  reason instead of a bare choice, and to write what you decide back into
+  **Past decisions** so the same question is not asked twice. The secretary
+  itself must now name a recommendation on everything it escalates, `task-start`
+  and `task-report` fold your answers back into the policy, and the decisions
+  log the secretary reads as precedent (`_ai/logs/decisions.md`) is finally
+  created rather than merely referred to. Existing vaults pick the new layout up
+  from the template; move `knowledge/profile/` to `profile/` yourself if you
+  seeded the vault before this release.
+
 - **Settings that belong to the vault now travel with it** (T-0206). Workhub
   kept every setting on the machine it was set on, so a second PC started from
   defaults: the custom prompt, the task-file language, the agents and models

@@ -13,7 +13,7 @@ on the owner's background, current context, or preferences — it saves
 re-explaining the same premises in every session.
 
 Fill it in yourself, or ask an agent to draft it: *"Summarize everything you
-currently know about me and save it to `knowledge/profile/about-me.md`."*
+currently know about me and save it to `profile/about-me.md`."*
 Then correct the draft. Growing it over time is the point; it does not have to
 be complete on day one.
 
@@ -36,9 +36,9 @@ freely.
 
 ## Preferences
 
-<!-- How you like to work with an agent: level of detail, when to ask versus
-     decide, review style, languages for chat and for artifacts, tools you
-     want used or avoided. -->
+How you like an agent to work is recorded in [[profile/decision-policy]], under
+its `## Preferences` section — that note is what agents consult when they build
+a recommendation, so keeping the two in one place stops them drifting apart.
 
 ## Elsewhere
 

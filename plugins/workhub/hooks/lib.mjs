@@ -32,6 +32,21 @@ export function resolveVault() {
 }
 
 /**
+ * The owner's profile folder: `<vault>/profile/`, holding `about-me.md` and
+ * `decision-policy.md`. It sits at the vault root rather than under
+ * `knowledge/` because hooks, skills and the secretary agent all read it —
+ * it is operational, not reference material.
+ */
+export function resolveProfileDir(vault) {
+  return join(vault, "profile");
+}
+
+/** The owner's decision policy note, the file the profile hooks gate on. */
+export function resolveDecisionPolicy(vault) {
+  return join(resolveProfileDir(vault), "decision-policy.md");
+}
+
+/**
  * Secretary agent switch from the workhub app settings. Consulting the
  * secretary costs tokens (it is a subagent), so it is off by default and the
  * user turns it on in ⚙ Settings. Missing config or field means disabled —

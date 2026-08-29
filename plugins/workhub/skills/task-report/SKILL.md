@@ -24,7 +24,15 @@ argument-hint: "<task-id>"
 4. **Append to the task's `## Results` section** (Edit tool): a 2-4 line
    summary and wikilinks to the notes created in step 3. Change nothing
    else in the body.
-5. **Close out the status** with the bundled CLI (preferred — it sets
+5. **Feed the owner's judgement calls back into the policy.** If the owner
+   settled anything during this task — a question you put to them, a
+   correction to your approach, a preference they stated in passing — append
+   the rule it establishes to `<vault>/profile/decision-policy.md`:
+   `## Past decisions` for a one-off call
+   (`- <date> <task-id> <the rule> (from: <the question>)`), `## Preferences`
+   for a standing leaning. Say in the report which lines you added. This is
+   what stops the next task asking the same question.
+6. **Close out the status** with the bundled CLI (preferred — it sets
    `status: review` + `updated`, clears the active-task marker, and
    refreshes the index in one step):
 
@@ -35,7 +43,7 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
    delete `<vault>/_ai/memory/active-task.json` if it refers to this task.
-6. **Offer to clean up the worktree — only for worktree-mode tasks**
+7. **Offer to clean up the worktree — only for worktree-mode tasks**
    (`worktree: true`). Once the work is committed/pushed and no longer needed,
    **propose** removing the task's worktree (do not delete it automatically —
    the user may still want to inspect it):

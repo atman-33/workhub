@@ -45,6 +45,15 @@ argument-hint: "<task-id>"
      Read each listed file's `## Answer`, act on it, and clear the block with
      `task-cli.mjs update <task-id> --blocked false`. Questions still
      `pending` are unanswered — do not ask them again.
+
+     **Then feed the answer back into the policy.** For each answer, append
+     one line to `<vault>/profile/decision-policy.md` under
+     `## Past decisions`:
+     `- <date> <task-id> <the rule this establishes> (from: <question-id>)`.
+     If the answer is a standing preference rather than a one-off call, put
+     it under `## Preferences` instead and say which you chose. An answer
+     that is not written back gets asked again next time, which is the whole
+     problem the policy exists to solve.
 3. **Resolve the target repository** from the `project` frontmatter key:
    - If it's an absolute path, use it directly.
    - Otherwise look for `C:/repos/<project>`.

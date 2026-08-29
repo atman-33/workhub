@@ -10,7 +10,8 @@ files; it is the single source of truth for tasks and shared knowledge.
 |--------|------|----------|
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes and task deliverables |
-| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme (incl. `profile/about-me.md`) |
+| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
+| `profile/` | human + AI | who the owner is (`about-me.md`) and how they decide (`decision-policy.md`) — read by hooks, skills and the secretary agent |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
@@ -36,11 +37,21 @@ follow the same convention (e.g. `knowledge/infra/`).
 How agents and the owner work together here. It applies to every session in
 this vault, on top of the task-specific prompt.
 
-**Owner context.** `knowledge/profile/about-me.md` says who the owner is —
-background, current work, preferences, and where the rest of their context
-lives. Read it before work that depends on any of that, instead of asking the
-owner to restate it. When a session reveals something durable about them that
-the note is missing, offer to add it.
+**Owner context.** `profile/` is who the owner is and how they decide.
+`about-me.md` covers background, current work and where the rest of their
+context lives; `decision-policy.md` covers what you may settle alone, what has
+to come back to them, and — in its `## Preferences` section — the leanings you
+build a recommendation from. Read them before work that depends on any of
+that, instead of asking the owner to restate it. It sits at the vault root
+rather than under `knowledge/` because it is operational: hooks, skills and
+the `secretary` agent all read it.
+
+**Questions carry a recommendation.** Never put an open choice to the owner.
+Work out from `## Preferences` and `## Past decisions` which answer they would
+most likely give, and offer it as the recommended option with its reason. When
+they settle a question, append the rule it establishes to `## Past decisions`
+(or to `## Preferences`, if it is a standing preference rather than a one-off
+call) so the same question is not asked twice.
 
 **Before building.** Write the plan before the implementation, and get it
 approved when the task is plan-first. Reuse what already exists — an existing
@@ -70,7 +81,7 @@ is not approval for the next one.
 The workhub app's **Settings → Commands → Custom prompt** is appended verbatim
 to every task launch prompt; its whitespace collapses to single spaces, so keep
 it to a short personal delta. Anything longer belongs in this file or in
-`knowledge/profile/about-me.md`, which agents read from the vault itself.
+`profile/about-me.md`, which agents read from the vault itself.
 
 ## Knowledge workflow
 

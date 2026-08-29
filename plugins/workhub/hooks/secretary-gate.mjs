@@ -6,15 +6,14 @@
 // agent decided to ask. When the secretary was already consulted (recorded by
 // secretary-consulted.mjs) the question passes straight through.
 import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { readPayload, resolveVault, secretaryEnabled } from "./lib.mjs";
+import { readPayload, resolveDecisionPolicy, resolveVault, secretaryEnabled } from "./lib.mjs";
 import { MAX_BLOCKS, readState, writeState } from "./secretary-state.mjs";
 
 if (!secretaryEnabled()) process.exit(0);
 
 const vault = resolveVault();
 if (!vault) process.exit(0);
-if (!existsSync(join(vault, "knowledge", "profile", "decision-policy.md"))) process.exit(0);
+if (!existsSync(resolveDecisionPolicy(vault))) process.exit(0);
 
 const payload = readPayload();
 const sessionId = payload?.session_id;

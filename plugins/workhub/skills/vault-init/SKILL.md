@@ -47,7 +47,7 @@ argument-hint: "<target-path>"
    (plan before building, ask instead of assuming, record decisions, confirm
    irreversible actions). Point the user at it, and set up the one part that
    is theirs alone:
-   - `knowledge/profile/about-me.md` is a skeleton: who they are, their
+   - `profile/about-me.md` is a skeleton: who they are, their
      background, current work, agent preferences, and where the rest of their
      context lives (other vaults, Notion, GitHub, internal wikis).
    - Offer to draft it now from what is already known about them, and have

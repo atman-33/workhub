@@ -1,6 +1,7 @@
 ---
 paths:
   - "plugins/workhub/hooks/secretary-*.mjs"
+  - "plugins/workhub/hooks/profile-inject.mjs"
   - "plugins/workhub/agents/**"
   - "plugins/workhub/scripts/comms-cli.mjs"
   - "vault-template/.opencode/**"
@@ -13,7 +14,7 @@ The secretary only reduces interruptions if sessions actually consult it. The
 instruction alone does not achieve that, so the mechanism is built from three
 parts with different failure modes:
 
-- `secretary-inject.mjs` (SessionStart) states the rule. It reaches every
+- `profile-inject.mjs` (SessionStart) states the rules. It reaches every
   session because this plugin is installed **user scope** — the vault's
   `CLAUDE.md` cannot do this job, since tasks run in the *target* repository
   and never read it.
@@ -46,12 +47,32 @@ Two consequences worth keeping in mind before changing any of them:
   stands down for the rest of the session. Keep it small, and keep the state
   per-session (`~/.workhub/secretary/<session-id>.json`).
 
-Everything hangs off `settings.secretary_enabled` in `~/.workhub/config.json`,
-and every hook checks it first — with the feature off nothing is injected and
-nothing is consulted, which is the point (consulting a subagent costs tokens).
-**The flag is off by default (T-0158), and a missing config or missing key
-counts as off**: hooks test `=== true`, never `!== false`, so a machine with no
-config never runs the secretary behind a Settings toggle that reads "off". The
-hooks also stay silent when the vault has no
-`knowledge/profile/decision-policy.md`, since the secretary would have no
-authority to judge from.
+## Two tiers, gated differently (T-0205)
+
+`profile-inject.mjs` emits two blocks, and only the second is behind the
+settings flag:
+
+- **owner-profile** — read `profile/decision-policy.md`, never put a bare
+  choice to the owner, write settled answers back into its `## Past decisions`.
+  Gated on the policy file existing, *not* on `secretary_enabled`. It is a
+  handful of instruction tokens and no subagent, so charging it to a toggle
+  whose stated cost is "a subagent per question" would be wrong — and the
+  owner's preferences should shape how a question is phrased whether or not
+  anyone is paying for a secretary.
+- **secretary-agent** — consult the subagent, log DECIDE, file ESCALATE. Gated
+  on `settings.secretary_enabled` in `~/.workhub/config.json`, along with
+  `secretary-gate.mjs`, `secretary-consulted.mjs` and the OpenCode `ask_owner`
+  tool. **The flag is off by default (T-0158), and a missing config or missing
+  key counts as off**: hooks test `=== true`, never `!== false`, so a machine
+  with no config never runs the secretary behind a Settings toggle that reads
+  "off".
+
+Keep the two harnesses aligned: `secretary-plugin.ts` splits the same way
+(`profileRule` always, `secretaryRule` only when `secretaryOn`), and its
+`tool.execute.after` handler must bail on `!secretaryOn` — otherwise it keeps
+writing consulted-state for a gate that is not running.
+
+Everything stays silent when the vault has no `profile/decision-policy.md`.
+That note lives at the vault root rather than under `knowledge/` because it is
+operational — hooks, skills and the agent all read it — and deleting it is the
+documented way to turn the whole mechanism off by omission.

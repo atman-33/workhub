@@ -4,7 +4,7 @@
 // (plugins/workhub/hooks/secretary-*.mjs) — keep the two sides behaviorally
 // aligned. The pieces map like this:
 //
-//   secretary-inject.mjs  -> "chat.message" (rule injected once per session)
+//   profile-inject.mjs    -> "chat.message" (rules injected once per session)
 //   secretary-consulted.mjs -> "tool.execute.after" on the task tool
 //   secretary-gate.mjs    -> the `ask_owner` tool below
 //
@@ -16,10 +16,14 @@
 // stop a model that simply asks in prose. The injected rule is what covers
 // that case, on both harnesses.
 //
-// Everything no-ops unless the workhub app setting `secretary_enabled` is
-// explicitly true (~/.workhub/config.json) — it is off by default, since
-// consulting a subagent costs tokens — or when the vault has no decision policy
-// for the secretary to judge from.
+// The injected rules come in two tiers, mirroring profile-inject.mjs. The
+// owner-profile block (read the decision policy, attach a recommendation to
+// every question, feed answers back) needs only a decision policy in the vault,
+// so it applies whether or not the secretary is on. The secretary block and the
+// `ask_owner` tool additionally require the workhub app setting
+// `secretary_enabled` to be explicitly true (~/.workhub/config.json) — off by
+// default, since consulting a subagent costs tokens. Everything no-ops when the
+// vault has no decision policy to judge from.
 import type { Plugin } from "@opencode-ai/plugin";
 import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
 import {
@@ -117,30 +121,54 @@ function runCommsCli(cli: string, args: string[], vault: string): Promise<string
 const secretaryPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
   const vault = resolveVault(workspaceRoot);
-  const policyPath = vault
-    ? join(vault, "knowledge", "profile", "decision-policy.md")
-    : null;
-  const active =
-    readAppConfig().settings?.secretary_enabled === true &&
-    !!vault &&
-    !!policyPath &&
-    existsSync(policyPath);
+  const policyPath = vault ? join(vault, "profile", "decision-policy.md") : null;
 
-  if (!active) return {};
+  // Tier 1 needs nothing but a decision policy to read; tier 2 additionally
+  // needs the app setting, because it spends a subagent per question.
+  if (!vault || !policyPath || !existsSync(policyPath)) return {};
+  const secretaryOn = readAppConfig().settings?.secretary_enabled === true;
 
   const injected = new Set<string>();
+  const aboutMePath = join(vault, "profile", "about-me.md");
 
   // The `tool` helper (and the zod re-export it carries) is a runtime value, so
   // it is imported dynamically: a host that does not provide it leaves the
   // plugin with rule injection only instead of failing to load.
   let toolHelper: typeof import("@opencode-ai/plugin").tool | null = null;
-  try {
-    ({ tool: toolHelper } = await import("@opencode-ai/plugin"));
-  } catch {
-    toolHelper = null;
+  if (secretaryOn) {
+    try {
+      ({ tool: toolHelper } = await import("@opencode-ai/plugin"));
+    } catch {
+      toolHelper = null;
+    }
   }
 
-  const rule = [
+  const profileRule = [
+    "<owner-profile>",
+    "The owner's profile lives in the vault:",
+    "",
+    `- ${policyPath} — what you may decide alone, what has to come back to them,`,
+    "  and a `## Preferences` section describing how they like to work.",
+    `- ${aboutMePath} — who they are and what context they already have.`,
+    "",
+    "Read the decision policy before putting any question to the owner, and act",
+    "on it:",
+    "",
+    "- **Never ask an open question.** Use `## Preferences` and `## Past decisions`",
+    "  to work out which answer the owner would most likely give, and present it",
+    "  as a recommended option, with the reason and the preference it came from.",
+    "  Ask without a recommendation only when the profile genuinely does not lean",
+    "  either way — and say that is why.",
+    "- **Feed the answer back.** Whenever the owner settles a question, append one",
+    "  line to the policy's `## Past decisions`:",
+    "  `- <date> <task-id> <the rule this establishes> (from: <the question>)`. When",
+    "  the answer reveals a standing preference rather than a one-off call, add it",
+    "  to `## Preferences` instead and say so. This is what stops the same question",
+    "  being asked twice.",
+    "</owner-profile>",
+  ].join("\n");
+
+  const secretaryRule = [
     "<secretary-agent>",
     "Before asking the owner anything, consult the `secretary` subagent (the task",
     `tool, agent "secretary"). It answers from the owner's decision policy`,
@@ -155,9 +183,13 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     "Set `blocked: true` and `blocked_note` on the task when you file a question,",
     "then continue with whatever does not depend on the answer. The owner reads",
     "filed questions in the workhub app and in Obsidian, so a filed question does",
-    "not block them the way an interrupted terminal does.",
+    "not block them the way an interrupted terminal does. The recommendation",
+    "rule above still applies: what you file carries the recommended option and",
+    "its reason.",
     "</secretary-agent>",
   ].join("\n");
+
+  const rule = secretaryOn ? `${profileRule}\n\n${secretaryRule}` : profileRule;
 
   const tools = toolHelper
     ? {
@@ -243,6 +275,7 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     },
 
     "tool.execute.after": async (input) => {
+      if (!secretaryOn) return;
       if (input.tool !== "task") return;
       const agent = String((input.args as { subagent_type?: string; agent?: string })?.agent ?? "");
       const subagent = String((input.args as { subagent_type?: string })?.subagent_type ?? "");
