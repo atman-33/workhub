@@ -3,13 +3,7 @@ import { Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Markdown } from "@/components/ui/markdown";
 import { Input } from "@/components/ui/input";
@@ -100,6 +94,8 @@ const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
 
 const CREATE_DRAFT_KEY = "workhub:task-draft:create";
+// Last position/size of the floating editor, restored on the next open.
+const RECT_STORAGE_KEY = "workhub:task-dialog:rect";
 
 function loadCreateDraft(): TaskDraft | null {
   try {
@@ -184,16 +180,31 @@ export function TaskDialog({
   const [obsidianError, setObsidianError] = useState<string | null>(null);
   // Guards the create buttons against double-submits while creation runs.
   const [creating, setCreating] = useState(false);
+  // Id of the task the draft was loaded from. The panel is non-modal, so while
+  // it is open another task can be clicked behind it; the prop `task` then
+  // points somewhere else and the form must be re-seeded — otherwise the next
+  // autosave would write the old task's fields onto the new task's file.
+  const draftTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (open) {
+      if (mode === "edit" && task) {
+        if (draftTaskIdRef.current === task.id) return;
+        draftTaskIdRef.current = task.id;
+        setDraft(draftFromTask(task));
+      } else {
+        draftTaskIdRef.current = null;
+        setDraft(loadCreateDraft() ?? EMPTY_DRAFT);
+      }
       setDescEditing(false);
       setPane("description");
       setMaximized(false);
       setObsidianError(null);
       setCreating(false);
       skipAutoSaveOnCloseRef.current = false;
+    } else {
+      draftTaskIdRef.current = null;
     }
-  }, [open]);
+  }, [open, mode, task]);
 
   // `resultRaw` always starts with the "## Results" header. The tab is already
   // labelled Results, so the header is dropped rather than repeated — and what
@@ -216,18 +227,6 @@ export function TaskDialog({
   // overwriting the agent's own edits. This ref suppresses the autosave-on-close
   // path in that specific case.
   const skipAutoSaveOnCloseRef = useRef(false);
-
-  // On open, initialize the form. Edit mode uses the task file as the source
-  // of truth; create mode restores a localStorage draft so an accidental close
-  // before creation does not lose input.
-  useEffect(() => {
-    if (!open) return;
-    if (mode === "edit" && task) {
-      setDraft(draftFromTask(task));
-    } else {
-      setDraft(loadCreateDraft() ?? EMPTY_DRAFT);
-    }
-  }, [open, mode, task]);
 
   // Create mode: persist the draft to localStorage until the user confirms.
   useEffect(() => {
@@ -505,316 +504,16 @@ export function TaskDialog({
     }
   }, [onCreate, onClose]);
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {/* Flex column (overrides the default grid) so the form area can shrink
-          and scroll instead of growing the dialog past the viewport. */}
-      <DialogContent
-        className={cn(
-          "flex max-h-[calc(100vh-3rem)] flex-col",
-          maximized
-            ? "h-[calc(100vh-3rem)] sm:max-w-[calc(100vw-3rem)]"
-            : "sm:max-w-lg",
-        )}
-      >
-        <DialogHeader>
-          {/* The action row must never be squeezed: it keeps `shrink-0` and the
-              title truncates instead, so adding a button cannot wrap the title
-              onto a second line. */}
-          <div className="flex items-center justify-between gap-2 pr-6">
-            <DialogTitle className="min-w-0 truncate">
-              {displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
-            </DialogTitle>
-            <div className="flex shrink-0 items-center gap-2">
-              {displayMode === "edit" && (
-                <>
-                  {task &&
-                    (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
-                      <>
-                        {onCopyTaskPrompt && (
-                          <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
-                        )}
-                        {onSendToClaudeDesktop && (
-                          <ClaudeDesktopButton
-                            size="icon-sm"
-                            mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
-                            onSend={handleSendToClaudeDesktop}
-                          />
-                        )}
-                        {onLaunchAgent && (
-                          <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
-                        )}
-                      </>
-                    )}
-                  <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
-                </>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                aria-label={maximized ? "Exit full screen" : "Full screen"}
-                title={maximized ? "Exit full screen" : "Full screen"}
-                onClick={() => setMaximized((m) => !m)}
-              >
-                {maximized ? (
-                  <Minimize2 className="size-3.5" />
-                ) : (
-                  <Maximize2 className="size-3.5" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogHeader>
-        {/* min-w-0 keeps wide content (e.g. code blocks) from stretching the
-            dialog; the pre's own overflow-x handles horizontal scrolling. */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
-          {field(
-            "Title",
-            <Input
-              autoFocus
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              className="h-8 text-sm"
-              placeholder="Task title"
-            />,
-          )}
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
-            {field(
-              "Status",
-              <Select
-                value={draft.status}
-                onValueChange={(v) => setDraft({ ...draft, status: v as TaskStatus })}
-              >
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>,
-            )}
-            {field(
-              "Assignee",
-              <Select
-                value={draft.assignee}
-                onValueChange={(v) =>
-                  // Clear the model when the assignee changes — model catalogs
-                  // differ per agent, so a stale carry-over is never valid.
-                  setDraft({ ...draft, assignee: v as TaskAssignee, model: "" })
-                }
-              >
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ASSIGNEES.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>,
-            )}
-            {field(
-              "Priority",
-              // Click cycles low → medium → high → low; no more dropdown.
-              <div className="flex h-8 items-center">
-                <PriorityBadge
-                  priority={draft.priority}
-                  onCycle={(next) => setDraft({ ...draft, priority: next })}
-                />
-              </div>,
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {field(
-              "Project",
-              <Combobox
-                value={draft.project}
-                onChange={(v) => setDraft({ ...draft, project: v })}
-                options={knownProjects}
-                allowCustom
-                // Lives inside a modal Radix Dialog; without `modal` the
-                // dialog's scroll/pointer guard eats wheel scrolls on the
-                // portaled popover (same bug fixed for BranchCombobox in
-                // ce4ea2c).
-                modal
-                placeholder="repo name or path"
-                emptyText="No known projects."
-              />,
-            )}
-            {field(
-              "Model (AI launches)",
-              <ModelCombobox
-                assignee={draft.assignee}
-                value={draft.model}
-                onChange={handleModelChange}
-                // Gates the opencode catalog fetch: a closed dialog pays for
-                // no CLI spawn.
-                active={open}
-                // Lives inside a modal Radix Dialog; without `modal` the
-                // dialog's scroll/pointer guard eats wheel scrolls on the
-                // portaled popover (same bug fixed for BranchCombobox in
-                // ce4ea2c).
-                modal
-                // A "me" (human) task launches no AI agent, so a model is
-                // meaningless — disable the field. Assignee changes already
-                // clear draft.model, so nothing stale lingers here.
-                disabled={draft.assignee === "me"}
-                placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
-              />,
-            )}
-          </div>
-          <Accordion
-            type="single"
-            collapsible
-            defaultValue={hasOptionalDetails ? "optional" : undefined}
-          >
-            <AccordionItem value="optional">
-              <AccordionTrigger>
-                <span className="flex flex-col items-start">
-                  <span>Optional details</span>
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {optionalSummary}
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {field(
-                      "Due",
-                      <DatePicker
-                        value={draft.due}
-                        onChange={(v) => setDraft({ ...draft, due: v })}
-                      />,
-                    )}
-                    {field(
-                      "Tags (comma separated)",
-                      <Input
-                        value={draft.tags}
-                        onChange={(e) =>
-                          setDraft({ ...draft, tags: e.target.value })
-                        }
-                        className="h-8 text-xs"
-                        placeholder="feature, bug"
-                      />,
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {toggle(
-                      "Confirm mode",
-                      "Agent drafts a plan and waits for your approval before executing.",
-                      draft.confirm,
-                      (v) => setDraft({ ...draft, confirm: v }),
-                      draft.assignee === "me",
-                    )}
-                    {toggle(
-                      "Git worktree",
-                      "Agent works in a dedicated worktree so parallel tasks don't collide.",
-                      draft.worktree,
-                      (v) => setDraft({ ...draft, worktree: v }),
-                      draft.assignee === "me",
-                    )}
-                  </div>
-                  <div className="space-y-3">
-                    {toggle(
-                      "Blocked",
-                      "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
-                      draft.blocked,
-                      (v) =>
-                        // Turning it on stamps today so the wait is measured from the
-                        // moment it was noticed; turning it off clears the details so
-                        // no stale note survives into the next block.
-                        setDraft(
-                          v
-                            ? {
-                                ...draft,
-                                blocked: true,
-                                blockedSince: draft.blockedSince || todayString(),
-                              }
-                            : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
-                        ),
-                      false,
-                    )}
-                    {draft.blocked && (
-                      <div className="grid grid-cols-2 gap-3">
-                        {field(
-                          "Waiting on",
-                          <Input
-                            value={draft.blockedNote}
-                            onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
-                            className="h-8 text-xs"
-                            placeholder="e.g. vendor quote, review from Sato"
-                          />,
-                        )}
-                        {field(
-                          "Blocked since",
-                          <DatePicker
-                            value={draft.blockedSince}
-                            onChange={(v) => setDraft({ ...draft, blockedSince: v })}
-                          />,
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-          {/* Description, Plan and Results share one pane. They are the three
-              long-form sections of the same file and are read one after the
-              other, so giving each its own slide-over meant losing sight of
-              the task while reading about it. Only Description is editable:
-              Plan is the approval record and Results the agent's report, both
-              written outside the app (see task-body.ts).
-
-              Create mode has no file yet, so it shows the description alone
-              rather than two permanently empty tabs. */}
-          {displayMode === "create"
-            ? field("Description", descriptionPane, paneShellClass)
-            : (
-              <Tabs
-                value={pane}
-                onValueChange={(v) => setPane(v as PaneTab)}
-                className={cn("gap-1.5", paneShellClass)}
-              >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="description">Description</TabsTrigger>
-                  {/* Disabled rather than hidden when empty: the tabs are also
-                      how the user learns these sections exist at all. */}
-                  <TabsTrigger value="plan" disabled={!hasPlan}>
-                    {hasPlan ? "Plan" : "Plan (none)"}
-                  </TabsTrigger>
-                  <TabsTrigger value="results" disabled={!hasResults}>
-                    {hasResults ? "Results" : "Results (none)"}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="description" className={paneShellClass}>
-                  {descriptionPane}
-                </TabsContent>
-                <TabsContent value="plan" className={readerClass}>
-                  <Markdown>{plan}</Markdown>
-                </TabsContent>
-                <TabsContent value="results" className={readerClass}>
-                  <Markdown>{results}</Markdown>
-                </TabsContent>
-              </Tabs>
-            )}
-        </div>
+  const footer =
+    obsidianError || displayMode === "create" ? (
+      <>
         {obsidianError && (
-          <p className="text-[10px] text-destructive/80">
+          <p className="pb-2 text-[10px] text-destructive/80">
             Could not open Obsidian — {obsidianError}
           </p>
         )}
         {displayMode === "create" && (
-          <DialogFooter>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -833,9 +532,305 @@ export function TaskDialog({
             >
               Create
             </Button>
-          </DialogFooter>
+          </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </>
+    ) : undefined;
+
+  return (
+    <FloatingPanel
+      open={open}
+      onClose={() => handleOpenChange(false)}
+      storageKey={RECT_STORAGE_KEY}
+      title={displayMode === "create" ? "New task" : `${task?.id} — Edit task`}
+      maximized={maximized}
+      defaultWidth={640}
+      defaultHeight={680}
+      minWidth={380}
+      minHeight={320}
+      footer={footer}
+      actions={
+        <>
+          {displayMode === "edit" && (
+            <>
+              {task &&
+                (draft.assignee === "claude-code" || draft.assignee === "opencode") && (
+                  <>
+                    {onCopyTaskPrompt && (
+                      <CopyPromptButton size="icon-sm" onCopy={handleCopyPrompt} />
+                    )}
+                    {onSendToClaudeDesktop && (
+                      <ClaudeDesktopButton
+                        size="icon-sm"
+                        mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                        onSend={handleSendToClaudeDesktop}
+                      />
+                    )}
+                    {onLaunchAgent && (
+                      <LaunchAgentButton size="icon-sm" onLaunch={handleLaunch} />
+                    )}
+                  </>
+                )}
+              <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label={maximized ? "Exit full screen" : "Full screen"}
+            title={maximized ? "Exit full screen" : "Full screen"}
+            onClick={() => setMaximized((m) => !m)}
+          >
+            {maximized ? (
+              <Minimize2 className="size-3.5" />
+            ) : (
+              <Maximize2 className="size-3.5" />
+            )}
+          </Button>
+        </>
+      }
+    >
+      {/* min-w-0 keeps wide content (e.g. code blocks) from stretching the
+          dialog; the pre's own overflow-x handles horizontal scrolling. */}
+      {field(
+        "Title",
+        <Input
+          autoFocus
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          className="h-8 text-sm"
+          placeholder="Task title"
+        />,
+      )}
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
+        {field(
+          "Status",
+          <Select
+            value={draft.status}
+            onValueChange={(v) => setDraft({ ...draft, status: v as TaskStatus })}
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>,
+        )}
+        {field(
+          "Assignee",
+          <Select
+            value={draft.assignee}
+            onValueChange={(v) =>
+              // Clear the model when the assignee changes — model catalogs
+              // differ per agent, so a stale carry-over is never valid.
+              setDraft({ ...draft, assignee: v as TaskAssignee, model: "" })
+            }
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSIGNEES.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>,
+        )}
+        {field(
+          "Priority",
+          // Click cycles low → medium → high → low; no more dropdown.
+          <div className="flex h-8 items-center">
+            <PriorityBadge
+              priority={draft.priority}
+              onCycle={(next) => setDraft({ ...draft, priority: next })}
+            />
+          </div>,
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {field(
+          "Project",
+          <Combobox
+            value={draft.project}
+            onChange={(v) => setDraft({ ...draft, project: v })}
+            options={knownProjects}
+            allowCustom
+            // Lives inside a modal Radix Dialog; without `modal` the
+            // dialog's scroll/pointer guard eats wheel scrolls on the
+            // portaled popover (same bug fixed for BranchCombobox in
+            // ce4ea2c).
+            modal
+            placeholder="repo name or path"
+            emptyText="No known projects."
+          />,
+        )}
+        {field(
+          "Model (AI launches)",
+          <ModelCombobox
+            assignee={draft.assignee}
+            value={draft.model}
+            onChange={handleModelChange}
+            // Gates the opencode catalog fetch: a closed dialog pays for
+            // no CLI spawn.
+            active={open}
+            // Lives inside a modal Radix Dialog; without `modal` the
+            // dialog's scroll/pointer guard eats wheel scrolls on the
+            // portaled popover (same bug fixed for BranchCombobox in
+            // ce4ea2c).
+            modal
+            // A "me" (human) task launches no AI agent, so a model is
+            // meaningless — disable the field. Assignee changes already
+            // clear draft.model, so nothing stale lingers here.
+            disabled={draft.assignee === "me"}
+            placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
+          />,
+        )}
+      </div>
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue={hasOptionalDetails ? "optional" : undefined}
+      >
+        <AccordionItem value="optional">
+          <AccordionTrigger>
+            <span className="flex flex-col items-start">
+              <span>Optional details</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {optionalSummary}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {field(
+                  "Due",
+                  <DatePicker
+                    value={draft.due}
+                    onChange={(v) => setDraft({ ...draft, due: v })}
+                  />,
+                )}
+                {field(
+                  "Tags (comma separated)",
+                  <Input
+                    value={draft.tags}
+                    onChange={(e) =>
+                      setDraft({ ...draft, tags: e.target.value })
+                    }
+                    className="h-8 text-xs"
+                    placeholder="feature, bug"
+                  />,
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {toggle(
+                  "Confirm mode",
+                  "Agent drafts a plan and waits for your approval before executing.",
+                  draft.confirm,
+                  (v) => setDraft({ ...draft, confirm: v }),
+                  draft.assignee === "me",
+                )}
+                {toggle(
+                  "Git worktree",
+                  "Agent works in a dedicated worktree so parallel tasks don't collide.",
+                  draft.worktree,
+                  (v) => setDraft({ ...draft, worktree: v }),
+                  draft.assignee === "me",
+                )}
+              </div>
+              <div className="space-y-3">
+                {toggle(
+                  "Blocked",
+                  "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+                  draft.blocked,
+                  (v) =>
+                    // Turning it on stamps today so the wait is measured from the
+                    // moment it was noticed; turning it off clears the details so
+                    // no stale note survives into the next block.
+                    setDraft(
+                      v
+                        ? {
+                            ...draft,
+                            blocked: true,
+                            blockedSince: draft.blockedSince || todayString(),
+                          }
+                        : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
+                    ),
+                  false,
+                )}
+                {draft.blocked && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {field(
+                      "Waiting on",
+                      <Input
+                        value={draft.blockedNote}
+                        onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
+                        className="h-8 text-xs"
+                        placeholder="e.g. vendor quote, review from Sato"
+                      />,
+                    )}
+                    {field(
+                      "Blocked since",
+                      <DatePicker
+                        value={draft.blockedSince}
+                        onChange={(v) => setDraft({ ...draft, blockedSince: v })}
+                      />,
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+      {/* Description, Plan and Results share one pane. They are the three
+          long-form sections of the same file and are read one after the
+          other, so giving each its own slide-over meant losing sight of
+          the task while reading about it. Only Description is editable:
+          Plan is the approval record and Results the agent's report, both
+          written outside the app (see task-body.ts).
+
+          Create mode has no file yet, so it shows the description alone
+          rather than two permanently empty tabs. */}
+      {displayMode === "create"
+        ? field("Description", descriptionPane, paneShellClass)
+        : (
+          <Tabs
+            value={pane}
+            onValueChange={(v) => setPane(v as PaneTab)}
+            className={cn("gap-1.5", paneShellClass)}
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="description">Description</TabsTrigger>
+              {/* Disabled rather than hidden when empty: the tabs are also
+                  how the user learns these sections exist at all. */}
+              <TabsTrigger value="plan" disabled={!hasPlan}>
+                {hasPlan ? "Plan" : "Plan (none)"}
+              </TabsTrigger>
+              <TabsTrigger value="results" disabled={!hasResults}>
+                {hasResults ? "Results" : "Results (none)"}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="description" className={paneShellClass}>
+              {descriptionPane}
+            </TabsContent>
+            <TabsContent value="plan" className={readerClass}>
+              <Markdown>{plan}</Markdown>
+            </TabsContent>
+            <TabsContent value="results" className={readerClass}>
+              <Markdown>{results}</Markdown>
+            </TabsContent>
+          </Tabs>
+        )}
+    </FloatingPanel>
   );
 }
