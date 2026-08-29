@@ -26,7 +26,10 @@ import { ReposView } from "@/components/repos-view";
 import { ScheduleView } from "@/components/schedule/schedule-view";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
-import { TemplateUpdateBanner } from "@/components/template-update-banner";
+import {
+  TemplateAutoAppliedBanner,
+  TemplateUpdateBanner,
+} from "@/components/template-update-banner";
 import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
 import { VoiceView } from "@/components/voice-view";
@@ -72,6 +75,9 @@ export default function App() {
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [templateDiff, setTemplateDiff] = useState<TemplateDiff | null>(null);
+  // Paths applied silently on startup (T-0196) — shown as a dismissible
+  // note so a template change is never completely invisible.
+  const [autoApplied, setAutoApplied] = useState<string[]>([]);
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
@@ -101,8 +107,15 @@ export default function App() {
   // machine booted after a rule's time still gets that occurrence's task.
   useRecurringTasks(configVersion);
 
-  const checkTemplate = useCallback(async (vaultPath: string) => {
+  const checkTemplate = useCallback(async (vaultPath: string, autoApply = false) => {
     try {
+      // Updates that cannot lose user edits are applied first and silently
+      // (T-0196): asking about them was pure friction. Whatever the check
+      // reports afterwards is what genuinely needs a decision.
+      if (autoApply) {
+        const applied = await api.applySafeTemplateUpdates(vaultPath);
+        setAutoApplied(applied);
+      }
       const diff = await api.checkVaultTemplate(vaultPath);
       setTemplateDiff(diff);
     } catch {
@@ -119,7 +132,10 @@ export default function App() {
         setUpdate(await api.checkUpdate());
       }
       if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
-        await checkTemplate(cfg.settings.vault_path);
+        await checkTemplate(
+          cfg.settings.vault_path,
+          cfg.settings.auto_apply_template_updates,
+        );
       }
       if (
         cfg.settings.vault_path &&
@@ -158,6 +174,12 @@ export default function App() {
               setMemorySetupNeeded(false);
               void saveSettings({ ...settings, check_memory_setup: false });
             }}
+          />
+        )}
+        {autoApplied.length > 0 && (
+          <TemplateAutoAppliedBanner
+            paths={autoApplied}
+            onDismiss={() => setAutoApplied([])}
           />
         )}
         {templateDiff && settings?.vault_path && (

@@ -1137,6 +1137,82 @@ fn apply_from(
     write_manifest(vault, &manifest)
 }
 
+/// Applies every template update that provably cannot destroy user content:
+/// the files the vault is missing (`Added`) and the ones whose vault copy
+/// still matches the recorded baseline byte-for-byte (`Updatable`). A file in
+/// `Conflict` is never touched — the user hand-edited it, so resolving it
+/// stays an explicit choice made in the update dialog.
+///
+/// This is what lets the app roll a new template out silently (T-0196):
+/// prompting for changes that cannot lose anything was pure friction, while
+/// the conflict case still asks.
+///
+/// It also seeds any seed-only file the vault is missing, so a file added to
+/// the template after a vault was created still reaches it.
+///
+/// Returns the relative paths that were written, in template walk order.
+pub fn apply_safe_template_updates(vault: &Path) -> Result<Vec<String>, String> {
+    apply_safe_from(vault, &VAULT_TEMPLATE)
+}
+
+fn apply_safe_from(vault: &Path, template: &Dir) -> Result<Vec<String>, String> {
+    // Seed-only files are excluded from every diff, so a seed-only file added
+    // to the template after a vault was initialized would otherwise never
+    // reach that vault — `init_vault` runs once, at creation. Creating a file
+    // the vault does not have cannot destroy anything, so it belongs in the
+    // silent path. Like `init_from`, this records no baseline for them: they
+    // are never compared again.
+    let mut written = seed_missing_files(vault, template)?;
+
+    let diff = diff_against(vault, template)?;
+    let safe: Vec<String> = diff
+        .files
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.state,
+                TemplateFileState::Added | TemplateFileState::Updatable
+            )
+        })
+        .map(|f| f.path.clone())
+        .collect();
+
+    if !safe.is_empty() {
+        // `overwrite` stays empty: none of these paths is a Conflict, so there
+        // is nothing for it to authorize.
+        apply_from(vault, template, &safe, &[])?;
+        written.extend(safe);
+    }
+
+    Ok(written)
+}
+
+/// Writes the seed-only template files the vault is missing, leaving every
+/// existing file untouched. Returns the paths actually created.
+fn seed_missing_files(vault: &Path, template: &Dir) -> Result<Vec<String>, String> {
+    let mut files = Vec::new();
+    walk_template_files(template, &mut files);
+    let seed_only = load_template_policy(template);
+
+    let mut created = Vec::new();
+    for file in files {
+        let rel = norm_path(file.path());
+        if !seed_only.contains(&rel) {
+            continue;
+        }
+        let dst_path = vault.join(file.path());
+        if dst_path.exists() {
+            continue;
+        }
+        if let Some(parent) = dst_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
+        created.push(rel);
+    }
+    Ok(created)
+}
+
 /// Renders a unified diff between the vault's current copy of `path` and the
 /// embedded template's version of it, so the update dialog can show what an
 /// overwrite would actually change before the user discards local edits.
@@ -2234,6 +2310,152 @@ mod tests {
         let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
 
         assert!(diff_state(&diff, "home.md").is_none());
+    }
+
+    #[test]
+    fn apply_safe_applies_added_and_updatable_but_never_a_conflict() {
+        let vault = temp_test_vault("apply-safe");
+        fs::create_dir_all(&vault).unwrap();
+        // `stable.md` is untouched since the last apply -> Updatable once the
+        // baseline points at an older template revision.
+        fs::write(vault.join("stable.md"), "stable-content-v1").unwrap();
+        // `changed.md` was hand-edited -> Conflict.
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        // `added.md` is simply missing -> Added.
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            ..Default::default()
+        };
+        manifest
+            .files
+            .insert("stable.md".into(), sha256_hex(b"stable-content-v1"));
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        let applied = apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(applied.contains(&"added.md".to_string()));
+        assert!(applied.contains(&"stable.md".to_string()));
+        assert!(
+            !applied.contains(&"changed.md".to_string()),
+            "a conflict must never be applied without the user's choice"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.join("added.md")).unwrap(),
+            "added-content"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.join("stable.md")).unwrap(),
+            "stable-content"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "hand-edited content",
+            "the conflicting file must be left exactly as the user wrote it"
+        );
+        assert!(
+            !vault.join("changed.md.new").exists(),
+            "a safe apply must not even write the .new side file"
+        );
+
+        // Baselines advance for what was written, and only for that.
+        let reloaded = load_manifest(&vault);
+        assert_eq!(
+            reloaded.files.get("stable.md").unwrap(),
+            &sha256_hex(b"stable-content")
+        );
+        assert_eq!(
+            reloaded.files.get("added.md").unwrap(),
+            &sha256_hex(b"added-content")
+        );
+        assert_eq!(
+            reloaded.files.get("changed.md").unwrap(),
+            &sha256_hex(b"changed-content-v1")
+        );
+
+        // The conflict is all that is left to ask about.
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert_eq!(
+            diff_state(&diff, "stable.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+        assert_eq!(
+            diff_state(&diff, "added.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+        assert_eq!(
+            diff_state(&diff, "changed.md"),
+            Some(TemplateFileState::Conflict)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn apply_safe_seeds_a_seed_only_file_the_vault_is_missing() {
+        let vault = temp_test_vault("apply-safe-seed");
+        fs::create_dir_all(&vault).unwrap();
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+        // The owner deleted the seeded file, or it was added to the template
+        // after this vault was created.
+        fs::remove_file(vault.join("home.md")).unwrap();
+
+        let applied = apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(applied.contains(&"home.md".to_string()));
+        assert_eq!(
+            fs::read_to_string(vault.join("home.md")).unwrap(),
+            "home-content"
+        );
+        // Seed-only files stay out of the manifest: they are never compared
+        // again, so they must never gain a baseline.
+        assert!(!load_manifest(&vault).files.contains_key("home.md"));
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn apply_safe_never_overwrites_an_edited_seed_only_file() {
+        let vault = temp_test_vault("apply-safe-seed-edited");
+        fs::create_dir_all(&vault).unwrap();
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+        fs::write(vault.join("home.md"), "the owner's own home note").unwrap();
+
+        let applied = apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(!applied.contains(&"home.md".to_string()));
+        assert_eq!(
+            fs::read_to_string(vault.join("home.md")).unwrap(),
+            "the owner's own home note"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn apply_safe_is_a_no_op_when_everything_is_up_to_date_or_conflicting() {
+        let vault = temp_test_vault("apply-safe-noop");
+        fs::create_dir_all(&vault).unwrap();
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+        // Hand-edit one file and roll its baseline back, making it a Conflict.
+        fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
+        let mut manifest = load_manifest(&vault);
+        manifest
+            .files
+            .insert("changed.md".into(), sha256_hex(b"changed-content-v1"));
+        write_manifest(&vault, &manifest).unwrap();
+
+        let applied = apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(applied.is_empty(), "nothing safe was left to apply");
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md")).unwrap(),
+            "hand-edited content"
+        );
+
+        fs::remove_dir_all(&vault).ok();
     }
 
     #[test]

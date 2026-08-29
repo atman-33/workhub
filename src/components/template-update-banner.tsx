@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileDiff, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, FileDiff, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +40,49 @@ const STATE_VARIANT: Record<TemplateFileState, "secondary" | "outline" | "destru
 
 function isPending(state: TemplateFileState): boolean {
   return state !== "up_to_date";
+}
+
+/** Quiet note that safe template updates were applied on startup without
+ * asking (T-0196). It reports rather than asks — everything it lists was
+ * either missing from the vault or byte-identical to the last applied
+ * template, so nothing the user wrote could have been lost. */
+export function TemplateAutoAppliedBanner({
+  paths,
+  onDismiss,
+}: {
+  paths: string[];
+  onDismiss: () => void;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  return (
+    <div className="border-b bg-muted/40 px-4 py-1.5 text-[13px] text-muted-foreground">
+      <div className="flex h-7 items-center gap-3">
+        <Check className="size-4 shrink-0" />
+        <span>
+          Updated {paths.length} vault template file{paths.length === 1 ? "" : "s"}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs"
+          onClick={() => setDetailsOpen((o) => !o)}
+        >
+          {detailsOpen ? "Hide" : "Details"}
+        </Button>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onDismiss}>
+          Dismiss
+        </Button>
+      </div>
+      {detailsOpen && (
+        <ul className="max-h-40 overflow-y-auto pb-1.5 pl-7 font-mono text-[11px]">
+          {paths.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: Props) {

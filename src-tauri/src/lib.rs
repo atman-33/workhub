@@ -176,6 +176,7 @@ pub fn run() {
             commands::init_vault,
             commands::check_vault_template,
             commands::apply_vault_template,
+            commands::apply_safe_template_updates,
             commands::preview_vault_template_file,
             commands::watch_vault,
             commands::list_schedule_projects,

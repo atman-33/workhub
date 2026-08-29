@@ -416,6 +416,19 @@ mechanical authoring):
 - Do not overwrite existing human-zone notes; append or create new notes and
   link them. `_ai/` is yours to manage freely.
 
+## Local instructions
+
+`CLAUDE.local.md` at the vault root holds the owner's own instructions for
+agents. The workhub app seeds it once and never updates it, which is exactly
+why it exists: this file (`CLAUDE.md`) is app-managed and re-applied on every
+app update, so anything written here would eventually be overwritten. Read
+`CLAUDE.local.md` when it is present, and treat it as taking precedence over
+this file. If it is missing or empty, there are simply no local instructions.
+
+Anything an agent is asked to remember permanently goes there, never into this
+file — see `.claude/rules/app-managed-files.md` for the full list of files the
+app manages.
+
 <important>
 - Confirm with the owner before irreversible or outward-facing actions
   (deleting, overwriting, force-pushing, sending, publishing, spending).
@@ -423,4 +436,6 @@ mechanical authoring):
 - Never delete a worktree folder directly; always use `git worktree remove`.
 - Do not author skills inside this vault; keep skill source in the workhub repo.
 - Respond to the user in Japanese; write repository artifacts in English.
+- Never edit app-managed files (`CLAUDE.md`, `AGENTS.md`, `opencode.json`,
+  `.claude/**`, `.opencode/**`) to record instructions — use `CLAUDE.local.md`.
 </important>

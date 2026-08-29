@@ -50,6 +50,12 @@ pub struct Settings {
     /// the two drift apart again.
     #[serde(default = "default_true")]
     pub check_template_updates: bool,
+    /// Apply the vault template updates that cannot destroy user content
+    /// (missing files, and files still identical to the last-applied
+    /// baseline) without asking (T-0196). Conflicting files always keep
+    /// asking. Mirrors `src/types.ts`'s `Settings.auto_apply_template_updates`.
+    #[serde(default = "default_true")]
+    pub auto_apply_template_updates: bool,
     /// Notify on startup when the long-term memory engine has not been set
     /// up on this machine yet (T-0060). The notice only points the user at
     /// the `memory-setup` agent skill; the app never installs anything.
@@ -342,6 +348,7 @@ impl Default for Settings {
             herdr_cmd: default_herdr_cmd(),
             check_updates: true,
             check_template_updates: true,
+            auto_apply_template_updates: true,
             check_memory_setup: true,
             memory_claude_code: true,
             memory_opencode: true,

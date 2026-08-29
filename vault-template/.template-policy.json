@@ -1,5 +1,6 @@
 {
   "seed_only": [
+    "CLAUDE.local.md",
     "home.md",
     "tasks/_index.md",
     "knowledge/_index.md",

@@ -97,6 +97,10 @@ export const api = {
    * template instead of getting a `<name>.new` file beside the original. */
   applyVaultTemplate: (vaultPath: string, paths: string[], overwrite: string[] = []) =>
     invoke<void>("apply_vault_template", { vaultPath, paths, overwrite }),
+  /** Applies only the updates that cannot lose user edits (added/updatable),
+   * leaving conflicts for the review dialog. Resolves to the written paths. */
+  applySafeTemplateUpdates: (vaultPath: string) =>
+    invoke<string[]>("apply_safe_template_updates", { vaultPath }),
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
   // ---- vault projects (projects/<slug>/, T-0190) ----
