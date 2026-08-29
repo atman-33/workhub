@@ -821,6 +821,12 @@ pub struct InputListenerDiagnostics {
     pub input_count: u64,
     pub reregistrations: u64,
     pub restarts: u64,
+    /// Times the external watchdog rebuilt a dead listener thread or a
+    /// registration that no longer pointed at the listener.
+    pub rebuilds: u64,
+    /// Why the last automatic rebuild happened (`listener-thread-died`,
+    /// `registration-lost`, `manual-restart`).
+    pub last_rebuild_reason: Option<String>,
     pub last_reregister_ms_ago: Option<u64>,
     /// Why the last re-registration happened (`session-change`, `watchdog`, ...).
     pub last_reregister_reason: Option<String>,

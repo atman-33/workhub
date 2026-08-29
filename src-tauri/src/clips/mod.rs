@@ -77,6 +77,21 @@ mod imp {
             || vk == VK_RWIN.0
     }
 
+    /// Poison-tolerant access to the trigger-key slot: a panicking consumer
+    /// must not wedge the gesture for every later key event.
+    fn trigger_slot() -> std::sync::MutexGuard<'static, Option<u16>> {
+        TRIGGER_VK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Poison-tolerant access to the state machine slot.
+    fn machine_slot() -> std::sync::MutexGuard<'static, Option<TapMachine>> {
+        MACHINE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     /// (Re)apply the gesture from the current settings: register the shared
     /// key listener when it is on, drop it when it is off. Safe to call again
     /// after a settings change.
@@ -89,11 +104,11 @@ mod imp {
         let state = app.state::<ClipsState>();
         let mut running = state.running.lock().unwrap();
 
-        *TRIGGER_VK.lock().unwrap() = vk;
+        *trigger_slot() = vk;
         match vk {
             Some(_) => {
                 let threshold = unsafe { GetDoubleClickTime() } as u64;
-                *MACHINE.lock().unwrap() = Some(TapMachine::new(threshold));
+                *machine_slot() = Some(TapMachine::new(threshold));
                 // Register again even when already running: `rawkey::register`
                 // replaces the consumer under the same key rather than
                 // stacking one up, and re-applying the settings is how a user
@@ -108,7 +123,7 @@ mod imp {
                 }
             }
             None => {
-                *MACHINE.lock().unwrap() = None;
+                *machine_slot() = None;
                 if *running {
                     rawkey::unregister(CONSUMER);
                     *running = false;
@@ -118,7 +133,7 @@ mod imp {
     }
 
     fn on_key(app: &AppHandle, event: KeyEvent) {
-        let Some(trigger) = *TRIGGER_VK.lock().unwrap() else {
+        let Some(trigger) = *trigger_slot() else {
             return;
         };
         let input = if event.vk == trigger {
@@ -135,11 +150,13 @@ mod imp {
         } else {
             TapInput::OtherDown
         };
-        let fired = MACHINE
-            .lock()
-            .ok()
-            .and_then(|mut m| m.as_mut().map(|m| m.on_key(input, event.time_ms)))
-            .unwrap_or(false);
+        let fired = {
+            let mut machine = machine_slot();
+            machine
+                .as_mut()
+                .map(|m| m.on_key(input, event.time_ms))
+                .unwrap_or(false)
+        };
         if fired {
             let handle = app.clone();
             let _ = app.run_on_main_thread(move || window::show(&handle));

@@ -60,23 +60,58 @@ user's side this is "the gesture works until I use the machine for a while,
 and an app restart fixes it" — which is easy to misread as a bug in the
 gesture recognizer, so check the listener first.
 
-`rawkey.rs` therefore does three things, and a new global-key feature inherits
-all of them for free by registering a consumer:
+`rawkey.rs` therefore does the following, and a new global-key feature inherits
+all of it for free by registering a consumer:
 
 - **Re-register on the events that break delivery** — `WM_WTSSESSION_CHANGE`
-  (needs `WTSRegisterSessionNotification`), `WM_DISPLAYCHANGE`,
-  `WM_INPUT_DEVICE_CHANGE` (needs the `RIDEV_DEVNOTIFY` flag), and
+  (needs `WTSRegisterSessionNotification`), `WM_DISPLAYCHANGE` and
   `WM_POWERBROADCAST`. Re-registering the same `hwndTarget` is idempotent and
   cheap, so acting on a false positive costs nothing.
+- **Never re-register in response to a message that re-registering produces.**
+  `RegisterRawInputDevices` with `RIDEV_DEVNOTIFY` answers *every*
+  registration with one `WM_INPUT_DEVICE_CHANGE` arrival per attached
+  keyboard. 0.85.0 re-registered on that message, so each re-registration
+  posted two more of them: the listener thread never drained its queue again
+  and `WM_INPUT` was starved from startup onwards — both global gestures dead
+  in a freshly launched app, with the thread alive, the registration valid and
+  the diagnostics panel reporting perfect health. (Measured with a standalone
+  probe: with the pairing, the message pump never completes a single second;
+  without it, two arrival messages and silence.) The registration is per usage
+  page and survives a keyboard being plugged or unplugged, so it wants no
+  device notification at all — `rawkey.rs` registers with `RIDEV_INPUTSINK`
+  alone. Re-registration also runs behind a minimum interval
+  (`MIN_REREGISTER_INTERVAL_MS`) so no future trigger can rebuild the storm.
+- **A saturated listener thread looks exactly like a healthy one.** Liveness
+  checks (`JoinHandle::is_finished`, `GetRegisteredRawInputDevices`) all pass
+  while the thread spins on its own message flood, so no watchdog built on
+  them can see it. When gestures are dead but every health signal is green,
+  suspect the message loop's *throughput*, not its existence.
 - **Watch for silence** — a timer re-registers, with a doubling backoff, after
   a long stretch with no `WM_INPUT` at all. Silence is not proof of breakage
   (the user may be away), which is exactly why the response has to be a
   harmless re-registration rather than anything louder.
+- **Recover from a dead listener from the outside** — every recovery that
+  lives *inside* the listener thread dies with it. A separate watchdog thread
+  polls (every 30 s) that the listener thread is alive
+  (`JoinHandle::is_finished`) and that `GetRegisteredRawInputDevices` still
+  maps the keyboard usage to the listener's own window with `RIDEV_INPUTSINK`.
+  Both checks trip only on an unambiguously dead state (silence and UIPI are
+  *not* such states); on a trip the whole listener — thread, window and
+  registration — is rebuilt without joining the suspect thread. A wedged
+  thread must never hang the recovery path, which is also why the departing
+  thread's cleanup must not run `RIDEV_REMOVE` (it would silently kill the
+  replacement's registration); the teardown path removes the device itself.
+- **A consumer panic must not take the listener down** — consumer callbacks
+  run inside `catch_unwind`, and all shared mutexes are read through a
+  poison-tolerant lock. One broken consumer then costs one key event, not
+  every gesture in the process.
 - **Report health** — `rawkey::diagnostics()` behind the
   `input_listener_diagnostics` command, rendered by
   `src/components/input-listener-panel.tsx`. Without it, "the gesture stopped
   working" cannot be told apart from a gesture that is recognized but whose
-  effect is invisible.
+  effect is invisible. `running` must reflect the thread's *actual* liveness
+  (checked via the join handle), not the mere presence of a recorded listener;
+  automatic rebuilds are counted and carry their reason.
 
 **Re-applying a feature's settings must reach the registration.** Toggling a
 feature off and on is what users do when a gesture dies, so `rawkey::register`

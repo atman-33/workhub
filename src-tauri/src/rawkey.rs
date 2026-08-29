@@ -25,17 +25,31 @@
 //! user switch, resuming from sleep, or a display/device reconfiguration all
 //! leave a process observing raw input with nothing arriving, and the API
 //! reports no error at any point. The symptom is a global gesture that stops
-//! working until the app is restarted. The listener therefore
+//! working until the app is restarted. Recovery therefore happens on two
+//! levels:
 //!
-//! - re-registers on the system events that are known to break delivery
-//!   (`WM_WTSSESSION_CHANGE`, `WM_DISPLAYCHANGE`, `WM_INPUT_DEVICE_CHANGE`,
-//!   `WM_POWERBROADCAST`) — re-registering the same `hwndTarget` is cheap and
-//!   idempotent, so a false positive costs nothing;
-//! - runs a watchdog timer that re-registers (with a backoff) after a long
-//!   stretch with no `WM_INPUT` at all;
-//! - records health counters that `diagnostics` exposes to the UI, so a
-//!   report of "the gesture stopped working" can be told apart from a gesture
-//!   that is being recognized but not acted on.
+//! - **Inside the listener thread** — re-register on the system events that
+//!   are known to break delivery (`WM_WTSSESSION_CHANGE`, `WM_DISPLAYCHANGE`,
+//!   `WM_POWERBROADCAST`), plus a watchdog timer that re-registers (with a
+//!   backoff) after a long stretch with no `WM_INPUT` at all. This covers a
+//!   registration that went stale while the thread itself is healthy. Every
+//!   one of those re-registrations goes through a minimum interval
+//!   (`MIN_REREGISTER_INTERVAL_MS`), because a re-registration that can be
+//!   triggered by a message the re-registration itself produces is a message
+//!   storm that saturates this thread and stops every gesture dead — which
+//!   is exactly what `RIDEV_DEVNOTIFY` + `WM_INPUT_DEVICE_CHANGE` did in
+//!   0.85.0.
+//! - **Outside it** — a separate watchdog thread checks, periodically, that
+//!   the listener thread is still alive (`JoinHandle::is_finished`) and that
+//!   the keyboard usage is *actually* still registered against this
+//!   listener's window (`GetRegisteredRawInputDevices`). Both checks can only
+//!   trip on an unambiguously dead state — a dead thread cannot recover
+//!   itself, and a registration that points elsewhere delivers nothing — so
+//!   when either fails, the whole listener (thread, message window and
+//!   registration) is rebuilt automatically. Health counters record every
+//!   rebuild, and `diagnostics` exposes them to the UI, so a report of "the
+//!   gesture stopped working" can be told apart from a gesture that is being
+//!   recognized but not acted on.
 //!
 //! Note that no amount of re-registration defeats **UIPI**: while a window of
 //! an elevated process is in the foreground, a normal-privilege process
@@ -45,7 +59,8 @@
 #![cfg(windows)]
 
 use crate::models::InputListenerDiagnostics;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tauri::AppHandle;
 use windows::core::w;
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, WPARAM};
@@ -58,15 +73,15 @@ use windows::Win32::System::Threading::{
     GetCurrentThreadId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::{
-    GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
-    RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
+    GetRawInputData, GetRegisteredRawInputDevices, RegisterRawInputDevices, HRAWINPUT, RAWINPUT,
+    RAWINPUTDEVICE, RAWINPUTHEADER, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
     GetMessageTime, GetMessageW, GetWindowThreadProcessId, KillTimer, PostMessageW,
     PostThreadMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DISPLAYCHANGE, WM_INPUT, WM_INPUT_DEVICE_CHANGE,
-    WM_POWERBROADCAST, WM_QUIT, WM_TIMER, WNDCLASSW,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DISPLAYCHANGE, WM_INPUT, WM_POWERBROADCAST, WM_QUIT,
+    WM_TIMER, WNDCLASSW,
 };
 
 /// `RAWKEYBOARD.Flags` bit: this is a key release (break), not a press.
@@ -95,6 +110,22 @@ const IDLE_BEFORE_REREGISTER_MS: u64 = 120_000;
 const WATCHDOG_BACKOFF_BASE_MS: u64 = 60_000;
 const WATCHDOG_BACKOFF_MAX_MS: u64 = 900_000;
 
+/// Floor between two event-driven re-registrations. Re-registering is cheap,
+/// but it is not free of consequences: it can produce window messages of its
+/// own, and a handler that re-registers in response to such a message is a
+/// self-sustaining storm that saturates the listener thread and starves
+/// `WM_INPUT` (0.85.0's `RIDEV_DEVNOTIFY` + `WM_INPUT_DEVICE_CHANGE` pair did
+/// exactly that). The floor makes that failure mode structurally impossible
+/// for any future trigger, at the cost of collapsing a burst of genuine
+/// events into one re-registration — which is all a burst deserves anyway,
+/// since re-registering the same target is idempotent.
+const MIN_REREGISTER_INTERVAL_MS: u64 = 1_000;
+
+/// Poll period of the *external* watchdog (the one that can rebuild a dead
+/// listener). It only ever acts on an unambiguously dead state, so a slow
+/// poll costs nothing.
+const EXTERNAL_WATCHDOG_PERIOD_MS: u64 = 30_000;
+
 /// One observed key transition.
 #[derive(Debug, Clone, Copy)]
 pub struct KeyEvent {
@@ -117,7 +148,8 @@ struct Consumer {
 }
 
 /// Health counters for the single registration. Written from the listener
-/// thread, read from whichever thread serves the diagnostics command.
+/// thread and the external watchdog, read from whichever thread serves the
+/// diagnostics command.
 struct Health {
     /// Tick count when the current listener registered its device.
     started_at: u64,
@@ -126,6 +158,9 @@ struct Health {
     input_count: u64,
     reregistrations: u64,
     restarts: u64,
+    /// Times the external watchdog rebuilt a dead thread or registration.
+    rebuilds: u64,
+    last_rebuild_reason: Option<String>,
     last_reregister_at: u64,
     last_reregister_reason: Option<String>,
     last_error: Option<String>,
@@ -143,11 +178,25 @@ static HEALTH: Mutex<Health> = Mutex::new(Health {
     input_count: 0,
     reregistrations: 0,
     restarts: 0,
+    rebuilds: 0,
+    last_rebuild_reason: None,
     last_reregister_at: 0,
     last_reregister_reason: None,
     last_error: None,
     watchdog_backoff_ms: WATCHDOG_BACKOFF_BASE_MS,
 });
+/// Set while the external watchdog thread is running; it exits on its own
+/// once the listener has been gone for two consecutive polls.
+static EXTERNAL_WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Poison-tolerant lock. A panic in a consumer callback must not wedge every
+/// later accessor of the shared state forever (`Mutex::lock` returns an Err
+/// guard on a poisoned mutex; recover the data instead of panicking).
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 struct Listener {
     thread_id: u32,
@@ -172,14 +221,14 @@ where
 {
     let _ = APP.set(app.clone());
     {
-        let mut consumers = CONSUMERS.lock().unwrap();
+        let mut consumers = lock(&CONSUMERS);
         consumers.retain(|c| c.key != key);
         consumers.push(Consumer {
             key,
             callback: Arc::new(callback),
         });
     }
-    let already_running = LISTENER.lock().unwrap().is_some();
+    let already_running = lock(&LISTENER).is_some();
     ensure_started()?;
     if already_running {
         request_reregister();
@@ -191,7 +240,7 @@ where
 /// last consumer is gone.
 pub fn unregister(key: &'static str) {
     let empty = {
-        let mut consumers = CONSUMERS.lock().unwrap();
+        let mut consumers = lock(&CONSUMERS);
         consumers.retain(|c| c.key != key);
         consumers.is_empty()
     };
@@ -204,11 +253,12 @@ pub fn unregister(key: &'static str) {
 /// consumers. This is the manual recovery behind the settings screen's
 /// "restart the input listener" action: it rebuilds every piece that can go
 /// stale (the thread, its message-only window, and the raw-input registration
-/// itself) without disturbing which features are listening.
+/// itself) without disturbing which features are listening. Counted
+/// separately from the external watchdog's automatic rebuilds.
 pub fn restart() -> Result<(), String> {
     stop();
     let result = ensure_started();
-    let mut health = HEALTH.lock().unwrap();
+    let mut health = lock(&HEALTH);
     health.restarts += 1;
     health.watchdog_backoff_ms = WATCHDOG_BACKOFF_BASE_MS;
     if let Err(e) = &result {
@@ -217,10 +267,40 @@ pub fn restart() -> Result<(), String> {
     result
 }
 
+/// Tear the current listener down and start a fresh one, without joining the
+/// old thread: it may be wedged, and a wedged thread must never hang the
+/// recovery path. The old thread gets `WM_QUIT` and is detached — its exit
+/// no longer removes the raw-input registration (see `listen`), so a fresh
+/// listener's registration cannot be destroyed by the corpse. `reason` is
+/// recorded in the health counters for the diagnostics UI.
+fn rebuild(reason: &str) {
+    // Nothing to rebuild for an empty consumer list — and starting a listener
+    // with no consumers would leak a thread nobody will ever stop.
+    if lock(&CONSUMERS).is_empty() {
+        return;
+    }
+    let old = lock(&LISTENER).take();
+    if let Some(old) = old {
+        unsafe {
+            let _ = PostThreadMessageW(old.thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+        }
+        drop(old.join);
+    }
+    let result = ensure_started();
+    let mut health = lock(&HEALTH);
+    health.rebuilds += 1;
+    health.last_rebuild_reason = Some(reason.to_string());
+    health.last_input_at = 0;
+    health.last_reregister_at = 0;
+    if let Err(e) = result {
+        health.last_error = Some(e);
+    }
+}
+
 /// Ask the listener thread to re-register its raw-input device. Safe to call
 /// from any thread; a no-op when the listener is not running.
 fn request_reregister() {
-    let hwnd = LISTENER.lock().unwrap().as_ref().map(|l| l.hwnd);
+    let hwnd = lock(&LISTENER).as_ref().map(|l| l.hwnd);
     if let Some(hwnd) = hwnd {
         unsafe {
             let _ = PostMessageW(
@@ -236,12 +316,23 @@ fn request_reregister() {
 /// A snapshot of the listener's health for the diagnostics UI.
 pub fn diagnostics() -> InputListenerDiagnostics {
     let now = unsafe { GetTickCount64() };
-    let running = LISTENER.lock().unwrap().is_some();
-    let consumers: Vec<String> = CONSUMERS
-        .lock()
-        .map(|c| c.iter().map(|c| c.key.to_string()).collect())
-        .unwrap_or_default();
-    let health = HEALTH.lock().unwrap();
+    // `running` must reflect reality: a recorded listener whose thread has
+    // exited is *not* running, or the diagnostics panel would keep claiming
+    // health over a corpse (which is exactly the state this module now
+    // recovers from).
+    let (running, thread_alive) = {
+        let guard = lock(&LISTENER);
+        match guard.as_ref() {
+            None => (false, false),
+            Some(l) => (
+                true,
+                l.join.as_ref().is_some_and(|join| !join.is_finished()),
+            ),
+        }
+    };
+    let running = running && thread_alive;
+    let consumers: Vec<String> = lock(&CONSUMERS).iter().map(|c| c.key.to_string()).collect();
+    let health = lock(&HEALTH);
     let since = |at: u64| (at != 0).then(|| now.saturating_sub(at));
     InputListenerDiagnostics {
         running,
@@ -251,6 +342,8 @@ pub fn diagnostics() -> InputListenerDiagnostics {
         input_count: health.input_count,
         reregistrations: health.reregistrations,
         restarts: health.restarts,
+        rebuilds: health.rebuilds,
+        last_rebuild_reason: health.last_rebuild_reason.clone(),
         last_reregister_ms_ago: since(health.last_reregister_at),
         last_reregister_reason: health.last_reregister_reason.clone(),
         last_error: health.last_error.clone(),
@@ -285,7 +378,7 @@ fn foreground_is_elevated() -> bool {
 }
 
 fn ensure_started() -> Result<(), String> {
-    let mut guard = LISTENER.lock().unwrap();
+    let mut guard = lock(&LISTENER);
     if guard.is_some() {
         return Ok(());
     }
@@ -302,22 +395,138 @@ fn ensure_started() -> Result<(), String> {
         hwnd,
         join: Some(join),
     });
+    drop(guard);
+    ensure_watchdog();
     Ok(())
 }
 
 fn stop() {
-    let listener = LISTENER.lock().unwrap().take();
-    if let Some(mut listener) = listener {
+    let listener = lock(&LISTENER).take();
+    if let Some(listener) = listener {
         unsafe {
             let _ = PostThreadMessageW(listener.thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+            // The exiting thread no longer removes the registration (its
+            // cleanup must not touch a registration that may already have
+            // been taken over by a fresh listener), so stop() removes it
+            // here, where the removal is unambiguous.
+            let _ = RegisterRawInputDevices(
+                &[remove_device()],
+                std::mem::size_of::<RAWINPUTDEVICE>() as u32,
+            );
         }
-        if let Some(join) = listener.join.take() {
-            let _ = join.join();
-        }
+        // Detach instead of joining: a wedged thread must not hang whichever
+        // thread called stop().
+        drop(listener.join);
     }
-    let mut health = HEALTH.lock().unwrap();
+    let mut health = lock(&HEALTH);
     health.started_at = 0;
     health.last_input_at = 0;
+}
+
+/// The `RIDEV_REMOVE` entry used to unregister the keyboard usage.
+fn remove_device() -> RAWINPUTDEVICE {
+    RAWINPUTDEVICE {
+        usUsagePage: HID_USAGE_PAGE_GENERIC,
+        usUsage: HID_USAGE_GENERIC_KEYBOARD,
+        dwFlags: RIDEV_REMOVE,
+        hwndTarget: HWND::default(),
+    }
+}
+
+// ------------------------------------------------------------- external
+// watchdog: the recovery that keeps working when the listener thread itself
+// is the thing that died.
+
+/// Make sure the external watchdog thread is running. Cheap and idempotent.
+fn ensure_watchdog() {
+    if EXTERNAL_WATCHDOG_RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let spawned = std::thread::Builder::new()
+        .name("workhub-rawinput-watchdog".into())
+        .spawn(|| {
+            let mut listener_gone_polls = 0u32;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(
+                    EXTERNAL_WATCHDOG_PERIOD_MS,
+                ));
+                if lock(&LISTENER).is_none() {
+                    listener_gone_polls += 1;
+                    // Two consecutive polls with no listener: shut down and
+                    // let a future `ensure_started` spawn a fresh watchdog.
+                    if listener_gone_polls >= 2 {
+                        EXTERNAL_WATCHDOG_RUNNING.store(false, Ordering::SeqCst);
+                        return;
+                    }
+                    continue;
+                }
+                listener_gone_polls = 0;
+                external_watchdog_tick();
+            }
+        });
+    if spawned.is_err() {
+        EXTERNAL_WATCHDOG_RUNNING.store(false, Ordering::SeqCst);
+    }
+}
+
+/// One external-watchdog poll. Acts only on unambiguously dead states:
+/// a listener thread that has exited, or a registration that no longer
+/// targets this listener's window. Silence is *not* such a state (the user
+/// may simply be away), and neither is an elevated foreground window (UIPI).
+fn external_watchdog_tick() {
+    let thread_dead = {
+        let guard = lock(&LISTENER);
+        match guard.as_ref() {
+            Some(l) => l.join.as_ref().is_some_and(|join| join.is_finished()),
+            None => return,
+        }
+    };
+    if thread_dead {
+        rebuild("listener-thread-died");
+        return;
+    }
+    let hwnd = lock(&LISTENER).as_ref().map(|l| l.hwnd);
+    if let Some(hwnd) = hwnd {
+        if !unsafe { registration_targets_keyboard(hwnd) } {
+            rebuild("registration-lost");
+        }
+    }
+}
+
+/// Whether the process's raw-input registration still maps the keyboard usage
+/// to `hwnd` with INPUTSINK. This is the direct, side-effect-free liveness
+/// check that re-registration alone could never make: a registration that was
+/// removed or quietly re-registered against another window delivers nothing,
+/// and nothing else in the process notices.
+unsafe fn registration_targets_keyboard(hwnd: isize) -> bool {
+    let device_size = std::mem::size_of::<RAWINPUTDEVICE>() as u32;
+    let mut needed: u32 = 0;
+    if GetRegisteredRawInputDevices(None, &mut needed, device_size) == u32::MAX {
+        // Cannot tell — assume fine rather than rebuild-loop on a query error.
+        return true;
+    }
+    if needed == 0 {
+        return false;
+    }
+    let mut devices = vec![RAWINPUTDEVICE::default(); needed as usize];
+    let mut count = needed;
+    if GetRegisteredRawInputDevices(Some(devices.as_mut_ptr()), &mut count, device_size) == u32::MAX
+    {
+        return true;
+    }
+    devices.truncate(count.min(needed) as usize);
+    keyboard_registration_ok(&devices, hwnd)
+}
+
+/// Pure check behind `registration_targets_keyboard`, so the acceptance rules
+/// are unit-testable.
+fn keyboard_registration_ok(devices: &[RAWINPUTDEVICE], hwnd: isize) -> bool {
+    devices.iter().any(|d| {
+        d.usUsagePage == HID_USAGE_PAGE_GENERIC
+            && d.usUsage == HID_USAGE_GENERIC_KEYBOARD
+            && d.hwndTarget.0 as isize == hwnd
+            && d.dwFlags.contains(RIDEV_INPUTSINK)
+    })
 }
 
 /// (Re)register the keyboard usage against `hwnd`. Idempotent: re-registering
@@ -328,9 +537,18 @@ unsafe fn register_device(hwnd: HWND) -> Result<(), String> {
         usUsage: HID_USAGE_GENERIC_KEYBOARD,
         // INPUTSINK: deliver input to this window's queue even while some
         // other window (including our own webview) has focus.
-        // DEVNOTIFY: also deliver WM_INPUT_DEVICE_CHANGE, which is one of the
-        // moments worth re-registering on.
-        dwFlags: RIDEV_INPUTSINK | RIDEV_DEVNOTIFY,
+        //
+        // Deliberately *not* RIDEV_DEVNOTIFY. It exists to deliver
+        // `WM_INPUT_DEVICE_CHANGE`, and `RegisterRawInputDevices` answers
+        // every registration with one arrival notification per attached
+        // keyboard. Re-registering in response to those notifications (which
+        // 0.85.0 did) therefore feeds itself: each re-registration posts as
+        // many notifications as there are keyboards, the listener thread
+        // never drains its queue again, and `WM_INPUT` is starved from
+        // startup onwards. The registration is per usage page anyway, so it
+        // survives a keyboard being plugged in or pulled out and has nothing
+        // to gain from the notification.
+        dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
     RegisterRawInputDevices(&[device], std::mem::size_of::<RAWINPUTDEVICE>() as u32)
@@ -341,9 +559,12 @@ unsafe fn register_device(hwnd: HWND) -> Result<(), String> {
 /// recorded for the diagnostics UI; `watchdog` additionally widens the
 /// backoff so an idle machine stops retrying every couple of minutes.
 unsafe fn reregister(hwnd: HWND, reason: &str) {
-    let result = register_device(hwnd);
     let now = GetTickCount64();
-    let mut health = HEALTH.lock().unwrap();
+    if !reregister_allowed(now, lock(&HEALTH).last_reregister_at) {
+        return;
+    }
+    let result = register_device(hwnd);
+    let mut health = lock(&HEALTH);
     health.last_reregister_at = now;
     health.last_reregister_reason = Some(reason.to_string());
     match result {
@@ -359,6 +580,14 @@ unsafe fn reregister(hwnd: HWND, reason: &str) {
     if reason == WATCHDOG_REASON {
         health.watchdog_backoff_ms = next_backoff(health.watchdog_backoff_ms);
     }
+}
+
+/// Whether an event-driven re-registration may run now. Pure so the floor is
+/// unit-testable: the first one is always allowed, and after that they are at
+/// least `MIN_REREGISTER_INTERVAL_MS` apart.
+fn reregister_allowed(now_ms: u64, last_reregister_at: u64) -> bool {
+    last_reregister_at == 0
+        || now_ms.saturating_sub(last_reregister_at) >= MIN_REREGISTER_INTERVAL_MS
 }
 
 /// The `reason` recorded for a watchdog-driven re-registration. Also the flag
@@ -393,7 +622,7 @@ fn watchdog_due(
 unsafe fn watchdog_tick(hwnd: HWND) {
     let now = GetTickCount64();
     let due = {
-        let health = HEALTH.lock().unwrap();
+        let health = lock(&HEALTH);
         watchdog_due(
             now,
             health.last_input_at,
@@ -443,7 +672,7 @@ unsafe fn listen(tx: std::sync::mpsc::Sender<Result<(u32, isize), String>>) {
     };
 
     if let Err(e) = register_device(hwnd) {
-        HEALTH.lock().unwrap().last_error = Some(e.clone());
+        lock(&HEALTH).last_error = Some(e.clone());
         let _ = tx.send(Err(e));
         let _ = DestroyWindow(hwnd);
         return;
@@ -455,14 +684,14 @@ unsafe fn listen(tx: std::sync::mpsc::Sender<Result<(u32, isize), String>>) {
     SetTimer(Some(hwnd), WATCHDOG_TIMER_ID, WATCHDOG_PERIOD_MS, None);
 
     {
-        let mut health = HEALTH.lock().unwrap();
+        let mut health = lock(&HEALTH);
         health.started_at = GetTickCount64();
         health.last_error = None;
         health.watchdog_backoff_ms = WATCHDOG_BACKOFF_BASE_MS;
     }
     let _ = tx.send(Ok((GetCurrentThreadId(), hwnd.0 as isize)));
 
-    // Pump until WM_QUIT (posted by stop()).
+    // Pump until WM_QUIT (posted by stop() or rebuild()).
     let mut msg = MSG::default();
     loop {
         let ret = GetMessageW(&mut msg, None, 0, 0);
@@ -473,15 +702,13 @@ unsafe fn listen(tx: std::sync::mpsc::Sender<Result<(u32, isize), String>>) {
         DispatchMessageW(&msg);
     }
 
+    // Deliberately *no* RIDEV_REMOVE here: this thread may have been
+    // superseded by a fresh listener (external watchdog rebuild), and a
+    // process-wide device removal from a departing corpse would silently kill
+    // the replacement's registration. stop() removes the device when a
+    // teardown is actually intended.
     let _ = KillTimer(Some(hwnd), WATCHDOG_TIMER_ID);
     let _ = WTSUnRegisterSessionNotification(hwnd);
-    let remove = RAWINPUTDEVICE {
-        usUsagePage: HID_USAGE_PAGE_GENERIC,
-        usUsage: HID_USAGE_GENERIC_KEYBOARD,
-        dwFlags: RIDEV_REMOVE,
-        hwndTarget: HWND::default(),
-    };
-    let _ = RegisterRawInputDevices(&[remove], std::mem::size_of::<RAWINPUTDEVICE>() as u32);
     let _ = DestroyWindow(hwnd);
 }
 
@@ -527,20 +754,32 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 {
                     // Input is flowing: record it and forget the watchdog's
                     // widened backoff.
-                    let mut health = HEALTH.lock().unwrap();
+                    let mut health = lock(&HEALTH);
                     health.last_input_at = GetTickCount64();
                     health.input_count += 1;
                     health.watchdog_backoff_ms = WATCHDOG_BACKOFF_BASE_MS;
                 }
                 // Snapshot the callbacks and drop the lock before calling them:
                 // a consumer is free to (un)register from inside its own handler.
-                let callbacks: Vec<Callback> = CONSUMERS
-                    .lock()
-                    .map(|c| c.iter().map(|c| c.callback.clone()).collect())
-                    .unwrap_or_default();
+                let callbacks: Vec<Callback> = lock(&CONSUMERS)
+                    .iter()
+                    .map(|c| c.callback.clone())
+                    .collect();
                 if let Some(app) = APP.get() {
                     for callback in callbacks {
-                        callback(app, event);
+                        // A panicking consumer must not take the shared
+                        // listener thread — and with it every other gesture —
+                        // down with it. Poisoned mutexes recover via `lock()`.
+                        let app = app.clone();
+                        let outcome =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                callback(&app, event)
+                            }));
+                        if outcome.is_err() {
+                            eprintln!("rawkey: consumer panicked while handling a key event");
+                            lock(&HEALTH).last_error =
+                                Some("a consumer panicked while handling a key event".into());
+                        }
                     }
                 }
             }
@@ -555,10 +794,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
         }
         WM_DISPLAYCHANGE => {
             reregister(hwnd, "display-change");
-            LRESULT(0)
-        }
-        WM_INPUT_DEVICE_CHANGE => {
-            reregister(hwnd, "device-change");
             LRESULT(0)
         }
         WM_POWERBROADCAST => {
@@ -580,6 +815,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows::Win32::UI::Input::RAWINPUTDEVICE_FLAGS;
 
     /// Ticks used by the tests, all relative to a listener that started at 0.
     const START: u64 = 0;
@@ -666,5 +902,82 @@ mod tests {
             next_backoff(WATCHDOG_BACKOFF_BASE_MS),
             WATCHDOG_BACKOFF_BASE_MS * 2
         );
+    }
+
+    #[test]
+    fn the_first_reregistration_is_allowed_and_a_burst_collapses() {
+        // Nothing registered yet: the first attempt always runs.
+        assert!(reregister_allowed(5_000, 0));
+        // A storm of triggers arriving back to back (the shape that killed
+        // the listener in 0.85.0) collapses into one re-registration.
+        assert!(!reregister_allowed(5_000, 5_000));
+        assert!(!reregister_allowed(
+            5_000 + MIN_REREGISTER_INTERVAL_MS - 1,
+            5_000
+        ));
+        // Once the floor has elapsed, a genuine later event gets through.
+        assert!(reregister_allowed(
+            5_000 + MIN_REREGISTER_INTERVAL_MS,
+            5_000
+        ));
+    }
+
+    fn device(
+        us_usage_page: u16,
+        usage: u16,
+        flags: RAWINPUTDEVICE_FLAGS,
+        hwnd: isize,
+    ) -> RAWINPUTDEVICE {
+        RAWINPUTDEVICE {
+            usUsagePage: us_usage_page,
+            usUsage: usage,
+            dwFlags: flags,
+            hwndTarget: HWND(hwnd as *mut _),
+        }
+    }
+
+    #[test]
+    fn a_healthy_keyboard_registration_is_accepted() {
+        let ours = device(
+            HID_USAGE_PAGE_GENERIC,
+            HID_USAGE_GENERIC_KEYBOARD,
+            RIDEV_INPUTSINK,
+            0x1000,
+        );
+        // tao's own mouse entry coexists in the same list.
+        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_INPUTSINK, 0x2000);
+        assert!(keyboard_registration_ok(&[mouse, ours], 0x1000));
+    }
+
+    #[test]
+    fn a_registration_pointing_elsewhere_is_rejected() {
+        // Someone re-registered the keyboard against another window.
+        let stolen = device(
+            HID_USAGE_PAGE_GENERIC,
+            HID_USAGE_GENERIC_KEYBOARD,
+            RIDEV_INPUTSINK,
+            0x2000,
+        );
+        assert!(!keyboard_registration_ok(&[stolen], 0x1000));
+    }
+
+    #[test]
+    fn a_keyboard_registration_without_inputsink_is_rejected() {
+        let weak = device(
+            HID_USAGE_PAGE_GENERIC,
+            HID_USAGE_GENERIC_KEYBOARD,
+            RAWINPUTDEVICE_FLAGS(0),
+            0x1000,
+        );
+        // Without INPUTSINK the window only receives keys while it has focus,
+        // which the message-only listener window never does.
+        assert!(!keyboard_registration_ok(&[weak], 0x1000));
+    }
+
+    #[test]
+    fn a_missing_keyboard_registration_is_rejected() {
+        let mouse = device(HID_USAGE_PAGE_GENERIC, 0x02, RIDEV_INPUTSINK, 0x2000);
+        assert!(!keyboard_registration_ok(&[mouse], 0x1000));
+        assert!(!keyboard_registration_ok(&[], 0x1000));
     }
 }

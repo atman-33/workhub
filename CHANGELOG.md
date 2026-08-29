@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.86.0 (2026-08-29)
+
+- **The global gestures work again** (T-0198). 0.85.0 asked Windows to notify
+  the keyboard listener whenever a keyboard was plugged in or unplugged, and
+  re-registered the listener whenever such a notification arrived — but
+  registering is itself what produces those notifications, one per attached
+  keyboard. Each re-registration therefore triggered the next: the listener
+  thread spent every cycle on its own notifications and never got round to the
+  keystrokes, so double-tap Ctrl (clips) and double-press Alt (screen
+  annotation) did nothing at all, in a freshly started app, while every health
+  indicator still read normal. The notification is not needed — the
+  registration covers keyboards in general, not individual devices — so it is
+  gone, and re-registration now runs behind a minimum interval so no future
+  trigger can bring the pile-up back.
+- **A dead keyboard listener now rebuilds itself** (T-0198). The 0.85.0
+  recovery re-registered the Raw Input device and watched for silence — but
+  all of that lived *inside* the listener thread, so a thread that had exited
+  or a registration that had been removed outright stayed dead until the app
+  was restarted, while the diagnostics panel kept claiming the listener was
+  running. A separate watchdog thread now checks, every 30 seconds, that the
+  listener thread is alive and that the keyboard usage is really still
+  registered against the listener's own window — and rebuilds the listener
+  when either check fails. Consumer panics no longer take the listener down,
+  and every automatic rebuild is recorded for the diagnostics panel
+  (**Auto rebuilds** with the reason).
+
 ## 0.85.0 (2026-08-29)
 
 - **The global gestures recover on their own when Windows stops delivering
