@@ -24,6 +24,11 @@
 //!   every other app would make it a nuisance rather than a convenience.
 //! - **Not hidden from the taskbar.** On a multi-screen desk a window with no
 //!   taskbar entry is a window you cannot get back once something covers it.
+//!
+//! Being undecorated, the header has to re-supply what a real title bar does:
+//! dragging moves the window and double-clicking it toggles maximize (both in
+//! task-editor-form.tsx). Whether it was left maximized is remembered
+//! separately from its rect, so un-maximizing returns it to where it was.
 
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
@@ -98,33 +103,54 @@ pub fn open(app: &AppHandle, payload: serde_json::Value) -> tauri::Result<()> {
     app.emit_to(WINDOW_LABEL, "task-editor://open", payload)
 }
 
-/// Apply the saved position/size, then pull the window back into a work area.
-/// The clamp is what makes an unplugged second screen recoverable: the saved
-/// coordinates then resolve to no monitor, `clamp_to_work_area` falls back to
-/// the primary one, and the window lands somewhere reachable.
+/// Restore how the window was left: maximized, or at its saved position and
+/// size pulled back into a work area. The clamp is what makes an unplugged
+/// second screen recoverable — the saved coordinates then resolve to no
+/// monitor, `clamp_to_work_area` falls back to the primary one, and the window
+/// lands somewhere reachable.
+///
+/// The saved rect is applied even when reopening maximized, so un-maximizing
+/// drops the window back where it used to be rather than wherever Windows
+/// would guess.
 fn restore_rect(app: &AppHandle, win: &WebviewWindow) {
-    let Some(rect) = storage::load().settings.task_editor_rect else {
+    let settings = storage::load().settings;
+    let Some(rect) = settings.task_editor_rect else {
         // Never positioned by the user yet: put it where they are looking.
         crate::window_place::place_at_cursor(app, win);
         return;
     };
+    let _ = win.unmaximize();
     let _ = win.set_size(LogicalSize::new(
         rect.width.max(MIN_SIZE.0),
         rect.height.max(MIN_SIZE.1),
     ));
     let _ = win.set_position(LogicalPosition::new(rect.x, rect.y));
     crate::window_place::clamp_to_work_area(app, win);
+    if settings.task_editor_maximized {
+        let _ = win.maximize();
+    }
 }
 
-/// Remember the window's position and size, then hide it. Persisting here
-/// (not on every Moved/Resized) keeps config writes off the hot path.
+/// Remember how the window was left, then hide it. Persisting here (not on
+/// every Moved/Resized) keeps config writes off the hot path.
 pub fn hide(app: &AppHandle) {
     let Some(win) = window(app) else { return };
-    if let Some(rect) = current_rect(&win) {
-        let mut cfg = storage::load();
-        cfg.settings.task_editor_rect = Some(rect);
+    let maximized = win.is_maximized().unwrap_or(false);
+    let mut cfg = storage::load();
+    let mut dirty = cfg.settings.task_editor_maximized != maximized;
+    cfg.settings.task_editor_maximized = maximized;
+    // A maximized window reports the maximized geometry, which is not a
+    // position to reopen at — keep the last restored rect so un-maximizing has
+    // somewhere to go back to.
+    if !maximized {
+        if let Some(rect) = current_rect(&win) {
+            cfg.settings.task_editor_rect = Some(rect);
+            dirty = true;
+        }
+    }
+    if dirty {
         if let Err(e) = storage::save(&cfg) {
-            eprintln!("task-editor: failed to persist window rect: {e}");
+            eprintln!("task-editor: failed to persist window state: {e}");
         }
     }
     let _ = win.hide();
@@ -155,9 +181,9 @@ fn current_rect(win: &WebviewWindow) -> Option<WindowRect> {
 mod tests {
     #[test]
     fn settings_default_has_no_saved_rect() {
-        assert!(crate::models::Settings::default()
-            .task_editor_rect
-            .is_none());
+        let s = crate::models::Settings::default();
+        assert!(s.task_editor_rect.is_none());
+        assert!(!s.task_editor_maximized);
     }
 
     #[test]
@@ -166,5 +192,6 @@ mod tests {
         // they must still deserialize (config compatibility contract).
         let s: crate::models::Settings = serde_json::from_str("{}").unwrap();
         assert!(s.task_editor_rect.is_none());
+        assert!(!s.task_editor_maximized);
     }
 }

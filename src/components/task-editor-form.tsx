@@ -47,6 +47,12 @@ import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
+/** True for the header's own buttons, which must keep their click and must
+ *  not drag or maximize the window. */
+function isHeaderControl(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.closest("button") !== null;
+}
+
 /** The three views the shared pane switches between. */
 type PaneTab = "description" | "plan" | "results";
 
@@ -503,14 +509,26 @@ export function TaskEditorForm({
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Whole-header drag via startDragging(): the `data-tauri-drag-region`
-          attribute only fires when the element directly under the cursor has
-          it, so the title and the buttons' gaps would be dead zones. */}
+      {/* The window is undecorated, so the header has to be its title bar:
+          drag to move, double-click to toggle maximize — what every other
+          window on the desktop does.
+
+          Both go through the JS API rather than `data-tauri-drag-region`,
+          which only fires when the element directly under the cursor carries
+          the attribute, leaving the title and the gaps between buttons as dead
+          zones. Neither `start_dragging` nor `toggle_maximize` is part of
+          `core:default`, and an ACL rejection is silent, so the promises are
+          caught rather than discarded (see .claude/rules/
+          tauri-webview-gotchas.md). */}
       <header
         onMouseDown={(e) => {
           if (e.button !== 0) return;
-          if ((e.target as HTMLElement).closest("button")) return;
+          if (isHeaderControl(e.target)) return;
           getCurrentWindow().startDragging().catch(console.error);
+        }}
+        onDoubleClick={(e) => {
+          if (isHeaderControl(e.target)) return;
+          getCurrentWindow().toggleMaximize().catch(console.error);
         }}
         className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
       >
