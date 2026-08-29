@@ -5,6 +5,44 @@ paths:
 
 # UI conventions
 
+## Tooltips: shadcn/ui Tooltip, never the native `title`
+
+Any tooltip the user is meant to read — hover hints on icon buttons, action
+labels with their shortcut, truncation hints on a file path or an error string
+— uses the shared shadcn Tooltip (`src/components/ui/tooltip.tsx`):
+
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+<Tooltip>
+  <TooltipTrigger asChild>
+    <Button size="icon-sm" variant="ghost" onClick={…} aria-label="Copy">
+      <Copy />
+    </Button>
+  </TooltipTrigger>
+  <TooltipContent side="bottom">Copy selection (Ctrl+C)</TooltipContent>
+</Tooltip>
+```
+
+The native `title` attribute renders a browser-styled popup that clashes with
+the app's dark theme and cannot be styled; the owner rejected it (T-0197
+feedback). `aria-label` is for assistive tech, not a tooltip substitute — pair
+it with a TooltipContent.
+
+Two things the radix wrapper changes:
+
+- **Helper windows need their own provider.** `TooltipProvider` is mounted in
+  `app.tsx`, which only covers the main window. `quick-capture`, `ink-preview`,
+  `voice-indicator`, and `clips-popup` are separate React roots — mount a
+  `TooltipProvider` at that window's root too (`src/ink-preview/preview-app.tsx`
+  does). The plain overlay (`overlay.html`, no React) cannot use the component
+  at all; if it ever needs a hover hint, style one with CSS.
+- **Disabled buttons swallow hover events**, so a radix tooltip on one never
+  opens. Wrap the button in a `<span className="inline-flex">` as the trigger
+  and give the disabled button `pointer-events-none`; the span becomes the
+  hover target while enabled buttons keep their clicks. `TipButton` in
+  `src/ink-preview/preview-app.tsx` is the reference implementation.
+
 ## ResizableHandle: never pass `withHandle`
 
 Use `<ResizableHandle />` without the `withHandle` prop everywhere in this
