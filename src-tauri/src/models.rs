@@ -115,6 +115,16 @@ pub struct Settings {
     /// the next open. Unset until first moved/closed.
     #[serde(default)]
     pub ink_preview_rect: Option<WindowRect>,
+    /// Last size of the task editor window (logical pixels), carried over to
+    /// the next open; the position is deliberately not kept (see
+    /// task_editor.rs). Unset until first closed.
+    #[serde(default)]
+    pub task_editor_rect: Option<WindowRect>,
+    /// Whether the task editor window was maximized when it was last closed.
+    /// Kept apart from `task_editor_rect`, which stays at the last *restored*
+    /// geometry so un-maximizing lands back where the window used to be.
+    #[serde(default)]
+    pub task_editor_maximized: bool,
     /// Voice input: global hotkey toggles local speech-to-text dictation,
     /// pasted into whatever app has focus.
     #[serde(default = "default_true")]
@@ -371,6 +381,8 @@ impl Default for Settings {
             quick_capture_shortcut: default_quick_capture_shortcut(),
             quick_capture_rect: None,
             ink_preview_rect: None,
+            task_editor_rect: None,
+            task_editor_maximized: false,
             voice_enabled: true,
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),

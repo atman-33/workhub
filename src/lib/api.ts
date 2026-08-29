@@ -1,5 +1,6 @@
 import { type Channel, invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
+import type { TaskEditorPayload } from "@/lib/task-editor-bridge";
 import type {
   BranchList,
   Clip,
@@ -335,6 +336,18 @@ export const api = {
   openInkPreview: (path: string) => invoke<void>("open_ink_preview", { path }),
   /** Hides the floating preview window. */
   inkPreviewHide: () => invoke<void>("ink_preview_hide"),
+
+  // ---- task editor window ----
+  /** Shows the task editor window and hands it the form's whole input. */
+  openTaskEditor: (payload: TaskEditorPayload) =>
+    invoke<void>("open_task_editor", { payload }),
+  /** Hides the task editor window — its ✕ lands here. */
+  taskEditorHide: () => invoke<void>("task_editor_hide"),
+  /** Asks the board to open the embedded terminal panel before a launch. */
+  taskEditorRequestTerminalPanel: () =>
+    invoke<void>("task_editor_request_terminal_panel"),
+  /** Brings the main window (and with it the terminal panel) to the front. */
+  focusMainWindow: () => invoke<void>("focus_main_window"),
 
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),

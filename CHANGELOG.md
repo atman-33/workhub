@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **The task editor is a floating panel** (T-0202). The edit/create screen was
+  a fixed, centred modal dialog — it always sat where the app put it, always
+  the same size, with a dimmed curtain over the board. It now behaves like the
+  quick-capture window: drag its title bar to move it anywhere over the app,
+  drag any border or corner to resize it (the width in particular, which the
+  old dialog never let you change), and the position and size are remembered
+  for the next time. The board behind it stays visible and usable — there is
+  no modal curtain — and everything else is unchanged: edits still save
+  automatically, and the launch / copy-prompt / Obsidian / full-screen buttons
+  all keep working. Esc or the panel's close button closes it.
 - **Vault template updates that cannot lose your work no longer ask** (T-0196).
   Every app update used to open the template review dialog, even when the only
   changes were files the vault was missing or files you had never touched —

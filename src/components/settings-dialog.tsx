@@ -128,6 +128,8 @@ const DEFAULTS: Settings = {
   quick_capture_shortcut: "Ctrl+Alt+N",
   quick_capture_rect: null,
   ink_preview_rect: null,
+  task_editor_rect: null,
+  task_editor_maximized: false,
   voice_enabled: true,
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",

@@ -59,6 +59,12 @@ export interface Settings {
   /** Last ink preview window size (managed by the backend; round-tripped
    * here so saving settings doesn't wipe it). */
   ink_preview_rect: WindowRect | null;
+  /** Last task-editor window size (managed by the backend; round-tripped here
+   * so saving settings doesn't wipe it). */
+  task_editor_rect: WindowRect | null;
+  /** Whether the task editor window was maximized when last closed (managed
+   * by the backend; round-tripped here so saving settings doesn't wipe it). */
+  task_editor_maximized: boolean;
   /** Voice input: global hotkey toggles local speech-to-text dictation,
    * pasted into whatever app has focus. */
   voice_enabled: boolean;
