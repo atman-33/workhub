@@ -20,6 +20,7 @@ import { SprintSettings } from "@/components/schedule/sprint-settings";
 import { TimelineGrid } from "@/components/schedule/timeline-grid";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -715,19 +716,18 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             if (open) setRenameTitle(files.find((f) => f.path === path)?.title ?? "");
           }}
         >
-          <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs"
-              // While the agent holds the file, moving it would pull the file
-              // out from under the run.
-              disabled={!path || aiRunning}
-              title={aiRunning ? "An AI edit is running" : "Rename this schedule"}
-            >
-              <Pencil className="size-3" />
-            </Button>
-          </PopoverTrigger>
+          <Hint
+            label={aiRunning ? "An AI edit is running" : "Rename this schedule"}
+            disabled={!path || aiRunning}
+          >
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={!path || aiRunning}>
+                {/* While the agent holds the file, moving it would pull the file
+                    out from under the run. */}
+                <Pencil className="size-3" />
+              </Button>
+            </PopoverTrigger>
+          </Hint>
           <PopoverContent className="w-64 space-y-2 p-3 text-xs">
             <div className="text-muted-foreground">
               Renames the note and its file in the vault
@@ -757,65 +757,71 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             on screen changes what every control after it means. */}
         <div className="flex shrink-0 items-center rounded-md border p-0.5">
           {(["calendar", "timeline"] as const).map((value) => (
-            <Button
+            <Hint
               key={value}
-              size="sm"
-              variant={mode === value ? "secondary" : "ghost"}
-              className="h-6 px-2 text-xs capitalize"
-              onClick={() => switchMode(value)}
-              disabled={!path}
-              title={
+              label={
                 value === "calendar"
                   ? "Week grid — day-level planning"
                   : "Long-range timeline — months, phases and sprints"
               }
+              disabled={!path}
             >
-              {value === "calendar" ? (
-                <CalendarDays className="mr-1 size-3" />
-              ) : (
-                <GanttChart className="mr-1 size-3" />
-              )}
-              {value}
-            </Button>
+              <Button
+                size="sm"
+                variant={mode === value ? "secondary" : "ghost"}
+                className="h-6 px-2 text-xs capitalize"
+                onClick={() => switchMode(value)}
+                disabled={!path}
+              >
+                {value === "calendar" ? (
+                  <CalendarDays className="mr-1 size-3" />
+                ) : (
+                  <GanttChart className="mr-1 size-3" />
+                )}
+                {value}
+              </Button>
+            </Hint>
           ))}
         </div>
 
         {window_ && (
-          // The date pickers carry an explicit width: `DatePicker` is `w-full`
-          // for the form fields it was built for, which in a flex row means
-          // "the whole toolbar". Without this the row overflows and the
-          // controls after it are drawn on top of each other.
-          <div
-            className="flex shrink-0 items-center gap-1"
-            title="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it"
-          >
-            <DatePicker
-              value={window_.start}
-              className="w-32"
-              // An empty value is ignored below, so offering the ✕ would put a
-              // control on screen that does nothing when pressed.
-              clearable={false}
-              onChange={(v) => v && setWindow({ ...window_, start: v })}
-            />
-            <span className="text-muted-foreground">to</span>
-            <DatePicker
-              value={window_.end}
-              className="w-32"
-              clearable={false}
-              onChange={(v) => v && setWindow({ ...window_, end: v })}
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={goToToday}
-              disabled={!doc}
-              title="Show today"
-            >
-              <CalendarCheck className="mr-1 size-3" />
-              Today
-            </Button>
-          </div>
+          <>
+            {/* The date pickers carry an explicit width: `DatePicker` is `w-full`
+                for the form fields it was built for, which in a flex row means
+                "the whole toolbar". Without this the row overflows and the
+                controls after it are drawn on top of each other. */}
+            <Hint label="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it">
+              <div className="flex shrink-0 items-center gap-1">
+                <DatePicker
+                  value={window_.start}
+                  className="w-32"
+                  // An empty value is ignored below, so offering the ✕ would put a
+                  // control on screen that does nothing when pressed.
+                  clearable={false}
+                  onChange={(v) => v && setWindow({ ...window_, start: v })}
+                />
+                <span className="text-muted-foreground">to</span>
+                <DatePicker
+                  value={window_.end}
+                  className="w-32"
+                  clearable={false}
+                  onChange={(v) => v && setWindow({ ...window_, end: v })}
+                />
+              </div>
+            </Hint>
+            <Hint label="Show today" disabled={!doc}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={goToToday}
+                disabled={!doc}
+              >
+                <CalendarCheck className="mr-1 size-3" />
+                Today
+              </Button>
+            </Hint>
+          </>
         )}
 
         {/* Range presets, and the sprint cadence, belong to the long-range
@@ -832,17 +838,21 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 { label: "6m", weeks: 26 },
                 { label: "1y", weeks: 52 },
               ].map((preset) => (
-                <Button
+                <Hint
                   key={preset.label}
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setWindowWeeks(preset.weeks)}
+                  label={`Show ${preset.weeks} weeks from the window start`}
                   disabled={!doc}
-                  title={`Show ${preset.weeks} weeks from the window start`}
                 >
-                  {preset.label}
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setWindowWeeks(preset.weeks)}
+                    disabled={!doc}
+                  >
+                    {preset.label}
+                  </Button>
+                </Hint>
               ))}
             </div>
             {doc && (
@@ -877,21 +887,33 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             <Download className="mr-1 size-3" />
             Export HTML
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => setSidebarCollapsed((v) => !v)}
+          <Hint
+            label={sidebarCollapsed ? "Show the side panel" : "Hide the side panel"}
             disabled={!path}
-            title={sidebarCollapsed ? "Show the side panel" : "Hide the side panel"}
           >
-            {sidebarCollapsed ? (
-              <PanelRightOpen className="size-3" />
-            ) : (
-              <PanelRightClose className="size-3" />
-            )}
-          </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              disabled={!path}
+            >
+              {sidebarCollapsed ? (
+                <PanelRightOpen className="size-3" />
+              ) : (
+                <PanelRightClose className="size-3" />
+              )}
+            </Button>
+          </Hint>
           <Popover open={creating} onOpenChange={setCreating}>
+          <Hint
+            label={
+              targetProject
+                ? `Create a schedule in ${targetProject}`
+                : "Pick a project, or open a schedule, first"
+            }
+            disabled={!targetProject}
+          >
             <PopoverTrigger asChild>
               <Button
                 size="sm"
@@ -901,16 +923,12 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 // projects" the dropdown names none, but an open note does —
                 // see `targetProject`.
                 disabled={!targetProject}
-                title={
-                  targetProject
-                    ? `Create a schedule in ${targetProject}`
-                    : "Pick a project, or open a schedule, first"
-                }
               >
                 <Plus className="mr-1 size-3" />
                 New
               </Button>
             </PopoverTrigger>
+          </Hint>
             <PopoverContent className="w-64 space-y-2 p-3 text-xs">
               <div className="text-muted-foreground">
                 New schedule in <span className="text-foreground">{targetProject}</span>

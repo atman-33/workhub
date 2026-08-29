@@ -1,13 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main window, the ink overlay, the quick-capture window, the voice-indicator window, and the clips popup",
-  "windows": ["main", "ink-overlay", "quick-capture", "voice-indicator", "clips-popup"],
+  "description": "Capabilities for the main window, the ink overlay, the ink preview window, the quick-capture window, the voice-indicator window, and the clips popup",
+  "windows": ["main", "ink-overlay", "ink-preview", "quick-capture", "voice-indicator", "clips-popup"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "dialog:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-image",
     "clipboard-manager:allow-read-text",
     "opener:default",
     "notification:default"

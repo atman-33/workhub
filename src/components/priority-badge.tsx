@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 import type { TaskPriority } from "@/types";
 
@@ -51,25 +52,26 @@ export function PriorityBadge({ priority, onCycle, className }: Props) {
   }
 
   return (
-    <Badge
-      asChild
-      className={cn(
-        "cursor-pointer gap-1.5 capitalize transition-colors hover:brightness-125",
-        style.badge,
-        className,
-      )}
-    >
-      <button
-        type="button"
-        title="Click to change priority"
-        onClick={(e) => {
-          // Rows/cards open the editor on click — don't let that fire too.
-          e.stopPropagation();
-          onCycle(nextPriority(priority));
-        }}
+    <Hint label="Click to change priority">
+      <Badge
+        asChild
+        className={cn(
+          "cursor-pointer gap-1.5 capitalize transition-colors hover:brightness-125",
+          style.badge,
+          className,
+        )}
       >
-        {content}
-      </button>
-    </Badge>
+        <button
+          type="button"
+          onClick={(e) => {
+            // Rows/cards open the editor on click — don't let that fire too.
+            e.stopPropagation();
+            onCycle(nextPriority(priority));
+          }}
+        >
+          {content}
+        </button>
+      </Badge>
+    </Hint>
   );
 }

@@ -3,6 +3,11 @@
 // src-tauri/src/ink/. Stroke behavior is ported from Desktop Ink's
 // OverlayWindow (WPF): 3px round-cap lines, red/blue/green pen cycling, and
 // Shift-snapped horizontal/vertical segments with mid-stroke transitions.
+//
+// Alt+C saves what is on screen: the backend already holds a grab of the
+// monitor from before the overlay appeared, so only the strokes are sent back
+// and the composition happens in Rust (src-tauri/src/ink/store.rs).
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 interface Point {
@@ -23,6 +28,7 @@ const LINE_WIDTH = 3;
 const canvas = document.getElementById("ink") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 const chip = document.getElementById("chip") as HTMLDivElement;
+const toast = document.getElementById("toast") as HTMLDivElement;
 
 let strokes: Stroke[] = [];
 let active: Stroke | null = null;
@@ -149,6 +155,56 @@ window.addEventListener("resize", resize);
 resize();
 renderChip();
 
+let toastTimer: number | undefined;
+
+type ToastKind = "info" | "saving" | "ok" | "error";
+
+function showToast(message: string, kind: ToastKind = "info", ms = 2200) {
+  toast.textContent = message;
+  toast.classList.toggle("error", kind === "error");
+  toast.classList.toggle("saving", kind === "saving");
+  toast.classList.toggle("ok", kind === "ok");
+  toast.style.opacity = "1";
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.style.opacity = "0";
+  }, ms);
+}
+
+/**
+ * Alt+C: hand the strokes to the backend, which composes them onto the screen
+ * grab it took when drawing started and saves the result. Only the strokes
+ * cross the bridge — a transparent PNG of a few lines, not a screenshot.
+ *
+ * The chip is left out of the export: it marks the pen, not the annotation.
+ */
+let saving = false;
+
+async function save() {
+  if (saving) return;
+  if (strokes.length === 0 && !active) {
+    showToast("Nothing drawn yet");
+    return;
+  }
+  saving = true;
+  // Instant feedback that the gesture registered; the compose+encode+copy can
+  // take a beat on a large monitor, and silence there reads as "did nothing".
+  showToast("Saving…", "saving", 30000);
+  const data = canvas.toDataURL("image/png").split(",")[1] ?? "";
+  try {
+    const path = await invoke<string>("save_ink_capture", { base64Data: data });
+    showToast(`Saved ${path.split("/").pop() ?? path} — copied to clipboard`, "ok", 3000);
+  } catch (e) {
+    showToast(String(e), "error", 4000);
+  } finally {
+    saving = false;
+  }
+}
+
+void listen("ink://save", () => {
+  void save();
+});
+
 void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
   strokes = [];
   active = null;
@@ -162,6 +218,7 @@ void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
   } else {
     pointerPos = null;
   }
+  toast.style.opacity = "0";
   resize();
   renderChip();
 });

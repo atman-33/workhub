@@ -1,3 +1,4 @@
+import { Hint } from "@/components/ui/hint";
 import { blockedAge } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
 
@@ -70,24 +71,25 @@ export function BlockedBadge({ note, since, onEdit, className }: Props) {
 
   if (!onEdit) {
     return (
-      <span className={cn(shape, className)} title={title}>
-        {content}
-      </span>
+      <Hint label={title}>
+        <span className={cn(shape, className)}>{content}</span>
+      </Hint>
     );
   }
 
   return (
-    <button
-      type="button"
-      className={cn(shape, "text-left transition-colors hover:bg-accent/60", className)}
-      title={title}
-      onClick={(e) => {
-        // Rows/cards open the editor on click — don't let that fire too.
-        e.stopPropagation();
-        onEdit();
-      }}
-    >
-      {content}
-    </button>
+    <Hint label={title}>
+      <button
+        type="button"
+        className={cn(shape, "text-left transition-colors hover:bg-accent/60", className)}
+        onClick={(e) => {
+          // Rows/cards open the editor on click — don't let that fire too.
+          e.stopPropagation();
+          onEdit();
+        }}
+      >
+        {content}
+      </button>
+    </Hint>
   );
 }

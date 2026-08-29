@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Archive, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Hint } from "@/components/ui/hint";
 import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
@@ -166,13 +167,14 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
             <span className="text-xs font-semibold">{col.label}</span>
             <div className="flex items-center gap-1.5">
               {col.key === "done" && col.items.some((t) => !t.archived) && (
-                <button
-                  className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                  title="Archive all Done tasks"
-                  onClick={onArchiveDone}
-                >
-                  <Archive className="size-3.5" />
-                </button>
+                <Hint label="Archive all Done tasks">
+                  <button
+                    className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    onClick={onArchiveDone}
+                  >
+                    <Archive className="size-3.5" />
+                  </button>
+                </Hint>
               )}
               <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
             </div>
@@ -242,9 +244,11 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                     <span>{task.id}</span>
                     {parseBody(task.body).plan && (
-                      <span title="Plan recorded" className="flex shrink-0">
-                        <ClipboardList className="size-3" aria-label="Plan recorded" />
-                      </span>
+                      <Hint label="Plan recorded">
+                        <span className="flex shrink-0">
+                          <ClipboardList className="size-3" aria-label="Plan recorded" />
+                        </span>
+                      </Hint>
                     )}
                     {task.project && <span>· {task.project}</span>}
                     <span>· {task.assignee}</span>

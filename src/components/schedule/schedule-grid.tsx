@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Hint } from "@/components/ui/hint";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import { monthLabel, strings, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
@@ -350,31 +351,32 @@ export function ScheduleGrid({
                         )}
                       >
                         <div className="flex items-start justify-between gap-1">
-                          <span
-                            className={cn(
-                              "flex items-center gap-0.5 text-[11px] tabular-nums",
-                              day.isMonthStart ? "font-bold" : "text-muted-foreground",
-                              // Today is the date itself in a filled pill, and
-                              // nothing else. Cell shading is already spoken
-                              // for by non-working days and an outline by the
-                              // range sweep; a third cell-wide treatment would
-                              // make all three ambiguous (§16.4.1).
-                              day.isToday &&
-                                "rounded-full bg-primary px-1.5 font-semibold text-primary-foreground",
-                            )}
-                            title={day.isToday ? `Today · ${day.date}` : undefined}
-                          >
-                            {day.isMonthStart ? `${day.month}/${day.day}` : day.day}
-                            {day.isNonWorking && (
-                              <X
-                                className={cn(
-                                  "size-2.5 text-muted-foreground/70",
-                                  day.isToday && "text-primary-foreground/80",
-                                )}
-                                aria-hidden
-                              />
-                            )}
-                          </span>
+                          <Hint label={day.isToday ? `Today · ${day.date}` : undefined}>
+                            <span
+                              className={cn(
+                                "flex items-center gap-0.5 text-[11px] tabular-nums",
+                                day.isMonthStart ? "font-bold" : "text-muted-foreground",
+                                // Today is the date itself in a filled pill, and
+                                // nothing else. Cell shading is already spoken
+                                // for by non-working days and an outline by the
+                                // range sweep; a third cell-wide treatment would
+                                // make all three ambiguous (§16.4.1).
+                                day.isToday &&
+                                  "rounded-full bg-primary px-1.5 font-semibold text-primary-foreground",
+                              )}
+                            >
+                              {day.isMonthStart ? `${day.month}/${day.day}` : day.day}
+                              {day.isNonWorking && (
+                                <X
+                                  className={cn(
+                                    "size-2.5 text-muted-foreground/70",
+                                    day.isToday && "text-primary-foreground/80",
+                                  )}
+                                  aria-hidden
+                                />
+                              )}
+                            </span>
+                          </Hint>
                           {notes.length > 0 && <NoteMarker notes={notes} onOpen={onSelectItem} />}
                         </div>
                         {day.nonWorkingLabel && (
@@ -440,29 +442,29 @@ export function ScheduleGrid({
                     selected={selectedId === bar.item.id}
                     readOnly={readOnly}
                     status={linkedStatus(bar.item)}
-                    title={rangeTooltip(bar, t)}
+                    tooltip={rangeTooltip(bar, t)}
                     onDrag={beginItemDrag}
                     onPress={endItemPress}
                   />
                 ) : (
-                  <div
-                    style={{
-                      left: `${(bar.startCol / 7) * 100}%`,
-                      width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
-                      top: bar.lane * LANE_H,
-                      background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
-                    }}
-                    onPointerDown={(e) => beginItemDrag(e, bar.item)}
-                    onPointerUp={() => endItemPress(bar.item)}
-                    className={cn(
-                      "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
-                      !readOnly && "cursor-grab active:cursor-grabbing",
-                      bar.isStart && "rounded-l",
-                      bar.isEnd && "rounded-r",
-                      selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
-                    )}
-                    title={rangeTooltip(bar, t)}
-                  >
+                  <Hint label={rangeTooltip(bar, t)}>
+                    <div
+                      style={{
+                        left: `${(bar.startCol / 7) * 100}%`,
+                        width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+                        top: bar.lane * LANE_H,
+                        background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
+                      }}
+                      onPointerDown={(e) => beginItemDrag(e, bar.item)}
+                      onPointerUp={() => endItemPress(bar.item)}
+                      className={cn(
+                        "pointer-events-auto absolute flex h-[18px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
+                        !readOnly && "cursor-grab active:cursor-grabbing",
+                        bar.isStart && "rounded-l",
+                        bar.isEnd && "rounded-r",
+                        selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
+                      )}
+                    >
                     {bar.isStart && !readOnly && (
                       <span
                         onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
@@ -486,7 +488,8 @@ export function ScheduleGrid({
                         className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
                       />
                     )}
-                  </div>
+                    </div>
+                  </Hint>
                 )}
                 </ReorderMenu>
               ))}
@@ -510,20 +513,20 @@ export function ScheduleGrid({
                         readOnly={readOnly}
                         onReorder={onReorderItem}
                       >
-                      <div
-                        onPointerDown={(e) => beginItemDrag(e, point)}
-                        onPointerUp={() => endItemPress(point)}
-                        className={cn(
-                          // No `truncate` here: its `overflow: hidden` clipped
-                          // the diamond, whose rotation puts its corners
-                          // outside its own box. The label below truncates
-                          // instead, which is the part that needs it.
-                          "pointer-events-auto mb-0.5 flex min-w-0 items-center gap-1 text-[10px]",
-                          !readOnly && "cursor-grab active:cursor-grabbing",
-                          selectedId === point.id && "font-semibold",
-                        )}
-                        title={pointTooltip(point)}
-                      >
+                      <Hint label={pointTooltip(point)}>
+                        <div
+                          onPointerDown={(e) => beginItemDrag(e, point)}
+                          onPointerUp={() => endItemPress(point)}
+                          className={cn(
+                            // No `truncate` here: its `overflow: hidden` clipped
+                            // the diamond, whose rotation puts its corners
+                            // outside its own box. The label below truncates
+                            // instead, which is the part that needs it.
+                            "pointer-events-auto mb-0.5 flex min-w-0 items-center gap-1 text-[10px]",
+                            !readOnly && "cursor-grab active:cursor-grabbing",
+                            selectedId === point.id && "font-semibold",
+                          )}
+                        >
                         <span
                           // `mx-px` keeps the rotated corners clear of the
                           // cell's padding edge.
@@ -538,27 +541,28 @@ export function ScheduleGrid({
                             {linkedStatus(point)}
                           </span>
                         )}
-                      </div>
+                        </div>
+                      </Hint>
                       </ReorderMenu>
                     ))}
                   {(tasksByDate.get(day.date) ?? []).map((task) => (
-                    <div
-                      key={task.id}
-                      onPointerDown={(e) => {
-                        if (readOnly || e.button !== 0) return;
-                        e.stopPropagation();
-                        setDrag({ kind: "task", taskId: task.id, date: day.date });
-                      }}
-                      className={cn(
-                        // Deliberately unlike an element: a task is real work
-                        // that already exists, not something being considered.
-                        "pointer-events-auto mb-0.5 truncate rounded border border-dashed border-muted-foreground/50 bg-background px-1 text-[10px] text-muted-foreground",
-                        !readOnly && "cursor-grab active:cursor-grabbing",
-                      )}
-                      title={`${task.id} ${task.title} · ${task.status}`}
-                    >
-                      {task.id} {task.title}
-                    </div>
+                    <Hint key={task.id} label={`${task.id} ${task.title} · ${task.status}`}>
+                      <div
+                        onPointerDown={(e) => {
+                          if (readOnly || e.button !== 0) return;
+                          e.stopPropagation();
+                          setDrag({ kind: "task", taskId: task.id, date: day.date });
+                        }}
+                        className={cn(
+                          // Deliberately unlike an element: a task is real work
+                          // that already exists, not something being considered.
+                          "pointer-events-auto mb-0.5 truncate rounded border border-dashed border-muted-foreground/50 bg-background px-1 text-[10px] text-muted-foreground",
+                          !readOnly && "cursor-grab active:cursor-grabbing",
+                        )}
+                      >
+                        {task.id} {task.title}
+                      </div>
+                    </Hint>
                   ))}
                 </div>
               ))}
@@ -687,7 +691,7 @@ function ArrowSegment({
   selected,
   readOnly,
   status,
-  title,
+  tooltip,
   onDrag,
   onPress,
 }: {
@@ -696,70 +700,71 @@ function ArrowSegment({
   selected: boolean;
   readOnly?: boolean;
   status?: string;
-  title: string;
+  tooltip: string;
   onDrag: (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => void;
   onPress: (item: ScheduleItem) => void;
 }) {
   const color = bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray;
   return (
-    <div
-      style={{
-        left: `${(bar.startCol / 7) * 100}%`,
-        width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
-        top: bar.lane * laneHeight,
-      }}
-      onPointerDown={(e) => onDrag(e, bar.item)}
-      onPointerUp={() => onPress(bar.item)}
-      className={cn(
-        "pointer-events-auto absolute h-[18px]",
-        !readOnly && "cursor-grab active:cursor-grabbing",
-        selected && "rounded ring-1 ring-foreground",
-      )}
-      title={title}
-    >
-      {bar.isStart && !readOnly && (
-        <span
-          onPointerDown={(e) => onDrag(e, bar.item, "start")}
-          className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize"
-        />
-      )}
-      {bar.isStart && (
-        <span
-          className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
-          style={{ color }}
-        >
-          <span className="truncate">{bar.item.title}</span>
-          <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
-          {status && (
-            <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
-              {status}
-            </span>
-          )}
-        </span>
-      )}
-      {/* The line itself, vertically centred under the label. */}
-      <div className="absolute inset-x-0 top-[13px] flex items-center">
+    <Hint label={tooltip}>
+      <div
+        style={{
+          left: `${(bar.startCol / 7) * 100}%`,
+          width: `${((bar.endCol - bar.startCol + 1) / 7) * 100}%`,
+          top: bar.lane * laneHeight,
+        }}
+        onPointerDown={(e) => onDrag(e, bar.item)}
+        onPointerUp={() => onPress(bar.item)}
+        className={cn(
+          "pointer-events-auto absolute h-[18px]",
+          !readOnly && "cursor-grab active:cursor-grabbing",
+          selected && "rounded ring-1 ring-foreground",
+        )}
+      >
+        {bar.isStart && !readOnly && (
+          <span
+            onPointerDown={(e) => onDrag(e, bar.item, "start")}
+            className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize"
+          />
+        )}
         {bar.isStart && (
           <span
-            className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
-            style={{ borderRightColor: color }}
-          />
+            className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
+            style={{ color }}
+          >
+            <span className="truncate">{bar.item.title}</span>
+            <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
+            {status && (
+              <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
+                {status}
+              </span>
+            )}
+          </span>
         )}
-        <span className="h-px flex-1" style={{ background: color }} />
-        {bar.isEnd && (
+        {/* The line itself, vertically centred under the label. */}
+        <div className="absolute inset-x-0 top-[13px] flex items-center">
+          {bar.isStart && (
+            <span
+              className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
+              style={{ borderRightColor: color }}
+            />
+          )}
+          <span className="h-px flex-1" style={{ background: color }} />
+          {bar.isEnd && (
+            <span
+              className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
+              style={{ borderLeftColor: color }}
+            />
+          )}
+        </div>
+        {bar.isEnd && !readOnly && (
           <span
-            className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
-            style={{ borderLeftColor: color }}
-          />
-        )}
-      </div>
-      {bar.isEnd && !readOnly && (
-        <span
           onPointerDown={(e) => onDrag(e, bar.item, "end")}
           className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-ew-resize"
         />
       )}
-    </div>
+      </div>
+    </Hint>
   );
 }
 

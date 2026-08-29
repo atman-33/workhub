@@ -14,7 +14,7 @@ use crate::vault_project;
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[tauri::command]
@@ -367,6 +367,114 @@ pub fn open_explorer(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn open_in_obsidian(path: String) -> Result<(), String> {
     actions::open_in_obsidian(&path)
+}
+
+// ---------------------------------------------------------------------
+// ink captures
+// ---------------------------------------------------------------------
+
+/// Where annotated screen captures are written: the configured folder, else
+/// the vault's `attachments/ink/`, else `~/.workhub/ink/` — drawing works
+/// without a vault, so saving has to as well.
+fn ink_dir() -> PathBuf {
+    let config = storage::load();
+    let configured = config.settings.ink_dir.trim().to_string();
+    if !configured.is_empty() {
+        return PathBuf::from(configured);
+    }
+    match config.settings.vault_path.as_deref() {
+        Some(vault) if !vault.trim().is_empty() => {
+            PathBuf::from(vault).join("attachments").join("ink")
+        }
+        _ => storage::config_dir().join("ink"),
+    }
+}
+
+#[tauri::command]
+pub fn ink_capture_dir() -> String {
+    ink_dir().to_string_lossy().replace('\\', "/")
+}
+
+/// Tells the main window that the captures folder changed, so the Ink tab
+/// refreshes its list without a manual pass. An Alt+C save happens in the
+/// overlay, far from the tab that displays the result — without this the
+/// list only caught up after a refresh click or a tab switch.
+fn notify_captures_changed(app: &tauri::AppHandle) {
+    let _ = app.emit_to("main", "ink://captures-changed", ());
+}
+
+/// Composes the overlay's strokes (base64 PNG, transparent) onto the screen
+/// grab taken when drawing started, saves it, and copies it to the clipboard.
+#[tauri::command]
+pub fn save_ink_capture(app: tauri::AppHandle, base64_data: String) -> Result<String, String> {
+    let result = crate::ink::store::save_capture(&app, &ink_dir(), &base64_data);
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
+}
+
+/// Saves a cropped region of an existing capture beside it, and copies it.
+#[tauri::command]
+pub fn save_ink_crop(
+    app: tauri::AppHandle,
+    source_path: String,
+    base64_data: String,
+) -> Result<String, String> {
+    let result = crate::ink::store::save_crop(&app, &PathBuf::from(source_path), &base64_data);
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn list_ink_captures() -> Result<Vec<crate::ink::store::InkCapture>, String> {
+    // Decoding a folder of full-screen PNGs for thumbnails is slow enough to
+    // stutter the UI thread.
+    tauri::async_runtime::spawn_blocking(move || crate::ink::store::list(&ink_dir()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_ink_capture(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::ink::store::read_full(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn copy_ink_capture(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::ink::store::copy_to_clipboard(&app, &PathBuf::from(path))
+}
+
+/// Copies an image rendered by the frontend (a crop) to the clipboard.
+#[tauri::command]
+pub fn copy_ink_png(app: tauri::AppHandle, base64_data: String) -> Result<(), String> {
+    crate::ink::store::copy_png(&app, &base64_data)
+}
+
+/// Sends a capture to the recycle bin, so a mis-click is recoverable.
+#[tauri::command]
+pub fn delete_ink_capture(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let result = crate::ink::store::delete(&PathBuf::from(path));
+    if result.is_ok() {
+        notify_captures_changed(&app);
+    }
+    result
+}
+
+/// Opens the floating preview window (move/resize/crop) on a saved capture.
+#[tauri::command]
+pub fn open_ink_preview(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::ink_preview::open(&app, path).map_err(|e| e.to_string())
+}
+
+/// Hides the floating preview window — its ✕ and Esc both land here.
+#[tauri::command]
+pub fn ink_preview_hide(app: tauri::AppHandle) {
+    crate::ink_preview::hide(&app);
 }
 
 #[tauri::command]

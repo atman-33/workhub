@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Inbox, Lightbulb, RefreshCw } from "lucide-react";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
 import {
   ResizableHandle,
@@ -125,16 +126,17 @@ export function InboxView({ configVersion, active }: Props) {
           {notes.some((n) => n.pending) &&
             ` · ${notes.filter((n) => n.pending).length} with a proposal`}
         </span>
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          className="ml-auto"
-          disabled={loading}
-          onClick={() => void reload()}
-          title="Reload"
-        >
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </Button>
+        <Hint label="Reload" disabled={loading}>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            className="ml-auto"
+            disabled={loading}
+            onClick={() => void reload()}
+          >
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </Hint>
       </div>
       {error && (
         <div className="border-b bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
@@ -158,27 +160,28 @@ export function InboxView({ configVersion, active }: Props) {
                   note.path === selected ? "bg-muted" : "hover:bg-muted/50",
                 )}
               >
-                <span className="w-full truncate text-xs font-medium" title={note.rel_path}>
-                  {note.name}
-                </span>
+                <Hint label={note.rel_path}>
+                  <span className="w-full truncate text-xs font-medium">{note.name}</span>
+                </Hint>
                 <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span>{formatDate(note.modified)}</span>
-                  <span
-                    className={cn(note.stale && "font-medium text-amber-600 dark:text-amber-500")}
-                    title={
-                      note.stale
-                        ? "Old enough for the vault-tidy routine to act on"
-                        : undefined
-                    }
+                  <Hint
+                    label={note.stale ? "Old enough for the vault-tidy routine to act on" : undefined}
                   >
-                    {formatAge(note.age_days)}
-                  </span>
-                  {note.pending && (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 text-primary">
-                      <Lightbulb className="size-2.5" />
-                      proposal
+                    <span
+                      className={cn(
+                        note.stale && "font-medium text-amber-600 dark:text-amber-500",
+                      )}
+                    >
+                      {formatAge(note.age_days)}
+                      {note.pending && (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 text-primary">
+                          <Lightbulb className="size-2.5" />
+                          proposal
+                        </span>
+                      )}
                     </span>
-                  )}
+                  </Hint>
                 </span>
               </button>
             ))}
