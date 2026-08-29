@@ -1,5 +1,5 @@
 //! Ink's consumer of the shared Raw Input keyboard listener
-//! (`crate::rawkey`): it feeds Alt/S transitions into the pure
+//! (`crate::rawkey`): it feeds Alt/S/C transitions into the pure
 //! [`AltStateMachine`] and forwards the resulting [`InkEvent`]s to the main
 //! thread, where the overlay window is driven.
 //!
@@ -10,7 +10,7 @@ use super::state::{AltStateMachine, InkEvent, KeyInput};
 use crate::rawkey::{self, KeyEvent};
 use std::sync::Mutex;
 use tauri::AppHandle;
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetDoubleClickTime, VK_MENU, VK_S};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetDoubleClickTime, VK_C, VK_MENU, VK_S};
 
 /// Consumer name registered with `rawkey`.
 const CONSUMER: &str = "ink";
@@ -53,6 +53,12 @@ fn on_key(app: &AppHandle, event: KeyEvent) {
             KeyInput::SUp
         } else {
             KeyInput::SDown
+        }
+    } else if event.vk == VK_C.0 {
+        if event.up {
+            KeyInput::CUp
+        } else {
+            KeyInput::CDown
         }
     } else if event.up {
         // Releases of unrelated keys carry no information for the gesture.

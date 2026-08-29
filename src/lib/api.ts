@@ -10,6 +10,7 @@ import type {
   GitLog,
   GraphOp,
   InboxNote,
+  InkCapture,
   InputListenerDiagnostics,
   MindmapDoc,
   MindmapEditRun,
@@ -316,6 +317,20 @@ export const api = {
   clipsSave: (clips: Clip[]) => invoke<void>("clips_save", { clips }),
   clipsPaste: (id: string) => invoke<void>("clips_paste", { id }),
   clipsHide: () => invoke<void>("clips_hide"),
+
+  // ---- ink captures (annotated screenshots) ----
+  inkCaptureDir: () => invoke<string>("ink_capture_dir"),
+  listInkCaptures: () => invoke<InkCapture[]>("list_ink_captures"),
+  /** Full-size image as a `data:image/png;base64,...` URL. */
+  readInkCapture: (path: string) => invoke<string>("read_ink_capture", { path }),
+  copyInkCapture: (path: string) => invoke<void>("copy_ink_capture", { path }),
+  /** Copies a frontend-rendered image (a crop) without writing a file. */
+  copyInkPng: (base64Data: string) => invoke<void>("copy_ink_png", { base64Data }),
+  /** `base64Data` is the payload of a `data:image/png;base64,...` URL. */
+  saveInkCrop: (sourcePath: string, base64Data: string) =>
+    invoke<string>("save_ink_crop", { sourcePath, base64Data }),
+  /** Sends the capture to the recycle bin. */
+  deleteInkCapture: (path: string) => invoke<void>("delete_ink_capture", { path }),
 
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),

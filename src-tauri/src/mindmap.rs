@@ -246,45 +246,11 @@ pub fn export_file(out_path: &Path, content: &str) -> Result<(), String> {
 
 /// Writes a generated binary export (PNG), given its base64 payload.
 pub fn export_binary(out_path: &Path, base64_data: &str) -> Result<(), String> {
-    let bytes = decode_base64(base64_data)?;
+    let bytes = crate::b64::decode(base64_data)?;
     if let Some(parent) = out_path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(out_path, bytes).map_err(|e| e.to_string())
-}
-
-/// Decodes standard base64 (the form `canvas.toDataURL` produces). Written out
-/// rather than pulled in: this is the only binary payload that crosses the
-/// bridge, and the alternative is a dependency for forty lines.
-fn decode_base64(data: &str) -> Result<Vec<u8>, String> {
-    fn value(c: u8) -> Option<u32> {
-        match c {
-            b'A'..=b'Z' => Some((c - b'A') as u32),
-            b'a'..=b'z' => Some((c - b'a') as u32 + 26),
-            b'0'..=b'9' => Some((c - b'0') as u32 + 52),
-            b'+' => Some(62),
-            b'/' => Some(63),
-            _ => None,
-        }
-    }
-    let mut out = Vec::new();
-    let (mut acc, mut bits) = (0u32, 0u32);
-    for c in data.bytes() {
-        if c == b'=' {
-            break;
-        }
-        if c.is_ascii_whitespace() {
-            continue;
-        }
-        let v = value(c).ok_or_else(|| "the export payload is not valid base64".to_string())?;
-        acc = (acc << 6) | v;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-        }
-    }
-    Ok(out)
 }
 
 // ---------------------------------------------------------------------
@@ -456,13 +422,5 @@ created: 2026-08-26\nupdated: 2026-08-26\n---\n\n## Nodes\n\n- N-001 root\n  - N
         assert!(!has_snapshot(&vault, &path));
         assert!(restore_snapshot(&vault, &path).is_err());
         fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn base64_decodes_a_png_payload() {
-        // "hello" -> aGVsbG8=
-        assert_eq!(decode_base64("aGVsbG8=").unwrap(), b"hello".to_vec());
-        assert_eq!(decode_base64("").unwrap(), Vec::<u8>::new());
-        assert!(decode_base64("not base64!").is_err());
     }
 }

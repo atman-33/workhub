@@ -1,4 +1,5 @@
 mod actions;
+mod b64;
 mod caret;
 mod clips;
 mod commands;
@@ -163,6 +164,14 @@ pub fn run() {
             commands::open_explorer,
             commands::open_in_obsidian,
             commands::app_version,
+            commands::ink_capture_dir,
+            commands::save_ink_capture,
+            commands::save_ink_crop,
+            commands::list_ink_captures,
+            commands::read_ink_capture,
+            commands::copy_ink_capture,
+            commands::copy_ink_png,
+            commands::delete_ink_capture,
             commands::input_listener_diagnostics,
             commands::restart_input_listener,
             commands::check_update,

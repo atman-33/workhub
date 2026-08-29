@@ -369,6 +369,82 @@ pub fn open_in_obsidian(path: String) -> Result<(), String> {
     actions::open_in_obsidian(&path)
 }
 
+// ---------------------------------------------------------------------
+// ink captures
+// ---------------------------------------------------------------------
+
+/// Where annotated screen captures are written: the configured folder, else
+/// the vault's `attachments/ink/`, else `~/.workhub/ink/` — drawing works
+/// without a vault, so saving has to as well.
+fn ink_dir() -> PathBuf {
+    let config = storage::load();
+    let configured = config.settings.ink_dir.trim().to_string();
+    if !configured.is_empty() {
+        return PathBuf::from(configured);
+    }
+    match config.settings.vault_path.as_deref() {
+        Some(vault) if !vault.trim().is_empty() => {
+            PathBuf::from(vault).join("attachments").join("ink")
+        }
+        _ => storage::config_dir().join("ink"),
+    }
+}
+
+#[tauri::command]
+pub fn ink_capture_dir() -> String {
+    ink_dir().to_string_lossy().replace('\\', "/")
+}
+
+/// Composes the overlay's strokes (base64 PNG, transparent) onto the screen
+/// grab taken when drawing started, saves it, and copies it to the clipboard.
+#[tauri::command]
+pub fn save_ink_capture(app: tauri::AppHandle, base64_data: String) -> Result<String, String> {
+    crate::ink::store::save_capture(&app, &ink_dir(), &base64_data)
+}
+
+/// Saves a cropped region of an existing capture beside it, and copies it.
+#[tauri::command]
+pub fn save_ink_crop(
+    app: tauri::AppHandle,
+    source_path: String,
+    base64_data: String,
+) -> Result<String, String> {
+    crate::ink::store::save_crop(&app, &PathBuf::from(source_path), &base64_data)
+}
+
+#[tauri::command]
+pub async fn list_ink_captures() -> Result<Vec<crate::ink::store::InkCapture>, String> {
+    // Decoding a folder of full-screen PNGs for thumbnails is slow enough to
+    // stutter the UI thread.
+    tauri::async_runtime::spawn_blocking(move || crate::ink::store::list(&ink_dir()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_ink_capture(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::ink::store::read_full(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn copy_ink_capture(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::ink::store::copy_to_clipboard(&app, &PathBuf::from(path))
+}
+
+/// Copies an image rendered by the frontend (a crop) to the clipboard.
+#[tauri::command]
+pub fn copy_ink_png(app: tauri::AppHandle, base64_data: String) -> Result<(), String> {
+    crate::ink::store::copy_png(&app, &base64_data)
+}
+
+/// Sends a capture to the recycle bin, so a mis-click is recoverable.
+#[tauri::command]
+pub fn delete_ink_capture(path: String) -> Result<(), String> {
+    crate::ink::store::delete(&PathBuf::from(path))
+}
+
 #[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()

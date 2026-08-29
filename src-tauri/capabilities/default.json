@@ -8,6 +8,7 @@
     "core:window:allow-start-dragging",
     "dialog:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-image",
     "clipboard-manager:allow-read-text",
     "opener:default",
     "notification:default"

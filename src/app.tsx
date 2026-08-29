@@ -11,12 +11,14 @@ import {
   Music,
   Network,
   FolderKanban,
+  Pencil,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
 import { ClipsView } from "@/components/clips-view";
 import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
+import { InkView } from "@/components/ink-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
@@ -52,6 +54,7 @@ type Tab =
   | "timer"
   | "voice"
   | "clips"
+  | "ink"
   | "help";
 
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
@@ -65,6 +68,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "timer", label: "Timer", icon: Timer },
   { key: "voice", label: "Voice", icon: Mic },
   { key: "clips", label: "Clips", icon: ClipboardList },
+  { key: "ink", label: "Ink", icon: Pencil },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
 
@@ -281,6 +285,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "clips" && "hidden")}>
             <ClipsView configVersion={configVersion} />
+          </div>
+          <div className={cn("h-full", tab !== "ink" && "hidden")}>
+            <InkView configVersion={configVersion} />
           </div>
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />

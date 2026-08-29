@@ -81,6 +81,11 @@ pub struct Settings {
     /// including its low-level keyboard hook.
     #[serde(default = "default_true")]
     pub ink_enabled: bool,
+    /// Where Alt+C writes annotated screen captures. Empty means the vault's
+    /// `attachments/ink/`, which is where they belong when there is a vault;
+    /// the setting exists for the people who want them somewhere shared.
+    #[serde(default)]
+    pub ink_dir: String,
     /// Absolute path to the workhub Obsidian vault (task data store). Unset
     /// until the user configures or initializes a vault.
     #[serde(default)]
@@ -354,6 +359,7 @@ impl Default for Settings {
             memory_opencode: true,
             secretary_enabled: false,
             ink_enabled: true,
+            ink_dir: String::new(),
             vault_path: None,
             worktree_root: default_worktree_root(),
             terminal_embed: false,

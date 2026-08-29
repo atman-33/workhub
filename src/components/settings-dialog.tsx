@@ -119,6 +119,7 @@ const DEFAULTS: Settings = {
   memory_opencode: true,
   secretary_enabled: false,
   ink_enabled: true,
+  ink_dir: "",
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
   terminal_embed: false,
@@ -431,13 +432,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-2 rounded-md border p-3">
                 <p className="text-sm font-medium">Features</p>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.ink_enabled}
-                    onCheckedChange={(v) => setDraft({ ...draft, ink_enabled: v === true })}
-                  />
-                  Screen annotation (double-press and hold Alt to draw)
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  Screen annotation (double-press and hold Alt to draw) is configured in the
+                  <span className="font-medium"> Ink</span> tab, next to the captures it saves.
+                </p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.quick_capture_enabled}

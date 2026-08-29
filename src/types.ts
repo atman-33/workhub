@@ -40,6 +40,8 @@ export interface Settings {
   secretary_enabled: boolean;
   /** Screen-annotation overlay (double-press-and-hold Alt to draw). */
   ink_enabled: boolean;
+  /** Where Alt+C writes captures; empty = the vault's `attachments/ink/`. */
+  ink_dir: string;
   vault_path: string | null;
   /** Root dir for task worktrees, laid out as `<root>/<task-id>/<repo-name>`. */
   worktree_root: string;
@@ -368,6 +370,19 @@ export interface VoiceHistoryEntry {
 
 /** One paste-ready snippet in the clips picker. Array order is the display
  * order — the editor sends the whole list back after any edit or reorder. */
+/** A saved ink capture (annotated screenshot), as the Ink tab lists it. */
+export interface InkCapture {
+  path: string;
+  name: string;
+  width: number;
+  height: number;
+  /** File mtime in ms since the epoch; the list is sorted on it. */
+  modified_ms: number;
+  size_bytes: number;
+  /** `data:image/png;base64,...` of a downscaled preview. */
+  thumbnail: string;
+}
+
 export interface Clip {
   id: string;
   label: string;

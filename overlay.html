@@ -31,11 +31,40 @@
         display: none;
         will-change: transform;
       }
+      /* Save feedback. An OS notification would land behind the overlay and
+         outlive the gesture; this sits where the user is already looking and
+         fades on its own. */
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 48px;
+        transform: translateX(-50%);
+        max-width: 70vw;
+        padding: 8px 14px;
+        border-radius: 8px;
+        background: rgba(20, 20, 20, 0.88);
+        color: #fff;
+        font:
+          13px/1.4 "Segoe UI",
+          system-ui,
+          sans-serif;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 150ms ease;
+      }
+      #toast.error {
+        background: rgba(150, 30, 30, 0.92);
+      }
     </style>
   </head>
   <body>
     <canvas id="ink"></canvas>
     <div id="chip"></div>
+    <div id="toast"></div>
     <script type="module" src="/src/overlay/main.ts"></script>
   </body>
 </html>

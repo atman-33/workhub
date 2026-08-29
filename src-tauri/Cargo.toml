@@ -61,6 +61,11 @@ include_dir = "0.7"
 # vault template sync: renders the vault-vs-template unified diff shown in the
 # template update dialog before an overwrite (see src-tauri/src/tasks.rs).
 similar = "2"
+# ink captures: PNG encode/decode. Encoding turns the BitBlt screen grab into
+# the PNG the overlay draws on; decoding turns a saved capture back into the
+# raw RGBA the clipboard and the thumbnail list need. Default features are off
+# because PNG is the only format involved.
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 # ink overlay: Raw Input keyboard listener for the double-Alt temporary draw mode
 [target.'cfg(windows)'.dependencies]
@@ -88,7 +93,8 @@ windows = { version = "0.61", features = [
     "Win32_UI_Accessibility",
     "Win32_System_Com",
     # ClientToScreen, for turning the client-relative caret rect returned by
-    # GetGUIThreadInfo into screen coordinates.
+    # GetGUIThreadInfo into screen coordinates; BitBlt and GetDIBits, for the
+    # ink capture's screen grab (see src-tauri/src/ink/capture.rs).
     "Win32_Graphics_Gdi",
 ] }
 
