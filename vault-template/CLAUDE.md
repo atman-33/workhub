@@ -17,6 +17,16 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `templates/` | human | note templates (`task.md`, `_index.md.template`, `project/` scaffold) |
 | `_ai/` | **AI only** | `index/` indexes, `logs/` agent reports + KB activity log, `memory/` working memory |
 | `attachments/` | human + AI | images and other binary assets |
+| `.workhub/` | **app only** | `settings.json` — the app settings that belong to this vault (see below) |
+
+`.workhub/settings.json` holds the app settings that describe *this vault*
+rather than one machine — the AI's task language, the custom prompt, the
+agent/model choices for schedule and mindmap edits, the recurring-task rules,
+and the vault-tidy policy. It is version-controlled with the vault on purpose:
+cloning the vault on another PC restores them. Machine-specific settings
+(paths, command templates, hotkeys, window geometry) stay in that machine's
+`~/.workhub/config.json` and are never written here. The app owns the file —
+change these settings from its Settings dialog rather than by editing it.
 
 English folder names are lowercase kebab-case. Topic folders under `knowledge/`
 follow the same convention (e.g. `knowledge/infra/`).

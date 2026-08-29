@@ -27,6 +27,7 @@ mod tidy;
 mod update;
 mod vault_note;
 mod vault_project;
+mod vault_settings;
 mod voice;
 mod voice_chunk;
 mod voice_history;
@@ -103,6 +104,10 @@ pub fn run() {
             }
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
+            // Give a vault that has no `.workhub/settings.json` yet the
+            // values this machine is already using, so the split never
+            // starts by losing settings (T-0206).
+            vault_settings::seed_if_missing(&cfg);
             if cfg.settings.ink_enabled {
                 ink::start(app.handle());
             }

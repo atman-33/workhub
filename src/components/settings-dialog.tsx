@@ -39,6 +39,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { ModelCombobox } from "@/components/model-combobox";
 import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
 
 const TIDY_DEFAULTS: Settings["tidy"] = {
@@ -579,8 +580,9 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 </Select>
               </div>
               <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-medium text-muted-foreground">
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   Task file language
+                  <VaultScopedBadge />
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
                   Language an AI agent writes a task's Plan and Results sections in, plus the
@@ -604,7 +606,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 </Select>
               </div>
               <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-medium text-muted-foreground">Custom prompt</label>
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Custom prompt
+                  <VaultScopedBadge />
+                </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
                   Appended to the end of every task prompt, both when launching an agent and when
                   copying the prompt. Line breaks are collapsed into spaces.
@@ -793,7 +798,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               {/* Schedule AI edits (T-0091) */}
               <div className="space-y-3 rounded-md border p-3">
                 <div>
-                  <p className="text-sm font-medium">Schedule</p>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Schedule
+                    <VaultScopedBadge />
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Agent used when you edit a schedule with a natural-language instruction.
                   </p>
@@ -883,7 +891,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               {/* Mindmap AI edits (T-0188) */}
               <div className="space-y-3 rounded-md border p-3">
                 <div>
-                  <p className="text-sm font-medium">Mindmap</p>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Mindmap
+                    <VaultScopedBadge />
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Agent used when you edit a mindmap with a natural-language instruction.
                   </p>
@@ -935,7 +946,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               <div className="space-y-3 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium">Vault tidy</p>
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      Vault tidy
+                      <VaultScopedBadge />
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       File stale inbox notes and refresh the archive index with a headless agent.
                     </p>

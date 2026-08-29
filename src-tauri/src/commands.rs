@@ -22,10 +22,19 @@ pub fn get_config() -> Config {
     storage::load()
 }
 
+/// Persists `config` and returns the configuration that actually took effect.
+/// The two differ when the vault changed: the newly selected vault's own
+/// settings are adopted rather than overwritten (T-0206), so the caller must
+/// render what comes back instead of what it sent.
 #[tauri::command]
-pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<(), String> {
+pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, String> {
     let before = storage::load().settings;
     let mut config = config;
+    // Switching vaults: the vault-scoped settings belong to the vault being
+    // opened, not to the one being left behind.
+    if config.settings.vault_path != before.vault_path {
+        crate::vault_settings::overlay(&mut config);
+    }
     // Seed the tidy schedule anchor the first time the routine is enabled so
     // the interval has a phase to count from (and the UI can show "next check").
     if config.settings.tidy.enabled && config.settings.tidy.anchor.is_none() {
@@ -73,7 +82,7 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<(), String> 
             let _ = harness::sync_opencode_permissions(vault, &config.projects);
         }
     }
-    Ok(())
+    Ok(config)
 }
 
 /// Current state of the built-in vault-tidy runner (idle/running/completed/

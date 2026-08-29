@@ -3,6 +3,7 @@ import { Loader2, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { generateDueTasks } from "@/lib/use-recurring-tasks";
 import { RecurringSettings } from "@/components/recurring-settings";
+import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import {
@@ -103,7 +104,10 @@ export function RecurringDialog({ open, onClose, onSaved }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Recurring tasks</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Recurring tasks
+            <VaultScopedBadge />
+          </DialogTitle>
           <DialogDescription>
             Rules that put a task on the board on their own schedule.
           </DialogDescription>
