@@ -11,13 +11,20 @@
 // wherever it does not cover the reference material and resized until the
 // region to select is comfortably large, and the result reuses the same
 // save/copy path as Alt+C.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Check, Copy, Crop, Loader2, Save, Scissors, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   CURSORS,
   MIN_DRAG,
@@ -29,6 +36,31 @@ import {
 
 function hide() {
   void invoke("ink_preview_hide");
+}
+
+/**
+ * Header button with a shadcn/ui tooltip instead of the browser's `title`.
+ * The button rides inside a span because a disabled button swallows pointer
+ * events and would never show its tooltip; when disabled it gets
+ * `pointer-events-none` so the span becomes the hover target (radix's own
+ * recommendation for disabled triggers). Enabled buttons keep their clicks.
+ */
+function TipButton({ label, ...props }: ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            {...props}
+            className={cn(props.className, props.disabled && "pointer-events-none")}
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 export function PreviewApp() {
@@ -216,117 +248,107 @@ export function PreviewApp() {
     : "";
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Whole-header drag via startDragging(): the `data-tauri-drag-region`
-          attribute only fires when the element directly under the cursor has
-          it, so the icon/text/badge children would be dead zones. */}
-      <header
-        onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          if ((e.target as HTMLElement).closest("button")) return;
-          getCurrentWindow().startDragging().catch(console.error);
-        }}
-        className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
-      >
-        <Scissors className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate text-xs font-medium" title={path}>
-          {name || "Ink preview"}
-        </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {selection ? `${selection} selected` : natural}
-        </span>
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy || (!src && !rect)}
-            onClick={() => void copy()}
-            aria-label="Copy to clipboard"
-            title={rect ? "Copy selection (Ctrl+C)" : "Copy image (Ctrl+C)"}
-          >
-            {copied ? <Check className="text-emerald-500" /> : <Copy />}
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy || !rect}
-            onClick={() => void saveCrop()}
-            aria-label="Save crop"
-            title="Save the selection beside the original (Enter)"
-          >
-            <Save />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={!rect}
-            onClick={() => setRect(null)}
-            aria-label="Clear selection"
-            title="Clear the selection (Esc)"
-          >
-            <Crop />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={hide}
-            aria-label="Close preview"
-            title="Close (Esc)"
-          >
-            <X />
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/40 p-3">
-        {src ? (
-          <div
-            className="relative touch-none select-none"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-          >
-            <img
-              ref={imageRef}
-              src={src}
-              alt={name}
-              draggable={false}
-              className="block max-h-[calc(100vh-7rem)] max-w-full object-contain"
-            />
-            {rect && (
-              <div
-                className="pointer-events-none absolute border border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
-                style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
-              />
-            )}
+    <TooltipProvider>
+      <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+        {/* Whole-header drag via startDragging(): the `data-tauri-drag-region`
+            attribute only fires when the element directly under the cursor has
+            it, so the icon/text/badge children would be dead zones. */}
+        <header
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            if ((e.target as HTMLElement).closest("button")) return;
+            getCurrentWindow().startDragging().catch(console.error);
+          }}
+          className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
+        >
+          <Scissors className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate text-xs font-medium" title={path}>
+            {name || "Ink preview"}
+          </span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {selection ? `${selection} selected` : natural}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            <TipButton
+              label={rect ? "Copy selection (Ctrl+C)" : "Copy image (Ctrl+C)"}
+              disabled={busy || (!src && !rect)}
+              onClick={() => void copy()}
+              aria-label="Copy to clipboard"
+            >
+              {copied ? <Check className="text-emerald-500" /> : <Copy />}
+            </TipButton>
+            <TipButton
+              label="Save the selection beside the original (Enter)"
+              disabled={busy || !rect}
+              onClick={() => void saveCrop()}
+              aria-label="Save crop"
+            >
+              <Save />
+            </TipButton>
+            <TipButton
+              label="Clear the selection (Esc)"
+              disabled={!rect}
+              onClick={() => setRect(null)}
+              aria-label="Clear selection"
+            >
+              <Crop />
+            </TipButton>
+            <TipButton label="Close (Esc)" onClick={hide} aria-label="Close preview">
+              <X />
+            </TipButton>
           </div>
-        ) : error ? (
-          <p className="max-w-full truncate p-4 text-xs text-destructive" title={error}>
-            {error}
-          </p>
-        ) : (
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        )}
-      </div>
+        </header>
 
-      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
-        {error ? (
-          <p className="min-w-0 flex-1 truncate text-[11px] text-destructive" title={error}>
-            {error}
-          </p>
-        ) : savedNote ? (
-          <p className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-emerald-500">
-            <Check className="size-3 shrink-0" />
-            {savedNote}
-          </p>
-        ) : (
-          <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-            Drag to select · drag its edges to adjust · drag inside to move · Ctrl+C copies · Enter
-            saves the crop · Esc clears, then closes
-          </p>
-        )}
-      </div>
-    </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/40 p-3">
+          {src ? (
+            <div
+              className="relative touch-none select-none"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
+              <img
+                ref={imageRef}
+                src={src}
+                alt={name}
+                draggable={false}
+                className="block max-h-[calc(100vh-7rem)] max-w-full object-contain"
+              />
+              {rect && (
+                <div
+                  className="pointer-events-none absolute border border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+                  style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+                />
+              )}
+            </div>
+          ) : error ? (
+            <p className="max-w-full truncate p-4 text-xs text-destructive" title={error}>
+              {error}
+            </p>
+          ) : (
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
+          {error ? (
+            <p className="min-w-0 flex-1 truncate text-[11px] text-destructive" title={error}>
+              {error}
+            </p>
+          ) : savedNote ? (
+            <p className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-emerald-500">
+              <Check className="size-3 shrink-0" />
+              {savedNote}
+            </p>
+          ) : (
+            <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+              Drag to select · drag its edges to adjust · drag inside to move · Ctrl+C copies · Enter
+              saves the crop · Esc clears, then closes
+            </p>
+          )}
+        </div>
+        </div>
+    </TooltipProvider>
   );
 }
