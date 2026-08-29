@@ -88,6 +88,41 @@ new plugin version (or use `claude plugin marketplace update
 workhub-marketplace`). Toggle plugins for an existing vault with `/plugin`
 inside a session, or by editing `.claude/settings.json` directly.
 
+### One marketplace name, one source form
+
+Never declare the same marketplace name in both source forms. Claude Code
+accepts either the GitHub form (`{"source": "github", "repo":
+"atman-33/workhub"}`) or the git URL form (`{"source": "git", "url":
+"https://github.com/atman-33/workhub.git"}`), but if the name is registered
+under one form in `~/.claude/settings.json` and under the other in
+`~/.claude/plugins/known_marketplaces.json`, the marketplace is ignored
+wholesale — every plugin it provides silently disappears.
+
+Neither form is better than the other; only the mismatch breaks things. The
+vault template declares the marketplace in the GitHub form, so register it the
+same way at user scope — `claude plugin marketplace add atman-33/workhub` —
+and never add it again as a `.git` URL.
+
+The error messages do not point at the real cause. Symptoms look like:
+
+```text
+Plugin "workhub" not cached
+Failed to update: Plugin "workhub" is not installed
+```
+
+To diagnose:
+
+1. Run `claude plugin marketplace list` and check whether the marketplace is
+   listed at all. If it is missing, this is the conflict.
+2. Compare the `source` form for that name in `~/.claude/settings.json`
+   (`extraKnownMarketplaces`) against `~/.claude/plugins/known_marketplaces.json`,
+   and make them match.
+3. While recovering, also check that the plugin still has an entry in
+   `~/.claude/plugins/installed_plugins.json`, and whether
+   `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/.orphaned_at`
+   exists — the sweep adds that marker once it treats the cached plugin as an
+   orphan.
+
 ## OpenCode
 
 OpenCode cannot consume Claude Code plugins directly. The vault's
