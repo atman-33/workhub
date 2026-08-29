@@ -118,3 +118,13 @@
 .voice-preview-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* The nav tab strip scrolls only at the narrowest window sizes; a visible
+   scrollbar there would cost more of the bar's height than the overflow is
+   worth, so it stays hidden and the strip is scrolled by wheel or drag. */
+.nav-tabs-scroll {
+  scrollbar-width: none;
+}
+.nav-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}

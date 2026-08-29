@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The tab bar fits a narrow window** (T-0207). With twelve tabs and the
+  status cluster on the right, the navigation bar needed more width than the
+  app's own default window size gave it, so the tabs at the end were cut off
+  and there was no way to reach them short of enlarging the window. The bar now
+  adapts: at full width nothing changes, and as the window narrows the tab
+  labels give way to their icons (hover names the tab, and the tab you are on
+  keeps its label), while the vault path and version number step aside. At the
+  smallest sizes the tab strip scrolls, and switching to a tab from elsewhere in
+  the app always brings it into view.
 - **The task editor is a floating panel** (T-0202). The edit/create screen was
   a fixed, centred modal dialog — it always sat where the app put it, always
   the same size, with a dimmed curtain over the board. It now behaves like the

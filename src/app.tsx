@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CircleHelp,
   ClipboardList,
@@ -106,6 +106,13 @@ export default function App() {
   }, []);
   const focusFor = (t: Tab) =>
     focus && focus.tab === t ? { value: focus.value, n: focus.n } : undefined;
+  // When the tab strip is scrolled (narrow windows), a tab selected from
+  // elsewhere — the Projects view's cross-tab focus, the music control — can sit
+  // outside the visible slice. Pull it back into view on every change.
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
@@ -196,41 +203,64 @@ export default function App() {
           />
         )}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                tab === key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          ))}
-          {/* Pushes the status cluster below to the right edge of the nav bar. */}
-          <div className="ml-auto" />
-          <NavMusicControl onOpenMusic={() => setTab("music")} />
-          {settings?.vault_path && (
-            <Hint label={settings.vault_path}>
-              <span className="flex max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground">
-                <FolderOpen className="size-3 shrink-0" />
-                {settings.vault_path}
-              </span>
-            </Hint>
-          )}
-          <span className="text-[11px] text-muted-foreground">v{version}</span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            onClick={() => setShowSettings(true)}
+          {/* The tab strip degrades with the window width (T-0207): all twelve
+              tabs plus the status cluster need ~1380px, well past the 720px
+              minimum window size. Labels collapse below `xl` (the tooltip then
+              names the tab), the active tab keeps its label so the current
+              position stays readable, and this container scrolls as the last
+              resort at the narrowest widths. */}
+          <div
+            className="nav-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+            // The strip's scrollbar is hidden, and a plain wheel only produces a
+            // vertical delta — translate it so the wheel still reaches the tabs
+            // that scrolled out of sight.
+            onWheel={(e) => {
+              if (e.deltaX !== 0) return;
+              e.currentTarget.scrollLeft += e.deltaY;
+            }}
           >
-            <SettingsIcon className="size-4" />
-          </Button>
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <Hint key={key} label={label}>
+                <button
+                  ref={tab === key ? activeTabRef : undefined}
+                  onClick={() => setTab(key)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    tab === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  <span className={cn(tab === key ? "inline" : "hidden xl:inline")}>
+                    {label}
+                  </span>
+                </button>
+              </Hint>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <NavMusicControl onOpenMusic={() => setTab("music")} />
+            {settings?.vault_path && (
+              <Hint label={settings.vault_path}>
+                <span className="hidden max-w-48 items-center gap-1 truncate text-[11px] text-muted-foreground lg:flex">
+                  <FolderOpen className="size-3 shrink-0" />
+                  {settings.vault_path}
+                </span>
+              </Hint>
+            )}
+            <span className="hidden text-[11px] text-muted-foreground md:inline">
+              v{version}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={() => setShowSettings(true)}
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+          </div>
         </nav>
         <div className="min-h-0 flex-1">
           <div className={cn("h-full", tab !== "tasks" && "hidden")}>
