@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AlertCircle, Loader2, Mic, Square } from "lucide-react";
+import { Hint } from "@/components/ui/hint";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -124,12 +126,11 @@ export function VoiceIndicatorApp() {
       {state === "error" && (
         <>
           <AlertCircle className="size-3.5 shrink-0 text-destructive" />
-          <span
-            className={cn("min-w-0 flex-1 truncate text-xs text-destructive")}
-            title={message ?? undefined}
-          >
-            {message ?? "Voice input error"}
-          </span>
+          <Hint label={message ?? undefined}>
+            <span className={cn("min-w-0 flex-1 truncate text-xs text-destructive")}>
+              {message ?? "Voice input error"}
+            </span>
+          </Hint>
         </>
       )}
     </>
@@ -137,7 +138,8 @@ export function VoiceIndicatorApp() {
 
   if (isPreviewMode) {
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden p-1">
+      <TooltipProvider>
+        <div className="flex h-screen w-screen flex-col overflow-hidden p-1">
         <div className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-popover p-2 text-popover-foreground shadow-lg">
           {/* Whole-header drag via startDragging() — `data-tauri-drag-region`
               only fires on the element directly under the cursor, so the
@@ -161,23 +163,26 @@ export function VoiceIndicatorApp() {
             {preview || <span className="italic opacity-60">Listening…</span>}
           </div>
         </div>
-      </div>
+        </div>
+      </TooltipProvider>
     );
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden p-1">
-      <div
-        onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          if ((e.target as HTMLElement).closest("button")) return;
-          getCurrentWindow().startDragging().catch(console.error);
-        }}
-        className="flex h-full w-full min-w-0 cursor-move select-none items-center justify-center gap-2 rounded-full border bg-popover px-3.5 text-popover-foreground shadow-lg"
-      >
-        {statusRow}
-        {stopButton}
+    <TooltipProvider>
+      <div className="h-screen w-screen overflow-hidden p-1">
+        <div
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            if ((e.target as HTMLElement).closest("button")) return;
+            getCurrentWindow().startDragging().catch(console.error);
+          }}
+          className="flex h-full w-full min-w-0 cursor-move select-none items-center justify-center gap-2 rounded-full border bg-popover px-3.5 text-popover-foreground shadow-lg"
+        >
+          {statusRow}
+          {stopButton}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

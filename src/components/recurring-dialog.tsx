@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { generateDueTasks } from "@/lib/use-recurring-tasks";
 import { RecurringSettings } from "@/components/recurring-settings";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -116,20 +117,24 @@ export function RecurringDialog({ open, onClose, onSaved }: Props) {
         </div>
         {message && <p className="text-xs text-muted-foreground">{message}</p>}
         <DialogFooter className="sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
+          <Hint
+            label="Save the rules, then create whatever is due right now"
             disabled={running || saving || rules.length === 0}
-            onClick={() => void runNow()}
-            title="Save the rules, then create whatever is due right now"
           >
-            {running ? (
-              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-            ) : (
-              <Play className="mr-1.5 size-3.5" />
-            )}
-            Run now
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={running || saving || rules.length === 0}
+              onClick={() => void runNow()}
+            >
+              {running ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Play className="mr-1.5 size-3.5" />
+              )}
+              Run now
+            </Button>
+          </Hint>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel

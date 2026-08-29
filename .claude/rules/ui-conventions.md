@@ -5,6 +5,48 @@ paths:
 
 # UI conventions
 
+## Tooltips: the shared `Hint` component, never the native `title`
+
+Any tooltip the user is meant to read — hover hints on icon buttons, action
+labels with their shortcut, truncation hints on a file path or an error string
+— goes through `src/components/ui/hint.tsx`, which wraps the shadcn Tooltip
+(`src/components/ui/tooltip.tsx`) and handles the disabled-trigger case:
+
+```tsx
+import { Hint } from "@/components/ui/hint";
+
+<Hint label="Copy selection (Ctrl+C)">
+  <Button size="icon-sm" variant="ghost" onClick={…} aria-label="Copy">
+    <Copy />
+  </Button>
+</Hint>
+
+// disabled controls stay hoverable; label can be undefined when there is
+// nothing to say yet, in which case the child renders bare
+<Hint label="Rename this schedule" disabled={!path || aiRunning}>
+  <Button … disabled={!path || aiRunning} />
+</Hint>
+```
+
+The native `title` attribute renders a browser-styled popup that clashes with
+the app's dark theme and cannot be styled; the owner rejected it (T-0197
+feedback). `aria-label` is for assistive tech, not a tooltip substitute — pair
+it with a `Hint`. A component prop *named* `title` (ConfirmDialog, the help
+`Section`s, project-row's `Chip`) is not a native tooltip and stays as is.
+
+Two things to know:
+
+- **Helper windows need their own provider.** `TooltipProvider` is mounted in
+  `app.tsx`, which only covers the main window. `quick-capture`, `ink-preview`,
+  `voice-indicator`, and `clips-popup` are separate React roots — mount a
+  `TooltipProvider` at that window's root too (`ink-preview` and
+  `voice-indicator` do). The plain overlay (`overlay.html`, no React) cannot
+  use the component at all; if it ever needs a hover hint, style one with CSS.
+- **Hint may wrap a radix trigger component** (`PopoverTrigger asChild`,
+  `DropdownMenuTrigger asChild`, …) — Slot composition carries the handlers —
+  but never put a `Hint` *inside* another trigger's `asChild` chain: `Hint`
+  does not forward props/ref, so the outer trigger would lose its events.
+
 ## ResizableHandle: never pass `withHandle`
 
 Use `<ResizableHandle />` without the `withHandle` prop everywhere in this

@@ -19,6 +19,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 import type { Playlist } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
@@ -184,16 +185,17 @@ export function PlaylistTabs() {
           )}
         </SortableContext>
       </DndContext>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-6"
-        disabled={!canCreatePlaylist}
-        onClick={() => createPlaylist()}
-        title="New playlist"
-      >
-        <Plus className="size-3.5" />
-      </Button>
+      <Hint label="New playlist" disabled={!canCreatePlaylist}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          disabled={!canCreatePlaylist}
+          onClick={() => createPlaylist()}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </Hint>
       <div className="ml-auto">
         <PlaylistTransferMenu />
       </div>

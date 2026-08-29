@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { parsePlaylistTransfer, serializePlaylists } from "@/lib/music/playlist-transfer";
 import type { Playlist } from "@/lib/music/types";
@@ -111,11 +112,13 @@ export function PlaylistTransferMenu() {
   return (
     <div className="flex items-center gap-1">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-6" title="Export playlists">
-            <Download className="size-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
+        <Hint label="Export playlists">
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-6">
+              <Download className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+        </Hint>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             onSelect={() => void exportToFile(playlists, `workhub-playlists-${dateStem}`)}
@@ -142,11 +145,13 @@ export function PlaylistTransferMenu() {
       </DropdownMenu>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-6" title="Import playlists">
-            <Upload className="size-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
+        <Hint label="Import playlists">
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-6">
+              <Upload className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+        </Hint>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => void importFromFile()}>
             Import from file…

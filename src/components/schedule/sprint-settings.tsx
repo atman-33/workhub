@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SprintConfig } from "@/lib/schedule/parse";
@@ -43,22 +44,17 @@ export function SprintSettings({ sprint, windowStart, disabled, onChange }: Prop
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant={sprint ? "secondary" : "ghost"}
-          className="h-7 text-xs"
-          disabled={disabled}
-          title={
-            sprint
-              ? `Sprints: ${sprint.weeks} week(s) from ${sprint.start}`
-              : "Number the timeline by sprint"
-          }
-        >
-          <Repeat className="mr-1 size-3" />
-          {sprint ? `${sprint.weeks}w sprints` : "Sprints"}
-        </Button>
-      </PopoverTrigger>
+      <Hint
+        label={sprint ? `Sprints: ${sprint.weeks} week(s) from ${sprint.start}` : "Number the timeline by sprint"}
+        disabled={disabled}
+      >
+        <PopoverTrigger asChild>
+          <Button size="sm" variant={sprint ? "secondary" : "ghost"} className="h-7 text-xs" disabled={disabled}>
+            <Repeat className="mr-1 size-3" />
+            {sprint ? `${sprint.weeks}w sprints` : "Sprints"}
+          </Button>
+        </PopoverTrigger>
+      </Hint>
       <PopoverContent className="w-64 space-y-3 p-3 text-xs" align="start">
         {sprint ? (
           <>

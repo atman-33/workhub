@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Hint } from "@/components/ui/hint";
 import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -81,16 +82,17 @@ export function MindmapAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }:
           {running ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
           {running ? "Running…" : "Run (Ctrl+Enter)"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs"
-          onClick={onUndo}
-          disabled={running || !run.can_undo}
-          title="Undo the last AI edit"
-        >
-          <RotateCcw className="size-3" />
-        </Button>
+        <Hint label="Undo the last AI edit" disabled={running || !run.can_undo}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={onUndo}
+            disabled={running || !run.can_undo}
+          >
+            <RotateCcw className="size-3" />
+          </Button>
+        </Hint>
       </div>
 
       {running && run.stalled && (
@@ -114,9 +116,9 @@ export function MindmapAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }:
           <ul className="space-y-1.5">
             {run.history.map((entry) => (
               <li key={entry.at} className="rounded border p-1.5 text-[11px]">
-                <div className="truncate" title={entry.instruction}>
-                  {entry.instruction}
-                </div>
+                <Hint label={entry.instruction}>
+                  <div className="truncate">{entry.instruction}</div>
+                </Hint>
                 <div
                   className={cn(
                     "mt-0.5 text-[10px]",

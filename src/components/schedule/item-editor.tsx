@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -118,17 +119,17 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
 
       <div className="flex flex-wrap gap-1.5">
         {COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            title={color}
-            onClick={() => commit({ color })}
-            style={{ background: COLOR_HEX[color as Color] }}
-            className={cn(
-              "size-5 rounded",
-              item.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-            )}
-          />
+          <Hint key={color} label={color}>
+            <button
+              type="button"
+              onClick={() => commit({ color })}
+              style={{ background: COLOR_HEX[color as Color] }}
+              className={cn(
+                "size-5 rounded",
+                item.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+              )}
+            />
+          </Hint>
         ))}
       </div>
 

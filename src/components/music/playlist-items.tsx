@@ -22,6 +22,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 import type { PlaylistItem } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
@@ -101,22 +102,23 @@ function SortableItem({
             <GripVertical className="size-4" />
             <span className="sr-only">Drag to reorder</span>
           </button>
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 text-left"
-            onClick={() => play(item.id)}
-            title={item.title}
-          >
-            <img
-              src={getThumbnailUrl(item.id)}
-              alt=""
-              className="h-9 w-16 shrink-0 rounded object-cover"
-              loading="lazy"
-            />
-            <span className="min-w-0 flex-1 truncate text-xs">
-              {item.title || `Video ${index + 1}`}
-            </span>
-          </button>
+          <Hint label={item.title}>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 text-left"
+              onClick={() => play(item.id)}
+            >
+              <img
+                src={getThumbnailUrl(item.id)}
+                alt=""
+                className="h-9 w-16 shrink-0 rounded object-cover"
+                loading="lazy"
+              />
+              <span className="min-w-0 flex-1 truncate text-xs">
+                {item.title || `Video ${index + 1}`}
+              </span>
+            </button>
+          </Hint>
           <Button
             variant="ghost"
             size="icon"

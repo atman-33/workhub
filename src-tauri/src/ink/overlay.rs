@@ -76,12 +76,20 @@ pub fn activate(app: &AppHandle) {
     if let Some(monitor) = &monitor {
         let _ = win.set_position(*monitor.position());
         let _ = win.set_size(*monitor.size());
-        if let Some(pos) = cursor {
+        // Grab the screen *before* the overlay is shown: this is the picture
+        // Alt+C composes the strokes onto, and a grab taken any later would
+        // include them. Cheap enough (a BitBlt, no encoding) to sit in front
+        // of the window becoming visible.
+        let (pos, size) = (monitor.position(), monitor.size());
+        super::store::capture_background(pos.x, pos.y, size.width as i32, size.height as i32);
+        if let Some(cursor) = cursor {
             payload = Some(ActivatePayload {
-                x: pos.x - f64::from(monitor.position().x),
-                y: pos.y - f64::from(monitor.position().y),
+                x: cursor.x - f64::from(pos.x),
+                y: cursor.y - f64::from(pos.y),
             });
         }
+    } else {
+        super::store::clear_background();
     }
     if let Err(e) = win.show() {
         // Swallowing this used to turn a window-manager failure into "the
@@ -95,6 +103,7 @@ pub fn activate(app: &AppHandle) {
 
 /// Clear all strokes, hide the overlay, and restore click-through.
 pub fn deactivate(app: &AppHandle) {
+    super::store::clear_background();
     let Some(win) = window(app) else { return };
     let _ = app.emit_to(OVERLAY_LABEL, "ink://deactivate", ());
     let _ = win.set_ignore_cursor_events(true);
@@ -104,4 +113,11 @@ pub fn deactivate(app: &AppHandle) {
 /// Cycle the pen color for new strokes (red → blue → green).
 pub fn cycle_color(app: &AppHandle) {
     let _ = app.emit_to(OVERLAY_LABEL, "ink://cycle-color", ());
+}
+
+/// Ask the overlay for its strokes so they can be composed onto the screen
+/// grab and saved. Drawing continues: the answer comes back as the
+/// `save_ink_capture` command, and the overlay reports the outcome itself.
+pub fn request_save(app: &AppHandle) {
+    let _ = app.emit_to(OVERLAY_LABEL, "ink://save", ());
 }

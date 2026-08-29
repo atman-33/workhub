@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { diffLineClass } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
@@ -144,25 +145,27 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
         <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
           {files ? `${files.length} file${files.length === 1 ? "" : "s"}` : ""}
         </span>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-6 shrink-0"
-          disabled={!path}
-          title="Refresh"
-          onClick={() => void loadFiles()}
-        >
-          <RefreshCw className="size-3.5" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-6 shrink-0"
-          title="Hide changes panel"
-          onClick={onClose}
-        >
-          <X className="size-3.5" />
-        </Button>
+        <Hint label="Refresh" disabled={!path}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-6 shrink-0"
+            disabled={!path}
+            onClick={() => void loadFiles()}
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </Hint>
+        <Hint label="Hide changes panel">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-6 shrink-0"
+            onClick={onClose}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </Hint>
       </div>
 
       {!path ? (

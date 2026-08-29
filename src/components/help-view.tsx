@@ -27,6 +27,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 
 // NOTE: This screen documents user-facing operations and setup steps. When an
@@ -93,11 +94,16 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 
 - Double-press **Alt** and hold the second press to start drawing.
 - **Alt** + **S** cycles the pen color.
+- **Alt** + **C** saves what is on screen — the monitor as it was when drawing started, with your strokes on it — and copies it to the clipboard. Drawing continues, so one session can produce several captures.
 - Release **Alt** to clear the strokes.
 - The gesture is a *bare* double press: an **Alt** that carries a shortcut (**Alt** + **Tab** and friends) or that is held down does not count as the first press.
 - It cannot fire while a window running **as administrator** is in the foreground — Windows withholds keyboard input from a normal-privilege app there. Click a normal window first.
+- Captures are listed in the **Ink** tab, newest first. Clicking one opens it in a floating preview window that stays on top and can be dragged by its header and resized like any window — make it as large as the crop needs. The list updates on its own as new captures are saved.
+- In the preview, drag a rectangle to crop, then copy the selection or save it beside the original as \`<name>-crop.png\` — the original is never overwritten. **Ctrl** + **C** copies, **Enter** saves the crop, **Esc** clears the selection (press it again to close the window).
+- Each capture in the list can be copied to the clipboard, shown in Explorer, or deleted (deleting sends it to the recycle bin).
+- Captures are written to the vault's \`attachments/ink/\`; the **Ink** tab can point them somewhere else.
 - **If the gesture stops responding**, open **⚙ Settings → General → Input listener**: it shows whether keystrokes are still reaching workhub and offers **Restart listener**. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. A watchdog recovers from those on its own — it even rebuilds a dead listener automatically, and the panel's **Auto rebuilds** count shows when it did. The button is for the cases it misses, so restarting the whole app is not necessary.
-- Can be disabled in **⚙ Settings**.`;
+- Can be turned off in the **Ink** tab.`;
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
 
@@ -308,17 +314,18 @@ function CopyButton({
 
   if (iconOnly) {
     return (
-      <Button
-        type="button"
-        size="icon-xs"
-        variant="ghost"
-        aria-label={label}
-        title={label}
-        className={cn("text-muted-foreground", copied && "text-green-500", className)}
-        onClick={() => onCopy(id, markdown)}
-      >
-        <Icon className="size-3.5" />
-      </Button>
+      <Hint label={label}>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          aria-label={label}
+          className={cn("text-muted-foreground", copied && "text-green-500", className)}
+          onClick={() => onCopy(id, markdown)}
+        >
+          <Icon className="size-3.5" />
+        </Button>
+      </Hint>
     );
   }
 

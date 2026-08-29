@@ -1,5 +1,6 @@
 import { CornerDownRight, Plus, StickyNote, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -115,21 +116,23 @@ export function NodeEditor({
 
       <div className="flex flex-wrap gap-1.5">
         {COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            title={color}
-            disabled={disabled}
-            // Clicking the current colour clears it, so a branch can go back to
-            // inheriting its parent's — otherwise the only way out of a colour
-            // would be editing the file by hand.
-            onClick={() => onChange({ color: node.color === color ? undefined : (color as Color) })}
-            style={{ background: COLOR_HEX[color as Color] }}
-            className={cn(
-              "size-5 rounded",
-              node.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-            )}
-          />
+          <Hint key={color} label={color} disabled={disabled}>
+            <button
+              type="button"
+              disabled={disabled}
+              // Clicking the current colour clears it, so a branch can go back to
+              // inheriting its parent's — otherwise the only way out of a colour
+              // would be editing the file by hand.
+              onClick={() =>
+                onChange({ color: node.color === color ? undefined : (color as Color) })
+              }
+              style={{ background: COLOR_HEX[color as Color] }}
+              className={cn(
+                "size-5 rounded",
+                node.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+              )}
+            />
+          </Hint>
         ))}
       </div>
 
@@ -157,33 +160,35 @@ export function NodeEditor({
             Sticky notes
             {stickiesHidden && stickies.length > 0 && " (hidden on the map)"}
           </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 px-2 text-[11px]"
-            disabled={disabled}
-            onClick={onAddSticky}
-            title="Pin a sticky note to this node"
-          >
-            <StickyNote className="mr-1 size-3" />
-            Add
-          </Button>
+          <Hint label="Pin a sticky note to this node" disabled={disabled}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              disabled={disabled}
+              onClick={onAddSticky}
+            >
+              <StickyNote className="mr-1 size-3" />
+              Add
+            </Button>
+          </Hint>
         </div>
 
         {stickies.map((sticky) => (
           <div key={sticky.id} className="space-y-1.5 rounded border p-2">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-muted-foreground">{sticky.id}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="size-5 p-0"
-                disabled={disabled}
-                onClick={() => onDeleteSticky(sticky.id)}
-                title="Remove this sticky"
-              >
-                <X className="size-3" />
-              </Button>
+              <Hint label="Remove this sticky" disabled={disabled}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="size-5 p-0"
+                  disabled={disabled}
+                  onClick={() => onDeleteSticky(sticky.id)}
+                >
+                  <X className="size-3" />
+                </Button>
+              </Hint>
             </div>
             <Textarea
               value={sticky.text}
@@ -196,19 +201,19 @@ export function NodeEditor({
             />
             <div className="flex flex-wrap gap-1">
               {COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  title={color}
-                  disabled={disabled}
-                  onClick={() => onChangeSticky(sticky.id, { color: color as Color })}
-                  style={{ background: COLOR_HEX[color as Color] }}
-                  className={cn(
-                    "size-4 rounded",
-                    (sticky.color ?? STICKY_DEFAULT_COLOR) === color &&
-                      "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-                  )}
-                />
+                <Hint key={color} label={color} disabled={disabled}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChangeSticky(sticky.id, { color: color as Color })}
+                    style={{ background: COLOR_HEX[color as Color] }}
+                    className={cn(
+                      "size-4 rounded",
+                      (sticky.color ?? STICKY_DEFAULT_COLOR) === color &&
+                        "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+                    )}
+                  />
+                </Hint>
               ))}
             </div>
           </div>
@@ -216,43 +221,49 @@ export function NodeEditor({
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs"
-          disabled={disabled}
-          onClick={onAddChild}
-          title="Add a child (Tab)"
-        >
-          <CornerDownRight className="mr-1 size-3" />
-          Child
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs"
-          disabled={disabled}
-          onClick={onAddSibling}
-          title="Add a sibling (Enter)"
-        >
-          <Plus className="mr-1 size-3" />
-          Sibling
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs"
-          disabled={disabled}
-          onClick={onDelete}
-          title={
+        <Hint label="Add a child (Tab)" disabled={disabled}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            disabled={disabled}
+            onClick={onAddChild}
+          >
+            <CornerDownRight className="mr-1 size-3" />
+            Child
+          </Button>
+        </Hint>
+        <Hint label="Add a sibling (Enter)" disabled={disabled}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            disabled={disabled}
+            onClick={onAddSibling}
+          >
+            <Plus className="mr-1 size-3" />
+            Sibling
+          </Button>
+        </Hint>
+        <Hint
+          label={
             childCount > 0
               ? `Delete this node and its ${childCount} descendant branch(es) (Delete)`
               : "Delete this node (Delete)"
           }
+          disabled={disabled}
         >
-          <Trash2 className="mr-1 size-3" />
-          Delete
-        </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            disabled={disabled}
+            onClick={onDelete}
+          >
+            <Trash2 className="mr-1 size-3" />
+            Delete
+          </Button>
+        </Hint>
       </div>
     </div>
   );

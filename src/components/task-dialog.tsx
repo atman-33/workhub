@@ -3,6 +3,7 @@ import { Gem, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -311,30 +312,31 @@ export function TaskDialog({
       placeholder="Task description — this is the prompt context handed to AI agents."
     />
   ) : (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => setDescEditing(true)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setDescEditing(true);
-        }
-      }}
-      className={cn(
-        "cursor-text hover:border-ring/50",
-        readerClass,
-      )}
-      title="Click to edit"
-    >
-      {draft.content.trim() ? (
-        <Markdown>{draft.content}</Markdown>
-      ) : (
-        <span className="text-muted-foreground">
-          Task description — this is the prompt context handed to AI agents.
-        </span>
-      )}
-    </div>
+    <Hint label="Click to edit">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setDescEditing(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setDescEditing(true);
+          }
+        }}
+        className={cn(
+          "cursor-text hover:border-ring/50",
+          readerClass,
+        )}
+      >
+        {draft.content.trim() ? (
+          <Markdown>{draft.content}</Markdown>
+        ) : (
+          <span className="text-muted-foreground">
+            Task description — this is the prompt context handed to AI agents.
+          </span>
+        )}
+      </div>
+    </Hint>
   );
 
   // What "Optional details" holds, and therefore when it opens by itself.
@@ -549,21 +551,22 @@ export function TaskDialog({
                   <OpenInObsidianButton size="icon-sm" onOpen={handleOpenInObsidian} />
                 </>
               )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                aria-label={maximized ? "Exit full screen" : "Full screen"}
-                title={maximized ? "Exit full screen" : "Full screen"}
-                onClick={() => setMaximized((m) => !m)}
-              >
-                {maximized ? (
-                  <Minimize2 className="size-3.5" />
-                ) : (
-                  <Maximize2 className="size-3.5" />
-                )}
-              </Button>
+              <Hint label={maximized ? "Exit full screen" : "Full screen"}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={maximized ? "Exit full screen" : "Full screen"}
+                  onClick={() => setMaximized((m) => !m)}
+                >
+                  {maximized ? (
+                    <Minimize2 className="size-3.5" />
+                  ) : (
+                    <Maximize2 className="size-3.5" />
+                  )}
+                </Button>
+              </Hint>
             </div>
           </div>
         </DialogHeader>

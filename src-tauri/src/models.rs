@@ -81,6 +81,11 @@ pub struct Settings {
     /// including its low-level keyboard hook.
     #[serde(default = "default_true")]
     pub ink_enabled: bool,
+    /// Where Alt+C writes annotated screen captures. Empty means the vault's
+    /// `attachments/ink/`, which is where they belong when there is a vault;
+    /// the setting exists for the people who want them somewhere shared.
+    #[serde(default)]
+    pub ink_dir: String,
     /// Absolute path to the workhub Obsidian vault (task data store). Unset
     /// until the user configures or initializes a vault.
     #[serde(default)]
@@ -106,6 +111,10 @@ pub struct Settings {
     /// carried over to the next open. Unset until first moved/closed.
     #[serde(default)]
     pub quick_capture_rect: Option<WindowRect>,
+    /// Last size of the ink preview window (logical pixels), carried over to
+    /// the next open. Unset until first moved/closed.
+    #[serde(default)]
+    pub ink_preview_rect: Option<WindowRect>,
     /// Voice input: global hotkey toggles local speech-to-text dictation,
     /// pasted into whatever app has focus.
     #[serde(default = "default_true")]
@@ -354,12 +363,14 @@ impl Default for Settings {
             memory_opencode: true,
             secretary_enabled: false,
             ink_enabled: true,
+            ink_dir: String::new(),
             vault_path: None,
             worktree_root: default_worktree_root(),
             terminal_embed: false,
             quick_capture_enabled: true,
             quick_capture_shortcut: default_quick_capture_shortcut(),
             quick_capture_rect: None,
+            ink_preview_rect: None,
             voice_enabled: true,
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),

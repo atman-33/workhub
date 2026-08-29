@@ -20,6 +20,7 @@ import { MindmapCanvas } from "@/components/mindmap/mindmap-canvas";
 import { NodeEditor } from "@/components/mindmap/node-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import {
   ResizableHandle,
@@ -1013,16 +1014,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             onCancel={() => setCreating(false)}
           />
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            onClick={() => setCreating(true)}
-            disabled={!targetProject}
-            title="New mindmap"
-          >
-            <Plus className="size-3.5" />
-          </Button>
+          <Hint label="New mindmap" disabled={!targetProject}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setCreating(true)}
+              disabled={!targetProject}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+          </Hint>
         )}
 
         {renaming ? (
@@ -1034,19 +1036,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             onCancel={() => setRenaming(false)}
           />
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!path || aiRunning}
-            onClick={() => {
-              setRenameTitle(current?.title ?? "");
-              setRenaming(true);
-            }}
-            title="Rename this mindmap"
-          >
-            <Pencil className="size-3.5" />
-          </Button>
+          <Hint label="Rename this mindmap" disabled={!path || aiRunning}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!path || aiRunning}
+              onClick={() => {
+                setRenameTitle(current?.title ?? "");
+                setRenaming(true);
+              }}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+          </Hint>
         )}
 
         <Select
@@ -1054,9 +1057,11 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           disabled={!doc || aiRunning}
           onValueChange={(v) => changeNodeWidth(v as NodeWidth)}
         >
-          <SelectTrigger className="h-7 w-32 text-xs" title="How wide node boxes are">
-            <SelectValue />
-          </SelectTrigger>
+          <Hint label="How wide node boxes are">
+            <SelectTrigger className="h-7 w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+          </Hint>
           <SelectContent>
             {NODE_WIDTHS.map((value) => (
               <SelectItem key={value} value={value}>
@@ -1071,84 +1076,94 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           {nodeCount > 0 && (
             <span className="text-[11px] text-muted-foreground">{nodeCount} nodes</span>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!doc}
-            onClick={() => setFitToken((n) => n + 1)}
-            title="Fit the map to the window"
-          >
-            <Maximize2 className="size-3.5" />
-          </Button>
-          {stickyCount > 0 && (
+          <Hint label="Fit the map to the window" disabled={!doc}>
             <Button
               size="sm"
-              variant={doc?.stickiesHidden ? "outline" : "secondary"}
+              variant="outline"
               className="h-7 text-xs"
-              disabled={!doc || aiRunning}
-              onClick={toggleStickies}
-              title={
+              disabled={!doc}
+              onClick={() => setFitToken((n) => n + 1)}
+            >
+              <Maximize2 className="size-3.5" />
+            </Button>
+          </Hint>
+          {stickyCount > 0 && (
+            <Hint
+              label={
                 doc?.stickiesHidden
                   ? `Show the ${stickyCount} sticky notes`
                   : `Hide the ${stickyCount} sticky notes`
               }
+              disabled={!doc || aiRunning}
             >
-              <StickyNote className="mr-1 size-3.5" />
-              {stickyCount}
-            </Button>
+              <Button
+                size="sm"
+                variant={doc?.stickiesHidden ? "outline" : "secondary"}
+                className="h-7 text-xs"
+                disabled={!doc || aiRunning}
+                onClick={toggleStickies}
+              >
+                <StickyNote className="mr-1 size-3.5" />
+                {stickyCount}
+              </Button>
+            </Hint>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!doc}
-            onClick={copyMermaid}
-            title="Copy as a mermaid code block"
-          >
-            {copied ? <Check className="mr-1 size-3.5" /> : <Copy className="mr-1 size-3.5" />}
-            mermaid
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!doc}
-            onClick={exportHtml}
-            title="Export a single-file HTML page"
-          >
-            <Download className="size-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!doc}
-            onClick={exportPng}
-            title="Export a PNG image"
-          >
-            <Image className="size-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            variant={aiOpen ? "secondary" : "outline"}
-            className="h-7 text-xs"
-            disabled={!doc}
-            onClick={() => setAiOpen((v) => !v)}
-            title="Edit with AI"
-          >
-            <Sparkles className="size-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={!path || aiRunning}
-            onClick={() => setDeleteOpen(true)}
-            title="Move this mindmap to the trash"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
+          <Hint label="Copy as a mermaid code block" disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={copyMermaid}
+            >
+              {copied ? <Check className="mr-1 size-3.5" /> : <Copy className="mr-1 size-3.5" />}
+              mermaid
+            </Button>
+          </Hint>
+          <Hint label="Export a single-file HTML page" disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={exportHtml}
+            >
+              <Download className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Export a PNG image" disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={exportPng}
+            >
+              <Image className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Edit with AI" disabled={!doc}>
+            <Button
+              size="sm"
+              variant={aiOpen ? "secondary" : "outline"}
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={() => setAiOpen((v) => !v)}
+            >
+              <Sparkles className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label="Move this mindmap to the trash" disabled={!path || aiRunning}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!path || aiRunning}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </Hint>
         </div>
       </div>
 

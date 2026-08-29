@@ -16,6 +16,7 @@ import {
 import { api, timeAgo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -119,12 +120,14 @@ const DEFAULTS: Settings = {
   memory_opencode: true,
   secretary_enabled: false,
   ink_enabled: true,
+  ink_dir: "",
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
   terminal_embed: false,
   quick_capture_enabled: true,
   quick_capture_shortcut: "Ctrl+Alt+N",
   quick_capture_rect: null,
+  ink_preview_rect: null,
   voice_enabled: true,
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
@@ -431,13 +434,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-2 rounded-md border p-3">
                 <p className="text-sm font-medium">Features</p>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.ink_enabled}
-                    onCheckedChange={(v) => setDraft({ ...draft, ink_enabled: v === true })}
-                  />
-                  Screen annotation (double-press and hold Alt to draw)
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  Screen annotation (double-press and hold Alt to draw) is configured in the
+                  <span className="font-medium"> Ink</span> tab, next to the captures it saves.
+                </p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.quick_capture_enabled}
@@ -978,16 +978,17 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span className="shrink-0">Session</span>
                         <code className="truncate font-mono">{tidySessionId}</code>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-5 shrink-0"
-                          title="Copy session id"
-                          onClick={() => void copySessionId()}
-                        >
-                          <Copy className="size-3" />
-                        </Button>
+                        <Hint label="Copy session id">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-5 shrink-0"
+                            onClick={() => void copySessionId()}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                        </Hint>
                       </div>
                     )}
                   </div>

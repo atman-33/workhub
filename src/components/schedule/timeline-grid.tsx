@@ -8,6 +8,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Hint } from "@/components/ui/hint";
 import { monthLabel, strings, type ScheduleLocale } from "@/lib/schedule/i18n";
 import { dayDelta, isWeeklyNonWorking, shiftDate } from "@/lib/schedule/layout";
 import {
@@ -291,31 +292,31 @@ export function TimelineGrid({
 
           <div className="relative h-5 border-b border-border/60">
             {layout.columns.map((col) => (
-              <div
-                key={col.start}
-                style={{ left: `${col.startFrac * 100}%`, width: `${col.widthFrac * 100}%` }}
-                className={cn(
-                  "absolute inset-y-0 overflow-hidden px-1 text-[10px] tabular-nums text-muted-foreground",
-                  col.isMonthStart ? "border-l border-l-foreground/40" : "border-l border-border/50",
-                )}
-                title={`${col.start} → ${col.end} · ${t.workingDays(col.workingDays)}`}
-              >
-                {layout.unit === "week" ? `${col.day}` : monthLabel(col.month, locale)}
-                {/* The working-day count is the whole point of a non-working
-                    day being marked at all; at month width there is room to
-                    just say it. */}
-                {layout.unit === "month" && (
-                  <span className="ml-1 opacity-70">{col.workingDays}d</span>
-                )}
-              </div>
+              <Hint key={col.start} label={`${col.start} → ${col.end} · ${t.workingDays(col.workingDays)}`}>
+                <div
+                  style={{ left: `${col.startFrac * 100}%`, width: `${col.widthFrac * 100}%` }}
+                  className={cn(
+                    "absolute inset-y-0 overflow-hidden px-1 text-[10px] tabular-nums text-muted-foreground",
+                    col.isMonthStart ? "border-l border-l-foreground/40" : "border-l border-border/50",
+                  )}
+                >
+                  {layout.unit === "week" ? `${col.day}` : monthLabel(col.month, locale)}
+                  {/* The working-day count is the whole point of a non-working
+                      day being marked at all; at month width there is room to
+                      just say it. */}
+                  {layout.unit === "month" && (
+                    <span className="ml-1 opacity-70">{col.workingDays}d</span>
+                  )}
+                </div>
+              </Hint>
             ))}
           </div>
 
           {layout.sprints.length > 0 && (
             <div className="relative h-4 border-b border-border/60">
-              {layout.sprints.map((sprint) => (
+            {layout.sprints.map((sprint) => (
+              <Hint key={sprint.number} label={`S${sprint.number} · ${sprint.start} → ${sprint.end}`}>
                 <div
-                  key={sprint.number}
                   style={{
                     left: `${sprint.startFrac * 100}%`,
                     width: `${sprint.widthFrac * 100}%`,
@@ -327,11 +328,11 @@ export function TimelineGrid({
                     // window would otherwise invent one at the window edge.
                     sprint.isStart && "border-l-2 border-l-primary/60",
                   )}
-                  title={`S${sprint.number} · ${sprint.start} → ${sprint.end}`}
                 >
                   {sprint.isStart ? `S${sprint.number}` : ""}
                 </div>
-              ))}
+              </Hint>
+            ))}
             </div>
           )}
 
@@ -394,30 +395,29 @@ export function TimelineGrid({
                       bar={bar}
                       selected={selectedId === bar.item.id}
                       readOnly={readOnly}
-                      title={rangeTooltip(bar, t)}
+                      tooltip={rangeTooltip(bar, t)}
                       onDrag={beginItemDrag}
                       onPress={endItemPress}
                     />
                   ) : (
-                    <div
-                      key={bar.item.id}
-                      style={{
-                        left: `${bar.startFrac * 100}%`,
-                        width: `${bar.widthFrac * 100}%`,
-                        top: bar.lane * LANE_H,
-                        background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
-                      }}
-                      onPointerDown={(e) => beginItemDrag(e, bar.item)}
-                      onPointerUp={() => endItemPress(bar.item)}
-                      className={cn(
-                        "absolute flex h-[20px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
-                        !readOnly && "cursor-grab active:cursor-grabbing",
-                        bar.isStart && "rounded-l",
-                        bar.isEnd && "rounded-r",
-                        selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
-                      )}
-                      title={rangeTooltip(bar, t)}
-                    >
+                    <Hint key={bar.item.id} label={rangeTooltip(bar, t)}>
+                      <div
+                        style={{
+                          left: `${bar.startFrac * 100}%`,
+                          width: `${bar.widthFrac * 100}%`,
+                          top: bar.lane * LANE_H,
+                          background: bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray,
+                        }}
+                        onPointerDown={(e) => beginItemDrag(e, bar.item)}
+                        onPointerUp={() => endItemPress(bar.item)}
+                        className={cn(
+                          "absolute flex h-[20px] items-center gap-1 overflow-hidden px-1.5 text-[10px] text-white",
+                          !readOnly && "cursor-grab active:cursor-grabbing",
+                          bar.isStart && "rounded-l",
+                          bar.isEnd && "rounded-r",
+                          selectedId === bar.item.id && "ring-2 ring-foreground ring-offset-1",
+                        )}
+                      >
                       {bar.isStart && !readOnly && (
                         <span
                           onPointerDown={(e) => beginItemDrag(e, bar.item, "start")}
@@ -434,7 +434,8 @@ export function TimelineGrid({
                           className="absolute inset-y-0 right-0 w-2 cursor-ew-resize"
                         />
                       )}
-                    </div>
+                      </div>
+                    </Hint>
                   ),
                 )}
 
@@ -553,69 +554,70 @@ function TimelineArrow({
   bar,
   selected,
   readOnly,
-  title,
+  tooltip,
   onDrag,
   onPress,
 }: {
   bar: TimelineBar;
   selected: boolean;
   readOnly?: boolean;
-  title: string;
+  tooltip: string;
   onDrag: (e: React.PointerEvent, item: ScheduleItem, edge?: "start" | "end") => void;
   onPress: (item: ScheduleItem) => void;
 }) {
   const color = bar.item.color ? COLOR_HEX[bar.item.color] : COLOR_HEX.gray;
   return (
-    <div
-      style={{
-        left: `${bar.startFrac * 100}%`,
-        width: `${bar.widthFrac * 100}%`,
-        top: bar.lane * LANE_H,
-      }}
-      onPointerDown={(e) => onDrag(e, bar.item)}
-      onPointerUp={() => onPress(bar.item)}
-      className={cn(
-        "absolute h-[20px]",
-        !readOnly && "cursor-grab active:cursor-grabbing",
-        selected && "rounded ring-1 ring-foreground",
-      )}
-      title={title}
-    >
-      {bar.isStart && !readOnly && (
-        <span
-          onPointerDown={(e) => onDrag(e, bar.item, "start")}
-          className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize"
-        />
-      )}
-      <span
-        className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
-        style={{ color }}
+    <Hint label={tooltip}>
+      <div
+        style={{
+          left: `${bar.startFrac * 100}%`,
+          width: `${bar.widthFrac * 100}%`,
+          top: bar.lane * LANE_H,
+        }}
+        onPointerDown={(e) => onDrag(e, bar.item)}
+        onPointerUp={() => onPress(bar.item)}
+        className={cn(
+          "absolute h-[20px]",
+          !readOnly && "cursor-grab active:cursor-grabbing",
+          selected && "rounded ring-1 ring-foreground",
+        )}
       >
-        <span className="truncate">{bar.item.title}</span>
-        <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
-      </span>
-      <div className="absolute inset-x-0 top-[14px] flex items-center">
-        {bar.isStart && (
+        {bar.isStart && !readOnly && (
           <span
-            className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
-            style={{ borderRightColor: color }}
+            onPointerDown={(e) => onDrag(e, bar.item, "start")}
+            className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize"
           />
         )}
-        <span className="h-px flex-1" style={{ background: color }} />
-        {bar.isEnd && (
+        <span
+          className="absolute inset-x-0 top-0 flex items-center gap-1 truncate px-1 text-[10px] leading-[11px]"
+          style={{ color }}
+        >
+          <span className="truncate">{bar.item.title}</span>
+          <span className="shrink-0 opacity-80">{bar.workingDays}d</span>
+        </span>
+        <div className="absolute inset-x-0 top-[14px] flex items-center">
+          {bar.isStart && (
+            <span
+              className="size-0 shrink-0 border-y-[3px] border-r-[5px] border-y-transparent"
+              style={{ borderRightColor: color }}
+            />
+          )}
+          <span className="h-px flex-1" style={{ background: color }} />
+          {bar.isEnd && (
+            <span
+              className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
+              style={{ borderLeftColor: color }}
+            />
+          )}
+        </div>
+        {bar.isEnd && !readOnly && (
           <span
-            className="size-0 shrink-0 border-y-[3px] border-l-[5px] border-y-transparent"
-            style={{ borderLeftColor: color }}
+            onPointerDown={(e) => onDrag(e, bar.item, "end")}
+            className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize"
           />
         )}
       </div>
-      {bar.isEnd && !readOnly && (
-        <span
-          onPointerDown={(e) => onDrag(e, bar.item, "end")}
-          className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize"
-        />
-      )}
-    </div>
+    </Hint>
   );
 }
 
@@ -644,23 +646,27 @@ function TimelinePointMarker({
 }) {
   const color = item.color ? COLOR_HEX[item.color] : COLOR_HEX.gray;
   return (
-    <div
-      style={{ left: `${left}%`, top }}
-      onPointerDown={(e) => onDrag(e, item)}
-      onPointerUp={() => onPress(item)}
-      className={cn(
-        "absolute flex h-[16px] max-w-[40%] items-center gap-1 pl-0.5 text-[10px]",
-        !readOnly && "cursor-grab active:cursor-grabbing",
-        selected && "font-semibold",
-      )}
-      title={[`${item.title} · ${item.start}`, item.body].filter(Boolean).join("\n")}
-    >
-      <span
-        className={cn("size-1.5 shrink-0", item.kind === "milestone" ? "rotate-45" : "rounded-full")}
-        style={{ background: color }}
-      />
-      <span className="truncate">{item.title}</span>
-    </div>
+    <Hint label={[`${item.title} · ${item.start}`, item.body].filter(Boolean).join("\n")}>
+      <div
+        style={{ left: `${left}%`, top }}
+        onPointerDown={(e) => onDrag(e, item)}
+        onPointerUp={() => onPress(item)}
+        className={cn(
+          "absolute flex h-[16px] max-w-[40%] items-center gap-1 pl-0.5 text-[10px]",
+          !readOnly && "cursor-grab active:cursor-grabbing",
+          selected && "font-semibold",
+        )}
+      >
+        <span
+          className={cn(
+            "size-1.5 shrink-0",
+            item.kind === "milestone" ? "rotate-45" : "rounded-full",
+          )}
+          style={{ background: color }}
+        />
+        <span className="truncate">{item.title}</span>
+      </div>
+    </Hint>
   );
 }
 

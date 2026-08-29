@@ -6001,6 +6001,7 @@ version = "0.86.0"
 dependencies = [
  "cpal",
  "dirs 5.0.1",
+ "image",
  "include_dir",
  "notify",
  "percent-encoding",
