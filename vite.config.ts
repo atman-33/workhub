@@ -18,6 +18,8 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         // Ink screen-annotation overlay window (see src-tauri/src/ink/).
         overlay: path.resolve(__dirname, "overlay.html"),
+        // Ink preview window: full-size capture + crop (see ink_preview.rs).
+        "ink-preview": path.resolve(__dirname, "ink-preview.html"),
         // Quick-capture window (see src-tauri/src/quick_capture.rs).
         "quick-capture": path.resolve(__dirname, "quick-capture.html"),
         // Voice-input recording/transcribing indicator (see src-tauri/src/voice.rs).

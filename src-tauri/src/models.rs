@@ -111,6 +111,10 @@ pub struct Settings {
     /// carried over to the next open. Unset until first moved/closed.
     #[serde(default)]
     pub quick_capture_rect: Option<WindowRect>,
+    /// Last size of the ink preview window (logical pixels), carried over to
+    /// the next open. Unset until first moved/closed.
+    #[serde(default)]
+    pub ink_preview_rect: Option<WindowRect>,
     /// Voice input: global hotkey toggles local speech-to-text dictation,
     /// pasted into whatever app has focus.
     #[serde(default = "default_true")]
@@ -366,6 +370,7 @@ impl Default for Settings {
             quick_capture_enabled: true,
             quick_capture_shortcut: default_quick_capture_shortcut(),
             quick_capture_rect: None,
+            ink_preview_rect: None,
             voice_enabled: true,
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),

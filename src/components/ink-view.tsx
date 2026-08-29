@@ -11,7 +11,6 @@ import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Copy, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
-import { InkCaptureDialog } from "@/components/ink-capture-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -93,7 +92,6 @@ export function InkView({ configVersion }: { configVersion: number }) {
   const [resolvedDir, setResolvedDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<InkCapture | null>(null);
   const [pendingDelete, setPendingDelete] = useState<InkCapture | null>(null);
 
   const refresh = useCallback(async () => {
@@ -147,6 +145,16 @@ export function InkView({ configVersion }: { configVersion: number }) {
   const copy = async (capture: InkCapture) => {
     try {
       await api.copyInkCapture(capture.path);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  /** Opens the capture in the floating preview window (move/resize/crop). */
+  const openPreview = async (capture: InkCapture) => {
+    setError("");
+    try {
+      await api.openInkPreview(capture.path);
     } catch (e) {
       setError(String(e));
     }
@@ -237,7 +245,7 @@ export function InkView({ configVersion }: { configVersion: number }) {
               <CaptureCard
                 key={capture.path}
                 capture={capture}
-                onOpen={() => setPreview(capture)}
+                onOpen={() => void openPreview(capture)}
                 onCopy={() => void copy(capture)}
                 onReveal={() => void api.openExplorer(capture.path)}
                 onDelete={() => setPendingDelete(capture)}
@@ -246,12 +254,6 @@ export function InkView({ configVersion }: { configVersion: number }) {
           </div>
         )}
       </div>
-
-      <InkCaptureDialog
-        capture={preview}
-        onClose={() => setPreview(null)}
-        onSaved={() => void refresh()}
-      />
 
       <ConfirmDialog
         open={!!pendingDelete}

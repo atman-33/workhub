@@ -331,6 +331,10 @@ export const api = {
     invoke<string>("save_ink_crop", { sourcePath, base64Data }),
   /** Sends the capture to the recycle bin. */
   deleteInkCapture: (path: string) => invoke<void>("delete_ink_capture", { path }),
+  /** Shows the floating preview window (move/resize/crop) on the capture. */
+  openInkPreview: (path: string) => invoke<void>("open_ink_preview", { path }),
+  /** Hides the floating preview window. */
+  inkPreviewHide: () => invoke<void>("ink_preview_hide"),
 
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),

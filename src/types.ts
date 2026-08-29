@@ -56,6 +56,9 @@ export interface Settings {
   /** Last quick-capture window rect (managed by the backend; round-tripped
    * here so saving settings doesn't wipe it). */
   quick_capture_rect: WindowRect | null;
+  /** Last ink preview window size (managed by the backend; round-tripped
+   * here so saving settings doesn't wipe it). */
+  ink_preview_rect: WindowRect | null;
   /** Voice input: global hotkey toggles local speech-to-text dictation,
    * pasted into whatever app has focus. */
   voice_enabled: boolean;

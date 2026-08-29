@@ -8,6 +8,7 @@ mod harness;
 mod herdr;
 mod inbox;
 mod ink;
+mod ink_preview;
 mod mindmap;
 mod mindmap_edit;
 mod models;
@@ -118,6 +119,11 @@ pub fn run() {
                 eprintln!("quick-capture: failed to create window: {e}");
             }
             quick_capture::apply_shortcut(app.handle());
+            // Same rationale: the ink preview is built hidden up front so
+            // opening it from the Ink tab is a show, not a build.
+            if let Err(e) = ink_preview::create_window(app.handle()) {
+                eprintln!("ink-preview: failed to create window: {e}");
+            }
             // Same rationale: build the (hidden) voice indicator window up
             // front so the hotkey handler only ever shows/hides it.
             if let Err(e) = voice::create_window(app.handle()) {
@@ -172,6 +178,8 @@ pub fn run() {
             commands::copy_ink_capture,
             commands::copy_ink_png,
             commands::delete_ink_capture,
+            commands::open_ink_preview,
+            commands::ink_preview_hide,
             commands::input_listener_diagnostics,
             commands::restart_input_listener,
             commands::check_update,

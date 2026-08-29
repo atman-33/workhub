@@ -465,6 +465,18 @@ pub fn delete_ink_capture(app: tauri::AppHandle, path: String) -> Result<(), Str
     result
 }
 
+/// Opens the floating preview window (move/resize/crop) on a saved capture.
+#[tauri::command]
+pub fn open_ink_preview(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::ink_preview::open(&app, path).map_err(|e| e.to_string())
+}
+
+/// Hides the floating preview window — its ✕ and Esc both land here.
+#[tauri::command]
+pub fn ink_preview_hide(app: tauri::AppHandle) {
+    crate::ink_preview::hide(&app);
+}
+
 #[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()
