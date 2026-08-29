@@ -57,6 +57,16 @@
       }
     },
     {
+      "name": "persona",
+      "source": "./plugins/persona",
+      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (genshijin, noctis, lunafreya), user-defined characters that survive plugin updates, three compression levels persisted across sessions, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
       "name": "stack-cloudflare",
       "source": "./plugins/stack-cloudflare",
       "description": "Helpers for developing on Cloudflare (Workers, Pages, R2, D1, etc.).",
