@@ -23,12 +23,13 @@ genshijin (MIT / InterfaceX-co-jp) の派生。詳細は [NOTICE.md](NOTICE.md)�
 | `genshijin` | 原始人 | genshijin | 丁寧 | 通常 | 極限 |
 | `noctis` | ノクティス | ファイナルファンタジーXV | 軽口 | 通常 | 無口 |
 | `lunafreya` | ルナフレーナ | ファイナルファンタジーXV | 丁寧 | 簡潔 | 静謐 |
+| `ignis` | イグニス | ファイナルファンタジーXV | 詳説 | 明快 | 要諦 |
 
 ゲーム内のセリフ・画像・ロゴは含まない。口調の特徴のみを記述している。
 
-`lunafreya` は敬語を基調とするため、圧縮率は他の2キャラクターより低い。
-これはキャラクター性を優先した意図的な設計で、削減を最優先するなら
-`/persona genshijin 極限` を使う。
+`lunafreya` と `ignis` は敬語を基調とするため、圧縮率は他のキャラクターより低い。
+`ignis` はさらに結論と根拠を対で述べるため最も低い。いずれもキャラクター性を
+優先した意図的な設計で、削減を最優先するなら `/persona genshijin 極限` を使う。
 
 ## 設定は保存される
 
@@ -110,6 +111,31 @@ genshijin (MIT / InterfaceX-co-jp) の派生。詳細は [NOTICE.md](NOTICE.md)�
 エージェント `persona-investigator` / `persona-builder` / `persona-reviewer` も
 キャラクター非依存で、圧縮形式で結果を返す。
 
+## 他のスキルから切り替える（persona-switch）
+
+`/persona` はユーザーが打った文字列を UserPromptSubmit フックが解釈して切り替える。
+スキルの実行中にキャラクターを変えたい場合、その経路には手が届かない。
+`scripts/persona-switch.mjs` がそのための入口になる。
+
+```bash
+node "<persona-plugin-root>/scripts/persona-switch.mjs" ignis 明快 --once
+node "<persona-plugin-root>/scripts/persona-switch.mjs" --status
+node "<persona-plugin-root>/scripts/persona-switch.mjs" off --once
+```
+
+フックと同じセッションフラグを書く点が重要で、`persona-mode-tracker.mjs` は毎ターン
+そのフラグから現在のキャラクターを再主張する。フラグを書かずに「このキャラクターとして
+振る舞え」と指示するだけでは、数ターンでそのリマインダに負ける。
+
+- `--once` は永続設定 (`persona.json`) を変更せず、セッションフラグだけを書く
+- 標準出力の先頭3行は機械可読で、`switched:` `restore:` `scope:` を返す。
+  呼び出し側は `restore:` の値をそのまま引数に渡せば元の状態へ戻せる
+- セッション途中の切替では完全な定義が注入されないため、切替先キャラクターの本文を
+  出力する。選択中のレベルの節だけを含め、他の2レベルは落とす
+- `--quiet` を付けると機械可読な3行だけを出力する
+- 終了コード: 0 成功 / 1 引数不正 / 2 未知のキャラクターまたはレベル / 3 書き込み失敗。
+  呼び出し側は非ゼロを「persona が使えない」と解釈し、素の口調で続行してよい
+
 ## statusline
 
 現在のキャラクターをバッジ表示できる。`<CLAUDE_CONFIG_DIR>/settings.json` に追加:
@@ -167,6 +193,7 @@ persona には原始人がキャラクターとして同梱されているので
 core/            圧縮ルールと境界（キャラクター非依存、フックが読む）
 characters/      標準キャラクター定義（フックが読む。モデルは読まない）
 hooks/           エンジン本体
+scripts/         他スキル向けの切替 CLI (persona-switch)
 skills/          スキル定義
 agents/          圧縮出力の subagent
 commands/        スラッシュコマンド

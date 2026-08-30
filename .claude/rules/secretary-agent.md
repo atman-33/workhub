@@ -4,11 +4,17 @@ paths:
   - "plugins/workhub/hooks/profile-inject.mjs"
   - "plugins/workhub/agents/**"
   - "plugins/workhub/scripts/comms-cli.mjs"
+  - "plugins/workhub/skills/strategist/**"
+  - "plugins/persona/scripts/**"
+  - "vault-template/strategy/**"
+  - "vault-template/profile/strategist.md"
   - "vault-template/.opencode/**"
   - "**/agents/*.md"
 ---
 
-# Secretary agent: what makes the rule hold, and where it does not
+# Answering the owner: the gate, the counsel, and where each stops
+
+## Secretary: what makes the rule hold, and where it does not
 
 The secretary only reduces interruptions if sessions actually consult it. The
 instruction alone does not achieve that, so the mechanism is built from three
@@ -47,7 +53,7 @@ Two consequences worth keeping in mind before changing any of them:
   stands down for the rest of the session. Keep it small, and keep the state
   per-session (`~/.workhub/secretary/<session-id>.json`).
 
-## Two tiers, gated differently (T-0205)
+### Two tiers, gated differently (T-0205)
 
 `profile-inject.mjs` emits two blocks, and only the second is behind the
 settings flag:
@@ -76,3 +82,41 @@ Everything stays silent when the vault has no `profile/decision-policy.md`.
 That note lives at the vault root rather than under `knowledge/` because it is
 operational — hooks, skills and the agent all read it — and deleting it is the
 documented way to turn the whole mechanism off by omission.
+
+## The counsel is not the gate (T-0208)
+
+Two things answer the owner in this vault, and merging them is the mistake to
+avoid:
+
+- **secretary** — a haiku subagent that judges *one question* and returns
+  DECIDE or ESCALATE. Cheap, enforced by a hook, read-only, fixed output
+  contract.
+- **strategist** — a skill (`plugins/workhub/skills/strategist/`) that reviews
+  the owner's direction against `strategy/`. It runs in the **main session**,
+  never as a subagent.
+
+`strategist` is deliberately not an agent, for three reasons that will each
+come back if someone tries to convert it:
+
+- **A subagent cannot hold a conversation.** It is invoked, reads, reports and
+  exits. The value of a review is the back-and-forth, which can only happen
+  where the owner is.
+- **There is nothing to isolate.** `strategy/` is two north-star notes, two
+  current notes and a handful of bottlenecks. The context-isolation argument
+  that justifies `code-explore` does not apply at that size.
+- **Two personas in one session read as neither.** The `persona` plugin owns
+  the session voice; a subagent with its own character would have its words
+  relayed by whatever character the main session is wearing.
+
+The counsel's character therefore comes from `persona`, not from a copy in the
+vault: `profile/strategist.md` carries a `persona:` key naming a character id,
+and the skill calls `plugins/persona/scripts/persona-switch.mjs` to put it on
+and take it off. That CLI exists because `/persona` is parsed out of the user's
+own prompt by `persona-mode-tracker.mjs`, which a skill cannot reach — and
+because that same hook re-asserts the active character every turn, so telling
+the model to adopt a character without writing the flag loses within a few
+turns.
+
+Both couplings are optional by design. A vault with no `strategy/` and a setup
+with no `persona` plugin both give the same counsel, unstyled — so neither the
+skill nor the secretary may hard-depend on either.

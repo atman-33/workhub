@@ -9,7 +9,7 @@
     {
       "name": "workhub",
       "source": "./plugins/workhub",
-      "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, mindmap-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall), the secretary agent that fields the owner's decisions, plus the workhub app's own release procedure (release-app).",
+      "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, schedule-edit, mindmap-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall, strategist), the secretary agent that fields the owner's decisions, plus the workhub app's own release procedure (release-app).",
       "version": "0.22.0",
       "author": {
         "name": "atman-33",
@@ -59,7 +59,7 @@
     {
       "name": "persona",
       "source": "./plugins/persona",
-      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (genshijin, noctis, lunafreya), user-defined characters that survive plugin updates, three compression levels persisted across sessions, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
+      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (genshijin, noctis, lunafreya, ignis), user-defined characters that survive plugin updates, three compression levels persisted across sessions, a persona-switch CLI other skills can call, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
       "version": "0.1.0",
       "author": {
         "name": "atman-33",
