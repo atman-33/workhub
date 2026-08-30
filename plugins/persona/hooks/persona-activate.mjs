@@ -27,6 +27,7 @@ import {
   statuslineLabelFor,
   writeStatuslineLabel,
   parseFrontmatter,
+  levelHeadingLabel,
   VALID_LEVELS,
 } from './persona-config.mjs';
 
@@ -40,16 +41,16 @@ function readStdinJson() {
   }
 }
 
-// Keeps the "## レベル: <label>" section matching the active level and drops
+// Keeps the "## レベル: <label>" (or "## Level: <label>") section matching the
+// active level and drops
 // the other two. Any other heading is passed through untouched.
 function filterLevelSections(body, keepLabel, allLabels) {
   const lines = body.split(/\r?\n/);
   const out = [];
   let skipping = false;
   for (const line of lines) {
-    const heading = /^##\s+レベル:\s*(.+?)\s*$/.exec(line);
-    if (heading) {
-      const label = heading[1];
+    const label = levelHeadingLabel(line);
+    if (label !== null) {
       if (label === keepLabel) {
         skipping = false;
         out.push(line);

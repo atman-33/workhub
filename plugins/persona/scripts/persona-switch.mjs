@@ -34,6 +34,7 @@ import {
   readFlag,
   readPersistedState,
   resolveLevelWord,
+  levelHeadingLabel,
   statuslineLabelFor,
   writeFlag,
   writePersistedState,
@@ -113,10 +114,13 @@ process.stdout.write(
 process.stdout.write(`# キャラクター: ${character.name}\n`);
 // Only the selected level's section applies; the other two would be noise, and
 // this file is read into a live context.
-const wanted = new Set(VALID_LEVELS.map((l) => `## レベル: ${character.levels[l]}`));
-const keep = `## レベル: ${levelLabel}`;
+const drop = new Set(
+  VALID_LEVELS.map((l) => character.levels[l]).filter((label) => label !== levelLabel)
+);
 let skipping = false;
 for (const line of character.body.split(/\r?\n/)) {
-  if (line.startsWith('## ')) skipping = wanted.has(line) && line !== keep;
+  const label = levelHeadingLabel(line);
+  if (label !== null) skipping = drop.has(label);
+  else if (line.startsWith('## ')) skipping = false;
   if (!skipping) process.stdout.write(`${line}\n`);
 }

@@ -364,6 +364,19 @@ export function discoverCharacters(cwd) {
   return found;
 }
 
+// What marks a level section in a character file. Both spellings are accepted
+// so a character can be written entirely in English — the label after the colon
+// is whatever the frontmatter declares, in any language. Getting this wrong is
+// not cosmetic: an unrecognised level heading is never filtered out, so all
+// three levels would be injected at once, contradicting each other.
+export const LEVEL_HEADING_RE = /^##[ ]+(?:レベル|Level)[ ]*[:：][ ]*(.+?)[ ]*$/i;
+
+// Returns the level label of a heading line, or null when it is not one.
+export function levelHeadingLabel(line) {
+  const match = LEVEL_HEADING_RE.exec(line);
+  return match ? match[1] : null;
+}
+
 // Maps a user-typed level word to an internal id. Accepts the internal ids,
 // and any display label defined by any discovered character, so `/persona 無口`
 // works without naming the character.

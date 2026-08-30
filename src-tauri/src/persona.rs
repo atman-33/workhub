@@ -41,7 +41,7 @@ pub struct PersonaLevel {
     pub id: String,
     /// Display label from the frontmatter (`level_normal: 明快`).
     pub label: String,
-    /// Body of the matching `## レベル: <label>` section, empty when absent.
+    /// Body of the matching level section, empty when absent.
     pub body: String,
 }
 
@@ -101,6 +101,27 @@ fn config_path() -> PathBuf {
     claude_dir().join("persona.json")
 }
 
+/// Label of a `## レベル: <label>` / `## Level: <label>` heading, or `None`
+/// when the heading is an ordinary one. Both spellings are accepted so a
+/// character file can be written entirely in English; the label itself is
+/// whatever the frontmatter declares, in any language. Mirrors
+/// `levelHeadingLabel` in the plugin's `hooks/persona-config.mjs` — the two
+/// must agree, or the tab and the injected prompt disagree about which
+/// sections are levels.
+fn level_heading_label(heading: &str) -> Option<&str> {
+    let rest = heading
+        .strip_prefix("レベル")
+        .or_else(|| strip_prefix_ignore_ascii_case(heading, "Level"))?;
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix(':').or_else(|| rest.strip_prefix('：'))?;
+    Some(rest.trim())
+}
+
+fn strip_prefix_ignore_ascii_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+    let head = text.get(..prefix.len())?;
+    head.eq_ignore_ascii_case(prefix).then(|| &text[prefix.len()..])
+}
+
 /// Same rule as the plugin's `CHARACTER_ID_RE`.
 fn is_valid_character_id(id: &str) -> bool {
     if id.is_empty() || id.len() > 32 {
@@ -154,7 +175,8 @@ pub fn parse_frontmatter(text: &str) -> (BTreeMap<String, String>, String) {
 }
 
 /// Splits a character body into its `## ` sections, routing
-/// `## レベル: <label>` to the level whose label matches. HTML comments and
+/// `## レベル: <label>` (or `## Level: <label>`) to the level whose label
+/// matches. HTML comments and
 /// any prose before the first heading are dropped: the tab renders sections,
 /// and the template's authoring notes are not content.
 fn split_sections(
@@ -184,8 +206,8 @@ fn split_sections(
         let Some(h) = heading else {
             return;
         };
-        if let Some(label) = h.strip_prefix("レベル:") {
-            if let Some(id) = by_label.get(label.trim()) {
+        if let Some(label) = level_heading_label(h) {
+            if let Some(id) = by_label.get(label) {
                 level_bodies.insert((*id).to_string(), text);
                 return;
             }
@@ -517,6 +539,55 @@ mod tests {
         let (sections, levels) = split_sections(&body, &labels);
         assert!(levels.get("heavy").is_none());
         assert!(sections.iter().any(|s| s.heading == "レベル: 無口"));
+    }
+
+    #[test]
+    fn an_english_character_file_works_the_same() {
+        const EN: &str = concat!(
+            "---\n",
+            "id: holmes\n",
+            "name: Holmes\n",
+            "level_light: Discursive\n",
+            "level_normal: Precise\n",
+            "level_heavy: Clipped\n",
+            "---\n\n",
+            "## Who I am\n\n",
+            "I am Holmes.\n\n",
+            "## Level: Precise\n\n",
+            "State the observation, then the inference.\n\n",
+            "## Level: Clipped\n\n",
+            "Inference only.\n",
+        );
+
+        let (meta, body) = parse_frontmatter(EN);
+        let mut labels = BTreeMap::new();
+        for level in LEVEL_IDS {
+            labels.insert(
+                level.to_string(),
+                meta.get(&format!("level_{level}")).cloned().unwrap(),
+            );
+        }
+        let (sections, levels) = split_sections(&body, &labels);
+
+        // The English level headings are recognised, so they do not leak into
+        // the ordinary sections — which is what would make all three levels
+        // reach the model at once.
+        let headings: Vec<&str> = sections.iter().map(|s| s.heading.as_str()).collect();
+        assert_eq!(headings, vec!["Who I am"]);
+        assert_eq!(
+            levels.get("normal").unwrap(),
+            "State the observation, then the inference."
+        );
+        assert_eq!(levels.get("heavy").unwrap(), "Inference only.");
+    }
+
+    #[test]
+    fn a_full_width_colon_still_marks_a_level() {
+        let mut labels = BTreeMap::new();
+        labels.insert("normal".to_string(), "通常".to_string());
+        let (sections, levels) = split_sections("## レベル：通常\n\nそっけない。", &labels);
+        assert!(sections.is_empty());
+        assert_eq!(levels.get("normal").unwrap(), "そっけない。");
     }
 
     #[test]
