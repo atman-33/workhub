@@ -48,6 +48,59 @@ export function issueLabel(issue: VaultProjectIssue): string {
   }
 }
 
+/**
+ * An AI agent prompt asking for this project's layout findings to be fixed,
+ * ready to paste into a terminal. Empty when the project has nothing to fix.
+ *
+ * Built here rather than in the backend because every input is already on the
+ * screen: the scan is deliberately report-only (see `vault_project.rs`), so
+ * handing the findings to an agent is the repair path, and it needs no state
+ * the view does not already hold.
+ *
+ * The prompt spends most of its length on what *not* to do. A finding is not
+ * a work order — an absent `research/` folder is an absence, an unknown folder
+ * may be deliberate — and an agent told only "fix these" answers with empty
+ * scaffold folders and deleted notes.
+ */
+export function buildProjectFixPrompt(project: VaultProject): string {
+  if (project.issues.length === 0) return "";
+  const findings = project.issues
+    .map((i) => `- [${i.severity}] ${i.kind}: ${i.target} — ${issueLabel(i)}`)
+    .join("\n");
+  const location = project.archived
+    ? `${project.path} (this project is archived, under archive/projects/)`
+    : project.path;
+  return `Fix the layout findings for the vault project "${project.slug}".
+
+Project folder: ${location}
+
+Read the "Project layout" section of the vault's CLAUDE.md before changing
+anything — it is the definition these findings are measured against.
+
+Findings reported by the workhub Projects tab:
+
+${findings}
+
+How to handle them:
+
+- Never delete a file or a folder. Move, create, or append only. If a finding
+  cannot be resolved without deleting something, leave it alone and say so.
+- warn findings are real gaps — fix them. A missing README.md or _index.md
+  leaves an agent told to "read the README first" with nothing to read.
+- info findings are judgement calls, not a checklist. Do not create empty
+  folders to silence a missing-folder finding, and leave an unknown folder
+  where it is unless its contents clearly belong somewhere in the documented
+  layout.
+- For a misfiled-deliverable, move the note into deliverables/ and update the
+  link in the matching task's ## Results section so it still resolves.
+- Base a new README.md, _index.md, or other scaffold file on templates/project/
+  and fill it in from what the folder already contains. Do not leave the
+  template's placeholders behind.
+- Report what you changed and what you deliberately left as it is.
+
+Run /kb-index when you are done so the project index matches the folder again.`;
+}
+
 export type TaskCounts = Record<TaskStatus, number> & { total: number };
 
 function emptyCounts(): TaskCounts {

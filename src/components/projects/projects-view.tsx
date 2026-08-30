@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   Archive,
   ArchiveRestore,
@@ -14,6 +15,7 @@ import {
   Network,
   RefreshCw,
 } from "lucide-react";
+import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ import {
 import { api, timeAgo } from "@/lib/api";
 import {
   TASK_STATUSES,
+  buildProjectFixPrompt,
   health,
   issueLabel,
   linkedRepo,
@@ -575,9 +578,16 @@ export function ProjectsView({
               </section>
 
               <section className="space-y-1.5">
-                <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                  Layout findings
-                </h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+                    Layout findings
+                  </h3>
+                  {current.issues.length > 0 && (
+                    <CopyPromptButton
+                      onCopy={() => writeText(buildProjectFixPrompt(current))}
+                    />
+                  )}
+                </div>
                 {current.issues.length === 0 ? (
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CircleCheck className="size-3.5" />
