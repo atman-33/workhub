@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.89.0 (2026-08-30)
+
+- **Agents can answer in a voice you choose** (new `persona` plugin). The
+  upstream genshijin plugin shipped one hard-coded persona, and a second would
+  have meant cloning its whole token-reduction engine — Claude Code has no way
+  for one plugin to depend on another. It is split instead: one engine, with
+  character files plugged into it. Only the speech is per-character; the
+  compression rules, boundaries, subskills and subagents stay a single shared
+  set however many characters exist. Character and intensity level persist to
+  `~/.claude/persona.json` so a switch survives into later sessions, and
+  characters you write yourself live in `~/.claude/personas/`, outside the
+  plugin directory, where a plugin update cannot delete them.
 
 - **Pick the character your agents speak as, from the app** (Persona tab). The
   `persona` plugin could only be switched by typing `/persona` inside a session,
@@ -36,6 +47,42 @@
   first person and to answer to the character's name. One exception, and it is
   deliberate: asked in earnest whether it is an AI, an agent answers honestly
   and then carries on in character.
+
+- **A counsel to think a decision through with** (T-0208). Agents could execute
+  a task but there was nowhere to argue about whether it was the right task.
+  `/strategist` reads where you said you were heading, where you actually are
+  and what is blocking you, names the contradictions between the three, and
+  writes the conclusions back into the notes. Those notes are a new vault zone,
+  `strategy/` — `north-star/`, `current/` and `bottlenecks/` — seeded by the
+  template and never injected into an ordinary session, because a code change
+  does not need your roadmap. It borrows a character from the `persona` plugin
+  when that is installed and runs unstyled when it is not.
+
+- **Screen annotations can be kept, not just drawn** (Ink). Drawing on the
+  screen left nothing behind once the strokes were cleared. `Alt+C` during a
+  drawing session now writes the monitor as it was when drawing started, with
+  the strokes composited on top, into `attachments/ink/` and onto the
+  clipboard — several times per gesture if you want, since drawing continues.
+  The new **Ink** tab lists the captures with thumbnails and offers copy,
+  reveal and delete (to the recycle bin), and clicking one opens it in a
+  floating preview window where a region can be dragged out and saved beside
+  the original. The overlay toast shows the save happening, so a slow write on
+  a large monitor no longer reads as "the gesture did nothing".
+
+- **The Schedule tab works like the Mindmap tab** (T-0188). The two do the same
+  kind of work on the same kind of note but had drifted apart: the AI panel was
+  permanently on screen instead of opening from a toolbar button, the toolbars
+  did not even look related, and a schedule could be created and renamed but
+  never removed — the only way out was deleting the file in Obsidian. Deleting
+  is soft, as it is for mindmaps: the note moves to `_ai/memory/schedule-trash/`
+  with the date appended, because these files are shared with Obsidian and can
+  hold hand-written prose under `## Memo`.
+
+- **Hover hints look like the app instead of like the browser**. Native `title`
+  popups are styled by the browser, clash with the dark theme, and cannot be
+  changed. Every interactive control and truncation hint now goes through a
+  shared tooltip component, including the ones in the separate ink-preview and
+  voice-indicator windows.
 
 - **Your preferences now shape every question an agent asks** (T-0205). Agents
   interrupted you with open choices — "A or B?" — even though the vault already
