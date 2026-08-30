@@ -119,7 +119,8 @@ fn level_heading_label(heading: &str) -> Option<&str> {
 
 fn strip_prefix_ignore_ascii_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
     let head = text.get(..prefix.len())?;
-    head.eq_ignore_ascii_case(prefix).then(|| &text[prefix.len()..])
+    head.eq_ignore_ascii_case(prefix)
+        .then(|| &text[prefix.len()..])
 }
 
 /// Same rule as the plugin's `CHARACTER_ID_RE`.
@@ -285,7 +286,10 @@ fn load_character(dir: &Path, id: &str, origin: &str) -> Option<PersonaCharacter
             .iter()
             .map(|id| PersonaLevel {
                 id: (*id).to_string(),
-                label: labels.get(*id).cloned().unwrap_or_else(|| (*id).to_string()),
+                label: labels
+                    .get(*id)
+                    .cloned()
+                    .unwrap_or_else(|| (*id).to_string()),
                 body: level_bodies.get(*id).cloned().unwrap_or_default(),
             })
             .collect(),
@@ -521,7 +525,7 @@ mod tests {
         assert_eq!(levels.get("normal").unwrap(), "そっけない。");
         assert_eq!(levels.get("heavy").unwrap(), "単語で返す。");
         // A level with no section is simply absent, not an error.
-        assert!(levels.get("light").is_none());
+        assert!(!levels.contains_key("light"));
     }
 
     #[test]
@@ -537,7 +541,7 @@ mod tests {
         let mut labels = sample_labels(&meta);
         labels.insert("heavy".into(), "別名".into());
         let (sections, levels) = split_sections(&body, &labels);
-        assert!(levels.get("heavy").is_none());
+        assert!(!levels.contains_key("heavy"));
         assert!(sections.iter().any(|s| s.heading == "レベル: 無口"));
     }
 
@@ -618,7 +622,8 @@ mod tests {
     }
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("workhub-persona-{tag}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("workhub-persona-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
