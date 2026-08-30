@@ -20,10 +20,15 @@ genshijin (MIT / InterfaceX-co-jp) の派生。詳細は [NOTICE.md](NOTICE.md)�
 
 | id | 名前 | 出典 | light | normal | heavy |
 |---|---|---|---|---|---|
+| `holmes` | Sherlock Holmes | コナン・ドイル（パブリックドメイン） | Discursive | Precise | Clipped |
 | `genshijin` | 原始人 | genshijin | 丁寧 | 通常 | 極限 |
 | `noctis` | ノクティス | ファイナルファンタジーXV | 軽口 | 通常 | 無口 |
 | `lunafreya` | ルナフレーナ | ファイナルファンタジーXV | 丁寧 | 簡潔 | 静謐 |
 | `ignis` | イグニス | ファイナルファンタジーXV | 詳説 | 明快 | 要諦 |
+
+`holmes` は英語で書かれたキャラクターファイルの実例を兼ねている。見出しもレベル節も
+英語で、独自キャラクターを英語で書く場合の手本になる。応答自体はユーザーの言語に
+従う — ファイルが英語であることと、英語で返すことは別。
 
 ゲーム内のセリフ・画像・ロゴは含まない。口調の特徴のみを記述している。
 
@@ -97,7 +102,7 @@ genshijin (MIT / InterfaceX-co-jp) の派生。詳細は [NOTICE.md](NOTICE.md)�
 キャラクター本文は注入量の 1/3 程度なので、英語キャラクターでも全体が英語にはならない。
 
 一覧の並び順は frontmatter の `order:`（小さいほど先）。省略すると名前順で末尾に付く。
-同梱キャラクターは 1〜4 を使っているので、独自キャラクターは 100 以降を推奨。
+同梱キャラクターは 1〜5 を使っているので、独自キャラクターは 100 以降を推奨。
 `/persona` の一覧と workhub の Persona タブは同じキーを見るため、並びは常に一致する。
 
 テンプレートは `characters/_template/character.md`。手で作る場合はこれをコピーする。

@@ -15,6 +15,18 @@
   the plugin is actually installed, and it says so when `PERSONA_DEFAULT` in
   your environment is overriding the setting.
 
+- **A character file can be written entirely in English** (persona 0.3.0), and
+  one now is: `holmes` joins the bundled set, drawn from Conan Doyle's public
+  domain stories — observation before inference, and it says so when the data is
+  insufficient rather than guessing. It is also the worked example for anyone
+  writing their own in English. A character's headings were always passed
+  through verbatim, but its level sections were matched against a hardcoded
+  `## レベル:`; `## Level:` is now accepted too. That was not only cosmetic — an
+  unrecognised level heading was never filtered out either, so all three levels
+  would have been injected at once. The list order is no longer left to whatever
+  sorting each caller happened to use: characters declare it with `order:`, and
+  the `/persona` list and the Persona tab both read it.
+
 - **Characters are now who the agent is, not a costume it wears** (persona
   0.3.0). Each character described itself in the third person, so an agent read
   it as "act like this person" and answered "who are you?" as itself. The

@@ -1,6 +1,6 @@
 ---
 id: noctis
-order: 2
+order: 3
 name: ノクティス
 source: ファイナルファンタジーXV
 statusline: ノクト

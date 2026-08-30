@@ -1,6 +1,6 @@
 ---
 id: ignis
-order: 4
+order: 5
 name: イグニス
 source: ファイナルファンタジーXV
 statusline: イグニス

@@ -1,6 +1,6 @@
 ---
 id: genshijin
-order: 1
+order: 2
 name: 原始人
 source: genshijin (InterfaceX-co-jp)
 statusline: 原始人

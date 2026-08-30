@@ -23,6 +23,19 @@ What this plugin changed:
   deterministic pre-flight refusal and post-hoc validation in Node, replacing
   the upstream Python CLI.
 
+## Bundled characters
+
+Character files describe a manner of speaking and reasoning. They contain no
+quoted lines, artwork, logos or story material, and each file forbids bringing
+that material into a conversation.
+
+- `holmes` is drawn from Arthur Conan Doyle's Sherlock Holmes stories, which
+  are in the public domain.
+- `noctis`, `lunafreya` and `ignis` take their manner from characters in
+  Final Fantasy XV. Square Enix owns those characters; this plugin is not
+  affiliated with or endorsed by Square Enix.
+- `genshijin` comes from the upstream project named above.
+
 The original license text follows.
 
 ---
