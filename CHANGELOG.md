@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Pick the character your agents speak as, from the app** (Persona tab). The
+  `persona` plugin could only be switched by typing `/persona` inside a session,
+  which meant remembering the character ids and each character's own level
+  names. There is now a **Persona** tab: the characters on the left with a
+  Built-in / Custom badge, and on the right that character's own description of
+  who it is and how it speaks, plus its three levels described in its own words
+  — the part that made this a tab rather than two dropdowns in Settings. It
+  writes the plugin's saved default, so a change applies from the next session;
+  sessions already open keep the character they started with, because the flag
+  they re-read every turn is shared by all of them. The tab is only shown when
+  the plugin is actually installed, and it says so when `PERSONA_DEFAULT` in
+  your environment is overriding the setting.
+
+- **Characters are now who the agent is, not a costume it wears** (persona
+  0.3.0). Each character described itself in the third person, so an agent read
+  it as "act like this person" and answered "who are you?" as itself. The
+  descriptions are first-person now and open with the name, the per-turn
+  reminder names the character too (identity fades before tone does over a long
+  session), and a shared **同一性** rule in `core/boundaries.md` says to stay in
+  first person and to answer to the character's name. One exception, and it is
+  deliberate: asked in earnest whether it is an AI, an agent answers honestly
+  and then carries on in character.
+
 - **Your preferences now shape every question an agent asks** (T-0205). Agents
   interrupted you with open choices — "A or B?" — even though the vault already
   held a note saying which way you lean, because only the secretary subagent

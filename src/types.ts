@@ -620,3 +620,40 @@ export type GraphOp =
   | { kind: "cherry_pick"; hash: string }
   | { kind: "create_tag"; name: string; hash: string }
   | { kind: "delete_tag"; name: string };
+
+// ---- persona plugin (Persona tab) ----
+
+export interface PersonaLevel {
+  /** `light` | `normal` | `heavy` */
+  id: string;
+  /** Display label from the character file (`level_normal: 明快`). */
+  label: string;
+  /** Prose of the matching `## レベル: <label>` section; empty when absent. */
+  body: string;
+}
+
+export interface PersonaSection {
+  heading: string;
+  body: string;
+}
+
+export interface PersonaCharacter {
+  id: string;
+  name: string;
+  source: string;
+  statusline: string;
+  /** `user` for a hand-made character, `bundled` for one shipped by the plugin. */
+  origin: "user" | "bundled";
+  file: string;
+  levels: PersonaLevel[];
+  sections: PersonaSection[];
+}
+
+export interface PersonaState {
+  enabled: boolean;
+  character: string | null;
+  level: string;
+  /** True while `PERSONA_DEFAULT` is set, which makes any write ineffective. */
+  env_override: boolean;
+  config_path: string;
+}
