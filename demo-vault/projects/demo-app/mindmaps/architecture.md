@@ -2,7 +2,7 @@
 type: mindmap
 title: architecture
 created: 2026-07-14
-updated: 2026-08-27
+updated: 2026-08-30
 ---
 
 ## Nodes
@@ -29,7 +29,7 @@ updated: 2026-08-27
 
 ## Stickies
 
-- S-001 node:N-015 @110,28 #amber fix the race, not the assertion
+- S-001 node:N-015 @-3,96 #amber fix the race, not the assertion
 
 ## Memo
 

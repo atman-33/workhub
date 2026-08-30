@@ -5,12 +5,12 @@ status: review
 assignee: claude-code
 project: demo-app
 priority: high
-order: 1
 model: sonnet
+order: 1
 due: 2026-08-28
 tags: [feature]
 created: 2026-08-18
-updated: 2026-08-27
+updated: 2026-08-30
 ---
 
 ## Description

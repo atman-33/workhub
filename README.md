@@ -153,6 +153,8 @@ manual, and it always matches the version you are running. This is the map.
 
 ![Edit Task dialog](docs/images/tasks-edit-dialog.png)
 
+![Projects tab](docs/images/projects.png)
+
 ![Repos tab](docs/images/repos.png)
 
 ### Planning and thinking
@@ -163,6 +165,10 @@ manual, and it always matches the version you are running. This is the map.
 | **Mindmap** | The same idea for branching thoughts — a map that is an ordinary nested bullet list on disk, with colours, task links and sticky notes. Exports as a mermaid block. |
 | **Inbox** | The raw notes sitting in the vault's `inbox/`, so what you dropped there to file later stops being invisible outside Obsidian. |
 | **Strategist** | `/strategist` reads where you said you were heading (`strategy/`), where you actually are, and what is blocking you — then argues with you about the difference. |
+
+![Schedule tab](docs/images/schedule.png)
+
+![Mindmap tab](docs/images/mindmap.png)
 
 ### Working with agents
 
@@ -186,7 +192,9 @@ manual, and it always matches the version you are running. This is the map.
 | **Ink** | Double-press and hold <kbd>Alt</kbd> to draw on the screen; <kbd>Alt</kbd>+<kbd>C</kbd> saves the screen with the strokes into the vault, and the Ink tab keeps the captures. |
 | **Music / Timer** | A YouTube loop player with playlists, and a countdown timer with presets and an alarm. |
 
-![Music player and timer](docs/images/music-timer.png)
+![Music player](docs/images/music.png)
+
+![Timer](docs/images/timer.png)
 
 ![Ink overlay](docs/images/ink-overlay.png)
 

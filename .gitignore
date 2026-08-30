@@ -20,5 +20,13 @@ demo-vault/_ai/logs/*
 demo-vault/_ai/memory/*
 !demo-vault/_ai/*/.gitkeep
 demo-vault/_ai/template-manifest.json
+demo-vault/_ai/music/
 demo-vault/.obsidian/
 demo-vault/.opencode/
+# Written from this machine's own config while demo mode is on: the real
+# repository list and the real vault settings would land here otherwise.
+demo-vault/.workhub/
+demo-vault/.claude/project-context.json
+demo-vault/opencode.json
+# Ink captures are pictures of whatever was on screen.
+demo-vault/attachments/ink/

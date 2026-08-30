@@ -7,7 +7,7 @@ app ignores it.
 | File | What it is |
 |---|---|
 | `config.sample.json` | A workhub config pointing at this vault and at three throwaway repositories. `{VAULT}` and `{REPOS}` are substituted by the script. |
-| `demo-mode.ps1` | Swaps your real `~/.workhub/config.json` for the demo one and back. |
+| `demo-mode.mjs` | Swaps your real `~/.workhub/config.json` for the demo one and back. Node 20+, no dependencies. |
 
 See [`docs/screenshots.md`](../../docs/screenshots.md) for the full capture
 procedure.

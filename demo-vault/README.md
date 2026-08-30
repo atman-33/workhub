@@ -24,11 +24,11 @@ Do not point your everyday workhub at this folder by hand — the registered
 repositories live in the machine config, not in the vault, so half a screenshot
 would still be yours. Use the script instead:
 
-```powershell
+```bash
 cd demo-vault/.demo
-./demo-mode.ps1 -On     # back up your config, install the demo one
+node demo-mode.mjs on    # back up your config, install the demo one
 # start workhub, take the screenshots
-./demo-mode.ps1 -Off    # put your own config back
+node demo-mode.mjs off   # put your own config back
 ```
 
 The full procedure, including what each screenshot should contain, is in
@@ -37,8 +37,12 @@ The full procedure, including what each screenshot should contain, is in
 ## Keeping it clean
 
 The app writes machine state into the vault as it runs — indexes, logs, the
-template manifest. Those paths are gitignored (see the repository's
-`.gitignore`); the vault's *content* is tracked. If a capture session leaves
+template manifest, and, more importantly, files it fills from *your* config:
+`.workhub/settings.json` (your custom prompt and recurring rules),
+`.claude/project-context.json` and `opencode.json` (your registered
+repositories), plus `_ai/music/` and any ink capture under `attachments/ink/`.
+All of those are gitignored (see the repository's `.gitignore`); the vault's
+*content* is tracked. If a capture session leaves
 unintended changes behind (a dragged card rewrites a task's `updated:` field,
 for instance), either keep them or `git checkout demo-vault/` — both are fine,
 as long as what lands in the repository is still fictional.
