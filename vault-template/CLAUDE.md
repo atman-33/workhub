@@ -11,7 +11,8 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes and task deliverables |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `profile/` | human + AI | who the owner is (`about-me.md`) and how they decide (`decision-policy.md`) — read by hooks, skills and the secretary agent |
+| `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md`) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
+| `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
@@ -45,6 +46,22 @@ build a recommendation from. Read them before work that depends on any of
 that, instead of asking the owner to restate it. It sits at the vault root
 rather than under `knowledge/` because it is operational: hooks, skills and
 the `secretary` agent all read it.
+
+**Strategic context.** `strategy/` is where the owner is heading, not who
+they are, which is why it sits beside `profile/` rather than inside it:
+`north-star/` holds the mission, vision, values and the rules they will not
+break; `current/` holds the honest present tense (active work, numbers,
+capacity, and the quarter's roadmap); `bottlenecks/` holds what is stopping
+them, one file per wall.
+
+It is **not** injected into every session — a code change does not need it,
+and paying for it every time would be waste. The `/strategist` skill loads it
+when the owner wants to think out loud, and cross-checks the three against
+each other. Read it yourself only when a task turns on the owner's priorities.
+
+Nothing in `strategy/` duplicates a project: a project keeps its own plan in
+`projects/<project>/roadmap.md` and `schedules/`, and
+`strategy/current/roadmap.md` links to them rather than restating their dates.
 
 **Questions carry a recommendation.** Never put an open choice to the owner.
 Work out from `## Preferences` and `## Past decisions` which answer they would

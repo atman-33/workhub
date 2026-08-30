@@ -32,3 +32,42 @@ paths:
   (overwritten in existing vaults while the `workhub-template` marker line is
   intact) — keep the marker when editing them. Everything else in
   `vault-template/` is copy-if-missing.
+
+## What language a plugin file is written in
+
+The repo default is English, and it holds for everything an agent executes or
+another developer maintains: implementation and comments in `hooks/` and
+`scripts/`, `SKILL.md` bodies, agent bodies, and every `description` in
+`plugin.json` / `marketplace.json`.
+
+**`persona` is a deliberate exception, not an oversight.** Its
+`characters/**` and `core/compression.md` stay in Japanese. Do not translate
+them, and do not treat them as debt:
+
+- They *are* Japanese. Sentence-final particles, 体言止め, 助詞 dropping and
+  the 回答例 blocks cannot be expressed in English — an English rewrite keeps
+  every Japanese quotation and adds English prose around it, so the injected
+  context grows in both languages at once.
+- A character file is read by the model as priming for the register it is
+  about to produce. Describing the register in another language weakens that,
+  and nothing here can detect the loss: there is no test for whether noctis
+  still sounds like noctis.
+- The saving does not justify it. Measured 2026-08-30, the SessionStart
+  payload (`persona-activate.mjs`: one character body + the active level of
+  `compression.md` + `boundaries.md`, all filtered) is ~3,200 characters at
+  62% CJK — roughly 2,250 tokens once per session. A full translation lands
+  near 30% off that, concentrated in exactly the content that resists
+  translation.
+
+Two related decisions that follow from the same reasoning:
+
+- Skill and agent `description` frontmatter in `persona` keeps its Japanese
+  trigger phrases (「口調を変えて」 and friends). They are what makes the skill
+  discoverable from a Japanese request; English there costs recall to save a
+  few tokens.
+- If the injected payload ever has to shrink, **shorten the Japanese rather
+  than translate it**. Same saving, none of the risk above.
+
+`README.md` and other maintainer-facing prose in `persona` may stay Japanese
+too — it is never injected, so the language costs nothing and its readers are
+Japanese speakers. Every other plugin is English throughout.
