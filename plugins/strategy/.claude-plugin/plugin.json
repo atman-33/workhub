@@ -1,0 +1,9 @@
+{
+  "name": "strategy",
+  "version": "0.1.0",
+  "description": "Turn a strategy handed down from above into the state your own organization has to reach: decompose it into aspects and states, audit the result for necessity, sufficiency and overlap, and ship it as a spreadsheet.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

@@ -37,6 +37,16 @@
       }
     },
     {
+      "name": "strategy",
+      "source": "./plugins/strategy",
+      "description": "Turn a strategy handed down from above into your own organization's target states: decompose it into aspects and states (strategy-decompose), audit it for necessity, sufficiency and overlap (strategy-auditor), and ship it as a spreadsheet.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
       "name": "team-ops",
       "source": "./plugins/team-ops",
       "description": "Team operations on a shared folder as the single source of truth: team knowledge base, file-based product backlog, sprint ceremonies, multi-repo progress tracking, and daily burndown/spec reporting.",
