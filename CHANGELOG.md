@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.91.0 (2026-08-30)
+
+- **Skills can now be authored inside a vault** (PR #139). The vault template
+  forbade writing skills in a vault: every personal one-off had to be shaped
+  into a shared plugin first, which is a high price for a workflow that has run
+  twice. That barrier was higher than the mechanism requires — the template
+  manifest tracks managed paths one by one and app updates only ever touch the
+  paths it lists, so an unlisted path like `.claude/skills/` was never actually
+  at risk. The prohibition is withdrawn in favour of a rule of thumb: only you
+  use it → keep it in the vault; someone else would → promote it to a plugin,
+  rewritten in English, and delete the vault copy. A seeded
+  `.claude/skills/README.md` explains where skills go, why they survive app
+  updates, and the promotion path, and the plugin sync now discovers
+  vault-local skills and agents — listed as `(vault-local)`, with a plugin of
+  the same name winning and a warning emitted, so one name never resolves to
+  two sources.
+
+- **The first promoted skill ships as the optional `strategy` plugin** (PR
+  #139). `strategy-decompose` takes an upper strategy verbatim, closes its
+  unknowns with you, decomposes it into aspects and achieved states — its bar
+  is that every sentence has its achieved state in one sentence — and has the
+  result audited before outputting a workbook. The audit is done by the
+  read-only `strategy-auditor` agent, which checks necessity, sufficiency and
+  overlap from a context other than the one that wrote it, and is told to say
+  "no findings" rather than invent one. The workbook is assembled from an
+  intermediate JSON via `build_xlsx.py` so columns and formatting do not drift
+  between runs, and `read_xlsx.py` locates its header row by content, because
+  a file a human has edited does not keep its rows where the writer left them.
+
 ## 0.90.0 (2026-08-30)
 
 - **The Projects tab can hand its layout findings to an AI agent** (PR #138).
