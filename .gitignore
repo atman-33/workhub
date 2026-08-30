@@ -11,3 +11,14 @@ tsconfig.tsbuildinfo
 # vault-template opencode runtime: per-vault artifacts only
 vault-template/.opencode/node_modules/
 vault-template/.opencode/.claude-plugin-sync-manifest.json
+
+# demo-vault: the runtime artifacts the app writes while screenshots are taken.
+# The vault's content is tracked; its machine state is not.
+demo-vault/_ai/comms/*
+demo-vault/_ai/index/*
+demo-vault/_ai/logs/*
+demo-vault/_ai/memory/*
+!demo-vault/_ai/*/.gitkeep
+demo-vault/_ai/template-manifest.json
+demo-vault/.obsidian/
+demo-vault/.opencode/
