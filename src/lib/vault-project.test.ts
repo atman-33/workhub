@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Task, VaultProject, VaultProjectIssue } from "@/types";
 import {
+  buildProjectFixPrompt,
   health,
   issueLabel,
   linkedRepo,
@@ -83,6 +84,51 @@ describe("issueLabel", () => {
     expect(issueLabel(issue({ kind: "unknown-folder", target: "pbl/" }))).toBe(
       "pbl/ is not in the documented layout",
     );
+  });
+});
+
+describe("buildProjectFixPrompt", () => {
+  it("is empty for a project that matches the layout", () => {
+    expect(buildProjectFixPrompt(project())).toBe("");
+  });
+
+  it("lists every finding with its severity, kind and one-line wording", () => {
+    const prompt = buildProjectFixPrompt(
+      project({
+        issues: [
+          issue({ kind: "missing-file", severity: "warn", target: "README.md" }),
+          issue({ kind: "unknown-folder", severity: "info", target: "pbl/" }),
+        ],
+      }),
+    );
+    expect(prompt).toContain("- [warn] missing-file: README.md — README.md is missing");
+    expect(prompt).toContain(
+      "- [info] unknown-folder: pbl/ — pbl/ is not in the documented layout",
+    );
+  });
+
+  it("names the project and its folder", () => {
+    const prompt = buildProjectFixPrompt(project({ issues: [issue()] }));
+    expect(prompt).toContain('"demo"');
+    expect(prompt).toContain("C:/vault/projects/demo");
+  });
+
+  it("says so when the project is archived", () => {
+    const prompt = buildProjectFixPrompt(
+      project({
+        archived: true,
+        path: "C:/vault/archive/projects/demo",
+        issues: [issue()],
+      }),
+    );
+    expect(prompt).toContain("C:/vault/archive/projects/demo");
+    expect(prompt).toContain("archived");
+  });
+
+  it("forbids deleting and forbids empty scaffold folders", () => {
+    const prompt = buildProjectFixPrompt(project({ issues: [issue()] }));
+    expect(prompt).toContain("Never delete a file or a folder");
+    expect(prompt).toContain("Do not create empty");
   });
 });
 
