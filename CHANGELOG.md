@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.90.0 (2026-08-30)
+
+- **The Projects tab can hand its layout findings to an AI agent** (PR #138).
+  The tab reports what a project folder is missing or has misfiled, but has
+  never repaired any of it on purpose: whether an undocumented folder is
+  deliberate, and where a misfiled deliverable actually belongs, are judgement
+  calls that would be wrong to bake into a scan. Copying the findings into a
+  prompt by hand was the same work every time, though. **Layout findings** now
+  carries a *Copy prompt* button that turns them into a paste-ready agent
+  prompt — the findings themselves, plus the constraints that keep the fix
+  honest: never delete anything, never create an empty folder just to silence a
+  finding, treat the informational findings as judgement calls rather than a
+  checklist, and move a misfiled deliverable with the task's `## Results` link
+  following it. The button is only there when the project actually has
+  findings.
+
 ## 0.89.0 (2026-08-30)
 
 - **Agents can answer in a voice you choose** (new `persona` plugin). The
