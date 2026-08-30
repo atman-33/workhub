@@ -361,11 +361,16 @@ knowledge, and configuration — never application code.
   `engineering`) plus `obsidian`. Toggle optional plugins (`team-ops`,
   `stack-*`) there or with `/plugin`. See `docs/plugins.md` in the workhub
   repo for the catalog and scope policy.
-- **Never author skills inside this vault.** New skills belong in the
-  workhub repo's `plugins/`; personal/machine tools go to the user-scope
-  `productivity` plugin.
+- **Personal skills may live in this vault** at `.claude/skills/<name>/SKILL.md`
+  (agents at `.claude/agents/<name>.md`). The app's template only owns the paths
+  listed in `_ai/template-manifest.json`, so these are never overwritten by an
+  app update. See `.claude/skills/README.md`.
+  The rule of thumb: **only you use it → vault; someone else would use it →
+  promote it to a plugin** in the workhub repo's `plugins/` (rewritten in
+  English), then delete the vault copy.
 - `.opencode/skills/` (when present) is a generated artifact synced from the
-  enabled Claude plugins — edit the plugin source and re-sync, never the copies.
+  enabled Claude plugins and from this vault's own `.claude/skills/` — edit the
+  source and re-sync, never the copies.
 - Respond to the user in Japanese. Write documents and repository artifacts
   in English unless the user explicitly requests otherwise.
 - **Exception:** a task file's `## Plan` and `## Results` follow the workhub
@@ -472,8 +477,10 @@ app manages.
   (deleting, overwriting, force-pushing, sending, publishing, spending).
 - Never set a task's `status` to `done`. Only humans mark tasks done in the app.
 - Never delete a worktree folder directly; always use `git worktree remove`.
-- Do not author skills inside this vault; keep skill source in the workhub repo.
+- Personal skills may live in `.claude/skills/`; promote anything shared to a plugin.
 - Respond to the user in Japanese; write repository artifacts in English.
-- Never edit app-managed files (`CLAUDE.md`, `AGENTS.md`, `opencode.json`,
-  `.claude/**`, `.opencode/**`) to record instructions — use `CLAUDE.local.md`.
+- Never edit app-managed files (`CLAUDE.md`, `AGENTS.md`, `opencode.json`, and
+  the `.claude/**` / `.opencode/**` paths listed in `_ai/template-manifest.json`)
+  to record instructions — use `CLAUDE.local.md`. Unlisted paths such as
+  `.claude/skills/` are yours.
 </important>

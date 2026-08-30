@@ -17,7 +17,12 @@ These notes load only while editing the vault's own harness machinery (the
   `engineering@workhub-marketplace` plugin's `inject-extended-rules` hook;
   without that plugin enabled nothing in it is injected.
 - `.opencode/skills/` (when present) is a generated artifact synced from the
-  enabled Claude plugins — never hand-edit the copies.
+  enabled Claude plugins **and from this vault's `.claude/skills/`** — never
+  hand-edit the copies.
+- Vault-local skills live in `.claude/skills/<name>/SKILL.md` and agents in
+  `.claude/agents/<name>.md`. Neither path is in `_ai/template-manifest.json`,
+  so `apply_vault_template` never touches them. On a name collision the plugin
+  version wins and the sync prints a warning.
 - The engineering plugin's serena MCP launcher pins Python 3.11; if serena
   fails with an OpenSSL error, check that the launcher still passes
   `--python 3.11` (not 3.12+).

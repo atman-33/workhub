@@ -27,6 +27,10 @@ tidy policy) so a second machine gets them from git. Never hand-edit it to
 change how agents behave — the running app will write its own values back
 over yours.
 
+`.claude/skills/` and `.claude/agents/` are **not** managed: they are absent
+from the manifest, so an app update never overwrites or deletes them. Personal
+skills and agents belong there.
+
 **Rules for agents**
 
 - Never edit a managed file to record instructions, preferences, or project

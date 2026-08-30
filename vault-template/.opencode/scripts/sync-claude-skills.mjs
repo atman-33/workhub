@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // Synchronize project-scope Claude plugin skills into .opencode/skills/.
 //
+// Sources are the enabled project-scope plugins plus the vault's own
+// .claude/skills (and .claude/agents), which are listed as "(vault-local)".
+// A plugin of the same name wins; the vault copy is skipped with a warning.
+//
 // Uses the shared core (lib/claude-plugin-sync-core.mjs) for discovery, hashing,
 // and manifest handling, so the drift reminder plugin and the check script see
 // exactly what this script did.
@@ -43,7 +47,9 @@ const agentsScopeKey = "projectScope-agents";
 const { sources, warnings } = discoverProjectScopeSources(cwd, claudePluginsRoot);
 
 if (sources.length === 0 && warnings.length === 0) {
-  console.log("No enabled project-scope Claude plugins found in .claude/settings.json.");
+  console.log(
+    "Nothing to sync: no enabled project-scope Claude plugins in .claude/settings.json, and no vault-local skills in .claude/skills.",
+  );
   process.exit(0);
 }
 

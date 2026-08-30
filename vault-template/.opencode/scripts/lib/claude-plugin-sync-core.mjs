@@ -147,6 +147,19 @@ export function projectAgentsTargetRoot(cwd) {
   return path.join(cwd, ".opencode", "agent");
 }
 
+/** Skills authored in the vault itself (not shipped by any plugin). */
+export function vaultLocalSkillsRoot(cwd) {
+  return path.join(cwd, ".claude", "skills");
+}
+
+/** Agents authored in the vault itself. */
+export function vaultLocalAgentsRoot(cwd) {
+  return path.join(cwd, ".claude", "agents");
+}
+
+/** pluginRef used for artifacts that come from the vault rather than a plugin. */
+export const VAULT_LOCAL_REF = "(vault-local)";
+
 export function userSkillsTargetRoot(openCodeGlobalRoot) {
   return path.join(openCodeGlobalRoot, "skills");
 }
@@ -235,7 +248,40 @@ export function discoverProjectScopeSources(cwd, claudePluginsRoot) {
       });
     }
   }
+  appendVaultLocalSources({
+    sources,
+    warnings,
+    dir: vaultLocalSkillsRoot(cwd),
+    kind: "skill",
+    dirsOnly: true,
+  });
   return { sources, warnings, targetRoot };
+}
+
+/**
+ * Append the vault's own `.claude/skills` / `.claude/agents` artifacts to a
+ * discovery result. A plugin of the same name wins: the vault copy is skipped
+ * and a warning is emitted, so one name never resolves to two sources.
+ */
+function appendVaultLocalSources({ sources, warnings, dir, kind, dirsOnly }) {
+  if (!existsSync(dir)) return;
+  const taken = new Set(sources.map((source) => source.name));
+  for (const name of listChildNames(dir, dirsOnly)) {
+    if (!dirsOnly && !name.endsWith(".md")) continue;
+    if (dirsOnly && !existsSync(path.join(dir, name, "SKILL.md"))) continue;
+    if (taken.has(name)) {
+      warnings.push(
+        `${VAULT_LOCAL_REF} -> ${path.join(dir, name)} (skipped: a plugin already provides "${name}")`,
+      );
+      continue;
+    }
+    sources.push({
+      kind,
+      pluginRef: VAULT_LOCAL_REF,
+      name,
+      sourcePath: path.join(dir, name),
+    });
+  }
 }
 
 /**
@@ -262,6 +308,13 @@ export function discoverProjectScopeAgentSources(cwd, claudePluginsRoot) {
       });
     }
   }
+  appendVaultLocalSources({
+    sources,
+    warnings,
+    dir: vaultLocalAgentsRoot(cwd),
+    kind: "agent",
+    dirsOnly: false,
+  });
   return { sources, warnings, targetRoot };
 }
 
