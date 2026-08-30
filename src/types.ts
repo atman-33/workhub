@@ -645,6 +645,8 @@ export interface PersonaCharacter {
   /** `user` for a hand-made character, `bundled` for one shipped by the plugin. */
   origin: "user" | "bundled";
   file: string;
+  /** Display position from the character file; the backend sorts on it. */
+  order: number;
   levels: PersonaLevel[];
   sections: PersonaSection[];
 }

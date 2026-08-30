@@ -30,6 +30,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const LEVEL_IDS: [&str; 3] = ["light", "normal", "heavy"];
+/// Sort position for a character that declares no `order:`.
+const DEFAULT_ORDER: i64 = i64::MAX;
 const DEFAULT_LEVEL: &str = "normal";
 
 /// One intensity level of a character, with the prose that defines it.
@@ -59,6 +61,9 @@ pub struct PersonaCharacter {
     /// `user` for a hand-made character, `bundled` for one shipped by the plugin.
     pub origin: String,
     pub file: String,
+    /// Display position from the character file. Absent sorts last, so a
+    /// hand-written character without the key still appears — at the end.
+    pub order: i64,
     pub levels: Vec<PersonaLevel>,
     pub sections: Vec<PersonaSection>,
 }
@@ -249,6 +254,10 @@ fn load_character(dir: &Path, id: &str, origin: &str) -> Option<PersonaCharacter
         name,
         source: meta.get("source").cloned().unwrap_or_default(),
         origin: origin.to_string(),
+        order: meta
+            .get("order")
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(DEFAULT_ORDER),
         file: file.to_string_lossy().replace('\\', "/"),
         levels: LEVEL_IDS
             .iter()
@@ -326,7 +335,9 @@ fn discover_characters_in(claude: &Path) -> Vec<PersonaCharacter> {
             }
         }
     }
-    found.sort_by(|a, b| a.name.cmp(&b.name));
+    // Same ordering the plugin's `/persona` list uses, so the tab and the
+    // command never disagree about where a character sits.
+    found.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.id.cmp(&b.id)));
     found
 }
 
@@ -521,19 +532,16 @@ mod tests {
 
     /// Builds `<root>/<rel>/character.md` with a minimal valid frontmatter.
     fn plant(root: &Path, rel: &str, id: &str, name: &str) {
+        plant_ordered(root, rel, id, name, None);
+    }
+
+    fn plant_ordered(root: &Path, rel: &str, id: &str, name: &str, order: Option<i64>) {
         let dir = root.join(rel).join(id);
         fs::create_dir_all(&dir).unwrap();
+        let order = order.map(|n| format!("order: {n}\n")).unwrap_or_default();
         fs::write(
             dir.join("character.md"),
-            format!("---
-id: {id}
-name: {name}
----
-
-## 人物像
-
-俺は{name}。
-"),
+            format!("---\nid: {id}\n{order}name: {name}\n---\n\n## 人物像\n\n俺は{name}。\n"),
         )
         .unwrap();
     }
@@ -597,6 +605,25 @@ name: {name}
     }
 
     #[test]
+    fn the_declared_order_beats_the_name() {
+        let root = temp_root("order");
+        let cache = "plugins/cache/workhub-marketplace/persona/0.2.0/characters";
+        // Names sort カタカナ before 漢字, so sorting by name alone would put
+        // 原始人 last. The declared order is what must win.
+        plant_ordered(&root, cache, "genshijin", "原始人", Some(1));
+        plant_ordered(&root, cache, "noctis", "ノクティス", Some(2));
+        plant_ordered(&root, cache, "lunafreya", "ルナフレーナ", Some(3));
+        // No `order:` — sorts last regardless of its name.
+        plant_ordered(&root, cache, "aaa", "アアア", None);
+
+        let found = discover_characters_in(&root);
+        let ids: Vec<&str> = found.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["genshijin", "noctis", "lunafreya", "aaa"]);
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn no_plugin_means_no_characters() {
         let root = temp_root("empty");
         assert!(discover_characters_in(&root).is_empty());
@@ -611,11 +638,11 @@ name: {name}
         // select it, so the tab must not offer it either.
         let dir = root.join("personas").join("ignis-copy");
         fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("character.md"), "---
-id: ignis
-name: 複製
----
-").unwrap();
+        fs::write(
+            dir.join("character.md"),
+            "---\nid: ignis\nname: 複製\n---\n",
+        )
+        .unwrap();
 
         let found = discover_characters_in(&root);
         assert_eq!(found.len(), 1);

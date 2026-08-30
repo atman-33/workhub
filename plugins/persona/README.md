@@ -89,6 +89,10 @@ genshijin (MIT / InterfaceX-co-jp) の派生。詳細は [NOTICE.md](NOTICE.md)�
 標準側が改善されても取り込まれないため、`based_on: <id>@<version>` を記録しておくと
 一覧に差分が表示される。
 
+一覧の並び順は frontmatter の `order:`（小さいほど先）。省略すると名前順で末尾に付く。
+同梱キャラクターは 1〜4 を使っているので、独自キャラクターは 100 以降を推奨。
+`/persona` の一覧と workhub の Persona タブは同じキーを見るため、並びは常に一致する。
+
 テンプレートは `characters/_template/character.md`。手で作る場合はこれをコピーする。
 `## 人物像` は一人称で書き、冒頭で名乗ること（上の「口調ではなく同一性」を参照）。
 

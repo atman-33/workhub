@@ -1,5 +1,6 @@
 ---
 id: lunafreya
+order: 3
 name: ルナフレーナ
 source: ファイナルファンタジーXV
 statusline: ルナ

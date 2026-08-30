@@ -315,8 +315,24 @@ function loadCharacterFrom(dir, id, origin) {
     statusline: meta.statusline || meta.name || id,
     reminder: meta.reminder || '',
     basedOn: meta.based_on || null,
+    order: characterOrder(meta.order),
     levels,
   };
+}
+
+// Display order for the character lists. Absent or unparseable sorts last, so
+// a hand-written character without the key still appears — just at the end.
+export const DEFAULT_ORDER = Number.MAX_SAFE_INTEGER;
+
+function characterOrder(raw) {
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) ? value : DEFAULT_ORDER;
+}
+
+// Sorts by the declared `order:`, falling back to the id so the result is
+// stable when several characters share one (or declare none).
+export function byDisplayOrder(a, b) {
+  return a.order - b.order || a.id.localeCompare(b.id);
 }
 
 // Returns a Map keyed by id. Earlier layers win, and the losing entry is kept
