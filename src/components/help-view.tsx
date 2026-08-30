@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
   ClipboardList,
   Copy,
+  Drama,
   FileDiff,
   FolderKanban,
   Keyboard,
@@ -241,6 +242,17 @@ Rules that create a task for you on a schedule — a daily standup note, a weekl
 - Every generated task carries the tag \`recurring/<rule-id>\` (e.g. \`recurring/R-001\`). That tag is how the app recognizes its own tasks — keep it if you edit the task in Obsidian.
 - **Run now** saves the rules and then creates whatever is due right away.`;
 
+const PERSONA_MD = `## Changing how agents talk to you (Persona)
+
+The **Persona** tab picks the character and tone every new Claude Code session starts with. It only appears when the \`persona\` plugin is installed — the tab reads the characters that plugin ships, so with no plugin there is nothing to show.
+
+- Install it once with \`claude plugin install persona@workhub-marketplace\`, then reopen the tab (or press its refresh button).
+- **Built-in** characters come from the plugin; **Custom** ones are yours. Pick a character on the left, read what it is and how it speaks on the right.
+- **Level** is how hard the character compresses its answers. Each character names its own levels, and the tab shows that character's description of each one — they are not interchangeable between characters.
+- Changes apply **from the next session**. Sessions already open keep the character they started with, on purpose: the flag they re-read every turn is shared by every running session, so changing it here would rewrite the tone of a conversation in progress.
+- To make your own character, run \`/persona-new <id>\` in Claude Code and answer its questions. It writes \`~/.claude/personas/<id>/character.md\`. Keep custom characters there — anything placed inside the plugin's own folder is lost on the next plugin update.
+- If \`PERSONA_DEFAULT\` is set in your environment, it beats the saved setting and the tab says so. Unset it to make the tab effective again.`;
+
 const MEMORY_MD = `## Long-term memory for AI agents
 
 Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
@@ -364,6 +376,7 @@ const SECTIONS = [
   { value: "projects", title: "Projects", icon: FolderKanban },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "mindmap", title: "Mapping ideas", icon: Network },
+  { value: "persona", title: "Persona", icon: Drama },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
   { value: "recurring", title: "Recurring tasks", icon: Repeat },
 ] as const;
@@ -1675,6 +1688,68 @@ export function HelpView() {
                 there appear here immediately. If the file changed underneath an
                 edit, the save is refused and the note reloads rather than
                 overwriting the other change.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Drama}
+            title="Changing how agents talk to you (Persona)"
+            value="persona"
+            markdown={PERSONA_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Persona</span> tab picks the
+              character and tone every new Claude Code session starts with. It
+              only appears when the{" "}
+              <span className="font-mono text-xs">persona</span> plugin is
+              installed — the tab reads the characters that plugin ships, so with
+              no plugin there is nothing to show. Install it with{" "}
+              <span className="font-mono text-xs">
+                claude plugin install persona@workhub-marketplace
+              </span>
+              , then reopen the tab or press its refresh button.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium text-foreground">Built-in</span>{" "}
+                characters come from the plugin;{" "}
+                <span className="font-medium text-foreground">Custom</span> ones
+                are yours. Pick one on the left; the right pane is that
+                character's own description of who it is and how it speaks.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Level</span> is how
+                hard the character compresses its answers. Each character names
+                its own levels and describes them in its own words, so they are
+                not interchangeable between characters.
+              </li>
+              <li>
+                Changes apply{" "}
+                <span className="font-medium text-foreground">
+                  from the next session
+                </span>
+                . Sessions already open keep the character they started with, on
+                purpose: the flag they re-read every turn is shared by every
+                running session, so changing it here would rewrite the tone of a
+                conversation in progress.
+              </li>
+              <li>
+                To make your own, run{" "}
+                <span className="font-mono text-xs">/persona-new &lt;id&gt;</span>{" "}
+                in Claude Code and answer its questions. It writes{" "}
+                <span className="font-mono text-xs">
+                  ~/.claude/personas/&lt;id&gt;/character.md
+                </span>
+                . Keep custom characters there — anything placed inside the
+                plugin's own folder is lost on the next plugin update.
+              </li>
+              <li>
+                If <span className="font-mono text-xs">PERSONA_DEFAULT</span> is
+                set in your environment it beats the saved setting, and the tab
+                says so. Unset it to make the tab effective again.
               </li>
             </ul>
           </Section>

@@ -14,6 +14,7 @@ mod mindmap_edit;
 mod models;
 mod music;
 mod paste;
+mod persona;
 mod quick_capture;
 mod rawkey;
 mod schedule;
@@ -261,6 +262,9 @@ pub fn run() {
             commands::voice_history_list,
             commands::voice_history_delete,
             commands::voice_history_clear,
+            commands::persona_characters,
+            commands::persona_state,
+            commands::set_persona_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,6 +16,8 @@ import type {
   MindmapDoc,
   MindmapEditRun,
   MindmapFile,
+  PersonaCharacter,
+  PersonaState,
   ScheduleDoc,
   ScheduleEditRun,
   ScheduleFile,
@@ -358,6 +360,13 @@ export const api = {
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),
   voiceHistoryDelete: (id: string) => invoke<void>("voice_history_delete", { id }),
+  // ---- persona plugin (Persona tab) ----
+  // An empty character list is how the app decides the plugin is not in use.
+  personaCharacters: () => invoke<PersonaCharacter[]>("persona_characters"),
+  personaState: () => invoke<PersonaState>("persona_state"),
+  /// Writes the plugin's persisted default; it applies from the next session.
+  setPersonaState: (enabled: boolean, character: string | null, level: string) =>
+    invoke<PersonaState>("set_persona_state", { enabled, character, level }),
   voiceHistoryClear: () => invoke<void>("voice_history_clear"),
 };
 

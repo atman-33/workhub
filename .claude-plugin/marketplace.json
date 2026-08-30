@@ -59,8 +59,8 @@
     {
       "name": "persona",
       "source": "./plugins/persona",
-      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (genshijin, noctis, lunafreya, ignis), user-defined characters that survive plugin updates, three compression levels persisted across sessions, a persona-switch CLI other skills can call, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
-      "version": "0.2.0",
+      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (holmes, genshijin, noctis, lunafreya, ignis), user-defined characters that survive plugin updates, three compression levels persisted across sessions, a persona-switch CLI other skills can call, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
+      "version": "0.3.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

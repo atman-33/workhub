@@ -1331,3 +1331,39 @@ pub async fn voice_history_clear() {
     })
     .await;
 }
+
+// ---------------------------------------------------------------------
+// persona plugin: character browser and the persisted default
+// ---------------------------------------------------------------------
+
+/// Every character the `persona` plugin could select. An empty list means the
+/// plugin is not installed (or ships no characters), which is what the front
+/// end uses to hide the Persona tab entirely.
+#[tauri::command]
+pub async fn persona_characters() -> Vec<crate::persona::PersonaCharacter> {
+    tauri::async_runtime::spawn_blocking(crate::persona::discover_characters)
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn persona_state() -> crate::persona::PersonaState {
+    tauri::async_runtime::spawn_blocking(crate::persona::read_state)
+        .await
+        .unwrap_or_else(|_| crate::persona::read_state())
+}
+
+/// Writes the plugin's persisted default. Takes effect at the next
+/// SessionStart — the running sessions' flag file is deliberately untouched.
+#[tauri::command]
+pub async fn set_persona_state(
+    enabled: bool,
+    character: Option<String>,
+    level: String,
+) -> Result<crate::persona::PersonaState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::persona::write_state(enabled, character, level)
+    })
+    .await
+    .map_err(|e| format!("persona write task failed: {e}"))?
+}

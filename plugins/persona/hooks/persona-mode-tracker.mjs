@@ -28,6 +28,7 @@ import {
   statuslineLabelFor,
   writeStatuslineLabel,
   isValidCharacterId,
+  byDisplayOrder,
   VALID_LEVELS,
   DEFAULT_LEVEL,
 } from './persona-config.mjs';
@@ -68,7 +69,7 @@ function extractCommand(prompt) {
 
 function listCharacters(characters, active) {
   const rows = [];
-  for (const character of [...characters.values()].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const character of [...characters.values()].sort(byDisplayOrder)) {
     const shadowed = character.overrides && character.overrides.length
       ? character.overrides[0]
       : null;

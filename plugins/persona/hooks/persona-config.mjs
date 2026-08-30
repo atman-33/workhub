@@ -315,8 +315,24 @@ function loadCharacterFrom(dir, id, origin) {
     statusline: meta.statusline || meta.name || id,
     reminder: meta.reminder || '',
     basedOn: meta.based_on || null,
+    order: characterOrder(meta.order),
     levels,
   };
+}
+
+// Display order for the character lists. Absent or unparseable sorts last, so
+// a hand-written character without the key still appears — just at the end.
+export const DEFAULT_ORDER = Number.MAX_SAFE_INTEGER;
+
+function characterOrder(raw) {
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) ? value : DEFAULT_ORDER;
+}
+
+// Sorts by the declared `order:`, falling back to the id so the result is
+// stable when several characters share one (or declare none).
+export function byDisplayOrder(a, b) {
+  return a.order - b.order || a.id.localeCompare(b.id);
 }
 
 // Returns a Map keyed by id. Earlier layers win, and the losing entry is kept
@@ -346,6 +362,19 @@ export function discoverCharacters(cwd) {
     }
   }
   return found;
+}
+
+// What marks a level section in a character file. Both spellings are accepted
+// so a character can be written entirely in English — the label after the colon
+// is whatever the frontmatter declares, in any language. Getting this wrong is
+// not cosmetic: an unrecognised level heading is never filtered out, so all
+// three levels would be injected at once, contradicting each other.
+export const LEVEL_HEADING_RE = /^##[ ]+(?:レベル|Level)[ ]*[:：][ ]*(.+?)[ ]*$/i;
+
+// Returns the level label of a heading line, or null when it is not one.
+export function levelHeadingLabel(line) {
+  const match = LEVEL_HEADING_RE.exec(line);
+  return match ? match[1] : null;
 }
 
 // Maps a user-typed level word to an internal id. Accepts the internal ids,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CircleHelp,
   ClipboardList,
+  Drama,
   FolderOpen,
   GitBranch,
   CalendarRange,
@@ -22,6 +23,7 @@ import { InkView } from "@/components/ink-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
+import { PersonaView } from "@/components/persona-view";
 import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
@@ -56,8 +58,11 @@ type Tab =
   | "voice"
   | "clips"
   | "ink"
+  | "persona"
   | "help";
 
+// `persona` is only shown when the `persona` plugin ships at least one
+// character — see `personaAvailable` below.
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "projects", label: "Projects", icon: FolderKanban },
@@ -70,6 +75,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "voice", label: "Voice", icon: Mic },
   { key: "clips", label: "Clips", icon: ClipboardList },
   { key: "ink", label: "Ink", icon: Pencil },
+  { key: "persona", label: "Persona", icon: Drama },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
 
@@ -84,6 +90,9 @@ export default function App() {
   // note so a template change is never completely invisible.
   const [autoApplied, setAutoApplied] = useState<string[]>([]);
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
+  // The Persona tab depends on a plugin the app does not own. Hide it
+  // entirely rather than showing a tab that explains it cannot work.
+  const [personaAvailable, setPersonaAvailable] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   // Bumped when the Repos view adds, removes or renames a repository. Kept
@@ -113,6 +122,23 @@ export default function App() {
   useEffect(() => {
     activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [tab]);
+
+  // Re-checked on every settings save: installing the plugin and coming back
+  // to the app should not need a restart to make the tab appear.
+  useEffect(() => {
+    void api
+      .personaCharacters()
+      .then((list) => setPersonaAvailable(list.length > 0))
+      .catch(() => setPersonaAvailable(false));
+  }, [configVersion]);
+
+  // A conditional tab can vanish under the selection (the plugin was removed
+  // while its tab was open). Fall back rather than rendering an empty pane.
+  useEffect(() => {
+    if (tab === "persona" && !personaAvailable) setTab("tasks");
+  }, [tab, personaAvailable]);
+
+  const visibleTabs = TABS.filter((t) => t.key !== "persona" || personaAvailable);
 
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
@@ -205,8 +231,8 @@ export default function App() {
           />
         )}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
-          {/* The tab strip degrades with the window width (T-0207): all twelve
-              tabs plus the status cluster need ~1380px, well past the 720px
+          {/* The tab strip degrades with the window width (T-0207): all
+              thirteen tabs plus the status cluster need ~1470px, well past the 720px
               minimum window size. Labels collapse below `xl` (the tooltip then
               names the tab), the active tab keeps its label so the current
               position stays readable, and this container scrolls as the last
@@ -221,7 +247,7 @@ export default function App() {
               e.currentTarget.scrollLeft += e.deltaY;
             }}
           >
-            {TABS.map(({ key, label, icon: Icon }) => (
+            {visibleTabs.map(({ key, label, icon: Icon }) => (
               <Hint key={key} label={label}>
                 <button
                   ref={tab === key ? activeTabRef : undefined}
@@ -321,6 +347,11 @@ export default function App() {
           <div className={cn("h-full", tab !== "ink" && "hidden")}>
             <InkView configVersion={configVersion} />
           </div>
+          {personaAvailable && (
+            <div className={cn("h-full", tab !== "persona" && "hidden")}>
+              <PersonaView active={tab === "persona"} />
+            </div>
+          )}
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />
           </div>
