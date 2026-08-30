@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "path": "{REPOS}/demo-app",
+      "name": "demo-app",
+      "tags": "product,active",
+      "favorite": true,
+      "notes": "The sample note-taking client. Fictional."
+    },
+    {
+      "path": "{REPOS}/demo-site",
+      "name": "demo-site",
+      "tags": "marketing",
+      "favorite": false,
+      "notes": ""
+    },
+    {
+      "path": "{REPOS}/demo-infra",
+      "name": "demo-infra",
+      "tags": "infra",
+      "favorite": false,
+      "notes": ""
+    }
+  ],
+  "presets": [],
+  "selected": [],
+  "settings": {
+    "vault_path": "{VAULT}",
+    "check_updates": false,
+    "check_template_updates": false
+  },
+  "sort": "name"
+}

@@ -1,64 +1,58 @@
 # workhub
 
-**All-in-one Dev Hub** — a Windows desktop app where humans and AI agents
-share one task board, plus repository management, a music player, and a
-focus timer in a single window.
+**All-in-one Dev Hub** — a Windows desktop app where you and your AI agents
+work from the same task board, backed by a plain-Markdown Obsidian vault.
 
 ![workhub — Tasks kanban board](docs/images/tasks-kanban.png)
 
-workhub is the home base for an AI-driven development style: you and AI
-agents (Claude Code / OpenCode) work from the same task list, task files and
-collected knowledge live in a dedicated Obsidian vault, and everything — the
-app, the Claude Code plugin, and the vault template — ships from this one
-repository.
+## What it is
 
-## Features
+workhub is the home base for an AI-driven development style. Tasks, project
+notes, schedules and collected knowledge live as Markdown files in a dedicated
+Obsidian vault; the app is a window onto those files, and Claude Code /
+OpenCode agents read and write the very same ones. You hand an agent a task
+from a card, it works in the target repository, and its report comes back into
+the vault for you to review.
 
-### Tasks — one board for humans and AI
+Around that core it also carries the things a working day keeps reaching for —
+a repo dashboard, date and idea planning, dictation, snippets, screen
+annotation, music and a timer — so the day does not fragment across six
+windows.
 
-- Every task is a **Markdown file with YAML frontmatter** in the vault
-  (`status`, `assignee: me | claude-code | opencode`, `project`, ...). The
-  app, Obsidian, humans, and AI agents all read and write the same files.
-- **List + kanban views** with filters by status / assignee / project, and
-  drag & drop to change status or reorder within a column.
-- **Launch AI on a task** — start Claude Code or OpenCode in the task's
-  target repository with the task file as context, straight from the card.
-- **Live sync** — file watching picks up edits made outside the app
-  (Obsidian, agents) instantly.
+It is a personal tool, built in the open. Windows 10/11 only.
 
-![Edit Task dialog](docs/images/tasks-edit-dialog.png)
+## Concept
 
-### Repos — multi-repo dashboard
+One rule explains most of the design: **the vault is the source of truth, and
+everyone edits it directly.**
 
-- Register local repositories and see branch / dirty state at a glance.
-- **Git graph** with branch switching, plus a changes panel and a
-  **worktrees panel** for reviewing AI tasks running in dedicated worktrees.
-- One-click launches: open a repo in VS Code, a terminal, or an AI agent.
-- Favorites, tags, and per-repo notes to keep a large repo list organized.
+```mermaid
+flowchart LR
+    You[You] --> Vault
+    App[workhub app] --> Vault
+    Obsidian[Obsidian] --> Vault
+    Agents[Claude Code / OpenCode] --> Vault
+    Vault[("Obsidian vault<br/>tasks · projects · knowledge")] --> Repos[Your repositories]
+```
 
-![Repos tab](docs/images/repos.png)
+- A task is **one Markdown file with YAML frontmatter** — `status`,
+  `assignee: me | claude-code | opencode`, `project`, `priority`, `due`.
+- Drag a card in the app, edit the file in Obsidian, or let an agent update
+  it: all three write the same file, and every side sees the change at once.
+- Nothing is locked inside a database, so the day you stop using the app you
+  still have every note.
 
-### Music & Timer
-
-- **Music** — a YouTube loop player with playlists persisted alongside your
-  config; background music without leaving the hub.
-- **Timer** — a countdown timer with presets, desktop notification, and an
-  alarm sound for focus sessions.
-
-![Music player and timer](docs/images/music-timer.png)
-
-### Screen annotation (ink)
-
-Double-press <kbd>Alt</kbd> (holding the second press) to draw temporary
-strokes anywhere on screen — handy when narrating or reviewing. <kbd>Alt</kbd>
-+<kbd>S</kbd> cycles the pen color; releasing <kbd>Alt</kbd> clears the
-strokes. Can be disabled in Settings.
-
-![Ink overlay](docs/images/ink-overlay.png)
+Two settings files sit either side of that vault: `~/.workhub/config.json`
+holds what belongs to *this machine* (registered repositories, command
+templates, hotkeys), and `<vault>/.workhub/settings.json` holds what belongs to
+*this vault* (agent language, custom prompt, recurring rules) and travels with
+it to another PC.
 
 ## Install
 
-Windows 10/11. Runtime requirement: `git` on PATH (for the Repos tab).
+Requires Windows 10/11 and `git` on `PATH`. For the AI half you will also want
+[Claude Code](https://claude.com/claude-code) and Node.js 20+; Obsidian,
+[OpenCode](https://opencode.ai) and [herdr](https://herdr.dev) are optional.
 
 ### From GitHub Releases (recommended)
 
@@ -76,80 +70,133 @@ workhub
 ```
 
 Each release also ships `workhub-windows-x86_64.zip` (exe + README + LICENSE)
-and `SHA256SUMS.txt` if you prefer manual installation.
+and `SHA256SUMS.txt` for manual installation.
 
-workhub checks GitHub Releases on startup; when a newer version exists, a
-banner appears at the top — click **Update & restart**. The check can be
-disabled in ⚙ Settings.
+workhub checks GitHub Releases on startup; when a newer version exists a banner
+offers **Update & restart**. It can be turned off in ⚙ Settings.
 
-## Initial setup
+## Quick start
 
-### 1. Create the task vault
+The fastest path is the `vault-setup` skill: open Claude Code in the folder you
+want as your vault and run it — it checks the prerequisites, initializes the
+vault, and wires up the plugins. By hand, it is four steps.
 
-Tasks live in a dedicated Obsidian vault. On first launch the Tasks tab asks
-you to choose a folder — pick an empty one (e.g. `C:/obsidian/workhub-vault`)
-and press **Init vault** to expand the bundled template
-([`vault-template/`](vault-template)) into it. You can change the vault later
-in ⚙ Settings → *Tasks vault path*.
+### 1. Create the vault
 
-Optionally open the same folder as a vault in Obsidian to browse and edit
-tasks and notes directly.
+On first launch the **Tasks** tab asks for a folder. Pick an empty one (e.g.
+`C:/obsidian/workhub-vault`) and press **Init vault** to expand the bundled
+template ([`vault-template/`](vault-template)) into it. It can be changed later
+under ⚙ Settings → *Vault* → *Tasks vault path*.
+
+Open the same folder as a vault in Obsidian if you want to browse and edit the
+notes by hand.
 
 ![First-launch vault setup](docs/images/setup-vault.png)
 
-### 2. Install the Claude Code plugin (user scope recommended)
+### 2. Install the Claude Code plugins
 
-The plugin gives Claude Code the `task-list` / `task-start` / `task-report` /
-`vault-init` skills and the accompanying safety hooks. Install it **user
-scope** so it is available in every repository a task may target:
+A vault created from the template already enables `workhub`, `engineering` and
+`obsidian` — accept the trust prompt on first launch and you are done. To
+install them by hand:
 
+```bash
+claude plugin marketplace add atman-33/workhub
+
+claude plugin install workhub@workhub-marketplace --scope project
+claude plugin install engineering@workhub-marketplace --scope project
+claude plugin install obsidian@workhub-marketplace --scope project
 ```
-claude
-> /plugin marketplace add atman-33/workhub
-> /plugin install workhub@workhub-marketplace
-```
 
-The skills locate the vault via `%APPDATA%\workhub\config.json` (written by
-the app), or the `WORKHUB_VAULT` environment variable as an override — no
-per-repository configuration is needed.
+The `workhub` plugin is what gives agents the `task-start` / `task-report`
+skills and the accompanying safety hooks. It finds the vault through
+`~/.workhub/config.json` (written by the app) or the `WORKHUB_VAULT`
+environment variable — no per-repository configuration. See
+[`docs/plugins.md`](docs/plugins.md) for the full catalog.
 
 ### 3. Register your repositories
 
-In the **Repos** tab press **Add** and pick the local repository folders you
-work in. The `project` field of a task refers to these (short name under
-`C:/repos/<name>` or an absolute path).
+In the **Repos** tab press **Add** and pick the repository folders you work in.
+A task's `project` field points at one of them, by short name (a folder under
+`C:/repos/`) or by absolute path.
 
-## Usage
+### 4. Run your first AI task
 
-### Run a task with AI
-
-1. Create a task in the app and set `assignee` to `claude-code` (or
-   `opencode`) and `project` to the target repository; leave it empty to run
-   in the vault itself.
-2. Press **Launch agent** on the task card (or in the Edit Task dialog).
-   The agent starts in the target repository with the task file as context,
-   runs `task-start` (status → `doing`), does the work, then `task-report`
-   (results into the vault, status → `review`).
-3. Review the result — the **Results** button in the Edit Task dialog shows
-   the agent's report — and move the task to `done`. Only humans close tasks.
+1. Create a task; set `assignee` to `claude-code` (or `opencode`) and
+   `project` to the target repository — leave it empty to run in the vault
+   itself.
+2. Press **Launch agent** on the card. The agent starts in that repository with
+   the task file as context, runs `task-start` (status → `doing`), does the
+   work, then `task-report` (results into the vault, status → `review`).
+3. Review it — **Results** in the Edit Task dialog shows the report — and move
+   the task to `done`. Only humans close tasks.
 
 ![Launching an agent from a task](docs/images/tasks-launch-agent.png)
 
-Useful task options (Edit Task dialog):
+Worth knowing on the Edit Task dialog: **Confirm mode** makes the agent get its
+plan approved before executing, **Git worktree** gives it a dedicated worktree
+so parallel tasks cannot collide, and **Model** picks the model per task. Two
+more buttons sit beside **Launch agent**: **Copy prompt**, and **Send to
+Claude Desktop** for when you would rather not open a terminal.
 
-- **Confirm mode** — the agent drafts a plan and waits for your approval
-  before executing.
-- **Git worktree** — the agent works in a dedicated git worktree so parallel
-  tasks don't collide.
-- **Model** — pick the model per task; the opencode catalog is fetched from
-  the CLI, recently used models surface on top.
+## Features
 
-### Edit tasks anywhere
+Each feature is documented in full in the app's own **Help** tab — that is the
+manual, and it always matches the version you are running. This is the map.
 
-The board and Obsidian are always in sync — drag a card in the app, edit the
-same file in Obsidian, or let an agent update it; every side sees the change
-immediately. Task descriptions render as Markdown previews (links, code
-blocks) in the Edit Task dialog, with a full-screen mode for long specs.
+### The core
+
+| | What it does |
+|---|---|
+| **Tasks** | The board. List and kanban views, filters by status / assignee / project, drag & drop, live sync with whatever edits the files outside the app. Launch an agent, copy its prompt, or send it to Claude Desktop. |
+| **Projects** | The vault's `projects/` folders — where a piece of work's notes, schedules, mindmaps and deliverables live. Create, archive and restore them; link one to a registered repository. |
+| **Repos** | The multi-repo dashboard. Branch and dirty state at a glance, a git graph with branch switching, a changes panel, and a worktrees panel for reviewing the tasks agents are running in isolation. Open any repo in VS Code, a terminal, or an agent. |
+
+![Edit Task dialog](docs/images/tasks-edit-dialog.png)
+
+![Projects tab](docs/images/projects.png)
+
+![Repos tab](docs/images/repos.png)
+
+### Planning and thinking
+
+| | What it does |
+|---|---|
+| **Schedule** | A whiteboard for *deciding* dates: bars, estimate arrows, milestones and notes on a week grid or a month timeline, with working-day counts and optional sprint numbering. Stored as a readable Markdown note in the project. |
+| **Mindmap** | The same idea for branching thoughts — a map that is an ordinary nested bullet list on disk, with colours, task links and sticky notes. Exports as a mermaid block. |
+| **Inbox** | The raw notes sitting in the vault's `inbox/`, so what you dropped there to file later stops being invisible outside Obsidian. |
+| **Strategist** | `/strategist` reads where you said you were heading (`strategy/`), where you actually are, and what is blocking you — then argues with you about the difference. |
+
+![Schedule tab](docs/images/schedule.png)
+
+![Mindmap tab](docs/images/mindmap.png)
+
+### Working with agents
+
+| | What it does |
+|---|---|
+| **Long-term memory** | Past sessions, searchable, fully local — no cloud, no LLM. New sessions receive the relevant history automatically. |
+| **Your profile** | `profile/about-me.md` and `decision-policy.md` teach agents who you are and how you decide, so they interrupt you less — and arrive with a recommendation when they do. |
+| **Custom prompt** | Standing instructions appended to every task prompt an agent receives. |
+| **Recurring tasks** | Rules that create a task on a schedule — a daily note, a weekly review, a monthly report. |
+| **Vault tidy** | Optional housekeeping: files stale inbox notes and refreshes archive indexes by running an agent headlessly. |
+| **Persona** | Picks the character and tone new agent sessions start in (needs the `persona` plugin). |
+| **Template updates** | Keeps the vault's shared files in step with the app's bundled template — safe updates apply themselves, conflicts ask, and any of them can be diffed first. |
+
+### The rest of the day
+
+| | What it does |
+|---|---|
+| **Quick capture** | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd> anywhere turns the link on your clipboard into an inbox task, without switching windows. |
+| **Voice** | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd> dictates into whatever has focus. Local Whisper, offline. |
+| **Clips** | Double-tap <kbd>Ctrl</kbd> for a snippet picker over whatever you are typing in. |
+| **Ink** | Double-press and hold <kbd>Alt</kbd> to draw on the screen; <kbd>Alt</kbd>+<kbd>C</kbd> saves the screen with the strokes into the vault, and the Ink tab keeps the captures. |
+| **Music / Timer** | A YouTube loop player with playlists, and a countdown timer with presets and an alarm. |
+
+![Music player](docs/images/music.png)
+
+![Timer](docs/images/timer.png)
+
+![Ink overlay](docs/images/ink-overlay.png)
 
 ## Repository layout
 
@@ -157,9 +204,10 @@ blocks) in the Edit Task dialog, with a full-screen mode for long specs.
 src/            # React frontend (React 19, Tailwind v4, shadcn/ui)
 src-tauri/      # Rust backend (Tauri 2)
 .claude-plugin/ # Claude Code marketplace definition
-plugins/        # workhub Claude Code plugins (skills / hooks)
-vault-template/ # initial template for the dedicated Obsidian vault
-docs/
+plugins/        # workhub Claude Code plugins (skills / hooks / agents)
+vault-template/ # the template expanded into a new vault
+demo-vault/     # fictional vault used for the screenshots in this README
+docs/           # plugin catalog, screenshot procedure, images
 ```
 
 ## Development
@@ -171,6 +219,9 @@ npm install
 npm run tauri dev           # run with hot reload
 npx tauri build --no-bundle # release build -> src-tauri/target/release/workhub.exe
 ```
+
+Screenshots for this README are taken from `demo-vault/`; the procedure is in
+[`docs/screenshots.md`](docs/screenshots.md).
 
 ## License
 
