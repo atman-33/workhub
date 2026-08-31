@@ -9,14 +9,18 @@
 //
 // Writes go straight to the vault from here. Nothing is reported back to the
 // board: the vault watcher emits `tasks-changed` when a task file is written
-// and the board refreshes itself (tasks.rs::start_watcher). The one thing this
-// window cannot do alone is open the embedded terminal an agent runs in — that
+// and the board refreshes itself (tasks.rs::start_watcher). This window
+// listens to the same event — a board drag or an agent write while the form
+// is open must reach it too, so its untouched fields follow the vault instead
+// of being reverted by the next save (T-0214). The one thing this window
+// cannot do alone is open the embedded terminal an agent runs in — that
 // panel belongs to the main window's layout, so a launch asks for it by event.
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { TaskEditorForm, type TaskDraft } from "@/components/task-editor-form";
+import { TaskEditorForm } from "@/components/task-editor-form";
+import { fieldsFromDraft, type DraftField, type TaskDraft } from "@/lib/task-editor-fields";
 import {
   launchAgentForTask,
   copyTaskPrompt,
@@ -25,28 +29,6 @@ import {
 import { TASK_EDITOR_OPEN_EVENT, type TaskEditorPayload } from "@/lib/task-editor-bridge";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import type { Config, Task } from "@/types";
-
-/** Frontmatter fields shared by create and update, read off the draft. */
-function fieldsFromDraft(draft: TaskDraft) {
-  return {
-    title: draft.title,
-    status: draft.status,
-    assignee: draft.assignee,
-    project: draft.project,
-    priority: draft.priority,
-    model: draft.model.trim(),
-    confirm: draft.confirm,
-    worktree: draft.worktree,
-    blocked: draft.blocked,
-    blockedNote: draft.blockedNote,
-    blockedSince: draft.blockedSince,
-    due: draft.due,
-    tags: draft.tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean),
-  };
-}
 
 export function EditorApp() {
   /** What the window is showing; null while hidden. Clearing it unmounts the
@@ -98,21 +80,53 @@ export function EditorApp() {
   );
 
   const task = payload?.task ?? null;
+  const taskId = task?.id ?? null;
+
+  // While an edit-mode task is open, keep the form in step with the vault:
+  // the watcher emits `tasks-changed` for every write (board drag, agent,
+  // Obsidian, this window's own autosave), and the fresh snapshot is folded
+  // into the draft by the form — dirty fields kept, the rest follows the
+  // vault. Same command the board uses on the event; a vault scan is already
+  // what every write costs the board, so the open editor merely joins it.
+  useEffect(() => {
+    if (!vaultPath || !taskId) return;
+    const unlisten = listen("tasks-changed", () => {
+      void api
+        .listTasks(vaultPath)
+        .then((tasks) => {
+          const fresh = tasks.find((t) => t.id === taskId);
+          if (!fresh) return; // gone from the vault; keep showing the snapshot
+          setPayload((p) =>
+            p && p.task && p.task.id === fresh.id ? { ...p, task: fresh } : p,
+          );
+        })
+        // A scan can fail while the vault is busy; the next event re-syncs.
+        // Silencing it beats flashing an error for a transient race.
+        .catch(() => {});
+    });
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [vaultPath, taskId]);
 
   const autoSaveTask = useCallback(
-    async (draft: TaskDraft) => {
-      if (!vaultPath || !task) return;
+    async (draft: TaskDraft, dirty: ReadonlySet<DraftField>): Promise<boolean> => {
+      if (!vaultPath || !task) return false;
       try {
         const parsed = parseBody(task.body);
-        const bodyChanged = draft.content !== parsed.content;
         await api.updateTask(vaultPath, {
           id: task.id,
-          ...fieldsFromDraft(draft),
-          body: bodyChanged ? buildBody(parsed, draft.content) : undefined,
+          // Only what the user touched: `update_task` merges present fields,
+          // so a board-side status move made while the form is open survives
+          // the save instead of being reset to the open-time snapshot.
+          ...fieldsFromDraft(draft, dirty),
+          body: dirty.has("content") ? buildBody(parsed, draft.content) : undefined,
         });
         setError(null);
+        return true;
       } catch (e) {
         setError(`Auto-save failed — ${e}`);
+        return false;
       }
     },
     [vaultPath, task],
