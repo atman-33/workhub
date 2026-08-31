@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.92.0 (2026-08-31)
+
+- **The task editor window stays frontmost** (T-0214, PR #140). The editor and
+  the board are used side by side — the board stays clickable while the editor
+  is open — yet the editor was deliberately not always-on-top, so one click on
+  the board raised the main window over the open form and buried it mid-edit.
+  The editor now holds the front like every other helper window in the app
+  (clips, quick capture, ink), re-asserting on every open in case another
+  topmost window took the z-order while it was hidden. It keeps its taskbar
+  entry.
+- **Moving a task on the board no longer reverts when the task editor closes**
+  (T-0214, PR #140). The editor held the snapshot of the task it opened with
+  and wrote the whole draft back on idle and on close, so dragging the task's
+  status on the board while the form was open was undone the moment the editor
+  was dismissed — the stale status overwrote the move. The editor now tracks
+  which fields the user actually touched and writes only those (`update_task`
+  already merges just the present fields, so untouched fields keep whatever
+  the vault holds), and it listens to the vault watcher and folds fresh
+  snapshots into its draft — dirty fields kept, everything else follows the
+  vault — so the form shows board moves and agent writes instead of fighting
+  them. Closing an untouched editor writes nothing at all, which also stops
+  the pointless `updated` bump a bare open-and-close used to cost.
+
 ## 0.91.0 (2026-08-30)
 
 - **Skills can now be authored inside a vault** (PR #139). The vault template
