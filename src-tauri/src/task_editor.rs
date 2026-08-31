@@ -11,14 +11,21 @@
 //! window is meant to sit open next to the board, and dismissing a form that
 //! is being typed into by a stray Esc is a hard mistake to undo.
 //!
-//! Two deliberate departures from the other helper windows, both because this
-//! is a window the user works in for a while rather than a pop-up that appears
-//! and disappears:
+//! One deliberate departure from the other helper windows, because this is a
+//! window the user works in for a while rather than a pop-up that appears and
+//! disappears:
 //!
-//! - **Not always-on-top.** It stays open for long stretches, so floating over
-//!   every other app would make it a nuisance rather than a convenience.
 //! - **Not hidden from the taskbar.** On a multi-screen desk a window with no
 //!   taskbar entry is a window you cannot get back once something covers it.
+//!
+//! It *is* always-on-top. That was deliberately not the case once ("it stays
+//! open for long stretches, so floating over every other app would make it a
+//! nuisance") — but the nuisance the user actually hit was the opposite one:
+//! the main window sits behind the editor on the same desk, and one click on
+//! the board raised it over the editor, burying the form mid-edit. Since the
+//! board and the editor are used side by side — the board stays clickable
+//! while the editor is open, by design — the editor now holds the front like
+//! every other helper window here (T-0214).
 //!
 //! **Where it opens follows the house rule**, though: like every pop-up here it
 //! remembers only its size and opens at the cursor (`window_place` explains
@@ -66,6 +73,10 @@ pub fn create_window(app: &AppHandle) -> tauri::Result<()> {
     .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
     .decorations(false)
     .visible(false)
+    // The editor and the board are used side by side — the board stays
+    // clickable while the editor is open — so the editor must not sink under
+    // the main window (or any other app) while it is open (T-0214).
+    .always_on_top(true)
     // The app is dark-only; paint the native window in the app background
     // color so no white flashes before WebView2 renders (index.css --background).
     .background_color(tauri::window::Color(0x14, 0x15, 0x1c, 0xff))
@@ -108,6 +119,10 @@ pub fn open(app: &AppHandle, payload: serde_json::Value) -> tauri::Result<()> {
     }
     let _ = win.unminimize();
     let _ = win.set_focus();
+    // Re-assert on every open: another topmost window (the ink overlay, a
+    // full-screen app) can take the z-order while the editor is hidden, and
+    // the builder flag does not bring it back (same re-assert as ink/overlay).
+    let _ = win.set_always_on_top(true);
     app.emit_to(WINDOW_LABEL, "task-editor://open", payload)
 }
 

@@ -45,27 +45,16 @@ import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { PriorityBadge } from "@/components/priority-badge";
 import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
-import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
+import {
+  draftFromTask,
+  mergeExternalTask,
+  type DraftField,
+  type TaskDraft,
+} from "@/lib/task-editor-fields";
+import type { Task, TaskAssignee, TaskStatus } from "@/types";
 
 /** The three views the shared pane switches between. */
 type PaneTab = "description" | "plan" | "results";
-
-export interface TaskDraft {
-  title: string;
-  status: TaskStatus;
-  assignee: TaskAssignee;
-  project: string;
-  priority: TaskPriority;
-  model: string;
-  confirm: boolean;
-  worktree: boolean;
-  blocked: boolean;
-  blockedNote: string;
-  blockedSince: string;
-  due: string;
-  tags: string; // comma-separated for editing
-  content: string;
-}
 
 const EMPTY_DRAFT: TaskDraft = {
   title: "",
@@ -83,25 +72,6 @@ const EMPTY_DRAFT: TaskDraft = {
   tags: "",
   content: "",
 };
-
-function draftFromTask(task: Task): TaskDraft {
-  return {
-    title: task.title,
-    status: task.status,
-    assignee: task.assignee,
-    project: task.project,
-    priority: task.priority,
-    model: task.model,
-    confirm: task.confirm,
-    worktree: task.worktree,
-    blocked: task.blocked,
-    blockedNote: task.blocked_note,
-    blockedSince: task.blocked_since,
-    due: task.due,
-    tags: task.tags.join(", "),
-    content: parseBody(task.body).content,
-  };
-}
 
 const STATUSES: TaskStatus[] = ["inbox", "todo", "doing", "review", "done"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
@@ -145,8 +115,12 @@ interface Props {
   /** Called once when the user confirms creation of a new task. Returns the
    *  created task (null on failure) so follow-up actions can target its file. */
   onCreate?: (draft: TaskDraft) => Promise<Task | null>;
-  /** Called while editing an existing task, both on idle and on close. */
-  onAutoSave?: (draft: TaskDraft) => Promise<void>;
+  /** Called while editing an existing task, both on idle and on close. The
+   *  dirty set is what it may write — fields the user did not touch stay
+   *  owned by the vault (board moves, agent writes). Returns whether the
+   *  write reached the vault; `false` keeps those fields dirty for the next
+   *  save. Never rejects. */
+  onAutoSave?: (draft: TaskDraft, dirty: ReadonlySet<DraftField>) => Promise<boolean>;
   /** Launches an agent for the edited task; flushed edits are read from disk. */
   onLaunchAgent?: (task: Task) => Promise<unknown>;
   /** Copies the agent prompt for the edited task to the clipboard. */
@@ -170,6 +144,19 @@ export function TaskEditorForm({
   claudeDesktopMode,
 }: Props) {
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
+  // Fields the user has touched since the draft was seeded, and have not yet
+  // been confirmed written. Autosave (idle and on close) writes only these —
+  // the task can be moved or rewritten outside this window while it is open,
+  // and a full-field write-back would revert that (T-0214).
+  const dirtyFieldsRef = useRef<Set<DraftField>>(new Set());
+  /** The one way field edits reach the draft: folds the patch in and marks
+   *  every touched field dirty. */
+  const update = useCallback((patch: Partial<TaskDraft>) => {
+    for (const key of Object.keys(patch) as DraftField[]) {
+      dirtyFieldsRef.current.add(key);
+    }
+    setDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // Description shows a rendered markdown preview (URLs clickable) until the
   // user clicks into it to edit — an Obsidian-like reading/editing toggle.
@@ -192,13 +179,24 @@ export function TaskEditorForm({
   const draftTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (mode === "edit" && task) {
-      if (draftTaskIdRef.current === task.id) return;
+      if (draftTaskIdRef.current === task.id) {
+        // Same task, fresher snapshot: the editor window also listens to
+        // `tasks-changed` (editor-app.tsx), so a board drag, an agent's write
+        // or an Obsidian edit lands here while the form is open. Fold in what
+        // the user has not touched — the dirty set is what autosave writes,
+        // so untouched fields follow the vault instead of reverting it.
+        setDraft((prev) =>
+          mergeExternalTask(prev, draftFromTask(task), dirtyFieldsRef.current) ?? prev,
+        );
+        return;
+      }
       draftTaskIdRef.current = task.id;
       setDraft(draftFromTask(task));
     } else {
       draftTaskIdRef.current = null;
       setDraft(loadCreateDraft() ?? EMPTY_DRAFT);
     }
+    dirtyFieldsRef.current = new Set();
     setDescEditing(false);
     setPane("description");
     setActionError(null);
@@ -235,11 +233,26 @@ export function TaskEditorForm({
     return () => clearTimeout(timer);
   }, [draft, mode]);
 
-  // Edit mode: auto-save to the task file shortly after the user stops editing.
+  // Edit mode: auto-save to the task file shortly after the user stops
+  // editing — only the dirty fields, and only when there are any. A save that
+  // reached the vault retires those fields, unless the user kept typing into
+  // one while the write was in flight (the draft then differs from what the
+  // write carried, and the field stays dirty for the next save).
   useEffect(() => {
     if (mode !== "edit" || !onAutoSave || !draft.title.trim()) return;
+    if (dirtyFieldsRef.current.size === 0) return;
+    const pending = new Set(dirtyFieldsRef.current);
+    const written = draft;
     autoSaveTimerRef.current = setTimeout(() => {
-      void onAutoSave(draft);
+      autoSaveTimerRef.current = null;
+      void onAutoSave(written, pending).then((saved) => {
+        if (!saved) return;
+        for (const f of pending) {
+          if (draftRef.current[f] === written[f]) {
+            dirtyFieldsRef.current.delete(f);
+          }
+        }
+      });
     }, 1000);
     return () => {
       if (autoSaveTimerRef.current) {
@@ -257,8 +270,8 @@ export function TaskEditorForm({
   );
 
   const handleModelChange = useCallback((nextModel: string) => {
-    setDraft((prev) => ({ ...prev, model: nextModel }));
-  }, []);
+    update({ model: nextModel });
+  }, [update]);
 
   // Launch-mode toggles (confirm / worktree) only affect AI agent launches, so
   // they are disabled for "me" tasks, which spawn no agent.
@@ -301,7 +314,7 @@ export function TaskEditorForm({
     <Textarea
       autoFocus
       value={draft.content}
-      onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+      onChange={(e) => update({ content: e.target.value })}
       onBlur={() => setDescEditing(false)}
       // Fill the pane with a fixed-size scrolling editor rather than the
       // default grow-with-content sizing, which would fight the flex layout.
@@ -361,9 +374,12 @@ export function TaskEditorForm({
       mode === "edit" &&
       onAutoSave &&
       draftRef.current.title.trim() &&
+      dirtyFieldsRef.current.size > 0 &&
       !skipAutoSaveOnCloseRef.current
     ) {
-      void onAutoSave(draftRef.current).finally(() => onClose());
+      void onAutoSave(draftRef.current, new Set(dirtyFieldsRef.current))
+        .catch(() => {})
+        .finally(() => onClose());
     } else {
       onClose();
     }
@@ -371,15 +387,16 @@ export function TaskEditorForm({
 
   /** Flush the debounced autosave so whatever runs next reads current content,
    *  and hand back the draft the hand-off should use. Every agent hand-off
-   *  below starts here. */
+   *  below starts here. Nothing dirty means nothing to flush — in particular
+   *  a launch from an untouched editor does not rewrite the task file. */
   const flushDraft = useCallback(async () => {
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
     const d = draftRef.current;
-    if (onAutoSave && d.title.trim()) {
-      await onAutoSave(d);
+    if (onAutoSave && d.title.trim() && dirtyFieldsRef.current.size > 0) {
+      await onAutoSave(d, new Set(dirtyFieldsRef.current));
     }
     return d;
   }, [onAutoSave]);
@@ -566,7 +583,7 @@ export function TaskEditorForm({
           <Input
             autoFocus
             value={draft.title}
-            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            onChange={(e) => update({ title: e.target.value })}
             className="h-8 text-sm"
             placeholder="Task title"
           />,
@@ -576,7 +593,7 @@ export function TaskEditorForm({
             "Status",
             <Select
               value={draft.status}
-              onValueChange={(v) => setDraft({ ...draft, status: v as TaskStatus })}
+              onValueChange={(v) => update({ status: v as TaskStatus })}
             >
               <SelectTrigger size="sm">
                 <SelectValue />
@@ -597,7 +614,7 @@ export function TaskEditorForm({
               onValueChange={(v) =>
                 // Clear the model when the assignee changes — model catalogs
                 // differ per agent, so a stale carry-over is never valid.
-                setDraft({ ...draft, assignee: v as TaskAssignee, model: "" })
+                update({ assignee: v as TaskAssignee, model: "" })
               }
             >
               <SelectTrigger size="sm">
@@ -618,7 +635,7 @@ export function TaskEditorForm({
             <div className="flex h-8 items-center">
               <PriorityBadge
                 priority={draft.priority}
-                onCycle={(next) => setDraft({ ...draft, priority: next })}
+                onCycle={(next) => update({ priority: next })}
               />
             </div>,
           )}
@@ -628,7 +645,7 @@ export function TaskEditorForm({
             "Project",
             <Combobox
               value={draft.project}
-              onChange={(v) => setDraft({ ...draft, project: v })}
+              onChange={(v) => update({ project: v })}
               options={knownProjects}
               allowCustom
               placeholder="repo name or path"
@@ -673,14 +690,14 @@ export function TaskEditorForm({
                     "Due",
                     <DatePicker
                       value={draft.due}
-                      onChange={(v) => setDraft({ ...draft, due: v })}
+                      onChange={(v) => update({ due: v })}
                     />,
                   )}
                   {field(
                     "Tags (comma separated)",
                     <Input
                       value={draft.tags}
-                      onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+                      onChange={(e) => update({ tags: e.target.value })}
                       className="h-8 text-xs"
                       placeholder="feature, bug"
                     />,
@@ -691,14 +708,14 @@ export function TaskEditorForm({
                     "Confirm mode",
                     "Agent drafts a plan and waits for your approval before executing.",
                     draft.confirm,
-                    (v) => setDraft({ ...draft, confirm: v }),
+                    (v) => update({ confirm: v }),
                     draft.assignee === "me",
                   )}
                   {toggle(
                     "Git worktree",
                     "Agent works in a dedicated worktree so parallel tasks don't collide.",
                     draft.worktree,
-                    (v) => setDraft({ ...draft, worktree: v }),
+                    (v) => update({ worktree: v }),
                     draft.assignee === "me",
                   )}
                 </div>
@@ -711,14 +728,13 @@ export function TaskEditorForm({
                       // Turning it on stamps today so the wait is measured from the
                       // moment it was noticed; turning it off clears the details so
                       // no stale note survives into the next block.
-                      setDraft(
+                      update(
                         v
                           ? {
-                              ...draft,
                               blocked: true,
                               blockedSince: draft.blockedSince || todayString(),
                             }
-                          : { ...draft, blocked: false, blockedNote: "", blockedSince: "" },
+                          : { blocked: false, blockedNote: "", blockedSince: "" },
                       ),
                     false,
                   )}
@@ -728,7 +744,7 @@ export function TaskEditorForm({
                         "Waiting on",
                         <Input
                           value={draft.blockedNote}
-                          onChange={(e) => setDraft({ ...draft, blockedNote: e.target.value })}
+                          onChange={(e) => update({ blockedNote: e.target.value })}
                           className="h-8 text-xs"
                           placeholder="e.g. vendor quote, review from Sato"
                         />,
@@ -737,7 +753,7 @@ export function TaskEditorForm({
                         "Blocked since",
                         <DatePicker
                           value={draft.blockedSince}
-                          onChange={(v) => setDraft({ ...draft, blockedSince: v })}
+                          onChange={(v) => update({ blockedSince: v })}
                         />,
                       )}
                     </div>
