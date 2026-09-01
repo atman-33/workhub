@@ -10,7 +10,7 @@
 // The component owns the draft and the autosave debounce; everything that
 // touches the vault or another process is a prop, so the window around it
 // decides how failures are reported.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Gem, X } from "lucide-react";
 import { api } from "@/lib/api";
@@ -261,6 +261,19 @@ export function TaskEditorForm({
       }
     };
   }, [draft, mode, onAutoSave]);
+
+  // A task saved before the picker was narrowed to vault projects may name
+  // something no project answers to (a repo name, a typo). Keep that value
+  // selectable so opening the editor does not silently blank it, and flag it
+  // below the field rather than dressing up the option — a decorated label
+  // would have to be un-decorated on the way back out, and a slip there
+  // rewrites the task's project (T-0219).
+  const projectUnregistered =
+    draft.project.trim().length > 0 && !knownProjects.includes(draft.project);
+  const projectOptions = useMemo(
+    () => (projectUnregistered ? [...knownProjects, draft.project] : knownProjects),
+    [knownProjects, projectUnregistered, draft.project],
+  );
 
   const field = (label: string, node: ReactNode, className?: string) => (
     <div className={cn("space-y-1.5", className)}>
@@ -643,14 +656,21 @@ export function TaskEditorForm({
         <div className="grid grid-cols-2 gap-3">
           {field(
             "Project",
-            <Combobox
-              value={draft.project}
-              onChange={(v) => update({ project: v })}
-              options={knownProjects}
-              allowCustom
-              placeholder="repo name or path"
-              emptyText="No known projects."
-            />,
+            <>
+              <Combobox
+                value={draft.project}
+                onChange={(v) => update({ project: v })}
+                options={projectOptions}
+                noneLabel="No project"
+                placeholder="vault project"
+                emptyText="No vault projects. Create one in the Projects tab."
+              />
+              {projectUnregistered && (
+                <p className="text-[11px] text-destructive">
+                  {draft.project} is not a vault project
+                </p>
+              )}
+            </>,
           )}
           {field(
             "Model (AI launches)",

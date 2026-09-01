@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { describeSchedule, newRule, nextOccurrence } from "@/lib/recurring";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -35,6 +36,8 @@ interface Props {
   onChange: (rules: RecurringRule[]) => void;
   /** True while the hosting dialog is open (drives the model combobox). */
   open: boolean;
+  /** Vault project slugs a rule's generated task may name (T-0219). */
+  knownProjects: string[];
 }
 
 /**
@@ -42,7 +45,7 @@ interface Props {
  * draft array of rules. Persisting it — and running the rules — belongs to the
  * hosting dialog (`recurring-dialog.tsx`).
  */
-export function RecurringSettings({ rules, onChange, open }: Props) {
+export function RecurringSettings({ rules, onChange, open, knownProjects }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const patch = (id: string, changes: Partial<RecurringRule>) =>
@@ -319,11 +322,18 @@ export function RecurringSettings({ rules, onChange, open }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Project</label>
-                    <Input
+                    <Combobox
                       value={rule.project}
-                      onChange={(e) => patch(rule.id, { project: e.target.value })}
-                      placeholder="repo / project slug"
-                      className="h-8 font-mono text-xs"
+                      onChange={(project) => patch(rule.id, { project })}
+                      options={
+                        rule.project && !knownProjects.includes(rule.project)
+                          ? [...knownProjects, rule.project]
+                          : knownProjects
+                      }
+                      noneLabel="No project"
+                      placeholder="vault project"
+                      emptyText="No vault projects. Create one in the Projects tab."
+                      modal
                     />
                   </div>
                   <div className="space-y-1.5">
