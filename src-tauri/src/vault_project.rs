@@ -24,8 +24,9 @@
 
 use crate::models::{VaultProject, VaultProjectFolder, VaultProjectIssue};
 use crate::vault_note::{
-    ensure_scaffold_file, frontmatter_value, norm_path, projects_dir, rewrite_frontmatter,
-    split_frontmatter, today,
+    ensure_scaffold_file, frontmatter_list, frontmatter_value, norm_path, projects_dir,
+    remove_frontmatter_key, rewrite_frontmatter, rewrite_frontmatter_list, split_frontmatter,
+    today,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -143,15 +144,18 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
         .unwrap_or_default();
     // `_index.md` owns the link; README is read as a fallback so a project
     // that recorded it by hand in the more obvious place still shows up linked.
-    let repo = index
+    // The legacy single `repo:` key is deliberately not read: the migration to
+    // `repos:` is a one-time rewrite, and a fallback would leave two spellings
+    // of the same link alive indefinitely (T-0216).
+    let repos = index
         .as_ref()
-        .map(|n| frontmatter_value(&n.0, "repo"))
-        .filter(|r| !r.trim().is_empty())
+        .map(|n| frontmatter_list(&n.0, "repos"))
+        .filter(|r| !r.is_empty())
         .or_else(|| {
             readme
                 .as_ref()
-                .map(|n| frontmatter_value(&n.0, "repo"))
-                .filter(|r| !r.trim().is_empty())
+                .map(|n| frontmatter_list(&n.0, "repos"))
+                .filter(|r| !r.is_empty())
         })
         .unwrap_or_default();
     let description = readme
@@ -187,7 +191,7 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
         name,
         path: norm_path(dir),
         status: status.trim().to_string(),
-        repo: repo.trim().to_string(),
+        repos: repos.iter().map(|r| r.trim().to_string()).collect(),
         summary,
         updated: newest_mtime(dir, MTIME_DEPTH),
         folders,
@@ -443,18 +447,22 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
 // repo link
 // ---------------------------------------------------------------------
 
-/// Records which registered repository a project belongs to, in `_index.md`'s
-/// frontmatter.
+/// Records which registered repositories a project belongs to, in
+/// `_index.md`'s frontmatter, in the order given — the first entry is the
+/// project's default repository (T-0216).
 ///
 /// The link is stored rather than inferred because inferring it is what is
 /// broken today: the vault's `multi-agent-ff15` is the repo
-/// `multi-agent-ff15-vscode`, and no name match finds that. Passing an empty
-/// `repo` clears the link.
+/// `multi-agent-ff15-vscode`, and no name match finds that. An empty list
+/// clears the link.
+///
+/// Every write also drops the pre-T-0216 `repo:` key, so a note that predates
+/// the migration cannot end up carrying both spellings of the same link.
 ///
 /// `_index.md` is created from the scaffold when the project predates it —
 /// additive, and the alternative is refusing to link the vault's oldest
 /// projects at all.
-pub fn set_project_repo(vault: &Path, slug: &str, repo: &str) -> Result<(), String> {
+pub fn set_project_repos(vault: &Path, slug: &str, repos: &[String]) -> Result<(), String> {
     let slug = check_slug(slug)?;
     let dir = project_dir(vault, slug, false);
     if !dir.is_dir() {
@@ -469,7 +477,9 @@ pub fn set_project_repo(vault: &Path, slug: &str, repo: &str) -> Result<(), Stri
     let (front, body) = split_frontmatter(&content)
         .ok_or_else(|| format!("{INDEX_FILE} has no frontmatter block"))?;
     let now = today();
-    let front = rewrite_frontmatter(&front, &[("repo", repo.trim()), ("updated", &now)]);
+    let front = remove_frontmatter_key(&front, "repo");
+    let front = rewrite_frontmatter(&front, &[("updated", &now)]);
+    let front = rewrite_frontmatter_list(&front, "repos", repos);
     fs::write(&path, format!("---\n{front}---\n{body}")).map_err(|e| e.to_string())
 }
 
@@ -639,7 +649,7 @@ mod tests {
         let vault = temp_vault("escape");
         assert!(archive_project(&vault, "../tasks").is_err());
         assert!(restore_project(&vault, "..").is_err());
-        assert!(set_project_repo(&vault, "a/b", "x").is_err());
+        assert!(set_project_repos(&vault, "a/b", &["x".to_string()]).is_err());
     }
 
     #[test]
@@ -652,17 +662,45 @@ mod tests {
             "---\ntitle: Demo index\ntype: index\n---\n\n# Demo index\n",
         );
 
-        set_project_repo(&vault, "demo", "C:/repos/demo-app").unwrap();
+        set_project_repos(&vault, "demo", &["C:/repos/demo-app".to_string()]).unwrap();
         let p = &list_projects(&vault, false).unwrap()[0];
-        assert_eq!(p.repo, "C:/repos/demo-app");
+        assert_eq!(p.repos, vec!["C:/repos/demo-app".to_string()]);
 
         // The note's own content survives the rewrite.
         let content = fs::read_to_string(dir.join(INDEX_FILE)).unwrap();
         assert!(content.contains("type: index"));
         assert!(content.contains("# Demo index"));
 
-        set_project_repo(&vault, "demo", "").unwrap();
-        assert_eq!(list_projects(&vault, false).unwrap()[0].repo, "");
+        set_project_repos(&vault, "demo", &[]).unwrap();
+        assert!(list_projects(&vault, false).unwrap()[0].repos.is_empty());
+    }
+
+    /// Several repositories, in order, with the pre-T-0216 `repo:` key retired
+    /// on the way — a note carrying both spellings would read as linked to
+    /// whichever one the next reader happened to look for.
+    #[test]
+    fn several_repos_round_trip_and_retire_the_old_key() {
+        let vault = temp_vault("repos-link");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        write(
+            dir.join(INDEX_FILE),
+            "---\ntitle: Demo index\ntype: index\ntags:\n  - index\nrepo: C:/repos/demo-app\n---\n\n# Demo index\n",
+        );
+
+        // The legacy key alone reads as no link at all: the migration is a
+        // one-time rewrite, not a fallback.
+        assert!(list_projects(&vault, false).unwrap()[0].repos.is_empty());
+
+        let wanted = vec!["C:/repos/demo-app".to_string(), "demo-vault".to_string()];
+        set_project_repos(&vault, "demo", &wanted).unwrap();
+        assert_eq!(list_projects(&vault, false).unwrap()[0].repos, wanted);
+
+        let content = fs::read_to_string(dir.join(INDEX_FILE)).unwrap();
+        assert!(!content.contains("repo: C:/repos/demo-app"));
+        assert!(content.contains("repos:\n  - C:/repos/demo-app\n  - demo-vault\n"));
+        // The unrelated block list above it is untouched.
+        assert!(content.contains("tags:\n  - index\n"));
     }
 
     #[test]

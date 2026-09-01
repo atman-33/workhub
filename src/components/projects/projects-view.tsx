@@ -39,7 +39,7 @@ import {
   buildProjectFixPrompt,
   health,
   issueLabel,
-  linkedRepo,
+  linkedRepos,
   taskCountsByProject,
   unknownProjects,
 } from "@/lib/vault-project";
@@ -188,7 +188,20 @@ export function ProjectsView({
     setEditName(current.name);
     setEditSummary(current.summary);
   }, [current?.slug, current?.name, current?.summary]);
-  const currentRepo = current ? linkedRepo(current, repos) : null;
+  const currentRepos = useMemo(
+    () => (current ? linkedRepos(current, repos) : []),
+    [current, repos],
+  );
+  /** The project's default repository — the first entry that still resolves.
+   *  A stale entry at the head should not disable the Repo button when the
+   *  project links to a registered repo further down the list. */
+  const defaultRepo = currentRepos.find((l) => l.repo)?.repo ?? null;
+  // Only repos this project does not already link to are offered, so the
+  // picker cannot produce a duplicate entry.
+  const addableRepos = useMemo(
+    () => repos.filter((r) => !currentRepos.some((l) => l.repo?.path === r.path)),
+    [repos, currentRepos],
+  );
   const currentCounts = current ? counts.get(current.slug) : undefined;
   // The scan already told us whether the entry point exists; Obsidian's URL
   // scheme opens files, not folders, so a project with no README falls back to
@@ -217,12 +230,34 @@ export function ProjectsView({
     }
   };
 
-  const setRepo = (value: string) => {
+  /** Writes the whole `repos:` list back; every edit below is a list rewrite
+   *  rather than a per-entry command, because order carries meaning (the first
+   *  entry is the project's default repository) and a partial update would
+   *  leave it ambiguous. */
+  const saveRepos = (entries: string[]) => {
     if (!vaultPath || !current) return;
-    const repo = value === NO_REPO ? "" : value;
     void run("Linking…", async () => {
-      await api.setVaultProjectRepo(vaultPath, current.slug, repo);
+      await api.setVaultProjectRepos(vaultPath, current.slug, entries);
     });
+  };
+
+  const currentEntries = () => currentRepos.map((l) => l.entry);
+
+  const addRepo = (value: string) => {
+    if (value === NO_REPO) return;
+    saveRepos([...currentEntries(), value]);
+  };
+
+  const removeRepo = (at: number) => {
+    saveRepos(currentEntries().filter((_, i) => i !== at));
+  };
+
+  /** Promotes an entry one place; from index 1 that makes it the default. */
+  const promoteRepo = (at: number) => {
+    if (at <= 0) return;
+    const next = currentEntries();
+    [next[at - 1], next[at]] = [next[at], next[at - 1]];
+    saveRepos(next);
   };
 
   const detailsDirty =
@@ -477,8 +512,8 @@ export function ProjectsView({
                   size="sm"
                   variant="outline"
                   className="h-7 gap-1.5"
-                  disabled={!currentRepo}
-                  onClick={() => currentRepo && onNavigate("repos", currentRepo.path)}
+                  disabled={!defaultRepo}
+                  onClick={() => defaultRepo && onNavigate("repos", defaultRepo.path)}
                 >
                   <GitBranch className="size-3.5" />
                   Repo
@@ -505,36 +540,72 @@ export function ProjectsView({
 
               <section className="space-y-1.5">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                  Repository
+                  Repositories
                 </h3>
-                <div className="flex items-center gap-2">
+                {currentRepos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No repository.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {currentRepos.map((link, i) => (
+                      <li key={link.entry} className="flex items-center gap-2 text-xs">
+                        <span className="w-10 shrink-0 text-[10px] uppercase text-muted-foreground">
+                          {i === 0 ? "default" : ""}
+                        </span>
+                        {link.repo ? (
+                          <span className="truncate">{link.repo.name}</span>
+                        ) : (
+                          <span className="truncate text-destructive">
+                            {link.entry} is not a registered repository
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[11px]"
+                          disabled={current.archived || i === 0}
+                          onClick={() => promoteRepo(i)}
+                          title="Move up (the first entry is the default)"
+                        >
+                          Up
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[11px]"
+                          disabled={current.archived}
+                          onClick={() => removeRepo(i)}
+                          title="Unlink this repository"
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {addableRepos.length > 0 && (
                   <Select
-                    value={currentRepo?.path ?? NO_REPO}
-                    onValueChange={setRepo}
+                    value={NO_REPO}
+                    onValueChange={addRepo}
                     disabled={current.archived}
                   >
                     <SelectTrigger className="h-8 max-w-96 text-xs">
-                      <SelectValue placeholder="No repository" />
+                      <SelectValue placeholder="Add repository…" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_REPO}>No repository</SelectItem>
-                      {repos.map((r) => (
+                      <SelectItem value={NO_REPO}>Add repository…</SelectItem>
+                      {addableRepos.map((r) => (
                         <SelectItem key={r.path} value={r.path}>
                           {r.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {current.repo && !currentRepo && (
-                    <span className="text-[11px] text-destructive">
-                      repo: {current.repo} is not a registered repository
-                    </span>
-                  )}
-                </div>
+                )}
                 <p className="text-[11px] text-muted-foreground">
-                  Stored as <span className="font-mono">repo:</span> in the project's{" "}
+                  Stored as <span className="font-mono">repos:</span> in the project's{" "}
                   <span className="font-mono">_index.md</span>, because a project and its
-                  repository do not share a naming scheme.
+                  repositories do not share a naming scheme. The first entry is the one an
+                  agent defaults to.
                 </p>
               </section>
 
