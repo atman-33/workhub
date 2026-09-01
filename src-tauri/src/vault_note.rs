@@ -114,6 +114,123 @@ pub fn rewrite_frontmatter(front: &str, updates: &[(&str, &str)]) -> String {
     out
 }
 
+/// True for a line that continues a block list started by the key above it
+/// (`  - value`). Frontmatter in these notes is written by hand as often as by
+/// the app, so the block form is the one to recognise.
+fn is_list_item(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    if line.starts_with(char::is_whitespace) || trimmed.starts_with('-') {
+        trimmed.strip_prefix('-').map(unquote)
+    } else {
+        None
+    }
+}
+
+/// Reads a frontmatter key that holds several values.
+///
+/// Accepts all three shapes a hand-written note turns up in — a block list
+/// (`repos:` then `  - value` lines), an inline list (`repos: [a, b]`), and a
+/// bare scalar (`repos: a`) — because the vault is edited in Obsidian as well
+/// as by the app, and refusing a shape only produces a link that silently
+/// reads as absent. Empty entries are dropped.
+pub fn frontmatter_list(front: &str, key: &str) -> Vec<String> {
+    let mut lines = front.lines();
+    let mut out = Vec::new();
+    while let Some(line) = lines.next() {
+        let Some(idx) = line.find(':') else { continue };
+        if line[..idx].trim() != key {
+            continue;
+        }
+        let rest = line[idx + 1..].trim();
+        if let Some(inner) = rest.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
+            out.extend(inner.split(',').map(unquote));
+        } else if !rest.is_empty() {
+            out.push(unquote(rest));
+        } else {
+            for line in lines.by_ref() {
+                match is_list_item(line) {
+                    Some(v) => out.push(v),
+                    None => break,
+                }
+            }
+        }
+        break;
+    }
+    out.retain(|v| !v.trim().is_empty());
+    out
+}
+
+/// Rewrites `key` as a block list, carrying every other line through
+/// byte-for-byte. The key is appended when it was missing, and dropped
+/// entirely when `items` is empty.
+///
+/// Separate from `rewrite_frontmatter` because a list key owns the indented
+/// lines beneath it: replacing only the `key:` line would leave the previous
+/// entries behind as orphans of a key that no longer claims them.
+pub fn rewrite_frontmatter_list(front: &str, key: &str, items: &[String]) -> String {
+    let mut out = String::new();
+    let mut written = false;
+    let mut skipping = false;
+    for line in front.lines() {
+        if skipping {
+            if is_list_item(line).is_some() {
+                continue;
+            }
+            skipping = false;
+        }
+        let this = line.find(':').map(|i| line[..i].trim()).unwrap_or_default();
+        if this == key {
+            skipping = true;
+            write_list(&mut out, key, items);
+            written = true;
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if !written {
+        write_list(&mut out, key, items);
+    }
+    out
+}
+
+fn write_list(out: &mut String, key: &str, items: &[String]) {
+    let items: Vec<&str> = items
+        .iter()
+        .map(|i| i.trim())
+        .filter(|i| !i.is_empty())
+        .collect();
+    if items.is_empty() {
+        return;
+    }
+    out.push_str(&format!("{key}:\n"));
+    for item in items {
+        out.push_str(&format!("  - {item}\n"));
+    }
+}
+
+/// Drops `key` and any block-list lines beneath it. Used to retire a key the
+/// app no longer writes, so a note it rewrites does not keep both spellings.
+pub fn remove_frontmatter_key(front: &str, key: &str) -> String {
+    let mut out = String::new();
+    let mut skipping = false;
+    for line in front.lines() {
+        if skipping {
+            if is_list_item(line).is_some() {
+                continue;
+            }
+            skipping = false;
+        }
+        if line.find(':').map(|i| line[..i].trim()) == Some(key) {
+            skipping = true;
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
 /// Maps a note title onto a file name Windows and Obsidian both accept.
 /// `fallback` names the note kind, and is used when nothing survives cleaning.
 pub fn sanitize_filename(title: &str, fallback: &str) -> String {
