@@ -263,6 +263,7 @@ pub fn run() {
             commands::voice_history_delete,
             commands::voice_history_clear,
             commands::persona_characters,
+            commands::persona_genshijin_installed,
             commands::persona_state,
             commands::set_persona_state,
         ])

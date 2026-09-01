@@ -331,9 +331,31 @@ fn character_dirs(claude: &Path) -> Vec<(PathBuf, &'static str)> {
     dirs
 }
 
+/// True when the standalone `genshijin` plugin is cached, whichever
+/// marketplace it came from.
+///
+/// `persona` is genshijin's successor and both inject per-turn style
+/// instructions, so having the two enabled at once styles every response
+/// twice. The app cannot tell whether a cached plugin is *enabled* — that
+/// lives in per-project settings it does not own — so this reports presence
+/// and the tab words it as something to check, not as a fault.
+pub fn genshijin_installed() -> bool {
+    genshijin_installed_in(&claude_dir())
+}
+
+fn genshijin_installed_in(claude: &Path) -> bool {
+    let cache = claude.join("plugins").join("cache");
+    let Ok(marketplaces) = fs::read_dir(&cache) else {
+        return false;
+    };
+    marketplaces
+        .flatten()
+        .any(|m| m.path().join("genshijin").is_dir())
+}
+
 /// Every character the plugin could select, earlier layers winning. An empty
 /// result is how the app decides the `persona` plugin is not in use — the tab
-/// is not shown at all in that case.
+/// then shows the setup guidance instead of a character list (T-0215).
 pub fn discover_characters() -> Vec<PersonaCharacter> {
     discover_characters_in(&claude_dir())
 }
@@ -664,6 +686,16 @@ mod tests {
         assert!(!found.iter().any(|c| c.id.starts_with('_')));
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// The pair-detection T-0215 warns about: genshijin cached under any
+    /// marketplace, not just the one it was published from.
+    #[test]
+    fn genshijin_is_found_under_any_marketplace() {
+        let root = temp_root("genshijin-detect");
+        assert!(!genshijin_installed_in(&root));
+        fs::create_dir_all(root.join("plugins/cache/some-marketplace/genshijin/0.1.0")).unwrap();
+        assert!(genshijin_installed_in(&root));
     }
 
     #[test]

@@ -61,8 +61,9 @@ type Tab =
   | "persona"
   | "help";
 
-// `persona` is only shown when the `persona` plugin ships at least one
-// character — see `personaAvailable` below.
+// `persona` is always shown. When the plugin ships no characters the tab
+// explains what is missing and hands over the prompt that installs it — a tab
+// that vanishes teaches the owner nothing about why (T-0215).
 const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo },
   { key: "projects", label: "Projects", icon: FolderKanban },
@@ -90,9 +91,6 @@ export default function App() {
   // note so a template change is never completely invisible.
   const [autoApplied, setAutoApplied] = useState<string[]>([]);
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
-  // The Persona tab depends on a plugin the app does not own. Hide it
-  // entirely rather than showing a tab that explains it cannot work.
-  const [personaAvailable, setPersonaAvailable] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   // Bumped when the Repos view adds, removes or renames a repository. Kept
@@ -122,23 +120,6 @@ export default function App() {
   useEffect(() => {
     activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [tab]);
-
-  // Re-checked on every settings save: installing the plugin and coming back
-  // to the app should not need a restart to make the tab appear.
-  useEffect(() => {
-    void api
-      .personaCharacters()
-      .then((list) => setPersonaAvailable(list.length > 0))
-      .catch(() => setPersonaAvailable(false));
-  }, [configVersion]);
-
-  // A conditional tab can vanish under the selection (the plugin was removed
-  // while its tab was open). Fall back rather than rendering an empty pane.
-  useEffect(() => {
-    if (tab === "persona" && !personaAvailable) setTab("tasks");
-  }, [tab, personaAvailable]);
-
-  const visibleTabs = TABS.filter((t) => t.key !== "persona" || personaAvailable);
 
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
@@ -247,7 +228,7 @@ export default function App() {
               e.currentTarget.scrollLeft += e.deltaY;
             }}
           >
-            {visibleTabs.map(({ key, label, icon: Icon }) => (
+            {TABS.map(({ key, label, icon: Icon }) => (
               <Hint key={key} label={label}>
                 <button
                   ref={tab === key ? activeTabRef : undefined}
@@ -347,11 +328,9 @@ export default function App() {
           <div className={cn("h-full", tab !== "ink" && "hidden")}>
             <InkView configVersion={configVersion} />
           </div>
-          {personaAvailable && (
-            <div className={cn("h-full", tab !== "persona" && "hidden")}>
-              <PersonaView active={tab === "persona"} />
-            </div>
-          )}
+          <div className={cn("h-full", tab !== "persona" && "hidden")}>
+            <PersonaView active={tab === "persona"} />
+          </div>
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />
           </div>

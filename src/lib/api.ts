@@ -365,6 +365,9 @@ export const api = {
   // An empty character list is how the app decides the plugin is not in use.
   personaCharacters: () => invoke<PersonaCharacter[]>("persona_characters"),
   personaState: () => invoke<PersonaState>("persona_state"),
+  /** True when the standalone `genshijin` plugin is cached alongside
+   * `persona` — both style every turn, so the tab warns about the pair. */
+  personaGenshijinInstalled: () => invoke<boolean>("persona_genshijin_installed"),
   /// Writes the plugin's persisted default; it applies from the next session.
   setPersonaState: (enabled: boolean, character: string | null, level: string) =>
     invoke<PersonaState>("set_persona_state", { enabled, character, level }),

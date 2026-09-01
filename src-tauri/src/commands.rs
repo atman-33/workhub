@@ -1338,13 +1338,22 @@ pub async fn voice_history_clear() {
 // ---------------------------------------------------------------------
 
 /// Every character the `persona` plugin could select. An empty list means the
-/// plugin is not installed (or ships no characters), which is what the front
-/// end uses to hide the Persona tab entirely.
+/// plugin is not installed (or ships no characters); the Persona tab shows its
+/// setup guidance in that case instead of hiding itself (T-0215).
 #[tauri::command]
 pub async fn persona_characters() -> Vec<crate::persona::PersonaCharacter> {
     tauri::async_runtime::spawn_blocking(crate::persona::discover_characters)
         .await
         .unwrap_or_default()
+}
+
+/// True when the standalone `genshijin` plugin is cached alongside `persona`.
+/// Both inject per-turn style instructions, so the tab warns about the pair.
+#[tauri::command]
+pub async fn persona_genshijin_installed() -> bool {
+    tauri::async_runtime::spawn_blocking(crate::persona::genshijin_installed)
+        .await
+        .unwrap_or(false)
 }
 
 #[tauri::command]
