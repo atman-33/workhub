@@ -121,10 +121,11 @@ export const api = {
     invoke<string>("archive_vault_project", { vaultPath, slug }),
   restoreVaultProject: (vaultPath: string, slug: string) =>
     invoke<string>("restore_vault_project", { vaultPath, slug }),
-  /** Links the project to a registered repository (`repo:` in its
-   * `_index.md`). Pass an empty string to clear the link. */
-  setVaultProjectRepo: (vaultPath: string, slug: string, repo: string) =>
-    invoke<void>("set_vault_project_repo", { vaultPath, slug, repo }),
+  /** Links the project to registered repositories (`repos:` in its
+   * `_index.md`), in order — the first is the project's default repository.
+   * Pass an empty array to clear the link. */
+  setVaultProjectRepos: (vaultPath: string, slug: string, repos: string[]) =>
+    invoke<void>("set_vault_project_repos", { vaultPath, slug, repos }),
   /** Writes the display name and description into README.md frontmatter.
    * The folder slug is not renamed. */
   setVaultProjectDetails: (vaultPath: string, slug: string, name: string, summary: string) =>

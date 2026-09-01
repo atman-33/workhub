@@ -54,10 +54,19 @@ argument-hint: "<task-id>"
      it under `## Preferences` instead and say which you chose. An answer
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
-3. **Resolve the target repository** from the `project` frontmatter key:
-   - If it's an absolute path, use it directly.
-   - Otherwise look for `C:/repos/<project>`.
-   - If it cannot be resolved, ask the user.
+3. **Resolve the target repository through the project.** The task's
+   `project` key names a vault project (`projects/<slug>/`), not a
+   repository — the two do not share a naming scheme, so never guess a path
+   from the slug.
+   - Read `repos:` from `projects/<slug>/_index.md`. Each entry is an
+     absolute path or a repository name as registered in the app
+     (`.claude/project-context.json`); resolve a name through that file.
+   - One entry: use it. Several: use the one the task's `## Description`
+     names, and otherwise **the first entry**, which is the project's
+     default. Say which one you picked.
+   - When `project` is empty, read the target repository out of the task's
+     `## Description` (tasks state it as `**対象リポジトリ:** <path>`).
+   - If it still cannot be resolved, ask the user.
 4. **Set up a git worktree — only when the task opts in** (`worktree: true`
    in the frontmatter, which the app also states in the launch prompt).
    Isolating parallel tasks in their own worktree keeps them from colliding

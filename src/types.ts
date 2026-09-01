@@ -193,7 +193,7 @@ export interface VaultProjectIssue {
 
 /** A vault project (`projects/<slug>/`) as the Projects tab sees it. Distinct
  * from `Project`, which is a *registered repository* in the Repos tab — the
- * two are linked by `repo`, never merged (see `vault_project.rs`). */
+ * two are linked by `repos`, never merged (see `vault_project.rs`). */
 export interface VaultProject {
   slug: string;
   name: string;
@@ -201,9 +201,10 @@ export interface VaultProject {
   path: string;
   /** `status` from README.md (active | paused | done); empty when unset. */
   status: string;
-  /** Path of the registered repository this project belongs to; empty when
-   * the project has no repo. */
-  repo: string;
+  /** Paths (or registered names) of the repositories this project belongs to,
+   * in file order; the first is the default one. Empty when the project has no
+   * repo (T-0216). */
+  repos: string[];
   /** `description` from README.md, or the first prose paragraph when unset. */
   summary: string;
   /** Newest mtime under the folder, in unix seconds. */
