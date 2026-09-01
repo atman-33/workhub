@@ -12,6 +12,7 @@ import {
   Plus,
   Sparkles,
   StickyNote,
+  Tags,
   Trash2,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
@@ -42,7 +43,10 @@ import { readViewState, writeViewState } from "@/lib/view-state";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
+  attrKeys as attrKeysOf,
+  attrValues,
   cloneNodes,
+  DEFAULT_ATTR_VIEW,
   findNode,
   findParent,
   freezeRootChildSides,
@@ -55,6 +59,7 @@ import {
   subtreeIds,
   visit,
   NODE_WIDTHS,
+  type AttrView,
   type MindmapDocModel,
   type MindmapNode,
   type NodeWidth,
@@ -119,6 +124,12 @@ const NEW_PROJECT = "__new__";
 /** A stable empty array, so "no stickies" does not re-trigger the canvas's
  * layout effect on every render. */
 const EMPTY_STICKIES: Sticky[] = [];
+/** Shared empty list, so a map with no attributes hands out one stable
+ * identity instead of a new array on every render. */
+const EMPTY_KEYS: string[] = [];
+/** Sentinel for the "off" option of the attribute selects — Radix rejects an
+ * empty string as an item value. */
+const ATTR_NONE = "__none__";
 
 function todayISO(): string {
   const d = new Date();
@@ -190,6 +201,28 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const visibleStickies = useMemo(
     () => (doc && !doc.stickiesHidden ? doc.stickies : EMPTY_STICKIES),
     [doc],
+  );
+  /**
+   * The attribute view the canvas and the exports both lay out with.
+   *
+   * Memoized for the same reason `visibleStickies` is: the canvas re-lays the
+   * map out whenever this object changes identity, and `doc.attrView` is a
+   * fresh object on every parse.
+   */
+  const attrView = useMemo<AttrView>(() => doc?.attrView ?? DEFAULT_ATTR_VIEW, [doc]);
+  /** The map's own attribute vocabulary, for the toolbar and the editor. */
+  const attrKeys = useMemo(() => (doc ? attrKeysOf(doc.roots) : EMPTY_KEYS), [doc]);
+  const attrValuesFor = useCallback(
+    (key: string) => (doc ? attrValues(doc.roots, key) : EMPTY_KEYS),
+    [doc],
+  );
+  /** Every `key=value` the filter can be set to, in the order it offers them. */
+  const attrFilterOptions = useMemo(
+    () =>
+      attrKeys.flatMap((key) =>
+        attrValuesFor(key).map((value) => ({ key, value, id: `${key}=${value}` })),
+      ),
+    [attrKeys, attrValuesFor],
   );
   const current = files.find((f) => f.path === path) ?? null;
   const targetProject = project || current?.project || projects[0] || "";
@@ -406,6 +439,21 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     (value: NodeWidth) => {
       if (!doc) return;
       mutate({ ...doc, nodeWidth: value });
+    },
+    [doc, mutate],
+  );
+
+  /**
+   * Changes how the attributes are being looked at — chips, colouring, filter.
+   *
+   * Goes through `mutate` like `changeNodeWidth`, and for the same reason: the
+   * view is written to the note's frontmatter, so an export matches what was
+   * on screen and reopening the map does not throw the answer away.
+   */
+  const changeAttrView = useCallback(
+    (patch: Partial<AttrView>) => {
+      if (!doc) return;
+      mutate({ ...doc, attrView: { ...doc.attrView, ...patch } });
     },
     [doc, mutate],
   );
@@ -851,6 +899,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           exportedOn: todayISO(),
           mermaid: toMermaidBlock(doc.roots),
           nodeWidth: doc.nodeWidth,
+          attrView,
           stickies: visibleStickies,
         }),
       );
@@ -874,6 +923,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     const svg = toSvg(doc.roots, {
       title: doc.title,
       nodeWidth: doc.nodeWidth,
+      attrView,
       stickies: visibleStickies,
     });
     const width = Number(/width="(\d+)"/.exec(svg)?.[1] ?? 800);
@@ -1071,6 +1121,87 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           </SelectContent>
         </Select>
 
+        {/* Attribute controls appear only once the map actually uses
+            attributes, so a map that does not is exactly the toolbar it was
+            before the feature existed. */}
+        {attrKeys.length > 0 && (
+          <>
+            <Select
+              value={attrView.color || ATTR_NONE}
+              disabled={!doc || aiRunning}
+              onValueChange={(v) => changeAttrView({ color: v === ATTR_NONE ? "" : v })}
+            >
+              <Hint label="Colour the boxes by an attribute instead of the map's own colours">
+                <SelectTrigger className="h-7 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+              </Hint>
+              <SelectContent>
+                <SelectItem value={ATTR_NONE}>Map colours</SelectItem>
+                <SelectSeparator />
+                {attrKeys.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    Colour by {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={attrView.filter ? `${attrView.filter.key}=${attrView.filter.value}` : ATTR_NONE}
+              disabled={!doc || aiRunning}
+              onValueChange={(v) => {
+                if (v === ATTR_NONE) {
+                  changeAttrView({ filter: null });
+                  return;
+                }
+                const option = attrFilterOptions.find((o) => o.id === v);
+                changeAttrView({ filter: option ? { key: option.key, value: option.value } : null });
+              }}
+            >
+              <Hint label="Dim every node that does not carry this attribute">
+                <SelectTrigger className="h-7 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+              </Hint>
+              <SelectContent>
+                <SelectItem value={ATTR_NONE}>No filter</SelectItem>
+                <SelectSeparator />
+                {attrFilterOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.key}: {option.value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Hint
+              label={
+                attrView.chips === "all" || attrView.chips.length
+                  ? "Hide the attribute chips"
+                  : "Show the attribute chips"
+              }
+              disabled={!doc || aiRunning}
+            >
+              <Button
+                size="sm"
+                variant={
+                  attrView.chips === "all" || attrView.chips.length ? "secondary" : "outline"
+                }
+                className="h-7 text-xs"
+                disabled={!doc || aiRunning}
+                onClick={() =>
+                  changeAttrView({
+                    chips: attrView.chips === "all" || attrView.chips.length ? [] : "all",
+                  })
+                }
+              >
+                <Tags className="size-3.5" />
+              </Button>
+            </Hint>
+          </>
+        )}
+
         <div className="ml-auto flex items-center gap-1.5">
           {status && <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>}
           {nodeCount > 0 && (
@@ -1178,6 +1309,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <MindmapCanvas
                 roots={doc.roots}
                 nodeWidth={doc.nodeWidth}
+                attrView={attrView}
                 stickies={visibleStickies}
                 selectedId={selectedId}
                 selectedStickyId={selectedStickyId}
@@ -1223,6 +1355,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 <NodeEditor
                   node={selected}
                   tasks={tasks}
+                  attrKeys={attrKeys}
+                  attrValuesFor={attrValuesFor}
                   disabled={aiRunning}
                   stickies={stickiesOf(doc.stickies, selected.id)}
                   stickiesHidden={doc.stickiesHidden}

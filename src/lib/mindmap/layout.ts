@@ -13,9 +13,13 @@
  * contiguous vertical band so that no two subtrees can overlap.
  */
 
+import { attrColorFor, chipsOf, type AttrChip } from "./attrs";
 import {
+  DEFAULT_ATTR_VIEW,
+  nodeHasAttr,
   rootChildSide,
   STICKY_DEFAULT_COLOR,
+  type AttrView,
   type Color,
   type MindmapNode,
   type NodeWidth,
@@ -35,6 +39,17 @@ export interface LayoutOptions {
   fontSize: number;
   /** Which boxes are widened to a common width. */
   nodeWidth: NodeWidth;
+  /**
+   * How the note's attributes are being looked at — chips, colouring, filter.
+   *
+   * Layout needs it because a chip row is *inside* the box: it grows the node,
+   * which moves its siblings. Drawing chips outside the box instead would keep
+   * layout ignorant of them at the price of chips overlapping the node below,
+   * which is exactly the bug the `task:` label already has and a chip row two
+   * lines tall would make unmissable. Colouring and the filter are resolved
+   * here too, so the canvas and the two exports cannot disagree about them.
+   */
+  attrView: AttrView;
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
@@ -43,7 +58,33 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   maxWidth: 220,
   fontSize: 14,
   nodeWidth: "auto",
+  attrView: DEFAULT_ATTR_VIEW,
 };
+
+/** Font size a chip's label is drawn at — small enough to read as an aside. */
+export const CHIP_FONT_SIZE = 10;
+/** Horizontal padding inside one chip. */
+export const CHIP_PAD_X = 5;
+/** Height of one chip, and so of one chip row. */
+export const CHIP_HEIGHT = 15;
+/** Gap between two chips on a row, and between two rows. */
+export const CHIP_GAP = 4;
+/** Gap between the title block and the first chip row. */
+export const CHIP_TOP_GAP = 5;
+
+/**
+ * Opacity a node that the filter passes over is drawn at.
+ *
+ * Low enough that the matching nodes stand out at a glance, high enough that
+ * the shape of the map — the whole reason the non-matching nodes are still
+ * drawn — stays readable.
+ */
+export const DIMMED_OPACITY = 0.28;
+
+/** Width of one chip's pill. */
+export function chipWidth(chip: AttrChip): number {
+  return Math.ceil(textWidth(chip.label, CHIP_FONT_SIZE)) + CHIP_PAD_X * 2;
+}
 
 /** Padding inside a node box. Exported because the canvas sizes the inline
  * rename box with it, so a node grows as it is typed into. */
@@ -63,6 +104,32 @@ export interface PositionedNode {
   color?: Color;
   task?: string;
   note?: string;
+  /** Free-form `key:value` labels, carried through so the canvas and the
+   * exports can draw them as chips without re-reading the document model. */
+  attrs?: Record<string, string>;
+  /**
+   * The chips to draw at the bottom of the box, already packed into rows.
+   *
+   * Packed here rather than by each renderer so the canvas and the two exports
+   * cannot disagree about where a chip wraps — the same reason the title's
+   * lines are pre-wrapped into `lines`.
+   */
+  chipRows: AttrChip[][];
+  /**
+   * Height of the chip band at the bottom of `height`, 0 when there are no
+   * chips. The title is centred in `height - chipsHeight`, which is what stops
+   * a chip row from shoving the title off-centre.
+   */
+  chipsHeight: number;
+  /**
+   * True when a filter is on and this node does not match it.
+   *
+   * A dimmed node is still drawn, in its place, at reduced contrast. Removing
+   * it would re-flow the map around the hole, and a mindmap is read through
+   * its shape — the user would lose the very structure they are filtering
+   * inside of.
+   */
+  dimmed: boolean;
   /** Depth from the root: 0 is the root itself. */
   depth: number;
   /** Which way this node's branch grows. The root reports "right". */
@@ -224,13 +291,73 @@ export function wrapTitle(title: string, maxWidth: number, fontSize: number): st
   return lines.length ? lines.map((l) => l.trimEnd()) : [""];
 }
 
-function measure(title: string, opts: LayoutOptions): { lines: string[]; width: number; height: number } {
-  const lines = wrapTitle(title, opts.maxWidth, opts.fontSize);
+/**
+ * Packs chips into rows that fit `budget`.
+ *
+ * Wrapping rather than widening the box without limit: `tags:a,b,c,d` becomes
+ * four chips, and a node that grew sideways for each one would push its whole
+ * branch off the screen. A single chip wider than the budget still gets its
+ * own row — the box then widens for it, because clipping a label is worse than
+ * a wide box.
+ */
+function packChips(chips: AttrChip[], budget: number): AttrChip[][] {
+  const rows: AttrChip[][] = [];
+  let row: AttrChip[] = [];
+  let used = 0;
+  for (const chip of chips) {
+    const w = chipWidth(chip);
+    const next = row.length ? used + CHIP_GAP + w : w;
+    if (row.length && next > budget) {
+      rows.push(row);
+      row = [chip];
+      used = w;
+      continue;
+    }
+    row.push(chip);
+    used = next;
+  }
+  if (row.length) rows.push(row);
+  return rows;
+}
+
+/** Widest row, so the box can be sized to hold the chips it draws. */
+function chipRowsWidth(rows: AttrChip[][]): number {
+  let widest = 0;
+  for (const row of rows) {
+    const w = row.reduce((sum, c) => sum + chipWidth(c), 0) + Math.max(0, row.length - 1) * CHIP_GAP;
+    widest = Math.max(widest, w);
+  }
+  return widest;
+}
+
+/** Vertical band the chip rows occupy at the bottom of a box, 0 when none. */
+function chipsHeightOf(rows: AttrChip[][]): number {
+  if (!rows.length) return 0;
+  return CHIP_TOP_GAP + rows.length * CHIP_HEIGHT + (rows.length - 1) * CHIP_GAP;
+}
+
+interface Boxed {
+  lines: string[];
+  width: number;
+  height: number;
+  chipRows: AttrChip[][];
+  chipsHeight: number;
+}
+
+function measure(node: MindmapNode, opts: LayoutOptions): Boxed {
+  const lines = wrapTitle(node.title, opts.maxWidth, opts.fontSize);
   const widest = Math.max(...lines.map((l) => textWidth(l, opts.fontSize)));
+  const titleHeight = Math.ceil(lines.length * opts.fontSize * LINE_HEIGHT) + PAD_Y * 2;
+
+  const chipRows = packChips(chipsOf(node, opts.attrView.chips), opts.maxWidth - PAD_X * 2);
+  const chipsHeight = chipsHeightOf(chipRows);
+
   return {
     lines,
-    width: Math.max(MIN_WIDTH, Math.ceil(widest) + PAD_X * 2),
-    height: Math.ceil(lines.length * opts.fontSize * LINE_HEIGHT) + PAD_Y * 2,
+    width: Math.max(MIN_WIDTH, Math.ceil(Math.max(widest, chipRowsWidth(chipRows))) + PAD_X * 2),
+    height: titleHeight + chipsHeight,
+    chipRows,
+    chipsHeight,
   };
 }
 
@@ -243,13 +370,15 @@ interface Measured {
   lines: string[];
   width: number;
   height: number;
+  chipRows: AttrChip[][];
+  chipsHeight: number;
   children: Measured[];
   /** Vertical extent of this node's whole subtree. */
   extent: number;
 }
 
 function measureTree(node: MindmapNode, opts: LayoutOptions): Measured {
-  const m = measure(node.title, opts);
+  const m = measure(node, opts);
   const children = node.collapsed ? [] : node.children.map((c) => measureTree(c, opts));
   const stacked = children.reduce((sum, c) => sum + c.extent, 0) + Math.max(0, children.length - 1) * opts.vGap;
   return { node, ...m, children, extent: Math.max(m.height, stacked) };
@@ -373,6 +502,20 @@ export function layoutMindmap(
   const nodes: PositionedNode[] = [];
   const edges: LayoutEdge[] = [];
 
+  /**
+   * The colour a node's box takes.
+   *
+   * Colouring by an attribute replaces the note's own colours outright instead
+   * of blending with them: two colour codings on one map read as one, and the
+   * user would have no way to tell which stripe means what.
+   */
+  const boxColor = (node: MindmapNode, inherited: Color | undefined): Color | undefined =>
+    opts.attrView.color ? attrColorFor(node, opts.attrView.color) : (node.color ?? inherited);
+
+  /** Whether the filter — when there is one — passes this node over. */
+  const isDimmed = (node: MindmapNode): boolean =>
+    opts.attrView.filter ? !nodeHasAttr(node, opts.attrView.filter.key, opts.attrView.filter.value) : false;
+
   /** Places a subtree whose vertical band starts at `top`, growing `side`. */
   const place = (
     m: Measured,
@@ -385,7 +528,7 @@ export function layoutMindmap(
   ): PositionedNode => {
     const x = side === "right" ? anchorX : anchorX - m.width;
     const y = top + (m.extent - m.height) / 2;
-    const color = m.node.color ?? branchColor;
+    const color = boxColor(m.node, branchColor);
 
     const positioned: PositionedNode = {
       id: m.node.id,
@@ -399,12 +542,19 @@ export function layoutMindmap(
       y,
       width: m.width,
       height: m.height,
-      ...(m.node.color ? { color: m.node.color } : {}),
+      ...(color ? { color } : {}),
       ...(m.node.task ? { task: m.node.task } : {}),
       ...(m.node.note ? { note: m.node.note } : {}),
+      ...(m.node.attrs ? { attrs: m.node.attrs } : {}),
+      chipRows: m.chipRows,
+      chipsHeight: m.chipsHeight,
+      dimmed: isDimmed(m.node),
       // The root's own colour is not a branch colour: it would tint every
-      // branch the same and destroy the colour coding.
-      ...(depth > 0 && color ? { branchColor: color } : {}),
+      // branch the same and destroy the colour coding. Colouring by an
+      // attribute drops branch colour altogether: an attribute belongs to the
+      // node that carries it, and inheriting it down would label children that
+      // do not.
+      ...(depth > 0 && !opts.attrView.color && color ? { branchColor: color } : {}),
       ...(parent ? { parentId: parent.id } : {}),
     };
     nodes.push(positioned);
@@ -421,7 +571,15 @@ export function layoutMindmap(
     let cursor = top;
     const childAnchor = side === "right" ? x + m.width + opts.hGap : x - opts.hGap;
     for (const child of m.children) {
-      place(child, depth + 1, side, cursor, childAnchor, depth === 0 ? child.node.color : color, positioned);
+      place(
+        child,
+        depth + 1,
+        side,
+        cursor,
+        childAnchor,
+        depth === 0 ? child.node.color : positioned.branchColor,
+        positioned,
+      );
       cursor += child.extent + opts.vGap;
     }
     return positioned;
@@ -467,9 +625,13 @@ export function layoutMindmap(
       y: rootY,
       width: m.width,
       height: m.height,
-      ...(m.node.color ? { color: m.node.color } : {}),
+      ...(boxColor(m.node, undefined) ? { color: boxColor(m.node, undefined) } : {}),
       ...(m.node.task ? { task: m.node.task } : {}),
       ...(m.node.note ? { note: m.node.note } : {}),
+      ...(m.node.attrs ? { attrs: m.node.attrs } : {}),
+      chipRows: m.chipRows,
+      chipsHeight: m.chipsHeight,
+      dimmed: isDimmed(m.node),
     };
     nodes.push(rootNode);
 

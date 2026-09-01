@@ -19,13 +19,13 @@ updated: 2026-08-30
     - N-009 no database ^collapsed
       - N-010 rejected: SQLite + export
   - N-011 search #amber ^right
-    - N-012 title and body match task:T-0003
-    - N-013 highlight in row
-    - N-014 debounce 150ms
+    - N-012 title and body match task:T-0003 prio:high
+    - N-013 highlight in row prio:low tags:polish
+    - N-014 debounce 150ms prio:mid
   - N-015 quality #purple ^right
-    - N-016 flaky upload test task:T-0004
-    - N-017 cold start ~3s
-    - N-018 unit tests for the matcher
+    - N-016 flaky upload test task:T-0004 prio:high tags:flaky,ci
+    - N-017 cold start ~3s prio:mid tags:perf
+    - N-018 unit tests for the matcher prio:low
 
 ## Stickies
 

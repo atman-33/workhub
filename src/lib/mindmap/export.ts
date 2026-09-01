@@ -16,7 +16,13 @@
  */
 
 import {
+  CHIP_FONT_SIZE,
+  CHIP_GAP,
+  CHIP_HEIGHT,
+  CHIP_TOP_GAP,
+  chipWidth,
   DEFAULT_LAYOUT,
+  DIMMED_OPACITY,
   layoutMindmap,
   STICKY_FONT_SIZE,
   STICKY_PAD,
@@ -26,8 +32,10 @@ import {
 } from "./layout";
 import {
   COLOR_HEX,
+  DEFAULT_ATTR_VIEW,
   STICKY_FILL_HEX,
   STICKY_INK,
+  type AttrView,
   type MindmapNode,
   type NodeWidth,
   type Sticky,
@@ -69,10 +77,11 @@ function renderNode(node: PositionedNode, fontSize: number): string {
   const textFill = isRoot ? PAPER : INK;
   const radius = isRoot ? node.height / 2 : 8;
   const lineHeight = fontSize * 1.45;
-  // First baseline: centre the block of lines in the box, then drop to the
-  // baseline of the first one.
+  // First baseline: centre the block of lines in the box *above* the chip
+  // band, then drop to the baseline of the first one.
+  const titleHeight = node.height - node.chipsHeight;
   const firstBaseline =
-    node.y + node.height / 2 - ((node.lines.length - 1) * lineHeight) / 2 + fontSize * 0.36;
+    node.y + titleHeight / 2 - ((node.lines.length - 1) * lineHeight) / 2 + fontSize * 0.36;
 
   const lines = node.lines
     .map(
@@ -92,10 +101,43 @@ function renderNode(node: PositionedNode, fontSize: number): string {
     : "";
 
   return (
-    `<g><rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" ` +
+    `<g${node.dimmed ? ` opacity="${DIMMED_OPACITY}"` : ""}>` +
+    `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" ` +
     `rx="${radius}" ry="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${isRoot ? 0 : 1.5}" />` +
-    `${lines}${collapsed}</g>`
+    `${lines}${renderChips(node, titleHeight)}${collapsed}</g>`
   );
+}
+
+/**
+ * The attribute chips at the bottom of a box.
+ *
+ * Reads the rows the layout already packed rather than packing its own, which
+ * is the whole reason `chipRows` is part of the layout output: an export that
+ * wrapped chips differently from the screen would be a different picture of
+ * the same map.
+ */
+function renderChips(node: PositionedNode, titleHeight: number): string {
+  if (!node.chipRows.length) return "";
+  const out: string[] = [];
+  node.chipRows.forEach((row, rowIndex) => {
+    const rowWidth =
+      row.reduce((sum, c) => sum + chipWidth(c), 0) + Math.max(0, row.length - 1) * CHIP_GAP;
+    const y = node.y + titleHeight + CHIP_TOP_GAP + rowIndex * (CHIP_HEIGHT + CHIP_GAP);
+    let cursor = node.x + (node.width - rowWidth) / 2;
+    for (const chip of row) {
+      const w = chipWidth(chip);
+      out.push(
+        `<rect x="${cursor}" y="${y}" width="${w}" height="${CHIP_HEIGHT}" ` +
+          `rx="${CHIP_HEIGHT / 2}" ry="${CHIP_HEIGHT / 2}" fill="${STICKY_FILL_HEX[chip.color]}" ` +
+          `stroke="${COLOR_HEX[chip.color]}" stroke-width="1" />`,
+        `<text x="${cursor + w / 2}" y="${y + CHIP_HEIGHT / 2 + CHIP_FONT_SIZE * 0.36}" ` +
+          `text-anchor="middle" font-size="${CHIP_FONT_SIZE}" fill="${STICKY_INK}">` +
+          `${esc(chip.label)}</text>`,
+      );
+      cursor += w + CHIP_GAP;
+    }
+  });
+  return out.join("");
 }
 
 function renderEdges(layout: MindmapLayout): string {
@@ -138,6 +180,9 @@ export interface SvgOptions {
   fontSize?: number;
   /** The note's box-width setting, so the export matches the screen. */
   nodeWidth?: NodeWidth;
+  /** The note's attribute view, for the same reason: an export made while the
+   * map was filtered has to come out filtered. */
+  attrView?: AttrView;
   /** Stickies to draw. The caller passes none when the note hides them, which
    * is what makes the export match what was on screen. */
   stickies?: Sticky[];
@@ -154,6 +199,7 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
   const layout = layoutMindmap(roots, {
     fontSize,
     nodeWidth: options.nodeWidth ?? DEFAULT_LAYOUT.nodeWidth,
+    attrView: options.attrView ?? DEFAULT_ATTR_VIEW,
     stickies: options.stickies ?? [],
   });
   const titleHeight = options.title ? fontSize * 2.5 : 0;
@@ -195,11 +241,13 @@ export function toHtml(
     exportedOn: string;
     mermaid?: string;
     nodeWidth?: NodeWidth;
+    attrView?: AttrView;
     stickies?: Sticky[];
   },
 ): string {
   const svg = toSvg(roots, {
     ...(options.nodeWidth ? { nodeWidth: options.nodeWidth } : {}),
+    ...(options.attrView ? { attrView: options.attrView } : {}),
     ...(options.stickies ? { stickies: options.stickies } : {}),
   });
   const mermaid = options.mermaid
