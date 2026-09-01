@@ -37,6 +37,8 @@
  * Kept deliberately identical to the schedule palette so that one project's
  * notes read as one set of documents.
  */
+import { detectEol, toLf, withEol } from "../note-eol";
+
 export const COLORS = ["blue", "green", "amber", "red", "purple", "gray"] as const;
 export type Color = (typeof COLORS)[number];
 
@@ -741,7 +743,9 @@ export function nodeHasAttr(node: MindmapNode, key: string, value: string): bool
  * no `title`.
  */
 export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocModel {
-  const s = splitSections(content);
+  // Everything below is line-oriented and several patterns end in `(.*)$`,
+  // which `\r` breaks — so the file's line ending is dealt with once, here.
+  const s = splitSections(toLf(content));
   const doc: MindmapDocModel = {
     title: frontmatterValue(s.frontmatter, "title") || fallbackTitle,
     nodeWidth: parseNodeWidth(frontmatterValue(s.frontmatter, "node_width")),
@@ -905,7 +909,12 @@ export function formatNode(node: MindmapNode, depth = 0): string[] {
  * frontmatter, `## Memo`, stray sections — is carried through.
  */
 export function serializeMindmap(content: string, doc: MindmapDocModel, today: string): string {
-  const s = splitSections(content);
+  // The file keeps the line ending it already had: this note is shared with
+  // Obsidian, with git and with the user's own editor, and rewriting every
+  // line of a CRLF file as LF would turn a one-word edit into a whole-file
+  // diff for all of them.
+  const eol = detectEol(content);
+  const s = splitSections(toLf(content));
   let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
   // `auto` is the default, so it is written as the absence of the key — a note
   // only carries the setting once it has been changed away from the default.
@@ -939,7 +948,10 @@ export function serializeMindmap(content: string, doc: MindmapDocModel, today: s
   const stickyBody = [...doc.stickies.flatMap(formatSticky), ...doc.rawStickies].join("\n");
   const stickies = stickyBody ? `## Stickies\n\n${stickyBody}\n\n` : "";
 
-  return `${frontmatter}${s.preamble}${nodes}${s.between}${stickies}${s.tail}`;
+  return withEol(
+    `${frontmatter}${s.preamble}${nodes}${s.between}${stickies}${s.tail}`,
+    eol,
+  );
 }
 
 /** Renders one sticky: its grammar line plus any further lines of its text. */
