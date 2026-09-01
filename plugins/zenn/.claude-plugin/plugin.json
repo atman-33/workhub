@@ -1,0 +1,9 @@
+{
+  "name": "zenn",
+  "version": "0.1.0",
+  "description": "Write Zenn tech-blog articles: the house style guide and Zenn-flavoured Markdown syntax. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

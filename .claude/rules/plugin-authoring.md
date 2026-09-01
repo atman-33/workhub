@@ -18,8 +18,9 @@ paths:
 - Adding or removing a plugin: register it in `.claude-plugin/marketplace.json`
   AND add/remove its row in `docs/plugins.md` (required/optional × user/project
   scope + placement rationale). Follow the scope policy there — vault or
-  project-context dependent → project scope; personal/machine tool →
-  `productivity` (user scope).
+  project-context dependent → project scope; personal/machine tool → the
+  user-scope plugin whose use it shares (`authoring`, `agent-ops`,
+  `claude-tooling`, `zenn`).
 - **Plugin scripts are Node ESM (`.mjs`), run with `node`** — never Python,
   bash, or PowerShell. Node is the only runtime the plugin ecosystem already
   guarantees (all hooks are `.mjs`); other runtimes reintroduce per-machine

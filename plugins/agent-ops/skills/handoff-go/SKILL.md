@@ -29,7 +29,7 @@ node "<absolute path to dispatch.mjs>" --doc "<absolute doc path>" --instruction
 ```
 
 The dispatcher script is located inside the installed skill directory. Construct its absolute path from the known plugin cache location, e.g.:
-`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\productivity\<version>\skills\handoff-go\dispatch.mjs`
+`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\agent-ops\<version>\skills\handoff-go\dispatch.mjs`
 
 Options: `--cwd <dir>` (**required** — set to the current working directory of this session), `--layout pane|tab` (default `pane`), `--dry-run` (print what would run without launching).
 

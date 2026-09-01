@@ -1,0 +1,9 @@
+{
+  "name": "claude-tooling",
+  "version": "0.1.0",
+  "description": "Extend and maintain Claude Code itself: slash commands, skill authoring and installation, Desktop routines, plan grilling, plus the SessionStart plugin-update notice. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

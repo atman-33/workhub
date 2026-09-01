@@ -4,7 +4,7 @@
     "name": "atman-33",
     "url": "https://github.com/atman-33/workhub"
   },
-  "description": "Claude Code marketplace bundled with the workhub app: the single source of plugins for the workhub vault harness (task board, engineering workflows, productivity tools, and tech-stack helpers). See docs/plugins.md for the required/optional and scope policy.",
+  "description": "Claude Code marketplace bundled with the workhub app: the single source of plugins for the workhub vault harness (task board, engineering workflows, authoring and agent-ops tools, and tech-stack helpers). See docs/plugins.md for the required/optional and scope policy.",
   "plugins": [
     {
       "name": "workhub",
@@ -27,10 +27,40 @@
       }
     },
     {
-      "name": "productivity",
-      "source": "./plugins/productivity",
-      "description": "Productivity helpers for administrative and daily tasks, including Zenn blog writing.",
-      "version": "0.23.0",
+      "name": "authoring",
+      "source": "./plugins/authoring",
+      "description": "Author documents and deliverables, and deliver them: README / CLAUDE.md / release notes / work logs, self-contained HTML reports, slide-deck preparation, and posting to Slack. Install at user scope to make it available across all projects.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "agent-ops",
+      "source": "./plugins/agent-ops",
+      "description": "Run agents in a terminal multiplexer: herdr and Zellij setup, handoff between agents, role-based teams, persistent sidekicks, and the WSL/VS Code launch doctor. Install at user scope to make it available across all projects.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "claude-tooling",
+      "source": "./plugins/claude-tooling",
+      "description": "Extend and maintain Claude Code itself: slash commands, skill authoring and installation, Desktop routines, plan grilling, plus the SessionStart plugin-update notice. Install at user scope to make it available across all projects.",
+      "version": "0.1.0",
+      "author": {
+        "name": "atman-33",
+        "url": "https://github.com/atman-33"
+      }
+    },
+    {
+      "name": "zenn",
+      "source": "./plugins/zenn",
+      "description": "Write Zenn tech-blog articles: the house style guide and Zenn-flavoured Markdown syntax. Install at user scope to make it available across all projects.",
+      "version": "0.1.0",
       "author": {
         "name": "atman-33",
         "url": "https://github.com/atman-33"

@@ -62,14 +62,17 @@ claude plugin install workhub@workhub-marketplace --scope project
 # engineering — dev workflow skills, sub-agents, MCP launchers
 claude plugin install engineering@workhub-marketplace --scope project
 
-# productivity — personal/machine tools (work logs, reports, ...)
-claude plugin install productivity@workhub-marketplace
+# claude-tooling — Claude Code's own commands, skills, update notices
+claude plugin install claude-tooling@workhub-marketplace
+
+# authoring / agent-ops / zenn — optional user-scope tools
+claude plugin install authoring@workhub-marketplace
 
 # obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers
 claude plugin install obsidian@workhub-marketplace --scope project
 \`\`\`
 
-\`workhub\` and \`engineering\` are project scope (per vault/repository); \`productivity\` is user scope (once per machine, works from any directory); \`obsidian\` is optional but recommended for editing vault notes. See \`docs/plugins.md\` in the workhub repo for the full catalog.
+\`workhub\` and \`engineering\` are project scope (per vault/repository); \`claude-tooling\`, \`authoring\`, \`agent-ops\` and \`zenn\` are user scope (once per machine, works from any directory) — only \`claude-tooling\` is required, the other three are per taste; \`obsidian\` is optional but recommended for editing vault notes. See \`docs/plugins.md\` in the workhub repo for the full catalog.
 
 4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.
 
@@ -586,8 +589,10 @@ export function HelpView() {
                     "claude plugin install workhub@workhub-marketplace --scope project\n\n" +
                     "# engineering — dev workflow skills, sub-agents, MCP launchers\n" +
                     "claude plugin install engineering@workhub-marketplace --scope project\n\n" +
-                    "# productivity — personal/machine tools (work logs, reports, ...)\n" +
-                    "claude plugin install productivity@workhub-marketplace\n\n" +
+                    "# claude-tooling — Claude Code's own commands, skills, update notices\n" +
+                    "claude plugin install claude-tooling@workhub-marketplace\n\n" +
+                    "# authoring / agent-ops / zenn — optional user-scope tools\n" +
+                    "claude plugin install authoring@workhub-marketplace\n\n" +
                     "# obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers\n" +
                     "claude plugin install obsidian@workhub-marketplace --scope project"}
                 </pre>
@@ -595,8 +600,13 @@ export function HelpView() {
                   <span className="font-mono">workhub</span> and{" "}
                   <span className="font-mono">engineering</span> are project
                   scope (per vault/repository);{" "}
-                  <span className="font-mono">productivity</span> is user scope
-                  (once per machine, works from any directory);{" "}
+                  <span className="font-mono">claude-tooling</span>,{" "}
+                  <span className="font-mono">authoring</span>,{" "}
+                  <span className="font-mono">agent-ops</span> and{" "}
+                  <span className="font-mono">zenn</span> are user scope (once
+                  per machine, works from any directory) — only{" "}
+                  <span className="font-mono">claude-tooling</span> is
+                  required;{" "}
                   <span className="font-mono">obsidian</span> is optional but
                   recommended for editing vault notes. See{" "}
                   <span className="font-mono">docs/plugins.md</span> in the
