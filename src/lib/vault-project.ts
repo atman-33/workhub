@@ -167,18 +167,18 @@ export function projectOfNotePath(path: string): string {
 }
 
 /**
- * Registered repository path a project points at, or null when the link is
- * unset or names a repo that is no longer registered.
+ * The registered repository one `repos:` entry names, or null when no
+ * registered repo answers to it.
  *
  * Matched on the stored path first and the repo's display name second, so a
- * link recorded by hand in Obsidian ("repo: workhub") works as well as one
+ * link recorded by hand in Obsidian ("repos: [workhub]") works as well as one
  * made from the picker.
  */
-export function linkedRepo<T extends { path: string; name: string }>(
-  project: VaultProject,
+export function resolveRepo<T extends { path: string; name: string }>(
+  entry: string,
   repos: T[],
 ): T | null {
-  const want = project.repo.trim();
+  const want = entry.trim();
   if (!want) return null;
   const normalized = want.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return (
@@ -186,4 +186,30 @@ export function linkedRepo<T extends { path: string; name: string }>(
     repos.find((r) => r.name.toLowerCase() === want.toLowerCase()) ??
     null
   );
+}
+
+/** One `repos:` entry paired with the registered repository it resolves to. */
+export interface ProjectRepoLink<T> {
+  /** The entry exactly as `_index.md` spells it. */
+  entry: string;
+  /** The registered repository, or null when the entry resolves to nothing. */
+  repo: T | null;
+}
+
+/**
+ * Every repository a project links to, in the order `_index.md` lists them —
+ * the first is the project's default (T-0216).
+ *
+ * Unresolved entries are kept rather than dropped: a link naming a repo that
+ * is no longer registered is exactly what the screen has to tell the owner
+ * about, and a filtered list would show that as "no repository" instead.
+ */
+export function linkedRepos<T extends { path: string; name: string }>(
+  project: VaultProject,
+  repos: T[],
+): ProjectRepoLink<T>[] {
+  return project.repos
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => ({ entry, repo: resolveRepo(entry, repos) }));
 }

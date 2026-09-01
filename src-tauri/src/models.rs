@@ -592,9 +592,10 @@ pub struct VaultProject {
     pub path: String,
     /// `status` from README.md (active | paused | done); empty when unset.
     pub status: String,
-    /// Registered repository this project belongs to, from the `repo:` key of
-    /// `_index.md` (or README.md). Empty when the project has no repo.
-    pub repo: String,
+    /// Registered repositories this project belongs to, from the `repos:` key
+    /// of `_index.md` (or README.md), in file order. Empty when the project
+    /// has no repo; the first entry is the default one (T-0216).
+    pub repos: Vec<String>,
     /// `description` from README.md, or the first prose paragraph when unset.
     pub summary: String,
     /// Newest mtime under the folder, in unix seconds.

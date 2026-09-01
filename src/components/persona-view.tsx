@@ -21,9 +21,44 @@ import type { PersonaCharacter, PersonaState } from "@/types";
  * "next session" wording on the apply button — it is the honest description of
  * what the write does, not a hedge.
  *
- * The tab is only mounted when at least one character was discovered; see
- * `usePersonaAvailable` in app.tsx.
+ * The tab is always mounted (T-0215). With no characters discovered it shows
+ * the setup guidance below instead of a character list: a tab that hides
+ * itself when the plugin is absent leaves the owner with nothing to read and
+ * no way to find out why it vanished.
  */
+
+/** Pasted into a Claude Code session to install the plugin and retire its
+ *  predecessor. Written as a task for an agent rather than as a command list
+ *  because the two install paths (the `claude plugin` CLI, and editing
+ *  `settings.json`) are not equally available on every machine, and the agent
+ *  can see which one works. */
+const SETUP_PROMPT = `Set up the workhub \`persona\` plugin for Claude Code on this machine.
+
+1. Register the marketplace at user scope, in the GitHub form:
+
+   claude plugin marketplace add atman-33/workhub
+
+   Never register the same marketplace name in both the GitHub form and the
+   git-URL form. If the name is registered one way in ~/.claude/settings.json
+   and the other way in ~/.claude/plugins/known_marketplaces.json, Claude Code
+   ignores the marketplace wholesale and every plugin from it disappears with a
+   misleading "not cached" error. Check both files and make them match.
+
+2. Install the plugin:
+
+   claude plugin install persona@workhub-marketplace
+
+3. Retire the standalone \`genshijin\` plugin if it is installed. \`persona\` is
+   its successor, and both inject per-turn style instructions, so having the
+   two enabled at once styles every response twice:
+
+   claude plugin uninstall genshijin
+
+4. If the CLI is not usable here, do the same by editing ~/.claude/settings.json
+   (\`extraKnownMarketplaces\` and \`enabledPlugins\`) instead.
+
+Report what you changed and what was already in place. Then tell me to press
+the re-scan button in the workhub Persona tab.`;
 
 function OriginBadge({ origin }: { origin: PersonaCharacter["origin"] }) {
   const custom = origin === "user";
@@ -67,14 +102,17 @@ export function PersonaView({ active }: { active: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [genshijin, setGenshijin] = useState(false);
 
   const load = useCallback(async () => {
-    const [list, current] = await Promise.all([
+    const [list, current, hasGenshijin] = await Promise.all([
       api.personaCharacters(),
       api.personaState(),
+      api.personaGenshijinInstalled(),
     ]);
     setCharacters(list);
     setState(current);
+    setGenshijin(hasGenshijin);
     setLoaded(true);
     // Follow whatever is active on first load; afterwards leave the owner's
     // browsing selection alone so a refresh does not yank it away.
@@ -126,6 +164,69 @@ export function PersonaView({ active }: { active: boolean }) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
 
+  // No characters at all: the plugin is missing or disabled. Say so, and hand
+  // over the prompt that fixes it — the tab used to disappear here, which told
+  // the owner nothing.
+  if (characters.length === 0) {
+    return (
+      <div className="h-full overflow-y-auto p-6">
+        <div className="max-w-2xl space-y-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div className="space-y-1">
+              <h2 className="text-sm font-medium">No persona characters found</h2>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                This tab reads the characters shipped by the{" "}
+                <code>persona@workhub-marketplace</code> plugin, plus any you wrote
+                yourself under <code>~/.claude/personas/</code>. Neither turned up, so
+                the plugin is not installed or not enabled.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded border p-3">
+            <p className="text-xs font-medium">Set it up from a Claude Code session</p>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Copy this prompt, paste it into a Claude Code session, and let it do the
+              install. It registers the marketplace, installs <code>persona</code>, and
+              retires the older <code>genshijin</code> plugin if that one is still
+              around.
+            </p>
+            <CopyButton text={SETUP_PROMPT} label="Copy setup prompt" />
+          </div>
+
+          {genshijin && (
+            <div className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+              <span className="leading-relaxed">
+                The standalone <code>genshijin</code> plugin is installed. It is what{" "}
+                <code>persona</code> replaced — the setup prompt above removes it.
+              </span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Already installed it? Press re-scan.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5"
+              disabled={busy}
+              onClick={() => void load().catch((e) => setError(String(e)))}
+            >
+              <RefreshCw className="size-3.5" />
+              Re-scan
+            </Button>
+          </div>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
@@ -164,6 +265,19 @@ export function PersonaView({ active }: { active: boolean }) {
           </Hint>
         </div>
       </div>
+
+      {genshijin && (
+        <div className="flex shrink-0 items-start gap-2 border-b bg-amber-500/10 px-4 py-2 text-xs">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+          <span>
+            The standalone <code>genshijin</code> plugin is also installed.{" "}
+            <code>persona</code> is its successor and both inject per-turn style
+            instructions, so leaving the two enabled together styles every response
+            twice — uninstall <code>genshijin</code>, or disable it in{" "}
+            <code>enabledPlugins</code>.
+          </span>
+        </div>
+      )}
 
       {state?.env_override && (
         <div className="flex shrink-0 items-start gap-2 border-b bg-amber-500/10 px-4 py-2 text-xs">

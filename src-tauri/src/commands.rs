@@ -726,16 +726,17 @@ pub async fn restore_vault_project(vault_path: String, slug: String) -> Result<S
     .map_err(|e| e.to_string())?
 }
 
-/// Links a project to a registered repository by writing `repo:` into its
-/// `_index.md` frontmatter. An empty `repo` clears the link.
+/// Links a project to registered repositories by writing `repos:` into its
+/// `_index.md` frontmatter, in the order given — the first is the project's
+/// default repository. An empty list clears the link (T-0216).
 #[tauri::command]
-pub async fn set_vault_project_repo(
+pub async fn set_vault_project_repos(
     vault_path: String,
     slug: String,
-    repo: String,
+    repos: Vec<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        vault_project::set_project_repo(&PathBuf::from(vault_path), &slug, &repo)
+        vault_project::set_project_repos(&PathBuf::from(vault_path), &slug, &repos)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1337,13 +1338,22 @@ pub async fn voice_history_clear() {
 // ---------------------------------------------------------------------
 
 /// Every character the `persona` plugin could select. An empty list means the
-/// plugin is not installed (or ships no characters), which is what the front
-/// end uses to hide the Persona tab entirely.
+/// plugin is not installed (or ships no characters); the Persona tab shows its
+/// setup guidance in that case instead of hiding itself (T-0215).
 #[tauri::command]
 pub async fn persona_characters() -> Vec<crate::persona::PersonaCharacter> {
     tauri::async_runtime::spawn_blocking(crate::persona::discover_characters)
         .await
         .unwrap_or_default()
+}
+
+/// True when the standalone `genshijin` plugin is cached alongside `persona`.
+/// Both inject per-turn style instructions, so the tab warns about the pair.
+#[tauri::command]
+pub async fn persona_genshijin_installed() -> bool {
+    tauri::async_runtime::spawn_blocking(crate::persona::genshijin_installed)
+        .await
+        .unwrap_or(false)
 }
 
 #[tauri::command]

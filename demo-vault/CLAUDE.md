@@ -187,12 +187,27 @@ Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
 
-`_index.md` also carries an optional `repo:` key naming the registered
-repository this project belongs to — an absolute path, or the repository's
-name as it is registered in the app. It is stored rather than inferred because
-a project folder and its repository do not share a naming scheme (the vault's
-`multi-agent-ff15` is the repository `multi-agent-ff15-vscode`). The app's
-**Projects** tab reads and writes it.
+`_index.md` also carries an optional `repos:` key listing the registered
+repositories this project belongs to — each entry an absolute path, or the
+repository's name as it is registered in the app:
+
+```yaml
+repos:
+  - C:/repos/workhub
+  - C:/repos/workhub-vault
+```
+
+**The first entry is the project's default repository** — the one an agent
+works in when the task does not say which. The link is stored rather than
+inferred because a project folder and its repositories do not share a naming
+scheme (the vault's `multi-agent-ff15` is the repository
+`multi-agent-ff15-vscode`). The app's **Projects** tab reads and writes it,
+including the order.
+
+A project may legitimately span several repositories — an app and its vault,
+or a frontend and a backend — which is why this is a list and not a single
+key. The pre-T-0216 single `repo:` key is gone; it is not read as a fallback,
+so a note that still carries it reads as having no repository at all.
 
 A project that is finished or parked moves to `archive/projects/<slug>/` —
 under `archive/projects/`, not `archive/<slug>/`, so the folder's origin

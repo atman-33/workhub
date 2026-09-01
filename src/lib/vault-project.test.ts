@@ -4,7 +4,7 @@ import {
   buildProjectFixPrompt,
   health,
   issueLabel,
-  linkedRepo,
+  linkedRepos,
   projectOfNotePath,
   taskCountsByProject,
   unknownProjects,
@@ -16,7 +16,7 @@ function project(over: Partial<VaultProject> = {}): VaultProject {
     name: "Demo",
     path: "C:/vault/projects/demo",
     status: "active",
-    repo: "",
+    repos: [],
     summary: "",
     updated: 0,
     folders: [],
@@ -170,25 +170,40 @@ describe("unknownProjects", () => {
   });
 });
 
-describe("linkedRepo", () => {
+describe("linkedRepos", () => {
   const repos = [
     { path: "C:/repos/multi-agent-ff15-vscode", name: "multi-agent-ff15-vscode" },
     { path: "C:/repos/workhub", name: "workhub" },
   ];
 
   it("matches a stored path regardless of separators and trailing slash", () => {
-    const p = project({ repo: "C:\\repos\\workhub\\" });
-    expect(linkedRepo(p, repos)?.name).toBe("workhub");
+    const p = project({ repos: ["C:\\repos\\workhub\\"] });
+    expect(linkedRepos(p, repos)[0].repo?.name).toBe("workhub");
   });
 
   it("falls back to the repo name, which is how a hand-written link reads", () => {
-    const p = project({ repo: "multi-agent-ff15-vscode" });
-    expect(linkedRepo(p, repos)?.path).toBe("C:/repos/multi-agent-ff15-vscode");
+    const p = project({ repos: ["multi-agent-ff15-vscode"] });
+    expect(linkedRepos(p, repos)[0].repo?.path).toBe("C:/repos/multi-agent-ff15-vscode");
   });
 
-  it("returns null for an unset link or one naming a repo that is gone", () => {
-    expect(linkedRepo(project({ repo: "" }), repos)).toBeNull();
-    expect(linkedRepo(project({ repo: "C:/repos/deleted" }), repos)).toBeNull();
+  it("keeps file order, so the first entry stays the project's default", () => {
+    const p = project({ repos: ["workhub", "multi-agent-ff15-vscode"] });
+    expect(linkedRepos(p, repos).map((l) => l.repo?.name)).toEqual([
+      "workhub",
+      "multi-agent-ff15-vscode",
+    ]);
+  });
+
+  // Dropping it would render a stale link as "no repository", which hides the
+  // one thing the screen has to report.
+  it("keeps an entry naming a repo that is gone, resolved to null", () => {
+    const links = linkedRepos(project({ repos: ["C:/repos/deleted"] }), repos);
+    expect(links).toEqual([{ entry: "C:/repos/deleted", repo: null }]);
+  });
+
+  it("is empty for an unset link", () => {
+    expect(linkedRepos(project({ repos: [] }), repos)).toEqual([]);
+    expect(linkedRepos(project({ repos: ["  "] }), repos)).toEqual([]);
   });
 });
 
