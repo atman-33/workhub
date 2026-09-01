@@ -29,7 +29,7 @@ node "<absolute path to dispatch.mjs>" --brief "<absolute brief path>" --cwd "<c
 ```
 
 The dispatcher script is located inside the installed skill directory, e.g.:
-`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\productivity\<version>\skills\sidekick-go\dispatch.mjs`
+`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\agent-ops\<version>\skills\sidekick-go\dispatch.mjs`
 
 Add `--dry-run` to print the multiplexer commands without launching. There is no A/B/C fallback here (unlike `handoff-go`): pane-to-pane messaging requires a multiplexer session, so the script fails fast with instructions if none is active.
 

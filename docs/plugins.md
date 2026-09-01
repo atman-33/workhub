@@ -27,9 +27,16 @@ Every plugin is classified on two axes: **required vs optional** and
 **Placement rule for new skills:** if a skill needs the vault, the
 project-context config, or a target repository resolved through them, it
 belongs in a project-scope plugin (`engineering`, `workhub`, or a new one). If
-it is a personal/machine tool, it belongs in `productivity` (user scope). When
-a productivity skill grows a project-scope dependency, move it out of
-`productivity` at that point.
+it is a personal/machine tool, it belongs in the user-scope plugin whose *use*
+it shares — `authoring`, `agent-ops`, `claude-tooling` or `zenn`. When one of
+those skills grows a project-scope dependency, move it out at that point.
+
+**How the user-scope plugins are cut.** By what is needed together in one
+session, not by subject. That is why `agent-ops` holds eight skills (they all
+presuppose a multiplexer) and `zenn` holds two: Zenn writing never co-occurs
+with the other three, so a separate plugin keeps its guides out of every other
+session. A skill is not a plugin — split further only when a group turns out
+to be loaded for work that never uses it.
 
 **Before a skill is a plugin at all:** a skill only its author will ever run
 does not need one. It can live in the vault at `.claude/skills/<name>/SKILL.md`
@@ -53,7 +60,10 @@ something this marketplace needs to maintain.
 |---|---|---|---|
 | `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`, `vault-setup`), project onboarding (`project-start` — the project-level counterpart of `task-start`: reads `projects/<slug>/README.md` first, follows its reading order only as far as the request needs, resolves the project's `repos:`, and reports goal / status / source / work in flight; read-only), schedule editing (`schedule-edit` — rewrites `projects/<slug>/schedules/*.md` from a natural-language instruction; launched by the app's Schedule tab), mindmap editing (`mindmap-edit` — rewrites `projects/<slug>/mindmaps/*.md` from a natural-language instruction; launched by the app's Mindmap tab), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), long-term memory (`memory-setup`, `memory-recall` + capture/inject hooks backed by the bundled `memory-engine/`), the `strategist` skill (a counsel that reads `strategy/` — the owner's north star, present state and bottlenecks — argues with the gaps between them, and writes the conclusions back; it borrows a character from `persona` when that plugin is installed and runs unstyled when it is not), the workhub app's own release procedure (`release-app` — bump, changelog, tag, push, verify the published assets), and vault write-guard / task-sync hooks. Meaningless outside a vault. |
 | `engineering` | **Required** | project | Development workflow: role-based sub-agents, rule-injection hooks (`project-context.json`, `rules-ex`), serena/context7 MCP launchers, and skills (commit, PR, ADR, TDD, codebase design, bug investigation, review/test/onboarding guides, PRD/issues, …). Releasing is deliberately not here — a release procedure is repository-specific, so it belongs in that repository's `.claude/rules/` plus a repository-specific skill (e.g. `workhub`'s `release-app`). |
-| `productivity` | **Required** | **user** | Personal/machine tools: work logs, herdr/zellij setup, team launch, sidekick/handoff, Slack posting, README/CLAUDE.md/release-notes authoring, HTML reports, proposal deck preparation (`prepare-proposal-deck`, `draft-deck`), Zenn blog writing (`zenn-blog-writing`, `zenn-markdown`), and skill-writing helpers (`grilling`, `handoff`, `writing-great-skills`). No vault or project-context dependency. |
+| `claude-tooling` | **Required** | **user** | Extending and maintaining Claude Code itself: `create-claude-command`, `writing-great-skills`, `install-skill`, `manage-desktop-routines`, and `grilling` (stress-testing a plan — the tool you reach for while shaping what a command or skill should do). Carries the `SessionStart` plugin-update notice, which is why it is the required one of the four: it reports outdated plugins across every marketplace, so it has to be enabled everywhere. No vault or project-context dependency. |
+| `authoring` | Optional | user | Writing something and handing it over: `create-readme`, `create-claude-md`, `create-release-notes`, `create-work-log`, `generate-html-report`, `draft-deck`, `prepare-proposal-deck`, and `post-to-slack` as the delivery step. No vault or project-context dependency. |
+| `agent-ops` | Optional | user | Running agents in a terminal multiplexer, and the setup behind it: `setup-herdr`, `setup-zellij`, `herdr`, `handoff`, `handoff-go`, `launch-team`, `sidekick-go`, `wsl-vscode-doctor`. Kept as one plugin because every skill here presupposes a multiplexer that can split panes and spawn agents — splitting them would separate `handoff-go` from the herdr it drives. The workhub app launches AI tasks into a herdr workspace by default, so `setup-herdr` is usually the first thing a new machine runs. No vault or project-context dependency. |
+| `zenn` | Optional | user | Zenn tech-blog writing: `zenn-blog-writing` (house style) and `zenn-markdown` (Zenn-flavoured syntax). Two skills, kept separate deliberately: they are needed only on the days an article is written and never alongside the other three plugins, which is exactly when a separate plugin earns its keep. No vault or project-context dependency. |
 | `strategy` | Optional | project or user | Turning a strategy handed down from above into your own organization's target states: `strategy-decompose` (take in the upper strategy, close the unknowns with the owner, decompose it into aspects and states, audit, output an xlsx) plus the `strategy-auditor` agent, which checks a decomposition for necessity, sufficiency and overlap from a context other than the one that wrote it. Ships `build_xlsx.py` / `read_xlsx.py` so the workbook shape does not drift between runs. No vault or project-context dependency. |
 | `team-ops` | Optional | project | Team operations on a shared folder as SSoT: team knowledge base, file-based backlog + sprints, multi-repo dev-main tracking, daily burndown/spec reporting. Needs `.claude/team-context.json` (see `plugins/team-ops/docs/design.html`). |
 | `obsidian` | Optional (pre-enabled in the vault template) | project or user | Generic Obsidian format helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, defuddle). Vault-agnostic — useful in the workhub vault and any other vault. |
@@ -76,7 +86,8 @@ Per vault: nothing to do. `vault-template/.claude/settings.json` declares the
 marketplace via `extraKnownMarketplaces` (GitHub `atman-33/workhub`) and
 enables the required project-scope plugins (`workhub`, `engineering`) — on the
 first Claude Code launch inside the vault, accept the trust prompt and the
-plugins install themselves.
+plugins install themselves. The user-scope plugins are per machine, not per
+vault, so they are installed once with the commands below.
 
 The same setup can be done ahead of time from a terminal (no Claude Code
 session needed), using the non-interactive `claude plugin` CLI:
@@ -88,9 +99,12 @@ claude plugin marketplace add atman-33/workhub
 # required plugins
 claude plugin install workhub@workhub-marketplace --scope project
 claude plugin install engineering@workhub-marketplace --scope project
-claude plugin install productivity@workhub-marketplace   # user scope (default)
+claude plugin install claude-tooling@workhub-marketplace  # user scope (default)
 
 # optional plugins, as needed
+claude plugin install authoring@workhub-marketplace       # user scope
+claude plugin install agent-ops@workhub-marketplace       # user scope
+claude plugin install zenn@workhub-marketplace            # user scope
 claude plugin install team-ops@workhub-marketplace --scope project
 claude plugin install obsidian@workhub-marketplace   # user scope for non-workhub vaults; the vault template already enables it at project scope
 claude plugin install stack-react-router@workhub-marketplace --scope project

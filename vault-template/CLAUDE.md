@@ -398,7 +398,7 @@ knowledge, and configuration — never application code.
 The workhub app can launch each AI task in a fresh [herdr](https://herdr.dev)
 workspace. This is enabled by default in the app settings. To use it, install
 herdr and its Claude Code / OpenCode integrations by running the
-`setup-herdr` skill from the `productivity` plugin. If herdr is not installed,
+`setup-herdr` skill from the `agent-ops` plugin. If herdr is not installed,
 the app automatically falls back to the configured terminal command.
 
 ### Git worktree mode

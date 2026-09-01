@@ -1,0 +1,9 @@
+{
+  "name": "agent-ops",
+  "version": "0.1.0",
+  "description": "Run agents in a terminal multiplexer: herdr and Zellij setup, handoff between agents, role-based teams, persistent sidekicks, and the WSL/VS Code launch doctor. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

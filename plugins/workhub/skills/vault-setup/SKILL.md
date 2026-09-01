@@ -39,7 +39,7 @@ running any of them:
   `winget install Obsidian.Obsidian`
 - macOS/Linux: the same npm installs; git/node via the platform's package
   manager.
-- herdr: install via the `setup-herdr` skill (productivity plugin) rather than
+- herdr: install via the `setup-herdr` skill (agent-ops plugin) rather than
   a package manager — see Phase 6.
 
 Obsidian, OpenCode, and herdr are optional — offer, don't push.
@@ -59,8 +59,10 @@ Obsidian, OpenCode, and herdr are optional — offer, don't push.
    `workhub-marketplace` and enables the required project-scope plugins
    (`workhub`, `engineering`). Tell the user: on the first `claude` launch
    inside the vault, accept the marketplace/plugin trust prompt.
-2. One-time per machine, install the user-scope plugin:
-   `claude plugin install productivity@workhub-marketplace`
+2. One-time per machine, install the user-scope plugins that apply:
+   `claude plugin install claude-tooling@workhub-marketplace` (plugin-update
+   notices, skill authoring), and `authoring` / `agent-ops` / `zenn` from the
+   same marketplace as needed.
 3. Remind the user to register target repositories in
    `.claude/project-context.json` (`projects[]` with `name`/`path`).
 
@@ -84,7 +86,7 @@ and `OPENCODE_GLOBAL_ROOT` first (see
 
 - **herdr**: the workhub app launches AI tasks in a fresh herdr workspace by
   default. If the user wants that flow, run the `setup-herdr` skill from the
-  `productivity` plugin; otherwise launches fall back to a plain terminal.
+  `agent-ops` plugin; otherwise launches fall back to a plain terminal.
 - **Obsidian**: open the vault folder as an Obsidian vault.
 
 ## 7. Verify and report

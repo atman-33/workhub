@@ -51,7 +51,7 @@ node "<absolute path to launcher.mjs>" --config "<absolute config path>" --cwd "
 ```
 
 The launcher lives in the installed skill directory, e.g.:
-`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\productivity\<version>\skills\launch-team\launcher.mjs`
+`C:\Users\<user>\.claude\plugins\cache\workhub-marketplace\agent-ops\<version>\skills\launch-team\launcher.mjs`
 
 Add `--dry-run` to print the multiplexer commands without launching. The launcher opens one named pane per agent, writes the roster, and delivers the brief into the orchestrator's pane to start the work.
 

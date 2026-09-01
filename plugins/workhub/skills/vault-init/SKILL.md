@@ -33,14 +33,16 @@ argument-hint: "<target-path>"
       required project-scope plugins (`workhub`, `engineering`). On the first
       Claude Code launch inside the vault the user just accepts the
       marketplace/plugin trust prompt — no manual install commands needed.
-    - Recommend installing the user-scope plugin once per machine:
-      `claude plugin install productivity@workhub-marketplace`.
+    - Recommend installing the user-scope plugins once per machine, as
+      needed: `claude plugin install claude-tooling@workhub-marketplace`
+      (plugin-update notices and skill authoring), plus `authoring`,
+      `agent-ops` and `zenn` from the same marketplace.
     - Tell the user to register target repositories in
       `.claude/project-context.json` (`projects[]` entries with
       `name`/`path`, optional `summary`/`postToolFormatCommands`).
     - Mention that the workhub app launches AI tasks in a fresh herdr
       workspace by default; if they use herdr, run `setup-herdr` from the
-      `productivity` plugin to install it and wire up the Claude Code /
+      `agent-ops` plugin to install it and wire up the Claude Code /
       OpenCode integrations.
 7. **Seed the common prompt.** The copied `CLAUDE.md` already carries the
    *Working agreement* — the rules every agent session in the vault follows
