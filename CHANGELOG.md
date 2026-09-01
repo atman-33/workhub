@@ -1,5 +1,82 @@
 # Changelog
 
+## 0.93.0 (2026-09-01)
+
+**This release needs two one-time manual steps.** Neither has a compatibility
+fallback, by design — a fallback would keep the old and new spellings alive
+side by side indefinitely, which is the state that made both of these worth
+fixing.
+
+1. In each vault, rewrite `repo: <path>` in `projects/<slug>/_index.md` as a
+   `repos:` list. A project that still carries the old key reads as having no
+   repository.
+2. Re-point the plugins that were `productivity`:
+   `claude plugin uninstall productivity`, then
+   `claude plugin marketplace update workhub-marketplace`, then install
+   `claude-tooling` (and `authoring` / `agent-ops` / `zenn` as needed).
+
+- **A project can now be linked to several repositories** (T-0216, PR #141).
+  A vault project regularly spans more than one repo — the workhub app and the
+  vault it stores its tasks in are the obvious pair — but `_index.md` had room
+  for exactly one, so the second repo had nowhere to live and tasks named it in
+  free text instead. The link is now a `repos:` list in file order, with the
+  first entry as the project's default; the Projects tab shows the whole list
+  with add / remove / promote, and an entry naming a repo that is no longer
+  registered stays visible and flagged rather than quietly rendering as "no
+  repository". `task-start` resolves the target repo through that list instead
+  of guessing `C:/repos/<slug>` — a project slug and a repo name do not share a
+  naming scheme, so a guess that landed was a coincidence.
+
+- **A task's project is picked from the vault's projects** (T-0219, PR #145).
+  The Project field offered project values already used on other tasks plus the
+  names of registered repositories, and never the vault's projects at all. So a
+  real project with no repo and no task yet could not be picked, while a repo
+  with no project could be — and choosing it filed the task under something the
+  Projects tab then reports as an unknown project. The field was recommending
+  values the rest of the app flags as orphans. It now lists vault project slugs
+  and nothing else, with free text gone, since free text is where the orphans
+  came from. Leaving a project unset stays a first-class choice, and a task
+  saved earlier keeps whatever it names — the value stays selectable and is
+  flagged beneath the field rather than being silently rewritten. Recurring
+  rules mint tasks with a project too, so their field became the same picker;
+  otherwise the hole reopened on a schedule.
+
+- **`project-start` loads a project's context the way `task-start` loads a
+  task's** (T-0212, PR #142). The vault's CLAUDE.md tells agents to read
+  `projects/<slug>/README.md` first, but nothing carried them there, so every
+  session rediscovered the layout by scanning the folder. The skill reads the
+  README first, follows its reading order only as far as the request needs —
+  and says what it read and what it skipped, because reading a project in full
+  is the waste the reading order exists to prevent — resolves the project's
+  repositories, and reports the open tasks that name it. It is read-only on
+  purpose: an onboarding skill with side effects cannot be used just to load
+  context.
+
+- **The Persona tab no longer disappears when it cannot work** (T-0215, PR
+  #143). It was mounted only when at least one character was found, so a
+  missing or disabled `persona` plugin removed the tab with no statement of
+  why — and the tab is exactly where someone would look for that answer. It is
+  now always shown, and with no characters it explains what is missing and
+  hands over a paste-ready prompt that registers the marketplace, installs the
+  plugin, and retires its predecessor. The prompt is written as a task for an
+  agent rather than a list of commands, because the two install paths are not
+  equally available on every machine. A cached `genshijin` plugin is also
+  detected and warned about in both states: it is what `persona` replaced, and
+  both inject per-turn style instructions, so the pair styles every response
+  twice.
+
+- **`productivity` is split into four user-scope plugins** (T-0211, PR #144).
+  It had grown to 23 skills behind a single toggle, so a session that wanted a
+  work log also loaded the Zenn style guide, the deck wireframer and eight
+  multiplexer skills. The cut is by what is needed together in one session
+  rather than by subject: `authoring` (writing something and handing it over),
+  `agent-ops` (everything that presupposes a multiplexer — splitting these
+  would separate `handoff-go` from the herdr it drives), `claude-tooling`
+  (extending Claude Code itself, and the plugin-update notice, which is why it
+  is the required one of the four), and `zenn` — small on purpose, because Zenn
+  writing never co-occurs with the other three, which is exactly when a
+  separate plugin earns its keep.
+
 ## 0.92.0 (2026-08-31)
 
 - **The task editor window stays frontmost** (T-0214, PR #140). The editor and
