@@ -44,7 +44,7 @@ import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
-import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
+import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
 const TERMINAL_PANEL_SIZE = 35;
@@ -74,6 +74,10 @@ export function TasksView({
 }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  /** Vault projects (`projects/<slug>/`), the only thing a task's `project:`
+   *  may name. Not the Repos tab's registered repositories: those are reached
+   *  through a project's `repos:`, never from a task directly (T-0219). */
+  const [vaultProjects, setVaultProjects] = useState<VaultProject[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [statusFilter, setStatusFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
@@ -182,11 +186,28 @@ export function TasksView({
     })();
   }, [configVersion]);
 
-  // ---- after a repo add/remove/rename: refresh the Project suggestions ----
+  // ---- the Project suggestions: every vault project, reloaded whenever one
+  // is created, archived or restored (`projectsVersion`), and again when a
+  // folder appears or disappears outside the app (Obsidian, an agent) ----
+  const refreshVaultProjects = useCallback((path: string | null | undefined) => {
+    if (!path) {
+      setVaultProjects([]);
+      return;
+    }
+    // A failure here costs suggestions, not the board — leave the last list.
+    void api.listVaultProjects(path, false).then(setVaultProjects).catch(() => {});
+  }, []);
+
   useEffect(() => {
-    if (projectsVersion === 0) return;
-    void api.getConfig().then(setConfig);
-  }, [projectsVersion]);
+    refreshVaultProjects(vaultPath);
+  }, [vaultPath, projectsVersion, refreshVaultProjects]);
+
+  useEffect(() => {
+    const unlisten = listen("projects-changed", () => refreshVaultProjects(vaultPath));
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [vaultPath, refreshVaultProjects]);
 
   // ---- watch + initial load once a vault is configured ----
   useEffect(() => {
@@ -237,17 +258,25 @@ export function TasksView({
     }
   }, [vaultPath, refreshTasks]);
 
-  // Suggestions for the Project field: projects already used on tasks plus
-  // the repositories registered in the Repos view.
+  // Choices for the Project field: the vault's projects, and nothing else.
+  // Offering registered repository names here is what produced the "unknown
+  // projects" the Projects tab reports — the field was recommending values
+  // that the rest of the app then flags as orphans (T-0219).
   const knownProjects = useMemo(
+    () => vaultProjects.map((p) => p.slug).sort(),
+    [vaultProjects],
+  );
+
+  // The toolbar filter answers a different question — "narrow what is on the
+  // board" — so it also lists values tasks actually carry, including ones no
+  // project answers to. Without them a mis-filed task cannot be filtered for,
+  // which is when you most want to find it.
+  const filterProjects = useMemo(
     () =>
       Array.from(
-        new Set([
-          ...tasks.map((t) => t.project).filter(Boolean),
-          ...(config?.projects.map((p) => p.name) ?? []),
-        ]),
+        new Set([...knownProjects, ...tasks.map((t) => t.project).filter(Boolean)]),
       ).sort(),
-    [tasks, config],
+    [knownProjects, tasks],
   );
 
   const knownTags = useMemo(
@@ -532,7 +561,7 @@ export function TasksView({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All projects</SelectItem>
-            {knownProjects.map((p) => (
+            {filterProjects.map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
               </SelectItem>
@@ -776,6 +805,7 @@ export function TasksView({
       <RecurringDialog
         open={recurringOpen}
         onClose={() => setRecurringOpen(false)}
+        knownProjects={knownProjects}
         // Keep the toolbar count (and any later config read) in step with what
         // the dialog just wrote, without a full config reload.
         onSaved={(recurring) =>

@@ -58,12 +58,6 @@ interface Props {
   configVersion: number;
   /** Whether the Repos tab is the visible one; gates background polling. */
   active: boolean;
-  /**
-   * Called after a repository add/remove/rename has been persisted. Other views
-   * (the task dialog's Project suggestions) derive state from the repo list and
-   * would otherwise keep the config they loaded at startup.
-   */
-  onProjectsChange?: () => void;
   /** A repository the Projects tab asked this view to select (T-0190). */
   focus?: TabFocus;
 }
@@ -71,10 +65,7 @@ interface Props {
 /** How often the visible Repos list re-reads each repo's git status, in ms. */
 const STATUS_POLL_MS = 5000;
 
-/** Identity of the repo list as far as other views care: their names. */
-const projectsKey = (cfg: Config) => JSON.stringify(cfg.projects.map((p) => p.name));
-
-export function ReposView({ configVersion, active, onProjectsChange, focus }: Props) {
+export function ReposView({ configVersion, active, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
   const [showWorktrees, setShowWorktrees] = useState(false);
@@ -127,23 +118,13 @@ export function ReposView({ configVersion, active, onProjectsChange, focus }: Pr
   selectedRef.current = selected;
   const busyRef = useRef(busy);
   busyRef.current = busy;
-  // Repo list as it was last seen by the rest of the app; null until the first
-  // config load, so the startup load itself never counts as a change.
-  const notifiedProjectsRef = useRef<string | null>(null);
-  const onProjectsChangeRef = useRef(onProjectsChange);
-  onProjectsChangeRef.current = onProjectsChange;
-
   // ---- persistence: keep rust-side config.json in sync ----
-  // Notifying only after the save resolves keeps a listener that re-reads the
-  // config from racing this write and seeing the pre-change repo list.
+  // No view is notified of a repo add/remove/rename any more: the one consumer
+  // was the task editor's Project suggestions, and those now come from the
+  // vault's projects rather than from this list (T-0219).
   const persist = useCallback((cfg: Config, sel: Set<string>) => {
     const ordered = cfg.projects.map((p) => p.path).filter((p) => sel.has(p));
-    const key = projectsKey(cfg);
-    void api.saveConfig({ ...cfg, selected: ordered }).then(() => {
-      const previous = notifiedProjectsRef.current;
-      notifiedProjectsRef.current = key;
-      if (previous !== null && previous !== key) onProjectsChangeRef.current?.();
-    });
+    void api.saveConfig({ ...cfg, selected: ordered });
   }, []);
 
   const mutateConfig = useCallback(
@@ -196,7 +177,6 @@ export function ReposView({ configVersion, active, onProjectsChange, focus }: Pr
   useEffect(() => {
     void (async () => {
       const cfg = await api.getConfig();
-      notifiedProjectsRef.current = projectsKey(cfg);
       setConfig(cfg);
       setSelected(new Set(cfg.selected));
       refreshAll(cfg.projects.map((p) => p.path));
@@ -207,7 +187,6 @@ export function ReposView({ configVersion, active, onProjectsChange, focus }: Pr
   useEffect(() => {
     if (configVersion === 0) return;
     void api.getConfig().then((cfg) => {
-      notifiedProjectsRef.current = projectsKey(cfg);
       setConfig(cfg);
       setSelected(new Set(cfg.selected));
     });

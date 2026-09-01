@@ -39,6 +39,13 @@ interface ComboboxProps {
   /** Heading for the `leadingOptions` group (defaults to "Recent"). */
   leadingHeading?: string;
   /**
+   * Label for an entry at the top of the list that commits the empty string.
+   * Without it, a combobox whose value is optional can be set but never
+   * un-set — the only way back to "nothing" was free text, which is exactly
+   * what `allowCustom={false}` takes away.
+   */
+  noneLabel?: string;
+  /**
    * Heading for the main `options` group. Only rendered when `leadingOptions`
    * is non-empty, so the main list is visually separated from the Recent
    * group instead of looking like its continuation. Ignored otherwise.
@@ -69,6 +76,7 @@ export function Combobox({
   modal = false,
   leadingOptions = [],
   leadingHeading = "Recent",
+  noneLabel,
   mainHeading,
   loading = false,
 }: ComboboxProps) {
@@ -142,6 +150,14 @@ export function Combobox({
                   {loading ? "Loading…" : emptyText}
                 </span>
               </CommandEmpty>
+            )}
+            {noneLabel !== undefined && (
+              <CommandItem value={noneLabel} onSelect={() => commit("")}>
+                <CheckIcon
+                  className={cn("size-3.5", value ? "opacity-0" : "opacity-100")}
+                />
+                <span className="text-muted-foreground">{noneLabel}</span>
+              </CommandItem>
             )}
             {leadingOptions.length > 0 && (
               <CommandGroup heading={leadingHeading}>

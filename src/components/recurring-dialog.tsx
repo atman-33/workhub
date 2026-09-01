@@ -21,6 +21,8 @@ interface Props {
   onClose: () => void;
   /** Called after the rules were persisted, so the caller can refresh its copy. */
   onSaved?: (rules: RecurringRule[]) => void;
+  /** Vault project slugs a rule's generated task may name (T-0219). */
+  knownProjects: string[];
 }
 
 /**
@@ -32,7 +34,7 @@ interface Props {
  * writes only `settings.recurring` back, leaving every other setting alone even
  * if the settings dialog saved something while this was open.
  */
-export function RecurringDialog({ open, onClose, onSaved }: Props) {
+export function RecurringDialog({ open, onClose, onSaved, knownProjects }: Props) {
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -116,7 +118,12 @@ export function RecurringDialog({ open, onClose, onSaved }: Props) {
           {loading ? (
             <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
           ) : (
-            <RecurringSettings rules={rules} onChange={setRules} open={open} />
+            <RecurringSettings
+              rules={rules}
+              onChange={setRules}
+              open={open}
+              knownProjects={knownProjects}
+            />
           )}
         </div>
         {message && <p className="text-xs text-muted-foreground">{message}</p>}

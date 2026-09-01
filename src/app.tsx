@@ -93,10 +93,6 @@ export default function App() {
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
-  // Bumped when the Repos view adds, removes or renames a repository. Kept
-  // separate from configVersion so the Repos view does not reload (and race
-  // its own just-persisted config) as a result of its own edit.
-  const [projectsVersion, setProjectsVersion] = useState(0);
   // Bumped when the Projects view creates, archives or restores a vault
   // project. The `projects-changed` watcher event covers the same ground for
   // writers outside the app (Obsidian, an agent), but the app's own actions
@@ -275,7 +271,7 @@ export default function App() {
           <div className={cn("h-full", tab !== "tasks" && "hidden")}>
             <TasksView
               configVersion={configVersion}
-              projectsVersion={projectsVersion}
+              projectsVersion={vaultProjectsVersion}
               focus={focusFor("tasks")}
               onSettingsChange={(s) => setSettings(s)}
             />
@@ -293,7 +289,6 @@ export default function App() {
               configVersion={configVersion}
               active={tab === "repos"}
               focus={focusFor("repos")}
-              onProjectsChange={() => setProjectsVersion((v) => v + 1)}
             />
           </div>
           <div className={cn("h-full", tab !== "schedule" && "hidden")}>
