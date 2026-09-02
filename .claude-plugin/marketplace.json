@@ -6,145 +6,19 @@
   },
   "description": "Claude Code marketplace bundled with the workhub app: the single source of plugins for the workhub vault harness (task board, engineering workflows, authoring and agent-ops tools, and tech-stack helpers). See docs/plugins.md for the required/optional and scope policy.",
   "plugins": [
-    {
-      "name": "workhub",
-      "source": "./plugins/workhub",
-      "description": "Task-board, schedule and vault knowledge-base skills and hooks for the workhub vault (task-list, task-start, task-report, project-start, schedule-edit, mindmap-edit, vault-init, vault-setup, vault-migrate, kb-ingest, kb-query, kb-lint, kb-index, memory-setup, memory-recall, strategist), the secretary agent that fields the owner's decisions, plus the workhub app's own release procedure (release-app).",
-      "version": "0.25.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "engineering",
-      "source": "./plugins/engineering",
-      "description": "Engineering utilities and helpers for software development tasks.",
-      "version": "0.24.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "authoring",
-      "source": "./plugins/authoring",
-      "description": "Author documents and deliverables, and deliver them: README / CLAUDE.md / release notes / work logs, self-contained HTML reports, slide-deck preparation, and posting to Slack. Install at user scope to make it available across all projects.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "agent-ops",
-      "source": "./plugins/agent-ops",
-      "description": "Run agents in a terminal multiplexer: herdr and Zellij setup, handoff between agents, role-based teams, persistent sidekicks, and the WSL/VS Code launch doctor. Install at user scope to make it available across all projects.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "claude-tooling",
-      "source": "./plugins/claude-tooling",
-      "description": "Extend and maintain Claude Code itself: slash commands, skill authoring and installation, Desktop routines, plan grilling, plus the SessionStart plugin-update notice. Install at user scope to make it available across all projects.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "zenn",
-      "source": "./plugins/zenn",
-      "description": "Write Zenn tech-blog articles: the house style guide and Zenn-flavoured Markdown syntax. Install at user scope to make it available across all projects.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "strategy",
-      "source": "./plugins/strategy",
-      "description": "Turn a strategy handed down from above into your own organization's target states: decompose it into aspects and states (strategy-decompose), audit it for necessity, sufficiency and overlap (strategy-auditor), and ship it as a spreadsheet.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "team-ops",
-      "source": "./plugins/team-ops",
-      "description": "Team operations on a shared folder as the single source of truth: team knowledge base, file-based product backlog, sprint ceremonies, multi-repo progress tracking, and daily burndown/spec reporting.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "obsidian",
-      "source": "./plugins/obsidian",
-      "description": "Generic Obsidian format helpers: Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, and Defuddle web clipping.",
-      "version": "0.3.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "persona",
-      "source": "./plugins/persona",
-      "description": "Switchable response personas with a shared token-reduction engine: bundled characters (holmes, genshijin, noctis, lunafreya, ignis), user-defined characters that survive plugin updates, three compression levels persisted across sessions, a persona-switch CLI other skills can call, character-agnostic commit/review/compress/stats/crew helpers, and an MCP description-shrinking proxy. Derived from genshijin (MIT).",
-      "version": "0.3.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "stack-cloudflare",
-      "source": "./plugins/stack-cloudflare",
-      "description": "Helpers for developing on Cloudflare (Workers, Pages, R2, D1, etc.).",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "stack-dnd-kit",
-      "source": "./plugins/stack-dnd-kit",
-      "description": "Helpers for building drag-and-drop UIs with dnd kit.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "stack-opencode",
-      "source": "./plugins/stack-opencode",
-      "description": "Helpers for working with OpenCode configuration and extensions.",
-      "version": "0.1.1",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    },
-    {
-      "name": "stack-react-router",
-      "source": "./plugins/stack-react-router",
-      "description": "Helpers for React Router and Remix applications.",
-      "version": "0.1.0",
-      "author": {
-        "name": "atman-33",
-        "url": "https://github.com/atman-33"
-      }
-    }
+    { "name": "workhub", "source": "./plugins/workhub" },
+    { "name": "engineering", "source": "./plugins/engineering" },
+    { "name": "authoring", "source": "./plugins/authoring" },
+    { "name": "agent-ops", "source": "./plugins/agent-ops" },
+    { "name": "claude-tooling", "source": "./plugins/claude-tooling" },
+    { "name": "zenn", "source": "./plugins/zenn" },
+    { "name": "strategy", "source": "./plugins/strategy" },
+    { "name": "team-ops", "source": "./plugins/team-ops" },
+    { "name": "obsidian", "source": "./plugins/obsidian" },
+    { "name": "persona", "source": "./plugins/persona" },
+    { "name": "stack-cloudflare", "source": "./plugins/stack-cloudflare" },
+    { "name": "stack-dnd-kit", "source": "./plugins/stack-dnd-kit" },
+    { "name": "stack-opencode", "source": "./plugins/stack-opencode" },
+    { "name": "stack-react-router", "source": "./plugins/stack-react-router" }
   ]
 }
