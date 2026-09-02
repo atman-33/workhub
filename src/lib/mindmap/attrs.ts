@@ -12,7 +12,15 @@
  * the import graph acyclic: layout imports chips, never the other way round.
  */
 
-import { COLORS, TAGS_KEY, parseTags, type Color, type MindmapNode } from "./parse";
+import {
+  COLORS,
+  formatTags,
+  parseTags,
+  TAGS_KEY,
+  type AttrView,
+  type Color,
+  type MindmapNode,
+} from "./parse";
 
 /** One label drawn under a node. */
 export interface AttrChip {
@@ -79,9 +87,23 @@ export function attrColorFor(
 /**
  * Which attributes of a node are shown, in the order they are drawn.
  *
- * `visible` is the note's `attr_chips` setting: `"all"` (the default) shows
- * every attribute the node carries, a list narrows it to those keys, and an
- * empty list turns chips off entirely.
+ * `visible` is the note's `attr_chips` setting, and it decides **both**
+ * questions: which keys are shown, and in what order. `"all"` — the default —
+ * shows every attribute the node carries in alphabetical order; a list shows
+ * exactly those keys, in the order they are listed; an empty list turns chips
+ * off entirely.
+ *
+ * One setting rather than two because the answers are never independent: a
+ * user who cares that `tags` comes first is already deciding which keys are
+ * worth the space, and a separate order list would need a rule for every key
+ * that appears in one and not the other.
+ *
+ * Alphabetical is the *fallback*, not a preference — it is only there so that
+ * a map nobody has ordered draws the same way every time. It is also why
+ * ordering was worth adding: `tags` sorts last by accident of spelling.
+ *
+ * Within one key the order is the file's own — the order the user typed the
+ * tags in — which the parser and the editor both preserve.
  */
 export function chipsOf(
   node: Pick<MindmapNode, "attrs">,
@@ -91,8 +113,13 @@ export function chipsOf(
   if (!attrs) return [];
   if (visible !== "all" && visible.length === 0) return [];
 
-  const keys = Object.keys(attrs).sort();
-  const shown = visible === "all" ? keys : keys.filter((k) => visible.includes(k));
+  const shown =
+    visible === "all"
+      ? Object.keys(attrs).sort()
+      : // The listed order wins, and a key the node does not carry is simply
+        // skipped — the list is the map's preference, not a claim about any
+        // one node.
+        visible.filter((k) => k in attrs);
 
   const chips: AttrChip[] = [];
   for (const key of shown) {
@@ -127,4 +154,69 @@ export function setAttr(
   if (value) next[key] = value;
   else delete next[key];
   return Object.keys(next).length ? next : undefined;
+}
+
+/**
+ * What the right-click menu on an attribute chip can do.
+ *
+ * A menu rather than more sidebar: these are all things wanted at the moment
+ * of looking at a chip on the map, not while editing a node in the panel. The
+ * canvas already arbitrates the right button — a press that stays put is a
+ * menu, one that travels is a pan (`usePanDrag`) — so this costs no gesture.
+ */
+export type ChipAction = "filter" | "clearFilter" | "colorBy" | "remove" | "hideKey";
+
+/** State a chip command is decided against. */
+export interface ChipContext {
+  /** How the map is currently being looked at. */
+  view: AttrView;
+  /** Every attribute key in the map, alphabetical — what `"all"` means. */
+  keys: string[];
+  /** The attributes of the node the chip belongs to. */
+  attrs: Record<string, string> | undefined;
+}
+
+/**
+ * The change a chip command makes: either a new way of looking at the map, or
+ * a new attribute map for the node the chip sits on.
+ */
+export type ChipCommand =
+  | { kind: "view"; patch: Partial<AttrView> }
+  | { kind: "attrs"; attrs: Record<string, string> | undefined };
+
+/**
+ * Turns a menu command into the change it makes.
+ *
+ * Kept out of the component because this is where the decisions are — a tag
+ * comes out of a list while any other attribute goes whole, `"all"` has to be
+ * spelled out before one key can be taken away from it, and choosing the key
+ * already being coloured by is how you stop colouring. None of that is about
+ * React, and all of it is worth a test.
+ */
+export function chipCommand(action: ChipAction, chip: AttrChip, ctx: ChipContext): ChipCommand {
+  switch (action) {
+    case "filter":
+      return { kind: "view", patch: { filter: { key: chip.key, value: chip.value } } };
+    case "clearFilter":
+      return { kind: "view", patch: { filter: null } };
+    case "colorBy":
+      // The same item is the way back out, so the menu never strands the map
+      // in a colouring the user cannot see how to leave.
+      return { kind: "view", patch: { color: ctx.view.color === chip.key ? "" : chip.key } };
+    case "hideKey": {
+      // "Everything except one" is not a state `"all"` can express, so it is
+      // resolved into the actual key list first.
+      const listed = ctx.view.chips === "all" ? ctx.keys : ctx.view.chips;
+      return { kind: "view", patch: { chips: listed.filter((k) => k !== chip.key) } };
+    }
+    case "remove": {
+      // Removing a tag takes that tag out of the list; removing anything else
+      // takes the whole attribute, because its value *is* the chip.
+      const next =
+        chip.key === TAGS_KEY
+          ? formatTags(parseTags(ctx.attrs?.[TAGS_KEY]).filter((t) => t !== chip.value))
+          : "";
+      return { kind: "attrs", attrs: setAttr(ctx.attrs, chip.key, next) };
+    }
+  }
 }

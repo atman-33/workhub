@@ -68,7 +68,9 @@ priority, an owner, a status, free tags. There is no fixed list of keys: use the
 ones the map already uses, and only introduce a new key when the instruction
 asks for something none of them covers. Write them after `task:` and before
 `^collapsed`, sorted by key, which is the order the app writes them in — a diff
-should show the word that changed, not a reordered line.
+should show the word that changed, not a reordered line. (The order attributes
+are *drawn* in is a separate, per-note setting; the line itself is always
+sorted.) Inside a `tags:` value the order is the user's and must be preserved.
 
 Anything that does not match the key rule stays part of the title, so a title
 containing `15:00`, `https://example.com` or `Q3:目標` is safe and must be left

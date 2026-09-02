@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { attrColorFor, attrValueColor, chipsOf, setAttr } from "./attrs";
+import {
+  attrColorFor,
+  attrValueColor,
+  chipCommand,
+  chipsOf,
+  setAttr,
+  type AttrChip,
+} from "./attrs";
 import {
   attrKeys,
   attrValues,
@@ -9,6 +16,7 @@ import {
   parseMindmap,
   parseTags,
   serializeMindmap,
+  type AttrView,
   type MindmapNode,
 } from "./parse";
 
@@ -102,6 +110,28 @@ describe("chips", () => {
     expect(chipsOf(root, [])).toEqual([]);
   });
 
+  it("draws the listed keys in the order they are listed", () => {
+    const [root] = roots(["- N-001 a prio:high size:L tags:x"]);
+    // Alphabetical is only the fallback — `tags` sorts last by accident of
+    // spelling, which is the whole reason the order is settable.
+    expect(chipsOf(root, "all").map((c) => c.label)).toEqual(["prio: high", "size: L", "x"]);
+    expect(chipsOf(root, ["tags", "prio", "size"]).map((c) => c.label)).toEqual([
+      "x",
+      "prio: high",
+      "size: L",
+    ]);
+  });
+
+  it("skips a listed key the node does not carry", () => {
+    const [root] = roots(["- N-001 a prio:high"]);
+    expect(chipsOf(root, ["tags", "prio"]).map((c) => c.label)).toEqual(["prio: high"]);
+  });
+
+  it("keeps a node's tags in the order they were written", () => {
+    const [root] = roots(["- N-001 a tags:zulu,alpha,mike"]);
+    expect(chipsOf(root, "all").map((c) => c.label)).toEqual(["zulu", "alpha", "mike"]);
+  });
+
   it("gives one value the same colour every time", () => {
     expect(attrValueColor("high")).toBe(attrValueColor("high"));
     const [root] = roots(["- N-001 a prio:high"]);
@@ -151,5 +181,86 @@ describe("the attribute view in the frontmatter", () => {
     const out = serializeMindmap(src, doc, "2026-09-02");
     expect(out).toContain("attr_chips: none");
     expect(parseMindmap(out).attrView.chips).toEqual([]);
+  });
+});
+
+describe("chip menu commands", () => {
+  const view = (patch: Partial<AttrView> = {}): AttrView => ({
+    chips: "all",
+    color: "",
+    filter: null,
+    ...patch,
+  });
+  const chip = (key: string, value: string): AttrChip => ({
+    key,
+    value,
+    label: value,
+    color: attrValueColor(value),
+  });
+
+  it("filters by the chip, and clears the filter again", () => {
+    const ctx = { view: view(), keys: ["prio"], attrs: { prio: "high" } };
+    expect(chipCommand("filter", chip("prio", "high"), ctx)).toEqual({
+      kind: "view",
+      patch: { filter: { key: "prio", value: "high" } },
+    });
+    expect(chipCommand("clearFilter", chip("prio", "high"), ctx)).toEqual({
+      kind: "view",
+      patch: { filter: null },
+    });
+  });
+
+  it("colours by the key, and the same item turns colouring off", () => {
+    const ctx = { view: view(), keys: ["prio"], attrs: { prio: "high" } };
+    expect(chipCommand("colorBy", chip("prio", "high"), ctx)).toEqual({
+      kind: "view",
+      patch: { color: "prio" },
+    });
+    const coloured = { ...ctx, view: view({ color: "prio" }) };
+    expect(chipCommand("colorBy", chip("prio", "high"), coloured)).toEqual({
+      kind: "view",
+      patch: { color: "" },
+    });
+  });
+
+  it("spells `all` out into the key list before hiding one key", () => {
+    const ctx = { view: view(), keys: ["prio", "size", "tags"], attrs: { prio: "high" } };
+    expect(chipCommand("hideKey", chip("size", "L"), ctx)).toEqual({
+      kind: "view",
+      patch: { chips: ["prio", "tags"] },
+    });
+  });
+
+  it("hides a key out of an existing list without disturbing its order", () => {
+    const ctx = {
+      view: view({ chips: ["tags", "prio", "size"] }),
+      keys: ["prio", "size", "tags"],
+      attrs: { prio: "high" },
+    };
+    expect(chipCommand("hideKey", chip("prio", "high"), ctx)).toEqual({
+      kind: "view",
+      patch: { chips: ["tags", "size"] },
+    });
+  });
+
+  it("removes one tag from the list but a plain attribute whole", () => {
+    const attrs = { tags: "a,b,c", prio: "high" };
+    const ctx = { view: view(), keys: ["prio", "tags"], attrs };
+    expect(chipCommand("remove", chip("tags", "b"), ctx)).toEqual({
+      kind: "attrs",
+      attrs: { tags: "a,c", prio: "high" },
+    });
+    expect(chipCommand("remove", chip("prio", "high"), ctx)).toEqual({
+      kind: "attrs",
+      attrs: { tags: "a,b,c" },
+    });
+  });
+
+  it("drops the attribute map when the last chip goes", () => {
+    const ctx = { view: view(), keys: ["tags"], attrs: { tags: "only" } };
+    expect(chipCommand("remove", chip("tags", "only"), ctx)).toEqual({
+      kind: "attrs",
+      attrs: undefined,
+    });
   });
 });

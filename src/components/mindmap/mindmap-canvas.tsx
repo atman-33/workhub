@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   CHIP_FONT_SIZE,
   CHIP_GAP,
   CHIP_HEIGHT,
@@ -26,6 +34,7 @@ import {
   type NodeWidth,
   type Sticky,
 } from "@/lib/mindmap/parse";
+import type { AttrChip, ChipAction } from "@/lib/mindmap/attrs";
 import { cn } from "@/lib/utils";
 
 /**
@@ -82,6 +91,8 @@ interface Props {
    * side of the new parent the pointer was on, which is what decides where a
    * branch of the root ends up. */
   onReparent: (id: string, parentId: string, dropSide: "left" | "right") => void;
+  /** A command chosen from an attribute chip's right-click menu. */
+  onChipAction: (action: ChipAction, node: PositionedNode, chip: AttrChip) => void;
   /** Bumped by the view to re-fit the map (a new file, or the Fit button). */
   fitToken: number;
 }
@@ -155,6 +166,7 @@ export function MindmapCanvas({
   onCancelEdit,
   onToggleCollapse,
   onReparent,
+  onChipAction,
   fitToken,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -508,6 +520,8 @@ export function MindmapCanvas({
                 onToggleCollapse(id);
               }}
               onDragStart={startNodeDrag}
+              attrView={attrView}
+              onChipAction={onChipAction}
             />
           ))}
 
@@ -603,6 +617,10 @@ interface NodeProps {
   onCancelEdit: () => void;
   onToggleCollapse: (id: string) => void;
   onDragStart: (e: React.PointerEvent, node: PositionedNode) => void;
+  /** The note's attribute view, so a chip can say whether it is the one
+   * currently filtered on. */
+  attrView: AttrView;
+  onChipAction: (action: ChipAction, node: PositionedNode, chip: AttrChip) => void;
 }
 
 function NodeBox({
@@ -621,6 +639,8 @@ function NodeBox({
   onCancelEdit,
   onToggleCollapse,
   onDragStart,
+  attrView,
+  onChipAction,
 }: NodeProps) {
   const color = node.color ?? node.branchColor;
   const stroke = color ? COLOR_HEX[color] : undefined;
@@ -716,8 +736,12 @@ function NodeBox({
           const w = chipWidth(chip);
           const chipX = cursor;
           cursor += w + CHIP_GAP;
+          const filtered =
+            attrView.filter?.key === chip.key && attrView.filter?.value === chip.value;
           return (
-            <g key={`${node.id}-${rowIndex}-${chip.key}-${chip.value}`}>
+            <ContextMenu key={`${node.id}-${rowIndex}-${chip.key}-${chip.value}`}>
+              <ContextMenuTrigger asChild disabled={locked}>
+                <g className="cursor-context-menu">
               <rect
                 x={chipX}
                 y={rowY}
@@ -738,7 +762,30 @@ function NodeBox({
               >
                 {chip.label}
               </text>
-            </g>
+                </g>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuLabel className="font-mono text-[11px]">
+                  {chip.key}: {chip.value}
+                </ContextMenuLabel>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onSelect={() => onChipAction(filtered ? "clearFilter" : "filter", node, chip)}
+                >
+                  {filtered ? "Clear the filter" : "Filter by this"}
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => onChipAction("colorBy", node, chip)}>
+                  Colour the map by {chip.key}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem onSelect={() => onChipAction("remove", node, chip)}>
+                  Remove from this node
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => onChipAction("hideKey", node, chip)}>
+                  Hide the {chip.key} chips
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           );
         });
       })}

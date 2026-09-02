@@ -1,9 +1,27 @@
 import { useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { attrValueColor, setAttr } from "@/lib/mindmap/attrs";
-import { COLOR_HEX, formatTags, isAttrKey, parseTags, STICKY_FILL_HEX, TAGS_KEY } from "@/lib/mindmap/parse";
+import {
+  COLOR_HEX,
+  formatTags,
+  isAttrKey,
+  parseTags,
+  STICKY_FILL_HEX,
+  STICKY_INK,
+  TAGS_KEY,
+} from "@/lib/mindmap/parse";
 
 /**
  * The selected node's `key:value` attributes.
@@ -30,6 +48,62 @@ interface Props {
   onChange: (attrs: Record<string, string> | undefined) => void;
 }
 
+/**
+ * One tag chip, draggable into a new position.
+ *
+ * The order is the user's: it is what the file stores and what the canvas
+ * draws, so "most important first" is expressible without a second setting.
+ * A 5px activation distance keeps the remove button clickable — a press that
+ * does not travel is still a click.
+ */
+function SortableTag({
+  tag,
+  disabled,
+  onRemove,
+}: {
+  tag: string;
+  disabled?: boolean;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tag,
+    disabled,
+  });
+  const color = attrValueColor(tag);
+
+  return (
+    <span
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className="flex cursor-grab items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1000 : 0,
+        opacity: isDragging ? 0.5 : 1,
+        background: STICKY_FILL_HEX[color],
+        borderColor: COLOR_HEX[color],
+        color: STICKY_INK,
+      }}
+    >
+      {tag}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`Remove tag ${tag}`}
+        className="leading-none"
+        onClick={onRemove}
+        // The chip itself is a drag handle; without this the button's press
+        // would start a drag instead of reaching the click.
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        ×
+      </button>
+    </span>
+  );
+}
+
 export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: Props) {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -41,6 +115,16 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
     .sort();
 
   const set = (key: string, value: string) => onChange(setAttr(attrs, key, value));
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const reorderTags = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const from = tags.indexOf(String(active.id));
+    const to = tags.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    set(TAGS_KEY, formatTags(arrayMove(tags, from, to)));
+  };
 
   const addTag = (raw: string) => {
     // Commas separate tags in the file, so one typed here means "next tag"
@@ -75,30 +159,24 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
       <span className="text-[11px] text-muted-foreground">Attributes</span>
 
       {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
-              style={{
-                background: STICKY_FILL_HEX[attrValueColor(tag)],
-                borderColor: COLOR_HEX[attrValueColor(tag)],
-                color: "#1f2937",
-              }}
-            >
-              {tag}
-              <button
-                type="button"
-                disabled={disabled}
-                aria-label={`Remove tag ${tag}`}
-                className="leading-none"
-                onClick={() => set(TAGS_KEY, formatTags(tags.filter((t) => t !== tag)))}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={reorderTags}
+        >
+          <SortableContext items={tags} strategy={rectSortingStrategy}>
+            <div className="flex flex-wrap gap-1">
+              {tags.map((tag) => (
+                <SortableTag
+                  key={tag}
+                  tag={tag}
+                  disabled={disabled}
+                  onRemove={() => set(TAGS_KEY, formatTags(tags.filter((t) => t !== tag)))}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <Input
