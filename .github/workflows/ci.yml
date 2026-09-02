@@ -38,7 +38,9 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
-      - name: Test
+      - name: Test (frontend)
+        run: npm test
+      - name: Test (backend)
         working-directory: src-tauri
         run: cargo test
       - name: Build (frontend + app)

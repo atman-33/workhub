@@ -1,0 +1,89 @@
+{
+  "$comment": "workhub-owned metadata about the plugins in marketplace.json: which ones a vault cannot work without, and the scope each is installed at. Claude Code does not read this file — the app's Plugins tab does, because 'required vs optional' exists nowhere else in machine-readable form (docs/plugins.md states it in prose). Deliberately carries no version/description/author: plugin.json is the single source for those (T-0221). Every plugin in marketplace.json must appear here exactly once, and vice versa; src/lib/plugin-catalog.test.ts fails CI when the two drift.",
+  "plugins": [
+    {
+      "name": "workhub",
+      "required": true,
+      "scope": "project",
+      "summary": "Task board, vault knowledge base, schedule/mindmap editing, long-term memory and the app's release procedure. Meaningless outside a vault."
+    },
+    {
+      "name": "engineering",
+      "required": true,
+      "scope": "project",
+      "summary": "Development workflow: role-based sub-agents, rule-injection hooks, serena/context7 MCP launchers and the commit/PR/ADR/TDD skills."
+    },
+    {
+      "name": "claude-tooling",
+      "required": true,
+      "scope": "user",
+      "summary": "Extending Claude Code itself, and the SessionStart notice that reports outdated plugins across every marketplace."
+    },
+    {
+      "name": "authoring",
+      "required": false,
+      "scope": "user",
+      "summary": "Writing something and handing it over: README, CLAUDE.md, release notes, work logs, HTML reports and decks."
+    },
+    {
+      "name": "agent-ops",
+      "required": false,
+      "scope": "user",
+      "summary": "Running agents in a terminal multiplexer (herdr/zellij) and the setup behind it."
+    },
+    {
+      "name": "zenn",
+      "required": false,
+      "scope": "user",
+      "summary": "Zenn tech-blog writing: house style and Zenn-flavoured markdown."
+    },
+    {
+      "name": "strategy",
+      "required": false,
+      "scope": "either",
+      "summary": "Decomposing a strategy handed down from above into your own organization's target states, with an auditor agent."
+    },
+    {
+      "name": "team-ops",
+      "required": false,
+      "scope": "project",
+      "summary": "Team operations on a shared folder as SSoT: knowledge base, backlog and sprints, multi-repo tracking. Needs .claude/team-context.json."
+    },
+    {
+      "name": "obsidian",
+      "required": false,
+      "scope": "either",
+      "summary": "Generic Obsidian helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, CLI). Pre-enabled by the vault template."
+    },
+    {
+      "name": "persona",
+      "required": false,
+      "scope": "either",
+      "summary": "Switchable response personas over a shared token-reduction engine; drives the app's Persona tab."
+    },
+    {
+      "name": "stack-cloudflare",
+      "required": false,
+      "scope": "project",
+      "summary": "Cloudflare (Workers, Pages, R2, D1) development helpers."
+    },
+    {
+      "name": "stack-dnd-kit",
+      "required": false,
+      "scope": "project",
+      "summary": "dnd-kit drag-and-drop UI helpers."
+    },
+    {
+      "name": "stack-opencode",
+      "required": false,
+      "scope": "project",
+      "summary": "OpenCode configuration and extension helpers."
+    },
+    {
+      "name": "stack-react-router",
+      "required": false,
+      "scope": "project",
+      "summary": "React Router / Remix helpers."
+    }
+  ]
+}

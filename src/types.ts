@@ -660,3 +660,52 @@ export interface PersonaState {
   env_override: boolean;
   config_path: string;
 }
+
+// ---- workhub marketplace plugins (Plugins tab) ----
+
+/** Where a plugin is installed: `either` means both scopes are legitimate. */
+export type PluginScope = "project" | "user" | "either";
+
+export interface PluginInstall {
+  /** `user` | `project` | `local` | `managed` */
+  scope: string;
+  version: string;
+  /** Project this install belongs to; empty for a user-scope install. */
+  project_path: string;
+}
+
+export interface PluginRow {
+  name: string;
+  /** False for a plugin installed or enabled but absent from catalog.json. */
+  in_catalog: boolean;
+  required: boolean;
+  /** Empty when the catalog does not say (an uncatalogued row). */
+  scope: PluginScope | "";
+  summary: string;
+  /** From the marketplace clone's plugin.json; empty when unknown. */
+  latest_version: string;
+  installs: PluginInstall[];
+  enabled_project: boolean;
+  enabled_user: boolean;
+}
+
+export interface PluginsState {
+  marketplace: string;
+  clone_path: string;
+  clone_found: boolean;
+  /** False when the clone predates catalog.json — every row reads as extra. */
+  catalog_found: boolean;
+  /** ISO-8601 timestamp of the last marketplace refresh; empty when unknown. */
+  marketplace_updated: string;
+  /** Vault `.claude/settings.json`; empty when no vault is configured. */
+  project_settings_path: string;
+  user_settings_path: string;
+  rows: PluginRow[];
+}
+
+/** One `claude plugin …` run, shown verbatim so nothing is paraphrased away. */
+export interface PluginCommandResult {
+  command: string;
+  ok: boolean;
+  output: string;
+}

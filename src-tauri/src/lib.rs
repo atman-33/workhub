@@ -15,6 +15,7 @@ mod models;
 mod music;
 mod paste;
 mod persona;
+mod plugins;
 mod quick_capture;
 mod rawkey;
 mod schedule;
@@ -266,6 +267,10 @@ pub fn run() {
             commands::persona_genshijin_installed,
             commands::persona_state,
             commands::set_persona_state,
+            commands::plugins_state,
+            commands::set_plugin_enabled,
+            commands::plugins_update_marketplace,
+            commands::plugins_update_plugin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

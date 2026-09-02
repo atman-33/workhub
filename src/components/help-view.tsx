@@ -16,6 +16,7 @@ import {
   Network,
   MonitorUp,
   PenLine,
+  Puzzle,
   Repeat,
   Rocket,
   Sparkles,
@@ -256,6 +257,16 @@ The **Persona** tab picks the character and tone every new Claude Code session s
 - To make your own character, run \`/persona-new <id>\` in Claude Code and answer its questions. It writes \`~/.claude/personas/<id>/character.md\`. Keep custom characters there — anything placed inside the plugin's own folder is lost on the next plugin update.
 - If \`PERSONA_DEFAULT\` is set in your environment, it beats the saved setting and the tab says so. Unset it to make the tab effective again.`;
 
+const PLUGINS_MD = `## Keeping the plugins straight (Plugins)
+
+The **Plugins** tab answers three questions about the \`workhub-marketplace\` plugins on this machine: which ones the harness cannot work without, which of them are switched on here, and whether what is installed is behind the marketplace.
+
+- **Required** plugins are the ones a vault harness needs (\`workhub\`, \`engineering\`, \`claude-tooling\`); the rest are optional. The classification comes from the marketplace's own \`catalog.json\`, not from this app, so it stays right as the marketplace changes.
+- **Scope** is where a plugin is installed: \`project\` writes to the vault's \`.claude/settings.json\`, \`user\` to \`~/.claude/settings.json\`, and \`either\` follows wherever it is already on.
+- **Update marketplace** refreshes the local clone every "latest version" is compared against. Without it the tab compares against whatever was cloned last — so a plugin can look up to date when it is not.
+- The **switch** on each row adds or removes one \`enabledPlugins\` key. The **Update** button runs \`claude plugin update\` for that plugin at its scope. Both need the Claude Code CLI on PATH.
+- Everything here takes effect **in the next Claude Code session** — restart any session that is open.`;
+
 const MEMORY_MD = `## Long-term memory for AI agents
 
 Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
@@ -380,6 +391,7 @@ const SECTIONS = [
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "mindmap", title: "Mapping ideas", icon: Network },
   { value: "persona", title: "Persona", icon: Drama },
+  { value: "plugins", title: "Plugins", icon: Puzzle },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
   { value: "recurring", title: "Recurring tasks", icon: Repeat },
 ] as const;
@@ -1760,6 +1772,71 @@ export function HelpView() {
                 If <span className="font-mono text-xs">PERSONA_DEFAULT</span> is
                 set in your environment it beats the saved setting, and the tab
                 says so. Unset it to make the tab effective again.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={Puzzle}
+            title="Keeping the plugins straight (Plugins)"
+            value="plugins"
+            markdown={PLUGINS_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Plugins</span> tab answers three
+              questions about the{" "}
+              <span className="font-mono text-xs">workhub-marketplace</span>{" "}
+              plugins on this machine: which ones the harness cannot work
+              without, which of them are switched on here, and whether what is
+              installed is behind the marketplace.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium text-foreground">Required</span>{" "}
+                plugins are the ones a vault harness needs (
+                <span className="font-mono text-xs">workhub</span>,{" "}
+                <span className="font-mono text-xs">engineering</span>,{" "}
+                <span className="font-mono text-xs">claude-tooling</span>); the
+                rest are optional. The classification comes from the
+                marketplace's own{" "}
+                <span className="font-mono text-xs">catalog.json</span>, not from
+                this app, so it stays right as the marketplace changes.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Scope</span> is
+                where a plugin is installed:{" "}
+                <span className="font-mono text-xs">project</span> writes to the
+                vault's{" "}
+                <span className="font-mono text-xs">.claude/settings.json</span>,{" "}
+                <span className="font-mono text-xs">user</span> to{" "}
+                <span className="font-mono text-xs">~/.claude/settings.json</span>
+                , and <span className="font-mono text-xs">either</span> follows
+                wherever it is already on.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Update marketplace
+                </span>{" "}
+                refreshes the local clone every "latest version" is compared
+                against. Without it a plugin can look up to date when it is not.
+              </li>
+              <li>
+                The switch on each row adds or removes one{" "}
+                <span className="font-mono text-xs">enabledPlugins</span> key;
+                the <span className="font-medium text-foreground">Update</span>{" "}
+                button runs{" "}
+                <span className="font-mono text-xs">claude plugin update</span>{" "}
+                for that plugin at its scope. Both need the Claude Code CLI on
+                PATH.
+              </li>
+              <li>
+                Everything here takes effect{" "}
+                <span className="font-medium text-foreground">
+                  in the next Claude Code session
+                </span>{" "}
+                — restart any session that is open.
               </li>
             </ul>
           </Section>
