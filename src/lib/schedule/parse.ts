@@ -59,6 +59,8 @@ export function isRangeKind(kind: ItemKind): boolean {
  * the HTML export must render a note identically, and only a closed set can
  * guarantee that without shipping a color parser to both.
  */
+import { detectEol, toLf, withEol } from "../note-eol";
+
 export const COLORS = ["blue", "green", "amber", "red", "purple", "gray"] as const;
 export type Color = (typeof COLORS)[number];
 
@@ -339,7 +341,9 @@ function parseSprint(frontmatter: string): SprintConfig | undefined {
 }
 
 export function parseSchedule(content: string): ScheduleDocModel {
-  const s = splitSections(content);
+  // Everything below is line-oriented and several patterns end in `(.*)$`,
+  // which `\r` breaks — so the file's line ending is dealt with once, here.
+  const s = splitSections(toLf(content));
   const doc: ScheduleDocModel = {
     title: frontmatterValue(s.frontmatter, "title"),
     range: frontmatterValue(s.frontmatter, "range"),
@@ -450,7 +454,10 @@ export function serializeSchedule(
   doc: ScheduleDocModel,
   today: string,
 ): string {
-  const s = splitSections(content);
+  // The file keeps the line ending it already had — see `serializeMindmap`
+  // for why the app does not get an opinion about which one that is.
+  const eol = detectEol(content);
+  const s = splitSections(toLf(content));
   let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
   // The cadence is editable from the timeline toolbar, so it round-trips like
   // any other managed key: written when set, removed when cleared. Every other
@@ -469,7 +476,7 @@ export function serializeSchedule(
   const nonWorking = `## Non-working\n\n${nonWorkingBody}${nonWorkingBody ? "\n" : ""}\n`;
   const items = `## Items\n\n${itemsBody}${itemsBody ? "\n" : ""}\n`;
 
-  return `${frontmatter}${s.preamble}${nonWorking}${items}${s.tail}`;
+  return withEol(`${frontmatter}${s.preamble}${nonWorking}${items}${s.tail}`, eol);
 }
 
 /** Rewrites one frontmatter key in place, appending it when absent. */

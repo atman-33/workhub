@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AttrEditor } from "./attr-editor";
 import {
   COLOR_HEX,
   COLORS,
@@ -39,6 +40,11 @@ interface Props {
   node: MindmapNode;
   /** Tasks of the current project, offered for the `task:` link. */
   tasks: Task[];
+  /** Attribute keys used anywhere in this map, offered as suggestions. The
+   * vocabulary is the map's own — keys are not configured anywhere. */
+  attrKeys: string[];
+  /** Values used for one key anywhere in this map. */
+  attrValuesFor: (key: string) => string[];
   disabled?: boolean;
   /** The sticky notes pinned to this node. */
   stickies: Sticky[];
@@ -68,6 +74,8 @@ function collapseLines(value: string): string {
 export function NodeEditor({
   node,
   tasks,
+  attrKeys,
+  attrValuesFor,
   disabled,
   stickies,
   stickiesHidden,
@@ -153,6 +161,14 @@ export function NodeEditor({
           ))}
         </SelectContent>
       </Select>
+
+      <AttrEditor
+        attrs={node.attrs}
+        knownKeys={attrKeys}
+        valuesFor={attrValuesFor}
+        disabled={disabled}
+        onChange={(attrs) => onChange({ attrs })}
+      />
 
       <div className="space-y-2 border-t pt-3">
         <div className="flex items-center justify-between">

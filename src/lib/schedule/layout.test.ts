@@ -672,3 +672,34 @@ describe("parseRange / shiftDate", () => {
     expect(shiftDate("2026-07-20", 0)).toBe("2026-07-20");
   });
 });
+
+describe("Windows line endings", () => {
+  const crlf = (s: string) => s.split("\n").join("\r\n");
+
+  it("reads a schedule saved with CRLF", () => {
+    const doc = parseSchedule(crlf(NOTE));
+    // Without normalization every line lands in `rawItems`, because `.` does
+    // not match `\r` and the item pattern never matches.
+    expect(doc.rawItems).toEqual([]);
+    expect(doc.items.map((i) => i.id)).toEqual(["I-001", "I-002", "I-003", "I-004"]);
+    expect(doc.items[0].title).toBe("implementation");
+    expect(doc.items[0].task).toBe("T-0090");
+    // Weekdays are stored as day numbers in calendar order, so `sat, sun`
+    // comes back as `[0, 6]` — the same as it does for an LF file.
+    expect(doc.nonWorking.weekly).toEqual([0, 6]);
+    expect(doc.title).toBe("2026Q3 release plan");
+  });
+
+  it("writes a CRLF schedule back as CRLF, with the same text as the LF one", () => {
+    const src = crlf(NOTE);
+    const out = serializeSchedule(src, parseSchedule(src), "2026-07-24");
+    expect(out).toContain("\r\n");
+    expect(out.split("\r\n").join("\n")).toBe(
+      serializeSchedule(NOTE, parseSchedule(NOTE), "2026-07-24"),
+    );
+  });
+
+  it("leaves an LF schedule as LF", () => {
+    expect(serializeSchedule(NOTE, parseSchedule(NOTE), "2026-07-24")).not.toContain("\r");
+  });
+});

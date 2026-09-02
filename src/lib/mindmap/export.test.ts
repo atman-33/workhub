@@ -94,3 +94,24 @@ describe("toHtml", () => {
     expect(html).not.toContain("<b>x");
   });
 });
+
+describe("attributes in the export", () => {
+  const attrTree = () => tree(["- N-001 root", "  - N-002 auth prio:high tags:検討中"]);
+
+  it("draws the chips, so an export looks like the screen", () => {
+    const svg = toSvg(attrTree());
+    expect(svg).toContain("prio: high");
+    expect(svg).toContain("検討中");
+  });
+
+  it("carries the filter's dimming into the image", () => {
+    const svg = toSvg(attrTree(), {
+      attrView: { chips: "all", color: "", filter: { key: "prio", value: "high" } },
+    });
+    expect(svg).toContain("opacity=");
+  });
+
+  it("draws nothing extra for a map without attributes", () => {
+    expect(toSvg(tree(["- N-001 root", "  - N-002 plain"]))).not.toContain("opacity=");
+  });
+});

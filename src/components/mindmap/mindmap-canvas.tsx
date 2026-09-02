@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import {
+  CHIP_FONT_SIZE,
+  CHIP_GAP,
+  CHIP_HEIGHT,
+  CHIP_TOP_GAP,
+  chipWidth,
   DEFAULT_LAYOUT,
+  DIMMED_OPACITY,
   layoutMindmap,
   NODE_PAD_X,
   STICKY_FONT_SIZE,
@@ -15,6 +21,7 @@ import {
   COLOR_HEX,
   STICKY_FILL_HEX,
   STICKY_INK,
+  type AttrView,
   type MindmapNode,
   type NodeWidth,
   type Sticky,
@@ -45,6 +52,9 @@ interface Props {
   roots: MindmapNode[];
   /** The note's box-width setting, applied by the layout. */
   nodeWidth: NodeWidth;
+  /** The note's attribute view — chips, colouring, filter — applied by the
+   * layout, so what is on screen is what an export will contain. */
+  attrView: AttrView;
   /** Sticky notes to draw. Empty while the note hides them. */
   stickies: Sticky[];
   selectedId: string | null;
@@ -127,6 +137,7 @@ interface StickyDragState {
 export function MindmapCanvas({
   roots,
   nodeWidth,
+  attrView,
   stickies,
   selectedId,
   selectedStickyId,
@@ -149,7 +160,7 @@ export function MindmapCanvas({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [layout, setLayout] = useState<MindmapLayout>(() =>
-    layoutMindmap(roots, { nodeWidth, stickies }),
+    layoutMindmap(roots, { nodeWidth, attrView, stickies }),
   );
   const [drag, setDrag] = useState<DragState | null>(null);
   const [stickyDrag, setStickyDrag] = useState<StickyDragState | null>(null);
@@ -179,7 +190,7 @@ export function MindmapCanvas({
   const anchorId = useRef<string | null>(null);
 
   useEffect(() => {
-    const next = layoutMindmap(roots, { nodeWidth, stickies });
+    const next = layoutMindmap(roots, { nodeWidth, attrView, stickies });
     const anchor = anchorId.current;
     anchorId.current = null;
     if (anchor) {
@@ -195,7 +206,7 @@ export function MindmapCanvas({
     }
     layoutRef.current = next;
     setLayout(next);
-  }, [roots, nodeWidth, stickies]);
+  }, [roots, nodeWidth, attrView, stickies]);
 
   /**
    * What is currently typed in the rename box.
@@ -619,13 +630,19 @@ function NodeBox({
   const width = editing ? Math.max(node.width, editingWidth) : node.width;
   const x = node.x - (width - node.width) / 2;
   const lineHeight = 14 * 1.45;
+  // The title is centred in the box *above* the chip band, not in the whole
+  // box, so adding an attribute does not push the title off-centre.
+  const titleHeight = node.height - node.chipsHeight;
   const firstBaseline =
-    node.y + node.height / 2 - ((node.lines.length - 1) * lineHeight) / 2 + 14 * 0.36;
+    node.y + titleHeight / 2 - ((node.lines.length - 1) * lineHeight) / 2 + 14 * 0.36;
   const badgeX = node.side === "right" ? node.x + node.width + 8 : node.x - 8;
+  // Chips are hidden while the title is being typed: the inline editor covers
+  // the box, and a chip poking out from under it reads as a rendering bug.
+  const chipRows = editing ? [] : node.chipRows;
 
   return (
     <g
-      opacity={dragging ? 0.45 : 1}
+      opacity={dragging ? 0.45 : node.dimmed ? DIMMED_OPACITY : 1}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         onSelect(node.id);
@@ -688,6 +705,43 @@ function NodeBox({
           </text>
         ))
       )}
+
+      {chipRows.map((row, rowIndex) => {
+        const rowWidth =
+          row.reduce((sum, c) => sum + chipWidth(c), 0) + Math.max(0, row.length - 1) * CHIP_GAP;
+        const rowY =
+          node.y + titleHeight + CHIP_TOP_GAP + rowIndex * (CHIP_HEIGHT + CHIP_GAP);
+        let cursor = x + (width - rowWidth) / 2;
+        return row.map((chip) => {
+          const w = chipWidth(chip);
+          const chipX = cursor;
+          cursor += w + CHIP_GAP;
+          return (
+            <g key={`${node.id}-${rowIndex}-${chip.key}-${chip.value}`}>
+              <rect
+                x={chipX}
+                y={rowY}
+                width={w}
+                height={CHIP_HEIGHT}
+                rx={CHIP_HEIGHT / 2}
+                fill={STICKY_FILL_HEX[chip.color]}
+                stroke={COLOR_HEX[chip.color]}
+                strokeWidth={1}
+              />
+              <text
+                x={chipX + w / 2}
+                y={rowY + CHIP_HEIGHT / 2 + CHIP_FONT_SIZE * 0.36}
+                textAnchor="middle"
+                fontSize={CHIP_FONT_SIZE}
+                fill={STICKY_INK}
+                className="select-none"
+              >
+                {chip.label}
+              </text>
+            </g>
+          );
+        });
+      })}
 
       {node.task && !editing && (
         <text

@@ -325,3 +325,87 @@ describe("stickies", () => {
     expect(wrapStickyText("").length).toBe(1);
   });
 });
+
+describe("attribute chips in the layout", () => {
+  const withChips = (lines: string[], attrView = { chips: "all" as const, color: "", filter: null }) =>
+    layoutMindmap(tree(lines), { attrView });
+
+  it("costs a map without attributes nothing", () => {
+    const plain = layoutMindmap(tree(["- N-001 root", "  - N-002 child"]));
+    const node = plain.byId.get("N-002");
+    expect(node?.chipRows).toEqual([]);
+    expect(node?.chipsHeight).toBe(0);
+    expect(node?.dimmed).toBe(false);
+  });
+
+  it("grows the box by the chip band, so siblings do not overlap it", () => {
+    const bare = layoutMindmap(tree(["- N-001 root", "  - N-002 child"])).byId.get("N-002");
+    const tagged = withChips(["- N-001 root", "  - N-002 child prio:high"]).byId.get("N-002");
+    expect(tagged?.chipRows).toHaveLength(1);
+    expect(tagged?.chipsHeight).toBeGreaterThan(0);
+    expect(tagged?.height).toBe((bare?.height ?? 0) + (tagged?.chipsHeight ?? 0));
+  });
+
+  it("wraps a long chip list into rows instead of widening without limit", () => {
+    const node = withChips([
+      "- N-001 root",
+      "  - N-002 child tags:alpha,bravo,charlie,delta,echo,foxtrot,golf,hotel",
+    ]).byId.get("N-002");
+    expect((node?.chipRows.length ?? 0)).toBeGreaterThan(1);
+    expect(node?.width).toBeLessThanOrEqual(DEFAULT_LAYOUT.maxWidth + 4);
+  });
+
+  it("draws no chips when the note has them off", () => {
+    const node = layoutMindmap(tree(["- N-001 root prio:high"]), {
+      attrView: { chips: [], color: "", filter: null },
+    }).byId.get("N-001");
+    expect(node?.chipRows).toEqual([]);
+    expect(node?.chipsHeight).toBe(0);
+  });
+});
+
+describe("colouring by an attribute", () => {
+  const lines = ["- N-001 root #blue", "  - N-002 a prio:high", "    - N-003 deep", "  - N-004 b"];
+
+  it("replaces the map's colours rather than blending with them", () => {
+    const map = layoutMindmap(tree(lines), {
+      attrView: { chips: "all", color: "prio", filter: null },
+    });
+    // The node that carries the attribute is coloured by its value...
+    expect(map.byId.get("N-002")?.color).toBeDefined();
+    // ...and the ones that do not carry it stay uncoloured, instead of
+    // inheriting a label they were never given.
+    expect(map.byId.get("N-003")?.color).toBeUndefined();
+    expect(map.byId.get("N-003")?.branchColor).toBeUndefined();
+    expect(map.byId.get("N-004")?.color).toBeUndefined();
+  });
+
+  it("leaves the map's own colours alone when it is off", () => {
+    const map = layoutMindmap(tree(lines));
+    expect(map.byId.get("N-001")?.color).toBe("blue");
+  });
+});
+
+describe("filtering by an attribute", () => {
+  it("dims what does not match and keeps it in place", () => {
+    const lines = ["- N-001 root", "  - N-002 a prio:high", "  - N-003 b prio:low"];
+    const plain = layoutMindmap(tree(lines), { attrView: { chips: [], color: "", filter: null } });
+    const filtered = layoutMindmap(tree(lines), {
+      attrView: { chips: [], color: "", filter: { key: "prio", value: "high" } },
+    });
+
+    expect(filtered.byId.get("N-002")?.dimmed).toBe(false);
+    expect(filtered.byId.get("N-003")?.dimmed).toBe(true);
+    // Same map, same geometry — the filter never re-flows the tree.
+    expect(filtered.byId.get("N-003")?.y).toBe(plain.byId.get("N-003")?.y);
+    expect(filtered.nodes).toHaveLength(plain.nodes.length);
+  });
+
+  it("matches one tag out of several", () => {
+    const map = layoutMindmap(tree(["- N-001 root tags:x,y", "  - N-002 a tags:z"]), {
+      attrView: { chips: [], color: "", filter: { key: "tags", value: "y" } },
+    });
+    expect(map.byId.get("N-001")?.dimmed).toBe(false);
+    expect(map.byId.get("N-002")?.dimmed).toBe(true);
+  });
+});

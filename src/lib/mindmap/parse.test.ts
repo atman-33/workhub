@@ -432,3 +432,41 @@ describe("stickies", () => {
     expect(stickiesOf(doc.stickies, "N-002").map((s) => s.id)).toEqual(["S-001", "S-003"]);
   });
 });
+
+describe("Windows line endings", () => {
+  const crlf = (s: string) => s.split("\n").join("\r\n");
+
+  it("reads a note saved with CRLF", () => {
+    const doc = parseMindmap(
+      crlf(
+        note(
+          ["- N-001 workhub #blue", "  - N-002 tasks task:T-0042 prio:high", "    note line"].join(
+            "\n",
+          ),
+        ),
+      ),
+    );
+    // Without normalization every one of these lines lands in `rawNodes`,
+    // because `.` does not match `\r` and the node pattern never matches.
+    expect(doc.rawNodes).toEqual([]);
+    expect(doc.roots).toHaveLength(1);
+    const tasks = doc.roots[0].children[0];
+    expect(tasks.title).toBe("tasks");
+    expect(tasks.task).toBe("T-0042");
+    expect(tasks.attrs).toEqual({ prio: "high" });
+    expect(tasks.note).toBe("note line");
+  });
+
+  it("writes a CRLF note back as CRLF, and an LF one as LF", () => {
+    const lf = note("- N-001 workhub");
+    expect(serializeMindmap(crlf(lf), parseMindmap(crlf(lf)), "2026-09-02")).toContain("\r\n");
+    const out = serializeMindmap(lf, parseMindmap(lf), "2026-09-02");
+    expect(out).not.toContain("\r");
+  });
+
+  it("leaves a CRLF note untouched when nothing changed but the date", () => {
+    const src = crlf(note("- N-001 workhub #blue\n  - N-002 tasks"));
+    const out = serializeMindmap(src, parseMindmap(src), "2026-08-26");
+    expect(out).toBe(src);
+  });
+});

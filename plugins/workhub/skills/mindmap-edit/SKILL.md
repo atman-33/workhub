@@ -28,7 +28,7 @@ updated: 2026-08-26
 ## Nodes
 
 - N-001 workhub #blue
-  - N-002 tasks #green task:T-0042
+  - N-002 tasks #green task:T-0042 prio:high tags:検討中
     - N-003 kanban ^collapsed
       - N-006 swimlanes
   - N-004 schedule #amber
@@ -50,7 +50,7 @@ Free-form prose. Never rewritten by this skill.
 Node line:
 
 ```text
-- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]
+- <id> <title> [#<color>] [task:<task-id>] [<key>:<value> ...] [^collapsed] [^left|^right]
 ```
 
 | Field | Rule |
@@ -59,8 +59,20 @@ Node line:
 | `<title>` | Free text, one line. Everything left after the modifiers are removed. |
 | `#<color>` | Optional, one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. |
 | `task:<id>` | Optional link to a task in `tasks/`. |
+| `<key>:<value>` | Optional attributes, any number, any order. Key is lowercase ASCII `[a-z][a-z0-9_-]*`, 24 characters at most; the value carries no spaces. `tags:` is comma-separated. |
 | `^collapsed` | Optional. The node's children are hidden **in the app**; the subtree is unaffected. |
 | `^left` / `^right` | Optional, and only meaningful on a **child of a root**: which side of the centre that branch is drawn on. Without it, branches alternate by their position in the list. |
+
+**Attributes** are how a map is labelled for sorting and grouping — importance,
+priority, an owner, a status, free tags. There is no fixed list of keys: use the
+ones the map already uses, and only introduce a new key when the instruction
+asks for something none of them covers. Write them after `task:` and before
+`^collapsed`, sorted by key, which is the order the app writes them in — a diff
+should show the word that changed, not a reordered line.
+
+Anything that does not match the key rule stays part of the title, so a title
+containing `15:00`, `https://example.com` or `Q3:目標` is safe and must be left
+alone. A value that needs a space uses `_`.
 
 **Nesting is indentation**: two spaces per level, exactly as Obsidian renders a
 nested bullet list. A node's parent is the nearest node one level shallower
@@ -150,8 +162,11 @@ currently hiding them.
    - every node has an id, ids are unchanged and still unique;
    - a new node uses the next unused number, zero-padded to three digits;
    - colours are from the list above;
-   - no node lost its `task:` link, its `^collapsed` flag or its note lines
-     unless the instruction asked for that;
+   - no node lost its `task:` link, its attributes, its `^collapsed` flag or
+     its note lines unless the instruction asked for that;
+   - every attribute key still matches `[a-z][a-z0-9_-]*` and no value contains
+     a space — an attribute that breaks either rule silently becomes part of the
+     title the next time the file is read;
    - every sticky still names a node that exists, keeps its id and its offset,
      and `## Stickies` still sits between `## Nodes` and `## Memo`.
 6. **Write the file**, then **report** in one paragraph: which node ids changed,

@@ -15,7 +15,7 @@
  *
  * The grammar:
  *
- *   - <id> <title> [#<color>] [task:<task-id>] [^collapsed]
+ *   - <id> <title> [#<color>] [task:<task-id>] [<key>:<value> ...] [^collapsed]
  *     <optional continuation lines, indented — the node's note>
  *
  * Nesting is expressed by indentation, two spaces per level, exactly as
@@ -37,6 +37,8 @@
  * Kept deliberately identical to the schedule palette so that one project's
  * notes read as one set of documents.
  */
+import { detectEol, toLf, withEol } from "../note-eol";
+
 export const COLORS = ["blue", "green", "amber", "red", "purple", "gray"] as const;
 export type Color = (typeof COLORS)[number];
 
@@ -119,7 +121,44 @@ export interface MindmapNode {
    * the node, so a long explanation never distorts the layout.
    */
   note?: string;
+  /**
+   * Free-form `key:value` labels — importance, priority, a grouping tag, or
+   * whatever else a map is being sorted by this week.
+   *
+   * Deliberately an open map rather than named fields: what a node has to be
+   * labelled with changes with the map, and every fixed field would be an app
+   * change. `task:` stays a field of its own because the app resolves it
+   * against the board; everything else lives here.
+   *
+   * Keys are lowercase and value-free values are dropped, so a title that
+   * happens to contain `15:00` or a URL is not silently eaten (see
+   * `ATTR_KEY_RE`). Values carry no spaces — the file is whitespace-tokenized.
+   */
+  attrs?: Record<string, string>;
   children: MindmapNode[];
+}
+
+/**
+ * The attribute key the UI treats as a list rather than a single value.
+ *
+ * Only this one key is special-cased, and only in the editor and the chips:
+ * the parser stores it like any other attribute, so a map that never uses
+ * tags costs nothing for the feature.
+ */
+export const TAGS_KEY = "tags";
+
+/** Splits a `tags:` value into its members. */
+export function parseTags(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/** Joins tags back into a `tags:` value. Empty means "drop the attribute". */
+export function formatTags(tags: string[]): string {
+  return tags.map((t) => t.trim()).filter(Boolean).join(",");
 }
 
 /**
@@ -199,7 +238,45 @@ export interface MindmapDocModel {
    * the answer belongs to the map, not to the machine it is opened on.
    */
   stickiesHidden: boolean;
+  /** How the map's attributes are being looked at right now. */
+  attrView: AttrView;
 }
+
+/**
+ * The note's answer to "how am I reading the attributes today".
+ *
+ * One object rather than three loose fields because the three always travel
+ * together — from the frontmatter to the document model, into the layout, and
+ * out to the toolbar — and because they are one idea: a *view* of the map,
+ * which is why they live in the note like `node_width` does. An export has to
+ * look like what was on screen when it was made.
+ */
+export interface AttrView {
+  /**
+   * Which attribute keys are drawn as chips under a node.
+   *
+   * `"all"` — the default, and the absence of the key in the frontmatter — is
+   * what makes the feature free for a map that does not use it: a node with no
+   * attributes draws nothing either way, and one that has them shows them
+   * without the user having to switch anything on. An empty list is chips off.
+   */
+  chips: "all" | string[];
+  /**
+   * Attribute key the nodes are coloured by, or `""` for the note's own
+   * colours. Off by default: colouring by an attribute overrides `#color`,
+   * which is the user's hand-made structure, so it has to be asked for.
+   */
+  color: string;
+  /**
+   * Attribute the map is narrowed to. Non-matching nodes are dimmed, never
+   * removed — a mindmap is read through its shape, and hiding a branch would
+   * re-flow the map out from under the user.
+   */
+  filter: { key: string; value: string } | null;
+}
+
+/** Chips on, no colouring, no filter — what a note carries no frontmatter for. */
+export const DEFAULT_ATTR_VIEW: AttrView = { chips: "all", color: "", filter: null };
 
 // ---------------------------------------------------------------------------
 // sections
@@ -300,6 +377,27 @@ function parseNodeWidth(value: string): NodeWidth {
   return (NODE_WIDTHS as readonly string[]).includes(value) ? (value as NodeWidth) : "auto";
 }
 
+/** `attr_chips: prio,tags` — absent means every key, `none` means no chips. */
+function parseAttrChips(value: string): "all" | string[] {
+  const raw = value.trim();
+  if (!raw) return "all";
+  if (raw === "none") return [];
+  const keys = raw
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  return keys.length ? keys : "all";
+}
+
+/** `attr_filter: prio=high`. Anything else reads as no filter at all. */
+function parseAttrFilter(value: string): { key: string; value: string } | null {
+  const at = value.indexOf("=");
+  if (at <= 0) return null;
+  const key = value.slice(0, at).trim();
+  const val = value.slice(at + 1).trim();
+  return key && val ? { key, value: val } : null;
+}
+
 export function frontmatterValue(frontmatter: string, key: string): string {
   for (const line of frontmatter.split("\n")) {
     const idx = line.indexOf(":");
@@ -323,6 +421,46 @@ function unquote(s: string): string {
 
 const ID_RE = /^N-\d+$/;
 
+/**
+ * What may stand on the left of the colon in an attribute.
+ *
+ * Deliberately narrow. A node title is free text a human types, and it is
+ * allowed to contain `15:00`, `Q3:目標` or `https://example.com`; a permissive
+ * key would quietly swallow all three and reorder the words of the title on
+ * the next save. Lowercase-ASCII-only, digit-free first character and a length
+ * cap rule those out while still reading naturally (`prio:`, `size:`,
+ * `owner:`, `tags:`).
+ */
+const ATTR_KEY_RE = /^[a-z][a-z0-9_-]{0,23}$/;
+
+/**
+ * Whether a string may be used as an attribute key.
+ *
+ * Exported so the editor can refuse a key the parser would not read back — a
+ * key typed as `Prio` or `優先度` would serialize fine and then vanish into the
+ * title on the next load, which is the worst kind of bug this file can have.
+ */
+export function isAttrKey(key: string): boolean {
+  return ATTR_KEY_RE.test(key);
+}
+
+/**
+ * Reads one `key:value` token, or returns null when the token is not an
+ * attribute and belongs to the title.
+ *
+ * A value starting with `//` is rejected so that a bare URL (`http://…`,
+ * `https://…`) stays in the title rather than becoming an `http` attribute.
+ */
+function parseAttrToken(tok: string): [string, string] | null {
+  const at = tok.indexOf(":");
+  if (at <= 0 || at === tok.length - 1) return null;
+  const key = tok.slice(0, at);
+  const value = tok.slice(at + 1);
+  if (!ATTR_KEY_RE.test(key)) return null;
+  if (value.startsWith("//")) return null;
+  return [key, value];
+}
+
 interface ParsedLine {
   depth: number;
   node: MindmapNode;
@@ -330,7 +468,7 @@ interface ParsedLine {
   hadId: boolean;
 }
 
-/** `  - N-002 タスク管理 #green task:T-0042 ^collapsed` */
+/** `  - N-002 タスク管理 #green task:T-0042 prio:high tags:検討中 ^collapsed` */
 function parseNodeLine(line: string): ParsedLine | null {
   const m = /^(\s*)-\s+(.*)$/.exec(line);
   if (!m) return null;
@@ -354,6 +492,7 @@ function parseNodeLine(line: string): ParsedLine | null {
   let task: string | undefined;
   let collapsed = false;
   let side: "left" | "right" | undefined;
+  const attrs: Record<string, string> = {};
   const titleTokens: string[] = [];
   // Modifiers may appear in any order; anything left over is the title. A
   // title is free text, so an unrecognized `#word` stays part of it rather
@@ -361,15 +500,31 @@ function parseNodeLine(line: string): ParsedLine | null {
   for (const tok of tokens) {
     if (tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1))) {
       color = tok.slice(1) as Color;
-    } else if (tok.startsWith("task:") && tok.length > 5) {
-      task = tok.slice(5);
-    } else if (tok === "^collapsed") {
-      collapsed = true;
-    } else if (tok === "^left" || tok === "^right") {
-      side = tok.slice(1) as "left" | "right";
-    } else {
-      titleTokens.push(tok);
+      continue;
     }
+    if (tok.startsWith("task:") && tok.length > 5) {
+      task = tok.slice(5);
+      continue;
+    }
+    if (tok === "^collapsed") {
+      collapsed = true;
+      continue;
+    }
+    if (tok === "^left" || tok === "^right") {
+      side = tok.slice(1) as "left" | "right";
+      continue;
+    }
+    // Anything else shaped like `key:value` is an attribute. Checked last so
+    // the fields the app resolves itself keep their meaning, and rejected back
+    // into the title when it does not look like one (see `parseAttrToken`).
+    const attr = parseAttrToken(tok);
+    if (attr) {
+      // First occurrence wins, so a line that repeats a key round-trips to a
+      // single attribute rather than flip-flopping between saves.
+      if (!(attr[0] in attrs)) attrs[attr[0]] = attr[1];
+      continue;
+    }
+    titleTokens.push(tok);
   }
 
   return {
@@ -383,6 +538,7 @@ function parseNodeLine(line: string): ParsedLine | null {
       ...(task ? { task } : {}),
       ...(collapsed ? { collapsed: true } : {}),
       ...(side ? { side } : {}),
+      ...(Object.keys(attrs).length ? { attrs } : {}),
     },
   };
 }
@@ -525,6 +681,61 @@ export function stickiesOf(stickies: Sticky[], nodeId: string): Sticky[] {
   return stickies.filter((s) => s.nodeId === nodeId);
 }
 
+/** Walks a forest depth-first, roots first. */
+export function walkNodes(roots: MindmapNode[]): MindmapNode[] {
+  const out: MindmapNode[] = [];
+  const visit = (node: MindmapNode) => {
+    out.push(node);
+    for (const child of node.children) visit(child);
+  };
+  for (const root of roots) visit(root);
+  return out;
+}
+
+/**
+ * Every attribute key used anywhere in the map, sorted.
+ *
+ * The vocabulary is derived from the file rather than configured: the whole
+ * point of open keys is that the map decides what it is labelled with, so the
+ * editor's suggestions and the toolbar's key list both come from here.
+ */
+export function attrKeys(roots: MindmapNode[]): string[] {
+  const keys = new Set<string>();
+  for (const node of walkNodes(roots)) {
+    for (const key of Object.keys(node.attrs ?? {})) keys.add(key);
+  }
+  return [...keys].sort();
+}
+
+/**
+ * Every value used for one key, sorted.
+ *
+ * `tags` is split into its members, so colouring or filtering by it works on
+ * individual tags rather than on the whole comma-joined string.
+ */
+export function attrValues(roots: MindmapNode[], key: string): string[] {
+  const values = new Set<string>();
+  for (const node of walkNodes(roots)) {
+    const raw = node.attrs?.[key];
+    if (!raw) continue;
+    if (key === TAGS_KEY) for (const tag of parseTags(raw)) values.add(tag);
+    else values.add(raw);
+  }
+  return [...values].sort();
+}
+
+/**
+ * Whether a node carries `value` for `key`.
+ *
+ * Membership for `tags`, equality for everything else — the same asymmetry
+ * `attrValues` applies, so what the toolbar offers is what the filter matches.
+ */
+export function nodeHasAttr(node: MindmapNode, key: string, value: string): boolean {
+  const raw = node.attrs?.[key];
+  if (!raw) return false;
+  return key === TAGS_KEY ? parseTags(raw).includes(value) : raw === value;
+}
+
 /**
  * Parses a mindmap note.
  *
@@ -532,7 +743,9 @@ export function stickiesOf(stickies: Sticky[], nodeId: string): Sticky[] {
  * no `title`.
  */
 export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocModel {
-  const s = splitSections(content);
+  // Everything below is line-oriented and several patterns end in `(.*)$`,
+  // which `\r` breaks — so the file's line ending is dealt with once, here.
+  const s = splitSections(toLf(content));
   const doc: MindmapDocModel = {
     title: frontmatterValue(s.frontmatter, "title") || fallbackTitle,
     nodeWidth: parseNodeWidth(frontmatterValue(s.frontmatter, "node_width")),
@@ -542,6 +755,11 @@ export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocMod
     stickies: [],
     rawStickies: [],
     stickiesHidden: frontmatterValue(s.frontmatter, "stickies") === "hidden",
+    attrView: {
+      chips: parseAttrChips(frontmatterValue(s.frontmatter, "attr_chips")),
+      color: frontmatterValue(s.frontmatter, "attr_color").trim(),
+      filter: parseAttrFilter(frontmatterValue(s.frontmatter, "attr_filter")),
+    },
   };
 
   // `stack[d]` is the node most recently opened at depth d — the parent a node
@@ -663,6 +881,15 @@ export function formatNode(node: MindmapNode, depth = 0): string[] {
   if (title) parts.push(title);
   if (node.color) parts.push(`#${node.color}`);
   if (node.task) parts.push(`task:${node.task}`);
+  // Sorted rather than written in insertion order: the file is diffed and
+  // hand-merged, and an attribute that moves along the line on every save
+  // makes a one-word change look like a rewritten node.
+  for (const key of Object.keys(node.attrs ?? {}).sort()) {
+    const value = node.attrs?.[key] ?? "";
+    // A value emptied in the editor drops the attribute instead of writing
+    // `key:`, which the parser would read back as part of the title.
+    if (value) parts.push(`${key}:${value}`);
+  }
   if (node.collapsed) parts.push("^collapsed");
   if (node.side) parts.push(`^${node.side}`);
 
@@ -682,7 +909,12 @@ export function formatNode(node: MindmapNode, depth = 0): string[] {
  * frontmatter, `## Memo`, stray sections — is carried through.
  */
 export function serializeMindmap(content: string, doc: MindmapDocModel, today: string): string {
-  const s = splitSections(content);
+  // The file keeps the line ending it already had: this note is shared with
+  // Obsidian, with git and with the user's own editor, and rewriting every
+  // line of a CRLF file as LF would turn a one-word edit into a whole-file
+  // diff for all of them.
+  const eol = detectEol(content);
+  const s = splitSections(toLf(content));
   let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
   // `auto` is the default, so it is written as the absence of the key — a note
   // only carries the setting once it has been changed away from the default.
@@ -693,6 +925,20 @@ export function serializeMindmap(content: string, doc: MindmapDocModel, today: s
   frontmatter = doc.stickiesHidden
     ? setFrontmatterValue(frontmatter, "stickies", "hidden")
     : removeFrontmatterKey(frontmatter, "stickies");
+  // The three attribute view settings follow the same rule as `node_width`:
+  // the default is written as the absence of the key, so a note only carries
+  // one once it has been changed away from it.
+  const view = doc.attrView;
+  frontmatter =
+    view.chips === "all"
+      ? removeFrontmatterKey(frontmatter, "attr_chips")
+      : setFrontmatterValue(frontmatter, "attr_chips", view.chips.join(",") || "none");
+  frontmatter = view.color
+    ? setFrontmatterValue(frontmatter, "attr_color", view.color)
+    : removeFrontmatterKey(frontmatter, "attr_color");
+  frontmatter = view.filter
+    ? setFrontmatterValue(frontmatter, "attr_filter", `${view.filter.key}=${view.filter.value}`)
+    : removeFrontmatterKey(frontmatter, "attr_filter");
 
   const body = [...doc.roots.flatMap((root) => formatNode(root)), ...doc.rawNodes].join("\n");
   const nodes = `## Nodes\n\n${body}${body ? "\n" : ""}\n`;
@@ -702,7 +948,10 @@ export function serializeMindmap(content: string, doc: MindmapDocModel, today: s
   const stickyBody = [...doc.stickies.flatMap(formatSticky), ...doc.rawStickies].join("\n");
   const stickies = stickyBody ? `## Stickies\n\n${stickyBody}\n\n` : "";
 
-  return `${frontmatter}${s.preamble}${nodes}${s.between}${stickies}${s.tail}`;
+  return withEol(
+    `${frontmatter}${s.preamble}${nodes}${s.between}${stickies}${s.tail}`,
+    eol,
+  );
 }
 
 /** Renders one sticky: its grammar line plus any further lines of its text. */
