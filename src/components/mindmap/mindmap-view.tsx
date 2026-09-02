@@ -12,11 +12,11 @@ import {
   Plus,
   Sparkles,
   StickyNote,
-  Tags,
   Trash2,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { MindmapAiPanel } from "@/components/mindmap/mindmap-ai-panel";
+import { ChipSettings } from "@/components/mindmap/chip-settings";
 import { MindmapCanvas } from "@/components/mindmap/mindmap-canvas";
 import { NodeEditor } from "@/components/mindmap/node-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -42,6 +42,8 @@ import { projectOfNotePath } from "@/lib/vault-project";
 import { readViewState, writeViewState } from "@/lib/view-state";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
+import { chipCommand, type AttrChip, type ChipAction } from "@/lib/mindmap/attrs";
+import type { PositionedNode } from "@/lib/mindmap/layout";
 import {
   attrKeys as attrKeysOf,
   attrValues,
@@ -475,6 +477,29 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       mutate({ ...doc, roots });
     },
     [doc, mutate],
+  );
+
+  /**
+   * A command chosen from an attribute chip's right-click menu.
+   *
+   * Four of the five change how the map is being *looked at* and go through
+   * `changeAttrView`; only `remove` edits the tree. Both paths end up in
+   * `mutate`, so a menu command is on the undo stack like any other edit.
+   */
+  const chipAction = useCallback(
+    (action: ChipAction, node: PositionedNode, chip: AttrChip) => {
+      if (!doc) return;
+      const target = findNode(doc.roots, node.id);
+      if (!target) return;
+      const command = chipCommand(action, chip, {
+        view: doc.attrView,
+        keys: attrKeys,
+        attrs: target.attrs,
+      });
+      if (command.kind === "view") changeAttrView(command.patch);
+      else patchNode(node.id, { attrs: command.attrs });
+    },
+    [doc, attrKeys, changeAttrView, patchNode],
   );
 
   /** Selecting a node clears any selected sticky, and the other way round —
@@ -1175,30 +1200,12 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               </SelectContent>
             </Select>
 
-            <Hint
-              label={
-                attrView.chips === "all" || attrView.chips.length
-                  ? "Hide the attribute chips"
-                  : "Show the attribute chips"
-              }
+            <ChipSettings
+              keys={attrKeys}
+              chips={attrView.chips}
               disabled={!doc || aiRunning}
-            >
-              <Button
-                size="sm"
-                variant={
-                  attrView.chips === "all" || attrView.chips.length ? "secondary" : "outline"
-                }
-                className="h-7 text-xs"
-                disabled={!doc || aiRunning}
-                onClick={() =>
-                  changeAttrView({
-                    chips: attrView.chips === "all" || attrView.chips.length ? [] : "all",
-                  })
-                }
-              >
-                <Tags className="size-3.5" />
-              </Button>
-            </Hint>
+              onChange={(chips) => changeAttrView({ chips })}
+            />
           </>
         )}
 
@@ -1330,6 +1337,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 onCancelEdit={() => editingId && finishEdit(editingId, null)}
                 onToggleCollapse={toggleCollapse}
                 onReparent={reparent}
+                onChipAction={chipAction}
               />
               <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                 Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove · drag

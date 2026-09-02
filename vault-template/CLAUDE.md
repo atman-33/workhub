@@ -319,7 +319,8 @@ Node line:
   - The app draws attributes as chips under the node's title, can colour the
     boxes by one key, and can dim every node that does not carry a given
     `key=value`. All three are display settings — see the frontmatter keys
-    below.
+    below. Right-clicking a chip on the map offers those commands, plus
+    removing that attribute from the node.
 - `^collapsed` hides the node's children **in the app**; the subtree itself is
   untouched.
 - `^left` / `^right` pins a branch to one side of the root (only meaningful on
@@ -356,9 +357,14 @@ differs per map, and an export has to look like what was on screen when it was
 made — and each one is written as the absence of the key when it is at its
 default:
 
-- `attr_chips: prio,tags` narrows the chips to those keys; `none` turns them
-  off entirely. Absent means every attribute is shown, which is why a map that
-  uses no attributes looks exactly as it did before they existed.
+- `attr_chips: tags,prio` says **which** chips are drawn and **in what order**;
+  `none` turns them off entirely. Absent means every attribute is shown,
+  alphabetically — which is why a map that uses no attributes looks exactly as
+  it did before they existed. Alphabetical is only the fallback: `tags` sorts
+  last because of how it is spelled, not because it matters least, so a map
+  that cares about the order says so. The Mindmap tab's chip button edits this.
+  Within one key the order is the file's own — the order the tags were typed
+  in, which you can drag into shape in the node panel.
 - `attr_color: prio` colours the boxes by that attribute's value instead of by
   `#<color>`. A node without the attribute is left uncoloured — "not labelled
   yet" is usually the thing you are looking for — and branch colour inheritance
