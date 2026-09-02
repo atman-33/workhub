@@ -7,12 +7,20 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
-import { attrValueColor, setAttr } from "@/lib/mindmap/attrs";
+import { attrValueColor, moveChipKey, orderedAttrKeys, setAttr } from "@/lib/mindmap/attrs";
+import { cn } from "@/lib/utils";
 import {
   COLOR_HEX,
   formatTags,
@@ -21,6 +29,7 @@ import {
   STICKY_FILL_HEX,
   STICKY_INK,
   TAGS_KEY,
+  toAttrKeyInput,
 } from "@/lib/mindmap/parse";
 
 /**
@@ -44,6 +53,13 @@ interface Props {
   knownKeys: string[];
   /** Values already used for a given key, offered as suggestions. */
   valuesFor: (key: string) => string[];
+  /**
+   * The note's `attr_chips`. The rows are listed in this order, and dragging
+   * one changes it — the order is the map's, not the node's, which is why it
+   * is passed in rather than derived from `attrs`.
+   */
+  chips: "all" | string[];
+  onChipsChange: (chips: "all" | string[]) => void;
   disabled?: boolean;
   onChange: (attrs: Record<string, string> | undefined) => void;
 }
@@ -104,15 +120,113 @@ function SortableTag({
   );
 }
 
-export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: Props) {
+/**
+ * One `key: value` row, draggable by the grip on its left.
+ *
+ * The grip is a handle rather than the whole row because the row is mostly a
+ * text field: making the field itself draggable would cost the click that puts
+ * the caret in it.
+ *
+ * What the drag reorders is the map's chip order, not anything on this node —
+ * a node cannot draw its own attributes in its own sequence, and two nodes
+ * showing the same keys in different orders would be unreadable.
+ */
+function SortableKeyRow({
+  attrKey,
+  value,
+  values,
+  draggable,
+  disabled,
+  onChange,
+  onRemove,
+}: {
+  attrKey: string;
+  value: string;
+  values: string[];
+  /** False for a key the map hides, which has no drawing order to change. */
+  draggable: boolean;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: attrKey,
+    disabled: disabled || !draggable,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="flex items-center gap-1.5"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1000 : 0,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        className={cn(
+          "flex w-20 shrink-0 items-center gap-1 truncate font-mono text-[10px] text-muted-foreground",
+          draggable && !disabled && "cursor-grab",
+        )}
+      >
+        {/* The grip keeps its width when it is not shown, so the fields of a
+            hidden key stay lined up with the rest. */}
+        <GripVertical className={cn("size-3 shrink-0", !draggable && "invisible")} />
+        <span className="truncate">{attrKey}</span>
+      </span>
+      <Input
+        value={value}
+        disabled={disabled}
+        list={`mindmap-attr-${attrKey}`}
+        className="h-7 text-xs"
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+      <datalist id={`mindmap-attr-${attrKey}`}>
+        {values.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+      <Hint label={`Remove ${attrKey}`} disabled={disabled}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="size-6 shrink-0 p-0"
+          disabled={disabled}
+          onClick={onRemove}
+        >
+          ×
+        </Button>
+      </Hint>
+    </div>
+  );
+}
+
+export function AttrEditor({
+  attrs,
+  knownKeys,
+  valuesFor,
+  chips,
+  onChipsChange,
+  disabled,
+  onChange,
+}: Props) {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newTag, setNewTag] = useState("");
 
   const tags = parseTags(attrs?.[TAGS_KEY]);
-  const plainKeys = Object.keys(attrs ?? {})
-    .filter((k) => k !== TAGS_KEY)
-    .sort();
+  const plainKeys = orderedAttrKeys(
+    Object.keys(attrs ?? {}).filter((k) => k !== TAGS_KEY),
+    chips,
+    knownKeys,
+  );
+  /** A key the map does not draw has no drawing order, so it does not drag. */
+  const drawn = chips === "all" ? knownKeys : chips;
 
   const set = (key: string, value: string) => onChange(setAttr(attrs, key, value));
 
@@ -124,6 +238,11 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
     const to = tags.indexOf(String(over.id));
     if (from < 0 || to < 0) return;
     set(TAGS_KEY, formatTags(arrayMove(tags, from, to)));
+  };
+
+  const reorderKeys = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    onChipsChange(moveChipKey(chips, knownKeys, String(active.id), String(over.id)));
   };
 
   const addTag = (raw: string) => {
@@ -141,7 +260,7 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
   };
 
   const addAttr = () => {
-    const key = newKey.trim().toLowerCase();
+    const key = toAttrKeyInput(newKey.trim());
     const value = newValue.trim();
     if (!isAttrKey(key) || !value) return;
     if (key === TAGS_KEY) addTag(value);
@@ -189,6 +308,10 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
         onBlur={() => addTag(newTag)}
         onKeyDown={(e) => {
           e.stopPropagation();
+          // The Enter that confirms an IME conversion is not the Enter that
+          // ends the tag: without this, typing a Japanese tag files it half
+          // converted and starts the next one.
+          if (e.nativeEvent.isComposing) return;
           if (e.key === "Enter" || e.key === ",") {
             e.preventDefault();
             addTag(newTag);
@@ -201,37 +324,31 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
         ))}
       </datalist>
 
-      {plainKeys.map((key) => (
-        <div key={key} className="flex items-center gap-1.5">
-          <span className="w-20 shrink-0 truncate font-mono text-[10px] text-muted-foreground">
-            {key}
-          </span>
-          <Input
-            value={attrs?.[key] ?? ""}
-            disabled={disabled}
-            list={`mindmap-attr-${key}`}
-            className="h-7 text-xs"
-            onChange={(e) => set(key, clean(e.target.value))}
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-          <datalist id={`mindmap-attr-${key}`}>
-            {valuesFor(key).map((v) => (
-              <option key={v} value={v} />
-            ))}
-          </datalist>
-          <Hint label={`Remove ${key}`} disabled={disabled}>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="size-6 shrink-0 p-0"
-              disabled={disabled}
-              onClick={() => set(key, "")}
-            >
-              ×
-            </Button>
-          </Hint>
-        </div>
-      ))}
+      {plainKeys.length > 0 && (
+        <>
+        <span className="block text-[10px] text-muted-foreground">
+          Drag to reorder the chips on every node
+        </span>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={reorderKeys}>
+          <SortableContext items={plainKeys} strategy={verticalListSortingStrategy}>
+            <div className="space-y-1.5">
+              {plainKeys.map((key) => (
+                <SortableKeyRow
+                  key={key}
+                  attrKey={key}
+                  value={attrs?.[key] ?? ""}
+                  values={valuesFor(key)}
+                  draggable={drawn.includes(key)}
+                  disabled={disabled}
+                  onChange={(v) => set(key, clean(v))}
+                  onRemove={() => set(key, "")}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        </>
+      )}
 
       <div className="flex items-center gap-1.5">
         <Input
@@ -240,7 +357,7 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
           disabled={disabled}
           list="mindmap-attr-keys"
           className="h-7 w-20 shrink-0 text-xs"
-          onChange={(e) => setNewKey(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+          onChange={(e) => setNewKey(toAttrKeyInput(e.target.value))}
           onKeyDown={(e) => e.stopPropagation()}
         />
         <datalist id="mindmap-attr-keys">
@@ -256,6 +373,7 @@ export function AttrEditor({ attrs, knownKeys, valuesFor, disabled, onChange }: 
           onChange={(e) => setNewValue(clean(e.target.value))}
           onKeyDown={(e) => {
             e.stopPropagation();
+            if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter") addAttr();
           }}
         />

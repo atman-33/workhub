@@ -4,6 +4,9 @@ import {
   attrValueColor,
   chipCommand,
   chipsOf,
+  moveChipKey,
+  normalizeChips,
+  orderedAttrKeys,
   quickAttrGroups,
   quickAttrToggle,
   setAttr,
@@ -70,7 +73,8 @@ describe("attribute grammar", () => {
     expect(isAttrKey("due-by_2")).toBe(true);
     expect(isAttrKey("Prio")).toBe(false);
     expect(isAttrKey("2nd")).toBe(false);
-    expect(isAttrKey("優先度")).toBe(false);
+    // Japanese keys, and the title guards around them, live in
+    // `attr-key.test.ts`.
   });
 });
 
@@ -323,5 +327,45 @@ describe("quickAttrToggle", () => {
   it("drops the attribute map when the last value goes", () => {
     expect(quickAttrToggle({ tags: "only" }, "tags", "only")).toBeUndefined();
     expect(quickAttrToggle(undefined, "prio", "high")).toEqual({ prio: "high" });
+  });
+});
+
+describe("chip order", () => {
+  const keys = ["prio", "size", "tags"];
+
+  it("collapses a list that says the same as the default", () => {
+    expect(normalizeChips(["prio", "size", "tags"], keys)).toBe("all");
+    expect(normalizeChips(["tags", "prio", "size"], keys)).toEqual(["tags", "prio", "size"]);
+    expect(normalizeChips(["prio"], keys)).toEqual(["prio"]);
+  });
+
+  it("lists a node's keys in the order the chips are drawn", () => {
+    expect(orderedAttrKeys(["size", "prio"], ["tags", "prio", "size"], keys)).toEqual([
+      "prio",
+      "size",
+    ]);
+  });
+
+  it("falls back to alphabetical while the map is unordered", () => {
+    expect(orderedAttrKeys(["size", "prio"], "all", keys)).toEqual(["prio", "size"]);
+  });
+
+  it("puts a hidden key last rather than dropping it", () => {
+    // `size` is not drawn, but its value is still the node's and still edited.
+    expect(orderedAttrKeys(["size", "prio"], ["prio"], keys)).toEqual(["prio", "size"]);
+  });
+
+  it("moves a key without dropping the ones the node does not carry", () => {
+    expect(moveChipKey("all", keys, "tags", "prio")).toEqual(["tags", "prio", "size"]);
+    expect(moveChipKey(["tags", "prio", "size"], keys, "size", "tags")).toEqual([
+      "size",
+      "tags",
+      "prio",
+    ]);
+  });
+
+  it("leaves the setting alone when the move says nothing", () => {
+    expect(moveChipKey("all", keys, "prio", "prio")).toBe("all");
+    expect(moveChipKey(["prio"], keys, "prio", "size")).toEqual(["prio"]);
   });
 });

@@ -1508,6 +1508,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                   tasks={tasks}
                   attrKeys={attrKeys}
                   attrValuesFor={attrValuesFor}
+                  attrChips={attrView.chips}
+                  onAttrChipsChange={(chips) => changeAttrView({ chips })}
                   disabled={aiRunning}
                   stickies={stickiesOf(doc.stickies, selected.id)}
                   stickiesHidden={doc.stickiesHidden}

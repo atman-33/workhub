@@ -308,11 +308,15 @@ Node line:
   them, in any order. The keys are not configured anywhere: the map's
   vocabulary is whatever its nodes use, and the app offers the keys and values
   already in the file as suggestions.
-  - A key is lowercase ASCII (`[a-z][a-z0-9_-]*`, 24 characters at most) and a
-    value carries no spaces — the line is split on whitespace. Use `_` where a
-    value needs one. Anything that does not fit those rules stays part of the
-    title, which is what keeps `15:00`, `https://example.com` and `Q3:目標`
-    safe to write in a node.
+  - A key is either lowercase ASCII (`[a-z][a-z0-9_-]*`) or Japanese
+    (hiragana, katakana or kanji, optionally mixed with that same lowercase
+    ASCII) — so `prio:high` and `優先度:高` are both attributes. Either way it
+    is 24 characters at most, and a value carries no spaces, since the line is
+    split on whitespace. Use `_` where a value needs one.
+  - Anything that does not fit those rules stays part of the title, which is
+    what keeps `15:00`, `https://example.com` and `Q3:目標` safe to write in a
+    node. Only the ASCII colon separates a key from its value, so a title
+    written with the full-width `：` — `目標：達成` — is never read as one.
   - `tags:` is the one key the app treats as a list: its value is
     comma-separated (`tags:検討中,要調査`), each tag gets its own chip, and
     colouring or filtering by `tags` works on individual tags.

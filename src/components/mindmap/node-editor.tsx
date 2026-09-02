@@ -45,6 +45,10 @@ interface Props {
   attrKeys: string[];
   /** Values used for one key anywhere in this map. */
   attrValuesFor: (key: string) => string[];
+  /** The note's chip order, which the attribute rows are listed in and which
+   * dragging one of them changes. It belongs to the map, not to this node. */
+  attrChips: "all" | string[];
+  onAttrChipsChange: (chips: "all" | string[]) => void;
   disabled?: boolean;
   /** The sticky notes pinned to this node. */
   stickies: Sticky[];
@@ -76,6 +80,8 @@ export function NodeEditor({
   tasks,
   attrKeys,
   attrValuesFor,
+  attrChips,
+  onAttrChipsChange,
   disabled,
   stickies,
   stickiesHidden,
@@ -166,6 +172,8 @@ export function NodeEditor({
         attrs={node.attrs}
         knownKeys={attrKeys}
         valuesFor={attrValuesFor}
+        chips={attrChips}
+        onChipsChange={onAttrChipsChange}
         disabled={disabled}
         onChange={(attrs) => onChange({ attrs })}
       />
