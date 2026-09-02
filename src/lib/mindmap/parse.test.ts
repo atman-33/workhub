@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  canIndent,
+  canMoveSibling,
+  canOutdent,
   cloneNodes,
   findNode,
   findParent,
   freezeRootChildSides,
+  indentNode,
   moveNode,
+  moveSibling,
+  outdentNode,
   nextNodeId,
   nextStickyId,
   parseMindmap,
@@ -12,6 +18,7 @@ import {
   serializeMindmap,
   stickiesOf,
   subtreeIds,
+  type MindmapNode,
 } from "./parse";
 
 const note = (nodes: string, extra = "") =>
@@ -468,5 +475,128 @@ describe("Windows line endings", () => {
     const src = crlf(note("- N-001 workhub #blue\n  - N-002 tasks"));
     const out = serializeMindmap(src, parseMindmap(src), "2026-08-26");
     expect(out).toBe(src);
+  });
+});
+
+describe("sibling moves", () => {
+  /** One root, one column: `a` and `b` are ordinary siblings, `a1` is nested. */
+  const flat = () =>
+    parseMindmap(
+      note(["- N-001 root", "  - N-002 a ^right", "    - N-003 a1", "  - N-004 b ^right"].join("\n")),
+    ).roots;
+
+  /** Four unpinned branches, which the layout alternates right/left/right/left. */
+  const branches = () =>
+    parseMindmap(
+      note(
+        ["- N-001 root", "  - N-002 a", "  - N-003 b", "  - N-004 c", "  - N-005 d"].join("\n"),
+      ),
+    ).roots;
+
+  const kids = (roots: MindmapNode[]) => roots[0].children.map((n) => n.id);
+
+  it("swaps a node with the sibling below it", () => {
+    expect(kids(moveSibling(flat(), "N-002", 1)!)).toEqual(["N-004", "N-002"]);
+  });
+
+  it("swaps a node with the sibling above it", () => {
+    expect(kids(moveSibling(flat(), "N-004", -1)!)).toEqual(["N-004", "N-002"]);
+  });
+
+  it("carries the subtree along", () => {
+    const moved = moveSibling(flat(), "N-002", 1)!;
+    expect(findParent(moved, "N-003")?.id).toBe("N-002");
+  });
+
+  it("returns null at either end", () => {
+    expect(moveSibling(flat(), "N-002", -1)).toBeNull();
+    expect(moveSibling(flat(), "N-004", 1)).toBeNull();
+    expect(moveSibling(flat(), "N-999", 1)).toBeNull();
+    expect(canMoveSibling(flat(), "N-002", -1)).toBe(false);
+    expect(canMoveSibling(flat(), "N-002", 1)).toBe(true);
+  });
+
+  it("moves a branch past the next branch on its own side, not the array's", () => {
+    // Drawn right/left/right/left, so the branch below `a` is `c`, not `b`.
+    const moved = moveSibling(branches(), "N-002", 1)!;
+    expect(kids(moved)).toEqual(["N-003", "N-004", "N-002", "N-005"]);
+    // Every branch keeps the column it was drawn in.
+    expect(moved[0].children.map((n) => n.side)).toEqual(["left", "right", "right", "left"]);
+  });
+
+  it("knows when a branch is already last on its side", () => {
+    expect(canMoveSibling(branches(), "N-004", 1)).toBe(false);
+    expect(canMoveSibling(branches(), "N-005", 1)).toBe(false);
+    expect(canMoveSibling(branches(), "N-004", -1)).toBe(true);
+  });
+
+  it("does not mutate the tree it was given", () => {
+    const roots = branches();
+    const before = JSON.stringify(roots);
+    moveSibling(roots, "N-002", 1);
+    indentNode(roots, "N-004");
+    outdentNode(roots, "N-003");
+    canMoveSibling(roots, "N-002", 1);
+    expect(JSON.stringify(roots)).toBe(before);
+  });
+});
+
+describe("indent and outdent", () => {
+  const build = () =>
+    parseMindmap(
+      note(
+        [
+          "- N-001 root",
+          "  - N-002 a ^right",
+          "    - N-003 a1",
+          "  - N-004 b ^right",
+          "    - N-005 b1",
+        ].join("\n"),
+      ),
+    ).roots;
+
+  it("files a node under the sibling above it", () => {
+    const moved = indentNode(build(), "N-004")!;
+    expect(findParent(moved, "N-004")?.id).toBe("N-002");
+    expect(findNode(moved, "N-002")!.children.map((n) => n.id)).toEqual(["N-003", "N-004"]);
+    // It is no longer a branch, so it asserts no side of its own.
+    expect(findNode(moved, "N-004")!.side).toBeUndefined();
+  });
+
+  it("expands the node it files into", () => {
+    const roots = build();
+    findNode(roots, "N-002")!.collapsed = true;
+    expect(findNode(indentNode(roots, "N-004")!, "N-002")!.collapsed).toBeUndefined();
+  });
+
+  it("refuses to indent the first node on its side", () => {
+    expect(indentNode(build(), "N-002")).toBeNull();
+    expect(canIndent(build(), "N-002")).toBe(false);
+    expect(canIndent(build(), "N-004")).toBe(true);
+  });
+
+  it("promotes a node to its parent's next sibling", () => {
+    const moved = outdentNode(build(), "N-003")!;
+    expect(moved[0].children.map((n) => n.id)).toEqual(["N-002", "N-003", "N-004"]);
+    // Promoted into a root's children, it stays in its old parent's column.
+    expect(findNode(moved, "N-003")!.side).toBe("right");
+  });
+
+  it("keeps a deeper promotion sideless", () => {
+    const roots = parseMindmap(
+      note(
+        ["- N-001 root", "  - N-002 a", "    - N-003 a1", "      - N-004 a1x"].join("\n"),
+      ),
+    ).roots;
+    const moved = outdentNode(roots, "N-004")!;
+    expect(findParent(moved, "N-004")?.id).toBe("N-002");
+    expect(findNode(moved, "N-004")!.side).toBeUndefined();
+  });
+
+  it("refuses to promote a branch into a second root", () => {
+    expect(outdentNode(build(), "N-002")).toBeNull();
+    expect(outdentNode(build(), "N-001")).toBeNull();
+    expect(canOutdent(build(), "N-002")).toBe(false);
+    expect(canOutdent(build(), "N-003")).toBe(true);
   });
 });

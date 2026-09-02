@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
 import {
   ContextMenu,
@@ -6,6 +7,9 @@ import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -34,7 +38,7 @@ import {
   type NodeWidth,
   type Sticky,
 } from "@/lib/mindmap/parse";
-import type { AttrChip, ChipAction } from "@/lib/mindmap/attrs";
+import type { AttrChip, ChipAction, QuickAttrGroup } from "@/lib/mindmap/attrs";
 import { cn } from "@/lib/utils";
 
 /**
@@ -93,6 +97,14 @@ interface Props {
   onReparent: (id: string, parentId: string, dropSide: "left" | "right") => void;
   /** A command chosen from an attribute chip's right-click menu. */
   onChipAction: (action: ChipAction, node: PositionedNode, chip: AttrChip) => void;
+  /** Which structural moves are open to a node, for greying its menu items. */
+  abilitiesOf: (id: string) => NodeAbilities;
+  /** A command chosen from a node's own right-click menu. */
+  onNodeAction: (action: NodeAction, node: PositionedNode) => void;
+  /** The map's attribute vocabulary, marked up for one node. */
+  quickAttrsOf: (node: PositionedNode) => QuickAttrGroup[];
+  /** One value put on or taken off a node from its menu. */
+  onQuickAttr: (node: PositionedNode, key: string, value: string) => void;
   /** Bumped by the view to re-fit the map (a new file, or the Fit button). */
   fitToken: number;
 }
@@ -167,6 +179,10 @@ export function MindmapCanvas({
   onToggleCollapse,
   onReparent,
   onChipAction,
+  abilitiesOf,
+  onNodeAction,
+  quickAttrsOf,
+  onQuickAttr,
   fitToken,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -522,6 +538,10 @@ export function MindmapCanvas({
               onDragStart={startNodeDrag}
               attrView={attrView}
               onChipAction={onChipAction}
+              abilities={abilitiesOf(node.id)}
+              onNodeAction={onNodeAction}
+              quickAttrs={quickAttrsOf(node)}
+              onQuickAttr={onQuickAttr}
             />
           ))}
 
@@ -600,6 +620,31 @@ function dropLine(parent: PositionedNode, drag: { x: number; y: number }): strin
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${drag.x - dx} ${drag.y}, ${drag.x} ${drag.y}`;
 }
 
+/**
+ * What a node's right-click menu can do.
+ *
+ * The structural half of the mindmap's keyboard, offered again as a menu: the
+ * shortcuts are faster once known, and a menu is how they get known.
+ */
+export type NodeAction =
+  | "moveUp"
+  | "moveDown"
+  | "indent"
+  | "outdent"
+  | "rename"
+  | "addChild"
+  | "addSibling"
+  | "toggleCollapse"
+  | "delete";
+
+/** Which of the four structural moves are open to a node right now. */
+export interface NodeAbilities {
+  moveUp: boolean;
+  moveDown: boolean;
+  indent: boolean;
+  outdent: boolean;
+}
+
 interface NodeProps {
   node: PositionedNode;
   selected: boolean;
@@ -621,6 +666,12 @@ interface NodeProps {
    * currently filtered on. */
   attrView: AttrView;
   onChipAction: (action: ChipAction, node: PositionedNode, chip: AttrChip) => void;
+  /** Which structural moves are open to this node, for greying the menu. */
+  abilities: NodeAbilities;
+  onNodeAction: (action: NodeAction, node: PositionedNode) => void;
+  /** The map's vocabulary, marked up for this node. */
+  quickAttrs: QuickAttrGroup[];
+  onQuickAttr: (node: PositionedNode, key: string, value: string) => void;
 }
 
 function NodeBox({
@@ -641,6 +692,10 @@ function NodeBox({
   onDragStart,
   attrView,
   onChipAction,
+  abilities,
+  onNodeAction,
+  quickAttrs,
+  onQuickAttr,
 }: NodeProps) {
   const color = node.color ?? node.branchColor;
   const stroke = color ? COLOR_HEX[color] : undefined;
@@ -660,7 +715,7 @@ function NodeBox({
   // the box, and a chip poking out from under it reads as a rendering bug.
   const chipRows = editing ? [] : node.chipRows;
 
-  return (
+  const box = (
     <g
       opacity={dragging ? 0.45 : node.dimmed ? DIMMED_OPACITY : 1}
       onPointerDown={(e) => {
@@ -739,53 +794,61 @@ function NodeBox({
           const filtered =
             attrView.filter?.key === chip.key && attrView.filter?.value === chip.value;
           return (
-            <ContextMenu key={`${node.id}-${rowIndex}-${chip.key}-${chip.value}`}>
-              <ContextMenuTrigger asChild disabled={locked}>
-                <g className="cursor-context-menu">
-              <rect
-                x={chipX}
-                y={rowY}
-                width={w}
-                height={CHIP_HEIGHT}
-                rx={CHIP_HEIGHT / 2}
-                fill={STICKY_FILL_HEX[chip.color]}
-                stroke={COLOR_HEX[chip.color]}
-                strokeWidth={1}
-              />
-              <text
-                x={chipX + w / 2}
-                y={rowY + CHIP_HEIGHT / 2 + CHIP_FONT_SIZE * 0.36}
-                textAnchor="middle"
-                fontSize={CHIP_FONT_SIZE}
-                fill={STICKY_INK}
-                className="select-none"
-              >
-                {chip.label}
-              </text>
-                </g>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuLabel className="font-mono text-[11px]">
-                  {chip.key}: {chip.value}
-                </ContextMenuLabel>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => onChipAction(filtered ? "clearFilter" : "filter", node, chip)}
-                >
-                  {filtered ? "Clear the filter" : "Filter by this"}
-                </ContextMenuItem>
-                <ContextMenuItem onSelect={() => onChipAction("colorBy", node, chip)}>
-                  Colour the map by {chip.key}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onSelect={() => onChipAction("remove", node, chip)}>
-                  Remove from this node
-                </ContextMenuItem>
-                <ContextMenuItem onSelect={() => onChipAction("hideKey", node, chip)}>
-                  Hide the {chip.key} chips
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
+            // A chip carries its own menu. Radix's trigger does not stop the
+            // event, so without this the node's menu behind it would open at
+            // the same time.
+            <g
+              key={`${node.id}-${rowIndex}-${chip.key}-${chip.value}`}
+              onContextMenu={(e) => e.stopPropagation()}
+            >
+              <ContextMenu>
+                <ContextMenuTrigger asChild disabled={locked}>
+                  <g className="cursor-context-menu">
+                    <rect
+                      x={chipX}
+                      y={rowY}
+                      width={w}
+                      height={CHIP_HEIGHT}
+                      rx={CHIP_HEIGHT / 2}
+                      fill={STICKY_FILL_HEX[chip.color]}
+                      stroke={COLOR_HEX[chip.color]}
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={chipX + w / 2}
+                      y={rowY + CHIP_HEIGHT / 2 + CHIP_FONT_SIZE * 0.36}
+                      textAnchor="middle"
+                      fontSize={CHIP_FONT_SIZE}
+                      fill={STICKY_INK}
+                      className="select-none"
+                    >
+                      {chip.label}
+                    </text>
+                  </g>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuLabel className="font-mono text-[11px]">
+                    {chip.key}: {chip.value}
+                  </ContextMenuLabel>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onSelect={() => onChipAction(filtered ? "clearFilter" : "filter", node, chip)}
+                  >
+                    {filtered ? "Clear the filter" : "Filter by this"}
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => onChipAction("colorBy", node, chip)}>
+                    Colour the map by {chip.key}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={() => onChipAction("remove", node, chip)}>
+                    Remove from this node
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => onChipAction("hideKey", node, chip)}>
+                    Hide the {chip.key} chips
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            </g>
           );
         });
       })}
@@ -833,6 +896,129 @@ function NodeBox({
         </g>
       )}
     </g>
+  );
+
+  // While an AI edit holds the file the map is look-only, so the menu that
+  // would offer to change it is not built at all.
+  if (locked) return box;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{box}</ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <ContextMenuLabel className="truncate text-[11px]">{node.title}</ContextMenuLabel>
+        <ContextMenuSeparator />
+        <MenuAction
+          label="Move up"
+          hint="Alt+Up"
+          disabled={!abilities.moveUp}
+          onSelect={() => onNodeAction("moveUp", node)}
+        />
+        <MenuAction
+          label="Move down"
+          hint="Alt+Down"
+          disabled={!abilities.moveDown}
+          onSelect={() => onNodeAction("moveDown", node)}
+        />
+        <MenuAction
+          label="Indent"
+          hint="Alt+Right"
+          disabled={!abilities.indent}
+          onSelect={() => onNodeAction("indent", node)}
+        />
+        <MenuAction
+          label="Outdent"
+          hint="Alt+Left"
+          disabled={!abilities.outdent}
+          onSelect={() => onNodeAction("outdent", node)}
+        />
+        <ContextMenuSeparator />
+        <MenuAction
+          label="Rename"
+          hint="F2"
+          onSelect={() => onNodeAction("rename", node)}
+        />
+        <MenuAction
+          label="Add a child"
+          hint="Tab"
+          onSelect={() => onNodeAction("addChild", node)}
+        />
+        <MenuAction
+          label="Add a sibling"
+          hint="Enter"
+          onSelect={() => onNodeAction("addSibling", node)}
+        />
+        {quickAttrs.length > 0 && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>Attributes</ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-52">
+                {quickAttrs.map((group, i) => (
+                  <div key={group.key}>
+                    {i > 0 && <ContextMenuSeparator />}
+                    {group.options.map((option) => (
+                      <ContextMenuItem
+                        key={`${group.key}=${option.value}`}
+                        onSelect={() => onQuickAttr(node, group.key, option.value)}
+                      >
+                        {/* A fixed slot for the tick, so the labels line up
+                            whether or not the node carries the value. */}
+                        <span className="w-4">{option.on && <Check className="size-3.5" />}</span>
+                        <span className="truncate">{option.label}</span>
+                      </ContextMenuItem>
+                    ))}
+                    {group.overflow > 0 && (
+                      <ContextMenuLabel className="pl-6 text-[10px] font-normal text-muted-foreground">
+                        {group.overflow} more in the panel
+                      </ContextMenuLabel>
+                    )}
+                  </div>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        )}
+        {node.childCount > 0 && (
+          <>
+            <ContextMenuSeparator />
+            <MenuAction
+              label={node.collapsed ? "Expand" : "Collapse"}
+              onSelect={() => onNodeAction("toggleCollapse", node)}
+            />
+          </>
+        )}
+        <ContextMenuSeparator />
+        <MenuAction
+          label="Delete"
+          hint="Del"
+          variant="destructive"
+          onSelect={() => onNodeAction("delete", node)}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** One menu row: a label, and the shortcut that does the same thing. */
+function MenuAction({
+  label,
+  hint,
+  disabled,
+  variant,
+  onSelect,
+}: {
+  label: string;
+  hint?: string;
+  disabled?: boolean;
+  variant?: "default" | "destructive";
+  onSelect: () => void;
+}) {
+  return (
+    <ContextMenuItem disabled={disabled} variant={variant} onSelect={onSelect}>
+      <span className="flex-1 truncate">{label}</span>
+      {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+    </ContextMenuItem>
   );
 }
 

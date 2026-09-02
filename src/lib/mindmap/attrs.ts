@@ -15,6 +15,7 @@
 import {
   COLORS,
   formatTags,
+  nodeHasAttr,
   parseTags,
   TAGS_KEY,
   type AttrView,
@@ -219,4 +220,95 @@ export function chipCommand(action: ChipAction, chip: AttrChip, ctx: ChipContext
       return { kind: "attrs", attrs: setAttr(ctx.attrs, chip.key, next) };
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// quick assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * How many values one key offers in the node menu before the rest are left to
+ * the panel.
+ *
+ * A menu is for the handful of labels a map actually reuses — `prio`, a few
+ * tags. Past that it stops being faster than the panel it was meant to save
+ * you from, and a submenu that scrolls is worse than either.
+ */
+export const QUICK_ATTR_LIMIT = 8;
+
+/** One value a node's menu can toggle. */
+export interface QuickAttrOption {
+  value: string;
+  /** What the item reads as — the tag itself, or the bare value. */
+  label: string;
+  /** True when the node already carries it. */
+  on: boolean;
+}
+
+/** The values offered for one key. */
+export interface QuickAttrGroup {
+  key: string;
+  options: QuickAttrOption[];
+  /** Values the cap left out, which the panel still reaches. */
+  overflow: number;
+}
+
+/**
+ * The map's attribute vocabulary, arranged as the menu offers it.
+ *
+ * Built from what the map already uses rather than from anything configured:
+ * the point of the menu is to repeat a label onto the next twenty nodes, and
+ * a label nobody has typed yet is a job for the panel.
+ *
+ * A value the node already carries is never cut by the cap. Offering no way
+ * to take a label back off would be worse than offering fewer to put on, and
+ * the menu is the only place a label can be removed without opening the panel.
+ */
+export function quickAttrGroups(
+  vocabulary: readonly { key: string; values: readonly string[] }[],
+  attrs: Record<string, string> | undefined,
+  limit: number = QUICK_ATTR_LIMIT,
+): QuickAttrGroup[] {
+  const groups: QuickAttrGroup[] = [];
+  for (const { key, values } of vocabulary) {
+    if (values.length === 0) continue;
+    const on = values.filter((v) => nodeHasAttr({ attrs }, key, v));
+    const off = values.filter((v) => !on.includes(v));
+    const room = Math.max(0, limit - on.length);
+    const kept = new Set([...on, ...off.slice(0, room)]);
+    groups.push({
+      key,
+      // The vocabulary's own order is kept, so an item does not move under the
+      // pointer when a sibling node has a different set of labels on it.
+      options: values
+        .filter((v) => kept.has(v))
+        .map((value) => ({
+          value,
+          label: key === TAGS_KEY ? value : `${key}: ${value}`,
+          on: on.includes(value),
+        })),
+      overflow: values.length - kept.size,
+    });
+  }
+  return groups;
+}
+
+/**
+ * Puts one value on a node, or takes it off again.
+ *
+ * `tags` gains and loses members; every other key is single-valued, so
+ * choosing a second value replaces the first rather than accumulating — which
+ * is the whole reason a scale like `prio` is a key and not a tag.
+ */
+export function quickAttrToggle(
+  attrs: Record<string, string> | undefined,
+  key: string,
+  value: string,
+): Record<string, string> | undefined {
+  if (key !== TAGS_KEY) {
+    return setAttr(attrs, key, attrs?.[key] === value ? "" : value);
+  }
+  const tags = parseTags(attrs?.[TAGS_KEY]);
+  const next = tags.includes(value) ? tags.filter((t) => t !== value) : [...tags, value];
+  return setAttr(attrs, TAGS_KEY, formatTags(next));
 }

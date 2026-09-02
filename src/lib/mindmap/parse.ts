@@ -730,7 +730,11 @@ export function attrValues(roots: MindmapNode[], key: string): string[] {
  * Membership for `tags`, equality for everything else — the same asymmetry
  * `attrValues` applies, so what the toolbar offers is what the filter matches.
  */
-export function nodeHasAttr(node: MindmapNode, key: string, value: string): boolean {
+export function nodeHasAttr(
+  node: Pick<MindmapNode, "attrs">,
+  key: string,
+  value: string,
+): boolean {
   const raw = node.attrs?.[key];
   if (!raw) return false;
   return key === TAGS_KEY ? parseTags(raw).includes(value) : raw === value;
@@ -1073,4 +1077,164 @@ export function moveNode(
   const at = index === undefined ? parent.children.length : Math.max(0, Math.min(index, parent.children.length));
   parent.children.splice(at, 0, moving);
   return next;
+}
+
+/**
+ * Where a sibling move happens: the list a node sits in, and which of its
+ * neighbours count as "above" and "below".
+ *
+ * A root's children are the one list whose array order is not the order they
+ * are drawn in — branches alternate across the root, so the neighbour above a
+ * right-hand branch is the previous *right-hand* branch, not the previous
+ * entry in the array. Reordering by raw index would move a branch past one on
+ * the other side and change nothing on screen, which is the whole reason this
+ * question is answered once, here, rather than at each call site.
+ *
+ * Reads the tree without changing it, so it is safe to call for a menu that is
+ * only deciding whether to grey an item out.
+ */
+interface SiblingSlot {
+  /** The array the node lives in — a parent's `children`, or `roots` itself. */
+  list: MindmapNode[];
+  /** The node's parent, or `null` when it is a top-level root. */
+  parent: MindmapNode | null;
+  node: MindmapNode;
+  /** The node's index in `list`. */
+  at: number;
+  /** True when `list` is a root's children, i.e. split across two columns. */
+  isBranchList: boolean;
+  /**
+   * Indices in `list` the node can move between, in drawing order. Every index
+   * for an ordinary list; only the same-side ones for a root's children.
+   */
+  lane: number[];
+}
+
+function siblingSlot(roots: MindmapNode[], id: string): SiblingSlot | null {
+  const parent = findParent(roots, id);
+  const list = parent ? parent.children : roots;
+  const at = list.findIndex((n) => n.id === id);
+  if (at === -1) return null;
+
+  const isBranchList = Boolean(parent && roots.includes(parent));
+  let lane: number[];
+  if (isBranchList) {
+    const side = rootChildSide(list[at], at);
+    lane = list.reduce<number[]>((acc, n, i) => {
+      if (rootChildSide(n, i) === side) acc.push(i);
+      return acc;
+    }, []);
+  } else {
+    lane = list.map((_, i) => i);
+  }
+  return { list, parent, node: list[at], at, isBranchList, lane };
+}
+
+/**
+ * Moves a node one place up (`-1`) or down (`+1`) among the siblings it is
+ * drawn with, returning a new tree — or `null` when it is already at that end.
+ *
+ * `null` rather than the tree unchanged, so a caller can tell "nothing to do"
+ * from "done" without comparing trees, and a menu can grey the item out with
+ * the same question (`canMoveSibling`).
+ */
+export function moveSibling(
+  roots: MindmapNode[],
+  id: string,
+  delta: -1 | 1,
+): MindmapNode[] | null {
+  const next = cloneNodes(roots);
+  const slot = siblingSlot(next, id);
+  if (!slot) return null;
+  const to = slot.lane.indexOf(slot.at) + delta;
+  if (to < 0 || to >= slot.lane.length) return null;
+  const target = slot.lane[to];
+
+  // Freeze before the list changes shape: without this, removing one branch
+  // re-indexes the rest and flips every unpinned branch to the other side.
+  if (slot.isBranchList && slot.parent) freezeRootChildSides(slot.parent);
+  slot.list.splice(slot.at, 1);
+  slot.list.splice(target, 0, slot.node);
+  return next;
+}
+
+/** Whether `moveSibling` would do anything. */
+export function canMoveSibling(roots: MindmapNode[], id: string, delta: -1 | 1): boolean {
+  const slot = siblingSlot(roots, id);
+  if (!slot) return false;
+  const to = slot.lane.indexOf(slot.at) + delta;
+  return to >= 0 && to < slot.lane.length;
+}
+
+/**
+ * Makes a node the last child of the sibling drawn above it.
+ *
+ * The neighbour is taken in drawing order, so indenting a right-hand branch
+ * files it under the branch visibly above it rather than under whatever
+ * happens to precede it in the array.
+ */
+export function indentNode(roots: MindmapNode[], id: string): MindmapNode[] | null {
+  const next = cloneNodes(roots);
+  const slot = siblingSlot(next, id);
+  if (!slot) return null;
+  const pos = slot.lane.indexOf(slot.at);
+  if (pos <= 0) return null;
+  const target = slot.list[slot.lane[pos - 1]];
+
+  if (slot.isBranchList && slot.parent) freezeRootChildSides(slot.parent);
+  // A top-level root becoming a branch of the root above it: the branches
+  // already there keep their column, and the arrival alternates into a side.
+  if (next.includes(target)) freezeRootChildSides(target);
+
+  slot.list.splice(slot.at, 1);
+  // Only a branch of a root asserts a side; anything deeper follows its parent.
+  delete slot.node.side;
+  target.children.push(slot.node);
+  // Filing something into a collapsed node would otherwise hide the move.
+  delete target.collapsed;
+  return next;
+}
+
+/** Whether `indentNode` would do anything. */
+export function canIndent(roots: MindmapNode[], id: string): boolean {
+  const slot = siblingSlot(roots, id);
+  return Boolean(slot && slot.lane.indexOf(slot.at) > 0);
+}
+
+/**
+ * Makes a node the next sibling of its own parent.
+ *
+ * Refused for a branch of a root: promoting one would turn it into a second
+ * root, and a map's roots are its top-level subjects rather than a level the
+ * outdent key should be able to wander into by accident.
+ */
+export function outdentNode(roots: MindmapNode[], id: string): MindmapNode[] | null {
+  const next = cloneNodes(roots);
+  const parent = findParent(next, id);
+  if (!parent || next.includes(parent)) return null;
+  const grand = findParent(next, parent.id);
+  if (!grand) return null;
+  const node = findNode(next, id);
+  if (!node) return null;
+
+  const grandIsRoot = next.includes(grand);
+  // Freeze first so `parent.side` is the column it is actually drawn in.
+  if (grandIsRoot) freezeRootChildSides(grand);
+
+  const at = parent.children.findIndex((n) => n.id === id);
+  const parentAt = grand.children.findIndex((n) => n.id === parent.id);
+  parent.children.splice(at, 1);
+  // Promoted to a branch, it stays in the column it came out of; promoted
+  // anywhere else it has no side of its own.
+  if (grandIsRoot) node.side = parent.side;
+  else delete node.side;
+  grand.children.splice(parentAt + 1, 0, node);
+  return next;
+}
+
+/** Whether `outdentNode` would do anything. */
+export function canOutdent(roots: MindmapNode[], id: string): boolean {
+  const parent = findParent(roots, id);
+  if (!parent || roots.includes(parent)) return false;
+  return Boolean(findParent(roots, parent.id));
 }

@@ -4,6 +4,8 @@ import {
   attrValueColor,
   chipCommand,
   chipsOf,
+  quickAttrGroups,
+  quickAttrToggle,
   setAttr,
   type AttrChip,
 } from "./attrs";
@@ -262,5 +264,64 @@ describe("chip menu commands", () => {
       kind: "attrs",
       attrs: undefined,
     });
+  });
+});
+
+describe("quickAttrGroups", () => {
+  const vocab = [
+    { key: "prio", values: ["high", "low"] },
+    { key: "tags", values: ["draft", "review"] },
+  ];
+
+  it("marks the values the node already carries", () => {
+    const groups = quickAttrGroups(vocab, { prio: "high", tags: "review" });
+    expect(groups.map((g) => g.key)).toEqual(["prio", "tags"]);
+    expect(groups[0].options).toEqual([
+      { value: "high", label: "prio: high", on: true },
+      { value: "low", label: "prio: low", on: false },
+    ]);
+    // A tag reads as itself; the key would be the same word on every item.
+    expect(groups[1].options.map((o) => [o.label, o.on])).toEqual([
+      ["draft", false],
+      ["review", true],
+    ]);
+  });
+
+  it("skips a key with no values", () => {
+    expect(quickAttrGroups([{ key: "prio", values: [] }], undefined)).toEqual([]);
+  });
+
+  it("caps a long list but never cuts a value that is on", () => {
+    const values = ["a", "b", "c", "d", "e"];
+    const groups = quickAttrGroups([{ key: "tags", values }], { tags: "e" }, 2);
+    // `e` is kept because it is on; the cap then leaves room for one more.
+    expect(groups[0].options.map((o) => o.value)).toEqual(["a", "e"]);
+    expect(groups[0].overflow).toBe(3);
+  });
+
+  it("keeps the vocabulary's order rather than floating the checked ones", () => {
+    const groups = quickAttrGroups([{ key: "tags", values: ["a", "b", "c"] }], { tags: "c" });
+    expect(groups[0].options.map((o) => o.value)).toEqual(["a", "b", "c"]);
+    expect(groups[0].overflow).toBe(0);
+  });
+});
+
+describe("quickAttrToggle", () => {
+  it("adds and removes a tag", () => {
+    expect(quickAttrToggle({ tags: "a" }, "tags", "b")).toEqual({ tags: "a,b" });
+    expect(quickAttrToggle({ tags: "a,b" }, "tags", "a")).toEqual({ tags: "b" });
+  });
+
+  it("replaces a single-valued key rather than accumulating", () => {
+    expect(quickAttrToggle({ prio: "low" }, "prio", "high")).toEqual({ prio: "high" });
+  });
+
+  it("clears a single-valued key when the same value is chosen again", () => {
+    expect(quickAttrToggle({ prio: "high", tags: "a" }, "prio", "high")).toEqual({ tags: "a" });
+  });
+
+  it("drops the attribute map when the last value goes", () => {
+    expect(quickAttrToggle({ tags: "only" }, "tags", "only")).toBeUndefined();
+    expect(quickAttrToggle(undefined, "prio", "high")).toEqual({ prio: "high" });
   });
 });
