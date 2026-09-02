@@ -2,6 +2,39 @@
 
 ## 0.95.0 (2026-09-03)
 
+- **Mindmap nodes can be reordered, and labelled from a menu of their own**
+  (T-0224). A node's position among its siblings could not be changed at all:
+  dragging one only re-parents it, and a drop always appended. `Alt` with the
+  arrow keys now moves a node up and down its branch and in and out of its
+  parent, and a node carries a right-click menu with the same four moves plus
+  rename, add, collapse and delete — the shortcuts are faster once known, and a
+  menu is how they get known. That menu also toggles any `key:value` the map
+  already uses, so repeating a label onto twenty nodes is one gesture each
+  instead of two sidebar fields; the only way to put an attribute on used to be
+  the panel, which is the real gap behind wondering whether attributes earn
+  their keep. The subtlety is that a root's branches alternate left and right,
+  so "the sibling above" is the previous branch *on the same side* — moving by
+  array position would step over a branch in the other column and change
+  nothing on screen.
+- **Mindmap attribute keys can be written in Japanese** (T-0224), so a map can
+  say `優先度:高` rather than `prio:高`. Values have always accepted Japanese,
+  and the point of open keys is that the map decides what it is labelled with,
+  so half of that was closed for no reason. The rule was narrow on purpose —
+  a permissive key would eat a title containing `15:00`, `Q3:目標` or a bare
+  URL — so it was widened only in a way that keeps every one of those guards: a
+  Japanese key must contain a kana or kanji letter, and may otherwise carry only
+  the lowercase ASCII the old rule allowed. Only the ASCII colon separates a key
+  from its value, which means a title typed with a Japanese IME — `目標：達成` —
+  carries no separator at all and cannot be misread. The Enter that confirms an
+  IME conversion is no longer taken as "done" in the tag and value fields
+  either; it had been filing Japanese tags half converted.
+- **The attribute panel lists a node's keys in the order its chips are drawn**,
+  and a grip on each row drags that order (T-0224). The panel sorted
+  alphabetically while the canvas followed `attr_chips`, so a map that had been
+  deliberately ordered read one way on the node and another in the sidebar. A
+  drag rewrites the map's whole key list rather than the selected node's, since
+  rebuilding it from one node would drop the keys that node happens not to carry
+  and hide their chips everywhere as a side effect.
 - **The Plugins tab now grades plugins required / recommended / optional**
   (T-0223), instead of the required-or-not it shipped with. Two levels put
   `claude-tooling` — whose only job in the app was a notice the Plugins tab has
