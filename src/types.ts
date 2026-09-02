@@ -666,6 +666,14 @@ export interface PersonaState {
 /** Where a plugin is installed: `either` means both scopes are legitimate. */
 export type PluginScope = "project" | "user" | "either";
 
+/**
+ * How much the harness needs a plugin, decided by what breaks without it:
+ * `required` — an app feature or an agent launch stops working;
+ * `recommended` — nothing breaks, but the harness is noticeably worse;
+ * `optional` — a matter of taste or tech stack.
+ */
+export type PluginTier = "required" | "recommended" | "optional";
+
 export interface PluginInstall {
   /** `user` | `project` | `local` | `managed` */
   scope: string;
@@ -678,7 +686,8 @@ export interface PluginRow {
   name: string;
   /** False for a plugin installed or enabled but absent from catalog.json. */
   in_catalog: boolean;
-  required: boolean;
+  /** Empty for an uncatalogued row. */
+  tier: PluginTier | "";
   /** Empty when the catalog does not say (an uncatalogued row). */
   scope: PluginScope | "";
   summary: string;

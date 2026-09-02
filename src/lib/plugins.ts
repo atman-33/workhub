@@ -17,6 +17,7 @@ export type PluginStatus =
   | "missing" // required by the catalog, but not switched on anywhere
   | "pending" // switched on, not installed yet — Claude Code installs it next launch
   | "outdated" // installed version is behind the marketplace clone
+  | "advised" // recommended by the catalog and switched off — a suggestion, not a fault
   | "ok" // on, installed, current
   | "unknown" // on and installed, but the clone offers no version to compare
   | "off"; // optional and switched off — nothing to do
@@ -81,7 +82,10 @@ export function installedVersion(row: PluginRow, scope: string): string {
 /** Decide a row's status. See `PluginStatus` for what each one means. */
 export function pluginStatus(row: PluginRow): PluginStatus {
   const enabled = row.enabled_project || row.enabled_user;
-  if (!enabled) return row.required ? "missing" : "off";
+  if (!enabled) {
+    if (row.tier === "required") return "missing";
+    return row.tier === "recommended" ? "advised" : "off";
+  }
   const installed = installedVersion(row, effectiveScope(row));
   if (!installed) return "pending";
   if (!row.latest_version) return "unknown";
@@ -91,10 +95,11 @@ export function pluginStatus(row: PluginRow): PluginStatus {
 const STATUS_ORDER: Record<PluginStatus, number> = {
   missing: 0,
   outdated: 1,
-  pending: 2,
-  unknown: 3,
-  ok: 4,
-  off: 5,
+  advised: 2,
+  pending: 3,
+  unknown: 4,
+  ok: 5,
+  off: 6,
 };
 
 /**
@@ -124,7 +129,18 @@ export function pluginViews(state: PluginsState): PluginView[] {
   return ordered.map((o) => o.view);
 }
 
-/** Rows the owner should act on, in the same order the list shows them. */
+/**
+ * Rows the owner should act on, in the same order the list shows them.
+ *
+ * `advised` is deliberately not here: a recommended plugin left off is a
+ * choice, and putting it in the same list as a broken harness would train the
+ * owner to ignore the list.
+ */
 export function pluginProblems(views: PluginView[]): PluginView[] {
   return views.filter((v) => v.status === "missing" || v.status === "outdated");
+}
+
+/** Recommended plugins that are switched off — a suggestion, shown apart. */
+export function pluginSuggestions(views: PluginView[]): PluginView[] {
+  return views.filter((v) => v.status === "advised");
 }

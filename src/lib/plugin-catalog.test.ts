@@ -1,9 +1,9 @@
 /**
  * Guards the plugin catalog against drift, in CI.
  *
- * `.claude-plugin/catalog.json` says which plugins a vault cannot work without
- * and at which scope each is installed — metadata Claude Code itself never
- * reads, and which therefore has nothing else keeping it honest. It is worth
+ * `.claude-plugin/catalog.json` says how much a vault needs each plugin and at
+ * which scope it is installed — metadata Claude Code itself never reads, and
+ * which therefore has nothing else keeping it honest. It is worth
  * having only as long as it agrees with the three places that describe the same
  * plugins: `marketplace.json` (what exists), each `plugin.json` (what version),
  * and `docs/plugins.md` (what a human is told).
@@ -20,7 +20,7 @@ const root = process.cwd();
 
 interface CatalogEntry {
   name: string;
-  required: boolean;
+  tier: "required" | "recommended" | "optional";
   scope: "project" | "user" | "either";
   summary: string;
 }
@@ -34,16 +34,23 @@ const marketplace: { plugins: { name: string; source: string }[] } = JSON.parse(
 
 /**
  * The plugin rows of the catalog table in `docs/plugins.md`, keyed by name.
- * The table's first column is the plugin in backticks, the second says
- * required or optional, the third is the scope.
+ * The table's first column is the plugin in backticks, the second is its tier,
+ * the third its scope.
  */
-function docRows(): Map<string, { required: boolean; scope: string }> {
+function docRows(): Map<string, { tier: string; scope: string }> {
   const doc = readFileSync(join(root, "docs", "plugins.md"), "utf8");
-  const rows = new Map<string, { required: boolean; scope: string }>();
+  const rows = new Map<string, { tier: string; scope: string }>();
   for (const line of doc.split(/\r?\n/)) {
     const match = /^\|\s*`([a-z0-9-]+)`\s*\|([^|]*)\|([^|]*)\|/.exec(line);
     if (!match) continue;
-    const [, name, requiredCell, scopeCell] = match;
+    const [, name, tierCell, scopeCell] = match;
+    const tierText = tierCell.toLowerCase();
+    // Emphasis (`**Required**`) is styling, not meaning — match on the word.
+    const tier = tierText.includes("required")
+      ? "required"
+      : tierText.includes("recommended")
+        ? "recommended"
+        : "optional";
     const scopeText = scopeCell.toLowerCase();
     // "project or user" is the prose form of `either`; "project (vault)" and
     // "**user**" are the plain scopes with an aside or emphasis attached.
@@ -52,7 +59,7 @@ function docRows(): Map<string, { required: boolean; scope: string }> {
       : scopeText.includes("user")
         ? "user"
         : "project";
-    rows.set(name, { required: /required/i.test(requiredCell), scope });
+    rows.set(name, { tier, scope });
   }
   return rows;
 }
@@ -69,12 +76,21 @@ describe("plugin catalog", () => {
     expect(names).toEqual([...new Set(names)]);
   });
 
-  it("gives every entry a usable required flag, scope and summary", () => {
+  it("gives every entry a usable tier, scope and summary", () => {
     for (const entry of catalog.plugins) {
-      expect(typeof entry.required, entry.name).toBe("boolean");
+      expect(["required", "recommended", "optional"], entry.name).toContain(entry.tier);
       expect(["project", "user", "either"], entry.name).toContain(entry.scope);
       expect(entry.summary.trim(), entry.name).not.toBe("");
     }
+  });
+
+  it("keeps `required` to the plugins the app itself depends on", () => {
+    // Not a style rule: `workhub`'s skills are named in the app's own launch
+    // prompts, and `engineering`'s SessionStart hook is the only reader of the
+    // project-context.json the app writes. A third entry here means something
+    // in the app grew a dependency that should be argued for on its own.
+    const required = catalog.plugins.filter((p) => p.tier === "required").map((p) => p.name);
+    expect(required.sort()).toEqual(["engineering", "workhub"]);
   });
 
   it("carries no version or description — plugin.json is the single source", () => {
@@ -101,7 +117,7 @@ describe("plugin catalog", () => {
     for (const entry of catalog.plugins) {
       const doc = docs.get(entry.name);
       expect(doc, `${entry.name} is missing from the docs/plugins.md table`).toBeDefined();
-      expect(doc?.required, `${entry.name}: required flag`).toBe(entry.required);
+      expect(doc?.tier, `${entry.name}: tier`).toBe(entry.tier);
       expect(doc?.scope, `${entry.name}: scope`).toBe(entry.scope);
     }
     expect([...docs.keys()].sort()).toEqual(catalog.plugins.map((p) => p.name).sort());

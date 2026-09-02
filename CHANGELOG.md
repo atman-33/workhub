@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.95.0 (2026-09-03)
+
+- **The Plugins tab now grades plugins required / recommended / optional**
+  (T-0223), instead of the required-or-not it shipped with. Two levels put
+  `claude-tooling` — whose only job in the app was a notice the Plugins tab has
+  since taken over — in the same bucket as the plugin the task launcher cannot
+  run without, and left no place for `persona`, which powers a whole tab but is
+  built to be shown with the plugin absent. The tier now answers one question,
+  *what breaks without it*: **required** is `workhub` (its skills are named in
+  the app's own launch prompts, and the Schedule, Mindmap and tidy features run
+  them) and `engineering` (its SessionStart hook is the only reader of the
+  `project-context.json` the app writes, so without it the repositories you
+  registered never reach an agent); **recommended** is `persona` and
+  `claude-tooling`; everything else is **optional**. Only required plugins that
+  are off still raise a warning — a recommended one gets a single line of
+  advice, so the warning keeps meaning something.
+
 ## 0.94.0 (2026-09-02)
 
 - **Mindmap nodes can carry free-form `key:value` attributes** (T-0218).
@@ -17,7 +34,8 @@
 - **Mindmap and schedule notes saved with Windows line endings now open**
   instead of appearing empty. Both parsers are line-oriented and several of
   their patterns end in `(.*)$`, which in JavaScript cannot match a line ending
-  in `` — so a note hand-edited in a Windows editor, or checked out by git
+  in `
+` — so a note hand-edited in a Windows editor, or checked out by git
   with `core.autocrlf`, produced a blank map or timeline. The conversion now
   happens once at the boundary and the file's own ending is put back on save:
   these notes are shared with Obsidian and git, so the app is not entitled to
