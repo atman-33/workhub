@@ -17,7 +17,11 @@ import {
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { MindmapAiPanel } from "@/components/mindmap/mindmap-ai-panel";
 import { ChipSettings } from "@/components/mindmap/chip-settings";
-import { MindmapCanvas } from "@/components/mindmap/mindmap-canvas";
+import {
+  MindmapCanvas,
+  type NodeAbilities,
+  type NodeAction,
+} from "@/components/mindmap/mindmap-canvas";
 import { NodeEditor } from "@/components/mindmap/node-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
@@ -42,18 +46,30 @@ import { projectOfNotePath } from "@/lib/vault-project";
 import { readViewState, writeViewState } from "@/lib/view-state";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
-import { chipCommand, type AttrChip, type ChipAction } from "@/lib/mindmap/attrs";
+import {
+  chipCommand,
+  quickAttrGroups,
+  quickAttrToggle,
+  type AttrChip,
+  type ChipAction,
+} from "@/lib/mindmap/attrs";
 import type { PositionedNode } from "@/lib/mindmap/layout";
 import {
   attrKeys as attrKeysOf,
   attrValues,
+  canIndent,
+  canMoveSibling,
+  canOutdent,
   cloneNodes,
   DEFAULT_ATTR_VIEW,
   findNode,
   findParent,
   freezeRootChildSides,
+  indentNode,
   moveNode,
+  moveSibling,
   nextNodeId,
+  outdentNode,
   parseMindmap,
   serializeMindmap,
   nextStickyId,
@@ -742,6 +758,106 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     [doc, mutate],
   );
 
+  /**
+   * The four structural moves, from the keyboard or from a node's menu.
+   *
+   * Each helper answers `null` when the move is not available, which is the
+   * same question `nodeAbilities` asks to grey the menu item out — so the
+   * shortcut and the menu can never disagree about what is possible.
+   */
+  const structuralMove = useCallback(
+    (id: string, move: "moveUp" | "moveDown" | "indent" | "outdent") => {
+      if (!doc) return;
+      const roots =
+        move === "moveUp"
+          ? moveSibling(doc.roots, id, -1)
+          : move === "moveDown"
+            ? moveSibling(doc.roots, id, 1)
+            : move === "indent"
+              ? indentNode(doc.roots, id)
+              : outdentNode(doc.roots, id);
+      // Nothing to do — the node is already at that edge of its branch. Silent
+      // on purpose: holding Alt+Up to the top of a list is a normal gesture,
+      // and a status line firing at the end of it would be noise.
+      if (!roots) return;
+      mutate({ ...doc, roots });
+    },
+    [doc, mutate],
+  );
+
+  /** Which structural moves are open to a node, for its menu. */
+  const nodeAbilities = useCallback(
+    (id: string): NodeAbilities => {
+      if (!doc) return { moveUp: false, moveDown: false, indent: false, outdent: false };
+      return {
+        moveUp: canMoveSibling(doc.roots, id, -1),
+        moveDown: canMoveSibling(doc.roots, id, 1),
+        indent: canIndent(doc.roots, id),
+        outdent: canOutdent(doc.roots, id),
+      };
+    },
+    [doc],
+  );
+
+  /** The map's own `key`/values, which is what a node's menu offers. */
+  const attrVocabulary = useMemo(
+    () => attrKeys.map((key) => ({ key, values: attrValuesFor(key) })),
+    [attrKeys, attrValuesFor],
+  );
+
+  const quickAttrsFor = useCallback(
+    (node: PositionedNode) => quickAttrGroups(attrVocabulary, node.attrs),
+    [attrVocabulary],
+  );
+
+  /** One value put on or taken off a node from its menu. */
+  const quickAttr = useCallback(
+    (node: PositionedNode, key: string, value: string) => {
+      if (!doc) return;
+      const target = findNode(doc.roots, node.id);
+      if (!target) return;
+      patchNode(node.id, { attrs: quickAttrToggle(target.attrs, key, value) });
+    },
+    [doc, patchNode],
+  );
+
+  /**
+   * A command chosen from a node's own right-click menu.
+   *
+   * Every item here is something the keyboard already does. The menu exists
+   * because the shortcuts are unguessable, not because the actions are
+   * different, so each one routes to the same callback the key does.
+   */
+  const nodeAction = useCallback(
+    (action: NodeAction, node: PositionedNode) => {
+      switch (action) {
+        case "moveUp":
+        case "moveDown":
+        case "indent":
+        case "outdent":
+          structuralMove(node.id, action);
+          return;
+        case "rename":
+          setSelectedId(node.id);
+          setEditingId(node.id);
+          return;
+        case "addChild":
+          addNode(node.id, "child");
+          return;
+        case "addSibling":
+          addNode(node.id, "sibling");
+          return;
+        case "toggleCollapse":
+          toggleCollapse(node.id);
+          return;
+        case "delete":
+          deleteNode(node.id);
+          return;
+      }
+    },
+    [structuralMove, addNode, toggleCollapse, deleteNode],
+  );
+
   /** Arrow-key navigation: parent, first child, or the sibling either way. */
   const navigate = useCallback(
     (direction: "up" | "down" | "left" | "right") => {
@@ -830,7 +946,28 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       }
       if (e.key.startsWith("Arrow")) {
         e.preventDefault();
-        navigate(e.key.replace("Arrow", "").toLowerCase() as "up" | "down" | "left" | "right");
+        const direction = e.key.replace("Arrow", "").toLowerCase() as
+          | "up"
+          | "down"
+          | "left"
+          | "right";
+        // Alt moves the node, a bare arrow moves the cursor. Left/right are
+        // the tree's own directions here as well, so Alt+Right files a node
+        // under its neighbour whichever side of the root it is drawn on.
+        if (e.altKey) {
+          structuralMove(
+            selectedId,
+            direction === "up"
+              ? "moveUp"
+              : direction === "down"
+                ? "moveDown"
+                : direction === "right"
+                  ? "indent"
+                  : "outdent",
+          );
+          return;
+        }
+        navigate(direction);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -846,6 +983,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     deleteNode,
     deleteSticky,
     navigate,
+    structuralMove,
     undo,
     redo,
   ]);
@@ -1338,11 +1476,16 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 onToggleCollapse={toggleCollapse}
                 onReparent={reparent}
                 onChipAction={chipAction}
+                abilitiesOf={nodeAbilities}
+                onNodeAction={nodeAction}
+                quickAttrsOf={quickAttrsFor}
+                onQuickAttr={quickAttr}
               />
               <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
-                Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove · drag
-                onto a node: move · right-drag: pan · wheel: zoom · sticky: drag to place,
-                double-click to edit
+                Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove ·
+                Alt+arrows: reorder / indent · right-click a node: menu · drag onto a node:
+                move · right-drag: pan · wheel: zoom · sticky: drag to place, double-click to
+                edit
               </div>
             </div>
           </ResizablePanel>
