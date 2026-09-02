@@ -13,6 +13,7 @@ import {
   Network,
   FolderKanban,
   Pencil,
+  Puzzle,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { MemorySetupBanner } from "@/components/memory-setup-banner";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
 import { PersonaView } from "@/components/persona-view";
+import { PluginsView } from "@/components/plugins-view";
 import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
@@ -59,6 +61,7 @@ type Tab =
   | "clips"
   | "ink"
   | "persona"
+  | "plugins"
   | "help";
 
 // `persona` is always shown. When the plugin ships no characters the tab
@@ -77,6 +80,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "clips", label: "Clips", icon: ClipboardList },
   { key: "ink", label: "Ink", icon: Pencil },
   { key: "persona", label: "Persona", icon: Drama },
+  { key: "plugins", label: "Plugins", icon: Puzzle },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
 
@@ -209,7 +213,7 @@ export default function App() {
         )}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
           {/* The tab strip degrades with the window width (T-0207): all
-              thirteen tabs plus the status cluster need ~1470px, well past the 720px
+              fourteen tabs plus the status cluster need ~1570px, well past the 720px
               minimum window size. Labels collapse below `xl` (the tooltip then
               names the tab), the active tab keeps its label so the current
               position stays readable, and this container scrolls as the last
@@ -325,6 +329,9 @@ export default function App() {
           </div>
           <div className={cn("h-full", tab !== "persona" && "hidden")}>
             <PersonaView active={tab === "persona"} />
+          </div>
+          <div className={cn("h-full", tab !== "plugins" && "hidden")}>
+            <PluginsView active={tab === "plugins"} vaultPath={settings?.vault_path ?? ""} />
           </div>
           <div className={cn("h-full", tab !== "help" && "hidden")}>
             <HelpView />

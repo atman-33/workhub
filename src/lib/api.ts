@@ -18,6 +18,8 @@ import type {
   MindmapFile,
   PersonaCharacter,
   PersonaState,
+  PluginCommandResult,
+  PluginsState,
   ScheduleDoc,
   ScheduleEditRun,
   ScheduleFile,
@@ -372,6 +374,23 @@ export const api = {
   setPersonaState: (enabled: boolean, character: string | null, level: string) =>
     invoke<PersonaState>("set_persona_state", { enabled, character, level }),
   voiceHistoryClear: () => invoke<void>("voice_history_clear"),
+
+  // ---- workhub marketplace plugins (Plugins tab) ----
+  /** Catalog, installed versions, marketplace versions and enabled state. */
+  pluginsState: (vaultPath: string) =>
+    invoke<PluginsState>("plugins_state", { vaultPath }),
+  /** Adds or removes one enabledPlugins key; applies from the next session. */
+  setPluginEnabled: (
+    vaultPath: string,
+    name: string,
+    scope: "project" | "user",
+    enabled: boolean,
+  ) => invoke<PluginsState>("set_plugin_enabled", { vaultPath, name, scope, enabled }),
+  /** Refreshes the marketplace clone every "latest version" is compared against. */
+  pluginsUpdateMarketplace: (vaultPath: string) =>
+    invoke<PluginCommandResult>("plugins_update_marketplace", { vaultPath }),
+  pluginsUpdatePlugin: (vaultPath: string, name: string, scope: string) =>
+    invoke<PluginCommandResult>("plugins_update_plugin", { vaultPath, name, scope }),
 };
 
 export function timeAgo(unixSecs: number): string {

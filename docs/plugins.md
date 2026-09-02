@@ -56,6 +56,15 @@ something this marketplace needs to maintain.
 
 ## Plugin catalog
 
+The required/optional flag and the scope of every plugin below are also carried
+machine-readably in [`.claude-plugin/catalog.json`](../.claude-plugin/catalog.json),
+which is what the workhub app's **Plugins** tab reads — Claude Code itself never
+looks at that file. It deliberately holds no `version`, `description` or
+`author`: each plugin's own `plugin.json` remains the single source for those.
+The table here and that file must agree; `src/lib/plugin-catalog.test.ts` fails
+CI when they drift, so a plugin added, removed or re-classified has to be
+changed in both.
+
 | Plugin | Required | Scope | Contents |
 |---|---|---|---|
 | `workhub` | **Required** | project (vault) | Task-board skills (`task-list`, `task-start`, `task-report`, `vault-init`, `vault-setup`), project onboarding (`project-start` — the project-level counterpart of `task-start`: reads `projects/<slug>/README.md` first, follows its reading order only as far as the request needs, resolves the project's `repos:`, and reports goal / status / source / work in flight; read-only), schedule editing (`schedule-edit` — rewrites `projects/<slug>/schedules/*.md` from a natural-language instruction; launched by the app's Schedule tab), mindmap editing (`mindmap-edit` — rewrites `projects/<slug>/mindmaps/*.md` from a natural-language instruction; launched by the app's Mindmap tab), vault knowledge-base skills (`kb-ingest`, `kb-query`, `kb-lint`, `kb-index` — they own the vault's inbox/projects/knowledge/archive layout), long-term memory (`memory-setup`, `memory-recall` + capture/inject hooks backed by the bundled `memory-engine/`), the `strategist` skill (a counsel that reads `strategy/` — the owner's north star, present state and bottlenecks — argues with the gaps between them, and writes the conclusions back; it borrows a character from `persona` when that plugin is installed and runs unstyled when it is not), the workhub app's own release procedure (`release-app` — bump, changelog, tag, push, verify the published assets), and vault write-guard / task-sync hooks. Meaningless outside a vault. |

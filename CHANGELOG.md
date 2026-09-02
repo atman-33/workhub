@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.94.0 (2026-09-02)
+
+- **A Plugins tab** (T-0222). The workhub marketplace mixes plugins the vault
+  harness cannot work without with ones that are purely optional, and until now
+  that distinction existed only as prose in `docs/plugins.md`: nothing could
+  tell you whether a *required* plugin was actually switched on, or whether what
+  is installed had fallen behind the marketplace. The new tab reads the local
+  Claude Code state — `installed_plugins.json`, `known_marketplaces.json`, each
+  plugin's `plugin.json`, and the `enabledPlugins` of both settings files — and
+  shows one row per plugin: required or optional, its scope, installed version
+  against the marketplace's, and whether it is on. Required plugins that are off
+  are called out at the top. **Update marketplace** refreshes the clone every
+  "latest version" is compared against, the per-row **Update** button runs
+  `claude plugin update` at that plugin's scope, and the switch adds or removes
+  one `enabledPlugins` key. All three take effect in the next Claude Code
+  session, as the tab says.
+- The required/optional classification now lives in
+  `.claude-plugin/catalog.json` — workhub's own metadata, which Claude Code
+  never reads and which carries no version or description, so `plugin.json`
+  stays the single source of those. `src/lib/plugin-catalog.test.ts` fails CI
+  when the catalog, `marketplace.json` and the `docs/plugins.md` table drift
+  apart, and CI now runs the frontend test suite (`npm test`) alongside the
+  Rust one.
+
 ## 0.93.0 (2026-09-01)
 
 **This release needs two one-time manual steps.** Neither has a compatibility

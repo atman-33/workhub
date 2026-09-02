@@ -1377,3 +1377,58 @@ pub async fn set_persona_state(
     .await
     .map_err(|e| format!("persona write task failed: {e}"))?
 }
+
+// ---------------------------------------------------------------------
+// workhub marketplace plugins (Plugins tab)
+// ---------------------------------------------------------------------
+
+/// Everything the Plugins tab renders: the catalog, what is installed at which
+/// version, what the marketplace clone offers, and what each settings file has
+/// switched on. Reads local Claude Code state only — no network.
+#[tauri::command]
+pub async fn plugins_state(vault_path: String) -> crate::plugins::PluginsState {
+    tauri::async_runtime::spawn_blocking(move || crate::plugins::read_state(&vault_path))
+        .await
+        .unwrap_or_else(|_| crate::plugins::read_state(""))
+}
+
+/// Adds or removes one `enabledPlugins` key in the vault's or the user's
+/// `settings.json`. Takes effect in the next Claude Code session.
+#[tauri::command]
+pub async fn set_plugin_enabled(
+    vault_path: String,
+    name: String,
+    scope: String,
+    enabled: bool,
+) -> Result<crate::plugins::PluginsState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plugins::set_enabled(&vault_path, &name, &scope, enabled)
+    })
+    .await
+    .map_err(|e| format!("plugin settings write task failed: {e}"))?
+}
+
+/// `claude plugin marketplace update <marketplace>` — refreshes the clone every
+/// "latest version" in the tab is compared against.
+#[tauri::command]
+pub async fn plugins_update_marketplace(
+    vault_path: String,
+) -> Result<crate::plugins::PluginCommandResult, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::plugins::update_marketplace(&vault_path))
+        .await
+        .map_err(|e| format!("marketplace update task failed: {e}"))?
+}
+
+/// `claude plugin update <name>@<marketplace> --scope <scope>`.
+#[tauri::command]
+pub async fn plugins_update_plugin(
+    vault_path: String,
+    name: String,
+    scope: String,
+) -> Result<crate::plugins::PluginCommandResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plugins::update_plugin(&vault_path, &name, &scope)
+    })
+    .await
+    .map_err(|e| format!("plugin update task failed: {e}"))?
+}
