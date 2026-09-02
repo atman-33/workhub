@@ -2,6 +2,26 @@
 
 ## 0.94.0 (2026-09-02)
 
+- **Mindmap nodes can carry free-form `key:value` attributes** (T-0218).
+  Importance, priority, an owner, grouping tags — a map decides its own
+  vocabulary rather than picking from a fixed set, and the editor suggests the
+  keys and values the file already uses. This generalizes the existing `task:`
+  field instead of inventing a notation; a `#tag` syntax was rejected because
+  `#` already means colour and Obsidian would pull such tags into the
+  vault-wide tag space. Attributes draw as chips inside the node box, the map
+  can be coloured by one key and dimmed by one `key=value`, and the toolbar's
+  chips popover decides which chips are shown and in what order. Right-clicking
+  a chip offers filter, colour, remove and hide, since those are all wanted at
+  the moment of looking at one. The settings live in the note frontmatter, so
+  an export looks like what was on screen.
+- **Mindmap and schedule notes saved with Windows line endings now open**
+  instead of appearing empty. Both parsers are line-oriented and several of
+  their patterns end in `(.*)$`, which in JavaScript cannot match a line ending
+  in `` — so a note hand-edited in a Windows editor, or checked out by git
+  with `core.autocrlf`, produced a blank map or timeline. The conversion now
+  happens once at the boundary and the file's own ending is put back on save:
+  these notes are shared with Obsidian and git, so the app is not entitled to
+  an opinion about which ending a file has.
 - **A Plugins tab** (T-0222). The workhub marketplace mixes plugins the vault
   harness cannot work without with ones that are purely optional, and until now
   that distinction existed only as prose in `docs/plugins.md`: nothing could
