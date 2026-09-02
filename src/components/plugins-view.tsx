@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
-import { pluginProblems, pluginViews, type PluginStatus, type PluginView } from "@/lib/plugins";
+import {
+  pluginProblems,
+  pluginSuggestions,
+  pluginViews,
+  type PluginStatus,
+  type PluginView,
+} from "@/lib/plugins";
 import { cn } from "@/lib/utils";
 import type { PluginCommandResult, PluginsState } from "@/types";
 
@@ -29,6 +35,7 @@ import type { PluginCommandResult, PluginsState } from "@/types";
 const STATUS_LABEL: Record<PluginStatus, string> = {
   missing: "Required, off",
   outdated: "Update available",
+  advised: "Recommended, off",
   pending: "Installs next launch",
   unknown: "Version unknown",
   ok: "Up to date",
@@ -38,10 +45,18 @@ const STATUS_LABEL: Record<PluginStatus, string> = {
 const STATUS_CLASS: Record<PluginStatus, string> = {
   missing: "border-destructive/50 bg-destructive/10 text-destructive",
   outdated: "border-amber-500/50 bg-amber-500/10 text-amber-600",
+  // A suggestion, not a fault: no fill, no alarm colour.
+  advised: "border-primary/40 text-primary",
   pending: "border-blue-500/50 bg-blue-500/10 text-blue-600",
   unknown: "text-muted-foreground",
   ok: "border-emerald-500/40 text-emerald-600",
   off: "text-muted-foreground",
+};
+
+const TIER_LABEL: Record<string, string> = {
+  required: "Required",
+  recommended: "Recommended",
+  optional: "Optional",
 };
 
 function Badge({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -79,11 +94,15 @@ function PluginCard({
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{view.name}</span>
-          {view.required ? (
-            <Badge className="border-primary/40 text-primary">Required</Badge>
-          ) : (
-            <Badge className="text-muted-foreground">Optional</Badge>
-          )}
+          <Badge
+            className={cn(
+              view.tier === "required" && "border-primary/40 text-primary",
+              view.tier === "recommended" && "border-primary/25 text-primary/80",
+              view.tier !== "required" && view.tier !== "recommended" && "text-muted-foreground",
+            )}
+          >
+            {TIER_LABEL[view.tier] ?? "Unlisted"}
+          </Badge>
           <Badge className="text-muted-foreground">{scope}</Badge>
           {view.extra && (
             <Hint label="Installed or enabled, but absent from the marketplace catalog">
@@ -152,6 +171,7 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
 
   const views = useMemo(() => (state ? pluginViews(state) : []), [state]);
   const problems = useMemo(() => pluginProblems(views), [views]);
+  const suggestions = useMemo(() => pluginSuggestions(views), [views]);
   const missing = problems.filter((p) => p.status === "missing");
   const outdated = problems.filter((p) => p.status === "outdated");
 
@@ -186,8 +206,8 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
             <div className="space-y-1">
               <h2 className="text-sm font-medium">{state?.marketplace}</h2>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Plugins from the workhub marketplace: which ones this vault needs, what is
-                installed here, and what the marketplace clone offers.
+                Plugins from the workhub marketplace: how much this vault needs each one,
+                what is installed here, and what the marketplace clone offers.
               </p>
             </div>
           </div>
@@ -246,8 +266,9 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
                 {missing.length} required {missing.length === 1 ? "plugin is" : "plugins are"}{" "}
                 switched off
               </span>{" "}
-              ({missing.map((m) => m.name).join(", ")}). The harness runs without the skills
-              and hooks they carry.
+              ({missing.map((m) => m.name).join(", ")}). Something in the app stops working
+              without them — a task launch, a tab's AI edit, or the repositories the app
+              hands to an agent.
             </p>
           </div>
         )}
@@ -256,6 +277,15 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           <p className="text-xs text-muted-foreground">
             {outdated.length} {outdated.length === 1 ? "plugin is" : "plugins are"} behind the
             marketplace clone.
+          </p>
+        )}
+
+        {suggestions.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {suggestions.length} recommended{" "}
+            {suggestions.length === 1 ? "plugin is" : "plugins are"} off (
+            {suggestions.map((s) => s.name).join(", ")}). Nothing breaks — the harness is
+            just poorer for it.
           </p>
         )}
 

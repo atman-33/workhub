@@ -5,6 +5,7 @@ import {
   installedVersion,
   pluginProblems,
   pluginStatus,
+  pluginSuggestions,
   pluginViews,
 } from "@/lib/plugins";
 import type { PluginRow, PluginsState } from "@/types";
@@ -13,7 +14,7 @@ function row(over: Partial<PluginRow> = {}): PluginRow {
   return {
     name: "workhub",
     in_catalog: true,
-    required: false,
+    tier: "optional",
     scope: "project",
     summary: "",
     latest_version: "1.0.0",
@@ -106,11 +107,19 @@ describe("pluginStatus", () => {
   const install = (version: string) => [{ scope: "project", version, project_path: "C:/v" }];
 
   it("flags a required plugin that is switched off", () => {
-    expect(pluginStatus(row({ required: true }))).toBe("missing");
+    expect(pluginStatus(row({ tier: "required" }))).toBe("missing");
+  });
+
+  it("suggests, rather than flags, a recommended plugin that is switched off", () => {
+    expect(pluginStatus(row({ tier: "recommended" }))).toBe("advised");
   });
 
   it("leaves an optional plugin that is switched off alone", () => {
-    expect(pluginStatus(row({ required: false }))).toBe("off");
+    expect(pluginStatus(row({ tier: "optional" }))).toBe("off");
+  });
+
+  it("treats an uncatalogued row as optional", () => {
+    expect(pluginStatus(row({ in_catalog: false, tier: "" }))).toBe("off");
   });
 
   it("calls an enabled-but-uninstalled plugin pending", () => {
@@ -138,7 +147,7 @@ describe("pluginStatus", () => {
   });
 
   it("counts either scope as enabled", () => {
-    const r = row({ required: true, scope: "either", enabled_user: true });
+    const r = row({ tier: "required", scope: "either", enabled_user: true });
     expect(pluginStatus(r)).toBe("pending");
   });
 });
@@ -149,11 +158,13 @@ describe("pluginViews", () => {
       row({ name: "ok-one", enabled_project: true, installs: [{ scope: "project", version: "1.0.0", project_path: "" }] }),
       row({ name: "off-one" }),
       row({ name: "outdated-one", enabled_project: true, latest_version: "2.0.0", installs: [{ scope: "project", version: "1.0.0", project_path: "" }] }),
-      row({ name: "missing-one", required: true }),
+      row({ name: "missing-one", tier: "required" }),
+      row({ name: "advised-one", tier: "recommended" }),
     ];
     expect(pluginViews(state(rows)).map((v) => v.name)).toEqual([
       "missing-one",
       "outdated-one",
+      "advised-one",
       "ok-one",
       "off-one",
     ]);
@@ -190,8 +201,9 @@ describe("pluginViews", () => {
 describe("pluginProblems", () => {
   it("keeps only the rows worth acting on", () => {
     const rows = [
-      row({ name: "missing-one", required: true }),
+      row({ name: "missing-one", tier: "required" }),
       row({ name: "off-one" }),
+      row({ name: "advised-one", tier: "recommended" }),
       row({
         name: "outdated-one",
         enabled_project: true,
@@ -199,7 +211,9 @@ describe("pluginProblems", () => {
         installs: [{ scope: "project", version: "1.0.0", project_path: "" }],
       }),
     ];
-    const problems = pluginProblems(pluginViews(state(rows)));
-    expect(problems.map((p) => p.name)).toEqual(["missing-one", "outdated-one"]);
+    const views = pluginViews(state(rows));
+    expect(pluginProblems(views).map((p) => p.name)).toEqual(["missing-one", "outdated-one"]);
+    // A recommended plugin left off is a choice, not a problem to fix.
+    expect(pluginSuggestions(views).map((p) => p.name)).toEqual(["advised-one"]);
   });
 });

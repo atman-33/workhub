@@ -17,7 +17,7 @@
 //!
 //! Two more files decide what the owner actually sees:
 //!
-//!   `<clone>/.claude-plugin/catalog.json`  required vs optional, and scope —
+//!   `<clone>/.claude-plugin/catalog.json`  each plugin's tier, and its scope —
 //!                                          workhub's own metadata, which
 //!                                          Claude Code itself never reads
 //!   `enabledPlugins` in the vault's `.claude/settings.json` (project scope)
@@ -62,7 +62,9 @@ pub struct PluginRow {
     /// False for a plugin that is installed or enabled but absent from
     /// `catalog.json` — a leftover, or a catalog that was not kept up to date.
     pub in_catalog: bool,
-    pub required: bool,
+    /// `required` | `recommended` | `optional`, or empty for an uncatalogued
+    /// row. Decided by what breaks without the plugin — see `catalog.json`.
+    pub tier: String,
     /// `project` | `user` | `either`, or empty when the catalog does not say.
     pub scope: String,
     pub summary: String,
@@ -149,7 +151,7 @@ struct CatalogFile {
 struct CatalogEntry {
     name: String,
     #[serde(default)]
-    required: bool,
+    tier: String,
     #[serde(default)]
     scope: String,
     #[serde(default)]
@@ -295,7 +297,7 @@ pub fn read_state(vault_path: &str) -> PluginsState {
                 .unwrap_or_default();
             PluginRow {
                 in_catalog: cat.is_some(),
-                required: cat.map(|c| c.required).unwrap_or(false),
+                tier: cat.map(|c| c.tier.clone()).unwrap_or_default(),
                 scope: cat.map(|c| c.scope.clone()).unwrap_or_default(),
                 summary: cat.map(|c| c.summary.clone()).unwrap_or_default(),
                 latest_version: latest.get(&name).cloned().unwrap_or_default(),

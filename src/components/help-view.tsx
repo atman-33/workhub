@@ -259,9 +259,9 @@ The **Persona** tab picks the character and tone every new Claude Code session s
 
 const PLUGINS_MD = `## Keeping the plugins straight (Plugins)
 
-The **Plugins** tab answers three questions about the \`workhub-marketplace\` plugins on this machine: which ones the harness cannot work without, which of them are switched on here, and whether what is installed is behind the marketplace.
+The **Plugins** tab answers three questions about the \`workhub-marketplace\` plugins on this machine: how much the harness needs each one, which of them are switched on here, and whether what is installed is behind the marketplace.
 
-- **Required** plugins are the ones a vault harness needs (\`workhub\`, \`engineering\`, \`claude-tooling\`); the rest are optional. The classification comes from the marketplace's own \`catalog.json\`, not from this app, so it stays right as the marketplace changes.
+- Each plugin has a **tier**, decided by what breaks without it. **Required** means an app feature or an agent launch stops working — only \`workhub\` (whose skills the app names in its own launch prompts) and \`engineering\` (whose hook is the sole reader of the project list the app writes) qualify. **Recommended** means nothing breaks but the harness is poorer for it. **Optional** is taste or tech stack. The tiers come from the marketplace's own \`catalog.json\`, not from this app, so they stay right as the marketplace changes.
 - **Scope** is where a plugin is installed: \`project\` writes to the vault's \`.claude/settings.json\`, \`user\` to \`~/.claude/settings.json\`, and \`either\` follows wherever it is already on.
 - **Update marketplace** refreshes the local clone every "latest version" is compared against. Without it the tab compares against whatever was cloned last — so a plugin can look up to date when it is not.
 - The **switch** on each row adds or removes one \`enabledPlugins\` key. The **Update** button runs \`claude plugin update\` for that plugin at its scope. Both need the Claude Code CLI on PATH.
@@ -1794,15 +1794,22 @@ export function HelpView() {
             </p>
             <ul className="ml-4 list-disc space-y-1.5">
               <li>
+                Each plugin has a{" "}
+                <span className="font-medium text-foreground">tier</span>,
+                decided by what breaks without it.{" "}
                 <span className="font-medium text-foreground">Required</span>{" "}
-                plugins are the ones a vault harness needs (
-                <span className="font-mono text-xs">workhub</span>,{" "}
-                <span className="font-mono text-xs">engineering</span>,{" "}
-                <span className="font-mono text-xs">claude-tooling</span>); the
-                rest are optional. The classification comes from the
-                marketplace's own{" "}
+                means an app feature or an agent launch stops working — only{" "}
+                <span className="font-mono text-xs">workhub</span> (whose skills
+                the app names in its own launch prompts) and{" "}
+                <span className="font-mono text-xs">engineering</span> (whose
+                hook is the sole reader of the project list the app writes)
+                qualify.{" "}
+                <span className="font-medium text-foreground">Recommended</span>{" "}
+                means nothing breaks but the harness is poorer for it;{" "}
+                <span className="font-medium text-foreground">Optional</span> is
+                taste or tech stack. The tiers come from the marketplace's own{" "}
                 <span className="font-mono text-xs">catalog.json</span>, not from
-                this app, so it stays right as the marketplace changes.
+                this app, so they stay right as the marketplace changes.
               </li>
               <li>
                 <span className="font-medium text-foreground">Scope</span> is
