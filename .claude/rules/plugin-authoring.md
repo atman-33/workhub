@@ -8,19 +8,24 @@ paths:
 
 # Plugin authoring rules
 
-- **Every change under `plugins/<name>/` bumps that plugin's version in BOTH
-  places**: `plugins/<name>/.claude-plugin/plugin.json` and the matching entry
-  in `.claude-plugin/marketplace.json`. The two must never diverge — installed
-  copies update based on the marketplace entry. Semver: new/changed
-  skills/hooks/agents → minor; wording or doc-only fixes → patch.
+- **`version`, `description` and `author` live only in
+  `plugins/<name>/.claude-plugin/plugin.json`.** In strict mode (the default),
+  `plugin.json` is authoritative and Claude Code ignores those fields on a
+  marketplace entry — a `version` set there does nothing, and a stale copy just
+  invites drift. Each entry in `.claude-plugin/marketplace.json` carries only
+  `name` and `source`.
+- **Every change under `plugins/<name>/` bumps that plugin's `version` in its
+  `plugin.json`** (one place). Semver: new/changed skills/hooks/agents → minor;
+  wording or doc-only fixes → patch. Installed copies update when this version
+  changes.
 - Plugin changes do **not** bump the app version in `src-tauri/Cargo.toml` and
   need no `CHANGELOG.md` entry (those are for app behavior only).
-- Adding or removing a plugin: register it in `.claude-plugin/marketplace.json`
-  AND add/remove its row in `docs/plugins.md` (required/optional × user/project
-  scope + placement rationale). Follow the scope policy there — vault or
-  project-context dependent → project scope; personal/machine tool → the
-  user-scope plugin whose use it shares (`authoring`, `agent-ops`,
-  `claude-tooling`, `zenn`).
+- Adding or removing a plugin: add/remove its `{ "name", "source" }` entry in
+  `.claude-plugin/marketplace.json` AND add/remove its row in `docs/plugins.md`
+  (required/optional × user/project scope + placement rationale). Follow the
+  scope policy there — vault or project-context dependent → project scope;
+  personal/machine tool → the user-scope plugin whose use it shares
+  (`authoring`, `agent-ops`, `claude-tooling`, `zenn`).
 - **Plugin scripts are Node ESM (`.mjs`), run with `node`** — never Python,
   bash, or PowerShell. Node is the only runtime the plugin ecosystem already
   guarantees (all hooks are `.mjs`); other runtimes reintroduce per-machine
@@ -39,7 +44,7 @@ paths:
 The repo default is English, and it holds for everything an agent executes or
 another developer maintains: implementation and comments in `hooks/` and
 `scripts/`, `SKILL.md` bodies, agent bodies, and every `description` in
-`plugin.json` / `marketplace.json`.
+`plugin.json` and the marketplace-level `description` in `marketplace.json`.
 
 **`persona` is a deliberate exception, not an oversight.** Its
 `characters/**` and `core/compression.md` stay in Japanese. Do not translate
