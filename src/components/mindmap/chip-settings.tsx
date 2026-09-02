@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Hint } from "@/components/ui/hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { normalizeChips } from "@/lib/mindmap/attrs";
 
 /**
  * Which attribute chips are drawn, and in what order (the note's
@@ -40,12 +41,9 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
   const hidden = keys.filter((k) => !visible.includes(k));
   const showing = visible.length > 0;
 
-  /** Collapses an explicit list back to `"all"` when it says the same thing,
-   * so the frontmatter only carries the setting once it differs. */
-  const commit = (next: string[]) => {
-    const isDefault = next.length === keys.length && next.every((k, i) => k === keys[i]);
-    onChange(isDefault ? "all" : next);
-  };
+  // Shared with the node panel, which reorders the same setting by dragging
+  // its rows — the two must agree on when a list is the default.
+  const commit = (next: string[]) => onChange(normalizeChips(next, keys));
 
   const toggle = (key: string) =>
     commit(visible.includes(key) ? visible.filter((k) => k !== key) : [...visible, key]);

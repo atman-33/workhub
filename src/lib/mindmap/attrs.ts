@@ -312,3 +312,64 @@ export function quickAttrToggle(
   const next = tags.includes(value) ? tags.filter((t) => t !== value) : [...tags, value];
   return setAttr(attrs, TAGS_KEY, formatTags(next));
 }
+
+// ---------------------------------------------------------------------------
+// chip order
+// ---------------------------------------------------------------------------
+
+/**
+ * Collapses an explicit chip list back to `"all"` when it says the same thing.
+ *
+ * The frontmatter only carries `attr_chips` once the map wants something other
+ * than the default, so a map nobody has reordered keeps a clean header.
+ */
+export function normalizeChips(next: string[], keys: string[]): "all" | string[] {
+  const isDefault = next.length === keys.length && next.every((k, i) => k === keys[i]);
+  return isDefault ? "all" : next;
+}
+
+/**
+ * The order a node's own attribute keys are listed in.
+ *
+ * The same order the chips are drawn in, which is the point: the panel and the
+ * canvas were disagreeing — the panel sorted alphabetically while the canvas
+ * followed `attr_chips` — so a map that had been deliberately ordered read one
+ * way on the node and another in the sidebar.
+ *
+ * A key the map hides (`attr_chips` names others) has no drawing order to
+ * follow, so it goes last, alphabetically. It is still editable: hiding a chip
+ * says nothing about whether the value matters.
+ */
+export function orderedAttrKeys(
+  nodeKeys: readonly string[],
+  chips: "all" | string[],
+  mapKeys: readonly string[],
+): string[] {
+  const drawn = chips === "all" ? mapKeys : chips;
+  const inOrder = drawn.filter((k) => nodeKeys.includes(k));
+  const rest = nodeKeys.filter((k) => !inOrder.includes(k)).sort();
+  return [...inOrder, ...rest];
+}
+
+/**
+ * Moves one key in front of or behind another in the map's drawing order.
+ *
+ * Takes the **whole** list rather than the keys of the node being edited: the
+ * order belongs to the map, and rewriting it from one node's attributes would
+ * drop every key that node happens not to carry — hiding other nodes' chips as
+ * a side effect of a drag that only meant to swap two rows.
+ */
+export function moveChipKey(
+  chips: "all" | string[],
+  mapKeys: string[],
+  key: string,
+  before: string,
+): "all" | string[] {
+  const full = chips === "all" ? [...mapKeys] : [...chips];
+  const from = full.indexOf(key);
+  const to = full.indexOf(before);
+  if (from === -1 || to === -1 || from === to) return chips;
+  full.splice(from, 1);
+  full.splice(to, 0, key);
+  return normalizeChips(full, mapKeys);
+}

@@ -431,22 +431,74 @@ const ID_RE = /^N-\d+$/;
  * cap rule those out while still reading naturally (`prio:`, `size:`,
  * `owner:`, `tags:`).
  */
-const ATTR_KEY_RE = /^[a-z][a-z0-9_-]{0,23}$/;
+const ATTR_KEY_ASCII_RE = /^[a-z][a-z0-9_-]{0,23}$/;
+
+/**
+ * The Japanese a key may be written in, as one character class.
+ *
+ * Hiragana, katakana, kanji, the iteration marks and the long vowel mark — the
+ * letters, and nothing that reads as punctuation. Full-width forms of ASCII
+ * are left out on purpose: `Ｑ３` should stay in a title exactly as `Q3` does.
+ */
+const JA_LETTER =
+  "\\u3005\\u3006\\u3041-\\u3096\\u309D-\\u309F\\u30A1-\\u30FA\\u30FC-\\u30FF\\u3400-\\u4DBF\\u4E00-\\u9FFF";
+const ATTR_KEY_JA_RE = new RegExp(`^[a-z0-9_\\-${JA_LETTER}]{1,24}$`);
+const HAS_JA_RE = new RegExp(`[${JA_LETTER}]`);
 
 /**
  * Whether a string may be used as an attribute key.
  *
+ * Two shapes are allowed. The ASCII one is what the feature shipped with. The
+ * Japanese one exists because a vault written in Japanese ends up labelling
+ * its nodes `prio:高` — the value in the reader's language and the key not —
+ * and the point of open keys is that the map decides what it is labelled with.
+ *
+ * A Japanese key has to *contain* a Japanese letter, and may otherwise carry
+ * only the same lowercase ASCII the other shape allows. Every existing guard
+ * therefore still stands: `15:00` starts with a digit, `Q3:目標` has an
+ * uppercase letter, `https://x` is refused by its value, and `目標：達成`
+ * carries no ASCII colon to split on at all — so a title typed with a Japanese
+ * IME, which is where the full-width colon comes from, cannot be eaten.
+ *
+ * What this does admit is a title written with an ASCII colon, `課題:コスト`,
+ * which now becomes an attribute. That is the same hole `todo:あとで` has
+ * always had: it shows up immediately as a chip and round-trips through the
+ * file, so the map says what happened rather than losing anything.
+ *
  * Exported so the editor can refuse a key the parser would not read back — a
- * key typed as `Prio` or `優先度` would serialize fine and then vanish into the
- * title on the next load, which is the worst kind of bug this file can have.
+ * key typed as `Prio` would serialize fine and then vanish into the title on
+ * the next load, which is the worst kind of bug this file can have.
  */
 export function isAttrKey(key: string): boolean {
-  return ATTR_KEY_RE.test(key);
+  if (ATTR_KEY_ASCII_RE.test(key)) return true;
+  return ATTR_KEY_JA_RE.test(key) && HAS_JA_RE.test(key);
+}
+
+const ATTR_KEY_STRIP_RE = new RegExp(`[^a-z0-9_\\-${JA_LETTER}]`, "g");
+
+/**
+ * What a key field keeps of what was typed into it.
+ *
+ * Drops the characters no key of either shape may contain, so the field cannot
+ * hold a key the parser would refuse. Lives here rather than in the editor so
+ * that the two ideas of the alphabet cannot drift apart.
+ *
+ * It does **not** enforce the rest of the rule — the first character, the
+ * length, whether a Japanese letter is present. Those decide whether a key is
+ * finished, and a field being typed into is not finished; `isAttrKey` is what
+ * the Add button asks.
+ */
+export function toAttrKeyInput(raw: string): string {
+  return raw.toLowerCase().replace(ATTR_KEY_STRIP_RE, "");
 }
 
 /**
  * Reads one `key:value` token, or returns null when the token is not an
  * attribute and belongs to the title.
+ *
+ * Only the ASCII colon separates a key from its value. The full-width `：` a
+ * Japanese IME produces is left alone, which is what keeps `目標：達成` a
+ * title now that a key may be written in Japanese.
  *
  * A value starting with `//` is rejected so that a bare URL (`http://…`,
  * `https://…`) stays in the title rather than becoming an `http` attribute.
@@ -456,7 +508,7 @@ function parseAttrToken(tok: string): [string, string] | null {
   if (at <= 0 || at === tok.length - 1) return null;
   const key = tok.slice(0, at);
   const value = tok.slice(at + 1);
-  if (!ATTR_KEY_RE.test(key)) return null;
+  if (!isAttrKey(key)) return null;
   if (value.startsWith("//")) return null;
   return [key, value];
 }

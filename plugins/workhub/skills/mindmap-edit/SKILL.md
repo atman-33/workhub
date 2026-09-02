@@ -59,7 +59,7 @@ Node line:
 | `<title>` | Free text, one line. Everything left after the modifiers are removed. |
 | `#<color>` | Optional, one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. |
 | `task:<id>` | Optional link to a task in `tasks/`. |
-| `<key>:<value>` | Optional attributes, any number, any order. Key is lowercase ASCII `[a-z][a-z0-9_-]*`, 24 characters at most; the value carries no spaces. `tags:` is comma-separated. |
+| `<key>:<value>` | Optional attributes, any number, any order. Key is lowercase ASCII `[a-z][a-z0-9_-]*` or Japanese (kana/kanji, optionally mixed with that ASCII), 24 characters at most; the value carries no spaces. Only the ASCII `:` separates them — a full-width `：` stays in the title. `tags:` is comma-separated. |
 | `^collapsed` | Optional. The node's children are hidden **in the app**; the subtree is unaffected. |
 | `^left` / `^right` | Optional, and only meaningful on a **child of a root**: which side of the centre that branch is drawn on. Without it, branches alternate by their position in the list. |
 
