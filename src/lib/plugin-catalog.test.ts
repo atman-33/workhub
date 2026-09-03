@@ -86,11 +86,13 @@ describe("plugin catalog", () => {
 
   it("keeps `required` to the plugins the app itself depends on", () => {
     // Not a style rule: `workhub`'s skills are named in the app's own launch
-    // prompts, and `engineering`'s SessionStart hook is the only reader of the
-    // project-context.json the app writes. A third entry here means something
+    // prompts, and its harness hooks are the only readers of the
+    // project-context.json the app writes. A second entry here means something
     // in the app grew a dependency that should be argued for on its own.
+    // `engineering` was one until those hooks moved into `workhub`, which is
+    // what lets a team switch its commit/PR/branch conventions off.
     const required = catalog.plugins.filter((p) => p.tier === "required").map((p) => p.name);
-    expect(required.sort()).toEqual(["engineering", "workhub"]);
+    expect(required).toEqual(["workhub"]);
   });
 
   it("carries no version or description — plugin.json is the single source", () => {

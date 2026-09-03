@@ -103,9 +103,27 @@ const STATUS_ORDER: Record<PluginStatus, number> = {
 };
 
 /**
+ * How much the catalog says the harness wants a plugin. An uncatalogued row
+ * has no tier and sorts after every catalogued one.
+ */
+const TIER_ORDER: Record<string, number> = {
+  required: 0,
+  recommended: 1,
+  optional: 2,
+};
+
+/**
  * Rows in the order the tab shows them: whatever needs a decision first, then
- * the catalog's own order (which is the order `docs/plugins.md` explains them
- * in), with uncatalogued leftovers last.
+ * by tier, then the catalog's own order (which is the order `docs/plugins.md`
+ * explains them in), with uncatalogued leftovers last.
+ *
+ * Tier is a tie-break rather than the first key because a broken harness beats
+ * a classification — an `optional` plugin that is enabled but outdated still
+ * wants attention before a `required` one that is already fine. Where it earns
+ * its keep is the ordinary case, in which every row is `ok` and the status key
+ * decides nothing: the list then fell straight through to the catalog's order,
+ * which put a recommended plugin below the optional ones purely by where it
+ * happened to be written down.
  */
 export function pluginViews(state: PluginsState): PluginView[] {
   const ordered = state.rows.map((row, index) => {
@@ -124,6 +142,10 @@ export function pluginViews(state: PluginsState): PluginView[] {
     const byStatus = STATUS_ORDER[a.view.status] - STATUS_ORDER[b.view.status];
     if (byStatus !== 0) return byStatus;
     if (a.view.extra !== b.view.extra) return a.view.extra ? 1 : -1;
+    const byTier =
+      (TIER_ORDER[a.view.tier] ?? Number.MAX_SAFE_INTEGER) -
+      (TIER_ORDER[b.view.tier] ?? Number.MAX_SAFE_INTEGER);
+    if (byTier !== 0) return byTier;
     return a.index - b.index;
   });
   return ordered.map((o) => o.view);

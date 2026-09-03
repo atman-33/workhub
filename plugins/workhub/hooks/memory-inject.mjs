@@ -9,7 +9,7 @@ try {
   const paths = await import("../memory-engine/lib/paths.mjs");
   if (!paths.readMarker() || !paths.memoryEnabled("claude_code")) process.exit(0);
 
-  const vault = paths.resolveVault();
+  const vault = paths.resolveVaultForHook();
   if (!vault) process.exit(0);
 
   const { loadSqlite } = await import("../memory-engine/lib/deps.mjs");

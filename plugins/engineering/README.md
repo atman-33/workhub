@@ -17,7 +17,7 @@ Engineering utilities and helpers for software development tasks.
 - `setup-project-context` — scaffold or show `.claude/project-context.json` (see below).
 - `set-openspec-path` — switch `openspecPath` by picking a registered project from a menu (see below).
 - `setup-all` — run all of the setup skills above in sequence.
-- `setup-rules-ex` — scaffold the `rules-ex` extended-rules infrastructure (see below).
+- `setup-rules-ex` — scaffold the `rules-ex` extended-rules infrastructure. The hook that reads it lives in the [`workhub` plugin](../workhub/README.md#harness-hooks); this skill only sets the folder up.
 
 `develop-small-feature`, `setup-openspec`, `setup-project-context`,
 `set-openspec-path`, `setup-all`, and `setup-rules-ex` are explicit-invocation
@@ -79,96 +79,28 @@ via `process.platform`, so **one `.mcp.json` works on both Windows and WSL**.
 
 After installing/reloading the plugin, confirm both servers connect with `/mcp`.
 
-### SessionStart hook: project context injection
+### The shared config: `.claude/project-context.json`
 
-On every session start, the plugin injects a `<project-context>` XML block into
-Claude's context containing your registered project paths and the openspec docs
-folder. This mirrors the kind of "active project context" you may have wired up
-manually with a `settings.json` hook, but ships with the plugin and works on both
-Windows and WSL.
+Two of this plugin's hooks read `.claude/project-context.json` in the project
+root — the file the workhub app writes, and the one the `setup-project-context`
+skill scaffolds. The `workhub` plugin reads the same file: it owns the
+`<project-context>` injection and the sibling-repository rule injection, which
+are documented in [that plugin's README](../workhub/README.md#harness-hooks).
+They moved there because they are the sole readers of a file the app writes, and
+keeping them here made `engineering` impossible to switch off.
 
-The hook is `node`-based, so it runs identically on Windows, WSL, and macOS with
-no platform-specific wrapper. It reads a per-project config file and is silent
-(injects nothing) when that file is absent — it never nags an unconfigured
-project.
+What this plugin still reads from that file:
 
-Whenever it does inject context, the exact injected block is also shown to you as
-a `systemMessage` in the transcript, so you can confirm the intended context was
-injected. (A missing config still shows nothing.)
+- `roleBasedDelegation` — see below. It stayed here because the criteria it
+  injects name this plugin's own sub-agents, so it has to switch off with them.
+- `postToolFormatCommands` and `projects[]` — see
+  [PostToolUse hook](#posttooluse-hook-target-project-formatting).
 
-#### Configuration
+### SessionStart hook: role-based delegation criteria
 
-Create `.claude/project-context.json` in the project root (run the
-`setup-project-context` skill to scaffold it, or copy
-[`hooks/project-context.example.json`](hooks/project-context.example.json)):
-
-```json
-{
-  "openspecPath": "C:/repos/workhub/openspec",
-  "postToolFormatCommands": [
-    "npm run format"
-  ],
-  "projects": [
-    {
-      "name": "workhub",
-      "path": "C:/repos/workhub",
-      "summary": "Claude Code plugin marketplace",
-      "postToolFormatCommands": [
-        "npm run format",
-        "npm run lint -- --fix"
-      ]
-    },
-    {
-      "name": "my-app",
-      "path": "C:/repos/my-app",
-      "postToolFormatCommands": ["npm run format"]
-    }
-  ]
-}
-```
-
-- `roleBasedDelegation`, `openspecPath`, `postToolFormatCommands`, and
-  `projects` are all optional. Omit any and the relevant hook skips that part;
-  a missing file injects nothing.
-- `openspecPath` falls back to `<project-root>/openspec` when it is empty **or**
-  points at a folder that does not exist, so switching projects rarely needs a
-  manual path edit. If neither path exists, the `<openspec>` line is omitted.
-  Use the `set-openspec-path` skill to switch it by picking a registered
-  project from a menu instead of hand-editing the absolute path.
-- `postToolFormatCommands` can be declared either at the top level (global
-  default for all registered targets) or inside each `projects[]` entry
-  (project-specific override). The per-project value wins when both are present.
-  Commands run best-effort, sequentially, after Claude `Edit`/`Write`
-  operations for files under a registered **target** project outside the
-  current cwd. They run in that target project's root, and the hook emits a
-  `systemMessage` showing exactly which commands ran and whether each one
-  succeeded.
-- `name` defaults to `path` when omitted; `summary` is optional.
-- A sibling repo's own guidance (`CLAUDE.md`/`AGENTS.md` and `.claude/rules`) is
-  injected lazily by the PreToolUse hook when you actually touch that repo's
-  files — see [PreToolUse hook](#pretooluse-hook-target-repo-guidance-injection)
-  below.
-- `roleBasedDelegation: true` injects the role-based delegation criteria (see
-  below).
-
-This produces:
-
-```xml
-<project-context>
-  <openspec path="C:/repos/workhub/openspec" />
-  <registered-projects>
-    <project name="workhub" path="C:/repos/workhub">
-      <summary>Claude Code plugin marketplace</summary>
-    </project>
-    <project name="my-app" path="C:/repos/my-app" />
-  </registered-projects>
-</project-context>
-```
-
-#### Role-based delegation criteria injection
-
-Setting `"roleBasedDelegation": true` in `.claude/project-context.json` makes the
-same SessionStart hook also inject a `<role-based-delegation>` block describing
+Setting `"roleBasedDelegation": true` in `.claude/project-context.json` makes
+[`hooks/scripts/inject-role-delegation.mjs`](hooks/scripts/inject-role-delegation.mjs)
+inject a `<role-based-delegation>` block describing
 **when to delegate and which sub-agent to use** (the `code-explore`,
 `implementer`, `heavy-implementer`, and `test-runner` agents above). This is the
 plugin-friendly equivalent of importing a delegation-criteria doc into your
@@ -180,40 +112,6 @@ and is injected verbatim. The flag is opt-in, so sessions stay lean unless you
 ask for it — consistent with the hook's "never nag an unconfigured project"
 behavior. Enable it where you actually run multi-step development work (e.g. at
 `user` scope, or per repo).
-
-### PreToolUse hook: target-repo guidance injection
-
-Claude Code only loads memory/rules from the current working directory hierarchy
-(upward) plus cwd subdirectories. When you launch the harness in one repo and use
-it to develop a **sibling** repo, that sibling's `CLAUDE.md`/`AGENTS.md` and
-`.claude/rules/*.md` are never loaded — they live outside the cwd tree. A second
-`node`-based hook
-([`hooks/scripts/inject-target-rules.mjs`](hooks/scripts/inject-target-rules.mjs))
-closes that gap by reproducing the native memory/rule loading for sibling repos.
-
-On every `Read`, `Edit`, or `Write`, the hook resolves the touched file against
-the registered projects in `.claude/project-context.json`. When the file lives
-under a sibling project root (never the cwd itself — that guidance loads
-natively), it injects two things via `additionalContext`:
-
-1. **`<target-project-instructions>`** — the repo's root instruction file
-   (`CLAUDE.md` preferred, else `AGENTS.md`), **full text**, injected at most once
-   per session per repo. This replaces the old `instructions` path attribute on
-   `<project-context>`: instead of just pointing Claude at the file, the content is
-   loaded automatically the moment you touch the repo.
-2. **`<target-project-rules>`** — the repo's `.claude/rules/*.md` whose `paths:`
-   front matter glob-matches the touched file (rules without `paths` always
-   apply). Each rule is injected at most once per session, so a path-scoped rule
-   still injects the first time a matching file is touched, without re-injecting on
-   every subsequent call.
-
-De-duplication uses a temp-dir sentinel keyed by session and file. Whenever it
-injects, the hook also surfaces a one-line `systemMessage` summary in the
-transcript (e.g. `🔎 target-rules: srms — CLAUDE.md (full) + rules:
-backend_repository.md`) so you can see at a glance which instruction file and
-rules were injected. The full text only goes to Claude's context, not the
-transcript. The hook is failure-tolerant and silent (injects nothing) for
-cwd-local files, unregistered paths, or repos without the relevant files.
 
 ### PostToolUse hook: target-project formatting
 
@@ -246,8 +144,9 @@ Plugin files (including the hook script) live in the Claude Code plugin cache an
 are referenced via `${CLAUDE_PLUGIN_ROOT}` — they are **not** copied into your
 project, so there is nothing to commit from the plugin itself. The only
 project-local file is `.claude/project-context.json`, which you create per
-project. Install the plugin at whichever scope suits you (`user` to have the hook
-available everywhere, `project` to share it with a repo's collaborators).
+project. Install the plugin at `user` scope — the default — so the hooks are
+available from any directory; they inject nothing where no config exists.
+`project` scope is there for sharing the plugin with one repo's collaborators.
 
 #### Windows / WSL note
 
