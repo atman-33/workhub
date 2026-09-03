@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.96.0 (2026-09-03)
+
+- **`engineering` drops from required to recommended; `workhub` is now the
+  only plugin the app itself needs.** `engineering` was required only because
+  it carried the hooks that read the `.claude/project-context.json` the app
+  writes; those hooks (`inject-project-context`, `inject-target-rules`,
+  `inject-extended-rules`) now live in `workhub`'s own `hooks/harness/`, so a
+  team can switch off `engineering`'s commit/branch/PR conventions — its own
+  call — without losing project-context injection. The delegation half of the
+  old `SessionStart` hook stays in `engineering` as
+  `inject-role-delegation`, next to the sub-agents its criteria name, so it
+  turns off with them.
+- **Plugin scope is now where you want a plugin switched on, not what it
+  depends on** — no catalog entry is `project`-only any more, and a plugin's
+  own gating decides whether it activates. The vault template registers the
+  marketplace but enables no plugins, so existing vaults are unaffected.
+- **Fixed a user-scope install leaking context across vaults.** Hook vault
+  resolution now honors the app's configured `vault_path` only while the
+  current directory is inside that vault; previously a user-scope install
+  injected the owner profile and vault memory into every Claude Code session
+  on the machine and captured unrelated transcripts into the vault database.
+  Resolution from a vault subdirectory, which used to fall through to the
+  config by accident, is also fixed. Explicit CLI invocations keep the
+  unconditional fallback.
+- **Plugins tab:** equal-status rows now order by tier, so a recommended
+  plugin no longer sits below optional ones purely by catalog position.
+
 ## 0.95.0 (2026-09-03)
 
 - **Mindmap nodes can be reordered, and labelled from a menu of their own**
