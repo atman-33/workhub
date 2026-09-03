@@ -22,7 +22,16 @@ workhub Obsidian vault.
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| task-sync reminder | Stop | Remind to run `task-report` if a started task was left unreported |
+| `profile-inject` | SessionStart | Inject the owner's `profile/decision-policy.md` and `about-me.md` |
+| `harness/inject-project-context` | SessionStart | Inject the app's registered projects — see [Harness hooks](#harness-hooks) |
+| `harness/inject-target-rules` | PreToolUse (Read/Edit/Write) | Inject a sibling repository's `CLAUDE.md` and `.claude/rules` |
+| `harness/inject-extended-rules` | PreToolUse (Read/Edit/Write) | Inject the vault's `.claude/rules-ex` rules that target other repositories |
+| `vault-write-guard` | PreToolUse (Write) | Refuse to overwrite an existing note in the vault's human zone |
+| `secretary-gate` | PreToolUse (AskUserQuestion) | Consult the `secretary` agent before a question reaches the owner (off by default) |
+| `secretary-consulted` | PostToolUse (Task) | Record that the secretary was consulted |
+| `memory-inject` | UserPromptSubmit | Inject relevant long-term memory |
+| `task-sync-reminder` | Stop | Remind to run `task-report` if a started task was left unreported |
+| `memory-capture` | Stop | Save the session's chunks into the vault memory database |
 
 ## Vault contract
 
@@ -33,4 +42,154 @@ and the `## Results` section of a task file, and must keep raw logs in `_ai/`.
 The vault path is resolved in this order:
 
 1. `WORKHUB_VAULT` environment variable
-2. `vault_path` in `%APPDATA%\workhub\config.json`
+2. the current directory, when it is itself a vault (has `tasks/` and `_ai/`)
+3. `vault_path` in `~/.workhub/config.json` (the pre-0.49
+   `%APPDATA%\workhub\config.json` is still read as a fallback) — **but only
+   while the current directory is inside that vault**
+
+That last condition is what makes this plugin safe to install at user scope.
+Its hooks run in every session on the machine, and the app's config resolves a
+vault from anywhere; without the check, a session in an unrelated repository
+would get the owner's profile injected, its prompts answered out of vault
+memory, and its transcript captured into the vault database. Resolving to
+nothing outside the vault makes every hook here no-op exactly as it does on a
+machine with no vault at all.
+
+The skills and the CLI scripts (`scripts/task-cli.mjs`, `scripts/comms-cli.mjs`,
+`memory-engine/cli.mjs`) deliberately keep the unconditional fallback: an
+explicit command should find the vault from wherever it is run.
+
+## Harness hooks
+
+`hooks/harness/` holds the three hooks that wire the workhub app to a session.
+They came from the `engineering` plugin, and moving them is what let that plugin
+stop being required: they are the only readers of the `.claude/project-context.json`
+the app writes, so the app depends on *this* plugin and on nothing else.
+
+Like every other hook here, they inject nothing when the file they read is
+absent — a machine with no vault and no configured project sees no difference.
+
+### SessionStart hook: project context injection
+
+On every session start, the plugin injects a `<project-context>` XML block into
+Claude's context containing your registered project paths and the openspec docs
+folder. This mirrors the kind of "active project context" you may have wired up
+manually with a `settings.json` hook, but ships with the plugin and works on both
+Windows and WSL.
+
+The hook is `node`-based, so it runs identically on Windows, WSL, and macOS with
+no platform-specific wrapper. It reads a per-project config file and is silent
+(injects nothing) when that file is absent — it never nags an unconfigured
+project.
+
+Whenever it does inject context, the exact injected block is also shown to you as
+a `systemMessage` in the transcript, so you can confirm the intended context was
+injected. (A missing config still shows nothing.)
+
+#### Configuration
+
+In a vault, the workhub app writes `.claude/project-context.json` itself from
+the repositories registered in its **Repos** tab — there is nothing to do by
+hand. Elsewhere, create it in the project root: copy
+[`hooks/harness/project-context.example.json`](hooks/harness/project-context.example.json),
+or run the `engineering` plugin's `setup-project-context` skill if you have it.
+
+```json
+{
+  "openspecPath": "C:/repos/workhub/openspec",
+  "postToolFormatCommands": [
+    "npm run format"
+  ],
+  "projects": [
+    {
+      "name": "workhub",
+      "path": "C:/repos/workhub",
+      "summary": "Claude Code plugin marketplace",
+      "postToolFormatCommands": [
+        "npm run format",
+        "npm run lint -- --fix"
+      ]
+    },
+    {
+      "name": "my-app",
+      "path": "C:/repos/my-app",
+      "postToolFormatCommands": ["npm run format"]
+    }
+  ]
+}
+```
+
+- `roleBasedDelegation`, `openspecPath`, `postToolFormatCommands`, and
+  `projects` are all optional. Omit any and the relevant hook skips that part;
+  a missing file injects nothing.
+- `openspecPath` falls back to `<project-root>/openspec` when it is empty **or**
+  points at a folder that does not exist, so switching projects rarely needs a
+  manual path edit. If neither path exists, the `<openspec>` line is omitted.
+  Use the `set-openspec-path` skill to switch it by picking a registered
+  project from a menu instead of hand-editing the absolute path.
+- `postToolFormatCommands` is read by the `engineering` plugin's PostToolUse
+  hook, not by this one. It can be declared either at the top level (global
+  default for all registered targets) or inside each `projects[]` entry
+  (project-specific override). The per-project value wins when both are present.
+  Commands run best-effort, sequentially, after Claude `Edit`/`Write`
+  operations for files under a registered **target** project outside the
+  current cwd. They run in that target project's root, and the hook emits a
+  `systemMessage` showing exactly which commands ran and whether each one
+  succeeded.
+- `name` defaults to `path` when omitted; `summary` is optional.
+- A sibling repo's own guidance (`CLAUDE.md`/`AGENTS.md` and `.claude/rules`) is
+  injected lazily by the PreToolUse hook when you actually touch that repo's
+  files — see [PreToolUse hook](#pretooluse-hook-target-repo-guidance-injection)
+  below.
+- `roleBasedDelegation: true` injects the role-based delegation criteria. That
+  one is read by the `engineering` plugin, not this one — the criteria name
+  its sub-agents, so they switch off together. Without `engineering`
+  installed the key is simply ignored.
+
+This produces:
+
+```xml
+<project-context>
+  <openspec path="C:/repos/workhub/openspec" />
+  <registered-projects>
+    <project name="workhub" path="C:/repos/workhub">
+      <summary>Claude Code plugin marketplace</summary>
+    </project>
+    <project name="my-app" path="C:/repos/my-app" />
+  </registered-projects>
+</project-context>
+```
+
+### PreToolUse hook: target-repo guidance injection
+
+Claude Code only loads memory/rules from the current working directory hierarchy
+(upward) plus cwd subdirectories. When you launch the harness in one repo and use
+it to develop a **sibling** repo, that sibling's `CLAUDE.md`/`AGENTS.md` and
+`.claude/rules/*.md` are never loaded — they live outside the cwd tree. A `node`-based hook
+([`hooks/harness/inject-target-rules.mjs`](hooks/harness/inject-target-rules.mjs))
+closes that gap by reproducing the native memory/rule loading for sibling repos.
+
+On every `Read`, `Edit`, or `Write`, the hook resolves the touched file against
+the registered projects in `.claude/project-context.json`. When the file lives
+under a sibling project root (never the cwd itself — that guidance loads
+natively), it injects two things via `additionalContext`:
+
+1. **`<target-project-instructions>`** — the repo's root instruction file
+   (`CLAUDE.md` preferred, else `AGENTS.md`), **full text**, injected at most once
+   per session per repo. This replaces the old `instructions` path attribute on
+   `<project-context>`: instead of just pointing Claude at the file, the content is
+   loaded automatically the moment you touch the repo.
+2. **`<target-project-rules>`** — the repo's `.claude/rules/*.md` whose `paths:`
+   front matter glob-matches the touched file (rules without `paths` always
+   apply). Each rule is injected at most once per session, so a path-scoped rule
+   still injects the first time a matching file is touched, without re-injecting on
+   every subsequent call.
+
+De-duplication uses a temp-dir sentinel keyed by session and file. Whenever it
+injects, the hook also surfaces a one-line `systemMessage` summary in the
+transcript (e.g. `🔎 target-rules: srms — CLAUDE.md (full) + rules:
+backend_repository.md`) so you can see at a glance which instruction file and
+rules were injected. The full text only goes to Claude's context, not the
+transcript. The hook is failure-tolerant and silent (injects nothing) for
+cwd-local files, unregistered paths, or repos without the relevant files.
+

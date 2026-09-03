@@ -1,26 +1,31 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * SessionStart hook: inject registered project paths and the openspec docs
- * folder path into Claude's context as a <project-context> XML block, and
- * optionally the role-based delegation criteria as a <role-based-delegation>
- * block (when `roleBasedDelegation: true` is set in the config).
+ * SessionStart hook: inject the registered project paths and the openspec docs
+ * folder path into Claude's context as a <project-context> XML block.
  *
- * Reads `<project-root>/.claude/project-context.json` and emits
- * `hookSpecificOutput.additionalContext`. Runs identically on Windows and
- * WSL/macOS because it is launched via `node` (no platform-specific wrapper).
+ * Reads `<project-root>/.claude/project-context.json` — the file the workhub
+ * app writes — and emits `hookSpecificOutput.additionalContext`. Runs
+ * identically on Windows and WSL/macOS because it is launched via `node` (no
+ * platform-specific wrapper).
+ *
+ * Lives in this plugin rather than `engineering` because it is the sole reader
+ * of a file the app itself writes: without it the app's registered projects
+ * never reach an agent, which is what makes `workhub` the one required plugin.
+ * The same config's `roleBasedDelegation` flag is read by a separate hook in
+ * `engineering`, next to the sub-agents that flag talks about — so switching
+ * that plugin off takes the delegation criteria with it, instead of leaving an
+ * instruction to delegate to agents that are no longer installed.
  *
  * Behaviour:
- *   - No config file        -> emit nothing (don't nag unconfigured projects).
- *   - Malformed config       -> emit a short error note so the user can fix it.
- *   - Valid config           -> emit the <project-context> block and/or the
- *                               <role-based-delegation> block, as configured.
+ *   - No config file   -> emit nothing (don't nag unconfigured projects).
+ *   - Malformed config -> emit a short error note so the user can fix it.
+ *   - Valid config     -> emit the <project-context> block.
  * Always exits 0 (SessionStart cannot block and hooks must be failure-tolerant).
  */
 
 import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
 
@@ -36,16 +41,8 @@ const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
  * @typedef {{
  *   openspecPath?: string,
  *   projects?: unknown[],
- *   roleBasedDelegation?: boolean,
  * }} ProjectContextConfig
  */
-
-// Delegation-criteria doc shipped alongside the hook (../role-based-model-selection.md).
-const DELEGATION_DOC_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "role-based-model-selection.md"
-);
 
 /** Read all of stdin (the SessionStart payload). Returns "" if none. */
 function readStdin() {
@@ -191,24 +188,6 @@ function buildXml(config, openspecPath) {
   return lines.join("\n");
 }
 
-/**
- * Read the shipped delegation-criteria doc and wrap it in a
- * <role-based-delegation> block. Returns null (and injects nothing) if the file
- * can't be read, since the hook must be failure-tolerant.
- */
-function buildDelegationBlock() {
-  let doc;
-  try {
-    doc = readFileSync(DELEGATION_DOC_PATH, "utf8").trim();
-  } catch {
-    return null;
-  }
-  if (!doc) {
-    return null;
-  }
-  return `<role-based-delegation>\n${doc}\n</role-based-delegation>`;
-}
-
 function main() {
   const stdinRaw = readStdin();
   const projectRoot = resolveProjectRoot(stdinRaw);
@@ -240,24 +219,12 @@ function main() {
   const hasOpenspec = resolvedOpenspec !== "";
   const hasProjects =
     Array.isArray(config.projects) && getValidProjects(config.projects).length > 0;
-  const wantsDelegation = config.roleBasedDelegation === true;
-  if (!hasOpenspec && !hasProjects && !wantsDelegation) {
+  if (!hasOpenspec && !hasProjects) {
     emit(null);
     return;
   }
 
-  const blocks = [];
-  if (hasOpenspec || hasProjects) {
-    blocks.push(buildXml(config, resolvedOpenspec));
-  }
-  if (wantsDelegation) {
-    const delegation = buildDelegationBlock();
-    if (delegation) {
-      blocks.push(delegation);
-    }
-  }
-
-  emit(blocks.length > 0 ? blocks.join("\n\n") : null);
+  emit(buildXml(config, resolvedOpenspec));
 }
 
 main();

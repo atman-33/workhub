@@ -421,10 +421,12 @@ knowledge, and configuration — never application code.
 
 - Skills, hooks, and agents come from Claude Code plugins.
   `.claude/settings.json` declares the `workhub-marketplace` (the workhub
-  GitHub repo) and enables required project-scope plugins (`workhub`,
-  `engineering`) plus `obsidian`. Toggle optional plugins (`team-ops`,
-  `stack-*`) there or with `/plugin`. See `docs/plugins.md` in the workhub
-  repo for the catalog and scope policy.
+  GitHub repo) but enables nothing: plugins are switched on per machine, at
+  user scope, from the app's **Plugins** tab or with `/plugin`. Only `workhub`
+  is required — it carries the task board, the vault knowledge base, and the
+  harness hooks that read `.claude/project-context.json`. Everything else,
+  `engineering` included, is a recommendation you can switch off. See
+  `docs/plugins.md` in the workhub repo for the catalog and scope policy.
 - **Personal skills may live in this vault** at `.claude/skills/<name>/SKILL.md`
   (agents at `.claude/agents/<name>.md`). The app's template only owns the paths
   listed in `_ai/template-manifest.json`, so these are never overwritten by an

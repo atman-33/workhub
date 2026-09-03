@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { readPayload } from "./lib.mjs";
 
 try {
-  const { readMarker, memoryEnabled, resolveVault, dbPathForVault } = await import(
+  const { readMarker, memoryEnabled, resolveVaultForHook, dbPathForVault } = await import(
     "../memory-engine/lib/paths.mjs"
   );
   if (!readMarker() || !memoryEnabled("claude_code")) process.exit(0);
@@ -16,7 +16,7 @@ try {
   const transcriptPath = payload.transcript_path ?? "";
   if (!transcriptPath || !existsSync(transcriptPath)) process.exit(0);
 
-  const vault = resolveVault();
+  const vault = resolveVaultForHook();
   if (!vault) process.exit(0);
 
   const { loadSqlite } = await import("../memory-engine/lib/deps.mjs");

@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/profile-inject.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harness/inject-project-context.mjs\""
           }
         ]
       }
@@ -36,6 +40,19 @@
       }
     ],
     "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harness/inject-target-rules.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harness/inject-extended-rules.mjs\""
+          }
+        ]
+      },
       {
         "matcher": "Write",
         "hooks": [

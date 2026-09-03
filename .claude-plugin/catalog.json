@@ -1,17 +1,17 @@
 {
-  "$comment": "workhub-owned metadata about the plugins in marketplace.json: how much this vault needs each one, and the scope it is installed at. Claude Code does not read this file - the app's Plugins tab does, because the classification exists nowhere else in machine-readable form (docs/plugins.md states it in prose). `tier` is decided by what breaks without the plugin: `required` = an app feature or an agent launch stops working (workhub's skills are named in the app's own launch prompts; engineering's SessionStart hook is the only reader of the .claude/project-context.json the app writes); `recommended` = nothing breaks but the harness is noticeably worse; `optional` = a matter of taste or tech stack. Deliberately carries no version/description/author: plugin.json is the single source for those (T-0221). Every plugin in marketplace.json must appear here exactly once, and vice versa; src/lib/plugin-catalog.test.ts fails CI when the two drift.",
+  "$comment": "workhub-owned metadata about the plugins in marketplace.json: how much this vault needs each one, and the scope it is installed at. Claude Code does not read this file - the app's Plugins tab does, because the classification exists nowhere else in machine-readable form (docs/plugins.md states it in prose). `tier` is decided by what breaks without the plugin: `required` = an app feature or an agent launch stops working - only workhub, whose skills the app names in its own launch prompts and whose harness hooks are the sole readers of the .claude/project-context.json the app writes; `recommended` = nothing breaks but the harness is noticeably worse; `optional` = a matter of taste or tech stack. `scope` is where the plugin is meant to be installed, not what it depends on: `user` is the default because a plugin is switched on per machine and works from any directory, and a hook that needs a vault or a project config gates itself on that file existing rather than on being installed narrowly. `project` is left for what would be actively wrong outside one repository. Deliberately carries no version/description/author: plugin.json is the single source for those (T-0221). Every plugin in marketplace.json must appear here exactly once, and vice versa; src/lib/plugin-catalog.test.ts fails CI when the two drift.",
   "plugins": [
     {
       "name": "workhub",
       "tier": "required",
-      "scope": "project",
-      "summary": "Task board, vault knowledge base, schedule/mindmap editing, long-term memory and the app's release procedure. Meaningless outside a vault."
+      "scope": "either",
+      "summary": "Task board, vault knowledge base, schedule/mindmap editing, long-term memory, the app's release procedure, and the harness hooks that carry the app's registered projects and their rules into a session. Meaningless outside a vault, and gated on one."
     },
     {
       "name": "engineering",
-      "tier": "required",
-      "scope": "project",
-      "summary": "Development workflow: role-based sub-agents, the commit/PR/ADR/TDD skills, serena/context7 MCP launchers, and the SessionStart hook that is the only reader of the project-context.json the app writes."
+      "tier": "recommended",
+      "scope": "user",
+      "summary": "Development workflow: role-based sub-agents, the commit/PR/ADR/TDD skills, serena/context7 MCP launchers. How a team commits and branches is a team's own call, so this is a recommendation - nothing in the app stops working without it."
     },
     {
       "name": "claude-tooling",
@@ -46,14 +46,14 @@
     {
       "name": "team-ops",
       "tier": "optional",
-      "scope": "project",
+      "scope": "either",
       "summary": "Team operations on a shared folder as SSoT: knowledge base, backlog and sprints, multi-repo tracking. Needs .claude/team-context.json."
     },
     {
       "name": "obsidian",
       "tier": "optional",
       "scope": "either",
-      "summary": "Generic Obsidian helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, CLI). Pre-enabled by the vault template."
+      "summary": "Generic Obsidian helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, CLI). Vault-agnostic - useful in the workhub vault and any other."
     },
     {
       "name": "persona",
@@ -64,25 +64,25 @@
     {
       "name": "stack-cloudflare",
       "tier": "optional",
-      "scope": "project",
+      "scope": "either",
       "summary": "Cloudflare (Workers, Pages, R2, D1) development helpers."
     },
     {
       "name": "stack-dnd-kit",
       "tier": "optional",
-      "scope": "project",
+      "scope": "either",
       "summary": "dnd-kit drag-and-drop UI helpers."
     },
     {
       "name": "stack-opencode",
       "tier": "optional",
-      "scope": "project",
+      "scope": "either",
       "summary": "OpenCode configuration and extension helpers."
     },
     {
       "name": "stack-react-router",
       "tier": "optional",
-      "scope": "project",
+      "scope": "either",
       "summary": "React Router / Remix helpers."
     }
   ]

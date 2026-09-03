@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /**
  * Read the workhub app config (`~/.workhub/config.json`, with the pre-0.49
@@ -22,13 +22,46 @@ export function readConfig() {
   return {};
 }
 
-/** Resolve the workhub vault path: WORKHUB_VAULT env var, cwd, then config. */
+/**
+ * Is `dir` the vault root, or somewhere inside it? Compared case-insensitively
+ * because these hooks run on Windows, where the path the app stored and the
+ * cwd Claude Code reports routinely differ in drive-letter or folder casing.
+ *
+ * @param {string} dir
+ * @param {string} root
+ */
+function isWithin(dir, root) {
+  const a = resolve(dir).toLowerCase();
+  const b = resolve(root).toLowerCase();
+  return a === b || a.startsWith(b + sep);
+}
+
+/**
+ * Resolve the workhub vault for a hook: `WORKHUB_VAULT`, else the cwd when it
+ * is itself a vault, else the vault the app has configured — but that last one
+ * only while the session is actually running inside it.
+ *
+ * That cwd gate is what makes this plugin safe to install at user scope. The
+ * app config alone resolves a vault from any directory on the machine, so
+ * without the gate every session in every repository would get the owner
+ * profile injected, its prompts answered out of vault memory, and its
+ * transcript captured into the vault memory database. Outside the vault the
+ * hooks now no-op exactly as they already do on a machine that has no vault.
+ *
+ * A vault recognised from the cwd itself is still honoured without consulting
+ * the config, so a second, unregistered vault keeps working. This is also why
+ * the check is a subtree test rather than an equality one: a session started in
+ * `<vault>/projects/foo` is in the vault, and used to fall through to the
+ * config by accident.
+ */
 export function resolveVault() {
   if (process.env.WORKHUB_VAULT) return process.env.WORKHUB_VAULT;
   const cwd = process.cwd();
   if (existsSync(join(cwd, "tasks")) && existsSync(join(cwd, "_ai"))) return cwd;
   const cfg = readConfig();
-  return cfg.settings?.vault_path ?? cfg.vault_path ?? null;
+  const configured = cfg.settings?.vault_path ?? cfg.vault_path ?? null;
+  if (!configured) return null;
+  return isWithin(cwd, configured) ? configured : null;
 }
 
 /**

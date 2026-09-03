@@ -51,29 +51,29 @@ A few steps to get workhub ready on a new machine. The fastest path is to run th
 
 1. **Install the prerequisite software.** \`git\`, \`Node.js\` (≥ 20), and \`Claude Code\` are required. \`Obsidian\` (edit the vault by hand), \`OpenCode\` (optional second agent), and \`herdr\` (the default launcher — workhub opens each AI task in a fresh herdr workspace) are optional but recommended. The \`vault-setup\` skill probes for these and offers the install commands.
 2. **Create the task vault.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`) and press **Init vault** to expand the bundled template into it. You can change it later in **⚙ Settings → Vault → Tasks vault path**.
-3. **Install the Claude Code plugins.** If you created the vault from the template, \`workhub\`, \`engineering\`, and \`obsidian\` are already enabled — just accept the trust prompt on first launch. To install everything manually (or from a non-template setup), run:
+3. **Install the Claude Code plugins.** The vault template registers the marketplace but enables nothing, because a plugin is switched on per machine rather than per vault. The **Plugins** tab is the easiest way in: it lists every plugin with its tier and a toggle. To do it from a terminal instead:
 
 \`\`\`bash
 # one-time: register the marketplace
 claude plugin marketplace add atman-33/workhub
 
-# workhub — task-board & vault knowledge-base skills
-claude plugin install workhub@workhub-marketplace --scope project
+# workhub — task board, vault knowledge base, harness hooks (the only required one)
+claude plugin install workhub@workhub-marketplace
 
 # engineering — dev workflow skills, sub-agents, MCP launchers
-claude plugin install engineering@workhub-marketplace --scope project
+claude plugin install engineering@workhub-marketplace
 
 # claude-tooling — Claude Code's own commands, skills, update notices
 claude plugin install claude-tooling@workhub-marketplace
 
-# authoring / agent-ops / zenn — optional user-scope tools
+# authoring / agent-ops / zenn — optional tools
 claude plugin install authoring@workhub-marketplace
 
 # obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers
-claude plugin install obsidian@workhub-marketplace --scope project
+claude plugin install obsidian@workhub-marketplace
 \`\`\`
 
-\`workhub\` and \`engineering\` are project scope (per vault/repository); \`claude-tooling\`, \`authoring\`, \`agent-ops\` and \`zenn\` are user scope (once per machine, works from any directory) — only \`claude-tooling\` is required, the other three are per taste; \`obsidian\` is optional but recommended for editing vault notes. See \`docs/plugins.md\` in the workhub repo for the full catalog.
+Every one of those installs at user scope, which is the default: once per machine, available from any directory, and toggled from the **Plugins** tab. \`workhub\` is the only required plugin — the app names its skills in its own launch prompts and its hooks are what carry your registered repositories into a session. \`engineering\` and \`persona\` are recommended, the rest are per taste; \`--scope project\` is there if you ever want one plugin in a single repository and nowhere else. See \`docs/plugins.md\` in the workhub repo for the full catalog.
 
 4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.
 
@@ -261,8 +261,8 @@ const PLUGINS_MD = `## Keeping the plugins straight (Plugins)
 
 The **Plugins** tab answers three questions about the \`workhub-marketplace\` plugins on this machine: how much the harness needs each one, which of them are switched on here, and whether what is installed is behind the marketplace.
 
-- Each plugin has a **tier**, decided by what breaks without it. **Required** means an app feature or an agent launch stops working — only \`workhub\` (whose skills the app names in its own launch prompts) and \`engineering\` (whose hook is the sole reader of the project list the app writes) qualify. **Recommended** means nothing breaks but the harness is poorer for it. **Optional** is taste or tech stack. The tiers come from the marketplace's own \`catalog.json\`, not from this app, so they stay right as the marketplace changes.
-- **Scope** is where a plugin is installed: \`project\` writes to the vault's \`.claude/settings.json\`, \`user\` to \`~/.claude/settings.json\`, and \`either\` follows wherever it is already on.
+- Each plugin has a **tier**, decided by what breaks without it. **Required** means an app feature or an agent launch stops working — only \`workhub\` qualifies: the app names its skills in its own launch prompts, and its harness hooks are the sole readers of the project list the app writes. **Recommended** means nothing breaks but the harness is poorer for it — \`engineering\` sits here, because how a team commits and branches is that team's own call. **Optional** is taste or tech stack. The tiers come from the marketplace's own \`catalog.json\`, not from this app, so they stay right as the marketplace changes. The list is ordered by what needs a decision first, then by tier.
+- **Scope** is where a plugin is installed. \`user\` writes to \`~/.claude/settings.json\` and is the default: a plugin is switched on per machine and then works from any directory. \`project\` writes to the vault's \`.claude/settings.json\`, for the rarer case of wanting a plugin in one repository and nowhere else. \`either\` follows wherever it is already on, and falls back to \`user\`.
 - **Update marketplace** refreshes the local clone every "latest version" is compared against. Without it the tab compares against whatever was cloned last — so a plugin can look up to date when it is not.
 - The **switch** on each row adds or removes one \`enabledPlugins\` key. The **Update** button runs \`claude plugin update\` for that plugin at its scope. Both need the Claude Code CLI on PATH.
 - Everything here takes effect **in the next Claude Code session** — restart any session that is open.`;
@@ -587,40 +587,39 @@ export function HelpView() {
                 <span className="font-medium text-foreground">
                   Install the Claude Code plugins.
                 </span>{" "}
-                If you created the vault from the template,{" "}
-                <span className="font-mono text-xs">workhub</span>,{" "}
-                <span className="font-mono text-xs">engineering</span>, and{" "}
-                <span className="font-mono text-xs">obsidian</span> are
-                already enabled — just accept the trust prompt on first
-                launch. To install everything manually (or from a non-template
-                setup), run:
+                The vault template registers the marketplace but enables
+                nothing, because a plugin is switched on per machine rather
+                than per vault. The <span className="font-medium">Plugins</span>{" "}
+                tab is the easiest way in: it lists every plugin with its tier
+                and a toggle. To do it from a terminal instead:
                 <pre className="mt-1.5 overflow-x-auto rounded-md border bg-muted/50 p-2 font-mono text-[11px] text-foreground">
                   {"# one-time: register the marketplace\n" +
                     "claude plugin marketplace add atman-33/workhub\n\n" +
-                    "# workhub — task-board & vault knowledge-base skills\n" +
-                    "claude plugin install workhub@workhub-marketplace --scope project\n\n" +
+                    "# workhub — task board, vault KB, harness hooks (the only required one)\n" +
+                    "claude plugin install workhub@workhub-marketplace\n\n" +
                     "# engineering — dev workflow skills, sub-agents, MCP launchers\n" +
-                    "claude plugin install engineering@workhub-marketplace --scope project\n\n" +
+                    "claude plugin install engineering@workhub-marketplace\n\n" +
                     "# claude-tooling — Claude Code's own commands, skills, update notices\n" +
                     "claude plugin install claude-tooling@workhub-marketplace\n\n" +
-                    "# authoring / agent-ops / zenn — optional user-scope tools\n" +
+                    "# authoring / agent-ops / zenn — optional tools\n" +
                     "claude plugin install authoring@workhub-marketplace\n\n" +
                     "# obsidian — Obsidian Flavored Markdown, Bases, Canvas helpers\n" +
-                    "claude plugin install obsidian@workhub-marketplace --scope project"}
+                    "claude plugin install obsidian@workhub-marketplace"}
                 </pre>
                 <span className="mt-1 block text-xs">
-                  <span className="font-mono">workhub</span> and{" "}
-                  <span className="font-mono">engineering</span> are project
-                  scope (per vault/repository);{" "}
-                  <span className="font-mono">claude-tooling</span>,{" "}
-                  <span className="font-mono">authoring</span>,{" "}
-                  <span className="font-mono">agent-ops</span> and{" "}
-                  <span className="font-mono">zenn</span> are user scope (once
-                  per machine, works from any directory) — only{" "}
-                  <span className="font-mono">claude-tooling</span> is
-                  required;{" "}
-                  <span className="font-mono">obsidian</span> is optional but
-                  recommended for editing vault notes. See{" "}
+                  Every one of those installs at user scope, which is the
+                  default: once per machine, available from any directory, and
+                  toggled from the <span className="font-medium">Plugins</span>{" "}
+                  tab. <span className="font-mono">workhub</span> is the only
+                  required plugin — the app names its skills in its own launch
+                  prompts, and its hooks are what carry your registered
+                  repositories into a session.{" "}
+                  <span className="font-mono">engineering</span> and{" "}
+                  <span className="font-mono">persona</span> are recommended,
+                  the rest are per taste;{" "}
+                  <span className="font-mono">--scope project</span> is there
+                  if you ever want one plugin in a single repository and
+                  nowhere else. See{" "}
                   <span className="font-mono">docs/plugins.md</span> in the
                   workhub repo for the full catalog.
                 </span>
@@ -1799,28 +1798,35 @@ export function HelpView() {
                 decided by what breaks without it.{" "}
                 <span className="font-medium text-foreground">Required</span>{" "}
                 means an app feature or an agent launch stops working — only{" "}
-                <span className="font-mono text-xs">workhub</span> (whose skills
-                the app names in its own launch prompts) and{" "}
-                <span className="font-mono text-xs">engineering</span> (whose
-                hook is the sole reader of the project list the app writes)
-                qualify.{" "}
+                <span className="font-mono text-xs">workhub</span> qualifies:
+                the app names its skills in its own launch prompts, and its
+                harness hooks are the sole readers of the project list the app
+                writes.{" "}
                 <span className="font-medium text-foreground">Recommended</span>{" "}
-                means nothing breaks but the harness is poorer for it;{" "}
+                means nothing breaks but the harness is poorer for it — that is
+                where <span className="font-mono text-xs">engineering</span>{" "}
+                sits, because how a team commits and branches is that team's own
+                call.{" "}
                 <span className="font-medium text-foreground">Optional</span> is
                 taste or tech stack. The tiers come from the marketplace's own{" "}
                 <span className="font-mono text-xs">catalog.json</span>, not from
-                this app, so they stay right as the marketplace changes.
+                this app, so they stay right as the marketplace changes. The
+                list is ordered by what needs a decision first, then by tier.
               </li>
               <li>
                 <span className="font-medium text-foreground">Scope</span> is
-                where a plugin is installed:{" "}
+                where a plugin is installed.{" "}
+                <span className="font-mono text-xs">user</span> writes to{" "}
+                <span className="font-mono text-xs">~/.claude/settings.json</span>{" "}
+                and is the default: switched on per machine, then available from
+                any directory.{" "}
                 <span className="font-mono text-xs">project</span> writes to the
                 vault's{" "}
-                <span className="font-mono text-xs">.claude/settings.json</span>,{" "}
-                <span className="font-mono text-xs">user</span> to{" "}
-                <span className="font-mono text-xs">~/.claude/settings.json</span>
-                , and <span className="font-mono text-xs">either</span> follows
-                wherever it is already on.
+                <span className="font-mono text-xs">.claude/settings.json</span>,
+                for the rarer case of wanting a plugin in one repository and
+                nowhere else. <span className="font-mono text-xs">either</span>{" "}
+                follows wherever it is already on, and falls back to{" "}
+                <span className="font-mono text-xs">user</span>.
               </li>
               <li>
                 <span className="font-medium text-foreground">

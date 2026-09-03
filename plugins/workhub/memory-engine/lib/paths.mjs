@@ -7,7 +7,7 @@
 // lives inside the vault (`_ai/memory/memory.db`) and is gitignored there.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 // Bump when the dependency set or embedding model changes; `setup` re-runs
 // the full install when the marker's version no longer matches.
@@ -41,6 +41,27 @@ export function resolveVault() {
     }
   }
   return null;
+}
+
+/**
+ * The vault a *hook* may act on: `resolveVault()`, but the configured vault
+ * only counts while the session is running inside it.
+ *
+ * The plugin installs at user scope, so its hooks run in every session on the
+ * machine. `resolveVault()` answers "which vault does this machine have",
+ * which is the right question for the CLI and the wrong one for a hook: it
+ * would capture a session in an unrelated repository into the vault memory
+ * database. The cwd gate is the same one `hooks/lib.mjs` applies, duplicated
+ * rather than imported because `setup` copies this engine out of the plugin
+ * and it has to keep working from `ENGINE_HOME`.
+ */
+export function resolveVaultForHook() {
+  const vault = resolveVault();
+  if (!vault) return null;
+  if (process.env.WORKHUB_VAULT) return vault;
+  const cwd = resolve(process.cwd()).toLowerCase();
+  const root = resolve(vault).toLowerCase();
+  return cwd === root || cwd.startsWith(root + sep) ? vault : null;
 }
 
 export function dbPathForVault(vault) {

@@ -170,6 +170,22 @@ describe("pluginViews", () => {
     ]);
   });
 
+  it("orders equal-status rows required, recommended, optional", () => {
+    // Every row is `ok`, which is the ordinary case: the status key decides
+    // nothing and the tier has to. Written here in the catalog order the tab
+    // used to fall through to, with the recommended one listed last.
+    const ok = { enabled_user: true, scope: "user" as const };
+    const installs = [{ scope: "user", version: "1.0.0", project_path: "" }];
+    const rows = [
+      row({ name: "req", tier: "required", ...ok, installs }),
+      row({ name: "opt", tier: "optional", ...ok, installs }),
+      row({ name: "rec", tier: "recommended", ...ok, installs }),
+    ];
+    const views = pluginViews(state(rows));
+    expect(views.map((v) => v.status)).toEqual(["ok", "ok", "ok"]);
+    expect(views.map((v) => v.name)).toEqual(["req", "rec", "opt"]);
+  });
+
   it("sinks an uncatalogued row below catalogued ones of the same status", () => {
     const rows = [
       row({ name: "leftover", in_catalog: false, scope: "" }),
