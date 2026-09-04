@@ -2,7 +2,7 @@
 
 > **Not a native Claude Code feature.** Unlike `.claude/rules` (which Claude Code
 > loads natively), `rules-ex` is a **custom extension**. It only works because of
-> the `engineering@workhub-marketplace` plugin's `inject-extended-rules` hook (Claude
+> the `workhub@workhub-marketplace` plugin's `inject-extended-rules` hook (Claude
 > Code) and its OpenCode mirror `.opencode/plugins/inject-extended-rules-plugin.ts`.
 > Without that plugin enabled (or the OpenCode plugin present), files in this folder
 > are ignored — nothing is injected.
@@ -15,7 +15,7 @@ Two complementary injection paths:
 
 | Folder | Native? | Loaded by | Scope |
 |--------|---------|-----------|-------|
-| `.claude/rules` | **Yes** (Claude Code built-in) | Claude Code itself (+ engineering hook for sibling repos) | files of the repo it lives in, via repo-relative `paths:` |
+| `.claude/rules` | **Yes** (Claude Code built-in) | Claude Code itself (+ the workhub hook for sibling repos) | files of the repo it lives in, via repo-relative `paths:` |
 | `.claude/rules-ex` | **No** (custom) | `inject-extended-rules` hook / OpenCode mirror | files in ANY repo, via cwd-relative `..` globs |
 
 ## Rule file format

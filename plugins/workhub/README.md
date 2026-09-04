@@ -17,6 +17,14 @@ workhub Obsidian vault.
 | `kb-lint` | Health check: orphan notes, broken links, index drift, tag issues, stale content |
 | `kb-index` | Update the zone `_index.md` files (smart diff by default, `--full` rebuild) |
 | `vault-migrate` | Migrate another Obsidian vault into the workhub vault — copy-only, with scripted delta-zero verification (user-invoked only) |
+| `setup-project-context` | Scaffold or show `.claude/project-context.json` — the file the harness hooks below read (user-invoked only) |
+| `setup-rules-ex` | Scaffold the `rules-ex` extended-rules infrastructure the `inject-extended-rules` hook reads (user-invoked only) |
+| `capture-rule` | Route a durable insight to the rules home where it will auto-inject next time — a repo's `.claude/rules`, the harness's `rules-ex`, the harness's own rules, or auto-memory |
+
+The last three live here rather than in `engineering` because every file they
+write is read by this plugin's harness hooks: a setup step for a required
+plugin must not sit inside an optional one. `engineering`'s `setup-all`
+delegates to the first two.
 
 ## Hooks
 
@@ -92,7 +100,7 @@ In a vault, the workhub app writes `.claude/project-context.json` itself from
 the repositories registered in its **Repos** tab — there is nothing to do by
 hand. Elsewhere, create it in the project root: copy
 [`hooks/harness/project-context.example.json`](hooks/harness/project-context.example.json),
-or run the `engineering` plugin's `setup-project-context` skill if you have it.
+or run this plugin's `setup-project-context` skill.
 
 ```json
 {

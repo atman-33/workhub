@@ -1,12 +1,12 @@
 ---
 name: setup-project-context
-description: Scaffold or show the .claude/project-context.json file that the engineering hooks read to inject project context, target-repo guidance, and optional post-edit format commands.
+description: Scaffold or show the .claude/project-context.json file that the workhub harness hooks read to inject project context, target-repo guidance, and optional post-edit format commands.
 disable-model-invocation: true
 allowed-tools: Read Write
 ---
 
-Set up the per-project configuration consumed by the engineering plugin's
-hooks. `SessionStart` reads `.claude/project-context.json` from the project root
+Set up the per-project configuration consumed by the workhub plugin's harness
+hooks (and, for `roleBasedDelegation`, by the engineering plugin). `SessionStart` reads `.claude/project-context.json` from the project root
 and injects a `<project-context>` block (registered project absolute paths +
 openspec docs folder) into Claude's context at session start.
 

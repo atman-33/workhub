@@ -1,11 +1,16 @@
 ---
 name: setup-all
-description: Run all engineering plugin setup steps in sequence — set up OpenSpec, scaffold project-context.json, and set up rules-ex infrastructure.
+description: Run all project setup steps in sequence — set up OpenSpec, scaffold project-context.json, and set up rules-ex infrastructure.
 disable-model-invocation: true
-allowed-tools: Bash(node --version) Bash(npm list *) Bash(npm install *) Bash(openspec *) Read Write
+allowed-tools: Bash(node --version) Bash(npm list *) Bash(npm install *) Bash(openspec *) Read Write Skill
 ---
 
-Run all engineering plugin setup steps in sequence. Each phase is independent — a failure in one phase is reported and the next phase continues.
+Run all project setup steps in sequence. Each phase is independent — a failure in one phase is reported and the next phase continues.
+
+Phases 2 and 3 scaffold files that only the `workhub` plugin's harness hooks
+read (`inject-project-context`, `inject-extended-rules`), so the skills that own
+those templates live in that plugin. This skill delegates to them rather than
+carrying its own copies — one template, one owner.
 
 ---
 
@@ -29,39 +34,20 @@ Run all engineering plugin setup steps in sequence. Each phase is independent �
 
 ## Phase 2 — Scaffold project-context.json
 
-4. Read `.claude/project-context.json` in the current project root.
-   - If it already exists: show its current contents and note that it was left unchanged.
-   - If it does not exist: create it with the following template (placeholder paths must be replaced by the user):
-     ```json
-     {
-       "roleBasedDelegation": true,
-       "openspecPath": "<absolute path to the openspec docs folder>",
-       "projects": [
-         {
-           "name": "example-project",
-           "path": "<absolute path to a frequently-used project>",
-           "summary": "short one-line description (optional)"
-         }
-       ]
-     }
-     ```
+4. Invoke the `workhub:setup-project-context` skill and let it do the work.
+   - If the skill is unavailable (the `workhub` plugin is not installed), skip
+     this phase and report that `.claude/project-context.json` was not
+     scaffolded, naming the plugin the user has to enable.
 
 ---
 
 ## Phase 3 — Scaffold rules-ex infrastructure
 
-5. Read `.claude/rules/rules-ex-authoring.md`.
-   - If it already exists: show its path and note it was left unchanged.
-   - If it does not exist: read `skills/setup-rules-ex/assets/templates/rules-ex-authoring.md`
-     (relative to this plugin's root; the canonical template, shared with the
-     `setup-rules-ex` skill) and write its exact contents to
-     `.claude/rules/rules-ex-authoring.md`.
-
-6. Read `.claude/rules-ex/README.md`.
-   - If it already exists: show its path and note it was left unchanged.
-   - If it does not exist: read `skills/setup-rules-ex/assets/templates/rules-ex-readme.md`
-     (relative to this plugin's root) and write its exact contents to
-     `.claude/rules-ex/README.md`.
+5. Invoke the `workhub:setup-rules-ex` skill and let it do the work.
+   - If the skill is unavailable (the `workhub` plugin is not installed), skip
+     this phase and report that `.claude/rules/rules-ex-authoring.md` and
+     `.claude/rules-ex/README.md` were not scaffolded, naming the plugin the
+     user has to enable.
 
 ---
 
@@ -72,8 +58,8 @@ After all three phases complete, print a summary table:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1 — OpenSpec | ✓ / ✗ | skipped / installed / already installed |
-| 2 — project-context.json | ✓ / ✗ | created / already existed |
-| 3 — rules-ex infrastructure | ✓ / ✗ | created / already existed (per file) |
+| 2 — project-context.json | ✓ / ✗ / skipped | created / already existed / `workhub` not installed |
+| 3 — rules-ex infrastructure | ✓ / ✗ / skipped | created / already existed (per file) / `workhub` not installed |
 
 Then remind the user:
 - Edit the placeholder paths in `.claude/project-context.json` before starting a new session.

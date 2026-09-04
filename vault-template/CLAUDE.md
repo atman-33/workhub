@@ -499,7 +499,7 @@ When investigation or implementation yields reusable knowledge that is
 non-obvious from code, git history, or existing instruction files (gotchas,
 build quirks, design invariants, conventions, the "why" behind a decision),
 propose capturing it **at the moment of discovery** — do not defer. Route it
-to the right home (the engineering plugin's `capture-rule` skill does the
+to the right home (the workhub plugin's `capture-rule` skill does the
 mechanical authoring):
 
 - **Target repo's `.claude/rules/<slug>.md`** — repo-specific technical
