@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.97.0 (2026-09-05)
+
+- **Projects can be pinned to the top of the list and dragged into the order
+  you want** (T-0231). The Projects tab listed every project alphabetically,
+  so the one or two actually in flight sank into the list as the vault grew —
+  the Repos tab had solved this for repositories years earlier and projects
+  never got the same treatment. A star now holds a project in a `Pinned`
+  section at the top, and rows drag to reorder within the pinned and unpinned
+  groups; dropping across the two pins or unpins as well, because "drag it to
+  the top" is the gesture the pin is for. Both the pin and the position are
+  written into `projects/<slug>/_index.md` rather than the machine's own
+  config, so cloning the vault on a second PC brings them along — the Repos
+  tab's star stays machine-local for the opposite reason, a repository path
+  being specific to one machine. The position is a float using the same
+  midpoint arithmetic as a task's `order`, so one drag rewrites one note
+  instead of renumbering every project in a folder the owner also edits by
+  hand in Obsidian.
+- **Nested repositories no longer lose their outer guidance, and each
+  repository in the chain now advertises its skills.** The target-rules hook
+  matched one repository per touched file — the longest-matching registered
+  root — so a full-stack repo holding `frontend/` and `backend/` as
+  repositories of their own had its cross-cutting `.claude/` silently skipped
+  the moment a file inside one of them was touched. The hook now resolves the
+  whole chain, plus an unregistered ancestor that is itself a repository and
+  carries guidance (at most three levels up), ordered outermost first so the
+  innermost rules read closest to the request; `"ancestorRules": false` opts
+  out. Each repository in the chain also contributes a catalog of its
+  `.claude/skills/` — names, descriptions and paths only, since injecting the
+  bodies would cost far more than telling the model they exist.
+- **Enabling only `workhub` is now enough to set up the harness it needs.**
+  The hooks that read `.claude/project-context.json` and `.claude/rules-ex/`
+  moved to `workhub` last release, but the skills that create those files
+  stayed in `engineering` — so a required plugin depended on an optional one
+  to be usable at all, and a team that switched the development workflow off
+  could not use `rules-ex`. `setup-project-context`, `setup-rules-ex` and
+  `capture-rule` now live in `workhub` alongside the hooks; `engineering`
+  keeps `setup-all`, which delegates to them and skips with a note when
+  `workhub` is absent.
+- **The vault's documented project layout now says the project root is a
+  closed set** — README, prd, roadmap, links and `_index` and nothing else —
+  and says what to do instead when no standard folder fits: create one and
+  register it in the project's README and `_index`. The layout had only ever
+  been written as a list of homes, so notes that matched none of the
+  development-oriented folders were landing loose at the root, which an
+  operational (non-development) project makes obvious very quickly.
+
 ## 0.96.0 (2026-09-03)
 
 - **`engineering` drops from required to recommended; `workhub` is now the
