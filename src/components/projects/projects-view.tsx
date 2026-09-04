@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { ProjectList } from "@/components/projects/project-list";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,12 @@ import { api, timeAgo } from "@/lib/api";
 import {
   TASK_STATUSES,
   buildProjectFixPrompt,
-  health,
   issueLabel,
   linkedRepos,
+  sortProjects,
   taskCountsByProject,
   unknownProjects,
+  type ProjectOrderWrite,
 } from "@/lib/vault-project";
 import { cn } from "@/lib/utils";
 import type { Config, Task, VaultProject } from "@/types";
@@ -161,7 +163,7 @@ export function ProjectsView({
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return projects.filter((p) => {
+    const matched = projects.filter((p) => {
       if (p.archived && !showArchived) return false;
       if (!needle) return true;
       return (
@@ -170,7 +172,16 @@ export function ProjectsView({
         p.summary.toLowerCase().includes(needle)
       );
     });
+    // The backend already returns this order; sorting again keeps the list
+    // right when a pin or a drag is applied to the local array (T-0231).
+    return sortProjects(matched);
   }, [projects, search, showArchived]);
+
+  // A search hides rows between the ones on screen, so a position computed
+  // from what is visible would not be the position the user meant.
+  const reorderable = search.trim() === "";
+  const activeVisible = useMemo(() => visible.filter((p) => !p.archived), [visible]);
+  const archivedVisible = useMemo(() => visible.filter((p) => p.archived), [visible]);
 
   // Keep a selection even as the list is filtered or reloaded: an empty detail
   // pane beside a populated list is a click the user never wants to make.
@@ -260,6 +271,38 @@ export function ProjectsView({
     saveRepos(next);
   };
 
+  /**
+   * Applies the writes one pin or one drop implies.
+   *
+   * The local array is updated first and the vault written after: the list is
+   * what the user just dragged, and waiting a file write and a rescan before
+   * the row moves makes the drag feel like it failed. `refresh()` then
+   * replaces the optimistic state with what is actually on disk.
+   */
+  const applyOrder = (writes: ProjectOrderWrite[]) => {
+    if (!vaultPath || writes.length === 0) return;
+    const by = new Map(writes.map((w) => [w.slug, w]));
+    setProjects((prev) =>
+      prev.map((p) => {
+        const w = by.get(p.slug);
+        return w ? { ...p, pinned: w.pinned, order: w.order } : p;
+      }),
+    );
+    void run("Reordering…", async () => {
+      for (const w of writes) {
+        await api.setVaultProjectOrder(vaultPath, w.slug, w.pinned, w.order);
+      }
+    });
+  };
+
+  /** A star click. The position is left alone, so unpinning drops the project
+   *  back where its own `order` puts it rather than at the end of the list. */
+  const togglePin = (project: VaultProject) => {
+    applyOrder([
+      { slug: project.slug, pinned: !project.pinned, order: project.order },
+    ]);
+  };
+
   const detailsDirty =
     !!current &&
     (editName.trim() !== current.name || editSummary.trim() !== current.summary);
@@ -334,47 +377,16 @@ export function ProjectsView({
                 bundled scaffold.
               </p>
             )}
-            {visible.map((p) => {
-              const h = health(p);
-              const c = counts.get(p.slug);
-              return (
-                <button
-                  key={p.slug}
-                  onClick={() => setSlug(p.slug)}
-                  className={cn(
-                    "flex w-full flex-col gap-0.5 border-b px-3 py-2 text-left transition-colors",
-                    p.slug === slug ? "bg-muted" : "hover:bg-muted/50",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{p.name}</span>
-                    {p.archived && (
-                      <span className="rounded bg-muted-foreground/15 px-1 text-[10px] uppercase text-muted-foreground">
-                        archived
-                      </span>
-                    )}
-                    {h.warn > 0 ? (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-[11px] text-destructive">
-                        <CircleAlert className="size-3" />
-                        {h.warn}
-                      </span>
-                    ) : (
-                      <span className="ml-auto flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                        <CircleCheck className="size-3" />
-                        ok
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="font-mono">{p.slug}</span>
-                    <span>·</span>
-                    <span>{c ? `${c.total} tasks` : "no tasks"}</span>
-                    <span>·</span>
-                    <span>{p.updated ? timeAgo(p.updated) : "—"}</span>
-                  </div>
-                </button>
-              );
-            })}
+            <ProjectList
+              active={activeVisible}
+              archived={archivedVisible}
+              selected={slug}
+              counts={counts}
+              reorderable={reorderable}
+              onSelect={setSlug}
+              onTogglePin={togglePin}
+              onMove={applyOrder}
+            />
 
             {orphans.length > 0 && (
               <div className="border-b bg-muted/30 px-3 py-2">

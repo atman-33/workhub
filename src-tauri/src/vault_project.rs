@@ -102,10 +102,37 @@ pub fn list_projects(vault: &Path, include_archived: bool) -> Result<Vec<VaultPr
     if include_archived {
         scan_root(&archive_projects_dir(vault), true, &mut out)?;
     }
-    out.sort_by(|a, b| {
-        (a.archived, a.slug.to_lowercase()).cmp(&(b.archived, b.slug.to_lowercase()))
-    });
+    sort_projects(&mut out);
     Ok(out)
+}
+
+/// The list order the Projects tab shows, and the one the reorder writes
+/// back against (T-0231):
+///
+/// 1. active before archived — an archived project is out of the way, and is
+///    never a drag target;
+/// 2. pinned before the rest, which is the whole point of a pin;
+/// 3. `order` ascending, with an unordered project after every ordered one —
+///    a project nobody has dragged yet has no opinion about where it goes;
+/// 4. slug, so the order is stable and alphabetical until someone drags.
+///
+/// Ordering happens here rather than in the view because the same order has
+/// to hold for the midpoint arithmetic on the front end, and two independent
+/// sorts would eventually disagree.
+pub fn sort_projects(projects: &mut [VaultProject]) {
+    projects.sort_by(|a, b| {
+        a.archived
+            .cmp(&b.archived)
+            .then(b.pinned.cmp(&a.pinned))
+            .then(order_key(a.order).total_cmp(&order_key(b.order)))
+            .then(a.slug.to_lowercase().cmp(&b.slug.to_lowercase()))
+    });
+}
+
+/// An absent `order` sorts after every present one. `total_cmp` needs a real
+/// float, so "last" is spelled as infinity rather than as an Option compare.
+fn order_key(order: Option<f64>) -> f64 {
+    order.unwrap_or(f64::INFINITY)
 }
 
 fn scan_root(root: &Path, archived: bool, out: &mut Vec<VaultProject>) -> Result<(), String> {
@@ -168,6 +195,21 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
         readme.as_ref().map(|n| excerpt(&n.1)).unwrap_or_default()
     };
 
+    // Pin and manual order live in `_index.md` beside the repo link, and are
+    // not read from README: unlike `repos:`, they were never written by hand
+    // before the app grew the feature, so there is no older spelling to
+    // support (T-0231).
+    let pinned = index
+        .as_ref()
+        .map(|n| frontmatter_value(&n.0, "pinned"))
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    let order = index
+        .as_ref()
+        .map(|n| frontmatter_value(&n.0, "order"))
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|v| v.is_finite());
+
     let (folders, mut issues) = inspect_folders(dir);
     for file in REQUIRED_FILES {
         if !dir.join(file).is_file() {
@@ -197,6 +239,8 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
         folders,
         issues,
         archived,
+        pinned,
+        order,
     }
 }
 
@@ -484,6 +528,76 @@ pub fn set_project_repos(vault: &Path, slug: &str, repos: &[String]) -> Result<(
 }
 
 // ---------------------------------------------------------------------
+// pin / manual order
+// ---------------------------------------------------------------------
+
+/// Renders an `order` float without a trailing `.0` for whole numbers, so a
+/// hand-edited note stays tidy (`order: 3`, not `order: 3.0`). Same rule as
+/// `tasks::render_order` — a project's order and a task's order are the same
+/// mechanism and should not look different in the vault.
+fn render_order(order: f64) -> String {
+    if order.fract() == 0.0 && order.abs() < 1e15 {
+        format!("{}", order as i64)
+    } else {
+        format!("{order}")
+    }
+}
+
+/// Records a project's pin and its manual sort position in `_index.md`
+/// (T-0231).
+///
+/// Both live in the vault rather than in `~/.workhub/config.json`, unlike the
+/// Repos tab's `favorite`: a repository path is machine-specific, but a
+/// project *is* the vault's content, so cloning the vault on a second PC
+/// should bring its pins and its order along.
+///
+/// `order: None` drops the key, which puts the project back at the end of its
+/// group — the state every project starts in. The order is a float so that
+/// dragging one project rewrites one note; see `sort_projects`.
+///
+/// Archived projects are refused: they sort last unconditionally and the tab
+/// does not offer them as a drag target, so an order written against one
+/// would be a value nothing ever reads.
+pub fn set_project_order(
+    vault: &Path,
+    slug: &str,
+    pinned: bool,
+    order: Option<f64>,
+) -> Result<(), String> {
+    let slug = check_slug(slug)?;
+    let dir = project_dir(vault, slug, false);
+    if !dir.is_dir() {
+        return Err(format!("no project named '{slug}' is in projects/"));
+    }
+    if let Some(v) = order {
+        if !v.is_finite() {
+            return Err("a project order must be a finite number".into());
+        }
+    }
+    let name = read_note(&dir.join("README.md"))
+        .map(|n| frontmatter_value(&n.0, "title"))
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| slug.to_string());
+    let path = ensure_scaffold_file(vault, slug, &name, INDEX_FILE)?;
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let (front, body) = split_frontmatter(&content)
+        .ok_or_else(|| format!("{INDEX_FILE} has no frontmatter block"))?;
+    // `updated:` is deliberately not touched here. A pin is a view preference,
+    // not an edit to the project, and stamping it would make every reordering
+    // look like the project had been worked on.
+    let front = match order {
+        Some(v) => rewrite_frontmatter(&front, &[("order", &render_order(v))]),
+        None => remove_frontmatter_key(&front, "order"),
+    };
+    let front = if pinned {
+        rewrite_frontmatter(&front, &[("pinned", "true")])
+    } else {
+        remove_frontmatter_key(&front, "pinned")
+    };
+    fs::write(&path, format!("---\n{front}---\n{body}")).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------
 // name / description
 // ---------------------------------------------------------------------
 
@@ -588,6 +702,73 @@ mod tests {
         assert_eq!(deliverables.count, 1);
         assert!(deliverables.known);
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
+    }
+
+    #[test]
+    fn the_pin_and_the_manual_order_round_trip_through_the_index_note() {
+        let vault = temp_vault("pin-order");
+        write(
+            vault.join("projects").join("demo").join("README.md"),
+            "---\ntitle: Demo\n---\n",
+        );
+
+        // Nothing recorded yet: no pin, no opinion about position.
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(!p.pinned);
+        assert_eq!(p.order, None);
+
+        set_project_order(&vault, "demo", true, Some(2.5)).unwrap();
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(p.pinned);
+        assert_eq!(p.order, Some(2.5));
+
+        // A whole number is written without its `.0`, like a task's order.
+        set_project_order(&vault, "demo", true, Some(3.0)).unwrap();
+        let index =
+            fs::read_to_string(vault.join("projects").join("demo").join("_index.md")).unwrap();
+        assert!(index.contains("order: 3\n"), "{index}");
+
+        // Clearing drops both keys rather than writing falsy values.
+        set_project_order(&vault, "demo", false, None).unwrap();
+        let index =
+            fs::read_to_string(vault.join("projects").join("demo").join("_index.md")).unwrap();
+        assert!(!index.contains("pinned"), "{index}");
+        assert!(!index.contains("order:"), "{index}");
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(!p.pinned);
+        assert_eq!(p.order, None);
+    }
+
+    /// Pinned first, then by `order`, with an unordered project after every
+    /// ordered one and archived projects last regardless of either.
+    #[test]
+    fn the_list_order_puts_pins_first_and_the_unordered_last() {
+        let vault = temp_vault("pin-sort");
+        for slug in ["alpha", "beta", "gamma"] {
+            write(
+                vault.join("projects").join(slug).join("README.md"),
+                "---\ntitle: x\n---\n",
+            );
+        }
+        write(
+            vault
+                .join("archive")
+                .join("projects")
+                .join("aardvark")
+                .join("README.md"),
+            "---\ntitle: x\n---\n",
+        );
+
+        // gamma is pinned; beta has a position; alpha has neither.
+        set_project_order(&vault, "gamma", true, None).unwrap();
+        set_project_order(&vault, "beta", false, Some(1.0)).unwrap();
+
+        let slugs: Vec<String> = list_projects(&vault, true)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.slug)
+            .collect();
+        assert_eq!(slugs, ["gamma", "beta", "alpha", "aardvark"]);
     }
 
     #[test]

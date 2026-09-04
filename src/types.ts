@@ -213,6 +213,12 @@ export interface VaultProject {
   issues: VaultProjectIssue[];
   /** True when the folder lives under `archive/projects/` instead. */
   archived: boolean;
+  /** `pinned:` from `_index.md` — held at the top of the list (T-0231). */
+  pinned: boolean;
+  /** `order:` from `_index.md` — manual sort position within its group. A
+   * float, like a task's order, so one drag rewrites one note. Null when the
+   * project has never been dragged, which sorts it last. */
+  order: number | null;
 }
 
 export interface ScheduleFile {

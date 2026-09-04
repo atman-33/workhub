@@ -148,7 +148,7 @@ manual, and it always matches the version you are running. This is the map.
 | | What it does |
 |---|---|
 | **Tasks** | The board. List and kanban views, filters by status / assignee / project, drag & drop, live sync with whatever edits the files outside the app. Launch an agent, copy its prompt, or send it to Claude Desktop. |
-| **Projects** | The vault's `projects/` folders — where a piece of work's notes, schedules, mindmaps and deliverables live. Create, archive and restore them; link one to a registered repository. |
+| **Projects** | The vault's `projects/` folders — where a piece of work's notes, schedules, mindmaps and deliverables live. Create, archive and restore them; link one to a registered repository; pin the ones in flight to the top and drag the list into the order you want. |
 | **Repos** | The multi-repo dashboard. Branch and dirty state at a glance, a git graph with branch switching, a changes panel, and a worktrees panel for reviewing the tasks agents are running in isolation. Open any repo in VS Code, a terminal, or an agent. |
 
 ![Edit Task dialog](docs/images/tasks-edit-dialog.png)

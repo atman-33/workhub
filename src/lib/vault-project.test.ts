@@ -5,7 +5,9 @@ import {
   health,
   issueLabel,
   linkedRepos,
+  planProjectMove,
   projectOfNotePath,
+  sortProjects,
   taskCountsByProject,
   unknownProjects,
 } from "./vault-project";
@@ -22,6 +24,8 @@ function project(over: Partial<VaultProject> = {}): VaultProject {
     folders: [],
     issues: [],
     archived: false,
+    pinned: false,
+    order: null,
     ...over,
   };
 }
@@ -220,5 +224,103 @@ describe("projectOfNotePath", () => {
   it("returns nothing for a path outside a project", () => {
     expect(projectOfNotePath("")).toBe("");
     expect(projectOfNotePath("C:/vault/tasks/T-0001 a.md")).toBe("");
+  });
+});
+
+describe("sortProjects", () => {
+  it("puts pins first, then explicit order, then the never-dragged", () => {
+    const list = [
+      project({ slug: "delta" }),
+      project({ slug: "alpha", order: 2 }),
+      project({ slug: "charlie", pinned: true }),
+      project({ slug: "bravo", order: 1 }),
+    ];
+    expect(sortProjects(list).map((p) => p.slug)).toEqual([
+      "charlie",
+      "bravo",
+      "alpha",
+      "delta",
+    ]);
+  });
+
+  it("sorts archived projects last whatever their pin says", () => {
+    const list = [
+      project({ slug: "old", archived: true, pinned: true, order: 0 }),
+      project({ slug: "new" }),
+    ];
+    expect(sortProjects(list).map((p) => p.slug)).toEqual(["new", "old"]);
+  });
+
+  it("does not mutate the array it is given", () => {
+    const list = [project({ slug: "b" }), project({ slug: "a" })];
+    sortProjects(list);
+    expect(list.map((p) => p.slug)).toEqual(["b", "a"]);
+  });
+});
+
+describe("planProjectMove", () => {
+  /** Three projects at 1, 2, 3 — the shape a group settles into. */
+  const group = () => [
+    project({ slug: "a", order: 1 }),
+    project({ slug: "b", order: 2 }),
+    project({ slug: "c", order: 3 }),
+  ];
+
+  it("writes only the dragged project, at the midpoint of its neighbours", () => {
+    expect(planProjectMove(group(), "c", 1, false)).toEqual([
+      { slug: "c", pinned: false, order: 1.5 },
+    ]);
+  });
+
+  it("extends past the ends rather than renumbering", () => {
+    expect(planProjectMove(group(), "c", 0, false)).toEqual([
+      { slug: "c", pinned: false, order: 0 },
+    ]);
+    expect(planProjectMove(group(), "a", 3, false)).toEqual([
+      { slug: "a", pinned: false, order: 4 },
+    ]);
+  });
+
+  it("writes nothing when the project is dropped where it already is", () => {
+    expect(planProjectMove(group(), "b", 1, false)).toEqual([]);
+    // Dropping onto the gap just below its own row is the same position.
+    expect(planProjectMove(group(), "b", 2, false)).toEqual([]);
+  });
+
+  it("carries the destination group's pin onto the dragged project", () => {
+    const pinnedGroup = [project({ slug: "p", pinned: true, order: 1 })];
+    expect(planProjectMove(pinnedGroup, "x", 1, true)).toEqual([
+      { slug: "x", pinned: true, order: 2 },
+    ]);
+  });
+
+  it("moves a project into an empty group", () => {
+    expect(planProjectMove([], "x", 0, true)).toEqual([
+      { slug: "x", pinned: true, order: 1 },
+    ]);
+  });
+
+  it("separates rows that never carried an order of their own", () => {
+    const fresh = [
+      project({ slug: "a" }),
+      project({ slug: "b" }),
+      project({ slug: "c" }),
+    ];
+    expect(planProjectMove(fresh, "c", 1, false)).toEqual([
+      { slug: "c", pinned: false, order: 1.5 },
+    ]);
+  });
+
+  it("renumbers the whole group when the midpoint has nowhere to land", () => {
+    const collided = [
+      project({ slug: "a", order: 1 }),
+      project({ slug: "b", order: 1 }),
+      project({ slug: "c", order: 5 }),
+    ];
+    expect(planProjectMove(collided, "c", 1, false)).toEqual([
+      { slug: "a", pinned: false, order: 1 },
+      { slug: "c", pinned: false, order: 2 },
+      { slug: "b", pinned: false, order: 3 },
+    ]);
   });
 });
