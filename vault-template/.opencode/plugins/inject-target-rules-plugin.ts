@@ -1,13 +1,14 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import {
+  collectSkillCatalog,
   collectTouchedPaths,
   createSessionState,
-  findSiblingTargetProject,
   isFileMutationTool,
   loadMatchingRules,
   loadProjectContextConfig,
   normalizePath,
   resolveInstructionsFile,
+  resolveTargetChain,
   safeReadText,
   toRepoRelativePath,
   type SessionState,
@@ -53,16 +54,16 @@ const injectTargetRulesPlugin: Plugin = async (ctx, _options) => {
       const blocks: string[] = [];
       const touchedPaths = collectTouchedPaths(input.args);
       for (const touchedPath of touchedPaths) {
-        const target = findSiblingTargetProject(
+        // Every repository that owns the file, outermost first: registered roots
+        // plus unregistered repository ancestors above them. Outermost first so
+        // the innermost, most specific guidance reads closest to the request.
+        for (const target of resolveTargetChain(
           touchedPath,
           workspaceRoot,
           projectConfig,
-        );
-        if (!target) {
-          continue;
+        )) {
+          collectTargetGuidance(target, touchedPath, state, blocks);
         }
-
-        collectTargetGuidance(target, touchedPath, state, blocks);
       }
 
       if (blocks.length === 0) {
@@ -138,6 +139,30 @@ function collectTargetGuidance(
       ].join("\n"),
     );
     state.loadedRules.add(rule.path);
+  }
+
+  // The skill catalog is a single unit — keyed on the repo, not on each
+  // SKILL.md. The skills are NOT registered with the host's skill mechanism, so
+  // the model is pointed at the files and reads one when it applies.
+  if (!state.loadedSkillCatalogs.has(target.root)) {
+    state.loadedSkillCatalogs.add(target.root);
+    const skills = collectSkillCatalog(target.root);
+    if (skills.length > 0) {
+      blocks.push(
+        [
+          "<target-project-skills>",
+          `<repo name="${xmlEscape(target.name)}" path="${xmlEscape(target.root)}">`,
+          "These skills are defined by the repository above and cannot be invoked",
+          "by name. When one fits the work at hand, read its SKILL.md and follow it.",
+          ...skills.map(
+            (skill) =>
+              `<skill name="${xmlEscape(skill.name)}" path="${xmlEscape(skill.path)}">${xmlEscape(skill.description)}</skill>`,
+          ),
+          "</repo>",
+          "</target-project-skills>",
+        ].join("\n"),
+      );
+    }
   }
 }
 
