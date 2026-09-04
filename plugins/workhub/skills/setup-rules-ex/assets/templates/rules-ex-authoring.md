@@ -7,7 +7,7 @@ paths:
 
 You are editing a file under `.claude/rules-ex/`. These are **extended rules** — a
 custom mechanism, **not** a native Claude Code feature. They only take effect via
-the `engineering@workhub-marketplace` plugin's `inject-extended-rules` hook (Claude
+the `workhub@workhub-marketplace` plugin's `inject-extended-rules` hook (Claude
 Code) and the OpenCode mirror `.opencode/plugins/inject-extended-rules-plugin.ts`.
 Contrast with `.claude/rules` (native, governs this repo's own files).
 

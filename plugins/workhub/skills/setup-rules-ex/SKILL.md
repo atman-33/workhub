@@ -1,6 +1,6 @@
 ---
 name: setup-rules-ex
-description: Scaffold the rules-ex extended-rules infrastructure (.claude/rules/rules-ex-authoring.md and .claude/rules-ex/README.md) required by the engineering plugin's inject-extended-rules hook.
+description: Scaffold the rules-ex extended-rules infrastructure (.claude/rules/rules-ex-authoring.md and .claude/rules-ex/README.md) required by the workhub plugin's inject-extended-rules hook.
 disable-model-invocation: true
 allowed-tools: Read Write
 ---

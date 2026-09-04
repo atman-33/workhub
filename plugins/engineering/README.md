@@ -6,7 +6,7 @@ Engineering utilities and helpers for software development tasks.
 
 ### Skills
 
-- `capture-rule`, `commit-changes`, `create-feature-branch`, `create-pull-request` — day-to-day git/PR workflow helpers. Releasing is deliberately absent: a release procedure is repository-specific — which files carry the version, whether a PR is involved, what publishes the build — so it belongs in that repository's `.claude/rules/`, plus a repository-specific skill where it needs driving (e.g. `workhub:release-app`).
+- `commit-changes`, `create-feature-branch`, `create-pull-request` — day-to-day git/PR workflow helpers. Releasing is deliberately absent: a release procedure is repository-specific — which files carry the version, whether a PR is involved, what publishes the build — so it belongs in that repository's `.claude/rules/`, plus a repository-specific skill where it needs driving (e.g. `workhub:release-app`).
 - `create-review-guide` — generate a self-contained HTML code-review guide (overview, architecture diagram, file/class responsibility map, annotated change walkthrough). Output directory is set per machine in the skill's `config.json` (copy `config.example.json`).
 - `create-manual-test-guide` — generate a self-contained HTML manual-testing guide (setup, test-flow diagram, scenarios with expected results, interactive pass/fail checklist with Markdown export). Output directory is set per machine in the skill's `config.json` (copy `config.example.json`).
 - `create-onboarding-guide` — generate a self-contained HTML onboarding tour of a repository (architecture diagram, directory map, key flow walkthroughs, recommended reading order). Same per-machine `config.json` output-directory pattern as the other guide skills.
@@ -14,14 +14,12 @@ Engineering utilities and helpers for software development tasks.
 - `investigate-bug-report` — diagnose a reported bug to its root cause with evidence (reproduce/trace, blast radius, fix candidates) without changing code.
 - `develop-small-feature` — implement a small, well-scoped feature/fix end-to-end (branch → TDD → static checks → user verification → commit → PR).
 - `setup-openspec` — install the OpenSpec CLI and run `openspec init --tools claude`.
-- `setup-project-context` — scaffold or show `.claude/project-context.json` (see below).
 - `set-openspec-path` — switch `openspecPath` by picking a registered project from a menu (see below).
-- `setup-all` — run all of the setup skills above in sequence.
-- `setup-rules-ex` — scaffold the `rules-ex` extended-rules infrastructure. The hook that reads it lives in the [`workhub` plugin](../workhub/README.md#harness-hooks); this skill only sets the folder up.
+- `setup-all` — run every project setup step in sequence. Phases 2 and 3 delegate to the `workhub` plugin's `setup-project-context` and `setup-rules-ex` skills, and are skipped with a note when that plugin is not installed.
 
-`develop-small-feature`, `setup-openspec`, `setup-project-context`,
-`set-openspec-path`, `setup-all`, and `setup-rules-ex` are explicit-invocation
-only (`disable-model-invocation: true`) — type the skill name to run them.
+`develop-small-feature`, `setup-openspec`, `set-openspec-path`, and `setup-all`
+are explicit-invocation only (`disable-model-invocation: true`) — type the skill
+name to run them.
 
 ### Sub-agents
 
@@ -81,13 +79,14 @@ After installing/reloading the plugin, confirm both servers connect with `/mcp`.
 
 ### The shared config: `.claude/project-context.json`
 
-Two of this plugin's hooks read `.claude/project-context.json` in the project
-root — the file the workhub app writes, and the one the `setup-project-context`
-skill scaffolds. The `workhub` plugin reads the same file: it owns the
-`<project-context>` injection and the sibling-repository rule injection, which
-are documented in [that plugin's README](../workhub/README.md#harness-hooks).
-They moved there because they are the sole readers of a file the app writes, and
-keeping them here made `engineering` impossible to switch off.
+One of this plugin's hooks reads `.claude/project-context.json` in the project
+root — the file the workhub app writes, and the one the `workhub` plugin's
+`setup-project-context` skill scaffolds. The `workhub` plugin reads the same
+file: it owns the `<project-context>` injection and the sibling-repository rule
+injection, which are documented in
+[that plugin's README](../workhub/README.md#harness-hooks). They moved there
+because they are the sole readers of a file the app writes, and keeping them
+here made `engineering` impossible to switch off.
 
 What this plugin still reads from that file:
 

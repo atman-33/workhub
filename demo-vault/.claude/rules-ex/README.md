@@ -2,7 +2,7 @@
 
 > **Not a native Claude Code feature.** Unlike `.claude/rules` (which Claude Code
 > loads natively), `rules-ex` is a **custom extension**. It only works because of
-> the `engineering@workhub-marketplace` plugin's `inject-extended-rules` hook
+> the `workhub@workhub-marketplace` plugin's `inject-extended-rules` hook
 > (Claude Code) and its OpenCode mirror plugin. Without that plugin enabled,
 > files in this folder are ignored — nothing is injected.
 

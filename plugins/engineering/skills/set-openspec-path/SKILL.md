@@ -12,8 +12,8 @@ the absolute path with a menu choice.
 Steps:
 
 1. Read `.claude/project-context.json` from the current project root.
-   - If the file does not exist, tell the user to run `setup-project-context`
-     first and stop.
+   - If the file does not exist, tell the user to run the `workhub` plugin's
+     `setup-project-context` skill first and stop.
    - If it cannot be parsed as JSON, show the parse error and stop.
 
 2. Collect the `projects` array (entries with a non-empty `path`). Present the
