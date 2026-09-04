@@ -39,6 +39,10 @@ Link to the full spec in [`prd.md`](prd.md).
 | `deliverables/` | Task deliverable notes (`T-XXXX-…`) |
 | `attachments/` | Images and binaries for this project |
 
+Nothing else belongs at the project root. If a document fits none of the
+folders above, add a folder for it (English kebab-case) and list it in this
+table — don't leave the note loose at the root.
+
 ## Reading order
 
 1. `README.md` (this file) — status and map

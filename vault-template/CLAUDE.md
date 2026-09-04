@@ -183,6 +183,15 @@ filling in the placeholders. Layout:
 **AI agents: open `README.md` first.** It states the current status and points
 to everything else — do not scan the whole project folder.
 
+**The project root is a closed set.** The only files directly under
+`projects/<slug>/` are the five in the table above — `README.md`, `prd.md`,
+`roadmap.md`, `links.md` and `_index.md`. Every other note lives in a
+subfolder. The table is written for development projects, so an operational
+one will hold documents none of those folders describe — correspondence with a
+support desk, applications, statements. Create a subfolder for that kind of
+document rather than dropping it at the root, and register it in the project's
+`README.md` and `_index.md` so the next reader finds it.
+
 Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
