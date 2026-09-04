@@ -4,11 +4,14 @@
  * PreToolUse hook: inject a target (sibling) repository's guidance into Claude's
  * context just before a file is read or edited, reproducing Claude Code's native
  * memory/rule loading for repos that live OUTSIDE the current working directory
- * tree. Two things are injected:
+ * tree. Three things are injected, per repository:
  *   1. The repo's root instruction file (CLAUDE.md preferred, else AGENTS.md),
  *      full text, once per session per repo.
  *   2. The path-scoped `.claude/rules/*.md` whose `paths:` front matter matches
  *      the touched file.
+ *   3. A catalog of the repo's `.claude/skills/<name>/SKILL.md` — name,
+ *      description and path only. A hook cannot register a skill with the Skill
+ *      tool, so the model is pointed at the file and reads it when one applies.
  *
  * Why this exists: Claude Code only loads memory/rules from the cwd hierarchy
  * (upward) plus cwd subdirectories (lazily). When the harness is launched in one
@@ -17,43 +20,59 @@
  * of a file under a registered sibling project, it injects the above via
  * `additionalContext`.
  *
+ * Repositories nest. A full-stack repo may hold `frontend/` and `backend/` as
+ * repositories of their own, with the cross-cutting guidance at the outer level
+ * and the local guidance inside. So the hook resolves a *chain* rather than a
+ * single repo: every registered root that owns the file, plus any unregistered
+ * ancestor that is itself a repository carrying guidance, ordered outermost
+ * first so the innermost guidance lands closest to the request. Set
+ * `"ancestorRules": false` in `.claude/project-context.json` to consider
+ * registered roots only. See target-rules-core.mjs for the resolution rules.
+ *
  * Input (stdin JSON): `tool_name`, `tool_input.file_path`, `cwd`, `session_id`.
  * Registered projects come from `<projectRoot>/.claude/project-context.json`
  * (`projects[].path`) — the same source as inject-project-context.mjs.
  *
- * De-duplication: a per-(session_id, agent context, rule-file) sentinel under the
- * OS temp dir ensures each rule is injected at most once per agent context. The
- * "agent context" is the sub-agent's `agent_id` when present, else "main" for the
- * top-level session. This matters because sub-agents share the parent's
- * `session_id` AND `transcript_path` but have their own, separate context window:
- * keying de-dup on `session_id` alone let a sub-agent's injection suppress the
- * main session's (the instructions then never reached the main context). Keying it
- * per agent context fixes that while still de-duping repeated reads within one
- * context. Path-scoped rules can become relevant later (when a different file is
- * touched), so de-dup is also keyed per rule file, not per repo — a different rule
- * still injects the first time it matches.
+ * De-duplication: a per-(session_id, agent context, source-file) sentinel under
+ * the OS temp dir ensures each injected file is injected at most once per agent
+ * context. The "agent context" is the sub-agent's `agent_id` when present, else
+ * "main" for the top-level session. This matters because sub-agents share the
+ * parent's `session_id` AND `transcript_path` but have their own, separate
+ * context window: keying de-dup on `session_id` alone let a sub-agent's injection
+ * suppress the main session's (the instructions then never reached the main
+ * context). Keying it per agent context fixes that while still de-duping repeated
+ * reads within one context. Path-scoped rules can become relevant later (when a
+ * different file is touched), so de-dup is also keyed per rule file, not per repo
+ * — a different rule still injects the first time it matches.
  *
  * Always exits 0 and emits `{}` when there is nothing to inject. Never blocks or
  * issues a permission decision (it defers to the normal flow).
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import {
+  collectSkillCatalog,
+  getRegisteredProjects,
+  isUnder,
+  loadMatchingRules,
+  normalizePath,
+  renderInstructionsBlock,
+  renderRulesBlock,
+  renderSkillsBlock,
+  resolveInstructionsFile,
+  resolveTargetChain,
+  toRepoRelativePath,
+} from "./target-rules-core.mjs";
 
 const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
 
 /**
  * @typedef {{
- *   path: string,
- *   name?: string,
- * }} RegisteredProject
- */
-
-/**
- * @typedef {{
  *   projects?: unknown[],
+ *   ancestorRules?: unknown,
  * }} ProjectContextConfig
  */
 
@@ -68,20 +87,6 @@ const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
  * }} PreToolUsePayload
  */
 
-/**
- * @typedef {{
- *   root: string,
- *   name: string,
- * }} TargetProject
- */
-
-/**
- * @typedef {{
- *   rel: string,
- *   body: string,
- * }} InjectedRule
- */
-
 /** Read all of stdin (the PreToolUse payload). Returns "" if none. */
 function readStdin() {
   try {
@@ -89,38 +94,6 @@ function readStdin() {
   } catch {
     return "";
   }
-}
-
-/** Escape a string for use in XML text or a double-quoted attribute. */
-/** @param {unknown} value */
-function xmlEscape(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/** Normalise a filesystem path: forward slashes, strip trailing slashes. */
-/** @param {string} p */
-function normalizePath(p) {
-  return String(p).replace(/\\/g, "/").replace(/\/+$/, "");
-}
-
-/**
- * Resolve a project's instruction file under its root.
- * Prefers CLAUDE.md, falls back to AGENTS.md, returns "" when neither exists.
- */
-/** @param {string} root */
-function resolveInstructionsFile(root) {
-  const base = normalizePath(root);
-  for (const name of ["CLAUDE.md", "AGENTS.md"]) {
-    const candidate = `${base}/${name}`;
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return "";
 }
 
 /** Resolve the project root from env, then the stdin payload, then cwd. */
@@ -161,143 +134,32 @@ function emit(additionalContext, systemMessage) {
   process.exit(0);
 }
 
-/** True when `child` is the same path as, or nested under, `parent`. */
-/** @param {string} child @param {string} parent */
-function isUnder(child, parent) {
-  const c = child.toLowerCase();
-  const p = parent.toLowerCase();
-  return c === p || c.startsWith(p + "/");
-}
-
-/**
- * Convert a single glob pattern to an anchored, full-match RegExp.
- * Supports `**` (any depth, incl. slashes), `*` (single segment), `?`.
- */
-/** @param {string} glob */
-function globToRegExp(glob) {
-  let re = "";
-  for (let i = 0; i < glob.length; i++) {
-    const ch = glob[i];
-    if (ch === "*") {
-      if (glob[i + 1] === "*") {
-        re += ".*";
-        i++;
-      } else {
-        re += "[^/]*";
-      }
-    } else if (ch === "?") {
-      re += "[^/]";
-    } else if (".+^${}()|[]\\".includes(ch)) {
-      re += "\\" + ch;
-    } else {
-      re += ch;
-    }
-  }
-  return new RegExp("^" + re + "$");
-}
-
-/** A repo-relative path matches a glob if either the bare or `**`/-prefixed form hits. */
-/** @param {string} relPath @param {string} glob */
-function matchesGlob(relPath, glob) {
-  const clean = glob.replace(/^\.\//, "").replace(/^\/+/, "");
-  try {
-    if (globToRegExp(clean).test(relPath)) {
-      return true;
-    }
-    // Allow a pattern like "apis/*.py" to also match nested occurrences,
-    // mirroring how editors commonly treat unrooted globs.
-    if (!clean.startsWith("**/") && globToRegExp("**/" + clean).test(relPath)) {
-      return true;
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
-
-/**
- * Extract the `paths:` patterns from a rule file's front matter.
- * Returns { hasFrontMatter, paths } where `paths` is an array of glob strings.
- * Supports inline (`paths: apis/*.py`) and YAML list forms. Zero-dependency.
- */
-/** @param {string} content */
-function parsePathsFrontMatter(content) {
-  const m = content.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---/);
-  if (!m) {
-    return { hasFrontMatter: false, paths: [] };
-  }
-  const body = m[1];
-  const lines = body.split(/\r?\n/);
-  const paths = [];
-  let inList = false;
-  for (const raw of lines) {
-    const line = raw.replace(/\s+$/, "");
-    const inline = line.match(/^paths:\s*(.*)$/);
-    if (inline) {
-      const val = inline[1].trim();
-      if (val && val !== "|" && val !== ">") {
-        paths.push(stripQuotes(val));
-        inList = false;
-      } else {
-        inList = true; // list items follow on subsequent lines
-      }
-      continue;
-    }
-    if (inList) {
-      const item = line.match(/^\s*-\s*(.+)$/);
-      if (item) {
-        paths.push(stripQuotes(item[1].trim()));
-      } else if (line.trim() && !/^\s/.test(line)) {
-        // A new top-level key ends the list.
-        inList = false;
-      }
-    }
-  }
-  return { hasFrontMatter: true, paths };
-}
-
-/** @param {string} s */
-function stripQuotes(s) {
-  return s.replace(/^["']/, "").replace(/["']$/, "");
-}
-
-/** Strip the front matter block so only the rule body is injected. */
-/** @param {string} content */
-function stripFrontMatter(content) {
-  const m = content.match(/^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/);
-  return m ? content.slice(m[0].length) : content;
-}
-
-/** Sentinel path for a (session, agent context, rule-file) triple. */
-/** @param {string} sessionId @param {string} contextId @param {string} ruleAbsPath */
-function sentinelPath(sessionId, contextId, ruleAbsPath) {
+/** Sentinel path for a (session, agent context, source-file) triple. */
+/** @param {string} sessionId @param {string} contextId @param {string} sourcePath */
+function sentinelPath(sessionId, contextId, sourcePath) {
   const key = createHash("sha1")
-    .update(`${sessionId}|${contextId}|${ruleAbsPath}`)
+    .update(`${sessionId}|${contextId}|${sourcePath}`)
     .digest("hex");
   return join(tmpdir(), `claude-target-rules-${key}`);
 }
 
 /**
- * @param {unknown[]} projects
- * @returns {RegisteredProject[]}
+ * Claim a source file for injection: true the first time it is seen in this
+ * agent context, false afterwards. A sentinel that cannot be written is not
+ * fatal — the content is injected, just without the de-dup guarantee.
  */
-function getRegisteredProjects(projects) {
-  /** @type {RegisteredProject[]} */
-  const registeredProjects = [];
-
-  for (const project of projects) {
-    if (
-      project &&
-      typeof project === "object" &&
-      "path" in project &&
-      typeof project.path === "string" &&
-      project.path.trim()
-    ) {
-      registeredProjects.push(/** @type {RegisteredProject} */ (project));
-    }
+/** @param {string} sessionId @param {string} contextId @param {string} sourcePath @param {string} note */
+function claim(sessionId, contextId, sourcePath, note) {
+  const sentinel = sentinelPath(sessionId, contextId, sourcePath);
+  if (existsSync(sentinel)) {
+    return false;
   }
-
-  return registeredProjects;
+  try {
+    writeFileSync(sentinel, `${new Date().toISOString()} ${note}\n`);
+  } catch {
+    // Non-fatal: inject once even if the sentinel can't be written.
+  }
+  return true;
 }
 
 function main() {
@@ -352,26 +214,15 @@ function main() {
     Array.isArray(config.projects) ? config.projects : []
   );
 
-  // Longest-matching registered root that contains the file.
-  /** @type {TargetProject | null} */
-  let target = null;
-  for (const p of projects) {
-    const root = normalizePath(p.path.trim());
-    if (isUnder(filePath, root)) {
-      if (!target || root.length > target.root.length) {
-        target = { root, name: p.name && p.name.trim() ? p.name.trim() : root };
-      }
-    }
-  }
-  if (!target) {
+  // Every repository that owns the file, outermost first: registered roots plus
+  // unregistered repository ancestors above them.
+  const chain = resolveTargetChain(filePath, cwd, projects, {
+    ancestors: config.ancestorRules !== false,
+  });
+  if (chain.length === 0) {
     emit(null);
     return;
   }
-
-  // repo-relative path of the touched file.
-  const relPath = filePath
-    .slice(target.root.length)
-    .replace(/^\/+/, "");
 
   const sessionId =
     typeof payload.session_id === "string" && payload.session_id
@@ -386,98 +237,58 @@ function main() {
       ? payload.agent_id
       : "main";
 
+  /** @type {string[]} */
   const blocks = [];
-  let injectedInstructions = "";
+  /** @type {string[]} */
+  const summaryParts = [];
 
-  // 1. Root instruction file (CLAUDE.md preferred, then AGENTS.md), full text,
-  //    injected at most once per (session, repo). Reproduces the native cwd
-  //    memory auto-load for a sibling repo.
-  const instructionsFile = resolveInstructionsFile(target.root);
-  if (instructionsFile) {
-    const sentinel = sentinelPath(sessionId, contextId, instructionsFile);
-    if (!existsSync(sentinel)) {
+  for (const target of chain) {
+    const relPath = toRepoRelativePath(filePath, target.root);
+    /** @type {string[]} */
+    const injectedHere = [];
+
+    // 1. Root instruction file (CLAUDE.md preferred, then AGENTS.md), full text,
+    //    injected at most once per (session, repo). Reproduces the native cwd
+    //    memory auto-load for a sibling repo.
+    const instructionsFile = resolveInstructionsFile(target.root);
+    if (instructionsFile) {
+      const fileName = toRepoRelativePath(instructionsFile, target.root);
       let content;
       try {
         content = readFileSync(instructionsFile, "utf8");
       } catch {
-        content = null;
+        content = "";
       }
-      if (content && content.trim()) {
-        try {
-          writeFileSync(sentinel, `${new Date().toISOString()} ${relPath}\n`);
-        } catch {
-          // Non-fatal: inject once even if the sentinel can't be written.
-        }
-        const fileName = instructionsFile.slice(target.root.length).replace(/^\/+/, "");
-        injectedInstructions = fileName;
-        blocks.push(
-          [
-            `<target-project-instructions project="${xmlEscape(target.name)}" path="${xmlEscape(fileName)}">`,
-            `  Full instructions from the target repository "${xmlEscape(target.name)}"`,
-            `  (outside the current working directory). Follow them while working there.`,
-            content.trim(),
-            "</target-project-instructions>",
-          ].join("\n")
-        );
+      if (content.trim() && claim(sessionId, contextId, instructionsFile, relPath)) {
+        blocks.push(renderInstructionsBlock(target, fileName, content));
+        injectedHere.push(`${fileName} (full)`);
       }
     }
-  }
 
-  // 2. Path-scoped rules under the target's .claude/rules. Missing dir is fine.
-  const rulesDir = join(target.root, ".claude", "rules");
-  /** @type {string[]} */
-  let entries = [];
-  try {
-    entries = readdirSync(rulesDir).filter((f) => f.toLowerCase().endsWith(".md"));
-  } catch {
-    entries = [];
-  }
-
-  /** @type {InjectedRule[]} */
-  const injected = [];
-  for (const file of entries.sort()) {
-    const ruleAbsPath = normalizePath(join(rulesDir, file));
-    let content;
-    try {
-      content = readFileSync(ruleAbsPath, "utf8");
-    } catch {
-      continue;
-    }
-    const { hasFrontMatter, paths } = parsePathsFrontMatter(content);
-    // No paths -> always applies; with paths -> require a glob match.
-    const applies = !hasFrontMatter || paths.length === 0
-      ? true
-      : paths.some((g) => matchesGlob(relPath, g));
-    if (!applies) continue;
-
-    // De-dup per (session, agent context, rule).
-    const sentinel = sentinelPath(sessionId, contextId, ruleAbsPath);
-    if (existsSync(sentinel)) continue;
-    try {
-      writeFileSync(sentinel, `${new Date().toISOString()} ${relPath}\n`);
-    } catch {
-      // If we can't write the sentinel we still inject once; never fatal.
+    // 2. Path-scoped rules under the target's .claude/rules. Missing dir is fine.
+    const rules = loadMatchingRules(target.root, relPath).filter((rule) =>
+      claim(sessionId, contextId, rule.abs, relPath)
+    );
+    if (rules.length > 0) {
+      blocks.push(renderRulesBlock(target, relPath, rules));
+      const names = rules.map((r) => r.rel.replace(/^\.claude\/rules\//, ""));
+      injectedHere.push(`rules: ${names.join(", ")}`);
     }
 
-    injected.push({
-      rel: normalizePath(`.claude/rules/${file}`),
-      body: stripFrontMatter(content).trim(),
-    });
-  }
-
-  if (injected.length > 0) {
-    const lines = [
-      `<target-project-rules project="${xmlEscape(target.name)}" root="${xmlEscape(target.root)}">`,
-      `  These path-scoped rules come from the target repository "${xmlEscape(target.name)}"`,
-      `  (outside the current working directory) and apply to ${xmlEscape(relPath)}.`,
-    ];
-    for (const r of injected) {
-      lines.push(`  <rule path="${xmlEscape(r.rel)}">`);
-      lines.push(r.body);
-      lines.push("  </rule>");
+    // 3. Skill catalog under the target's .claude/skills. The catalog is a single
+    //    unit — claim it on the directory rather than on each SKILL.md.
+    const skillsDir = `${target.root}/.claude/skills`;
+    if (claim(sessionId, contextId, skillsDir, relPath)) {
+      const skills = collectSkillCatalog(target.root);
+      if (skills.length > 0) {
+        blocks.push(renderSkillsBlock(target, skills));
+        injectedHere.push(`skills: ${skills.map((s) => s.name).join(", ")}`);
+      }
     }
-    lines.push("</target-project-rules>");
-    blocks.push(lines.join("\n"));
+
+    if (injectedHere.length > 0) {
+      summaryParts.push(`${target.name} — ${injectedHere.join(" + ")}`);
+    }
   }
 
   if (blocks.length === 0) {
@@ -486,17 +297,7 @@ function main() {
   }
 
   // One-line, display-only summary so the user can see what was injected.
-  const parts = [];
-  if (injectedInstructions) {
-    parts.push(`${injectedInstructions} (full)`);
-  }
-  if (injected.length > 0) {
-    const names = injected.map((r) => r.rel.replace(/^\.claude\/rules\//, ""));
-    parts.push(`rules: ${names.join(", ")}`);
-  }
-  const summary = `🔎 target-rules: ${target.name} — ${parts.join(" + ")}`;
-
-  emit(blocks.join("\n\n"), summary);
+  emit(blocks.join("\n\n"), `🔎 target-rules: ${summaryParts.join(" | ")}`);
 }
 
 main();

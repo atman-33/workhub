@@ -48,9 +48,18 @@ Steps:
      hook (`inject-target-rules.mjs`): when you Read/Edit/Write a file under a
      registered project, it injects that repo's root instruction file
      (`CLAUDE.md`, or `AGENTS.md` if there is no `CLAUDE.md`) in full once per
-     session, plus any `.claude/rules/*.md` whose `paths:` front matter matches
-     the touched file. Nothing is injected for files under the current working
-     directory (that guidance loads natively).
+     session, any `.claude/rules/*.md` whose `paths:` front matter matches the
+     touched file, and a catalog of that repo's `.claude/skills/*/SKILL.md`
+     (name, description, path — the bodies are read on demand). Nothing is
+     injected for files under the current working directory (that guidance loads
+     natively).
+   - Nested repositories are handled as a chain: every registered root that owns
+     the file, plus any unregistered ancestor above them that is a repository
+     (`.git`) carrying guidance (`CLAUDE.md`/`AGENTS.md`/`.claude/`), walking up
+     at most three levels and stopping at the home directory. So a
+     `full-stack-repo/{frontend,backend}` layout gets the outer repo's rules and
+     skills even when only `frontend` is registered. Add `"ancestorRules": false`
+     to consider registered roots only.
    - `postToolFormatCommands` may be set globally or inside a specific
      `projects[]` entry. Project-specific commands override the global default.
      The hook runs each listed shell command sequentially after Claude

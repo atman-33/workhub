@@ -180,7 +180,7 @@ closes that gap by reproducing the native memory/rule loading for sibling repos.
 On every `Read`, `Edit`, or `Write`, the hook resolves the touched file against
 the registered projects in `.claude/project-context.json`. When the file lives
 under a sibling project root (never the cwd itself — that guidance loads
-natively), it injects two things via `additionalContext`:
+natively), it injects three things via `additionalContext`:
 
 1. **`<target-project-instructions>`** — the repo's root instruction file
    (`CLAUDE.md` preferred, else `AGENTS.md`), **full text**, injected at most once
@@ -192,12 +192,41 @@ natively), it injects two things via `additionalContext`:
    apply). Each rule is injected at most once per session, so a path-scoped rule
    still injects the first time a matching file is touched, without re-injecting on
    every subsequent call.
+3. **`<target-project-skills>`** — a catalog of the repo's
+   `.claude/skills/<name>/SKILL.md`: name, description and path, one line each,
+   injected once per session per repo. A hook cannot register a skill with the
+   Skill tool, so the catalog tells Claude the skills exist and to read the
+   `SKILL.md` when one applies. Skill bodies are never injected.
+
+#### Nested repositories
+
+Repositories nest. A full-stack repo may hold `frontend/` and `backend/` as
+repositories of their own, with the cross-cutting guidance at the outer level and
+the local guidance inside — and both apply. So the hook resolves a **chain**
+rather than a single repo:
+
+- every registered root that owns the touched file, **plus**
+- any unregistered ancestor above the outermost of them that both is a repository
+  (`.git`) and carries guidance (`CLAUDE.md`, `AGENTS.md` or `.claude/`), walking
+  up at most three levels and stopping at the home directory and the drive root.
+
+The chain is ordered outermost first, so the innermost, most specific guidance
+lands closest to the request. The `.git` gate is what keeps a plain container
+directory such as `C:/repos` out of the chain. Set `"ancestorRules": false` in
+`.claude/project-context.json` to consider registered roots only.
 
 De-duplication uses a temp-dir sentinel keyed by session and file. Whenever it
 injects, the hook also surfaces a one-line `systemMessage` summary in the
-transcript (e.g. `🔎 target-rules: srms — CLAUDE.md (full) + rules:
-backend_repository.md`) so you can see at a glance which instruction file and
-rules were injected. The full text only goes to Claude's context, not the
-transcript. The hook is failure-tolerant and silent (injects nothing) for
-cwd-local files, unregistered paths, or repos without the relevant files.
+transcript (e.g. `🔎 target-rules: full-stack-repo — CLAUDE.md (full) + rules:
+monorepo.md + skills: deploy-stack | frontend — CLAUDE.md (full)`) so you can see
+at a glance which repositories, instruction files, rules and skills were injected.
+The full text only goes to Claude's context, not the transcript. The hook is
+failure-tolerant and silent (injects nothing) for cwd-local files, unregistered
+paths, or repos without the relevant files.
+
+The matching logic lives in
+[`hooks/harness/target-rules-core.mjs`](hooks/harness/target-rules-core.mjs)
+(unit-tested in `target-rules-core.test.mjs`); the hook script itself only does
+I/O. Its OpenCode mirror is `vault-template/.opencode/plugins/lib/project-context-core.ts`
+in the workhub repo — a change to one side must land in both.
 

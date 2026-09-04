@@ -1,7 +1,8 @@
 // Shared helpers for the OpenCode plugins that mirror the Claude Code
 // engineering hook scripts.
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { homedir } from "node:os";
 import { relative } from "node:path";
 
 const FORMAT_COMMAND_TIMEOUT_MS = 120000;
@@ -17,10 +18,19 @@ export interface ProjectContextConfig {
   openspecPath?: string;
   postToolFormatCommands?: unknown[];
   projects?: ProjectEntry[];
+  // Set to false to consider registered project roots only, without walking up
+  // to unregistered repository ancestors. See findAncestorProjects.
+  ancestorRules?: boolean;
 }
 
 export interface RuleFile {
   body: string;
+  path: string;
+}
+
+export interface SkillEntry {
+  name: string;
+  description: string;
   path: string;
 }
 
@@ -33,12 +43,16 @@ export interface SessionState {
   loadedInstructionTargets: Set<string>;
   loadedRules: Set<string>;
   loadedExtendedRules: Set<string>;
+  loadedSkillCatalogs: Set<string>;
 }
 
 export interface TargetProject {
   root: string;
   name: string;
-  project: ProjectEntry;
+  // Absent for a repository adopted by walking up from a registered root: an
+  // ancestor has no registry entry of its own.
+  project?: ProjectEntry;
+  source: "registered" | "ancestor";
 }
 
 interface ParsedPathsFrontMatter {
@@ -51,6 +65,7 @@ export function createSessionState(): SessionState {
     loadedInstructionTargets: new Set<string>(),
     loadedRules: new Set<string>(),
     loadedExtendedRules: new Set<string>(),
+    loadedSkillCatalogs: new Set<string>(),
   };
 }
 
@@ -229,17 +244,20 @@ function pushCandidatePaths(value: unknown, output: string[]): void {
   pushCandidatePaths(record.files, output);
 }
 
+// The innermost registered project that owns `filePath` — the repo a file is
+// formatted in, or otherwise acted on as a single unit. Guidance loading wants
+// the whole chain instead; see findTargetProjectChain.
 export function findSiblingTargetProject(
   filePath: string,
   workspaceRoot: string,
   config: ProjectContextConfig,
-): TargetProject | null {
+): (TargetProject & { project: ProjectEntry }) | null {
   if (isUnder(filePath, workspaceRoot)) {
     return null;
   }
 
   const projects = Array.isArray(config.projects) ? config.projects : [];
-  let bestMatch: TargetProject | null = null;
+  let bestMatch: (TargetProject & { project: ProjectEntry }) | null = null;
   for (const project of projects) {
     if (!project || typeof project.path !== "string" || !project.path.trim()) {
       continue;
@@ -258,11 +276,164 @@ export function findSiblingTargetProject(
             ? project.name.trim()
             : root,
         project,
+        source: "registered",
       };
     }
   }
 
   return bestMatch;
+}
+
+// How many parent directories above the outermost registered root to consider.
+export const MAX_ANCESTOR_DEPTH = 3;
+
+// Every registered project that owns `filePath`, outermost first.
+//
+// Repositories nest: a full-stack repo may hold `frontend/` and `backend/` as
+// repositories of their own, with the cross-cutting guidance at the outer level
+// and the local guidance inside. Both apply, so this returns the whole chain
+// rather than the innermost owner (findSiblingTargetProject, still the right
+// answer for "which repo do I format this file in").
+export function findTargetProjectChain(
+  filePath: string,
+  workspaceRoot: string,
+  config: ProjectContextConfig,
+): TargetProject[] {
+  if (isUnder(filePath, workspaceRoot)) {
+    return [];
+  }
+
+  const projects = Array.isArray(config.projects) ? config.projects : [];
+  const chain: TargetProject[] = [];
+  for (const project of projects) {
+    if (!project || typeof project.path !== "string" || !project.path.trim()) {
+      continue;
+    }
+
+    const root = normalizePath(project.path);
+    if (!isUnder(filePath, root)) {
+      continue;
+    }
+    if (chain.some((entry) => entry.root.toLowerCase() === root.toLowerCase())) {
+      continue;
+    }
+
+    chain.push({
+      root,
+      name:
+        typeof project.name === "string" && project.name.trim()
+          ? project.name.trim()
+          : root,
+      project,
+      source: "registered",
+    });
+  }
+
+  chain.sort((a, b) => a.root.length - b.root.length);
+  return chain;
+}
+
+// True when a directory looks like a repository that carries agent guidance —
+// the gate for adopting an unregistered ancestor. Both halves matter: `.git`
+// keeps plain container directories (a `repos/` folder) out, and the guidance
+// check keeps repositories with nothing to say from adding an empty block.
+export function hasRepoGuidance(dir: string): boolean {
+  const base = normalizePath(dir);
+  if (!existsSync(`${base}/.git`)) {
+    return false;
+  }
+  return (
+    existsSync(`${base}/CLAUDE.md`) ||
+    existsSync(`${base}/AGENTS.md`) ||
+    isDirectory(`${base}/.claude`)
+  );
+}
+
+function isDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+// The parent of a path, or "" once it is a filesystem/drive root.
+function parentOf(dir: string): string {
+  const base = normalizePath(dir);
+  const index = base.lastIndexOf("/");
+  if (index < 0) {
+    return "";
+  }
+
+  const parent = base.slice(0, index);
+  // "C:" (a drive root) and "" (the POSIX root) are both terminal.
+  if (!parent || /^[a-zA-Z]:$/.test(parent)) {
+    return "";
+  }
+  return parent;
+}
+
+export interface AncestorOptions {
+  maxDepth?: number;
+  home?: string;
+  isRepo?: (dir: string) => boolean;
+}
+
+// Unregistered repositories above `root` that carry guidance, outermost first.
+//
+// Walks up at most `maxDepth` parents, adopting each directory that passes
+// hasRepoGuidance. Non-qualifying levels do not stop the walk (a repo may sit
+// one directory below its monorepo root), but the home directory and the
+// filesystem/drive root always do — nothing at or above them belongs to a
+// project.
+export function findAncestorProjects(
+  root: string,
+  options: AncestorOptions = {},
+): TargetProject[] {
+  const maxDepth = options.maxDepth ?? MAX_ANCESTOR_DEPTH;
+  const home = normalizePath(options.home ?? homedir()).toLowerCase();
+  const isRepo = options.isRepo ?? hasRepoGuidance;
+
+  const found: TargetProject[] = [];
+  let current = parentOf(normalizePath(root));
+  for (let depth = 0; depth < maxDepth && current; depth++) {
+    if (current.toLowerCase() === home) {
+      break;
+    }
+    if (isRepo(current)) {
+      // An ancestor has no registered name; its directory name is what the user
+      // calls it, and the full path is still on the block's `path` attribute.
+      found.push({
+        root: current,
+        name: current.slice(current.lastIndexOf("/") + 1) || current,
+        source: "ancestor",
+      });
+    }
+    current = parentOf(current);
+  }
+
+  // Collected innermost-first; the chain is read outermost-first.
+  return found.reverse();
+}
+
+// The full chain for a touched file: unregistered ancestors first, then every
+// registered repository that owns it, outermost to innermost.
+export function resolveTargetChain(
+  filePath: string,
+  workspaceRoot: string,
+  config: ProjectContextConfig,
+  options: AncestorOptions = {},
+): TargetProject[] {
+  const chain = findTargetProjectChain(filePath, workspaceRoot, config);
+  if (chain.length === 0 || config.ancestorRules === false) {
+    return chain;
+  }
+
+  const known = new Set(chain.map((entry) => entry.root.toLowerCase()));
+  const ancestors = findAncestorProjects(chain[0].root, options).filter(
+    (entry) => !known.has(entry.root.toLowerCase()),
+  );
+  return [...ancestors, ...chain];
 }
 
 export function resolveInstructionsFile(root: string): string {
@@ -273,6 +444,55 @@ export function resolveInstructionsFile(root: string): string {
     }
   }
   return "";
+}
+
+// Read a skill's `name` and `description` from its SKILL.md front matter.
+// Both are single-line scalars in the skill format; a missing one yields "".
+export function parseSkillFrontMatter(content: string): {
+  name: string;
+  description: string;
+} {
+  const match = content.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) {
+    return { name: "", description: "" };
+  }
+
+  const block = match[1];
+  const scalar = (key: string): string => {
+    const found = block.match(new RegExp(`^${key}:\\s*(.*)$`, "m"));
+    return found ? stripQuotes(found[1].trim()) : "";
+  };
+  return { name: scalar("name"), description: scalar("description") };
+}
+
+// The skills a repository offers, as a catalog of name/description/path.
+//
+// Only the front matter is read. The harness cannot register a skill with the
+// host's skill mechanism, so the model is told where the SKILL.md is and reads
+// it on demand — injecting every skill body would cost far more than it is
+// worth.
+export function collectSkillCatalog(root: string): SkillEntry[] {
+  const skillsRoot = `${normalizePath(root)}/.claude/skills`;
+  let entries: string[];
+  try {
+    entries = readdirSync(skillsRoot);
+  } catch {
+    return [];
+  }
+
+  const skills: SkillEntry[] = [];
+  for (const entry of entries.sort()) {
+    const skillPath = `${skillsRoot}/${entry}/SKILL.md`;
+    const raw = safeReadText(skillPath);
+    if (!raw) {
+      continue;
+    }
+
+    const { name, description } = parseSkillFrontMatter(raw);
+    skills.push({ name: name || entry, description, path: skillPath });
+  }
+
+  return skills;
 }
 
 export function loadMatchingRules(root: string, relativePath: string): RuleFile[] {
