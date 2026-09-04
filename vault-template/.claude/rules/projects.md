@@ -20,6 +20,15 @@ This is the working checklist when touching `projects/<slug>/`.
   - task outputs → `deliverables/` (link from the task's `## Results`)
   - external links (repos, environments, dashboards, references) → `links.md`
     — never credentials or tokens; link to the console instead
+- **The project root is a closed set.** Only `README.md`, `prd.md`,
+  `roadmap.md`, `links.md` and `_index.md` live directly under
+  `projects/<slug>/`. Everything else goes in a subfolder — never drop a new
+  note at the root.
+- **No standard home fits? Create a subfolder.** The layout above is written
+  for development projects; an operational one may hold correspondence,
+  applications, statements. Make a folder for that kind of document (English
+  kebab-case), then register it in `README.md`'s *Where things live* table and
+  in `_index.md`. A new folder is cheap; a root full of loose notes is not.
 - **Backlog ≠ tasks.** `backlog/` is the idea pool; `tasks/` (vault root) is
   the app's executable task list. Promote a `ready` item into a real task via
   the app, then set `status: promoted` / `promoted: T-XXXX` on the item.
