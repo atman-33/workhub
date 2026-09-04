@@ -132,6 +132,15 @@ export const api = {
    * The folder slug is not renamed. */
   setVaultProjectDetails: (vaultPath: string, slug: string, name: string, summary: string) =>
     invoke<void>("set_vault_project_details", { vaultPath, slug, name, summary }),
+  /** Pins the project and records its manual sort position in `_index.md`.
+   * Pass `null` for `order` to clear the position, which puts the project
+   * back at the end of its group (T-0231). */
+  setVaultProjectOrder: (
+    vaultPath: string,
+    slug: string,
+    pinned: boolean,
+    order: number | null,
+  ) => invoke<void>("set_vault_project_order", { vaultPath, slug, pinned, order }),
   // ---- schedule notes (projects/<slug>/schedules/*.md) ----
   /** Project slugs under the vault's `projects/`, including ones with no
    * schedule note yet — deriving the list from existing notes would make the

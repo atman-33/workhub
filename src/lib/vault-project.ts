@@ -213,3 +213,108 @@ export function linkedRepos<T extends { path: string; name: string }>(
     .filter(Boolean)
     .map((entry) => ({ entry, repo: resolveRepo(entry, repos) }));
 }
+
+// ---------------------------------------------------------------------
+// pin / manual order (T-0231)
+// ---------------------------------------------------------------------
+
+/**
+ * The order the list is shown in, matching `vault_project::sort_projects`
+ * exactly — pinned first, then `order` ascending with the never-dragged
+ * projects after them, then slug. Archived projects sort last.
+ *
+ * The backend already returns projects in this order; re-sorting here is what
+ * lets the view work from a locally updated array without waiting for the
+ * round trip, and having the rule written once on each side is deliberate —
+ * the midpoint arithmetic below is only correct against *this* order.
+ */
+export function sortProjects(projects: VaultProject[]): VaultProject[] {
+  return [...projects].sort((a, b) => {
+    if (a.archived !== b.archived) return a.archived ? 1 : -1;
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    const ao = a.order ?? Number.POSITIVE_INFINITY;
+    const bo = b.order ?? Number.POSITIVE_INFINITY;
+    if (ao !== bo) return ao - bo;
+    return a.slug.toLowerCase().localeCompare(b.slug.toLowerCase());
+  });
+}
+
+/** One project's pin and position, as `api.setVaultProjectOrder` takes them. */
+export interface ProjectOrderWrite {
+  slug: string;
+  pinned: boolean;
+  order: number | null;
+}
+
+/**
+ * Effective positions for midpoint arithmetic: a project with no `order` of
+ * its own gets a synthetic one continuing the sequence, so the rows below an
+ * un-dragged project are still separable.
+ */
+function effectiveOrders(group: VaultProject[]): number[] {
+  const out: number[] = [];
+  let prev = 0;
+  for (const p of group) {
+    const e = p.order ?? prev + 1;
+    out.push(e);
+    prev = e;
+  }
+  return out;
+}
+
+/**
+ * The writes that move `slug` to `index` within `group` — the destination
+ * group (pinned or unpinned) in display order, which may or may not already
+ * contain the dragged project.
+ *
+ * Normally one write: the new position is the midpoint between its neighbours,
+ * so dragging a project rewrites that project's `_index.md` and nobody else's.
+ * A whole-group renumber is only produced when the midpoint has nowhere left
+ * to land — two neighbours that are equal or adjacent floats — which needs a
+ * few thousand drags into the same gap to reach.
+ *
+ * An empty array means the drop changes nothing, and the caller should write
+ * nothing rather than write the same values back.
+ */
+export function planProjectMove(
+  group: VaultProject[],
+  slug: string,
+  index: number,
+  pinned: boolean,
+): ProjectOrderWrite[] {
+  const dragged = group.find((p) => p.slug === slug);
+  const eff = effectiveOrders(group);
+  const from = group.findIndex((p) => p.slug === slug);
+  const rows = group
+    .map((p, i) => ({ p, e: eff[i] }))
+    .filter(({ p }) => p.slug !== slug);
+
+  // Dropping below its own row means one fewer row above it once it is lifted.
+  let insert = index;
+  if (from !== -1 && from < index) insert -= 1;
+  if (from !== -1 && insert === from && dragged?.pinned === pinned) return [];
+
+  const prev = insert > 0 ? rows[insert - 1].e : null;
+  const next = insert < rows.length ? rows[insert].e : null;
+
+  let order: number;
+  if (prev === null && next === null) order = 1;
+  else if (prev === null) order = (next as number) - 1;
+  else if (next === null) order = prev + 1;
+  else order = (prev + next) / 2;
+
+  if (prev !== null && next !== null && !(order > prev && order < next)) {
+    const finalRows = [
+      ...rows.slice(0, insert).map(({ p }) => p),
+      ...(dragged ? [dragged] : []),
+      ...rows.slice(insert).map(({ p }) => p),
+    ];
+    return finalRows.map((p, i) => ({
+      slug: p.slug,
+      pinned: p.slug === slug ? pinned : p.pinned,
+      order: i + 1,
+    }));
+  }
+
+  return [{ slug, pinned, order }];
+}

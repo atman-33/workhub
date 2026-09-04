@@ -218,6 +218,28 @@ or a frontend and a backend — which is why this is a list and not a single
 key. The pre-T-0216 single `repo:` key is gone; it is not read as a fallback,
 so a note that still carries it reads as having no repository at all.
 
+`_index.md` carries two more optional keys, both written by the **Projects**
+tab and both safe to edit by hand:
+
+```yaml
+pinned: true        # optional; absent = false. Held at the top of the list
+order: 2            # optional; manual sort position within its group
+```
+
+`pinned` is how the owner says "this is what I am working on now": pinned
+projects are listed above the rest. `order` is a manual position, and is a
+number rather than an index on purpose — dropping a project between two
+others gives it the value halfway between theirs, so one reordering rewrites
+one note instead of renumbering every project in the vault. It is the same
+mechanism as a task's `order`. A project with no `order` is listed after every
+project that has one, alphabetically; archived projects sort last whatever
+either key says.
+
+Both live in the vault rather than in the app's machine-local config, so a
+second PC that clones the vault gets the pins and the order back. (The Repos
+tab's star is machine-local instead, because a repository path is specific to
+one machine.)
+
 A project that is finished or parked moves to `archive/projects/<slug>/` —
 under `archive/projects/`, not `archive/<slug>/`, so the folder's origin
 survives the move. The **Projects** tab archives and restores it; a project

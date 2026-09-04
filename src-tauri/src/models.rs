@@ -604,6 +604,17 @@ pub struct VaultProject {
     pub issues: Vec<VaultProjectIssue>,
     /// True when the folder lives under `archive/projects/` instead.
     pub archived: bool,
+    /// `pinned:` from `_index.md` — the project is held at the top of the
+    /// list. Kept in the vault rather than in the machine config because a
+    /// project belongs to the vault, so a second PC that clones it gets the
+    /// pins back; the Repos tab's `favorite` is machine-local for the
+    /// opposite reason — a repository path is machine-specific (T-0231).
+    pub pinned: bool,
+    /// `order:` from `_index.md` — manual sort position within its group.
+    /// A float, so one drag rewrites one project's note instead of
+    /// renumbering every one of them, exactly as a task's `order` works.
+    /// `None` sorts last, by slug.
+    pub order: Option<f64>,
 }
 
 /// A task's frontmatter fields plus location and body — the app's view of

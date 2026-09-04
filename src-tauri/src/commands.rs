@@ -742,6 +742,23 @@ pub async fn set_vault_project_repos(
     .map_err(|e| e.to_string())?
 }
 
+/// Pins a project and records its manual sort position in `_index.md`
+/// frontmatter. `order: null` clears the position, putting the project back
+/// at the end of its group (T-0231).
+#[tauri::command]
+pub async fn set_vault_project_order(
+    vault_path: String,
+    slug: String,
+    pinned: bool,
+    order: Option<f64>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::set_project_order(&PathBuf::from(vault_path), &slug, pinned, order)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Writes the project's display name and description into README.md
 /// frontmatter. The folder slug is not renamed.
 #[tauri::command]
