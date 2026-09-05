@@ -19,6 +19,7 @@ import type {
   PersonaCharacter,
   PersonaState,
   PluginCommandResult,
+  PluginDetails,
   PluginsState,
   ScheduleDoc,
   ScheduleEditRun,
@@ -388,6 +389,9 @@ export const api = {
   /** Catalog, installed versions, marketplace versions and enabled state. */
   pluginsState: (vaultPath: string) =>
     invoke<PluginsState>("plugins_state", { vaultPath }),
+  /** What one plugin contains, read from the copy installed at `scope`. */
+  pluginDetails: (vaultPath: string, name: string, scope: string) =>
+    invoke<PluginDetails>("plugin_details", { vaultPath, name, scope }),
   /** Adds or removes one enabledPlugins key; applies from the next session. */
   setPluginEnabled: (
     vaultPath: string,

@@ -53,6 +53,10 @@ pub struct PluginInstall {
     pub version: String,
     /// Project this install belongs to; empty for a user-scope install.
     pub project_path: String,
+    /// Where Claude Code unpacked this install. The plugin's actual contents
+    /// live here — the marketplace clone only carries what the *latest*
+    /// version would be, which is not what a session is running.
+    pub install_path: String,
 }
 
 /// One plugin, with everything known about it from every source.
@@ -112,6 +116,8 @@ struct InstalledEntry {
     version: String,
     #[serde(default, rename = "projectPath")]
     project_path: String,
+    #[serde(default, rename = "installPath")]
+    install_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -291,6 +297,7 @@ pub fn read_state(vault_path: &str) -> PluginsState {
                             scope: e.scope.clone(),
                             version: e.version.clone(),
                             project_path: e.project_path.clone(),
+                            install_path: e.install_path.clone(),
                         })
                         .collect()
                 })
@@ -321,6 +328,251 @@ pub fn read_state(vault_path: &str) -> PluginsState {
         user_settings_path: user_settings.to_string_lossy().into_owned(),
         rows,
     }
+}
+
+// ---------------------------------------------------------------- contents
+
+/// One skill, agent or command a plugin ships. All three are a Markdown file
+/// with a YAML frontmatter block, so one shape describes them all.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PluginEntry {
+    /// `name` from the frontmatter, falling back to the file (or folder) name
+    /// when it says nothing — which is what Claude Code itself does.
+    pub name: String,
+    pub description: String,
+    /// `model` from an agent's frontmatter; empty for everything else.
+    pub model: String,
+    /// Path on disk, so the owner can open the thing they are reading about.
+    pub path: String,
+}
+
+/// The hooks one event has registered, in the order `hooks.json` lists them.
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginHookEvent {
+    /// `SessionStart`, `UserPromptSubmit`, `Stop`, …
+    pub event: String,
+    /// Each hook's command, as written — `${CLAUDE_PLUGIN_ROOT}` and all.
+    /// Paraphrasing it would hide which script actually runs.
+    pub commands: Vec<String>,
+}
+
+/// What a plugin is made of, read from the version that is actually installed.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PluginDetails {
+    pub name: String,
+    pub version: String,
+    /// `description` / `author.name` from `.claude-plugin/plugin.json`.
+    pub description: String,
+    pub author: String,
+    /// Root of the install these contents were read from; empty when the
+    /// plugin is enabled but not installed yet.
+    pub install_path: String,
+    /// False when there is no install to read — the tab says so rather than
+    /// showing an empty plugin.
+    pub installed: bool,
+    pub skills: Vec<PluginEntry>,
+    pub agents: Vec<PluginEntry>,
+    pub commands: Vec<PluginEntry>,
+    pub hooks: Vec<PluginHookEvent>,
+}
+
+/// Pull `key: value` pairs out of a leading `---` frontmatter block.
+///
+/// Deliberately not a YAML parser: skill and agent frontmatter is a handful of
+/// flat scalars, and the only thing done with the values here is to display
+/// them. A malformed block reads as "no frontmatter" rather than an error,
+/// because a plugin the owner did not write is not theirs to fix.
+fn parse_frontmatter(text: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let mut lines = text.lines();
+    if lines.next().map(str::trim_end) != Some("---") {
+        return out;
+    }
+    for line in lines {
+        if line.trim_end() == "---" {
+            break;
+        }
+        // Continuation and list lines belong to a key this reader does not
+        // need; skipping them keeps a multi-line value out of the next key.
+        if line.starts_with(' ') || line.starts_with('\t') || line.trim_start().starts_with('-') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        let value = value
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
+            .unwrap_or(value);
+        out.insert(key.trim().to_string(), value.to_string());
+    }
+    out
+}
+
+/// Read one skill/agent/command Markdown file into an entry.
+fn read_entry(path: &Path, fallback_name: &str) -> PluginEntry {
+    let front = fs::read_to_string(path)
+        .map(|text| parse_frontmatter(&text))
+        .unwrap_or_default();
+    PluginEntry {
+        name: front
+            .get("name")
+            .filter(|n| !n.is_empty())
+            .cloned()
+            .unwrap_or_else(|| fallback_name.to_string()),
+        description: front.get("description").cloned().unwrap_or_default(),
+        model: front.get("model").cloned().unwrap_or_default(),
+        path: path.to_string_lossy().replace('\\', "/"),
+    }
+}
+
+/// Entries sorted by name, so the list reads the same on every machine —
+/// directory order is whatever the filesystem happens to hand back.
+fn sorted(mut entries: Vec<PluginEntry>) -> Vec<PluginEntry> {
+    entries.sort_by_key(|e| e.name.to_lowercase());
+    entries
+}
+
+/// `skills/<name>/SKILL.md` — a skill is a folder, and the folder name is the
+/// fallback when its frontmatter carries no `name`.
+fn read_skills(root: &Path) -> Vec<PluginEntry> {
+    let Ok(dir) = fs::read_dir(root.join("skills")) else {
+        return Vec::new();
+    };
+    let entries = dir
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| {
+            let file = e.path().join("SKILL.md");
+            file.is_file().then(|| {
+                let folder = e.file_name().to_string_lossy().into_owned();
+                read_entry(&file, &folder)
+            })
+        })
+        .collect();
+    sorted(entries)
+}
+
+/// `agents/*.md` and `commands/*.md` — one file each, named by its stem.
+fn read_markdown_dir(root: &Path, sub: &str) -> Vec<PluginEntry> {
+    let Ok(dir) = fs::read_dir(root.join(sub)) else {
+        return Vec::new();
+    };
+    let entries = dir
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "md"))
+        .map(|p| {
+            let stem = p
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            read_entry(&p, &stem)
+        })
+        .collect();
+    sorted(entries)
+}
+
+/// `hooks/hooks.json`, flattened to "which event runs which commands".
+///
+/// The file nests matchers inside events inside a `hooks` object; the tab only
+/// answers "what does this plugin do to my session", so the matchers collapse
+/// and the commands are kept verbatim.
+fn read_hooks(root: &Path) -> Vec<PluginHookEvent> {
+    let Some(file) = read_json::<serde_json::Value>(&root.join("hooks").join("hooks.json")) else {
+        return Vec::new();
+    };
+    let Some(events) = file.get("hooks").and_then(|h| h.as_object()) else {
+        return Vec::new();
+    };
+    let mut out: Vec<PluginHookEvent> = events
+        .iter()
+        .map(|(event, matchers)| {
+            let commands = matchers
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|m| m.get("hooks").and_then(|h| h.as_array()))
+                        .flatten()
+                        .filter_map(|h| h.get("command").and_then(|c| c.as_str()))
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default();
+            PluginHookEvent {
+                event: event.clone(),
+                commands,
+            }
+        })
+        .filter(|e| !e.commands.is_empty())
+        .collect();
+    out.sort_by(|a, b| a.event.cmp(&b.event));
+    out
+}
+
+/// What the installed copy of a plugin actually contains.
+///
+/// Read from `installPath` rather than the marketplace clone: the clone holds
+/// whatever the last `marketplace update` fetched, which is the version the
+/// owner *could* be running. What a session loads is what is installed.
+///
+/// `scope` picks between two installs of the same plugin; the first install is
+/// used when it does not match, since a plugin on disk at another scope is
+/// still the same files.
+pub fn read_details(vault_path: &str, name: &str, scope: &str) -> PluginDetails {
+    let state = read_state(vault_path);
+    let row = state.rows.iter().find(|r| r.name == name);
+    let install = row.and_then(|r| {
+        r.installs
+            .iter()
+            .find(|i| i.scope == scope)
+            .or_else(|| r.installs.first())
+    });
+    let mut details = PluginDetails {
+        name: name.to_string(),
+        description: row.map(|r| r.summary.clone()).unwrap_or_default(),
+        ..Default::default()
+    };
+    let Some(install) = install.filter(|i| !i.install_path.is_empty()) else {
+        return details;
+    };
+    let root = PathBuf::from(&install.install_path);
+    if !root.is_dir() {
+        return details;
+    }
+    details.installed = true;
+    details.install_path = install.install_path.replace('\\', "/");
+    details.version = install.version.clone();
+
+    // `plugin.json` is the authoritative metadata (T-0221); the catalog summary
+    // above is workhub's own one-liner and only stands in when it is missing.
+    if let Some(manifest) =
+        read_json::<serde_json::Value>(&root.join(".claude-plugin").join("plugin.json"))
+    {
+        if let Some(d) = manifest
+            .get("description")
+            .and_then(|d| d.as_str())
+            .filter(|d| !d.is_empty())
+        {
+            details.description = d.to_string();
+        }
+        // `author` is either a string or an object with a `name`.
+        details.author = manifest
+            .get("author")
+            .and_then(|a| {
+                a.as_str()
+                    .map(str::to_string)
+                    .or_else(|| a.get("name").and_then(|n| n.as_str()).map(str::to_string))
+            })
+            .unwrap_or_default();
+    }
+    details.skills = read_skills(&root);
+    details.agents = read_markdown_dir(&root, "agents");
+    details.commands = read_markdown_dir(&root, "commands");
+    details.hooks = read_hooks(&root);
+    details
 }
 
 // ---------------------------------------------------------------- writing
@@ -468,6 +720,130 @@ mod tests {
         assert!(project_settings_path("C:/vault")
             .unwrap()
             .ends_with("settings.json"));
+    }
+
+    /// A scratch directory, named the way the other modules' tests name theirs.
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("workhub-plugins-{tag}-{nanos}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// A throwaway plugin tree, since the real ones live outside the repo.
+    fn plugin_fixture(tag: &str) -> PathBuf {
+        let root = temp_dir(tag);
+        let root = root.as_path();
+        let write = |rel: &str, body: &str| {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, body).unwrap();
+        };
+        write(
+            ".claude-plugin/plugin.json",
+            r#"{"name":"demo","version":"1.2.3","description":"a demo plugin",
+                "author":{"name":"atman-33"}}"#,
+        );
+        write(
+            "skills/zebra/SKILL.md",
+            "---\nname: zebra\ndescription: last alphabetically\n---\n\nbody\n",
+        );
+        // No `name` in the frontmatter: the folder name stands in.
+        write(
+            "skills/alpha/SKILL.md",
+            "---\ndescription: from the folder\n---\n",
+        );
+        // A folder without a SKILL.md is not a skill.
+        fs::create_dir_all(root.join("skills/not-a-skill")).unwrap();
+        write(
+            "agents/reviewer.md",
+            "---\nname: reviewer\ndescription: reviews\nmodel: haiku\ntools: Read, Grep\n---\n",
+        );
+        write("commands/ship.md", "---\ndescription: ships it\n---\n");
+        write("README.md", "not an agent\n");
+        write(
+            "hooks/hooks.json",
+            r#"{"hooks":{
+                 "SessionStart":[{"hooks":[{"type":"command","command":"node a.mjs"},
+                                           {"type":"command","command":"node b.mjs"}]}],
+                 "Stop":[{"hooks":[{"type":"command","command":"node c.mjs"}]}],
+                 "Empty":[]
+               }}"#,
+        );
+        root.to_path_buf()
+    }
+
+    #[test]
+    fn frontmatter_reads_flat_scalars_only() {
+        let front = parse_frontmatter(
+            "---\nname: demo\ndescription: \"quoted, with a comma\"\nlist:\n  - one\n  - two\nmodel: haiku\n---\nbody: not frontmatter\n",
+        );
+        assert_eq!(front.get("name").unwrap(), "demo");
+        assert_eq!(front.get("description").unwrap(), "quoted, with a comma");
+        assert_eq!(front.get("model").unwrap(), "haiku");
+        // The list items must not leak in as keys, and the body is not read.
+        assert!(!front.contains_key("one"));
+        assert!(!front.contains_key("body"));
+    }
+
+    #[test]
+    fn a_file_without_frontmatter_reads_as_empty() {
+        assert!(parse_frontmatter("# just a heading\n").is_empty());
+        assert!(parse_frontmatter("").is_empty());
+    }
+
+    #[test]
+    fn reads_skills_agents_and_commands_from_an_install() {
+        let root = plugin_fixture("contents");
+        let root = root.as_path();
+
+        let skills = read_skills(root);
+        assert_eq!(
+            skills.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+            ["alpha", "zebra"],
+            "sorted by name, and a folder with no SKILL.md is not a skill"
+        );
+        assert_eq!(skills[0].description, "from the folder");
+
+        let agents = read_markdown_dir(root, "agents");
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].model, "haiku");
+
+        let commands = read_markdown_dir(root, "commands");
+        assert_eq!(commands.len(), 1);
+        // No `name` in the frontmatter, so the file stem stands in.
+        assert_eq!(commands[0].name, "ship");
+
+        // A plugin that ships none of these reads as empty, not as an error.
+        let empty = temp_dir("empty");
+        assert!(read_skills(&empty).is_empty());
+        assert!(read_markdown_dir(&empty, "agents").is_empty());
+    }
+
+    #[test]
+    fn flattens_hooks_by_event() {
+        let root = plugin_fixture("hooks");
+        let hooks = read_hooks(&root);
+        assert_eq!(
+            hooks.iter().map(|h| h.event.as_str()).collect::<Vec<_>>(),
+            ["SessionStart", "Stop"],
+            "an event with no commands is dropped"
+        );
+        assert_eq!(hooks[0].commands, ["node a.mjs", "node b.mjs"]);
+        assert!(read_hooks(&temp_dir("no-hooks")).is_empty());
+    }
+
+    #[test]
+    fn a_plugin_with_no_install_reads_as_not_installed() {
+        // Nothing is installed under a vault path that does not exist, so this
+        // is the "enabled but not installed yet" case the tab has to explain.
+        let details = read_details("", "nonexistent-plugin", "user");
+        assert!(!details.installed);
+        assert!(details.install_path.is_empty());
+        assert!(details.skills.is_empty());
     }
 
     #[test]

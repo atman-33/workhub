@@ -686,6 +686,41 @@ export interface PluginInstall {
   version: string;
   /** Project this install belongs to; empty for a user-scope install. */
   project_path: string;
+  /** Where Claude Code unpacked this install — the plugin's actual contents. */
+  install_path: string;
+}
+
+/** One skill, agent or command a plugin ships — all three are Markdown + frontmatter. */
+export interface PluginEntry {
+  /** `name` from the frontmatter, or the file/folder name when it says nothing. */
+  name: string;
+  description: string;
+  /** An agent's `model`; empty for skills and commands. */
+  model: string;
+  path: string;
+}
+
+/** The hooks one event has registered, in the order `hooks.json` lists them. */
+export interface PluginHookEvent {
+  event: string;
+  /** Each command as written — `${CLAUDE_PLUGIN_ROOT}` and all. */
+  commands: string[];
+}
+
+/** What a plugin is made of, read from the version that is actually installed. */
+export interface PluginDetails {
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  /** Root the contents were read from; empty when nothing is installed. */
+  install_path: string;
+  /** False when there is no install to read — enabled but not fetched yet. */
+  installed: boolean;
+  skills: PluginEntry[];
+  agents: PluginEntry[];
+  commands: PluginEntry[];
+  hooks: PluginHookEvent[];
 }
 
 export interface PluginRow {

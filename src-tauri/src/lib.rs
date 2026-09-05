@@ -269,6 +269,7 @@ pub fn run() {
             commands::persona_state,
             commands::set_persona_state,
             commands::plugins_state,
+            commands::plugin_details,
             commands::set_plugin_enabled,
             commands::plugins_update_marketplace,
             commands::plugins_update_plugin,
