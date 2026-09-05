@@ -40,13 +40,36 @@ class-based `.theme-light` / `.theme-dark` themes, the utility menu (theme
 toggle, PNG download, print), the scroll-reveal and counter patterns, and the
 minimum sizing / text visibility rules.
 
+Also the source of `skills/html-doc`: the document shapes in
+`references/doc-types.md` (one-pager, dashboard, comparison, timeline), the
+layout-variation rules, the required-interaction table, the Chart.js
+essentials, and the anti-patterns.
+
 Not carried over: the upstream evaluation-harness instructions, the Chart.js
 troubleshooting appendix, the bundled examples.
 
 ### diagram-design — https://github.com/cathrynlavery/diagram-design
 
-Not yet drawn on. It is the source for the planned `html-diagram` skill; this
-notice will be extended when that skill lands.
+Source of everything in `skills/html-diagram`:
+
+- the editorial philosophy — deletion as the highest-quality move, a target
+  density of 4/10, and the complexity budget
+- the semantic palette (`paper` / `ink` / `muted` / `soft` / `rule` /
+  `accent` / `link`) and the node-treatment table
+- the six mandatory connector rules, the elbow-path and bridge/hop formulas,
+  the node-box pattern, the masked arrow label, the legend strip and the
+  zone grouping
+- the 4px grid and the page layout
+- the accessible-SVG contract and the pre-output taste gate
+- eight of the type references, condensed into `references/diagram-types.md`
+- `scripts/self-check.mjs`, ported from the upstream `scripts/self_check.py`
+  because plugin scripts in this repository run on node. The port keeps the
+  accessible-SVG and single-file-safety checks, drops the motion contract
+  (these diagrams are static), and adds a mechanical diagonal-connector check.
+
+Not carried over: 31 of the 39 type references, the icon set, brand onboarding
+and saved client profiles, the draw.io and Mermaid importers, the animation
+layer, and the bundled example HTML.
 
 ## The original license text
 

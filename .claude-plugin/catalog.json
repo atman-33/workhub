@@ -29,7 +29,7 @@
       "name": "visuals",
       "tier": "optional",
       "scope": "user",
-      "summary": "Visual deliverables as self-contained HTML, and the PDF handed over: fixed 16:9 slide decks rendered in the session, and publication-quality PDF export for decks and documents alike."
+      "summary": "Visual deliverables as self-contained HTML, and the PDF handed over: fixed 16:9 slide decks, inline-SVG diagrams, readable documents and dashboards, and publication-quality PDF export for all of them."
     },
     {
       "name": "agent-ops",
