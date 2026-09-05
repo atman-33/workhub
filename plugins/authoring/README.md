@@ -1,7 +1,7 @@
 # authoring
 
-Writing something and handing it to someone. Documents, reports, decks, and the
-delivery of what comes out of them.
+Writing something in prose and handing it to someone. Text deliverables, and
+the delivery of what comes out of them.
 
 ## Install
 
@@ -19,9 +19,15 @@ claude plugin install authoring@workhub-marketplace
 | `create-claude-md` | a project's CLAUDE.md |
 | `create-release-notes` | user-facing release notes from Conventional Commits |
 | `create-work-log` | a daily/weekly work log from git activity across repos |
-| `generate-html-report` | a self-contained HTML document instead of a long Markdown file |
-| `draft-deck` | a wireframe proof of a slide deck, before any design |
-| `prepare-proposal-deck` | a decision-driven deck brief plus a Claude Design prompt |
 | `post-to-slack` | delivering the result to a Slack channel |
 
 No vault or project-context dependency.
+
+## Visual deliverables live elsewhere
+
+Slide decks, self-contained HTML documents and PDF export are the
+[`visuals`](../visuals/README.md) plugin's job. `draft-deck`,
+`prepare-proposal-deck` and `generate-html-report` were removed from here in
+favour of it: all three stopped at a prompt for an external design tool or
+produced HTML without a design system behind it, and `visuals` renders the
+deliverable in the session instead.

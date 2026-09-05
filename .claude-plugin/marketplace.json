@@ -9,6 +9,7 @@
     { "name": "workhub", "source": "./plugins/workhub" },
     { "name": "engineering", "source": "./plugins/engineering" },
     { "name": "authoring", "source": "./plugins/authoring" },
+    { "name": "visuals", "source": "./plugins/visuals" },
     { "name": "agent-ops", "source": "./plugins/agent-ops" },
     { "name": "claude-tooling", "source": "./plugins/claude-tooling" },
     { "name": "zenn", "source": "./plugins/zenn" },

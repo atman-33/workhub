@@ -23,7 +23,13 @@
       "name": "authoring",
       "tier": "optional",
       "scope": "user",
-      "summary": "Writing something and handing it over: README, CLAUDE.md, release notes, work logs, HTML reports and decks."
+      "summary": "Writing text deliverables and handing them over: README, CLAUDE.md, release notes, work logs, posting to Slack."
+    },
+    {
+      "name": "visuals",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "Visual deliverables as self-contained HTML, and the PDF handed over: fixed 16:9 slide decks rendered in the session, and publication-quality PDF export for decks and documents alike."
     },
     {
       "name": "agent-ops",

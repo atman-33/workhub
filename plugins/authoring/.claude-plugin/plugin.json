@@ -1,7 +1,7 @@
 {
   "name": "authoring",
-  "version": "0.1.0",
-  "description": "Author documents and deliverables, and deliver them: README / CLAUDE.md / release notes / work logs, self-contained HTML reports, slide-deck preparation, and posting to Slack. Install at user scope to make it available across all projects.",
+  "version": "0.2.0",
+  "description": "Author text deliverables and deliver them: README / CLAUDE.md / release notes / work logs, and posting the result to Slack. Visual deliverables — slide decks, HTML documents and PDF export — live in the visuals plugin. Install at user scope to make it available across all projects.",
   "author": {
     "name": "atman-33",
     "url": "https://github.com/atman-33"
