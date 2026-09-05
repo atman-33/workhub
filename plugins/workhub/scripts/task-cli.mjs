@@ -9,6 +9,10 @@
 //
 // Usage:
 //   node task-cli.mjs list   [--status s] [--assignee a] [--project p] [--json]
+//   node task-cli.mjs create --title "..." [--project p] [--assignee a]
+//                                 [--priority p] [--status s] [--due d]
+//                                 [--model m] [--tags a,b] [--confirm]
+//                                 [--worktree] [--body-file path] [--json]
 //   node task-cli.mjs start  <id>
 //   node task-cli.mjs update <id> [--status s] [--assignee a] [--project p]
 //                                 [--priority p] [--model m] [--due d]
@@ -327,6 +331,39 @@ function activeTaskFile(vault) {
 }
 
 // ---------------------------------------------------------------------
+// numbering — must stay identical to src-tauri/src/tasks.rs
+// ---------------------------------------------------------------------
+
+// The next free task id. `scanTasks` covers `tasks/archive/` too, so an
+// archived task still reserves its number: reusing one would give two tasks
+// the same id, and every link to the old one would resolve to the new task.
+// Mirrors `next_id`.
+function nextId(existing) {
+  const max = existing.reduce((acc, t) => {
+    const n = Number.parseInt(String(t.id).replace(/^T-/, ""), 10);
+    return Number.isFinite(n) && n > acc ? n : acc;
+  }, 0);
+  return `T-${String(max + 1).padStart(4, "0")}`;
+}
+
+// Manual sort position for a task appended to the end of its status column.
+// Mirrors `next_order`; tasks with no `order` are ignored, as they are there.
+function nextOrder(existing, status) {
+  const max = existing
+    .filter((t) => t.status === status)
+    .reduce((acc, t) => (typeof t.order === "number" && t.order > acc ? t.order : acc), 0);
+  return max + 1;
+}
+
+// Mirrors `sanitize_filename`: the characters Windows forbids in a filename
+// become `-`, and a title made only of those falls back to `untitled`.
+function sanitizeFilename(title) {
+  const cleaned = title.replace(/[\\/:*?"<>|]/g, "-");
+  const trimmed = cleaned.trim().replace(/^\.+|\.+$/g, "");
+  return trimmed === "" ? "untitled" : trimmed;
+}
+
+// ---------------------------------------------------------------------
 // commands
 // ---------------------------------------------------------------------
 
@@ -390,6 +427,77 @@ function applyBlocked(task, flags) {
   task.extra = [...keep, ...lines];
 }
 
+const STATUSES = ["inbox", "todo", "doing", "review", "done"];
+
+/**
+ * Create a task file the way the app's `create_task` does — same id, same
+ * `order`, same filename — so a task filed from a session is indistinguishable
+ * from one filed on the board. The numbering has to match: if the two drifted
+ * apart, an agent and the app would hand out the same id to different tasks.
+ */
+function cmdCreate(vault, flags) {
+  const title = flags.title;
+  if (!title) fail('usage: task-cli create --title "..." [...]');
+
+  const status = flags.status ?? "inbox";
+  if (!STATUSES.includes(status)) {
+    fail(`unknown status '${status}' — one of ${STATUSES.join(", ")}`);
+  }
+  // Only a human marks a task done, in the app. Creating one already done
+  // would be that same write by another route.
+  if (status === "done") fail("refusing to create a task with status 'done' — a human sets that");
+
+  let body = "\n## Description\n\n## Plan\n\n## Results\n";
+  if (flags["body-file"]) {
+    let text;
+    try {
+      text = fs.readFileSync(flags["body-file"], "utf-8");
+    } catch (e) {
+      fail(`cannot read --body-file ${flags["body-file"]}: ${e.message}`);
+    }
+    body = `\n## Description\n\n${text.replace(/\s+$/, "")}\n\n## Plan\n\n## Results\n`;
+  }
+
+  const existing = scanTasks(vault);
+  const now = today();
+  const dir = path.join(vault, "tasks");
+  fs.mkdirSync(dir, { recursive: true });
+  const id = nextId(existing);
+  const task = {
+    id,
+    title,
+    status,
+    assignee: flags.assignee ?? "me",
+    project: flags.project ?? "",
+    priority: flags.priority ?? "medium",
+    model: flags.model ?? "",
+    order: nextOrder(existing, status),
+    due: flags.due ?? "",
+    tags: flags.tags ? flags.tags.split(",").map((s) => s.trim()).filter(Boolean) : [],
+    archived: false,
+    // `confirm` and `worktree` are not in KNOWN_KEYS, so they travel as extra
+    // lines — which `renderFrontmatter` emits between `archived` and `created`,
+    // exactly where the documented schema puts them.
+    extra: [
+      ...(flags.confirm ? ["confirm: true"] : []),
+      ...(flags.worktree ? ["worktree: true"] : []),
+    ],
+    created: now,
+    updated: now,
+    file: path.join(dir, `${id} ${sanitizeFilename(title)}.md`).replaceAll("\\", "/"),
+    body,
+  };
+  if (fs.existsSync(task.file)) fail(`${task.file} already exists`);
+  writeTaskFile(task);
+  regenerateIndex(vault);
+  if (flags.json) {
+    const { body: _body, ...rest } = task;
+    console.log(JSON.stringify(rest, null, 2));
+    return;
+  }
+  console.log(`created ${task.id} (status: ${task.status}) — ${task.file}`);
+}
+
 function cmdStart(vault, id) {
   const task = findTask(vault, id);
   if (task.status === "review" || task.status === "done") {
@@ -448,13 +556,17 @@ function fail(msg) {
   process.exit(1);
 }
 
+// Flags that stand alone. Everything else takes a value, so a bare `--confirm`
+// would otherwise swallow the next argument (or fail for want of one).
+const BOOLEAN_FLAGS = new Set(["json", "confirm", "worktree"]);
+
 function parseArgs(argv) {
   const positional = [];
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--json") {
-      flags.json = true;
+    if (a.startsWith("--") && BOOLEAN_FLAGS.has(a.slice(2))) {
+      flags[a.slice(2)] = true;
     } else if (a.startsWith("--")) {
       const key = a.slice(2);
       const val = argv[i + 1];
@@ -476,6 +588,10 @@ switch (command) {
     cmdList(resolveVault(flags), flags);
     break;
   }
+  case "create": {
+    cmdCreate(resolveVault(flags), flags);
+    break;
+  }
   case "start": {
     if (!id) fail("usage: task-cli start <id>");
     cmdStart(resolveVault(flags), id);
@@ -492,5 +608,5 @@ switch (command) {
     break;
   }
   default:
-    fail("usage: task-cli <list|start|update|report> [args] (see file header for details)");
+    fail("usage: task-cli <list|create|start|update|report> [args] (see file header for details)");
 }

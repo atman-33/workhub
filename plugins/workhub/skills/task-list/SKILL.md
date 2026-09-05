@@ -1,10 +1,10 @@
 ---
 name: task-list
-description: List and filter tasks from the workhub vault task board. Use when the user asks what tasks exist, what is assigned to the AI, what is in progress, or wants to pick a task to work on.
+description: List, filter and file tasks on the workhub vault task board. Use when the user asks what tasks exist, what is assigned to the AI, what is in progress, wants to pick a task to work on, or says to put something on the board for later.
 argument-hint: "[status] [assignee] [project]"
 ---
 
-# task-list — List tasks from the workhub vault
+# task-list — List and file tasks on the workhub vault board
 
 ## Preferred: run the task CLI
 
@@ -39,4 +39,34 @@ vault** (has `tasks/` and `_ai/`) → `vault_path` in
 - Mention tasks assigned to `claude-code` explicitly — those are candidates
   for `task-start`.
 
-Read-only apart from the index refresh: this skill never modifies task files.
+Listing is read-only apart from the index refresh: it never modifies an
+existing task file.
+
+## Create a task
+
+For "put this on the board", "make that a task", "後でやるからタスクにしといて" —
+touching the board without starting any work, which is why it lives here.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" create \
+  --title "..." [--project p] [--assignee a] [--priority p] [--status s] \
+  [--due YYYY-MM-DD] [--model m] [--tags a,b] [--confirm] [--worktree] \
+  [--body-file path] [--json]
+```
+
+The CLI assigns the `id` and `order` the same way the app does and refreshes
+the index, so never hand-write a task file to get around it.
+
+- `--status` defaults to `inbox`; use `todo` when the owner means to do it,
+  `inbox` when it is only an idea. `done` is refused — a human sets that.
+- `--assignee` defaults to `me`. Use `claude-code` only when the task is meant
+  for an agent to pick up.
+- Write the Description to a file and pass `--body-file` rather than trying to
+  fit prose into a shell argument. Say what the task is *for* — the goal, the
+  target repository, what to read first — not a list of edits.
+- Report the id and the file path back, and stop there. Creating a task is not
+  permission to start it; `task-start` is a separate decision.
+
+A follow-up you found while finishing another task belongs to `task-report`
+instead — it has the criteria for splitting one out and what its Description
+has to carry.
