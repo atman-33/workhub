@@ -82,8 +82,8 @@ argument-hint: "<task-id>"
    Say in the report which lines you added and where. This is what stops the
    next task asking the same question.
 7. **Close out the status** with the bundled CLI (preferred — it sets
-   `status: review` + `updated`, clears the active-task marker, and
-   refreshes the index in one step):
+   `status: review` + `updated`, clears every session marker pointing at the
+   task, and refreshes the index in one step):
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" report <task-id>
@@ -91,7 +91,7 @@ argument-hint: "<task-id>"
 
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
-   delete `<vault>/_ai/memory/active-task.json` if it refers to this task.
+   delete any `<vault>/_ai/memory/sessions/*.json` that refers to this task.
 8. **Offer to clean up the worktree — only for worktree-mode tasks**
    (`worktree: true`). Once the work is committed/pushed and no longer needed,
    **propose** removing the task's worktree (do not delete it automatically —
@@ -108,7 +108,7 @@ argument-hint: "<task-id>"
 - AI never sets `status: done` — a human does that in the workhub app after
   reviewing.
 - If the work is incomplete or blocked, still report: describe the blocker in
-  `## Results`, keep `status: doing`, and leave the active-task marker in place.
+  `## Results`, keep `status: doing`, and leave the session marker in place.
   When the blocker is a question filed for the owner (`_ai/comms/`), name the
   question id and mark the task blocked so the board shows the wait:
   `task-cli.mjs update <id> --blocked true --blocked-note "waiting on Q-0001"`.

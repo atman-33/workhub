@@ -78,6 +78,12 @@ async function warmModel() {
 // callers outside the Claude plugin cache — the OpenCode plugin, plain
 // terminals — don't depend on the versioned plugin directory. Refreshed on
 // every setup run.
+//
+// `cli.mjs` also reaches one directory up, into the plugin's own `lib/`, for
+// the session marker it tags captured chunks with. That folder is copied
+// alongside so the installed layout keeps the same relative shape
+// (`<engine home>/engine/cli.mjs` → `<engine home>/lib/…`); without it the
+// copy resolves an import that is not there and `capture-json` dies on load.
 function installEngineCopy() {
   const sourceDir = dirname(dirname(fileURLToPath(import.meta.url)));
   // Re-running setup from the installed copy itself: nothing to refresh.
@@ -86,6 +92,7 @@ function installEngineCopy() {
   mkdirSync(INSTALLED_ENGINE_DIR, { recursive: true });
   cpSync(join(sourceDir, "cli.mjs"), join(INSTALLED_ENGINE_DIR, "cli.mjs"));
   cpSync(join(sourceDir, "lib"), join(INSTALLED_ENGINE_DIR, "lib"), { recursive: true });
+  cpSync(join(dirname(sourceDir), "lib"), join(ENGINE_HOME, "lib"), { recursive: true });
   log(`engine copy installed: ${INSTALLED_ENGINE_DIR}`);
 }
 

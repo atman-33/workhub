@@ -2,25 +2,20 @@
 // task-report, remind once so the session does not end with a dangling
 // `doing` task. Reminds a single time per started task (marker gets a
 // `reminded` flag) so it can never loop.
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { resolveVault } from "./lib.mjs";
+//
+// The marker is this session's own (T-0243) — a parallel session working a
+// different task has its own, and neither reminder can point at the other's.
+import { readPayload, resolveVault } from "./lib.mjs";
+import { readMarker, sessionKey, writeMarker } from "../lib/session-marker.mjs";
 
 const vault = resolveVault();
 if (!vault) process.exit(0);
 
-const marker = join(vault, "_ai", "memory", "active-task.json");
-if (!existsSync(marker)) process.exit(0);
-
-let active;
-try {
-  active = JSON.parse(readFileSync(marker, "utf8"));
-} catch {
-  process.exit(0);
-}
+const key = sessionKey(readPayload().session_id);
+const active = readMarker(vault, key);
 if (!active?.id || active.reminded) process.exit(0);
 
-writeFileSync(marker, JSON.stringify({ ...active, reminded: true }, null, 2));
+writeMarker(vault, key, { ...active, reminded: true });
 console.log(
   JSON.stringify({
     decision: "block",

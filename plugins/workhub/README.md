@@ -67,6 +67,40 @@ The skills and the CLI scripts (`scripts/task-cli.mjs`, `scripts/comms-cli.mjs`,
 `memory-engine/cli.mjs`) deliberately keep the unconditional fallback: an
 explicit command should find the vault from wherever it is run.
 
+## Session markers and cross-session messaging
+
+`task-start` records which task a session is working in
+`<vault>/_ai/memory/sessions/<session-id>.json`, one file per session, keyed by
+the `CLAUDE_CODE_SESSION_ID` that Claude Code exports to every subprocess. The
+marker also carries `host_session_id` (`CLAUDE_CODE_HOST_SESSION_ID`) — the
+address the desktop app's `send_message` tool takes.
+
+This replaced a single shared `_ai/memory/active-task.json`. That file could
+only describe one session, so under two parallel sessions the second
+`task-start` overwrote the first's marker: the Stop-hook reminder named the
+wrong task, and the memory engine filed a transcript under a task the session
+had never touched. `scripts/task-cli.mjs` removes the old file the next time a
+task is started; nothing reads it any more.
+
+Because the markers are per session, the folder is also a directory of who is
+working what:
+
+```bash
+node scripts/task-cli.mjs sessions
+```
+
+One session hands a finding to another by looking the task up there and sending
+to that address — the transport is the harness's own, this plugin only supplies
+the directory. Send a link to the deliverable note plus the reason it matters,
+never the contents: the vault is the durable channel, and a session that is not
+running has no address at all. `task-start` documents the procedure.
+
+Readers of the marker (`hooks/task-sync-reminder.mjs`, `hooks/memory-capture.mjs`,
+`memory-engine/cli.mjs`, `scripts/task-cli.mjs`) share `lib/session-marker.mjs`
+so the key is derived in exactly one place. A session that exports no id — an
+OpenCode run, a bare terminal — falls into a single `default` marker, which is
+also why it shows as `(not addressable)`.
+
 ## Harness hooks
 
 `hooks/harness/` holds the three hooks that wire the workhub app to a session.

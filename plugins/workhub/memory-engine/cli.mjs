@@ -18,7 +18,7 @@
 // plugin (capture-json / inject against the engine copy in
 // ~/.workhub/memory-engine/engine).
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { readMarker as readSessionMarker, sessionKey } from "../lib/session-marker.mjs";
 import { ENGINE_HOME, LOCK_PATH, dbPathForVault, readMarker, resolveVault } from "./lib/paths.mjs";
 import { loadSqlite } from "./lib/deps.mjs";
 
@@ -109,17 +109,11 @@ async function main() {
       });
       const db = openVaultDb();
       try {
-        let taskId = input.task_id ?? "";
-        if (!taskId) {
-          try {
-            taskId =
-              JSON.parse(
-                readFileSync(join(resolveVault(), "_ai", "memory", "active-task.json"), "utf8"),
-              ).id ?? "";
-          } catch {
-            // no active task — chunks are stored untagged
-          }
-        }
+        // Falls back to the marker of the session this CLI is running in.
+        // OpenCode exports no session id, so its sessions all share the
+        // `default` marker — the same bucket `task-cli start` wrote to there,
+        // which is why the lookup deliberately ignores `input.session_id`.
+        const taskId = input.task_id || readSessionMarker(resolveVault(), sessionKey())?.id || "";
         const inserted = awaitedDb.saveChunksTextOnly(db, chunks, taskId);
         console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
         const { maybeTriggerEmbed } = await import("./lib/background.mjs");
