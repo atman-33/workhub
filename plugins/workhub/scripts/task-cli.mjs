@@ -34,6 +34,7 @@ import {
   hostSessionId,
   listMarkers,
   sessionKey,
+  sweepMarkers,
   writeMarker,
 } from "../lib/session-marker.mjs";
 
@@ -517,6 +518,17 @@ function cmdCreate(vault, flags) {
   console.log(`created ${task.id} (status: ${task.status}) — ${task.file}`);
 }
 
+/**
+ * Drop the markers of sessions that provably no longer hold their task: the
+ * task has left `doing` (reported, marked done by hand, archived) or its file
+ * is gone. Nothing is dropped on age — see `lib/session-marker.mjs` for why.
+ *
+ * Cheap enough to run before any command that reads or writes markers.
+ */
+function sweepDeadMarkers(vault) {
+  return sweepMarkers(vault, (marker) => findTaskQuiet(vault, marker.id)?.status !== "doing");
+}
+
 function cmdStart(vault, id, flags) {
   const task = findTask(vault, id);
   if (task.status === "review" || task.status === "done") {
@@ -525,6 +537,10 @@ function cmdStart(vault, id, flags) {
   task.status = "doing";
   task.updated = today();
   writeTaskFile(task);
+  sweepDeadMarkers(vault);
+  // Starting a task takes it over: one task is worked by one session at a
+  // time, so whatever marker another session left for it is stale (T-0246).
+  clearMarkersForTask(vault, task.id);
   // One marker per session, keyed by the session id Claude Code exports, so
   // two sessions started at once no longer overwrite each other (T-0243).
   const key = sessionKey(flags.session);
@@ -559,6 +575,7 @@ function cmdReport(vault, id) {
   task.updated = today();
   writeTaskFile(task);
   clearMarkersForTask(vault, id);
+  sweepDeadMarkers(vault);
   regenerateIndex(vault);
   console.log(`reported ${task.id} (status: review) — remember to fill its ## Results section`);
 }
@@ -568,12 +585,15 @@ function cmdReport(vault, id) {
  * has T-0200 open right now" (T-0243).
  *
  * A session hands a finding to another one by looking its task up here and
- * sending to the `host_session_id` with the desktop app's `send_message`. The
- * listing is what the markers say, not what is provably alive: a session that
- * ended without reporting leaves its marker behind, so treat an old `started`
- * as a hint that the entry may be stale.
+ * sending to the `host_session_id` with the desktop app's `send_message`.
+ *
+ * The listing is swept first, so every row's task is still `doing` and no task
+ * appears twice. It is still not proof of life: a session that died without
+ * reporting keeps its row until the task is closed or another session takes it
+ * over, and sending to it simply fails.
  */
 function cmdSessions(vault, flags) {
+  sweepDeadMarkers(vault);
   const self = sessionKey(flags.session);
   const rows = listMarkers(vault).map((m) => {
     const task = findTaskQuiet(vault, m.id);
