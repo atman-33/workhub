@@ -24,7 +24,49 @@ argument-hint: "<task-id>"
 4. **Append to the task's `## Results` section** (Edit tool): a 2-4 line
    summary and wikilinks to the notes created in step 3. Change nothing
    else in the body.
-5. **Feed the owner's judgement calls back into the policy.** If the owner
+5. **File the follow-ups this task turned up.** Finishing a task is the moment
+   you have seen the most of what was left undone, and step 2 has already made
+   you write it down. Create those tasks now rather than leaving a line in a
+   log nobody re-reads.
+
+   **Include it in this task, or split it out?** Split when any of these hold:
+
+   - it needs its own decision from the owner (scope, design, priority);
+   - it touches a different repository, or a part of this one the current
+     `## Plan` never covered;
+   - it is not needed for the work in this task to stand on its own.
+
+   Otherwise finish it here. A follow-up that is two lines of the change you
+   just made is a task nobody wants to read, review and merge separately.
+
+   **Write a Description a cold session can act on.** The next session has none
+   of this one's context, so the Description carries it:
+
+   - the target repository, as an absolute path;
+   - the PR or branch this depends on, and whether it has merged;
+   - what to read first — the raw log from step 2, the notes from step 3, the
+     source files as `path:line`;
+   - what the task is for, not a list of edits. Hand over the goal; let the
+     next session work out the how;
+   - a wikilink back to the originating task's raw log, e.g.
+     `[[T-0236-20260905]]`, so the trail survives.
+
+   Create each one with the CLI — it assigns the `id` and `order` exactly as
+   the app would, so a task filed here is indistinguishable from one filed on
+   the board:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" create \
+     --title "..." --project <slug> --assignee claude-code \
+     --status todo --priority medium --body-file <path to the Description>
+   ```
+
+   Write the Description to a file and pass `--body-file`; it is prose, and
+   prose does not survive a shell argument intact. Leave `status` at `todo`
+   (or `inbox` when it is only an idea) — never start a follow-up yourself as
+   part of closing this task. List what you filed in the report and in the
+   final message, so the owner can drop any of them.
+6. **Feed the owner's judgement calls back into the policy.** If the owner
    settled anything during this task — a question you put to them, a
    correction to your approach, a preference they stated in passing — append
    the rule it establishes to `<vault>/profile/decision-policy.md`:
@@ -32,7 +74,7 @@ argument-hint: "<task-id>"
    (`- <date> <task-id> <the rule> (from: <the question>)`), `## Preferences`
    for a standing leaning. Say in the report which lines you added. This is
    what stops the next task asking the same question.
-6. **Close out the status** with the bundled CLI (preferred — it sets
+7. **Close out the status** with the bundled CLI (preferred — it sets
    `status: review` + `updated`, clears the active-task marker, and
    refreshes the index in one step):
 
@@ -43,7 +85,7 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
    delete `<vault>/_ai/memory/active-task.json` if it refers to this task.
-7. **Offer to clean up the worktree — only for worktree-mode tasks**
+8. **Offer to clean up the worktree — only for worktree-mode tasks**
    (`worktree: true`). Once the work is committed/pushed and no longer needed,
    **propose** removing the task's worktree (do not delete it automatically —
    the user may still want to inspect it):
