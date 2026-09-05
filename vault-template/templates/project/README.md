@@ -37,6 +37,7 @@ Link to the full spec in [`prd.md`](prd.md).
 | `research/` | Investigations and technical spikes |
 | `dev-notes/` | Development notes, design decisions, architecture |
 | `deliverables/` | Task deliverable notes (`T-XXXX-…`) |
+| `shared/` | Team knowledge bases outside the vault — where each one is and how it is organised |
 | `attachments/` | Images and binaries for this project |
 
 Nothing else belongs at the project root. If a document fits none of the

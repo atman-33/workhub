@@ -191,6 +191,32 @@ export interface VaultProjectIssue {
   target: string;
 }
 
+/** One team knowledge base that lives outside the vault, recorded as a note in
+ * the project's `shared/` folder (T-0239). The folder is the registry — these
+ * are read off the notes themselves, not out of a list in `_index.md`. */
+export interface SharedSpace {
+  /** File stem of the note — the id rows are keyed on. */
+  name: string;
+  /** Absolute path of the note, forward slashes. */
+  path: string;
+  /** `title` from the note, falling back to the file stem. */
+  title: string;
+  /** network-drive | google-drive | onedrive | sharepoint | other; empty when
+   * the note does not say. */
+  kind: string;
+  /** The place's canonical address: a UNC path, a local sync path, or a URL. */
+  location: string;
+  /** How to reach it from this machine. Empty when unset. */
+  access: string;
+  /** read-only | export-ok. Anything a note does not spell as `export-ok`
+   * arrives here as `read-only`: the backend normalises it, because guessing
+   * the permissive value would write into someone else's place. */
+  direction: string;
+  /** `surveyed:` — when the recorded rules were last checked against reality.
+   * Empty when unset, which reads the same as long overdue. */
+  surveyed: string;
+}
+
 /** A vault project (`projects/<slug>/`) as the Projects tab sees it. Distinct
  * from `Project`, which is a *registered repository* in the Repos tab — the
  * two are linked by `repos`, never merged (see `vault_project.rs`). */
@@ -219,6 +245,9 @@ export interface VaultProject {
    * float, like a task's order, so one drag rewrites one note. Null when the
    * project has never been dragged, which sorts it last. */
   order: number | null;
+  /** The team knowledge bases outside the vault this project is tied to, read
+   * from the notes in `shared/`. Empty when none is registered (T-0239). */
+  shared: SharedSpace[];
 }
 
 export interface ScheduleFile {

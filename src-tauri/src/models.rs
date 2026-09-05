@@ -580,6 +580,39 @@ pub struct VaultProjectIssue {
     pub target: String,
 }
 
+/// One shared space a project reads from or files things into — a team
+/// knowledge base that lives outside the vault, recorded as a note in the
+/// project's `shared/` folder (T-0239).
+///
+/// The folder is the registry: these are read off the notes themselves rather
+/// than out of a list in `_index.md`, the same way `schedules/` and
+/// `mindmaps/` work, so there is only ever one place to keep in sync.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SharedSpace {
+    /// File stem of the note — the id the UI keys rows on.
+    pub name: String,
+    /// Absolute path of the note, forward slashes.
+    pub path: String,
+    /// `title` from the note, falling back to the file stem.
+    pub title: String,
+    /// network-drive | google-drive | onedrive | sharepoint | other. Empty
+    /// when the note does not say; the UI shows it as unlabelled rather than
+    /// guessing one from the location.
+    pub kind: String,
+    /// The place's canonical address: a UNC path, a local sync path, or a URL.
+    pub location: String,
+    /// Free-text note on how to reach it from this machine. Empty when unset.
+    pub access: String,
+    /// read-only | export-ok. A note that does not say, or says something
+    /// unrecognised, reads as `read-only`: for a place someone else's team
+    /// owns, the conservative answer is the only safe default.
+    pub direction: String,
+    /// `surveyed:` — when the recorded rules were last checked against
+    /// reality. Empty when the note does not say, which the UI treats the
+    /// same as long overdue.
+    pub surveyed: String,
+}
+
 /// A vault project (`projects/<slug>/`) as the Projects tab sees it: what the
 /// folder holds, and where it departs from the documented layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -615,6 +648,10 @@ pub struct VaultProject {
     /// renumbering every one of them, exactly as a task's `order` works.
     /// `None` sorts last, by slug.
     pub order: Option<f64>,
+    /// The team knowledge bases outside the vault this project is tied to,
+    /// read from the notes in `shared/` in file order. Empty when the project
+    /// has none registered (T-0239).
+    pub shared: Vec<SharedSpace>,
 }
 
 /// A task's frontmatter fields plus location and body — the app's view of

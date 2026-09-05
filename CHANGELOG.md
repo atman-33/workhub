@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.0 (2026-09-05)
+
+- **A vault project can now record the team's shared knowledge bases** (T-0239)
+  — the network drive, Google Drive or SharePoint folder a team actually files
+  things in, which until now the vault had no way to point at. Each place is a
+  note in the project's `shared/` folder saying where it is and, more usefully,
+  how the team organises it: naming conventions, which kind of document goes
+  where, who owns what. The folder tree is kept only as orientation, because it
+  is stale within weeks; the conventions are what survive. The **Projects** tab
+  lists what `shared/` holds and offers a prompt to hand to an agent when a
+  project has none — the app never writes these notes itself, since reading
+  someone's drive and working out its filing rules is judgement work, not a
+  form. Every place carries a `direction`: `read-only` by default, `export-ok`
+  only when the owner says so, which is what stops an agent from helpfully
+  uploading into a share it was only meant to read. There is no sync in either
+  direction: filing something into a team's space is one-way and
+  per-occasion, because mirroring a folder the team also edits produces
+  conflicts and stale duplicates. The new `shared-space` skill (workhub plugin
+  0.29.0) is what surveys a place and writes the note.
+
 ## 0.98.0 (2026-09-05)
 
 - **The Plugins tab now shows every marketplace you have registered, not just

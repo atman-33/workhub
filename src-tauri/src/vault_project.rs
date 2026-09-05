@@ -22,7 +22,7 @@
 //! Archiving moves the folder to `archive/projects/<slug>/`, which keeps its
 //! provenance and is reversible from the same screen.
 
-use crate::models::{VaultProject, VaultProjectFolder, VaultProjectIssue};
+use crate::models::{SharedSpace, VaultProject, VaultProjectFolder, VaultProjectIssue};
 use crate::vault_note::{
     ensure_scaffold_file, frontmatter_list, frontmatter_value, norm_path, projects_dir,
     remove_frontmatter_key, rewrite_frontmatter, rewrite_frontmatter_list, split_frontmatter,
@@ -50,8 +50,18 @@ const KNOWN_DIRS: &[&str] = &[
     "deliverables",
     "schedules",
     "mindmaps",
+    "shared",
     "attachments",
 ];
+
+/// Where a project records the team knowledge bases that live outside the
+/// vault. One note per place; the folder is the registry (T-0239).
+const SHARED_DIR: &str = "shared";
+
+/// What a shared-space note means when it does not say which way material may
+/// flow. A place someone else's team owns is read-only until the owner says
+/// otherwise, so the missing value and the unrecognised one both land here.
+const DEFAULT_DIRECTION: &str = "read-only";
 
 /// Where the repo link is read from and written to. `_index.md` is the
 /// project's machine-readable index, which is what a repo link is.
@@ -241,6 +251,7 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
         archived,
         pinned,
         order,
+        shared: read_shared_spaces(dir),
     }
 }
 
@@ -277,6 +288,77 @@ fn excerpt(body: &str) -> String {
         return text;
     }
     String::new()
+}
+
+/// The shared spaces a project has registered, read from the notes in
+/// `shared/` (T-0239).
+///
+/// Only the frontmatter is read: the rules in the body are prose meant for a
+/// person or an agent, and summarising them here would be guessing at what
+/// matters. The scan stays report-only, exactly like the rest of this module —
+/// nothing about a shared space is written from the app.
+///
+/// Sorted by title so the list does not reshuffle when a note is edited; the
+/// file stem breaks ties, so two places sharing a title still have a stable
+/// order.
+fn read_shared_spaces(dir: &Path) -> Vec<SharedSpace> {
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(dir.join(SHARED_DIR)) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            continue;
+        }
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let name = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        // Same convention as every other note folder: `_`/`.` files are
+        // machinery (a Base, a template), not entries.
+        if name.starts_with('_') || name.starts_with('.') {
+            continue;
+        }
+        let Some((front, _)) = read_note(&path) else {
+            continue;
+        };
+        let title = match frontmatter_value(&front, "title") {
+            t if !t.trim().is_empty() => t.trim().to_string(),
+            _ => name.clone(),
+        };
+        out.push(SharedSpace {
+            name,
+            path: norm_path(&path),
+            title,
+            kind: frontmatter_value(&front, "kind").trim().to_string(),
+            location: frontmatter_value(&front, "location").trim().to_string(),
+            access: frontmatter_value(&front, "access").trim().to_string(),
+            direction: direction(&frontmatter_value(&front, "direction")),
+            surveyed: frontmatter_value(&front, "surveyed").trim().to_string(),
+        });
+    }
+    out.sort_by(|a, b| {
+        a.title
+            .to_lowercase()
+            .cmp(&b.title.to_lowercase())
+            .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    out
+}
+
+/// Normalises a note's `direction:`. Anything the vocabulary does not name —
+/// a typo, a blank, a value from some future spelling — becomes `read-only`,
+/// because the failure mode of guessing `export-ok` is writing into a place
+/// the owner never said could be written to.
+fn direction(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "export-ok" => "export-ok".to_string(),
+        _ => DEFAULT_DIRECTION.to_string(),
+    }
 }
 
 /// Counts what each subfolder holds and reports the two folder-level findings:
@@ -702,6 +784,79 @@ mod tests {
         assert_eq!(deliverables.count, 1);
         assert!(deliverables.known);
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
+    }
+
+    /// `shared/` is read as a registry of notes, and a note that does not say
+    /// which way material may flow is read as read-only (T-0239).
+    #[test]
+    fn shared_spaces_are_read_from_the_folder_and_default_to_read_only() {
+        let vault = temp_vault("shared");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        write(
+            dir.join("shared").join("design-share.md"),
+            "---\ntype: shared-space\ntitle: Design team share\nkind: network-drive\nlocation: //fileserver/design\naccess: mapped to Z:\ndirection: export-ok\nsurveyed: 2026-09-05\n---\n\n## Rules\n\n- one folder per release (stated)\n",
+        );
+        // No `direction:` at all, and a title the frontmatter does not give.
+        write(
+            dir.join("shared").join("vendor-drive.md"),
+            "---\ntype: shared-space\nkind: google-drive\nlocation: https://drive.google.com/drive/folders/x\n---\n",
+        );
+        // Machinery, not an entry.
+        write(dir.join("shared").join("_shared.base"), "views: []\n");
+        write(dir.join("shared").join("_template.md"), "---\n---\n");
+
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert_eq!(p.shared.len(), 2);
+
+        // Sorted by title, so "Design team share" comes before "vendor-drive".
+        let first = &p.shared[0];
+        assert_eq!(first.name, "design-share");
+        assert_eq!(first.title, "Design team share");
+        assert_eq!(first.kind, "network-drive");
+        assert_eq!(first.location, "//fileserver/design");
+        assert_eq!(first.access, "mapped to Z:");
+        assert_eq!(first.direction, "export-ok");
+        assert_eq!(first.surveyed, "2026-09-05");
+        assert!(first.path.ends_with("shared/design-share.md"));
+
+        let second = &p.shared[1];
+        assert_eq!(second.title, "vendor-drive", "falls back to the file stem");
+        assert_eq!(second.direction, "read-only", "an unstated direction");
+        assert!(second.surveyed.is_empty());
+
+        // The folder is documented, so holding notes is not a finding.
+        assert!(!p
+            .issues
+            .iter()
+            .any(|i| i.kind == "unknown-folder" && i.target == "shared/"));
+    }
+
+    /// A project with no `shared/` folder simply has no shared spaces — the
+    /// absence is an info-level finding, never an error.
+    #[test]
+    fn a_project_without_the_folder_has_no_shared_spaces() {
+        let vault = temp_vault("shared-absent");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(p.shared.is_empty());
+        assert!(p
+            .issues
+            .iter()
+            .any(|i| i.kind == "missing-folder" && i.target == "shared/"));
+    }
+
+    /// An unrecognised `direction:` is not trusted: it reads as read-only,
+    /// because guessing `export-ok` would write into someone else's place.
+    #[test]
+    fn an_unrecognised_direction_reads_as_read_only() {
+        assert_eq!(direction("export-ok"), "export-ok");
+        assert_eq!(direction("  EXPORT-OK  "), "export-ok");
+        assert_eq!(direction("read-only"), "read-only");
+        assert_eq!(direction("writable"), "read-only");
+        assert_eq!(direction(""), "read-only");
     }
 
     #[test]
