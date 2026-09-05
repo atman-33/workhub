@@ -34,8 +34,9 @@ over yours.
   - `CLAUDE.local.md` — standing instructions for agents in this vault. Never
     managed by the app; it is yours.
   - `profile/about-me.md` — facts about the owner.
-  - `profile/decision-policy.md` — how the owner decides, and the
+  - `profile/decision-policy.md` — the axes the owner decides on, and the
     preferences a recommendation is built from.
+  - `profile/decision-log.md` — the individual calls they have settled.
   - the target repository's `.claude/rules/` — repo-specific technical rules.
 - If a managed file genuinely needs to change, the fix belongs upstream in the
   workhub repo's `vault-template/`. Say so and ask the owner rather than

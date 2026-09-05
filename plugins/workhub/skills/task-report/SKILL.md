@@ -66,14 +66,21 @@ argument-hint: "<task-id>"
    (or `inbox` when it is only an idea) — never start a follow-up yourself as
    part of closing this task. List what you filed in the report and in the
    final message, so the owner can drop any of them.
-6. **Feed the owner's judgement calls back into the policy.** If the owner
-   settled anything during this task — a question you put to them, a
-   correction to your approach, a preference they stated in passing — append
-   the rule it establishes to `<vault>/profile/decision-policy.md`:
-   `## Past decisions` for a one-off call
-   (`- <date> <task-id> <the rule> (from: <the question>)`), `## Preferences`
-   for a standing leaning. Say in the report which lines you added. This is
-   what stops the next task asking the same question.
+6. **Feed the owner's judgement calls back.** If the owner settled anything
+   during this task — a question you put to them, a correction to your
+   approach, a preference they stated in passing — record the rule it
+   establishes:
+   - a one-off call → `<vault>/profile/decision-log.md`, under `## Decisions`
+     (`- <date> <task-id> <the rule>` with `(from: <the question>)` on the
+     next line). This file has no size limit; it is grepped, not read.
+   - a standing leaning → `<vault>/profile/decision-policy.md`'s
+     `## Preferences`.
+   - an axis the same reasoning has now applied twice → that note's
+     `## Promoted rules`, at most 12 entries of 3 lines. A thirteenth arrives
+     by merging or dropping one, never by appending.
+
+   Say in the report which lines you added and where. This is what stops the
+   next task asking the same question.
 7. **Close out the status** with the bundled CLI (preferred — it sets
    `status: review` + `updated`, clears the active-task marker, and
    refreshes the index in one step):

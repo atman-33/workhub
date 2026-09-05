@@ -30,7 +30,7 @@ delegates to the first two.
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `profile-inject` | SessionStart | Inject the owner's `profile/decision-policy.md` and `about-me.md` |
+| `profile-inject` | SessionStart | Point the session at the owner's `profile/` — `decision-policy.md`, `decision-log.md` and `about-me.md` |
 | `harness/inject-project-context` | SessionStart | Inject the app's registered projects — see [Harness hooks](#harness-hooks) |
 | `harness/inject-target-rules` | PreToolUse (Read/Edit/Write) | Inject a sibling repository's `CLAUDE.md` and `.claude/rules` |
 | `harness/inject-extended-rules` | PreToolUse (Read/Edit/Write) | Inject the vault's `.claude/rules-ex` rules that target other repositories |

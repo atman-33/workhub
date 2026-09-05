@@ -8,8 +8,8 @@ argument-hint: "[--fix] [--zone <name>]"
 
 Audit the workhub vault for structural issues, inconsistencies, and
 maintenance opportunities. Covers the note zones (`inbox/`, `projects/`,
-`knowledge/`, `archive/`) — the task board (`tasks/`) is app-managed and only
-gets link checks.
+`knowledge/`, `archive/`) plus a size check on `profile/decision-policy.md` —
+the task board (`tasks/`) is app-managed and only gets link checks.
 
 ## Usage
 
@@ -85,6 +85,26 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 | MISPLACED | Actively edited material found in `archive/` |
 | INBOX_PILEUP | `inbox/` holds items older than 14 days → suggest `/kb-ingest` |
 
+### 7. Decision policy size
+
+`profile/decision-policy.md` is read in full every time an agent is about to
+ask the owner something, and by the `secretary` subagent on every question it
+gates. It holds the axes of a decision; the individual calls belong in
+`profile/decision-log.md`, which is only ever grepped.
+
+| Issue | Condition |
+|-------|-----------|
+| POLICY_RULES_OVER_LIMIT | `## Promoted rules` holds more than 12 entries, or one entry runs over 3 lines |
+| POLICY_TOO_LONG | `profile/decision-policy.md` exceeds 120 lines |
+| POLICY_LOG_ENTRIES | The policy carries entries that read as individual cases (a date + task id + `from:`) outside `## Promoted rules` |
+
+**Report:** name the offending entries and suggest what to do — merge two
+promoted rules into the axis they share, drop one that a later rule subsumes,
+or move a case down to `profile/decision-log.md`. Never auto-fix: deciding
+which rule survives is the owner's call.
+
+`profile/decision-log.md` has no size limit and is not checked here.
+
 ## Output Format
 
 ```markdown
@@ -108,6 +128,8 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 ...
 ### Stale Content
 ...
+### Decision Policy Size
+...
 
 ## Recommended Actions
 1. {highest priority}
@@ -119,7 +141,7 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 | Level | Examples | Auto-fixable |
 |-------|----------|-------------|
 | Error | Broken links, missing files | Some |
-| Warning | Missing tags, orphans, stale content | Most |
+| Warning | Missing tags, orphans, stale content, policy over limit | Most (never the policy) |
 | Info | Optimization suggestions, inbox pileup | No |
 
 ## Log Entry
