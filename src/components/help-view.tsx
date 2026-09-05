@@ -157,7 +157,7 @@ The **Projects** tab is the screen for a *vault project* — a folder under \`pr
 - **The list** shows every project with its task count, when it was last touched, and whether the folder matches the layout the vault's CLAUDE.md documents. **Archived** also lists the ones filed under \`archive/projects/\`.
 - **Layout findings** are the point of the tab. It reports required files that are missing (\`README.md\`, \`prd.md\`, \`roadmap.md\`, \`links.md\`, \`_index.md\`), documented folders that are absent, folders nobody documented, and task deliverable notes (\`T-XXXX-…\`) sitting in the project root instead of \`deliverables/\`. Findings are reported, never fixed automatically.
 - **Task project values with no folder** appears under the list when a task's \`project:\` names something \`projects/\` does not have. That field is free text, so a typo silently orphans a task — this is where you notice.
-- **Repository** links the project to one of the repositories registered on the Repos tab. The link is stored as \`repo:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme.
+- **Repositories** links the project to the repositories registered on the Repos tab. The list is stored as \`repos:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme. A project may legitimately span several — an app and its vault, say — and the first entry is the one an agent defaults to.
 - **Shared spaces** records the team knowledge bases that live outside the vault — a network drive, a Google Drive or SharePoint folder. Each is a note in the project's \`shared/\` folder saying where the place is and how the team organises it, and each carries a **direction**: \`read-only\` (the default — never write anything there) or \`export-ok\`. The app only reads these notes: **Copy prompt** gives you a prompt to paste the location into and hand to an AI agent, which surveys the place and writes the note. A **stale** mark means the rules have not been checked against reality in three months.
 - **Name and description** are edited in the detail pane and stored as \`title:\` and \`description:\` in the project's README.md. The folder slug does not change, so task \`project:\` values stay valid. An empty description falls back to the first prose paragraph of the README.
 - **New project** scaffolds \`projects/<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from.
@@ -1277,13 +1277,15 @@ export function HelpView() {
                 is where you notice.
               </li>
               <li>
-                <span className="font-medium">Repository</span> links the project
-                to one of the repositories registered on the Repos tab. The link is
-                stored as <span className="font-mono text-xs">repo:</span> in the
+                <span className="font-medium">Repositories</span> links the project
+                to the repositories registered on the Repos tab. The list is stored
+                as <span className="font-mono text-xs">repos:</span> in the
                 project&apos;s{" "}
                 <span className="font-mono text-xs">_index.md</span> (created from
                 the scaffold if the project predates it) rather than guessed from
-                the name, because the two do not share a naming scheme.
+                the name, because the two do not share a naming scheme. A project
+                may legitimately span several — an app and its vault, say — and the
+                first entry is the one an agent defaults to.
               </li>
               <li>
                 <span className="font-medium">Shared spaces</span> records the team
