@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.98.0 (2026-09-05)
+
+- **The Plugins tab now shows every marketplace you have registered, not just
+  workhub's** (T-0238). Plugins loaded from anywhere else were invisible in the
+  app — `claude plugin` and four JSON files were the only way to see them.
+  Other marketplaces are read differently from workhub's on purpose: workhub's
+  has a `catalog.json`, so a required plugin appears there even when switched
+  off, which is the whole point of that list. No other marketplace can make
+  that claim, so each contributes exactly what is installed or enabled on this
+  machine — listing everything they *offer* would put some 500 rows on screen
+  for the two `claude-plugins-official` plugins actually in use, and
+  `claude plugin` is already that store. Two tabs rather than one list, because
+  "is my harness complete" and "what else is loading in my sessions" are
+  different questions. A plugin whose marketplace is no longer registered keeps
+  its row: sessions load it every day whatever `known_marketplaces.json` says.
+- **Each plugin card can now show what the plugin actually contains** (T-0234)
+  — its skills, agents, commands and hooks. The tab could say whether the
+  harness was complete and current, but never what any of these plugins do,
+  which left the only answer in `~/.claude/plugins/cache/` read by hand. The
+  contents come from the installed copy rather than the marketplace clone: the
+  clone holds whatever the last `marketplace update` fetched, which is the
+  version you *could* be running, not the one a session loads. Hook commands
+  are shown verbatim, `${CLAUDE_PLUGIN_ROOT}` and all, because which script
+  runs is the whole answer.
+- **Agents can now file a task on the board** with `task-cli create` (T-0237).
+  They had no way to, so the previous task hand-wrote a file and worked out its
+  `id` and `order` by eye — the exact thing `task-cli` exists to prevent. It
+  mirrors the app's own create: ids skip numbers already used by archived
+  tasks, `order` continues the target column, and forbidden filename characters
+  are mapped. Drift between the two would hand one id to two tasks, so the
+  rules are covered by tests that drive the real command line. `task-report`
+  now files the follow-ups a task turned up — finishing is when you have seen
+  the most of what was left undone — and `task-list` can create one on request.
+- **New `visuals` plugin: visual deliverables as self-contained HTML, plus the
+  PDF you hand over** (T-0233, T-0236). `html-deck` builds a presentation on a
+  fixed 16:9 stage, `html-doc` a document people read, `html-diagram` a diagram
+  as inline SVG on an editorial grammar with a checker that catches the
+  connector and accessibility mistakes a machine can settle, and `html-to-pdf`
+  exports any of them through headless Chromium. `authoring` loses
+  `draft-deck`, `prepare-proposal-deck` and `generate-html-report` in the same
+  move: the first two stopped at a prompt for an external design tool and the
+  third emitted HTML with no design system behind it, so leaving them in place
+  would put three skills in competition with one that renders the deliverable
+  in the session. `authoring` is text deliverables only now.
+- **The owner's decision policy is split into the axes and a log of the
+  individual calls** (T-0242). `profile/decision-policy.md` is read in full
+  every time an agent is about to ask you something, and by the `secretary`
+  subagent on every question it gates — but its `## Past decisions` section
+  took one entry per settled call, so the 40 lines of Proceed / Always ask /
+  Preferences that actually decide anything ended up buried under 131 lines of
+  cases. The policy now keeps the axes and gains `## Promoted rules`, capped at
+  12 entries so a thirteenth arrives by merging or dropping one rather than by
+  appending; the new `profile/decision-log.md` takes the cases and has no limit
+  at all, because nothing reads it front to back — it is grepped when the
+  policy does not settle a question. Both harnesses, `task-start`,
+  `task-report`, `strategist` and the `secretary` agent were updated to write
+  and read in the new shape, and `/kb-lint` warns when the policy outgrows its
+  cap. Existing vaults keep their `## Past decisions` until moved by hand.
+
 ## 0.97.0 (2026-09-05)
 
 - **Projects can be pinned to the top of the list and dragged into the order
