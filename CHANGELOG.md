@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.100.0 (2026-09-05)
+
+- **The Settings and plugin-contents dialogs can be moved** (T-0244) — grab the
+  top of either one and drag it aside to read what is behind it. Only those
+  two: a confirmation prompt or the command palette is small and transient, and
+  moving it buys nothing. Each dialog opens centred again every time rather
+  than reappearing wherever it was left, which could be half off a screen that
+  has since been resized.
+- **The plugin-contents dialog keeps its size when you switch tabs.** Its tab
+  bar used to move under the pointer as the dialog resized itself to whichever
+  tab you had just picked; the contents now scroll inside a fixed area, the
+  same shape the Settings dialog already used.
+- **Tabs are drawn as an underline** rather than as a segmented bar of filled
+  boxes. The band of background behind the bar and the raised box around the
+  selected tab are both gone; what is selected is now said by the underline and
+  the text colour alone.
+- **A plugin card opens its contents when clicked.** The `Contents` button next
+  to the switch read as one more control rather than as the way in, so it is
+  gone — click anywhere on the card instead. The switch and the update button
+  still do their own jobs.
+- **The marketplace update buttons say which marketplace they update**, and the
+  header carries a single `Update all marketplaces` for the whole set. There
+  was one button per registered marketplace and all of them read `Update
+  marketplace`, so which one was about to run — and, while one was running,
+  which one actually was — could only be inferred from where the button sat.
+  The spinner now sits on the marketplace being updated.
+- **Dropdowns open below the box they belong to.** A `Select` used to align its
+  menu so that the current choice sat over the trigger, which pushed the top of
+  the menu above the box whenever the selection was near the bottom of the
+  list. This affects every filter and picker in the app.
+
 ## 0.99.0 (2026-09-05)
 
 - **A vault project can now record the team's shared knowledge bases** (T-0239)

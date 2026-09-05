@@ -339,13 +339,13 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
+      <DialogContent draggable className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Configure workhub commands, vault, and behavior.</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="general" className="flex flex-col gap-3">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="voice">Voice</TabsTrigger>

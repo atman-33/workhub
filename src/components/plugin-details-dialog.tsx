@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileCode2, FolderOpen, Sparkles, Webhook } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,9 @@ import type { PluginDetails, PluginEntry } from "@/types";
  * running rather than what the marketplace clone happens to offer.
  *
  * Read-only by design: switching a plugin on or off stays on the card behind
- * this dialog, where the consequence is next to the thing it changes.
+ * this dialog, where the consequence is next to the thing it changes. The
+ * dialog is opened by clicking the card itself (T-0244) — a "Contents" button
+ * next to the switch read as one more control rather than as the way in.
  */
 export function PluginDetailsDialog({
   view,
@@ -61,7 +62,7 @@ export function PluginDetailsDialog({
 
   return (
     <Dialog open={view !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
+      <DialogContent draggable className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             {view?.name}
@@ -128,35 +129,40 @@ function Contents({ details }: { details: PluginDetails }) {
         ))}
       </TabsList>
 
-      <TabsContent value="skills" className="min-h-0 flex-1 overflow-y-auto">
-        <EntryList entries={details.skills} icon={<Sparkles className="size-3.5" />} slash />
-      </TabsContent>
-      <TabsContent value="agents" className="min-h-0 flex-1 overflow-y-auto">
-        <EntryList entries={details.agents} icon={<FileCode2 className="size-3.5" />} />
-      </TabsContent>
-      <TabsContent value="commands" className="min-h-0 flex-1 overflow-y-auto">
-        <EntryList entries={details.commands} icon={<FileCode2 className="size-3.5" />} slash />
-      </TabsContent>
-      <TabsContent value="hooks" className="min-h-0 flex-1 space-y-3 overflow-y-auto">
-        {details.hooks.map((hook) => (
-          <div key={hook.event} className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <Webhook className="size-3.5 text-muted-foreground" />
-              {hook.event}
+      {/* Fixed-height scroll area so the dialog keeps its size and the tab bar
+          stays put when switching tabs, however much each tab holds. Same
+          shape as the Settings dialog's. */}
+      <div className="-mx-6 h-[min(60vh,460px)] overflow-y-auto px-6">
+        <TabsContent value="skills" className="mt-0">
+          <EntryList entries={details.skills} icon={<Sparkles className="size-3.5" />} slash />
+        </TabsContent>
+        <TabsContent value="agents" className="mt-0">
+          <EntryList entries={details.agents} icon={<FileCode2 className="size-3.5" />} />
+        </TabsContent>
+        <TabsContent value="commands" className="mt-0">
+          <EntryList entries={details.commands} icon={<FileCode2 className="size-3.5" />} slash />
+        </TabsContent>
+        <TabsContent value="hooks" className="mt-0 space-y-3">
+          {details.hooks.map((hook) => (
+            <div key={hook.event} className="space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                <Webhook className="size-3.5 text-muted-foreground" />
+                {hook.event}
+              </div>
+              {/* Commands verbatim: which script runs is the whole point, and
+                  `${CLAUDE_PLUGIN_ROOT}` is part of the answer. */}
+              {hook.commands.map((command) => (
+                <p
+                  key={command}
+                  className="break-all pl-5 font-mono text-[11px] leading-relaxed text-muted-foreground"
+                >
+                  {command}
+                </p>
+              ))}
             </div>
-            {/* Commands verbatim: which script runs is the whole point, and
-                `${CLAUDE_PLUGIN_ROOT}` is part of the answer. */}
-            {hook.commands.map((command) => (
-              <p
-                key={command}
-                className="break-all pl-5 font-mono text-[11px] leading-relaxed text-muted-foreground"
-              >
-                {command}
-              </p>
-            ))}
-          </div>
-        ))}
-      </TabsContent>
+          ))}
+        </TabsContent>
+      </div>
 
       <p className="flex items-center gap-1.5 border-t pt-2 font-mono text-[10px] text-muted-foreground">
         <FolderOpen className="size-3 shrink-0" />
@@ -200,14 +206,5 @@ function EntryList({
         </div>
       ))}
     </div>
-  );
-}
-
-/** Opens the details dialog for a plugin card. */
-export function PluginDetailsButton({ onOpen }: { onOpen: () => void }) {
-  return (
-    <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={onOpen}>
-      Contents
-    </Button>
   );
 }

@@ -39,3 +39,21 @@ npx vite --port 5199 --strictPort
 That is the safe way to verify layout, breakpoints and styling from a worktree
 while someone else holds the real dev server. Behaviour that needs the backend
 still requires the app itself, and therefore the port.
+
+## The dev server's Tailwind cache goes stale
+
+A long-lived vite session that has taken many HMR edits can stop generating
+utilities that were only just written into a file. The class lands in the DOM,
+no rule exists for it, and the effect silently does not apply — on T-0244
+`translate-x-[-50%]` vanished from the stylesheet and a dialog stopped being
+centred, which reads as a bug in the change.
+
+Tell the two apart before debugging the code: build once and grep the emitted
+CSS for the utility.
+
+```powershell
+npx vite build --outDir "$env:TEMP/tw-check"
+Select-String -Path "$env:TEMP/tw-check/assets/*.css" -Pattern 'translate-x'
+```
+
+If the production CSS has it, the source is fine — restart the dev server.

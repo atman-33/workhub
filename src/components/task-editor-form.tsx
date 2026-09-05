@@ -800,7 +800,7 @@ export function TaskEditorForm({
             onValueChange={(v) => setPane(v as PaneTab)}
             className={cn("gap-1.5", paneShellClass)}
           >
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList>
               <TabsTrigger value="description">Description</TabsTrigger>
               {/* Disabled rather than hidden when empty: the tabs are also
                   how the user learns these sections exist at all. */}
