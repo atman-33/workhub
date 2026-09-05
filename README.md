@@ -175,7 +175,7 @@ manual, and it always matches the version you are running. This is the map.
 | | What it does |
 |---|---|
 | **Long-term memory** | Past sessions, searchable, fully local — no cloud, no LLM. New sessions receive the relevant history automatically. |
-| **Your profile** | `profile/about-me.md` and `decision-policy.md` teach agents who you are and how you decide, so they interrupt you less — and arrive with a recommendation when they do. |
+| **Your profile** | `profile/about-me.md` and `decision-policy.md` teach agents who you are and how you decide, so they interrupt you less — and arrive with a recommendation when they do. Every call you settle is logged to `decision-log.md`, keeping the policy itself short. |
 | **Custom prompt** | Standing instructions appended to every task prompt an agent receives. |
 | **Recurring tasks** | Rules that create a task on a schedule — a daily note, a weekly review, a monthly report. |
 | **Vault tidy** | Optional housekeeping: files stale inbox notes and refreshes archive indexes by running an agent headlessly. |

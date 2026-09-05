@@ -80,6 +80,15 @@ export function resolveDecisionPolicy(vault) {
 }
 
 /**
+ * The owner's decision log: the individual calls they have settled. It is the
+ * long tail of the policy, kept in its own file so the policy stays short
+ * enough to be read in full on every question — this one is only ever grepped.
+ */
+export function resolveDecisionLog(vault) {
+  return join(resolveProfileDir(vault), "decision-log.md");
+}
+
+/**
  * Secretary agent switch from the workhub app settings. Consulting the
  * secretary costs tokens (it is a subagent), so it is off by default and the
  * user turns it on in ⚙ Settings. Missing config or field means disabled —

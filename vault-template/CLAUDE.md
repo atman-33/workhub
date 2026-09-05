@@ -11,7 +11,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes and task deliverables |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md`) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
+| `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md` for the axes, `decision-log.md` for the individual calls) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
 | `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
@@ -41,11 +41,17 @@ this vault, on top of the task-specific prompt.
 **Owner context.** `profile/` is who the owner is and how they decide.
 `about-me.md` covers background, current work and where the rest of their
 context lives; `decision-policy.md` covers what you may settle alone, what has
-to come back to them, and — in its `## Preferences` section — the leanings you
-build a recommendation from. Read them before work that depends on any of
-that, instead of asking the owner to restate it. It sits at the vault root
-rather than under `knowledge/` because it is operational: hooks, skills and
-the `secretary` agent all read it.
+to come back to them, and — in its `## Preferences` and `## Promoted rules`
+sections — the leanings you build a recommendation from. Read them before work
+that depends on any of that, instead of asking the owner to restate it. It sits
+at the vault root rather than under `knowledge/` because it is operational:
+hooks, skills and the `secretary` agent all read it.
+
+The policy is deliberately short — it is read in full on every question, so it
+holds the *axes* of a decision and nothing else. The individual calls the owner
+has settled live in `decision-log.md`, which has no size limit and is never
+read whole: grep it when the policy does not settle a question and a similar
+one may have come up before.
 
 **Strategic context.** `strategy/` is where the owner is heading, not who
 they are, which is why it sits beside `profile/` rather than inside it:
@@ -64,11 +70,12 @@ Nothing in `strategy/` duplicates a project: a project keeps its own plan in
 `strategy/current/roadmap.md` links to them rather than restating their dates.
 
 **Questions carry a recommendation.** Never put an open choice to the owner.
-Work out from `## Preferences` and `## Past decisions` which answer they would
-most likely give, and offer it as the recommended option with its reason. When
-they settle a question, append the rule it establishes to `## Past decisions`
-(or to `## Preferences`, if it is a standing preference rather than a one-off
-call) so the same question is not asked twice.
+Work out from the policy's `## Preferences` and `## Promoted rules` which answer
+they would most likely give, and offer it as the recommended option with its
+reason. When they settle a question, append the rule it establishes to
+`decision-log.md`'s `## Decisions` — or to the policy's `## Preferences` when it
+is a standing leaning, or to its `## Promoted rules` when the same reasoning has
+now settled a second question — so the same question is not asked twice.
 
 **Before building.** Write the plan before the implementation, and get it
 approved when the task is plan-first. Reuse what already exists — an existing

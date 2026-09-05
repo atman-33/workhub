@@ -59,7 +59,11 @@ Two consequences worth keeping in mind before changing any of them:
 settings flag:
 
 - **owner-profile** — read `profile/decision-policy.md`, never put a bare
-  choice to the owner, write settled answers back into its `## Past decisions`.
+  choice to the owner, write settled answers back into `profile/decision-log.md`
+  (or the policy's `## Preferences` / `## Promoted rules` when the answer is a
+  standing leaning or an axis that has now decided twice). The policy is read in
+  full and capped at 12 promoted rules for that reason; the log is only grepped
+  and has no limit (T-0242).
   Gated on the policy file existing, *not* on `secretary_enabled`. It is a
   handful of instruction tokens and no subagent, so charging it to a toggle
   whose stated cost is "a subagent per question" would be wrong — and the

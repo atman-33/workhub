@@ -21,6 +21,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  resolveDecisionLog,
   resolveDecisionPolicy,
   resolveProfileDir,
   resolveVault,
@@ -36,29 +37,37 @@ const policy = resolveDecisionPolicy(vault);
 if (!existsSync(policy)) process.exit(0);
 
 const aboutMe = join(resolveProfileDir(vault), "about-me.md");
+const log = resolveDecisionLog(vault);
 const commsCli = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "comms-cli.mjs");
 
 const blocks = [
   `<owner-profile>
 The owner's profile lives in the vault:
 
-- ${posix(policy)} — what you may decide alone, what has to come back to them,
-  and a \`## Preferences\` section describing how they like to work.
+- ${posix(policy)} — the axes: what you may decide alone, what has to come back
+  to them, a \`## Preferences\` section describing how they like to work, and
+  \`## Promoted rules\` for the axes that came out of past decisions. Short on
+  purpose; read it in full.
+- ${posix(log)} — the cases: every individual call the owner has settled. Do
+  **not** read it in full — it grows without limit. Grep it when the policy
+  does not settle a question and a similar one may have come up before.
 - ${posix(aboutMe)} — who they are and what context they already have.
 
 Read the decision policy before putting any question to the owner, and act on
 it:
 
-- **Never ask an open question.** Use \`## Preferences\` and \`## Past decisions\`
+- **Never ask an open question.** Use \`## Preferences\` and \`## Promoted rules\`
   to work out which answer the owner would most likely give, and present it as a
   recommended option, with the reason and the preference it came from. Ask
   without a recommendation only when the profile genuinely does not lean either
   way — and say that is why.
-- **Feed the answer back.** Whenever the owner settles a question, append one
-  line to the policy's \`## Past decisions\`:
-  \`- <date> <task-id> <the rule this establishes> (from: <the question>)\`. When
-  the answer reveals a standing preference rather than a one-off call, add it to
-  \`## Preferences\` instead and say so. This is what stops the same question
+- **Feed the answer back.** Whenever the owner settles a question, append it to
+  the decision log's \`## Decisions\`:
+  \`- <date> <task-id> <the rule this establishes>\`, with \`(from: <the question>)\`
+  on the next line. When the answer reveals a standing leaning rather than a
+  one-off call, add it to the policy's \`## Preferences\` instead and say so; when
+  the same reasoning has now settled a second question, promote it to the
+  policy's \`## Promoted rules\` as an axis. This is what stops the same question
   being asked twice.
 </owner-profile>`,
 ];

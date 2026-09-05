@@ -10,17 +10,18 @@ tags:
 
 What an agent may decide on its own, and what has to come back to you.
 
-Every agent session reads this note. It uses `## Preferences` to build a
-recommendation *before* putting a question to you, so a question arrives with a
-proposed answer attached rather than as an open choice.
+This note holds the *axes* of a decision, not a log of decisions. Agents read
+it before putting any question to you, and the `secretary` subagent reads it in
+full on every question it gates, so it has to stay short enough that the axes
+below are not buried. Individual calls you settle go to [[profile/decision-log]]
+instead — nobody reads that file front to back; it is grepped when a similar
+question comes up.
 
-When the secretary agent is turned on, the `secretary` subagent reads the same
-note to answer questions the main agent would otherwise interrupt you with.
-Anything this note does not cover is escalated, so the more you write here, the
-fewer interruptions you get. Start with the defaults below and correct them as
-real questions come in — the `## Past decisions` section is where those
-corrections accumulate, and agents are told to append to it whenever you settle
-a question yourself.
+**Size limit.** `## Promoted rules` holds at most 12 entries of at most 3 lines
+each: a thirteenth arrives by merging or dropping one, never by appending. That
+is the limit that matters. The 120-line backstop on the whole note is derived
+from it — a filled-in `## Preferences` plus 12 full-size rules lands at 118 —
+so crossing it means the prose grew, not the rules. `/kb-lint` warns on both.
 
 This note is seeded once and never overwritten by a template sync — edit it
 freely. Delete it and agents fall back to asking you plainly: the hooks stay
@@ -67,7 +68,13 @@ like, so write the leanings, not just the rules.
 3. Cheap to redo → proceed and report. Expensive to redo → ask first.
 4. Between two reasonable options, take the simpler one and record why.
 
-## Past decisions
+## Promoted rules
 
-<!-- Rules that came out of questions you have already answered, e.g.
-     - 2026-08-15: prefer X over Y for Z (from Q-0003). -->
+Axes that came out of decisions you have already made and now apply beyond the
+case that produced them. Promote an entry from [[profile/decision-log]] once
+the same reasoning has decided a second question, and write the axis rather
+than the case. At most 12 entries, 3 lines each.
+
+<!-- e.g.
+     - Replace an overlapping tool rather than keeping both and drawing the
+       line in their descriptions. -->

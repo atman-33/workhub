@@ -103,3 +103,32 @@ describe("resolveVault", () => {
     expect(resolveVault()).toBeNull();
   });
 });
+
+/**
+ * The policy and the log are two files, not one section of one file: the policy
+ * is read in full on every question and the log is only ever grepped, so a
+ * resolver that pointed both at the same note would put the unbounded half back
+ * into every session's context (T-0242).
+ */
+describe("profile paths", () => {
+  let fx;
+
+  beforeEach(() => {
+    fx = fixture();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("resolves the policy and the log to separate notes in profile/", async () => {
+    const { resolveDecisionPolicy, resolveDecisionLog } = await load(fx.vault, fx.home);
+    expect(resolveDecisionPolicy(fx.vault)).toBe(
+      join(fx.vault, "profile", "decision-policy.md")
+    );
+    expect(resolveDecisionLog(fx.vault)).toBe(
+      join(fx.vault, "profile", "decision-log.md")
+    );
+  });
+});

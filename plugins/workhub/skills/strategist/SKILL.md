@@ -28,7 +28,8 @@ var → the current directory when it has `tasks/` and `_ai/` → `vault_path` i
 | `strategy/current/` | present tense (`business.md`); the quarter's intentions (`roadmap.md`) |
 | `strategy/bottlenecks/` | one file per wall, plus a `README.md` describing the convention |
 | `profile/about-me.md` | who the owner is |
-| `profile/decision-policy.md` | what may be settled alone; `## Preferences` and `## Past decisions` |
+| `profile/decision-policy.md` | what may be settled alone; `## Preferences` and `## Promoted rules` |
+| `profile/decision-log.md` | the individual calls already settled — grep it, never read it whole |
 | `_ai/logs/decisions.md` | where a settled decision is appended |
 
 `strategy/` is not a project. A project's own plan lives in
@@ -154,7 +155,7 @@ edits, then making the approved ones.
   `- <date> [strategist] <the decision> (basis: <what it followed from>)`.
 - When the owner reveals a standing preference rather than a one-off call, add
   it to `profile/decision-policy.md`'s `## Preferences` and say that is where
-  it went.
+  it went. A one-off call goes to `profile/decision-log.md` instead.
 
 ### 8. Put the persona back
 
