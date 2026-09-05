@@ -38,6 +38,8 @@ import { api, timeAgo } from "@/lib/api";
 import {
   TASK_STATUSES,
   buildProjectFixPrompt,
+  buildSharedSpaceSurveyPrompt,
+  isSurveyStale,
   issueLabel,
   linkedRepos,
   sortProjects,
@@ -194,6 +196,10 @@ export function ProjectsView({
   }, [visible, slug]);
 
   const current = visible.find((p) => p.slug === slug) ?? null;
+  /** One instant for every staleness check on the screen, refreshed when the
+   * project list is — a shared space does not go stale between two renders,
+   * and a per-row `new Date()` would make the memo below re-run forever. */
+  const now = useMemo(() => new Date(), [projects]);
   useEffect(() => {
     if (!current) return;
     setEditName(current.name);
@@ -618,6 +624,81 @@ export function ProjectsView({
                   <span className="font-mono">_index.md</span>, because a project and its
                   repositories do not share a naming scheme. The first entry is the one an
                   agent defaults to.
+                </p>
+              </section>
+
+              <section className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+                    Shared spaces
+                  </h3>
+                  <CopyPromptButton
+                    onCopy={() => writeText(buildSharedSpaceSurveyPrompt(current))}
+                  />
+                </div>
+                {current.shared.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No team knowledge base registered. Copy the prompt, paste the location
+                    into it, and hand it to an agent.
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {current.shared.map((space) => (
+                      <li key={space.name} className="flex items-center gap-2 text-xs">
+                        <span className="truncate">{space.title}</span>
+                        {space.kind && (
+                          <span className="shrink-0 rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">
+                            {space.kind}
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            "shrink-0 rounded px-1 text-[10px] uppercase",
+                            space.direction === "export-ok"
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-muted font-medium text-foreground",
+                          )}
+                          title={
+                            space.direction === "export-ok"
+                              ? "The owner has said material may be filed into this place"
+                              : "Read only — never write anything into this place"
+                          }
+                        >
+                          {space.direction}
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-muted-foreground">
+                          {space.location}
+                        </span>
+                        {isSurveyStale(space.surveyed, now) && (
+                          <span
+                            className="shrink-0 text-[10px] uppercase text-muted-foreground"
+                            title={
+                              space.surveyed
+                                ? `Rules last checked ${space.surveyed} — worth another look`
+                                : "This note never recorded when its rules were checked"
+                            }
+                          >
+                            stale
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto h-6 shrink-0 px-1.5 text-[11px]"
+                          onClick={() => void api.openInObsidian(space.path)}
+                          title="Open the note"
+                        >
+                          Open
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  One note per place in the project's{" "}
+                  <span className="font-mono">shared/</span> folder, recording how the team
+                  organises it. The app only reads them — surveying a place is an agent's
+                  job.
                 </p>
               </section>
 

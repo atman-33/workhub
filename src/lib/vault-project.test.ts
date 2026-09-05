@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Task, VaultProject, VaultProjectIssue } from "@/types";
+import type { SharedSpace, Task, VaultProject, VaultProjectIssue } from "@/types";
 import {
+  SURVEY_STALE_DAYS,
   buildProjectFixPrompt,
+  buildSharedSpaceSurveyPrompt,
   health,
+  isSurveyStale,
   issueLabel,
   linkedRepos,
   planProjectMove,
@@ -26,6 +29,21 @@ function project(over: Partial<VaultProject> = {}): VaultProject {
     archived: false,
     pinned: false,
     order: null,
+    shared: [],
+    ...over,
+  };
+}
+
+function sharedSpace(over: Partial<SharedSpace> = {}): SharedSpace {
+  return {
+    name: "design-share",
+    path: "C:/vault/projects/demo/shared/design-share.md",
+    title: "Design team share",
+    kind: "network-drive",
+    location: "//fileserver/design",
+    access: "",
+    direction: "read-only",
+    surveyed: "2026-09-01",
     ...over,
   };
 }
@@ -133,6 +151,75 @@ describe("buildProjectFixPrompt", () => {
     const prompt = buildProjectFixPrompt(project({ issues: [issue()] }));
     expect(prompt).toContain("Never delete a file or a folder");
     expect(prompt).toContain("Do not create empty");
+  });
+});
+
+describe("isSurveyStale", () => {
+  const now = new Date("2026-09-05T12:00:00Z");
+
+  it("takes a recent survey at face value", () => {
+    expect(isSurveyStale("2026-09-01", now)).toBe(false);
+  });
+
+  it("flags one older than the window", () => {
+    expect(isSurveyStale("2026-01-01", now)).toBe(true);
+  });
+
+  it("treats a missing or unreadable date as never checked", () => {
+    expect(isSurveyStale("", now)).toBe(true);
+    expect(isSurveyStale("  ", now)).toBe(true);
+    expect(isSurveyStale("last spring", now)).toBe(true);
+  });
+
+  it("measures the window in days from the recorded date", () => {
+    const inside = new Date(now.getTime() + (SURVEY_STALE_DAYS - 1) * 86_400_000);
+    const outside = new Date(now.getTime() + (SURVEY_STALE_DAYS + 1) * 86_400_000);
+    expect(isSurveyStale("2026-09-05", inside)).toBe(false);
+    expect(isSurveyStale("2026-09-05", outside)).toBe(true);
+  });
+});
+
+describe("buildSharedSpaceSurveyPrompt", () => {
+  it("names the project and leaves the location for the owner to paste", () => {
+    const prompt = buildSharedSpaceSurveyPrompt(project());
+    expect(prompt).toContain('"demo"');
+    expect(prompt).toContain("C:/vault/projects/demo");
+    expect(prompt).toContain("<PASTE THE PATH OR URL HERE>");
+  });
+
+  it("asks for rules rather than a folder listing, and marks guesses", () => {
+    const prompt = buildSharedSpaceSurveyPrompt(project());
+    expect(prompt).toContain("RULES");
+    expect(prompt).toContain("(inferred)");
+    expect(prompt).toContain("Never present a guess as a rule");
+  });
+
+  it("forbids writing into the place and defaults it to read-only", () => {
+    const prompt = buildSharedSpaceSurveyPrompt(project());
+    expect(prompt).toContain("Write nothing into the shared space");
+    expect(prompt).toContain("Default the direction to read-only");
+  });
+
+  it("lists what is already recorded so a survey does not duplicate it", () => {
+    const prompt = buildSharedSpaceSurveyPrompt(
+      project({
+        shared: [sharedSpace(), sharedSpace({ name: "vendor", title: "Vendor drive" })],
+      }),
+    );
+    expect(prompt).toContain("Already recorded");
+    expect(prompt).toContain("Design team share — //fileserver/design (read-only)");
+    expect(prompt).toContain("Vendor drive");
+  });
+
+  it("says nothing about existing spaces when there are none", () => {
+    expect(buildSharedSpaceSurveyPrompt(project())).not.toContain("Already recorded");
+  });
+
+  it("still reads sensibly when a space has no location on file", () => {
+    const prompt = buildSharedSpaceSurveyPrompt(
+      project({ shared: [sharedSpace({ location: "" })] }),
+    );
+    expect(prompt).toContain("no location recorded");
   });
 });
 

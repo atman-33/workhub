@@ -101,6 +101,73 @@ How to handle them:
 Run /kb-index when you are done so the project index matches the folder again.`;
 }
 
+/** How long a shared space's recorded rules are taken at face value, in days.
+ * A quarter is roughly how long a team's filing conventions survive before a
+ * reorganisation nobody announced; past that the note is shown as due for
+ * another look rather than as wrong, because it usually still mostly holds. */
+export const SURVEY_STALE_DAYS = 90;
+
+/**
+ * Whether a shared space's `surveyed:` date is old enough to be worth
+ * re-checking. An unset or unparseable date counts as stale: a note that never
+ * said when it was checked has, as far as anyone can tell, never been checked.
+ *
+ * `now` is injected rather than read off the clock so the check is testable,
+ * and so one render measures every row against the same instant.
+ */
+export function isSurveyStale(surveyed: string, now: Date): boolean {
+  const at = Date.parse(`${surveyed.trim()}T00:00:00`);
+  if (Number.isNaN(at)) return true;
+  return now.getTime() - at > SURVEY_STALE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * An AI agent prompt asking for a team knowledge base to be surveyed and
+ * recorded in this project's `shared/` folder, ready to paste into a terminal.
+ *
+ * Built here for the same reason `buildProjectFixPrompt` is: everything it
+ * needs is already on the screen, and the app deliberately does not write
+ * these notes itself — reading a team's drive and working out its filing rules
+ * is judgement work, not a form the Projects tab could offer.
+ *
+ * The location is left as a placeholder on purpose. The one thing the app
+ * cannot know is *which* place the owner means, and an agent told to go and
+ * find one would end up opening a share it has no business in.
+ */
+export function buildSharedSpaceSurveyPrompt(project: VaultProject): string {
+  const existing = project.shared.length
+    ? `\n\nAlready recorded for this project — do not duplicate these; update one\ninstead when it is the same place:\n\n${project.shared
+        .map((s) => `- ${s.title} — ${s.location || "no location recorded"} (${s.direction})`)
+        .join("\n")}`
+    : "";
+  return `Survey a team shared space and record it for the vault project "${project.slug}".
+
+Project folder: ${project.path}
+
+Shared space to survey: <PASTE THE PATH OR URL HERE>
+How to reach it: <PASTE ANY ACCESS NOTES — mapped drive, VPN, account>
+May I file things into it? <read-only | export-ok>${existing}
+
+Run the shared-space skill in survey mode. If it is not available, follow the
+"Shared-space notes" section of the vault's CLAUDE.md by hand.
+
+What matters:
+
+- Record the place's RULES — naming conventions, which kind of document goes
+  where, who owns what. A folder tree goes stale within weeks, so keep the
+  structure to the parts that orient a reader.
+- Mark every rule (stated) when a document in the place says so, or (inferred)
+  when you read it off the existing files. Never present a guess as a rule.
+- If you cannot actually open the location, stop and ask for a path you can
+  read. A note full of plausible invented conventions is worse than no note.
+- Write nothing into the shared space itself while surveying it, whatever its
+  direction says.
+- Default the direction to read-only unless the answer above says otherwise.
+
+Save it as ${project.path}/shared/<name>.md, link it from the project's
+README.md, then run /kb-index.`;
+}
+
 export type TaskCounts = Record<TaskStatus, number> & { total: number };
 
 function emptyCounts(): TaskCounts {
