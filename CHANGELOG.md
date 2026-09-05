@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.101.0 (2026-09-05)
+
+- **A character you wrote yourself can be deleted from the Persona tab**
+  (T-0245). Until now the tab could only add one: `/persona-new` wrote
+  `~/.claude/personas/<id>/character.md` and nothing in the app could take it
+  back out. Custom characters now carry a `Delete` button on their own page,
+  behind a confirmation that names the file it is about to remove. The folder
+  goes to the recycle bin rather than being unlinked — a character file is
+  prose that took a conversation to write. Built-in characters have no delete:
+  they belong to the plugin and would return with its next update. Deleting a
+  custom character that shadows a built-in one of the same id brings the
+  built-in back into the list, which is how a customization is undone. If the
+  deleted character was the one new sessions start with, persona is switched
+  off as well, so the saved default never names a file that is gone.
+
 ## 0.100.0 (2026-09-05)
 
 - **The Settings and plugin-contents dialogs can be moved** (T-0244) — grab the
