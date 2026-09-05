@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Puzzle, RefreshCw } from "lucide-react";
 
-import { PluginDetailsButton, PluginDetailsDialog } from "@/components/plugin-details-dialog";
+import { PluginDetailsDialog } from "@/components/plugin-details-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Switch } from "@/components/ui/switch";
@@ -99,9 +99,21 @@ function PluginCard({
 }) {
   const scope = view.scope || "unlisted";
   return (
+    // The whole card opens the contents dialog: a "Contents" button beside the
+    // switch read as one more control rather than as the way in (T-0244).
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Contents of ${view.name}`}
+      onClick={onOpenDetails}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenDetails();
+        }
+      }}
       className={cn(
-        "flex items-start gap-3 rounded border p-3",
+        "flex cursor-pointer items-start gap-3 rounded border p-3 text-left transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         view.status === "missing" && "border-destructive/40 bg-destructive/5",
       )}
     >
@@ -145,12 +157,13 @@ function PluginCard({
           </span>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Hint label="What this plugin puts into a session: skills, agents, commands, hooks">
-          <span>
-            <PluginDetailsButton onOpen={onOpenDetails} />
-          </span>
-        </Hint>
+      {/* The controls are their own targets: clicking a switch must not also
+          open the dialog behind it. */}
+      <div
+        className="flex shrink-0 items-center gap-2"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         {view.status === "outdated" && (
           <Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={onUpdate}>
             Update
@@ -180,6 +193,13 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
   const [result, setResult] = useState<PluginCommandResult | null>(null);
   /** The plugin whose contents are being read; null keeps the dialog closed. */
   const [details, setDetails] = useState<PluginView | null>(null);
+  /**
+   * The marketplace currently being updated, so the spinner sits on the button
+   * that is actually running. Every button is disabled while one runs — two
+   * concurrent `claude plugin` invocations would race on the same state — but
+   * disabling alone never said which one the app was working on.
+   */
+  const [updating, setUpdating] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState(await api.pluginsState(vaultPath));
@@ -262,6 +282,62 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
     />
   );
 
+  /** Every marketplace whose clone is on disk — the ones an update can reach. */
+  const updatable = useMemo(
+    () => (state?.marketplaces ?? []).filter((m) => m.clone_found).map((m) => m.name),
+    [state],
+  );
+
+  /**
+   * Update the named marketplaces one after another.
+   *
+   * Sequential rather than parallel: each one shells out to `claude plugin`,
+   * and the button naming the marketplace in flight is only honest if there is
+   * exactly one. The results are reported together so a failure in the middle
+   * of a bulk run is not hidden by the last success.
+   */
+  const updateMarketplaces = async (names: string[]) => {
+    if (names.length === 0) return;
+    setBusy(true);
+    setError(null);
+    const results: PluginCommandResult[] = [];
+    try {
+      for (const name of names) {
+        setUpdating(name);
+        results.push(await api.pluginsUpdateMarketplace(vaultPath, name));
+      }
+      setResult(
+        results.length === 1
+          ? results[0]
+          : {
+              command: `claude plugin marketplace update — ${names.length} marketplaces`,
+              ok: results.every((r) => r.ok),
+              output: results
+                .map(
+                  (r) =>
+                    [`$ ${r.command}`, r.output || (r.ok ? "done" : "failed with no output")].join('\n'),
+                )
+                .join('\n\n'),
+            },
+      );
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        setError(
+          failed.length === 1
+            ? `${failed[0].command} failed`
+            : `${failed.length} of ${results.length} marketplace updates failed`,
+        );
+      }
+      await load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUpdating(null);
+      setBusy(false);
+    }
+  };
+
+  /** Updates one marketplace; the label names it so the button reads alone. */
   const updateMarketplaceButton = (name: string) => (
     <Hint label={`claude plugin marketplace update ${name}`}>
       <Button
@@ -269,9 +345,16 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
         variant="outline"
         className="h-7"
         disabled={busy}
-        onClick={() => void run(() => api.pluginsUpdateMarketplace(vaultPath, name))}
+        onClick={() => void updateMarketplaces([name])}
       >
-        Update marketplace
+        {updating === name ? (
+          <>
+            <RefreshCw className="size-3.5 animate-spin" />
+            Updating {name}…
+          </>
+        ) : (
+          `Update ${name}`
+        )}
       </Button>
     </Hint>
   );
@@ -294,17 +377,39 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
               </p>
             </div>
           </div>
-          <Hint label="Re-read the local Claude Code state">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7 shrink-0"
-              disabled={busy}
-              onClick={() => void run(load)}
-            >
-              <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
-            </Button>
-          </Hint>
+          <div className="flex shrink-0 items-center gap-2">
+            {updatable.length > 1 && (
+              <Hint label={`claude plugin marketplace update — ${updatable.join(", ")}`}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={busy}
+                  onClick={() => void updateMarketplaces(updatable)}
+                >
+                  {updating ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" />
+                      Updating {updating}…
+                    </>
+                  ) : (
+                    "Update all marketplaces"
+                  )}
+                </Button>
+              </Hint>
+            )}
+            <Hint label="Re-read the local Claude Code state">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-7 shrink-0"
+                disabled={busy}
+                onClick={() => void run(load)}
+              >
+                <RefreshCw className={cn("size-3.5", busy && !updating && "animate-spin")} />
+              </Button>
+            </Hint>
+          </div>
         </div>
 
         {error && (
