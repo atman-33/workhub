@@ -12,7 +12,7 @@
  * these drive the real command line, which is also what the skills do.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,6 +129,59 @@ describe("report", () => {
     run(A, ["start", "T-0001"]);
     run(B, ["report", "T-0001"]);
     expect(existsSync(markerFile(A.id))).toBe(false);
+  });
+});
+
+// A marker outlives the session that wrote it, and only `report` used to clear
+// one. These pin the two cases where a marker is provably dead, and — just as
+// importantly — that nothing else is swept: an abandoned `doing` task keeps its
+// row on purpose, because that row is true (T-0246).
+describe("sweep", () => {
+  it("drops the marker of a task that has left doing", () => {
+    run(A, ["start", "T-0001"]);
+    run(B, ["start", "T-0002"]);
+    // as the app does when the owner marks it done by hand
+    seed({ id: "T-0001", title: "alpha", status: "done" });
+    run(B, ["sessions", "--json"]);
+    expect(existsSync(markerFile(A.id))).toBe(false);
+    expect(marker(B.id).id).toBe("T-0002");
+  });
+
+  it("drops the marker of a task whose file is gone", () => {
+    run(A, ["start", "T-0001"]);
+    rmSync(join(vault, "tasks", "T-0001 alpha.md"));
+    run(B, ["sessions", "--json"]);
+    expect(existsSync(markerFile(A.id))).toBe(false);
+  });
+
+  // Taking a half-finished task over in a fresh session is the normal way to
+  // resume one; the abandoned session's marker must not linger beside it.
+  it("hands the task over when another session starts it", () => {
+    run(A, ["start", "T-0001"]);
+    run(B, ["start", "T-0001"]);
+    expect(existsSync(markerFile(A.id))).toBe(false);
+    expect(marker(B.id).id).toBe("T-0001");
+    const rows = JSON.parse(run(B, ["sessions", "--json"]));
+    expect(rows).toHaveLength(1);
+  });
+
+  // The sweep is about the marker's own task, never a neighbour's.
+  it("leaves a live marker for another task alone", () => {
+    run(A, ["start", "T-0001"]);
+    run(B, ["start", "T-0002"]);
+    seed({ id: "T-0001", title: "alpha", status: "review" });
+    run(A, ["sessions", "--json"]);
+    expect(marker(B.id).id).toBe("T-0002");
+  });
+
+  // Nothing is dropped on age: a task left `doing` by a dead session keeps its
+  // row until someone closes it or takes it over.
+  it("keeps the marker of a task that is still doing", () => {
+    run(A, ["start", "T-0001"]);
+    const rows = JSON.parse(run(B, ["sessions", "--json"]));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ task: "T-0001", self: false });
+    expect(existsSync(markerFile(A.id))).toBe(true);
   });
 });
 

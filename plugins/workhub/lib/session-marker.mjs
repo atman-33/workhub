@@ -23,6 +23,39 @@
 //     "started": "2026-09-05T08:33:49.799Z",
 //     "reminded": true                   // set by the Stop-hook reminder
 //   }
+//
+// Cleaning up
+// -----------
+//
+// `task-report` clears the marker of the task it reports, but a session that
+// ends without reporting — an interrupt, a crash, a task left `doing` — leaves
+// its marker behind. `sweepMarkers` removes the ones that are *provably* dead
+// and nothing else (T-0246):
+//
+//   1. the marker's task is no longer `doing` (reported, marked done by hand,
+//      archived, or the file is gone) — nobody holds that task any more;
+//   2. another session has since started the same task — one task is worked by
+//      one session at a time, so the starter is the current holder. That case
+//      is handled by `clearMarkersForTask` from `task-cli start`.
+//
+// What is left over is one row per task that is still `doing`, whose session
+// died, and which nobody has picked up or closed. That row is true — such a
+// task really is in progress and unowned — and it disappears as soon as the
+// owner closes it or another session takes it over. The sweep is therefore
+// driven by what people do, not by a clock.
+//
+// Rejected, deliberately:
+//
+//   - a liveness check by pid — the marker is written by a throwaway
+//     `node task-cli.mjs`, and its parent is not reliably the agent CLI (on
+//     Windows a shell sits in between);
+//   - a `SessionEnd` hook — it cannot see a crash or a kill, so an age rule
+//     would still be needed, and dropping the marker on session end breaks
+//     `--resume`: the Stop-hook reminder stops firing and `memory-capture` can
+//     no longer file the transcript under its task;
+//   - an age threshold (drop or flag markers older than N hours) — the owner
+//     does the same thing either way (close the task, or take it over in a new
+//     session), so the age changes no decision and is not worth monitoring.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -106,6 +139,38 @@ export function clearMarkersForTask(vault, taskId) {
   for (const name of names) {
     const key = name.slice(0, -5);
     if (readMarker(vault, key)?.id !== taskId) continue;
+    try {
+      rmSync(markerPath(vault, key));
+      removed += 1;
+    } catch {
+      // already gone — nothing to clear
+    }
+  }
+  return removed;
+}
+
+/**
+ * Drop every marker the caller's `isDead` predicate rejects.
+ *
+ * The predicate is passed in rather than computed here so this module stays
+ * independent of how tasks are read — `task-cli` knows that, and the hooks
+ * that only read a marker do not have to.
+ *
+ * Returns how many were removed.
+ */
+export function sweepMarkers(vault, isDead) {
+  let removed = 0;
+  let names = [];
+  try {
+    names = readdirSync(sessionsDir(vault)).filter((n) => n.endsWith(".json"));
+  } catch {
+    return 0;
+  }
+  for (const name of names) {
+    const key = name.slice(0, -5);
+    const marker = readMarker(vault, key);
+    // An unreadable or id-less marker is junk rather than a session's claim.
+    if (marker?.id && !isDead(marker)) continue;
     try {
       rmSync(markerPath(vault, key));
       removed += 1;

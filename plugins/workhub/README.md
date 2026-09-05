@@ -89,6 +89,22 @@ working what:
 node scripts/task-cli.mjs sessions
 ```
 
+`task-report` clears the marker for the task it reports, but a session that ends
+without reporting — an interrupt, a crash, a task left `doing` — leaves its own
+behind. The CLI sweeps those away whenever it starts, reports or lists, and it
+only drops what is provably dead: a marker whose task has left `doing`
+(reported, marked done by hand, archived, or deleted), and the marker another
+session left for a task this one has just started, since one task is worked by
+one session at a time.
+
+Nothing is dropped on age. What survives the sweep is one row per task that is
+still `doing`, whose session died, and which nobody has picked up or closed —
+and that row is true: such a task really is in progress and unowned. It goes
+away the moment the owner closes it or another session takes it over, so the
+cleanup follows what people do rather than a clock. A liveness check by pid, a
+`SessionEnd` hook and an age threshold were all considered and rejected;
+`lib/session-marker.mjs` records why.
+
 One session hands a finding to another by looking the task up there and sending
 to that address — the transport is the harness's own, this plugin only supplies
 the directory. Send a link to the deliverable note plus the reason it matters,
