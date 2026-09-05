@@ -46,7 +46,7 @@ export function PluginDetailsDialog({
     setDetails(null);
     setError(null);
     api
-      .pluginDetails(vaultPath, view.name, view.effective_scope)
+      .pluginDetails(vaultPath, view.name, view.marketplace, view.effective_scope)
       .then((d) => {
         if (!stale) setDetails(d);
       })

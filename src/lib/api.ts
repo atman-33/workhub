@@ -390,20 +390,38 @@ export const api = {
   pluginsState: (vaultPath: string) =>
     invoke<PluginsState>("plugins_state", { vaultPath }),
   /** What one plugin contains, read from the copy installed at `scope`. */
-  pluginDetails: (vaultPath: string, name: string, scope: string) =>
-    invoke<PluginDetails>("plugin_details", { vaultPath, name, scope }),
+  pluginDetails: (vaultPath: string, name: string, marketplace: string, scope: string) =>
+    invoke<PluginDetails>("plugin_details", { vaultPath, name, marketplace, scope }),
   /** Adds or removes one enabledPlugins key; applies from the next session. */
   setPluginEnabled: (
     vaultPath: string,
     name: string,
+    marketplace: string,
     scope: "project" | "user",
     enabled: boolean,
-  ) => invoke<PluginsState>("set_plugin_enabled", { vaultPath, name, scope, enabled }),
+  ) =>
+    invoke<PluginsState>("set_plugin_enabled", {
+      vaultPath,
+      name,
+      marketplace,
+      scope,
+      enabled,
+    }),
   /** Refreshes the marketplace clone every "latest version" is compared against. */
-  pluginsUpdateMarketplace: (vaultPath: string) =>
-    invoke<PluginCommandResult>("plugins_update_marketplace", { vaultPath }),
-  pluginsUpdatePlugin: (vaultPath: string, name: string, scope: string) =>
-    invoke<PluginCommandResult>("plugins_update_plugin", { vaultPath, name, scope }),
+  pluginsUpdateMarketplace: (vaultPath: string, marketplace: string) =>
+    invoke<PluginCommandResult>("plugins_update_marketplace", { vaultPath, marketplace }),
+  pluginsUpdatePlugin: (
+    vaultPath: string,
+    name: string,
+    marketplace: string,
+    scope: string,
+  ) =>
+    invoke<PluginCommandResult>("plugins_update_plugin", {
+      vaultPath,
+      name,
+      marketplace,
+      scope,
+    }),
 };
 
 export function timeAgo(unixSecs: number): string {

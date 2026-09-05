@@ -723,8 +723,22 @@ export interface PluginDetails {
   hooks: PluginHookEvent[];
 }
 
+/** One registered marketplace, and what the app could read of it. */
+export interface MarketplaceInfo {
+  name: string;
+  clone_path: string;
+  clone_found: boolean;
+  /** True only for a marketplace shipping catalog.json — workhub's own.
+   * Without it nothing can be called required, missing or recommended. */
+  catalog_found: boolean;
+  /** ISO-8601 timestamp of the last refresh; empty when unknown. */
+  marketplace_updated: string;
+}
+
 export interface PluginRow {
   name: string;
+  /** Marketplace this row belongs to — the second half of `<name>@<market>`. */
+  marketplace: string;
   /** False for a plugin installed or enabled but absent from catalog.json. */
   in_catalog: boolean;
   /** Empty for an uncatalogued row. */
@@ -740,13 +754,10 @@ export interface PluginRow {
 }
 
 export interface PluginsState {
+  /** The marketplace the tab is about — the one with the catalog. */
   marketplace: string;
-  clone_path: string;
-  clone_found: boolean;
-  /** False when the clone predates catalog.json — every row reads as extra. */
-  catalog_found: boolean;
-  /** ISO-8601 timestamp of the last marketplace refresh; empty when unknown. */
-  marketplace_updated: string;
+  /** Every registered marketplace, `marketplace` first and the rest by name. */
+  marketplaces: MarketplaceInfo[];
   /** Vault `.claude/settings.json`; empty when no vault is configured. */
   project_settings_path: string;
   user_settings_path: string;

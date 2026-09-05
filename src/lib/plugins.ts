@@ -24,12 +24,19 @@ export type PluginStatus =
 
 export interface PluginView extends PluginRow {
   status: PluginStatus;
+  /** True when this row's marketplace ships a catalog — workhub's own. */
+  catalogued: boolean;
   enabled: boolean;
   /** Scope the row is actually enabled at, or the catalog default when off. */
   effective_scope: Exclude<PluginScope, "either">;
   /** Version of the install that matches `effective_scope`; "" when none. */
   installed_version: string;
-  /** True when the plugin is enabled but the catalog does not list it. */
+  /**
+   * True when the plugin is enabled but its marketplace's catalog does not
+   * list it. Only ever true for a catalogued marketplace: elsewhere there is
+   * no catalog to be absent from, so "not in catalog" would be a complaint
+   * about a file that was never supposed to exist.
+   */
   extra: boolean;
 }
 
@@ -63,6 +70,8 @@ export function compareVersions(a: string, b: string): number {
  * tool belongs, and it is the scope `claude plugin install` itself defaults to.
  */
 export function effectiveScope(row: PluginRow): Exclude<PluginScope, "either"> {
+  // A row from an uncatalogued marketplace has no declared scope at all, so it
+  // falls through to where it is actually enabled or installed, below.
   if (row.scope === "project" || row.scope === "user") return row.scope;
   if (row.enabled_project) return "project";
   if (row.enabled_user) return "user";
@@ -79,10 +88,19 @@ export function installedVersion(row: PluginRow, scope: string): string {
   return (exact ?? row.installs[0])?.version ?? "";
 }
 
-/** Decide a row's status. See `PluginStatus` for what each one means. */
-export function pluginStatus(row: PluginRow): PluginStatus {
+/**
+ * Decide a row's status. See `PluginStatus` for what each one means.
+ *
+ * `catalogued` says whether this row's marketplace ships a `catalog.json`.
+ * Without one there is no tier, so nothing can be called `missing` or
+ * `advised` — those two are claims about what the vault needs, and only
+ * workhub's own marketplace is in a position to make them (T-0238). An
+ * off plugin from anywhere else is simply off, which is not a problem.
+ */
+export function pluginStatus(row: PluginRow, catalogued = true): PluginStatus {
   const enabled = row.enabled_project || row.enabled_user;
   if (!enabled) {
+    if (!catalogued) return "off";
     if (row.tier === "required") return "missing";
     return row.tier === "recommended" ? "advised" : "off";
   }
@@ -126,15 +144,20 @@ const TIER_ORDER: Record<string, number> = {
  * happened to be written down.
  */
 export function pluginViews(state: PluginsState): PluginView[] {
+  const catalogued = new Set(
+    state.marketplaces.filter((m) => m.catalog_found).map((m) => m.name),
+  );
   const ordered = state.rows.map((row, index) => {
     const scope = effectiveScope(row);
+    const inCatalogued = catalogued.has(row.marketplace);
     const view: PluginView = {
       ...row,
-      status: pluginStatus(row),
+      status: pluginStatus(row, inCatalogued),
+      catalogued: inCatalogued,
       enabled: row.enabled_project || row.enabled_user,
       effective_scope: scope,
       installed_version: installedVersion(row, scope),
-      extra: !row.in_catalog,
+      extra: inCatalogued && !row.in_catalog,
     };
     return { view, index };
   });
@@ -151,12 +174,20 @@ export function pluginViews(state: PluginsState): PluginView[] {
   return ordered.map((o) => o.view);
 }
 
+/** The rows belonging to one marketplace, in the order the list shows them. */
+export function pluginsOfMarketplace(views: PluginView[], marketplace: string): PluginView[] {
+  return views.filter((v) => v.marketplace === marketplace);
+}
+
 /**
  * Rows the owner should act on, in the same order the list shows them.
  *
  * `advised` is deliberately not here: a recommended plugin left off is a
  * choice, and putting it in the same list as a broken harness would train the
  * owner to ignore the list.
+ *
+ * Only ever `missing` or `outdated`, and `missing` can only arise on a
+ * catalogued marketplace — see `pluginStatus`.
  */
 export function pluginProblems(views: PluginView[]): PluginView[] {
   return views.filter((v) => v.status === "missing" || v.status === "outdated");

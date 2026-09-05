@@ -38,9 +38,14 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// The marketplace the app manages. Other marketplaces a machine has
-/// registered are none of this tab's business — it answers "is my workhub
-/// harness complete and current", not "manage every plugin I own".
+/// The marketplace the app is *about*: the only one with a `catalog.json`, so
+/// the only one that can say a plugin is required and missing.
+///
+/// It is no longer the only one read (T-0238). Every marketplace the machine
+/// has registered gets rows too — but only for plugins actually installed or
+/// switched on, never the whole catalogue a marketplace offers. Listing what
+/// is on offer would be a plugin store: `claude-plugins-official` alone
+/// carries some 500 entries against the two of them this machine uses.
 pub const MARKETPLACE: &str = "workhub-marketplace";
 
 /// One installation of a plugin, as `installed_plugins.json` records it. The
@@ -59,10 +64,31 @@ pub struct PluginInstall {
     pub install_path: String,
 }
 
+/// One registered marketplace, and what the app could read of it.
+///
+/// The per-marketplace facts used to sit on `PluginsState`, back when there
+/// was only one. They move here rather than being dropped: a stale clone makes
+/// every "latest version" from it stale, and that is worth saying per
+/// marketplace, not once for all of them.
+#[derive(Debug, Clone, Serialize)]
+pub struct MarketplaceInfo {
+    pub name: String,
+    pub clone_path: String,
+    pub clone_found: bool,
+    /// True only for a marketplace that ships `.claude-plugin/catalog.json` —
+    /// in practice workhub's own. Without it there is no tier and no scope, so
+    /// nothing can be called required, missing or recommended.
+    pub catalog_found: bool,
+    /// When Claude Code last refreshed the clone (ISO-8601); empty if unknown.
+    pub marketplace_updated: String,
+}
+
 /// One plugin, with everything known about it from every source.
 #[derive(Debug, Clone, Serialize)]
 pub struct PluginRow {
     pub name: String,
+    /// Marketplace this row belongs to — the second half of `<name>@<market>`.
+    pub marketplace: String,
     /// False for a plugin that is installed or enabled but absent from
     /// `catalog.json` — a leftover, or a catalog that was not kept up to date.
     pub in_catalog: bool,
@@ -84,16 +110,10 @@ pub struct PluginRow {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PluginsState {
+    /// The marketplace the tab is about — the one with the catalog.
     pub marketplace: String,
-    pub clone_path: String,
-    pub clone_found: bool,
-    /// When the clone predates `catalog.json`, every row reads as uncatalogued
-    /// — worth saying out loud rather than showing an empty required list.
-    pub catalog_found: bool,
-    /// When the marketplace clone was last refreshed (ISO-8601 as Claude Code
-    /// wrote it); empty when unknown. A stale clone makes every "latest"
-    /// version stale with it.
-    pub marketplace_updated: String,
+    /// Every registered marketplace, `marketplace` first and the rest by name.
+    pub marketplaces: Vec<MarketplaceInfo>,
     /// Vault `.claude/settings.json`; empty when no vault is configured.
     pub project_settings_path: String,
     pub user_settings_path: String,
@@ -185,14 +205,15 @@ fn plugins_dir() -> PathBuf {
 
 /// Qualified plugin id as it appears in `enabledPlugins` and
 /// `installed_plugins.json`: `<name>@<marketplace>`.
-fn qualified(name: &str) -> String {
-    format!("{name}@{MARKETPLACE}")
+fn qualified(name: &str, marketplace: &str) -> String {
+    format!("{name}@{marketplace}")
 }
 
-/// Split `<name>@<marketplace>`, keeping only ids from our marketplace.
-fn plugin_name_of(id: &str) -> Option<&str> {
+/// Split `<name>@<marketplace>`. An id with no `@` belongs to no marketplace
+/// this app can act on, so it is dropped rather than guessed at.
+fn split_id(id: &str) -> Option<(&str, &str)> {
     let (name, marketplace) = id.rsplit_once('@')?;
-    (marketplace == MARKETPLACE).then_some(name)
+    (!name.is_empty() && !marketplace.is_empty()).then_some((name, marketplace))
 }
 
 fn read_enabled(path: &Path) -> BTreeMap<String, bool> {
@@ -211,49 +232,111 @@ fn user_settings_path() -> PathBuf {
     crate::persona::claude_dir().join("settings.json")
 }
 
+/// The order the marketplaces are read and shown in: workhub's own first,
+/// then the rest alphabetically. It leads because it is the one the app is
+/// about — the others are there so the owner can see what else a session
+/// loads.
+fn marketplace_order(known: &BTreeMap<String, KnownMarketplace>) -> Vec<String> {
+    let mut order: Vec<String> = known.keys().cloned().collect();
+    order.sort_by_key(|name| (name != MARKETPLACE, name.clone()));
+    order
+}
+
+/// Which plugins of one marketplace get a row.
+///
+/// A catalogued marketplace leads with its catalog, in the catalog's own
+/// order, because a plugin the vault requires has to appear even when it is
+/// switched off — "required and missing" is the thing that list exists to
+/// say. Anything installed or enabled follows.
+///
+/// A marketplace with no catalog gets only what is installed or enabled. It
+/// makes no claim about what the owner ought to have, and its full offering
+/// can run to hundreds of plugins.
+fn plugin_names_for<'a>(
+    marketplace: &str,
+    catalog: &[CatalogEntry],
+    ids: impl Iterator<Item = &'a String>,
+) -> Vec<String> {
+    let mut names: Vec<String> = catalog.iter().map(|c| c.name.clone()).collect();
+    for id in ids {
+        if let Some((plugin, market)) = split_id(id) {
+            if market == marketplace && !names.iter().any(|n| n == plugin) {
+                names.push(plugin.to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Plugins installed or enabled from a marketplace the machine no longer has
+/// registered, as `(plugin, marketplace)` pairs, each listed once.
+///
+/// They still get rows: a session loads them every day, whatever
+/// `known_marketplaces.json` says, and a tab that quietly omitted them would
+/// be denying something that is demonstrably running.
+fn orphan_ids<'a>(
+    known: &BTreeMap<String, KnownMarketplace>,
+    ids: impl Iterator<Item = &'a String>,
+) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for id in ids {
+        let Some((plugin, market)) = split_id(id) else {
+            continue;
+        };
+        if known.contains_key(market) {
+            continue;
+        }
+        if !out.iter().any(|(p, m)| p == plugin && m == market) {
+            out.push((plugin.to_string(), market.to_string()));
+        }
+    }
+    out
+}
+
 /// Collect everything the Plugins tab renders. Missing files are not errors:
 /// a machine that has never installed a plugin reads as "nothing installed",
 /// which is exactly what the tab should say.
+/// `plugin name -> version` from every `plugin.json` in one marketplace clone.
+/// This is what "latest" means: the version a `claude plugin update` would
+/// install, which is only as current as the last `marketplace update`.
+fn latest_versions(clone: &Path) -> BTreeMap<String, String> {
+    let mut latest = BTreeMap::new();
+    let Some(file) =
+        read_json::<MarketplaceFile>(&clone.join(".claude-plugin").join("marketplace.json"))
+    else {
+        return latest;
+    };
+    for entry in file.plugins {
+        let source = entry.source.trim_start_matches("./");
+        let manifest = clone
+            .join(source)
+            .join(".claude-plugin")
+            .join("plugin.json");
+        let version = read_json::<PluginManifest>(&manifest)
+            .map(|m| m.version)
+            .unwrap_or_default();
+        latest.insert(entry.name, version);
+    }
+    latest
+}
+
+/// Collect everything the Plugins tab renders. Missing files are not errors:
+/// a machine that has never installed a plugin reads as "nothing installed",
+/// which is exactly what the tab should say.
+///
+/// Every registered marketplace is read, but they are not read the same way
+/// (T-0238). The workhub marketplace has a catalog, so its rows come from the
+/// catalog — a required plugin has to appear even when it is switched off,
+/// since "required and missing" is the whole point of that list. Every other
+/// marketplace has no catalog to make such a claim, so its rows are exactly
+/// what this machine has installed or switched on. The alternative — listing
+/// each marketplace's whole offering — would put some 500 rows on screen for
+/// the two `claude-plugins-official` plugins actually in use, and that is a
+/// plugin store, not this tab.
 pub fn read_state(vault_path: &str) -> PluginsState {
     let dir = plugins_dir();
     let known: BTreeMap<String, KnownMarketplace> =
         read_json(&dir.join("known_marketplaces.json")).unwrap_or_default();
-    let entry = known.get(MARKETPLACE);
-    let clone_path = entry
-        .map(|m| m.install_location.clone())
-        .unwrap_or_default();
-    let marketplace_updated = entry.map(|m| m.last_updated.clone()).unwrap_or_default();
-    let clone = PathBuf::from(&clone_path);
-    let clone_found = !clone_path.is_empty() && clone.is_dir();
-
-    // name -> latest version, from each plugin's own manifest in the clone.
-    let mut latest: BTreeMap<String, String> = BTreeMap::new();
-    if clone_found {
-        if let Some(file) =
-            read_json::<MarketplaceFile>(&clone.join(".claude-plugin").join("marketplace.json"))
-        {
-            for entry in file.plugins {
-                let source = entry.source.trim_start_matches("./");
-                let manifest = clone
-                    .join(source)
-                    .join(".claude-plugin")
-                    .join("plugin.json");
-                let version = read_json::<PluginManifest>(&manifest)
-                    .map(|m| m.version)
-                    .unwrap_or_default();
-                latest.insert(entry.name, version);
-            }
-        }
-    }
-
-    let catalog: Vec<CatalogEntry> = if clone_found {
-        read_json::<CatalogFile>(&clone.join(".claude-plugin").join("catalog.json"))
-            .map(|c| c.plugins)
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    let catalog_found = !catalog.is_empty();
 
     let installed: BTreeMap<String, Vec<InstalledEntry>> =
         read_json::<InstalledFile>(&dir.join("installed_plugins.json"))
@@ -268,26 +351,47 @@ pub fn read_state(vault_path: &str) -> PluginsState {
         .map(read_enabled)
         .unwrap_or_default();
 
-    // Every plugin name worth a row: the catalog first (it decides the order),
-    // then anything installed or switched on that the catalog does not list.
-    let mut names: Vec<String> = catalog.iter().map(|c| c.name.clone()).collect();
-    for id in installed
-        .keys()
-        .chain(enabled_user.keys())
-        .chain(enabled_project.keys())
-    {
-        if let Some(name) = plugin_name_of(id) {
-            if !names.iter().any(|n| n == name) {
-                names.push(name.to_string());
-            }
-        }
-    }
+    let order = marketplace_order(&known);
 
-    let rows = names
-        .into_iter()
-        .map(|name| {
-            let cat = catalog.iter().find(|c| c.name == name);
-            let id = qualified(&name);
+    let mut marketplaces = Vec::new();
+    let mut rows = Vec::new();
+
+    for name in &order {
+        let entry = &known[name];
+        let clone = PathBuf::from(&entry.install_location);
+        let clone_found = !entry.install_location.is_empty() && clone.is_dir();
+        let latest = if clone_found {
+            latest_versions(&clone)
+        } else {
+            BTreeMap::new()
+        };
+        let catalog: Vec<CatalogEntry> = if clone_found {
+            read_json::<CatalogFile>(&clone.join(".claude-plugin").join("catalog.json"))
+                .map(|c| c.plugins)
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        marketplaces.push(MarketplaceInfo {
+            name: name.clone(),
+            clone_path: entry.install_location.clone(),
+            clone_found,
+            catalog_found: !catalog.is_empty(),
+            marketplace_updated: entry.last_updated.clone(),
+        });
+
+        let names = plugin_names_for(
+            name,
+            &catalog,
+            installed
+                .keys()
+                .chain(enabled_user.keys())
+                .chain(enabled_project.keys()),
+        );
+
+        rows.extend(names.into_iter().map(|plugin| {
+            let cat = catalog.iter().find(|c| c.name == plugin);
+            let id = qualified(&plugin, name);
             let installs = installed
                 .get(&id)
                 .map(|entries| {
@@ -303,25 +407,67 @@ pub fn read_state(vault_path: &str) -> PluginsState {
                 })
                 .unwrap_or_default();
             PluginRow {
+                marketplace: name.clone(),
                 in_catalog: cat.is_some(),
                 tier: cat.map(|c| c.tier.clone()).unwrap_or_default(),
                 scope: cat.map(|c| c.scope.clone()).unwrap_or_default(),
                 summary: cat.map(|c| c.summary.clone()).unwrap_or_default(),
-                latest_version: latest.get(&name).cloned().unwrap_or_default(),
+                latest_version: latest.get(&plugin).cloned().unwrap_or_default(),
                 installs,
                 enabled_project: *enabled_project.get(&id).unwrap_or(&false),
                 enabled_user: *enabled_user.get(&id).unwrap_or(&false),
-                name,
+                name: plugin,
             }
-        })
-        .collect();
+        }));
+    }
+
+    for (plugin, market) in orphan_ids(
+        &known,
+        installed
+            .keys()
+            .chain(enabled_user.keys())
+            .chain(enabled_project.keys()),
+    ) {
+        let id = qualified(&plugin, &market);
+        if !marketplaces.iter().any(|m| m.name == market) {
+            marketplaces.push(MarketplaceInfo {
+                name: market.clone(),
+                clone_path: String::new(),
+                clone_found: false,
+                catalog_found: false,
+                marketplace_updated: String::new(),
+            });
+        }
+        rows.push(PluginRow {
+            name: plugin,
+            marketplace: market,
+            in_catalog: false,
+            tier: String::new(),
+            scope: String::new(),
+            summary: String::new(),
+            latest_version: String::new(),
+            installs: installed
+                .get(&id)
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .map(|e| PluginInstall {
+                            scope: e.scope.clone(),
+                            version: e.version.clone(),
+                            project_path: e.project_path.clone(),
+                            install_path: e.install_path.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            enabled_project: *enabled_project.get(&id).unwrap_or(&false),
+            enabled_user: *enabled_user.get(&id).unwrap_or(&false),
+        });
+    }
 
     PluginsState {
         marketplace: MARKETPLACE.to_string(),
-        clone_path,
-        clone_found,
-        catalog_found,
-        marketplace_updated,
+        marketplaces,
         project_settings_path: project_settings
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default(),
@@ -521,9 +667,12 @@ fn read_hooks(root: &Path) -> Vec<PluginHookEvent> {
 /// `scope` picks between two installs of the same plugin; the first install is
 /// used when it does not match, since a plugin on disk at another scope is
 /// still the same files.
-pub fn read_details(vault_path: &str, name: &str, scope: &str) -> PluginDetails {
+pub fn read_details(vault_path: &str, name: &str, marketplace: &str, scope: &str) -> PluginDetails {
     let state = read_state(vault_path);
-    let row = state.rows.iter().find(|r| r.name == name);
+    let row = state
+        .rows
+        .iter()
+        .find(|r| r.name == name && r.marketplace == marketplace);
     let install = row.and_then(|r| {
         r.installs
             .iter()
@@ -589,6 +738,7 @@ pub fn read_details(vault_path: &str, name: &str, scope: &str) -> PluginDetails 
 pub fn set_enabled(
     vault_path: &str,
     name: &str,
+    marketplace: &str,
     scope: &str,
     enabled: bool,
 ) -> Result<PluginsState, String> {
@@ -616,12 +766,12 @@ pub fn set_enabled(
         .as_object_mut()
         .ok_or_else(|| format!("enabledPlugins in {} is not an object", path.display()))?;
     if enabled {
-        plugins.insert(qualified(name), serde_json::Value::Bool(true));
+        plugins.insert(qualified(name, marketplace), serde_json::Value::Bool(true));
     } else {
         // Removed rather than set to false: absent is the shape Claude Code and
         // the vault template both write, and a `false` left behind reads as a
         // deliberate opt-out nobody made.
-        plugins.remove(&qualified(name));
+        plugins.remove(&qualified(name, marketplace));
     }
 
     if let Some(parent) = path.parent() {
@@ -678,8 +828,11 @@ fn run_claude(vault_path: &str, args: &[&str]) -> Result<PluginCommandResult, St
 
 /// Refresh the marketplace clone, which is where every "latest version" here
 /// comes from. Without it the tab compares against whatever was cloned last.
-pub fn update_marketplace(vault_path: &str) -> Result<PluginCommandResult, String> {
-    run_claude(vault_path, &["marketplace", "update", MARKETPLACE])
+pub fn update_marketplace(
+    vault_path: &str,
+    marketplace: &str,
+) -> Result<PluginCommandResult, String> {
+    run_claude(vault_path, &["marketplace", "update", marketplace])
 }
 
 /// `claude plugin update <name>@<marketplace> --scope <scope>`.
@@ -689,12 +842,13 @@ pub fn update_marketplace(vault_path: &str) -> Result<PluginCommandResult, Strin
 pub fn update_plugin(
     vault_path: &str,
     name: &str,
+    marketplace: &str,
     scope: &str,
 ) -> Result<PluginCommandResult, String> {
     if !matches!(scope, "user" | "project" | "local" | "managed") {
         return Err(format!("unknown scope: {scope}"));
     }
-    let id = qualified(name);
+    let id = qualified(name, marketplace);
     run_claude(vault_path, &["update", &id, "--scope", scope, "--yes"])
 }
 
@@ -704,14 +858,132 @@ mod tests {
 
     #[test]
     fn qualifies_and_splits_plugin_ids() {
-        assert_eq!(qualified("workhub"), "workhub@workhub-marketplace");
         assert_eq!(
-            plugin_name_of("workhub@workhub-marketplace"),
-            Some("workhub")
+            qualified("workhub", MARKETPLACE),
+            "workhub@workhub-marketplace"
         );
-        // Other marketplaces are not this tab's business.
-        assert_eq!(plugin_name_of("pyright-lsp@claude-plugins-official"), None);
-        assert_eq!(plugin_name_of("no-marketplace"), None);
+        assert_eq!(
+            split_id("workhub@workhub-marketplace"),
+            Some(("workhub", "workhub-marketplace"))
+        );
+        // Every marketplace is read now (T-0238), not just workhub's.
+        assert_eq!(
+            split_id("pyright-lsp@claude-plugins-official"),
+            Some(("pyright-lsp", "claude-plugins-official"))
+        );
+        // An id naming no marketplace cannot be acted on.
+        assert_eq!(split_id("no-marketplace"), None);
+        assert_eq!(split_id("@nothing"), None);
+        assert_eq!(split_id("nothing@"), None);
+    }
+
+    fn catalog(names: &[&str]) -> Vec<CatalogEntry> {
+        names
+            .iter()
+            .map(|n| CatalogEntry {
+                name: (*n).to_string(),
+                tier: "required".into(),
+                scope: "user".into(),
+                summary: String::new(),
+            })
+            .collect()
+    }
+
+    fn known_of(names: &[&str]) -> BTreeMap<String, KnownMarketplace> {
+        names
+            .iter()
+            .map(|n| {
+                (
+                    (*n).to_string(),
+                    KnownMarketplace {
+                        install_location: String::new(),
+                        last_updated: String::new(),
+                    },
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn workhubs_marketplace_is_read_first() {
+        let known = known_of(&["superpowers-dev", "claude-plugins-official", MARKETPLACE]);
+        assert_eq!(
+            marketplace_order(&known),
+            [MARKETPLACE, "claude-plugins-official", "superpowers-dev"],
+            "workhub's own leads; the rest are alphabetical"
+        );
+        assert!(marketplace_order(&BTreeMap::new()).is_empty());
+    }
+
+    #[test]
+    fn a_catalogued_marketplace_lists_its_catalog_even_when_nothing_is_installed() {
+        let ids = [
+            "workhub@workhub-marketplace".to_string(),
+            // Another marketplace's plugin must not leak into this one's rows.
+            "pyright-lsp@claude-plugins-official".to_string(),
+            "leftover@workhub-marketplace".to_string(),
+        ];
+        assert_eq!(
+            plugin_names_for(
+                MARKETPLACE,
+                &catalog(&["workhub", "engineering"]),
+                ids.iter()
+            ),
+            ["workhub", "engineering", "leftover"],
+            "catalog order first, then what is installed or enabled but uncatalogued"
+        );
+    }
+
+    // The whole point of T-0238: a marketplace with no catalog makes no claim
+    // about what the owner should have, and `claude-plugins-official` alone
+    // offers some 500 plugins against the two in use here.
+    #[test]
+    fn an_uncatalogued_marketplace_lists_only_what_is_installed_or_enabled() {
+        let ids = [
+            "pyright-lsp@claude-plugins-official".to_string(),
+            "rust-analyzer-lsp@claude-plugins-official".to_string(),
+            "workhub@workhub-marketplace".to_string(),
+            "malformed-id".to_string(),
+        ];
+        assert_eq!(
+            plugin_names_for("claude-plugins-official", &[], ids.iter()),
+            ["pyright-lsp", "rust-analyzer-lsp"]
+        );
+        // Nothing installed from it at all: no rows, not an error.
+        assert!(plugin_names_for("genshijin", &[], ids.iter()).is_empty());
+    }
+
+    #[test]
+    fn a_plugin_is_listed_once_however_many_scopes_hold_it() {
+        // The same id legitimately appears in installed_plugins.json and in
+        // both settings files; three sightings are still one plugin.
+        let ids = [
+            "workhub@workhub-marketplace".to_string(),
+            "workhub@workhub-marketplace".to_string(),
+        ];
+        assert_eq!(
+            plugin_names_for(MARKETPLACE, &catalog(&["workhub"]), ids.iter()),
+            ["workhub"]
+        );
+    }
+
+    #[test]
+    fn plugins_from_a_deregistered_marketplace_still_get_a_row() {
+        let known = known_of(&[MARKETPLACE]);
+        let ids = [
+            "workhub@workhub-marketplace".to_string(),
+            "superpowers@superpowers-dev".to_string(),
+            // The same orphan seen again (installed *and* enabled) is one row.
+            "superpowers@superpowers-dev".to_string(),
+            "malformed-id".to_string(),
+        ];
+        assert_eq!(
+            orphan_ids(&known, ids.iter()),
+            [("superpowers".to_string(), "superpowers-dev".to_string())]
+        );
+        // Nothing is orphaned when every marketplace is still registered.
+        let all = known_of(&[MARKETPLACE, "superpowers-dev"]);
+        assert!(orphan_ids(&all, ids.iter()).is_empty());
     }
 
     #[test]
@@ -840,7 +1112,7 @@ mod tests {
     fn a_plugin_with_no_install_reads_as_not_installed() {
         // Nothing is installed under a vault path that does not exist, so this
         // is the "enabled but not installed yet" case the tab has to explain.
-        let details = read_details("", "nonexistent-plugin", "user");
+        let details = read_details("", "nonexistent-plugin", MARKETPLACE, "user");
         assert!(!details.installed);
         assert!(details.install_path.is_empty());
         assert!(details.skills.is_empty());
@@ -848,7 +1120,7 @@ mod tests {
 
     #[test]
     fn rejects_an_unknown_scope() {
-        assert!(update_plugin("", "workhub", "nonsense").is_err());
-        assert!(set_enabled("", "workhub", "nonsense", true).is_err());
+        assert!(update_plugin("", "workhub", MARKETPLACE, "nonsense").is_err());
+        assert!(set_enabled("", "workhub", MARKETPLACE, "nonsense", true).is_err());
     }
 }
