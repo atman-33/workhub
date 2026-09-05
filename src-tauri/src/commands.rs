@@ -1409,6 +1409,21 @@ pub async fn plugins_state(vault_path: String) -> crate::plugins::PluginsState {
         .unwrap_or_else(|_| crate::plugins::read_state(""))
 }
 
+/// What one plugin actually contains — its skills, agents, commands and hooks
+/// — read from the copy that is installed, not from the marketplace clone.
+#[tauri::command]
+pub async fn plugin_details(
+    vault_path: String,
+    name: String,
+    scope: String,
+) -> crate::plugins::PluginDetails {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plugins::read_details(&vault_path, &name, &scope)
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Adds or removes one `enabledPlugins` key in the vault's or the user's
 /// `settings.json`. Takes effect in the next Claude Code session.
 #[tauri::command]

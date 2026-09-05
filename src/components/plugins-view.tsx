@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Puzzle, RefreshCw } from "lucide-react";
 
+import { PluginDetailsButton, PluginDetailsDialog } from "@/components/plugin-details-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Switch } from "@/components/ui/switch";
@@ -77,11 +78,13 @@ function PluginCard({
   busy,
   onToggle,
   onUpdate,
+  onOpenDetails,
 }: {
   view: PluginView;
   busy: boolean;
   onToggle: (enabled: boolean) => void;
   onUpdate: () => void;
+  onOpenDetails: () => void;
 }) {
   const scope = view.scope || "unlisted";
   return (
@@ -132,6 +135,11 @@ function PluginCard({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <Hint label="What this plugin puts into a session: skills, agents, commands, hooks">
+          <span>
+            <PluginDetailsButton onOpen={onOpenDetails} />
+          </span>
+        </Hint>
         {view.status === "outdated" && (
           <Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={onUpdate}>
             Update
@@ -159,6 +167,8 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PluginCommandResult | null>(null);
+  /** The plugin whose contents are being read; null keeps the dialog closed. */
+  const [details, setDetails] = useState<PluginView | null>(null);
 
   const load = useCallback(async () => {
     setState(await api.pluginsState(vaultPath));
@@ -311,6 +321,7 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
                   api.pluginsUpdatePlugin(vaultPath, view.name, view.effective_scope),
                 )
               }
+              onOpenDetails={() => setDetails(view)}
             />
           ))}
         </div>
@@ -331,6 +342,12 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           and <code>{state?.user_settings_path}</code> (user scope).
         </p>
       </div>
+
+      <PluginDetailsDialog
+        view={details}
+        vaultPath={vaultPath}
+        onClose={() => setDetails(null)}
+      />
     </div>
   );
 }

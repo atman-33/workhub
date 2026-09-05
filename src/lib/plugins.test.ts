@@ -70,7 +70,7 @@ describe("effectiveScope", () => {
   it("falls back to the install, then to user, for an `either` plugin that is off", () => {
     const installed = row({
       scope: "either",
-      installs: [{ scope: "project", version: "1.0.0", project_path: "C:/vault" }],
+      installs: [{ scope: "project", version: "1.0.0", project_path: "C:/vault", install_path: ""  }],
     });
     expect(effectiveScope(installed)).toBe("project");
     expect(effectiveScope(row({ scope: "either" }))).toBe("user");
@@ -85,8 +85,8 @@ describe("installedVersion", () => {
   it("prefers the install at the asked-for scope", () => {
     const r = row({
       installs: [
-        { scope: "user", version: "1.0.0", project_path: "" },
-        { scope: "project", version: "2.0.0", project_path: "C:/vault" },
+        { scope: "user", version: "1.0.0", project_path: "", install_path: ""  },
+        { scope: "project", version: "2.0.0", project_path: "C:/vault", install_path: ""  },
       ],
     });
     expect(installedVersion(r, "project")).toBe("2.0.0");
@@ -94,7 +94,7 @@ describe("installedVersion", () => {
   });
 
   it("reports an install at another scope rather than claiming nothing", () => {
-    const r = row({ installs: [{ scope: "user", version: "1.0.0", project_path: "" }] });
+    const r = row({ installs: [{ scope: "user", version: "1.0.0", project_path: "", install_path: ""  }] });
     expect(installedVersion(r, "project")).toBe("1.0.0");
   });
 
@@ -104,7 +104,7 @@ describe("installedVersion", () => {
 });
 
 describe("pluginStatus", () => {
-  const install = (version: string) => [{ scope: "project", version, project_path: "C:/v" }];
+  const install = (version: string) => [{ scope: "project", version, project_path: "C:/v", install_path: ""  }];
 
   it("flags a required plugin that is switched off", () => {
     expect(pluginStatus(row({ tier: "required" }))).toBe("missing");
@@ -155,9 +155,9 @@ describe("pluginStatus", () => {
 describe("pluginViews", () => {
   it("puts what needs a decision first and keeps catalog order within a status", () => {
     const rows = [
-      row({ name: "ok-one", enabled_project: true, installs: [{ scope: "project", version: "1.0.0", project_path: "" }] }),
+      row({ name: "ok-one", enabled_project: true, installs: [{ scope: "project", version: "1.0.0", project_path: "", install_path: ""  }] }),
       row({ name: "off-one" }),
-      row({ name: "outdated-one", enabled_project: true, latest_version: "2.0.0", installs: [{ scope: "project", version: "1.0.0", project_path: "" }] }),
+      row({ name: "outdated-one", enabled_project: true, latest_version: "2.0.0", installs: [{ scope: "project", version: "1.0.0", project_path: "", install_path: ""  }] }),
       row({ name: "missing-one", tier: "required" }),
       row({ name: "advised-one", tier: "recommended" }),
     ];
@@ -175,7 +175,7 @@ describe("pluginViews", () => {
     // nothing and the tier has to. Written here in the catalog order the tab
     // used to fall through to, with the recommended one listed last.
     const ok = { enabled_user: true, scope: "user" as const };
-    const installs = [{ scope: "user", version: "1.0.0", project_path: "" }];
+    const installs = [{ scope: "user", version: "1.0.0", project_path: "", install_path: ""  }];
     const rows = [
       row({ name: "req", tier: "required", ...ok, installs }),
       row({ name: "opt", tier: "optional", ...ok, installs }),
@@ -202,7 +202,7 @@ describe("pluginViews", () => {
         name: "persona",
         scope: "either",
         enabled_user: true,
-        installs: [{ scope: "user", version: "0.3.0", project_path: "" }],
+        installs: [{ scope: "user", version: "0.3.0", project_path: "", install_path: ""  }],
         latest_version: "0.3.0",
       }),
     ];
@@ -224,7 +224,7 @@ describe("pluginProblems", () => {
         name: "outdated-one",
         enabled_project: true,
         latest_version: "2.0.0",
-        installs: [{ scope: "project", version: "1.0.0", project_path: "" }],
+        installs: [{ scope: "project", version: "1.0.0", project_path: "", install_path: ""  }],
       }),
     ];
     const views = pluginViews(state(rows));
