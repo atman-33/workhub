@@ -18,7 +18,8 @@
 //                                 [--priority p] [--model m] [--due d]
 //                                 [--blocked true|false] [--blocked-note "..."]
 //   node task-cli.mjs report <id>
-//   (all commands accept --vault <path>)
+//   node task-cli.mjs sessions [--json]
+//   (all commands accept --vault <path>; start/report accept --session <key>)
 //
 // Vault resolution order: --vault flag, WORKHUB_VAULT env var, the current
 // directory if it looks like a vault (has tasks/ and _ai/), then
@@ -27,6 +28,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import {
+  clearMarkersForTask,
+  dropLegacyMarker,
+  hostSessionId,
+  listMarkers,
+  sessionKey,
+  writeMarker,
+} from "../lib/session-marker.mjs";
 
 // ---------------------------------------------------------------------
 // vault resolution
@@ -320,14 +329,24 @@ function findTask(vault, id) {
   fail(`task ${id} not found in ${path.join(vault, "tasks")}`);
 }
 
+/** `findTask` without the exit — for callers that tolerate a missing task. */
+function findTaskQuiet(vault, id) {
+  const prefix = `${id} `;
+  for (const dir of [path.join(vault, "tasks"), path.join(vault, "tasks", "archive")]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      if (name.startsWith(prefix) && name.endsWith(".md")) {
+        return parseTaskFile(path.join(dir, name));
+      }
+    }
+  }
+  return null;
+}
+
 function today() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function activeTaskFile(vault) {
-  return path.join(vault, "_ai", "memory", "active-task.json");
 }
 
 // ---------------------------------------------------------------------
@@ -498,7 +517,7 @@ function cmdCreate(vault, flags) {
   console.log(`created ${task.id} (status: ${task.status}) — ${task.file}`);
 }
 
-function cmdStart(vault, id) {
+function cmdStart(vault, id, flags) {
   const task = findTask(vault, id);
   if (task.status === "review" || task.status === "done") {
     fail(`task ${id} is '${task.status}' — only inbox/todo/doing tasks can be started`);
@@ -506,14 +525,17 @@ function cmdStart(vault, id) {
   task.status = "doing";
   task.updated = today();
   writeTaskFile(task);
-  const marker = activeTaskFile(vault);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  const relFile = path.relative(vault, task.file).replaceAll("\\", "/");
-  fs.writeFileSync(
-    marker,
-    JSON.stringify({ id: task.id, file: relFile, started: new Date().toISOString() }, null, 2) + "\n",
-    "utf-8",
-  );
+  // One marker per session, keyed by the session id Claude Code exports, so
+  // two sessions started at once no longer overwrite each other (T-0243).
+  const key = sessionKey(flags.session);
+  writeMarker(vault, key, {
+    session_id: key,
+    host_session_id: hostSessionId(),
+    id: task.id,
+    file: path.relative(vault, task.file).replaceAll("\\", "/"),
+    started: new Date().toISOString(),
+  });
+  dropLegacyMarker(vault);
   regenerateIndex(vault);
   console.log(`started ${task.id} (status: doing) — ${task.file}`);
 }
@@ -536,15 +558,55 @@ function cmdReport(vault, id) {
   task.status = "review";
   task.updated = today();
   writeTaskFile(task);
-  const marker = activeTaskFile(vault);
-  try {
-    const active = JSON.parse(fs.readFileSync(marker, "utf-8"));
-    if (active?.id === id) fs.unlinkSync(marker);
-  } catch {
-    /* no marker or unreadable — nothing to clear */
-  }
+  clearMarkersForTask(vault, id);
   regenerateIndex(vault);
   console.log(`reported ${task.id} (status: review) — remember to fill its ## Results section`);
+}
+
+/**
+ * The directory of which session is working which task — the answer to "who
+ * has T-0200 open right now" (T-0243).
+ *
+ * A session hands a finding to another one by looking its task up here and
+ * sending to the `host_session_id` with the desktop app's `send_message`. The
+ * listing is what the markers say, not what is provably alive: a session that
+ * ended without reporting leaves its marker behind, so treat an old `started`
+ * as a hint that the entry may be stale.
+ */
+function cmdSessions(vault, flags) {
+  const self = sessionKey(flags.session);
+  const rows = listMarkers(vault).map((m) => {
+    const task = findTaskQuiet(vault, m.id);
+    const title = task?.title ?? "";
+    const status = task?.status ?? "";
+    return {
+      session_id: m.session_id ?? "",
+      host_session_id: m.host_session_id ?? "",
+      task: m.id,
+      title,
+      status,
+      started: m.started ?? "",
+      self: (m.session_id ?? "") === self,
+    };
+  });
+
+  if (flags.json !== undefined) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+  if (!rows.length) {
+    console.log("no session is working a task");
+    return;
+  }
+  for (const r of rows) {
+    const mark = r.self ? "*" : " ";
+    const addr = r.host_session_id || "(not addressable)";
+    console.log(`${mark} ${r.task}  ${r.title}`);
+    console.log(`    ${addr}  started ${r.started}`);
+  }
+  console.log("");
+  console.log("* = this session. Send to another with the app's send_message,");
+  console.log("  passing the address shown under it as session_id.");
 }
 
 // ---------------------------------------------------------------------
@@ -594,7 +656,7 @@ switch (command) {
   }
   case "start": {
     if (!id) fail("usage: task-cli start <id>");
-    cmdStart(resolveVault(flags), id);
+    cmdStart(resolveVault(flags), id, flags);
     break;
   }
   case "update": {
@@ -607,6 +669,12 @@ switch (command) {
     cmdReport(resolveVault(flags), id);
     break;
   }
+  case "sessions": {
+    cmdSessions(resolveVault(flags), flags);
+    break;
+  }
   default:
-    fail("usage: task-cli <list|create|start|update|report> [args] (see file header for details)");
+    fail(
+      "usage: task-cli <list|create|start|update|report|sessions> [args] (see file header for details)",
+    );
 }

@@ -2,9 +2,12 @@
 // (text only — embedding happens in a detached background process).
 // Silent no-op when the memory engine is not set up on this machine; a hook
 // must never break a session.
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { readPayload } from "./lib.mjs";
+import {
+  readMarker as readSessionMarker,
+  sessionKey,
+} from "../lib/session-marker.mjs";
 
 try {
   const { readMarker, memoryEnabled, resolveVaultForHook, dbPathForVault } = await import(
@@ -27,15 +30,11 @@ try {
   const chunks = loadChunks(transcriptPath);
   if (!chunks.length) process.exit(0);
 
-  // Tag the session's chunks with the active workhub task, when one is set.
-  let taskId = "";
-  try {
-    taskId = JSON.parse(
-      readFileSync(join(vault, "_ai", "memory", "active-task.json"), "utf8"),
-    ).id ?? "";
-  } catch {
-    // no active task — chunks are stored untagged
-  }
+  // Tag the session's chunks with the task THIS session is working, when one
+  // is set. Reading a shared marker used to file a transcript under whichever
+  // task happened to be started last, which under two parallel sessions was
+  // routinely the other one's (T-0243).
+  const taskId = readSessionMarker(vault, sessionKey(payload.session_id))?.id ?? "";
 
   const { openDb, initDb, saveChunksTextOnly } = await import("../memory-engine/lib/db.mjs");
   const db = openDb(dbPathForVault(vault), sqlite);

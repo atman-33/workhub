@@ -10,7 +10,8 @@ argument-hint: "<task-id>"
 
 1. **Mark the task as started** with the bundled CLI (preferred — it
    validates the status transition, sets `status: doing` + `updated`,
-   writes the active-task marker, and refreshes the index in one step):
+   writes this session's active-task marker, and refreshes the index in one
+   step):
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" start <task-id>
@@ -24,8 +25,12 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* edit the task file by hand —
    set `status: doing` and `updated: <today>` in the frontmatter (preserve
    the body byte-for-byte; never start `review`/`done`/`archived` tasks),
-   and write `<vault>/_ai/memory/active-task.json` with
-   `{ "id", "file", "started": "<ISO timestamp>" }`.
+   and write `<vault>/_ai/memory/sessions/$CLAUDE_CODE_SESSION_ID.json` with
+   `{ "session_id", "host_session_id", "id", "file", "started" }`.
+
+   The marker is per session, so two tasks started at once no longer
+   overwrite each other's — and the folder doubles as the directory of who
+   is working what (see *Handing information to another session* below).
 
 2. **Load context.** Read the task body:
    - `## Description` is the task description and acts as the prompt/spec.
@@ -103,6 +108,39 @@ argument-hint: "<task-id>"
      (step 2) and should not be writing a new one.
 6. **Begin the work** in the target repository (or its worktree), following
    that repo's own instructions (CLAUDE.md etc.).
+
+## Handing information to another session
+
+A task often needs something another session is holding — you split an
+investigation into its own task, and its result has to reach the session that
+asked for it. Do not wait for the owner to relay a file path.
+
+1. Find the session working the other task:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" sessions
+   ```
+
+   Each row is a task, the session working it, and that session's address.
+   `*` marks this session. An old `started` means the row may be stale — a
+   session that ended without reporting leaves its marker behind.
+
+2. Send to that address with the desktop app's `send_message` tool, passing
+   the address as its `session_id`. It arrives in the other session as a user
+   turn labelled with this session's title, so say which task you are writing
+   from and link the deliverable note rather than pasting it.
+
+Rules for this:
+
+- **Send links, not contents.** The vault is the durable channel; a message
+  is a pointer plus the one line that says why it matters.
+- **Only to a session that is actually working a related task.** Do not
+  broadcast, and do not message a session to ask it to do your work.
+- A session that is not running cannot be reached. Leave the finding in the
+  task's `## Results` and its deliverable note — the next session for that
+  task reads them at task-start, which is the whole point of writing there.
+- Sessions started outside the desktop app (OpenCode, a bare terminal) have
+  no address and show as `(not addressable)`.
 
 ## Rules
 
