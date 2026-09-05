@@ -331,7 +331,11 @@ export function TaskEditorForm({
       onBlur={() => setDescEditing(false)}
       // Fill the pane with a fixed-size scrolling editor rather than the
       // default grow-with-content sizing, which would fight the flex layout.
-      className="min-h-0 flex-1 field-sizing-fixed resize-none"
+      // text-sm/leading-relaxed match the Markdown preview this toggles with:
+      // the shared Textarea is text-base below the md breakpoint, and the
+      // editor window is narrower than that, so clicking to edit would
+      // otherwise jump the text from 14px to 16px (T-0247).
+      className="min-h-0 flex-1 field-sizing-fixed resize-none text-sm leading-relaxed"
       placeholder="Task description — this is the prompt context handed to AI agents."
     />
   ) : (

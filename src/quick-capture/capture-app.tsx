@@ -19,6 +19,7 @@ import { api } from "@/lib/api";
 import { matchCapturePatterns, shouldAutoPaste } from "@/lib/capture-patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -35,6 +36,12 @@ export function CaptureApp() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [vaultPath, setVaultPath] = useState<string | null>(null);
+  /** Vault project slugs offered by the Project picker. */
+  const [projects, setProjects] = useState<string[]>([]);
+  /** Deliberately not reset by `init()`: a burst of captures usually belongs to
+   *  the same project, so the last choice is carried into the next capture.
+   *  Everything else in the form is per-capture and is cleared. */
+  const [project, setProject] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   /** Clipboard text held back by the long-content guard, pasted on demand. */
@@ -58,7 +65,15 @@ export function CaptureApp() {
       setDescription("");
       setPendingClipboard(clip);
     }
-    setVaultPath((await api.getConfig()).settings.vault_path);
+    const path = (await api.getConfig()).settings.vault_path;
+    setVaultPath(path);
+    setProjects(
+      path
+        ? (await api.listVaultProjects(path, false).catch(() => []))
+            .map((p) => p.slug)
+            .sort()
+        : [],
+    );
     titleRef.current?.focus();
   }, []);
 
@@ -86,6 +101,7 @@ export function CaptureApp() {
         title: trimmed,
         status: "inbox",
         assignee: "me",
+        project,
         tags: matched.map((p) => p.id),
         body: `\n## Description\n\n${description.trim()}\n\n## Results\n`,
       });
@@ -136,6 +152,16 @@ export function CaptureApp() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Task title"
           className="h-8"
+        />
+        {/* One row tall on purpose: this window is small, and the description
+            below owns the remaining height. */}
+        <Combobox
+          value={project}
+          onChange={setProject}
+          options={projects}
+          noneLabel="No project"
+          placeholder="No project"
+          emptyText="No vault projects. Create one in the Projects tab."
         />
         {/* min-h-0 on both the wrapper and the textarea, plus
             field-sizing-fixed: without them the shared Textarea's
