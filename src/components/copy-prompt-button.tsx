@@ -7,15 +7,23 @@ import type { VariantProps } from "class-variance-authority";
 
 type CopyState = "idle" | "copying" | "success";
 
-const LABELS: Record<CopyState, string> = {
-  idle: "Copy prompt",
+const BUSY_LABELS: Record<Exclude<CopyState, "idle">, string> = {
   copying: "Copying…",
   success: "Copied",
 };
 
+const DEFAULT_LABEL = "Copy prompt";
+
 interface Props {
   /** Copies the task prompt to the clipboard; the button animates feedback. */
   onCopy: () => Promise<unknown>;
+  /**
+   * What this button copies, in the resting state — shown as the label and in
+   * the tooltip. Worth setting wherever two of these sit on one screen: the
+   * default says a prompt is copied but not which one, which is exactly the
+   * question the Projects tab left unanswered (T-0248).
+   */
+  label?: string;
   /** Render the state label next to the icon instead of an icon-only button. */
   showLabel?: boolean;
   size?: VariantProps<typeof buttonVariants>["size"];
@@ -25,12 +33,15 @@ interface Props {
 }
 
 /**
- * Copies the AI agent prompt for a task to the clipboard. Used on the task
- * list, kanban card, and task editor so the user can paste the prompt into
- * another AI terminal manually.
+ * Copies an AI agent prompt to the clipboard, for pasting into an AI terminal
+ * by hand. Used on the task list, kanban card and task editor for a task's own
+ * prompt, and on the Projects tab for the two project-level prompts — which is
+ * why `label` exists: those two sit on one screen and the shared "Copy prompt"
+ * named neither of them.
  */
 export function CopyPromptButton({
   onCopy,
+  label = DEFAULT_LABEL,
   showLabel = false,
   size,
   variant = "outline",
@@ -63,6 +74,9 @@ export function CopyPromptButton({
 
   const busy = state !== "idle";
   const resolvedSize = size ?? (showLabel ? "xs" : "icon-xs");
+  // The resting label is the caller's; the two busy states are the button's own
+  // feedback and read the same whatever it copies.
+  const currentLabel = state === "idle" ? label : BUSY_LABELS[state];
 
   const icon =
     state === "copying" ? (
@@ -79,7 +93,7 @@ export function CopyPromptButton({
       size={resolvedSize}
       variant={variant}
       disabled={disabled || busy}
-      aria-label="Copy prompt"
+      aria-label={label}
       aria-busy={state === "copying"}
       className={cn(
         busy && "opacity-100 disabled:opacity-100",
@@ -92,7 +106,7 @@ export function CopyPromptButton({
       }}
     >
       {icon}
-      {showLabel && <span>{LABELS[state]}</span>}
+      {showLabel && <span>{currentLabel}</span>}
     </Button>
   );
 
@@ -100,7 +114,7 @@ export function CopyPromptButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>{LABELS[state]}</TooltipContent>
+      <TooltipContent>{currentLabel}</TooltipContent>
     </Tooltip>
   );
 }

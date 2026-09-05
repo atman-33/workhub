@@ -633,13 +633,14 @@ export function ProjectsView({
                     Shared spaces
                   </h3>
                   <CopyPromptButton
+                    showLabel
+                    label="Copy survey prompt"
                     onCopy={() => writeText(buildSharedSpaceSurveyPrompt(current))}
                   />
                 </div>
                 {current.shared.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No team knowledge base registered. Copy the prompt, paste the location
-                    into it, and hand it to an agent.
+                    No team knowledge base registered yet.
                   </p>
                 ) : (
                   <ul className="space-y-1">
@@ -698,7 +699,9 @@ export function ProjectsView({
                   One note per place in the project's{" "}
                   <span className="font-mono">shared/</span> folder, recording how the team
                   organises it. The app only reads them — surveying a place is an agent's
-                  job.
+                  job. <span className="text-foreground">Copy survey prompt</span> when a
+                  team drive is not listed here yet, or its rules have gone stale: fill in
+                  the location it asks for, then paste it into an agent.
                 </p>
               </section>
 
@@ -748,6 +751,8 @@ export function ProjectsView({
                   </h3>
                   {current.issues.length > 0 && (
                     <CopyPromptButton
+                      showLabel
+                      label="Copy fix prompt"
                       onCopy={() => writeText(buildProjectFixPrompt(current))}
                     />
                   )}
@@ -758,24 +763,35 @@ export function ProjectsView({
                     This project matches the documented layout.
                   </p>
                 ) : (
-                  <ul className="space-y-1">
-                    {current.issues.map((issue, i) => (
-                      <li
-                        key={`${issue.kind}-${issue.target}-${i}`}
-                        className={cn(
-                          "flex items-center gap-1.5 text-xs",
-                          issue.severity === "warn" ? "text-destructive" : "text-muted-foreground",
-                        )}
-                      >
-                        {issue.severity === "warn" ? (
-                          <CircleAlert className="size-3.5 shrink-0" />
-                        ) : (
-                          <Info className="size-3.5 shrink-0" />
-                        )}
-                        {issueLabel(issue)}
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="space-y-1">
+                      {current.issues.map((issue, i) => (
+                        <li
+                          key={`${issue.kind}-${issue.target}-${i}`}
+                          className={cn(
+                            "flex items-center gap-1.5 text-xs",
+                            issue.severity === "warn"
+                              ? "text-destructive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {issue.severity === "warn" ? (
+                            <CircleAlert className="size-3.5 shrink-0" />
+                          ) : (
+                            <Info className="size-3.5 shrink-0" />
+                          )}
+                          {issueLabel(issue)}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] text-muted-foreground">
+                      The scan only reports — nothing here is changed for you.{" "}
+                      <span className="text-foreground">Copy fix prompt</span> and paste it
+                      into an agent to have the findings worked through; it needs nothing
+                      filled in first, and tells the agent which of these are real gaps and
+                      which are judgement calls to leave alone.
+                    </p>
+                  </>
                 )}
               </section>
             </div>
