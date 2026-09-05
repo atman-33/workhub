@@ -1415,10 +1415,11 @@ pub async fn plugins_state(vault_path: String) -> crate::plugins::PluginsState {
 pub async fn plugin_details(
     vault_path: String,
     name: String,
+    marketplace: String,
     scope: String,
 ) -> crate::plugins::PluginDetails {
     tauri::async_runtime::spawn_blocking(move || {
-        crate::plugins::read_details(&vault_path, &name, &scope)
+        crate::plugins::read_details(&vault_path, &name, &marketplace, &scope)
     })
     .await
     .unwrap_or_default()
@@ -1430,11 +1431,12 @@ pub async fn plugin_details(
 pub async fn set_plugin_enabled(
     vault_path: String,
     name: String,
+    marketplace: String,
     scope: String,
     enabled: bool,
 ) -> Result<crate::plugins::PluginsState, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        crate::plugins::set_enabled(&vault_path, &name, &scope, enabled)
+        crate::plugins::set_enabled(&vault_path, &name, &marketplace, &scope, enabled)
     })
     .await
     .map_err(|e| format!("plugin settings write task failed: {e}"))?
@@ -1445,10 +1447,13 @@ pub async fn set_plugin_enabled(
 #[tauri::command]
 pub async fn plugins_update_marketplace(
     vault_path: String,
+    marketplace: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::plugins::update_marketplace(&vault_path))
-        .await
-        .map_err(|e| format!("marketplace update task failed: {e}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plugins::update_marketplace(&vault_path, &marketplace)
+    })
+    .await
+    .map_err(|e| format!("marketplace update task failed: {e}"))?
 }
 
 /// `claude plugin update <name>@<marketplace> --scope <scope>`.
@@ -1456,10 +1461,11 @@ pub async fn plugins_update_marketplace(
 pub async fn plugins_update_plugin(
     vault_path: String,
     name: String,
+    marketplace: String,
     scope: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        crate::plugins::update_plugin(&vault_path, &name, &scope)
+        crate::plugins::update_plugin(&vault_path, &name, &marketplace, &scope)
     })
     .await
     .map_err(|e| format!("plugin update task failed: {e}"))?

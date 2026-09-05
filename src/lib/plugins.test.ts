@@ -5,14 +5,16 @@ import {
   installedVersion,
   pluginProblems,
   pluginStatus,
+  pluginsOfMarketplace,
   pluginSuggestions,
   pluginViews,
 } from "@/lib/plugins";
-import type { PluginRow, PluginsState } from "@/types";
+import type { MarketplaceInfo, PluginRow, PluginsState } from "@/types";
 
 function row(over: Partial<PluginRow> = {}): PluginRow {
   return {
     name: "workhub",
+    marketplace: "workhub-marketplace",
     in_catalog: true,
     tier: "optional",
     scope: "project",
@@ -25,13 +27,21 @@ function row(over: Partial<PluginRow> = {}): PluginRow {
   };
 }
 
-function state(rows: PluginRow[]): PluginsState {
+function marketplace(over: Partial<MarketplaceInfo> = {}): MarketplaceInfo {
   return {
-    marketplace: "workhub-marketplace",
+    name: "workhub-marketplace",
     clone_path: "C:/clone",
     clone_found: true,
     catalog_found: true,
     marketplace_updated: "",
+    ...over,
+  };
+}
+
+function state(rows: PluginRow[], marketplaces = [marketplace()]): PluginsState {
+  return {
+    marketplace: "workhub-marketplace",
+    marketplaces,
     project_settings_path: "C:/vault/.claude/settings.json",
     user_settings_path: "C:/home/.claude/settings.json",
     rows,
@@ -231,5 +241,110 @@ describe("pluginProblems", () => {
     expect(pluginProblems(views).map((p) => p.name)).toEqual(["missing-one", "outdated-one"]);
     // A recommended plugin left off is a choice, not a problem to fix.
     expect(pluginSuggestions(views).map((p) => p.name)).toEqual(["advised-one"]);
+  });
+});
+
+
+/**
+ * A marketplace with no `catalog.json` makes no claim about what the owner
+ * ought to have (T-0238), so none of the judgements built on a tier may fire
+ * for its rows. Getting this wrong would put "Required, off" on somebody
+ * else's plugin — a demand the app has no standing to make.
+ */
+describe("marketplaces without a catalog", () => {
+  const marketplaces = [
+    marketplace(),
+    marketplace({ name: "claude-plugins-official", catalog_found: false }),
+  ];
+
+  const foreign = (over = {}) =>
+    row({
+      marketplace: "claude-plugins-official",
+      in_catalog: false,
+      tier: "",
+      scope: "",
+      latest_version: "",
+      ...over,
+    });
+
+  it("never calls an uncatalogued row missing or advised", () => {
+    // Same shape that would read as `missing` from the workhub marketplace.
+    expect(pluginStatus(row({ tier: "required" }), true)).toBe("missing");
+    expect(pluginStatus(row({ tier: "required" }), false)).toBe("off");
+    expect(pluginStatus(row({ tier: "recommended" }), false)).toBe("off");
+  });
+
+  it("still reports what it can: installed, outdated, pending", () => {
+    const rows = [
+      foreign({
+        name: "pyright-lsp",
+        enabled_user: true,
+        latest_version: "2.0.0",
+        installs: [
+          { scope: "user", version: "1.0.0", project_path: "", install_path: "C:/p" },
+        ],
+      }),
+      // Switched on, nothing on disk yet.
+      foreign({ name: "rust-analyzer-lsp", enabled_user: true }),
+    ];
+    const views = pluginViews(state(rows, marketplaces));
+    expect(views.map((v) => [v.name, v.status])).toEqual([
+      ["pyright-lsp", "outdated"],
+      ["rust-analyzer-lsp", "pending"],
+    ]);
+  });
+
+  it("does not flag an uncatalogued row as absent from the catalog", () => {
+    // `extra` drives a "Not in catalog" badge — a complaint about a file that
+    // was never meant to exist for this marketplace.
+    const [view] = pluginViews(state([foreign({ enabled_user: true })], marketplaces));
+    expect(view.extra).toBe(false);
+    expect(view.catalogued).toBe(false);
+  });
+
+  it("resolves the scope from where the plugin actually is", () => {
+    const [view] = pluginViews(
+      state(
+        [
+          foreign({
+            enabled_user: true,
+            installs: [
+              { scope: "user", version: "1.0.0", project_path: "", install_path: "" },
+            ],
+          }),
+        ],
+        marketplaces,
+      ),
+    );
+    expect(view.effective_scope).toBe("user");
+  });
+});
+
+describe("pluginsOfMarketplace", () => {
+  it("splits the rows by the marketplace they came from", () => {
+    const marketplaces = [
+      marketplace(),
+      marketplace({ name: "superpowers-dev", catalog_found: false }),
+    ];
+    const rows = [
+      row({ name: "workhub", enabled_user: true, latest_version: "" }),
+      row({
+        name: "superpowers",
+        marketplace: "superpowers-dev",
+        in_catalog: false,
+        tier: "",
+        scope: "",
+        latest_version: "",
+        enabled_user: true,
+      }),
+    ];
+    const views = pluginViews(state(rows, marketplaces));
+    expect(pluginsOfMarketplace(views, "workhub-marketplace").map((v) => v.name)).toEqual([
+      "workhub",
+    ]);
+    expect(pluginsOfMarketplace(views, "superpowers-dev").map((v) => v.name)).toEqual([
+      "superpowers",
+    ]);
+    expect(pluginsOfMarketplace(views, "genshijin")).toEqual([]);
   });
 });
