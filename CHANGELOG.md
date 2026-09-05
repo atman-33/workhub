@@ -13,6 +13,12 @@
   preview renders at 14px and the editor inherited the shared textarea's 16px,
   so the text grew as the click landed and shrank again on blur. The editor now
   matches the preview.
+- **The Projects tab says which prompt each copy button copies** (T-0248). Two
+  identical icon buttons sat on that screen, both captioned `Copy prompt`, and
+  neither said what it copied or when you would want it. They now read `Copy
+  survey prompt` and `Copy fix prompt`, and each section says when to reach for
+  it — the survey prompt has a location you fill in before handing it to an
+  agent, the fix prompt is ready to paste as it is.
 
 ## 0.101.0 (2026-09-05)
 
