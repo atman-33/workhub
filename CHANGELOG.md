@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.102.0 (2026-09-05)
+
+- **Quick capture can file a task into a project** (T-0247). The window took a
+  title and a description and nothing else, so every capture landed with no
+  `project:` and had to be re-opened on the board to get one. There is now a
+  project picker under the title, listing the vault's projects. It is the one
+  field the window does not clear between captures: a burst of them usually
+  belongs to the same project, and re-picking it each time was the thing worth
+  saving.
+- **Clicking a task's description no longer changes the size of its text.** The
+  preview renders at 14px and the editor inherited the shared textarea's 16px,
+  so the text grew as the click landed and shrank again on blur. The editor now
+  matches the preview.
+
 ## 0.101.0 (2026-09-05)
 
 - **A character you wrote yourself can be deleted from the Persona tab**
