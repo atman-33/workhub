@@ -421,8 +421,7 @@ pub fn read_state() -> PersonaState {
     }
 }
 
-/// Writes `persona.json` through a temp file so a crashed write cannot leave
-/// the plugin with a truncated config it would fail to parse.
+/// Validates the requested state and persists it to `persona.json`.
 pub fn write_state(
     enabled: bool,
     character: Option<String>,
@@ -449,11 +448,17 @@ pub fn write_state(
     } else {
         PersonaConfigFile::default()
     };
-    let mut json = serde_json::to_string_pretty(&payload)
+    write_config_file(&config_path(), &payload)?;
+    Ok(read_state())
+}
+
+/// Writes `persona.json` through a temp file so a crashed write cannot leave
+/// the plugin with a truncated config it would fail to parse.
+fn write_config_file(path: &Path, payload: &PersonaConfigFile) -> Result<(), String> {
+    let mut json = serde_json::to_string_pretty(payload)
         .map_err(|e| format!("failed to encode persona.json: {e}"))?;
     json.push('\n');
 
-    let path = config_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
@@ -461,13 +466,78 @@ pub fn write_state(
     let temp = path.with_extension(format!("json.tmp{}", std::process::id()));
     fs::write(&temp, json).map_err(|e| format!("failed to write {}: {e}", temp.display()))?;
     // Windows rename cannot replace an existing destination.
-    let _ = fs::remove_file(&path);
-    fs::rename(&temp, &path).map_err(|e| {
+    let _ = fs::remove_file(path);
+    fs::rename(&temp, path).map_err(|e| {
         let _ = fs::remove_file(&temp);
         format!("failed to replace {}: {e}", path.display())
     })?;
+    Ok(())
+}
 
-    Ok(read_state())
+/// Resolves which folder a delete would remove, refusing everything that is
+/// not a hand-made character in the user layer.
+///
+/// Split out from `delete_character` so the rules can be tested against a
+/// temporary tree: the delete itself goes to the OS recycle bin, which a unit
+/// test has no business reaching into.
+fn deletable_dir(claude: &Path, id: &str) -> Result<PathBuf, String> {
+    if !is_valid_character_id(id) {
+        return Err(format!("invalid character id: {id}"));
+    }
+    let dir = claude.join("personas").join(id);
+    if dir.is_dir() {
+        return Ok(dir);
+    }
+    // Nothing in the user layer. Say which of the two reasons it is: a
+    // bundled character is not missing, it is simply not the app's to delete
+    // — it comes back with the next plugin update anyway.
+    let bundled = discover_characters_in(claude)
+        .into_iter()
+        .any(|c| c.id == id && c.origin == "bundled");
+    if bundled {
+        Err(format!(
+            "{id} is a built-in character shipped by the persona plugin, so it cannot be deleted here"
+        ))
+    } else {
+        Err(format!("no custom character named {id}"))
+    }
+}
+
+/// Drops the character from `persona.json` when it is the one selected there,
+/// so deleting the active character does not leave the plugin pointing at a
+/// file that no longer exists. Returns whether anything was rewritten.
+fn clear_active_character_in(claude: &Path, id: &str) -> Result<bool, String> {
+    let path = claude.join("persona.json");
+    let Ok(raw) = fs::read_to_string(&path) else {
+        return Ok(false);
+    };
+    let Ok(cfg) = serde_json::from_str::<PersonaConfigFile>(&raw) else {
+        return Ok(false);
+    };
+    if cfg.character.as_deref() != Some(id) {
+        return Ok(false);
+    }
+    // Disabled rather than switched to some other character: which one to fall
+    // back to is the owner's call, and the tab shows the switch turned off.
+    write_config_file(&path, &PersonaConfigFile::default())?;
+    Ok(true)
+}
+
+/// Sends a hand-made character to the OS recycle bin and returns its id.
+///
+/// A recycle-bin move rather than an unlink, for the same reason task deletion
+/// is one: a character file is hand-written prose that took a conversation to
+/// produce, and the delete is one click behind one confirmation.
+///
+/// Deleting a user character that shadows a bundled one of the same id does
+/// not remove the character from the list — the bundled definition underneath
+/// becomes visible again. That is the intended way to undo a customization.
+pub fn delete_character(id: &str) -> Result<String, String> {
+    let claude = claude_dir();
+    let dir = deletable_dir(&claude, id)?;
+    trash::delete(&dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))?;
+    clear_active_character_in(&claude, id)?;
+    Ok(id.to_string())
 }
 
 #[cfg(test)]
@@ -755,6 +825,76 @@ mod tests {
         let found = discover_characters_in(&root);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, "ignis");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn only_a_user_layer_character_can_be_deleted() {
+        let root = temp_root("delete-rules");
+        let cache = "plugins/cache/workhub-marketplace/persona/0.2.0/characters";
+        plant(&root, "personas", "mine", "自作");
+        plant(&root, cache, "ignis", "イグニス");
+
+        assert_eq!(
+            deletable_dir(&root, "mine").unwrap(),
+            root.join("personas").join("mine")
+        );
+        // Shipped by the plugin: it would come back with the next update.
+        assert!(deletable_dir(&root, "ignis")
+            .unwrap_err()
+            .contains("built-in"));
+        assert!(deletable_dir(&root, "nobody")
+            .unwrap_err()
+            .contains("no custom character"));
+        assert!(deletable_dir(&root, "../escape").is_err());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn deleting_the_active_character_disables_the_saved_default() {
+        let root = temp_root("delete-active");
+        write_config_file(
+            &root.join("persona.json"),
+            &PersonaConfigFile {
+                character: Some("mine".into()),
+                level: Some("heavy".into()),
+                enabled: true,
+            },
+        )
+        .unwrap();
+
+        // A different character is deleted: the saved default is left alone.
+        assert!(!clear_active_character_in(&root, "other").unwrap());
+        let raw = fs::read_to_string(root.join("persona.json")).unwrap();
+        assert!(raw.contains("mine"));
+
+        assert!(clear_active_character_in(&root, "mine").unwrap());
+        let cfg: PersonaConfigFile =
+            serde_json::from_str(&fs::read_to_string(root.join("persona.json")).unwrap()).unwrap();
+        assert!(!cfg.enabled);
+        assert!(cfg.character.is_none());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn deleting_a_shadowing_character_reveals_the_bundled_one() {
+        let root = temp_root("delete-shadow");
+        let cache = "plugins/cache/workhub-marketplace/persona/0.2.0/characters";
+        plant(&root, "personas", "ignis", "私家版イグニス");
+        plant(&root, cache, "ignis", "イグニス");
+        assert_eq!(discover_characters_in(&root)[0].origin, "user");
+
+        // The recycle bin is out of a unit test's reach; removing the folder
+        // is what the delete leaves behind either way.
+        fs::remove_dir_all(deletable_dir(&root, "ignis").unwrap()).unwrap();
+
+        let found = discover_characters_in(&root);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].origin, "bundled");
+        assert_eq!(found[0].name, "イグニス");
 
         let _ = fs::remove_dir_all(&root);
     }

@@ -256,6 +256,7 @@ The **Persona** tab picks the character and tone every new Claude Code session s
 - **Level** is how hard the character compresses its answers. Each character names its own levels, and the tab shows that character's description of each one — they are not interchangeable between characters.
 - Changes apply **from the next session**. Sessions already open keep the character they started with, on purpose: the flag they re-read every turn is shared by every running session, so changing it here would rewrite the tone of a conversation in progress.
 - To make your own character, run \`/persona-new <id>\` in Claude Code and answer its questions. It writes \`~/.claude/personas/<id>/character.md\`. Keep custom characters there — anything placed inside the plugin's own folder is lost on the next plugin update.
+- A **Custom** character can be deleted from its own page: the \`Delete\` button sends \`~/.claude/personas/<id>/\` to the recycle bin after a confirmation, so it can be put back from there. Built-in characters have no delete — they belong to the plugin and would return with its next update. Deleting a custom character that shares an id with a built-in one brings that built-in back into the list.
 - If \`PERSONA_DEFAULT\` is set in your environment, it beats the saved setting and the tab says so. Unset it to make the tab effective again.`;
 
 const PLUGINS_MD = `## Keeping the plugins straight (Plugins)
@@ -1786,6 +1787,19 @@ export function HelpView() {
                 </span>
                 . Keep custom characters there — anything placed inside the
                 plugin's own folder is lost on the next plugin update.
+              </li>
+              <li>
+                A <span className="font-medium text-foreground">Custom</span>{" "}
+                character can be deleted from its own page. The{" "}
+                <span className="font-mono text-xs">Delete</span> button sends{" "}
+                <span className="font-mono text-xs">
+                  ~/.claude/personas/&lt;id&gt;/
+                </span>{" "}
+                to the recycle bin after a confirmation, so it can be put back
+                from there. Built-in characters have no delete — they belong to
+                the plugin and would return with its next update. Deleting a
+                custom character that shares an id with a built-in one brings
+                that built-in back into the list.
               </li>
               <li>
                 If <span className="font-mono text-xs">PERSONA_DEFAULT</span> is

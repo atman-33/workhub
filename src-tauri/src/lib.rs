@@ -268,6 +268,7 @@ pub fn run() {
             commands::persona_genshijin_installed,
             commands::persona_state,
             commands::set_persona_state,
+            commands::delete_persona_character,
             commands::plugins_state,
             commands::plugin_details,
             commands::set_plugin_enabled,

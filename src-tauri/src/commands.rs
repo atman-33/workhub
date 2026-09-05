@@ -1395,6 +1395,16 @@ pub async fn set_persona_state(
     .map_err(|e| format!("persona write task failed: {e}"))?
 }
 
+/// Sends a hand-made character to the OS recycle bin. Built-in characters are
+/// refused — they belong to the plugin and would return with its next update.
+/// Deleting the character the saved default names also clears that default.
+#[tauri::command]
+pub async fn delete_persona_character(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::persona::delete_character(&id))
+        .await
+        .map_err(|e| format!("persona delete task failed: {e}"))?
+}
+
 // ---------------------------------------------------------------------
 // workhub marketplace plugins (Plugins tab)
 // ---------------------------------------------------------------------

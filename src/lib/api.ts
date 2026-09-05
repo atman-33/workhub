@@ -383,6 +383,10 @@ export const api = {
   /// Writes the plugin's persisted default; it applies from the next session.
   setPersonaState: (enabled: boolean, character: string | null, level: string) =>
     invoke<PersonaState>("set_persona_state", { enabled, character, level }),
+  /** Sends a hand-made character to the OS recycle bin. Built-in ones are
+   * refused by the backend; deleting the saved default also clears it. */
+  deletePersonaCharacter: (id: string) =>
+    invoke<string>("delete_persona_character", { id }),
   voiceHistoryClear: () => invoke<void>("voice_history_clear"),
 
   // ---- workhub marketplace plugins (Plugins tab) ----

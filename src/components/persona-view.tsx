@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, Copy, RefreshCw, User } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Copy,
+  RefreshCw,
+  Trash2,
+  User,
+} from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
@@ -103,6 +112,7 @@ export function PersonaView({ active }: { active: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [genshijin, setGenshijin] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<PersonaCharacter | null>(null);
 
   const load = useCallback(async () => {
     const [list, current, hasGenshijin] = await Promise.all([
@@ -138,6 +148,25 @@ export function PersonaView({ active }: { active: boolean }) {
     setError(null);
     try {
       setState(await api.setPersonaState(true, selected.id, level));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Deleting is offered for hand-made characters only; the backend refuses a
+  // built-in one anyway, since it would return with the next plugin update.
+  // The selection is dropped first: the character usually disappears, and when
+  // it was shadowing a built-in of the same id the reload lands on that one.
+  const remove = async (character: PersonaCharacter) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deletePersonaCharacter(character.id);
+      setConfirmDelete(null);
+      setSelectedId(null);
+      await load();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -410,6 +439,18 @@ export function PersonaView({ active }: { active: boolean }) {
                   ? "Active from the next session."
                   : "Takes effect the next time a session starts."}
               </span>
+              {selected.origin === "user" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={busy}
+                  onClick={() => setConfirmDelete(selected)}
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </Button>
+              )}
             </div>
 
             {selected.sections.map((s) => (
@@ -427,6 +468,25 @@ export function PersonaView({ active }: { active: boolean }) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title={`Delete ${confirmDelete?.name ?? ""}?`}
+        description={
+          confirmDelete
+            ? `${confirmDelete.file} goes to the recycle bin, so it can be restored from there. ` +
+              (state?.character === confirmDelete.id
+                ? "It is the character new sessions start with, so persona is switched off as well."
+                : "Sessions already open keep the character they are running.")
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (confirmDelete) void remove(confirmDelete);
+        }}
+        onClose={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }
