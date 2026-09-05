@@ -1,0 +1,20 @@
+{
+  "name": "visuals",
+  "version": "0.1.0",
+  "description": "Produce visual deliverables as self-contained HTML and hand them over as PDF: fixed 16:9 slide decks that render entirely inside Claude Code, and publication-quality PDF export for both decks and documents. Install at user scope; optional.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  },
+  "homepage": "https://github.com/atman-33/workhub",
+  "repository": "https://github.com/atman-33/workhub",
+  "license": "MIT",
+  "keywords": [
+    "slides",
+    "presentation",
+    "html",
+    "pdf",
+    "design",
+    "deliverables"
+  ]
+}
