@@ -5,19 +5,13 @@
 // Picking a snippet hands the work back to the backend (`clips_paste`), which
 // restores focus to the app that had it before pasting — this window must not
 // try to paste itself, since it is the one holding focus.
-import {
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { Clip } from "@/types";
 
 /** Snippets past this position lose their number-key shortcut. */
@@ -87,55 +81,81 @@ export function ClipsApp() {
     }
   }, []);
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      hide();
-      return;
-    }
-    if (e.key === "ArrowDown" || (e.key === "n" && e.ctrlKey)) {
-      e.preventDefault();
-      setSelected((i) => (visible.length ? (i + 1) % visible.length : 0));
-      return;
-    }
-    if (e.key === "ArrowUp" || (e.key === "p" && e.ctrlKey)) {
-      e.preventDefault();
-      setSelected((i) =>
-        visible.length ? (i - 1 + visible.length) % visible.length : 0,
-      );
-      return;
-    }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      void paste(visible[selected]);
-      return;
-    }
-    // Ctrl+1..9 pick directly; the chord is needed because the filter box
-    // has to keep plain digits for searching.
-    if (e.ctrlKey && /^[1-9]$/.test(e.key)) {
-      e.preventDefault();
-      void paste(visible[Number(e.key) - 1]);
-    }
-  };
+  // Bound to the window rather than to the root element: a React handler only
+  // sees keys whose event target sits inside its subtree, and the target is
+  // `document.body` whenever nothing focusable holds focus — after a header
+  // drag, or after clicking the list padding. Escape (and every other key
+  // below) silently stopped working in that state.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        hide();
+        return;
+      }
+      if (e.key === "ArrowDown" || (e.key === "n" && e.ctrlKey)) {
+        e.preventDefault();
+        setSelected((i) => (visible.length ? (i + 1) % visible.length : 0));
+        return;
+      }
+      if (e.key === "ArrowUp" || (e.key === "p" && e.ctrlKey)) {
+        e.preventDefault();
+        setSelected((i) =>
+          visible.length ? (i - 1 + visible.length) % visible.length : 0,
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void paste(visible[selected]);
+        return;
+      }
+      // Ctrl+1..9 pick directly; the chord is needed because the filter box
+      // has to keep plain digits for searching.
+      if (e.ctrlKey && /^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        void paste(visible[Number(e.key) - 1]);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [visible, selected, paste]);
+
+  // The Rust side hands focus back to the window after a header drag
+  // (`clips/window.rs`, `refocus`), but that leaves focus on the document
+  // body inside the webview. Put it back on the filter box so typing works.
+  useEffect(() => {
+    const onFocus = () => inputRef.current?.focus();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   return (
-    <div
-      className="flex h-screen flex-col bg-background text-foreground"
-      onKeyDown={onKeyDown}
-    >
+    <div className="flex h-screen flex-col bg-background text-foreground">
       {/* Whole-header drag via startDragging(): `data-tauri-drag-region` only
           fires when the element directly under the cursor carries it. */}
       <header
         onMouseDown={(e) => {
           if (e.button !== 0) return;
+          // Without this the close button's click is swallowed by the
+          // window-move loop that startDragging() enters.
+          if ((e.target as HTMLElement).closest("button")) return;
           getCurrentWindow().startDragging().catch(console.error);
         }}
-        className="flex cursor-move select-none items-center gap-1.5 border-b px-3 py-2 text-xs font-medium text-muted-foreground"
+        className="flex cursor-move select-none items-center gap-1.5 border-b py-1 pl-3 pr-1 text-xs font-medium text-muted-foreground"
       >
         <ClipboardList className="size-3.5" />
         Clips
-        <span className="ml-auto font-normal">
+        <span className="ml-auto truncate font-normal">
           ↑↓ select · Enter paste · Ctrl+1-9 quick · Esc close
         </span>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={hide}
+          aria-label="Close"
+        >
+          <X className="size-3.5" />
+        </Button>
       </header>
 
       <div className="shrink-0 p-2">

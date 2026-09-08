@@ -75,3 +75,23 @@ paths:
   styles live in `index.html`'s inline block on purpose: it is the main
   window's own document, so the quick-capture, clips and voice-indicator
   popups — which share `src/index.css` — are unaffected.
+- **A popup window's keyboard shortcuts belong on `window`, not on a React
+  `onKeyDown` prop.** A React handler only receives keys whose event target is
+  inside its own subtree, and the target is `document.body` whenever nothing
+  focusable holds focus. In these frameless popups that happens routinely:
+  dragging the header puts Windows into its window-move loop (the Rust side's
+  `refocus()` restores *window* focus but leaves DOM focus on the body), and
+  clicking any non-focusable area — list padding, an empty-state paragraph —
+  does the same. The shortcuts then go dead with nothing on screen to say so,
+  which is how the clips popup became impossible to close with Escape
+  (T-0249). Use `window.addEventListener("keydown", handler, true)` in an
+  effect, as `src/clips-popup/clips-app.tsx` and
+  `src/ink-preview/preview-app.tsx` do, and restore focus to the popup's input
+  on the window's `focus` event. Give every popup a visible close button too:
+  a window that can only be dismissed by a key has no recovery path when key
+  handling breaks.
+- **`startDragging()` on a header swallows clicks on its own buttons.** The
+  Windows move loop starts on mousedown, so a button inside the drag region
+  never sees its click. Guard the handler with
+  `if ((e.target as HTMLElement).closest("button")) return;` — see
+  `src/quick-capture/capture-app.tsx` and `src/clips-popup/clips-app.tsx`.
