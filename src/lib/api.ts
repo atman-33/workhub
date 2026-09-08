@@ -333,6 +333,7 @@ export const api = {
   sttDownloadModel: (model: string) => invoke<void>("stt_download_model", { model }),
   sttDeleteModel: (model: string) => invoke<void>("stt_delete_model", { model }),
   voiceStopRecording: () => invoke<void>("voice_stop_recording"),
+  voiceCancelRecording: () => invoke<void>("voice_cancel_recording"),
 
   // ---- clips (clibor-style snippet picker) ----
   clipsList: () => invoke<Clip[]>("clips_list"),
