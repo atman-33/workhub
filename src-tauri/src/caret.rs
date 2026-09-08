@@ -17,16 +17,32 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
+/// Where a [`CaretRect`] came from, which is how far it can be trusted to
+/// describe an actual line of text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaretSource {
+    /// A real caret or text-selection rectangle: one text line, wherever the
+    /// next character is going to appear.
+    Caret,
+    /// The focused element's own bounding rectangle, reported when no text
+    /// pattern could measure a selection. A single-line text box gives a
+    /// usable rect here; a browser viewport or an editor pane gives the whole
+    /// window, which is nowhere near the caret. Callers must sanity-check the
+    /// size before anchoring to one (see `window_place::place_near_caret`).
+    ElementBounds,
+}
+
 /// A caret (or, when only the focused control could be located, that
 /// control's) rectangle in **physical screen pixels**. A collapsed caret has
 /// a zero or near-zero `width`; `height` is the text line height, which is
-/// what callers anchor to.
+/// what callers anchor to. `source` says which of the two it actually is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CaretRect {
     pub x: i32,
     pub y: i32,
     pub width: i32,
     pub height: i32,
+    pub source: CaretSource,
 }
 
 /// How long a caller is willing to wait for the caret probe. UI Automation
@@ -60,7 +76,7 @@ pub fn caret_rect() -> Option<CaretRect> {
 
 #[cfg(windows)]
 mod win {
-    use super::CaretRect;
+    use super::{CaretRect, CaretSource};
     use windows::Win32::Foundation::{HWND, POINT, RECT};
     use windows::Win32::Graphics::Gdi::ClientToScreen;
     use windows::Win32::System::Com::{
@@ -81,7 +97,7 @@ mod win {
     /// A caret rect must have some height to be worth anchoring to; a
     /// collapsed caret legitimately has zero width, but a zero-height rect
     /// means the provider reported nothing useful.
-    fn from_rect(r: RECT) -> Option<CaretRect> {
+    fn from_rect(r: RECT, source: CaretSource) -> Option<CaretRect> {
         let width = r.right - r.left;
         let height = r.bottom - r.top;
         if height <= 0 || width < 0 {
@@ -92,6 +108,7 @@ mod win {
             y: r.top,
             width,
             height,
+            source,
         })
     }
 
@@ -118,7 +135,7 @@ mod win {
             }
             // rcCaret is relative to hwndCaret's client area.
             let caret = to_screen(info.hwndCaret, info.rcCaret)?;
-            from_rect(caret)
+            from_rect(caret, CaretSource::Caret)
         }
     }
 
@@ -180,8 +197,12 @@ mod win {
             }
         }
         // No text pattern (or an empty selection): the focused control's own
-        // rectangle still beats a screen corner.
-        from_rect(focused.CurrentBoundingRectangle().ok()?)
+        // rectangle is all that is left. Marked as such, because for anything
+        // larger than a text box it is the wrong thing to anchor to.
+        from_rect(
+            focused.CurrentBoundingRectangle().ok()?,
+            CaretSource::ElementBounds,
+        )
     }
 
     /// The last bounding rectangle of the focused element's text selection.
@@ -215,6 +236,7 @@ mod win {
             y: top.round() as i32,
             width: width.round() as i32,
             height: height.round() as i32,
+            source: CaretSource::Caret,
         })
     }
 
@@ -268,29 +290,36 @@ mod win {
 
         #[test]
         fn a_zero_height_rect_is_rejected() {
-            assert!(from_rect(RECT {
-                left: 10,
-                top: 10,
-                right: 12,
-                bottom: 10,
-            })
+            assert!(from_rect(
+                RECT {
+                    left: 10,
+                    top: 10,
+                    right: 12,
+                    bottom: 10,
+                },
+                CaretSource::Caret
+            )
             .is_none());
         }
 
         #[test]
         fn a_collapsed_caret_keeps_its_zero_width() {
             assert_eq!(
-                from_rect(RECT {
-                    left: 100,
-                    top: 200,
-                    right: 100,
-                    bottom: 218,
-                }),
+                from_rect(
+                    RECT {
+                        left: 100,
+                        top: 200,
+                        right: 100,
+                        bottom: 218,
+                    },
+                    CaretSource::Caret
+                ),
                 Some(CaretRect {
                     x: 100,
                     y: 200,
                     width: 0,
                     height: 18,
+                    source: CaretSource::Caret,
                 })
             );
         }
