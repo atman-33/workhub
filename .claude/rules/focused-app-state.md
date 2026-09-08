@@ -48,3 +48,29 @@ neither.
 Note also that a collapsed (degenerate) UIA text range returns *no* bounding
 rectangles from several providers, Chromium included. Clone the range and
 `ExpandToEnclosingUnit(TextUnit_Character)` before giving up.
+
+## A rectangle from the last-resort probe is not necessarily a caret
+
+When no text pattern can measure a selection, the only thing left to report
+is the focused element's own bounding rectangle. For a single-line text box
+that is a fine stand-in for the caret. For a browser viewport, an editor pane
+or a canvas app it is the **whole window**, and anchoring a pop-up to it puts
+the pop-up at a window corner — which is where the voice indicator kept
+turning up in T-0251, with the mouse-cursor fallback never firing because the
+placement had "succeeded".
+
+So:
+
+- **Tag the rect with where it came from** (`caret::CaretSource`). A caller
+  cannot tell a caret from a window by looking at the numbers alone, and the
+  two deserve different amounts of trust.
+- **Sanity-check the size against the work area before anchoring**
+  (`window_place::should_anchor`). A caret rect is one line of text; anything
+  a sizeable fraction of the screen is not one, whatever its source says. Keep
+  the threshold loose — it only has to separate "a line" from "a window".
+- **A placement that cannot be trusted must report failure, not do its best.**
+  The value of a fallback chain is that every link can decline; a link that
+  always succeeds deletes the links after it.
+- **Log which anchor won and what the probe returned.** "It appeared in a
+  weird place" is otherwise unreproducible: the probe reads another process's
+  state at one instant, and by the time anyone looks, the focus has moved on.
