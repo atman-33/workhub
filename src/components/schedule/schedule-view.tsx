@@ -211,27 +211,43 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
     return () => clearInterval(id);
   }, []);
 
+  // A listing that fails is almost always a folder that moved while it was
+  // being read — archiving a project is a move, and the event that triggers
+  // the reload arrives while the rename is still settling. Falling back to an
+  // empty list lets the effects below reset the picker; throwing here would
+  // only leave an unhandled rejection and a stale list on screen (T-0254).
   const loadFiles = useCallback(async () => {
     if (!vaultPath) return;
-    setFiles(await api.listSchedules(vaultPath, project));
+    setFiles(await api.listSchedules(vaultPath, project).catch(() => []));
     setFilesLoaded(true);
   }, [vaultPath, project]);
 
   const loadProjects = useCallback(async () => {
     if (!vaultPath) return;
-    setProjects(await api.listScheduleProjects(vaultPath));
+    setProjects(await api.listScheduleProjects(vaultPath).catch(() => []));
     setProjectsLoaded(true);
     // `projectsVersion` is not read here — it is a reload trigger, and listing
     // it as a dependency is what makes the effect below re-run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultPath, projectsVersion]);
 
-  const loadDoc = useCallback(async (target: string) => {
+  // `onGone` closes the note when the file is no longer there to read. The
+  // caller owns `path`, and a note whose project was just archived has moved
+  // to `archive/projects/` — reading it must fail quietly and let go, not
+  // reject into nothing and leave a dead path selected (T-0254).
+  const loadDoc = useCallback(async (target: string, onGone?: () => void) => {
     if (!target) {
       setDoc(null);
       return;
     }
-    const read = await api.readSchedule(target);
+    let read: Awaited<ReturnType<typeof api.readSchedule>>;
+    try {
+      read = await api.readSchedule(target);
+    } catch {
+      setDoc(null);
+      onGone?.();
+      return;
+    }
     source.current = { content: read.content, mtime: read.mtime };
     const parsed = parseSchedule(read.content);
     // A reload means the file, not the user, decided the current state — the
@@ -253,7 +269,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   }, [vaultPath, loadProjects]);
 
   useEffect(() => {
-    void loadDoc(path);
+    void loadDoc(path, () => setPath(""));
     // Each note carries its own range; drop the window so the new note's is used.
     setWindow(null);
     setSelectedId(null);

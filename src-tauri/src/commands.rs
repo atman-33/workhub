@@ -583,6 +583,34 @@ pub fn diagnostic_log_info() -> crate::diag::DiagLogInfo {
     crate::diag::info()
 }
 
+/// The longest frontend error the log will accept. A stack trace from a
+/// bundled build is a handful of frames; anything past this is a runaway
+/// message, and the log is capped by rotation rather than by retention.
+const MAX_FRONTEND_ERROR: usize = 4000;
+
+/// Records a crash the webview reported (an uncaught error, a rejected
+/// promise, or a React render that an error boundary caught).
+///
+/// A packaged build has no console, so before this existed a frontend
+/// exception left no trace at all: the window went blank and there was
+/// nothing to read afterwards (T-0254). What arrives here is the error's own
+/// message and stack — app behaviour, never note or task content — and it is
+/// truncated so one runaway string cannot rotate the log out from under the
+/// lines around it.
+#[tauri::command]
+pub fn log_frontend_error(context: String, message: String, stack: Option<String>) {
+    let mut text = format!("frontend error [{context}]: {message}");
+    if let Some(stack) = stack.filter(|s| !s.trim().is_empty()) {
+        text.push_str("
+");
+        text.push_str(&stack);
+    }
+    if text.chars().count() > MAX_FRONTEND_ERROR {
+        text = text.chars().take(MAX_FRONTEND_ERROR).collect::<String>() + " …(truncated)";
+    }
+    crate::diag!("{text}");
+}
+
 #[derive(Serialize)]
 pub struct UpdateInfo {
     pub tag: String,

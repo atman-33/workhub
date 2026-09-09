@@ -88,6 +88,12 @@ export const api = {
   // ---- the app's own diagnostic log (release builds have no console) ----
   diagnosticLog: (limit?: number) => invoke<DiagEntry[]>("diagnostic_log", { limit }),
   diagnosticLogInfo: () => invoke<DiagLogInfo>("diagnostic_log_info"),
+  /** Records a webview crash into the diagnostic log. A packaged build has no
+   *  console, so without this a frontend exception left nothing to read after
+   *  the window went blank (T-0254). Never rejects: a failed report must not
+   *  become a second error on top of the one being reported. */
+  logFrontendError: (context: string, message: string, stack?: string) =>
+    invoke<void>("log_frontend_error", { context, message, stack }).catch(() => {}),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),
   restartApp: () => invoke<void>("restart_app"),
