@@ -56,6 +56,14 @@
   rarely Markdown alone, and a tree that hid the rest disagreed with the folder
   it was describing.
 
+- **A crashing view no longer blanks the whole window** (T-0254). Every tab is
+  mounted at once and hidden with CSS, so a render-time exception anywhere —
+  including in a tab you were not looking at — tore down the entire app, and a
+  packaged build left nothing behind to read. Each tab now sits in its own
+  error boundary and shows the message and stack where the view was, and
+  `window.onerror` / `unhandledrejection` are written to the diagnostic log,
+  so the next occurrence is diagnosable instead of invisible.
+
 ## 0.105.0 (2026-09-09)
 
 - **workhub can now start when you sign in to Windows** (T-0258). The app is a
