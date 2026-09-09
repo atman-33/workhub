@@ -34,11 +34,9 @@ vault. Nothing in this folder describes a real product — see
 | [`prd.md`](prd.md) | Product intent, scope, goals (single source) |
 | [`roadmap.md`](roadmap.md) | Milestones and schedule |
 | [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
-| `specs/` | Feature specs, one file per feature |
-| `backlog/` | Backlog items; see the Base view below |
-| `research/` | Investigations and technical spikes |
-| `dev-notes/` | Development notes, design decisions, architecture |
-| `deliverables/` | Task deliverable notes (`T-XXXX-…`) |
+| `backlog/` | One note or folder per unit of work — its spec, its research, its task outputs. See the Base view below |
+| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions |
+| `deliverables/` | Task deliverable notes (`T-XXXX-…`) for tasks belonging to no item |
 | `schedules/` | Date plans, read and written by the Schedule tab |
 | `mindmaps/` | Idea maps, read and written by the Mindmap tab |
 | `attachments/` | Images and binaries for this project |
@@ -48,8 +46,9 @@ vault. Nothing in this folder describes a real product — see
 1. `README.md` (this file) — status and map
 2. `prd.md` — what and why
 3. `roadmap.md` — when
-4. Relevant `specs/` — how
-5. `backlog/` — what's queued
+4. The `backlog/` item you are working on — its entry note first (`## Status`
+   says where it stands), then the numbered notes inside it
+5. `dev-notes/` — only what the work actually touches
 
 ## Backlog
 

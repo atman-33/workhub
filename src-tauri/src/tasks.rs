@@ -1275,7 +1275,7 @@ impl Default for WatcherState {
 /// project folder.
 ///
 /// Matched on the *parent* rather than on depth so that only the top level
-/// counts: `projects/<slug>/specs` is a folder inside a project, not a project.
+/// counts: `projects/<slug>/backlog` is a folder inside a project, not a project.
 /// These paths currently fall through every arm of the watcher's classifier and
 /// are discarded, so reporting them adds no reload that was not wanted.
 fn is_project_dir_path(p: &Path, projects_root: &Path) -> bool {
@@ -1407,7 +1407,7 @@ mod tests {
         assert!(is_project_dir_path(&projects.join("demo"), &projects));
         // Inside a project: a subfolder, and a note the note-kind arms own.
         assert!(!is_project_dir_path(
-            &projects.join("demo/specs"),
+            &projects.join("demo/backlog"),
             &projects
         ));
         assert!(!is_project_dir_path(

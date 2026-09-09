@@ -42,10 +42,12 @@ const REQUIRED_FILES: &[&str] = &["README.md", "prd.md", "roadmap.md", "links.md
 const CRITICAL_FILES: &[&str] = &["README.md", "_index.md"];
 
 /// Subfolders the documented layout names, in the order CLAUDE.md lists them.
+///
+/// `specs` and `research` were dropped in T-0253: a spec and its research
+/// belong to one unit of work, so they now live inside that unit's
+/// `backlog/` item rather than in folders of their own.
 const KNOWN_DIRS: &[&str] = &[
-    "specs",
     "backlog",
-    "research",
     "dev-notes",
     "deliverables",
     "schedules",
@@ -53,6 +55,10 @@ const KNOWN_DIRS: &[&str] = &[
     "shared",
     "attachments",
 ];
+
+/// Where units of work live. Counted differently from every other folder
+/// because an item is a note *or* a folder of notes (T-0253).
+const BACKLOG_DIR: &str = "backlog";
 
 /// Where a project records the team knowledge bases that live outside the
 /// vault. One note per place; the folder is the registry (T-0239).
@@ -389,9 +395,20 @@ fn inspect_folders(dir: &Path) -> (Vec<VaultProjectFolder>, Vec<VaultProjectIssu
             // folder look occupied.
             let count = if name == "attachments" {
                 count_files(&entry.path(), None)
+            } else if name == BACKLOG_DIR {
+                count_backlog_items(&entry.path())
             } else {
                 count_files(&entry.path(), Some("md"))
             };
+            if name == BACKLOG_DIR {
+                for target in backlog_items_without_entry_note(&entry.path()) {
+                    issues.push(VaultProjectIssue {
+                        kind: "backlog-entry-missing".into(),
+                        severity: "warn".into(),
+                        target,
+                    });
+                }
+            }
             folders.push(VaultProjectFolder { name, count, known });
         }
     }
@@ -436,6 +453,48 @@ fn count_files(dir: &Path, ext: Option<&str>) -> usize {
             }
         })
         .count()
+}
+
+/// How many units of work a `backlog/` folder holds. An item is either a
+/// single note or a folder of notes (T-0253), so both shapes count as one.
+fn count_backlog_items(dir: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || name.starts_with('_') {
+                return false;
+            }
+            match e.file_type() {
+                Ok(t) if t.is_dir() => true,
+                Ok(t) if t.is_file() => e.path().extension().and_then(|x| x.to_str()) == Some("md"),
+                _ => false,
+            }
+        })
+        .count()
+}
+
+/// Item folders missing the entry note that names them. An item promoted from
+/// a note to a folder keeps the note's filename so existing `[[B-NNN-…]]`
+/// links still resolve; a folder without it has no entry point and no
+/// frontmatter, so `_backlog.base` cannot see the item at all.
+fn backlog_items_without_entry_note(dir: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|name| !name.starts_with('.') && !name.starts_with('_'))
+        .filter(|name| !dir.join(name).join(format!("{name}.md")).is_file())
+        .map(|name| format!("backlog/{name}/"))
+        .collect();
+    out.sort();
+    out
 }
 
 /// Task deliverable notes (`T-XXXX-…`) sitting in the project root instead of
@@ -778,12 +837,63 @@ mod tests {
         assert_eq!(targets("misfiled-deliverable"), ["T-0042-a-deliverable.md"]);
         assert_eq!(targets("unknown-folder"), ["pbl/"]);
         assert!(targets("missing-file").contains(&"prd.md".to_string()));
-        assert!(targets("missing-folder").contains(&"specs/".to_string()));
+        assert!(targets("missing-folder").contains(&"dev-notes/".to_string()));
+        // Dropped from the layout in T-0253 — no longer reported as absent.
+        assert!(!targets("missing-folder").contains(&"specs/".to_string()));
+        assert!(!targets("missing-folder").contains(&"research/".to_string()));
 
         let deliverables = p.folders.iter().find(|f| f.name == "deliverables").unwrap();
         assert_eq!(deliverables.count, 1);
         assert!(deliverables.known);
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
+    }
+
+    /// A backlog item is a note *or* a folder of notes, and both count as one
+    /// item. A folder missing the entry note that names it has no frontmatter
+    /// for `_backlog.base` to read, so it is reported (T-0253).
+    #[test]
+    fn backlog_counts_notes_and_folders_and_flags_a_missing_entry_note() {
+        let vault = temp_vault("backlog-items");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---
+title: Demo
+---
+");
+        let backlog = dir.join("backlog");
+        write(backlog.join("_backlog.base"), "filters: {}
+");
+        write(backlog.join("B-001-a-candidate.md"), "---
+type: backlog
+---
+");
+        write(
+            backlog.join("B-002-grown").join("B-002-grown.md"),
+            "---
+type: backlog
+---
+",
+        );
+        write(backlog.join("B-002-grown").join("010-design.md"), "note
+");
+        write(backlog.join("B-003-headless").join("010-design.md"), "note
+");
+
+        let projects = list_projects(&vault, false).unwrap();
+        let p = &projects[0];
+
+        // Two notes, two folders — but `_backlog.base` and the child note are
+        // not items, so the count is three.
+        let folder = p.folders.iter().find(|f| f.name == "backlog").unwrap();
+        assert_eq!(folder.count, 3);
+        assert!(folder.known);
+
+        let missing: Vec<String> = p
+            .issues
+            .iter()
+            .filter(|i| i.kind == "backlog-entry-missing")
+            .map(|i| i.target.clone())
+            .collect();
+        assert_eq!(missing, ["backlog/B-003-headless/"]);
     }
 
     /// `shared/` is read as a registry of notes, and a note that does not say

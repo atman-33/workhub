@@ -20,7 +20,7 @@ export interface Health {
 
 /** Counts a project's findings by severity. A project with no warnings is
  * shown as healthy even when it still has notes against it — a missing
- * `research/` folder is not a problem, just an absence. */
+ * `mindmaps/` folder is not a problem, just an absence. */
 export function health(project: VaultProject): Health {
   let warn = 0;
   let info = 0;
@@ -41,6 +41,8 @@ export function issueLabel(issue: VaultProjectIssue): string {
       return `${issue.target} is missing`;
     case "misfiled-deliverable":
       return `${issue.target} belongs in deliverables/`;
+    case "backlog-entry-missing":
+      return `${issue.target} has no entry note named after the folder`;
     case "unknown-folder":
       return `${issue.target} is not in the documented layout`;
     default:
@@ -58,7 +60,7 @@ export function issueLabel(issue: VaultProjectIssue): string {
  * the view does not already hold.
  *
  * The prompt spends most of its length on what *not* to do. A finding is not
- * a work order — an absent `research/` folder is an absence, an unknown folder
+ * a work order — an absent `mindmaps/` folder is an absence, an unknown folder
  * may be deliberate — and an agent told only "fix these" answers with empty
  * scaffold folders and deleted notes.
  */
@@ -93,6 +95,10 @@ How to handle them:
   layout.
 - For a misfiled-deliverable, move the note into deliverables/ and update the
   link in the matching task's ## Results section so it still resolves.
+- For a backlog-entry-missing, add the item's entry note inside the folder
+  under the folder's own name (backlog/B-NNN-x/B-NNN-x.md), based on
+  templates/project/backlog/, and summarise what the folder already holds in
+  its ## Notes and ## Status sections. Never rename the folder instead.
 - Base a new README.md, _index.md, or other scaffold file on templates/project/
   and fill it in from what the folder already contains. Do not leave the
   template's placeholders behind.

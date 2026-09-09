@@ -16,5 +16,6 @@ Machine-readable index for this project, maintained by `/kb-index`.
 - [`prd.md`](prd.md) — product intent and scope
 - [`roadmap.md`](roadmap.md) — milestones and schedule
 - [`links.md`](links.md) — link collection
-- [`specs/search.md`](specs/search.md) — incremental search over the note list
+- [`backlog/B-004-search/`](backlog/B-004-search/B-004-search.md) — incremental
+  search over the note list, with its behaviour spec
 - [`dev-notes/storage.md`](dev-notes/storage.md) — why notes are plain files

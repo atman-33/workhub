@@ -228,7 +228,12 @@ export interface VaultProjectFolder {
 /** One way a project departs from the layout documented in the vault's
  * CLAUDE.md. */
 export interface VaultProjectIssue {
-  kind: "missing-file" | "missing-folder" | "misfiled-deliverable" | "unknown-folder";
+  kind:
+    | "missing-file"
+    | "missing-folder"
+    | "misfiled-deliverable"
+    | "unknown-folder"
+    | "backlog-entry-missing";
   severity: "warn" | "info";
   /** The path or name the finding is about, relative to the project folder. */
   target: string;

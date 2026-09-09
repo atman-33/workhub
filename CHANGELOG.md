@@ -2,6 +2,25 @@
 
 ## 0.106.0 (2026-09-10)
 
+- **A project's `backlog/` now holds a whole unit of work, not just the idea**
+  (T-0253) — an item keeps its spec, its investigation and the output of every
+  task it spawned in one place. It starts as a single note and grows into a
+  folder of the same name when it needs one, so `[[B-007-mindmap]]` still
+  resolves after the promotion. Child notes are numbered in tens; a task's
+  output is `NNN-T-XXXX-<title>.md`.
+- `specs/` and `research/` are gone from the project layout. A spec and the
+  research behind it belong to the item that delivers them, and splitting one
+  piece of work across four kind-named folders is what made a project hard to
+  read. `dev-notes/` keeps what genuinely serves the whole project.
+- A backlog item says who owns its priorities. `source:` pointing at GitHub
+  Issues, monday.com or Jira means that tool is authoritative and the folder is
+  just where the thinking lives; empty means `_backlog.base` *is* the product
+  backlog. Same schema either way.
+- The Projects tab counts an item folder as one item, and warns when one has no
+  entry note named after it — that folder is invisible to `_backlog.base`.
+  Existing vaults are untouched: the template never deletes, so old `specs/`
+  and `research/` folders simply stop being part of the documented layout.
+
 - **A new Docs tab reads Markdown that lives outside the vault** (T-0259) — a
   Google Drive network drive the team keeps its notes on, a share on the file
   server, any folder this PC can reach. Folder tree on the left, preview on the

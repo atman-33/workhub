@@ -536,7 +536,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         assert!(vault.join("projects/demo/schedules").is_dir());
         // The notation demos are not part of a fresh project.
         assert!(!vault.join("projects/demo/schedules/_example.md").exists());
-        assert!(!vault.join("projects/demo/specs/_example.md").exists());
+        assert!(!vault.join("projects/demo/shared/_example.md").exists());
         assert!(!vault
             .join("projects/demo/backlog/B-000-example.md")
             .exists());
