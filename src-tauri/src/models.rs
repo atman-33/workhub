@@ -41,6 +41,16 @@ pub struct Settings {
     /// Path or command name for the herdr CLI.
     #[serde(default = "default_herdr_cmd")]
     pub herdr_cmd: String,
+    /// Start workhub when the user signs in to Windows (T-0258). The app is
+    /// a resident one — global hotkeys, the vault watcher and the tidy
+    /// scheduler only exist while it runs — so forgetting to launch it is
+    /// indistinguishable from the features being off.
+    ///
+    /// Machine-local on purpose: it is backed by a registry entry holding
+    /// *this* install's exe path, which no other machine can use. See
+    /// `.claude/rules/settings-placement.md`.
+    #[serde(default)]
+    pub autostart: bool,
     /// Check GitHub Releases for a newer version on startup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
@@ -365,6 +375,7 @@ impl Default for Settings {
             opencode_cmd: default_opencode_cmd(),
             use_herdr: true,
             herdr_cmd: default_herdr_cmd(),
+            autostart: false,
             check_updates: true,
             check_template_updates: true,
             auto_apply_template_updates: true,

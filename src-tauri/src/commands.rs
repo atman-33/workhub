@@ -46,6 +46,10 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, Stri
         );
     }
     storage::save(&config)?;
+    // Register/unregister start-with-Windows when the setting is toggled.
+    if config.settings.autostart != before.autostart {
+        crate::apply_autostart(&app, config.settings.autostart);
+    }
     // Start/stop the ink keyboard hook when the setting is toggled.
     if config.settings.ink_enabled != before.ink_enabled {
         if config.settings.ink_enabled {

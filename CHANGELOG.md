@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.105.0 (2026-09-09)
+
+- **workhub can now start when you sign in to Windows** (T-0258). The app is a
+  resident one: the global hotkeys, the vault watcher and the tidy routine only
+  exist while it is running, so forgetting to launch it looks exactly like the
+  features being switched off. Settings -> General -> Startup turns it on. It
+  starts minimized rather than in front of you, and rather than hidden — there
+  is no tray icon, so a taskbar button is the way back to the window.
+- The registration is rewritten on every start, so moving the exe or letting it
+  self-update never leaves Windows launching a copy that is no longer there.
+  Nothing is registered from a development build, whose exe lives in a
+  `target/debug` directory that outlives neither the branch nor the machine.
+
 ## 0.104.0 (2026-09-09)
 
 - **The diagnostic log now records what worked, not only what failed**
