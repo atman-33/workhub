@@ -192,10 +192,12 @@ pub fn paste_clip(app: &AppHandle, id: &str) -> Result<(), String> {
     let target = imp::take_paste_target(app);
     window::hide(app);
     let Some(target) = target else {
+        crate::diag!("clips: no paste target recorded — left the snippet on the clipboard");
         crate::paste::copy_text(&clip.text)?;
         return Err("no window to paste into — the text was copied to the clipboard".into());
     };
     if !crate::paste::restore_foreground(target) {
+        crate::diag!("clips: could not hand focus back — left the snippet on the clipboard");
         crate::paste::copy_text(&clip.text)?;
         return Err(
             "could not focus the previous window — the text was copied to the clipboard".into(),

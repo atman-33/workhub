@@ -393,7 +393,12 @@ fn schedule_error_clear(app: &AppHandle) {
 fn emit_error(app: &AppHandle, message: impl Into<String>) {
     let state = app.state::<VoiceState>();
     *state.recording.lock().unwrap() = None;
-    set_phase(app, Phase::Error(message.into()));
+    let message = message.into();
+    // Every voice error the user sees comes through here. An error that
+    // appeared on the indicator and then vanished is exactly the kind of
+    // thing a report is written about, so it goes on the record too.
+    crate::diag!("voice: error shown to the user: {message}");
+    set_phase(app, Phase::Error(message));
 }
 
 /// Toggle entry point for the global hotkey: first press starts recording,
@@ -451,6 +456,11 @@ fn start_recording(app: &AppHandle) {
     // Warm the model up while the user is speaking, so the first chunk isn't
     // stuck behind a multi-second model load.
     crate::stt::preload(app);
+    crate::diag!(
+        "voice: recording started (model={}, indicator={})",
+        settings.voice_model,
+        settings.voice_indicator_placement
+    );
     set_phase(app, Phase::Recording);
 }
 
@@ -483,6 +493,7 @@ pub fn cancel_recording(app: &AppHandle) {
     if !matches!(phase, Phase::Recording | Phase::Transcribing) {
         return;
     }
+    crate::diag!("voice: session discarded by the user during {phase:?}");
     let state = app.state::<VoiceState>();
     state.cancelled.store(true, Ordering::SeqCst);
     // Ends the capture loop when there is still one running; already `None`
@@ -501,6 +512,7 @@ fn stop_recording(app: &AppHandle) {
     if let Some(handle) = handle {
         let _ = handle.stop_tx.send(());
     }
+    crate::diag!("voice: recording stopped, transcribing");
     set_phase(app, Phase::Transcribing);
 }
 
@@ -851,7 +863,9 @@ pub fn apply_shortcut(app: &AppHandle) {
         };
         match app.global_shortcut().register(shortcut) {
             Ok(()) => {
-                if candidate != preferred {
+                if candidate == preferred {
+                    crate::diag!("voice: hotkey {candidate} registered");
+                } else {
                     crate::diag!("voice: {preferred} is taken, registered {candidate} instead");
                 }
                 *state.shortcut.lock().unwrap() = Some(shortcut);

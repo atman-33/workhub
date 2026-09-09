@@ -39,6 +39,23 @@ mod wsl;
 
 use tauri::Manager;
 
+/// One line saying what the app started with. Deliberately a snapshot of the
+/// *settings*, not of the machine: which features are on, and which vault is
+/// configured, are the first two questions any bug report raises.
+fn log_startup_settings(cfg: &models::Config) {
+    let s = &cfg.settings;
+    crate::diag!(
+        "config: vault={} ink={} clips={} quick-capture={} voice={} (model={}, indicator={})",
+        s.vault_path.as_deref().unwrap_or("(none)"),
+        s.ink_enabled,
+        s.clips_enabled,
+        s.quick_capture_enabled,
+        s.voice_enabled,
+        s.voice_model,
+        s.voice_indicator_placement
+    );
+}
+
 pub fn run() {
     // First thing in the process: a release build has no console, so until
     // this runs every diagnostic (a panic included) is written nowhere.
@@ -46,8 +63,13 @@ pub fn run() {
     update::cleanup_old();
     // Must run before the first `storage::load()` call below (or anywhere
     // else) so config reads see the migrated `~/.workhub` copy, not a fresh
-    // default (T-0064).
+    // default (T-0064) — the startup snapshot right after it included.
     storage::migrate_from_appdata();
+    // As early as the migration allows: a report about a gesture that "does
+    // nothing" is unreadable without knowing whether the feature was even
+    // switched on. Recorded here rather than in `setup` so a startup that
+    // dies half way still says what it was starting with.
+    log_startup_settings(&storage::load());
     tauri::Builder::default()
         // Must be registered first (per tauri-plugin-single-instance docs).
         // Without this, every launch adds another process; combined with the

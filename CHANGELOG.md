@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.104.0 (2026-09-09)
+
+- **The diagnostic log now records what worked, not only what failed**
+  (T-0257). 0.103.0 made the log readable; almost every line in it was still
+  an error message, which is not enough to reconstruct a problem from a report
+  written afterwards. The log now opens with the settings the app started
+  under — which vault, which features are switched on, which voice model — so
+  "the gesture does nothing" no longer starts with wondering whether the
+  feature was even enabled. A hotkey that registers says so, not just one that
+  fails. The shared keyboard listener records its own lifecycle: consumers
+  registering, re-registration after a locked session or a display change, and
+  the rebuild behind "it works until I've used the machine for a while". Voice
+  records the session — started, stopped, discarded — and every error it puts
+  on screen, which previously vanished with the indicator. Pasting records
+  which path it took, including the case where focus could not be handed back
+  and the text was left on the clipboard instead.
+- The idle watchdog's routine re-registrations are deliberately **not**
+  logged: they fire on a timer, and a night of them would push the session you
+  actually want to read out of the in-app panel.
+- The log still records what the app did and never what you wrote — the paste
+  line carries a character count, not the text.
+
 ## 0.103.0 (2026-09-09)
 
 - **The app now keeps a diagnostic log you can read** (T-0256). The packaged
