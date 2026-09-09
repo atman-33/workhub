@@ -114,6 +114,7 @@ const DEFAULTS: Settings = {
   opencode_cmd: "wt -d {path} pwsh -NoExit -Command opencode",
   use_herdr: true,
   herdr_cmd: "herdr",
+  autostart: false,
   check_updates: true,
   check_template_updates: true,
   auto_apply_template_updates: true,
@@ -360,6 +361,21 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
             <TabsContent value="general" className="mt-0 space-y-3">
               {/* Every group on this tab is a titled bordered section, so no
                   checkbox sits loose next to a framed one. */}
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Startup</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.autostart}
+                    onCheckedChange={(v) => setDraft({ ...draft, autostart: v === true })}
+                  />
+                  Start workhub when I sign in to Windows
+                </label>
+                <p className="pl-6 text-xs text-muted-foreground">
+                  Starts minimized, so global hotkeys, the vault watcher and the tidy
+                  routine are running without a window in your way. Open it from the
+                  taskbar when you need it.
+                </p>
+              </div>
               <div className="space-y-2 rounded-md border p-3">
                 <p className="text-sm font-medium">Startup checks</p>
                 <label className="flex items-center gap-2 text-sm">

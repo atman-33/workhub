@@ -19,6 +19,9 @@ export interface Settings {
   opencode_cmd: string;
   use_herdr: boolean;
   herdr_cmd: string;
+  /** Start workhub when the user signs in to Windows (T-0258). Machine-local:
+   * it is backed by a registry entry holding this install's exe path. */
+  autostart: boolean;
   check_updates: boolean;
   /** Check the vault template for updates against the current vault on
    * startup (T-0061). */

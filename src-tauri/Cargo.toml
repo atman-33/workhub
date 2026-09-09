@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.104.0"
+version = "0.105.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -37,6 +37,10 @@ tauri-plugin-global-shortcut = "2"
 # single-instance guard: a second launch focuses the existing main window and
 # exits instead of accumulating windowless/zombie processes (see lib.rs)
 tauri-plugin-single-instance = "2"
+# start-with-Windows: registers the exe under HKCU\...\CurrentVersion\Run.
+# The plugin writes `current_exe()` every time it is enabled, which is what
+# lets startup re-register a moved or self-updated exe (see lib.rs).
+tauri-plugin-autostart = "2"
 # percent-encoding for obsidian:// open URIs (task file jump-to-Obsidian)
 percent-encoding = "2"
 portable-pty = "0.9"

@@ -45,8 +45,9 @@ use tauri::Manager;
 fn log_startup_settings(cfg: &models::Config) {
     let s = &cfg.settings;
     crate::diag!(
-        "config: vault={} ink={} clips={} quick-capture={} voice={} (model={}, indicator={})",
+        "config: vault={} autostart={} ink={} clips={} quick-capture={} voice={} (model={}, indicator={})",
         s.vault_path.as_deref().unwrap_or("(none)"),
+        s.autostart,
         s.ink_enabled,
         s.clips_enabled,
         s.quick_capture_enabled,
@@ -54,6 +55,59 @@ fn log_startup_settings(cfg: &models::Config) {
         s.voice_model,
         s.voice_indicator_placement
     );
+}
+
+/// Argument the autostart registration appends to the exe path, so a sign-in
+/// launch can be told apart from the user opening the app themselves.
+pub const AUTOSTART_ARG: &str = "--autostart";
+
+/// Brings the registry entry in line with the setting.
+///
+/// Enabling always rewrites the entry rather than checking it first: the
+/// value is the running exe's path, so re-registering is how a moved or
+/// self-updated install stops pointing Windows at an exe that is gone.
+/// Disabling only acts when there is something registered, so the common
+/// case — the setting has never been switched on — touches nothing and logs
+/// nothing on every start.
+///
+/// A debug build deliberately does nothing: its exe lives in
+/// `target/debug/`, and registering that path would outlive the build
+/// directory.
+pub fn apply_autostart(app: &tauri::AppHandle, enabled: bool) {
+    if cfg!(debug_assertions) {
+        crate::diag!("autostart: skipped in a debug build (enabled={enabled})");
+        return;
+    }
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    let result = if enabled {
+        manager.enable()
+    } else if manager.is_enabled().unwrap_or(false) {
+        manager.disable()
+    } else {
+        return;
+    };
+    match result {
+        Ok(()) => crate::diag!("autostart: start-with-Windows set to {enabled}"),
+        Err(e) => crate::diag!("autostart: cannot set start-with-Windows to {enabled}: {e}"),
+    }
+}
+
+/// Minimizes the main window when this process was launched by the sign-in
+/// registration rather than by the user.
+///
+/// Minimized, not hidden: there is no tray icon, so a hidden main window
+/// would only be reachable by launching the exe again (the single-instance
+/// handler shows it). A taskbar button is the obvious way back.
+fn apply_autostart_launch(app: &tauri::App) {
+    if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+        return;
+    }
+    if let Some(main_window) = app.get_webview_window("main") {
+        if let Err(e) = main_window.minimize() {
+            crate::diag!("autostart: cannot minimize the main window: {e}");
+        }
+    }
 }
 
 pub fn run() {
@@ -81,6 +135,13 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        // Start-with-Windows (T-0258). The extra argument is how the app
+        // recognizes a sign-in launch and starts out of the way — see
+        // `apply_autostart_launch` below.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![AUTOSTART_ARG]),
+        ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
@@ -132,6 +193,13 @@ pub fn run() {
             }
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();
+            // Re-assert the start-with-Windows registration against the exe
+            // that is actually running. workhub ships as a portable exe and
+            // self-updates in place, so the registered path goes stale the
+            // moment the user moves the folder; rewriting it on every start
+            // is cheaper than detecting that.
+            apply_autostart(app.handle(), cfg.settings.autostart);
+            apply_autostart_launch(app);
             // Give a vault that has no `.workhub/settings.json` yet the
             // values this machine is already using, so the split never
             // starts by losing settings (T-0206).
