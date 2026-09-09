@@ -563,6 +563,22 @@ pub fn restart_input_listener(app: tauri::AppHandle) -> Result<InputListenerDiag
     }
 }
 
+/// The app's own diagnostic log, most recent lines last. A release build has
+/// no console, so this command (and the log file it mirrors) is the only way
+/// a user can see what the app recorded — see `diag.rs`.
+#[tauri::command]
+pub fn diagnostic_log(limit: Option<usize>) -> Vec<crate::diag::DiagEntry> {
+    crate::diag::entries(limit)
+}
+
+/// Where the log file is and how large it has grown, so the panel can offer
+/// to open the folder and show the user what they would be attaching to a
+/// bug report.
+#[tauri::command]
+pub fn diagnostic_log_info() -> crate::diag::DiagLogInfo {
+    crate::diag::info()
+}
+
 #[derive(Serialize)]
 pub struct UpdateInfo {
     pub tag: String,

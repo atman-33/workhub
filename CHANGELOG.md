@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.103.0 (2026-09-09)
+
+- **The app now keeps a diagnostic log you can read** (T-0256). The packaged
+  build has no console window, so everything workhub recorded about what it was
+  doing went nowhere — a problem seen in the build people actually run left no
+  trace, and could only be chased by trying to reproduce it in a development
+  build. That does not work for the interesting cases: where a pop-up was
+  placed, or which window had focus, is read from *another* app at one instant
+  and is gone by the time anyone looks. Every diagnostic now also goes to
+  `~/.workhub/logs/workhub.log`, and **⚙ Settings → General → Diagnostic log**
+  shows the recent lines with **Copy** (for pasting into a bug report) and
+  **Open folder**. Crashes are recorded too, including in background threads,
+  which previously died in silence. The log holds what the app did — errors,
+  timings, window placement — and never what you typed, dictated or copied; it
+  rotates at 1 MB keeping one previous copy, so it cannot grow without bound.
+
 ## 0.102.0 (2026-09-05)
 
 - **Quick capture can file a task into a project** (T-0247). The window took a

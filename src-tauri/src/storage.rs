@@ -99,7 +99,7 @@ pub fn migrate_from_appdata() {
     }
 
     if let Err(e) = std::fs::create_dir_all(&new_dir) {
-        eprintln!(
+        crate::diag!(
             "workhub migration: cannot create {}: {e}",
             new_dir.display()
         );
@@ -113,7 +113,7 @@ pub fn migrate_from_appdata() {
             continue;
         }
         if let Err(e) = std::fs::copy(&src, &dst) {
-            eprintln!(
+            crate::diag!(
                 "workhub migration: cannot copy {} to {}: {e}",
                 src.display(),
                 dst.display()
@@ -125,7 +125,7 @@ pub fn migrate_from_appdata() {
     if old_models.is_dir() {
         let new_models = new_dir.join("models");
         if let Err(e) = std::fs::rename(&old_models, &new_models) {
-            eprintln!(
+            crate::diag!(
                 "workhub migration: cannot move {} to {}: {e}",
                 old_models.display(),
                 new_models.display()

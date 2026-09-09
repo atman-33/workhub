@@ -108,7 +108,7 @@ pub fn hide(app: &AppHandle) {
         let mut cfg = storage::load();
         cfg.settings.clips_rect = Some(rect);
         if let Err(e) = storage::save(&cfg) {
-            eprintln!("clips: failed to persist window rect: {e}");
+            crate::diag!("clips: failed to persist window rect: {e}");
         }
     }
     let _ = win.hide();

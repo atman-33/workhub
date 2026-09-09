@@ -842,7 +842,7 @@ fn all_template_paths(template: &Dir) -> HashSet<String> {
 /// and logs the reason to stderr.
 fn load_template_policy(template: &Dir) -> HashSet<String> {
     let Some(file) = template.get_file(TEMPLATE_POLICY_FILE) else {
-        eprintln!(
+        crate::diag!(
             "workhub: {TEMPLATE_POLICY_FILE} not found in template; treating every \
              template file as seed-only (safe default)"
         );
@@ -856,7 +856,7 @@ fn load_template_policy(template: &Dir) -> HashSet<String> {
     match parsed {
         Some(policy) => policy.seed_only.into_iter().collect(),
         None => {
-            eprintln!(
+            crate::diag!(
                 "workhub: {TEMPLATE_POLICY_FILE} is unparseable; treating every \
                  template file as seed-only (safe default)"
             );

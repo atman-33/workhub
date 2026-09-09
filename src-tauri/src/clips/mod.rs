@@ -118,7 +118,7 @@ mod imp {
                     Ok(()) => *running = true,
                     Err(e) => {
                         *running = false;
-                        eprintln!("clips: failed to start the key listener: {e}");
+                        crate::diag!("clips: failed to start the key listener: {e}");
                     }
                 }
             }

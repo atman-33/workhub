@@ -146,7 +146,7 @@ fn read(cfg: &Config) -> Option<Map<String, Value>> {
     let file = settings_file(cfg)?;
     let text = std::fs::read_to_string(&file).ok()?;
     let value: Value = serde_json::from_str(&text)
-        .map_err(|e| eprintln!("vault settings: cannot parse {}: {e}", file.display()))
+        .map_err(|e| crate::diag!("vault settings: cannot parse {}: {e}", file.display()))
         .ok()?;
     match value.get("settings") {
         Some(Value::Object(map)) => Some(map.clone()),
@@ -191,7 +191,7 @@ pub fn seed_if_missing(cfg: &Config) {
         return;
     }
     if let Err(e) = write(cfg) {
-        eprintln!("vault settings: cannot seed: {e}");
+        crate::diag!("vault settings: cannot seed: {e}");
     }
 }
 

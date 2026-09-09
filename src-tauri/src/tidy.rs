@@ -193,7 +193,7 @@ fn persist_last_run(ts: u64, session_id: Option<&str>) {
         cfg.settings.tidy.last_session_id = Some(sid.to_string());
     }
     if let Err(e) = storage::save(&cfg) {
-        eprintln!("tidy: failed to persist last_run: {e}");
+        crate::diag!("tidy: failed to persist last_run: {e}");
     }
 }
 

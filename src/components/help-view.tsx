@@ -18,6 +18,7 @@ import {
   PenLine,
   Puzzle,
   Repeat,
+  ScrollText,
   Rocket,
   Sparkles,
   UserRoundCheck,
@@ -308,6 +309,16 @@ An AI task carries three buttons on its card, its list row, and its editor: **La
 - Requires Claude Desktop to be installed — it is what registers the \`claude://\` links the button opens. Without it, the button reports that no handler is available.
 - Like **Copy prompt**, the sent prompt honors the task's confirm and worktree flags, the task file language, and your custom prompt.`;
 
+const DIAG_LOG_MD = `## Reporting a problem (the diagnostic log)
+
+workhub keeps its own log of what it did — errors, timings, which fallback a feature took, where a window was placed. The packaged app has no console window, so this log is the only trace a problem leaves behind.
+
+- **⚙ Settings → General → Diagnostic log** shows the most recent lines, with **Copy** to put them on the clipboard for a bug report and **Open folder** to reach the file itself (\`~/.workhub/logs/workhub.log\`).
+- Turn on **Auto-refresh** while you reproduce a problem to watch the lines arrive; leave it off otherwise.
+- The file rotates at 1 MB and keeps one previous copy, so it never grows without bound. Nothing configures it, and nothing turns it off — a log you had switched off on the day it mattered would be worthless.
+- It records **what the app did, never what you wrote**: no dictated text, no clipboard contents, no note or task bodies. Copying it into an issue does not leak your notes.
+- Crashes land here too. If a feature dies silently, the log is where its panic — with the file, line and thread — was recorded.`;
+
 const ALL_MD = [
   SETUP_MD,
   TEMPLATE_MD,
@@ -320,6 +331,7 @@ const ALL_MD = [
   VOICE_MD,
   INBOX_MD,
   TIDY_MD,
+  DIAG_LOG_MD,
 ].join("\n\n---\n\n");
 
 function CopyButton({
@@ -396,6 +408,7 @@ const SECTIONS = [
   { value: "plugins", title: "Plugins", icon: Puzzle },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
   { value: "recurring", title: "Recurring tasks", icon: Repeat },
+  { value: "diagnostic-log", title: "Reporting a problem", icon: ScrollText },
 ] as const;
 
 const ALL_SECTION_VALUES = SECTIONS.map((s) => s.value as string);
@@ -2006,6 +2019,61 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Run now</span>{" "}
                 saves the rules and then creates whatever is due right away.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={ScrollText}
+            title="Reporting a problem (the diagnostic log)"
+            value="diagnostic-log"
+            markdown={DIAG_LOG_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              workhub keeps its own log of what it did — errors, timings, which
+              fallback a feature took, where a window was placed. The packaged
+              app has no console window, so this log is the only trace a problem
+              leaves behind once it is over.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium">
+                  ⚙ Settings → General → Diagnostic log
+                </span>{" "}
+                shows the most recent lines.{" "}
+                <span className="font-medium">Copy</span> puts them on the
+                clipboard for a bug report;{" "}
+                <span className="font-medium">Open folder</span> reaches the file
+                itself (
+                <span className="font-mono text-xs">
+                  ~/.workhub/logs/workhub.log
+                </span>
+                ).
+              </li>
+              <li>
+                Turn on <span className="font-medium">Auto-refresh</span> while
+                you reproduce a problem to watch the lines arrive; leave it off
+                otherwise.
+              </li>
+              <li>
+                The file rotates at 1 MB and keeps one previous copy, so it never
+                grows without bound. There is nothing to configure and nothing to
+                switch off — a log you had disabled on the day it mattered would
+                be worthless.
+              </li>
+              <li>
+                It records{" "}
+                <span className="font-medium">
+                  what the app did, never what you wrote
+                </span>
+                : no dictated text, no clipboard contents, no note or task
+                bodies. Pasting it into an issue does not leak your notes.
+              </li>
+              <li>
+                Crashes land here too. If a feature goes quiet, the log is where
+                its panic — with the file, line and thread — was recorded.
               </li>
             </ul>
           </Section>

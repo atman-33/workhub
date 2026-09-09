@@ -93,7 +93,7 @@ pub fn hide(app: &AppHandle) {
         let mut cfg = storage::load();
         cfg.settings.ink_preview_rect = Some(rect);
         if let Err(e) = storage::save(&cfg) {
-            eprintln!("ink-preview: failed to persist window rect: {e}");
+            crate::diag!("ink-preview: failed to persist window rect: {e}");
         }
     }
     let _ = win.hide();

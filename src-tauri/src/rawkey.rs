@@ -573,7 +573,7 @@ unsafe fn reregister(hwnd: HWND, reason: &str) {
             health.last_error = None;
         }
         Err(e) => {
-            eprintln!("rawkey: re-registration after {reason} failed: {e}");
+            crate::diag!("rawkey: re-registration after {reason} failed: {e}");
             health.last_error = Some(e);
         }
     }
@@ -776,7 +776,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                                 callback(&app, event)
                             }));
                         if outcome.is_err() {
-                            eprintln!("rawkey: consumer panicked while handling a key event");
+                            crate::diag!("rawkey: consumer panicked while handling a key event");
                             lock(&HEALTH).last_error =
                                 Some("a consumer panicked while handling a key event".into());
                         }

@@ -92,7 +92,7 @@ pub fn hide(app: &AppHandle) {
         let mut cfg = storage::load();
         cfg.settings.quick_capture_rect = Some(rect);
         if let Err(e) = storage::save(&cfg) {
-            eprintln!("quick-capture: failed to persist window rect: {e}");
+            crate::diag!("quick-capture: failed to persist window rect: {e}");
         }
     }
     let _ = win.hide();
@@ -139,24 +139,24 @@ pub fn apply_shortcut(app: &AppHandle) {
         let shortcut: Shortcut = match candidate.parse() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("quick-capture: invalid shortcut {candidate}: {e}");
+                crate::diag!("quick-capture: invalid shortcut {candidate}: {e}");
                 continue;
             }
         };
         match app.global_shortcut().register(shortcut) {
             Ok(()) => {
                 if candidate != preferred {
-                    eprintln!(
+                    crate::diag!(
                         "quick-capture: {preferred} is taken, registered {candidate} instead"
                     );
                 }
                 *state.0.lock().unwrap() = Some(shortcut);
                 return;
             }
-            Err(e) => eprintln!("quick-capture: failed to register {candidate}: {e}"),
+            Err(e) => crate::diag!("quick-capture: failed to register {candidate}: {e}"),
         }
     }
-    eprintln!("quick-capture: could not register any hotkey ({preferred})");
+    crate::diag!("quick-capture: could not register any hotkey ({preferred})");
 }
 
 /// True when `pressed` is the hotkey currently registered for quick capture.

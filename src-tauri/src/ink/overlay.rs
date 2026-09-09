@@ -57,7 +57,7 @@ pub fn activate(app: &AppHandle) {
     // from the gesture never being recognized.
     if window(app).is_none() {
         if let Err(e) = create_overlay(app) {
-            eprintln!("ink: failed to re-create the overlay window: {e}");
+            crate::diag!("ink: failed to re-create the overlay window: {e}");
             return;
         }
     }
@@ -66,7 +66,7 @@ pub fn activate(app: &AppHandle) {
     // may have taken the top of the z-order since the last activation, which
     // leaves the strokes drawn but invisible. Assert the flag again.
     if let Err(e) = win.set_always_on_top(true) {
-        eprintln!("ink: failed to re-assert always-on-top: {e}");
+        crate::diag!("ink: failed to re-assert always-on-top: {e}");
     }
     let cursor = app.cursor_position().ok();
     let monitor = cursor
@@ -94,7 +94,7 @@ pub fn activate(app: &AppHandle) {
     if let Err(e) = win.show() {
         // Swallowing this used to turn a window-manager failure into "the
         // Alt gesture does nothing", with nothing anywhere to say otherwise.
-        eprintln!("ink: failed to show the overlay window: {e}");
+        crate::diag!("ink: failed to show the overlay window: {e}");
         return;
     }
     let _ = win.set_ignore_cursor_events(false);
