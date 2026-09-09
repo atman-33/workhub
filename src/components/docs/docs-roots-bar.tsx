@@ -72,7 +72,7 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
           <FolderPlus />
         </Button>
       </Hint>
-      <Hint label="Edit this folder's name and paths" disabled={!selected}>
+      <Hint label="Edit this folder's name and path" disabled={!selected}>
         <Button
           size="icon-sm"
           variant="ghost"
@@ -94,14 +94,6 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
           <Trash2 />
         </Button>
       </Hint>
-
-      {selected?.overridden && (
-        <Hint label={`Shared path: ${selected.path}`}>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-            local path
-          </span>
-        </Hint>
-      )}
 
       <DocsRootDialog
         root={editing}

@@ -201,7 +201,7 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 
 - **Why not just open it in Obsidian?** Opening a shared folder as a vault writes an \`.obsidian/\` folder into it, and everyone's workspace state then collides. This tab never writes into a document folder — no index, no cache, nothing. It reads, and that is all it can do.
 - **Add a folder** with the folder button on the tab itself (not in Settings — a folder is what the tab is for). The path is stored **in the vault**, so a second PC that clones the vault gets the same list.
-- **The pencil button edits one folder**: its name, the shared path, and — when this PC mounts the share somewhere else — the path to use here. The local path is machine-local; the shared one is left as the team recorded it.
+- **The pencil button edits one folder** — its name and its path. The path is recorded in the vault, so a PC that clones the vault gets the same folder; if that PC mounts the share elsewhere, correct the path there.
 - **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
 - **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
@@ -1792,8 +1792,8 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">The pencil button edits one folder</span> — its
-                name, the shared path, and, when this PC mounts the share somewhere else, the path to use here.
-                The local path is machine-local; the shared one is left as the team recorded it.
+                name and its path. The path is recorded in the vault, so a PC that clones the vault gets the
+                same folder; if that PC mounts the share elsewhere, correct the path there.
               </li>
               <li>
                 <span className="font-medium text-foreground">The tree loads one folder at a time</span>, when you

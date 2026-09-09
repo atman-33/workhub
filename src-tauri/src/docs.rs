@@ -30,7 +30,6 @@
 
 use crate::b64;
 use crate::models::{DocsRoot, Settings};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -65,19 +64,16 @@ pub struct DocsEntry {
     pub modified: u64,
 }
 
-/// A root as the tab renders it: the shared value, plus what it actually
-/// resolves to on *this* machine and whether that place exists.
+/// A root as the tab renders it: what was registered, plus whether it is
+/// actually there.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct DocsRootStatus {
     pub id: String,
     pub name: String,
-    /// The path recorded in the vault — what the team agreed on.
+    /// The registered folder, recorded in the vault.
     pub path: String,
-    /// The path used on this machine (the override when there is one).
-    pub effective_path: String,
-    /// True when `effective_path` came from this machine's override map.
-    pub overridden: bool,
-    /// False when the folder is missing here — the tab offers to re-point it.
+    /// False when the folder is missing on this machine — the tab says so and
+    /// offers to edit the path.
     pub available: bool,
 }
 
@@ -120,38 +116,23 @@ where
     }
 }
 
-/// The path a root resolves to on this machine: its own `path`, unless this
-/// machine records an override for its id.
-pub fn effective_path(root: &DocsRoot, overrides: &HashMap<String, String>) -> String {
-    match overrides.get(&root.id) {
-        Some(p) if !p.trim().is_empty() => p.clone(),
-        _ => root.path.clone(),
-    }
-}
-
-/// Every root as the tab renders it, resolved against this machine.
+/// Every root as the tab renders it, checked against this machine.
 pub fn root_statuses(settings: &Settings) -> Vec<DocsRootStatus> {
     settings
         .docs_roots
         .iter()
-        .map(|root| {
-            let resolved = effective_path(root, &settings.docs_root_paths);
-            let overridden = resolved != root.path;
-            let available = !resolved.trim().is_empty() && Path::new(&resolved).is_dir();
-            DocsRootStatus {
-                id: root.id.clone(),
-                name: root.name.clone(),
-                path: root.path.clone(),
-                effective_path: resolved,
-                overridden,
-                available,
-            }
+        .map(|root| DocsRootStatus {
+            id: root.id.clone(),
+            name: root.name.clone(),
+            available: !root.path.trim().is_empty() && Path::new(&root.path).is_dir(),
+            path: root.path.clone(),
         })
         .collect()
 }
 
-/// The next free `D-NNN` id for a new root. Ids are never reused, because a
-/// machine-local override in `docs_root_paths` is keyed by one.
+/// The next free `D-NNN` id for a new root. Ids are never reused: the id is
+/// how a root is addressed from the frontend across an edit that changes both
+/// its name and its path.
 pub fn next_root_id(roots: &[DocsRoot]) -> String {
     let max = roots
         .iter()
@@ -188,13 +169,13 @@ pub fn resolve_within_roots(target: &str, roots: &[String]) -> Result<PathBuf, S
     }
 }
 
-/// The effective paths of all registered roots — the allow-list the guard is
-/// evaluated against. Read from the config, never from the caller.
+/// The paths of all registered roots — the allow-list the guard is evaluated
+/// against. Read from the config, never from the caller.
 pub fn allowed_roots(settings: &Settings) -> Vec<String> {
     settings
         .docs_roots
         .iter()
-        .map(|r| effective_path(r, &settings.docs_root_paths))
+        .map(|r| r.path.clone())
         .filter(|p| !p.trim().is_empty())
         .collect()
 }
@@ -332,7 +313,6 @@ pub fn guarded_read_asset(settings: &Settings, path: &str) -> Result<String, Str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
     /// A throwaway directory tree, removed on drop.
     struct TempTree(PathBuf);
@@ -362,10 +342,9 @@ mod tests {
         }
     }
 
-    fn settings_with_roots(roots: Vec<DocsRoot>, overrides: HashMap<String, String>) -> Settings {
+    fn settings_with_roots(roots: Vec<DocsRoot>) -> Settings {
         Settings {
             docs_roots: roots,
-            docs_root_paths: overrides,
             ..Settings::default()
         }
     }
@@ -464,43 +443,23 @@ mod tests {
     }
 
     #[test]
-    fn machine_override_wins_over_the_vault_path() {
-        let mut overrides = HashMap::new();
-        overrides.insert("D-001".to_string(), "Z:/local/mount".to_string());
-        let r = root("D-001", "G:/shared drives/team");
-        assert_eq!(effective_path(&r, &overrides), "Z:/local/mount");
-        // An empty override is not an override — it falls back to the vault
-        // value rather than resolving to nothing.
-        overrides.insert("D-001".to_string(), "  ".to_string());
-        assert_eq!(effective_path(&r, &overrides), "G:/shared drives/team");
-        assert_eq!(effective_path(&r, &HashMap::new()), "G:/shared drives/team");
-    }
-
-    #[test]
-    fn root_status_reports_availability_and_override() {
+    fn root_status_reports_whether_the_folder_is_there() {
         let tree = TempTree::new("status");
-        let mut overrides = HashMap::new();
-        overrides.insert("D-002".to_string(), norm(tree.path()));
-        let settings = settings_with_roots(
-            vec![
-                root("D-001", "G:/nowhere/at/all"),
-                root("D-002", "G:/shared drives/team"),
-            ],
-            overrides,
-        );
+        let settings = settings_with_roots(vec![
+            root("D-001", "G:/nowhere/at/all"),
+            root("D-002", &norm(tree.path())),
+        ]);
         let statuses = root_statuses(&settings);
         assert!(!statuses[0].available);
-        assert!(!statuses[0].overridden);
         assert!(statuses[1].available);
-        assert!(statuses[1].overridden);
     }
 
     #[test]
-    fn allowed_roots_follow_the_override() {
-        let mut overrides = HashMap::new();
-        overrides.insert("D-001".to_string(), "Z:/mount".to_string());
-        let settings = settings_with_roots(vec![root("D-001", "G:/team")], overrides);
-        assert_eq!(allowed_roots(&settings), vec!["Z:/mount".to_string()]);
+    fn the_allow_list_is_exactly_the_registered_paths() {
+        let settings = settings_with_roots(vec![root("D-001", "G:/team"), root("D-002", "  ")]);
+        // A root with a blank path contributes nothing rather than matching
+        // everything, which is what an empty prefix would do.
+        assert_eq!(allowed_roots(&settings), vec!["G:/team".to_string()]);
     }
 
     #[test]

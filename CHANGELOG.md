@@ -14,9 +14,7 @@
   could change that.
 - Folders are registered from the tab itself rather than from Settings, and the
   list is stored **in the vault**, so a second PC that clones it gets the same
-  folders. Where a share is mounted elsewhere on that PC, the wrench button
-  points the folder at the local mount without touching the path the team
-  shares.
+  folders. One pencil button edits a folder's name and path together.
 - The tree lists one folder at a time, as you open it: on a Drive share whose
   files are placeholders until read, scanning the whole tree would stall the
   tab. There is no file watcher on a network share either — the refresh button
@@ -27,10 +25,6 @@
   spreadsheet — opens in whatever app the OS associates with it. A share is
   rarely Markdown alone, and a tree that hid the rest disagreed with the folder
   it was describing.
-- One pencil button now edits a folder's name, its shared path and this PC's
-  path together, in a single dialog. They were three controls behind two
-  buttons, which left the machine-local override reading as an unrelated
-  feature rather than as the other half of the path.
 
 ## 0.105.0 (2026-09-09)
 

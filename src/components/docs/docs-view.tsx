@@ -69,7 +69,7 @@ export function DocsView() {
           // restored; otherwise the preview would open a file the tree has
           // no way to show.
           const lastDoc = recall(LAST_DOC);
-          if (lastDoc.startsWith(initial.effective_path)) setDoc(lastDoc);
+          if (lastDoc.startsWith(initial.path)) setDoc(lastDoc);
         }
       } catch (e) {
         setError(String(e));
@@ -131,9 +131,8 @@ export function DocsView() {
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-xs leading-relaxed text-muted-foreground">
             <span className="font-medium">{selected?.path}</span> is not reachable on this PC.
-            If the share is mounted somewhere else here, open the pencil button above and fill
-            in <span className="font-medium">Path on this PC</span> — the path the team shares
-            stays as it is.
+            Check that the drive is mounted and, if it lives somewhere else now, correct the
+            path with the pencil button above.
           </p>
         </div>
       ) : (
@@ -171,7 +170,7 @@ export function DocsView() {
               </div>
               <div className="min-h-0 flex-1 overflow-auto">
                 <DocsTree
-                  rootPath={selected.effective_path}
+                  rootPath={selected.path}
                   selected={doc}
                   filter={filter}
                   refreshToken={refreshToken}

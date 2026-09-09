@@ -36,8 +36,6 @@ const FORMAT_VERSION: u32 = 1;
 /// - hotkeys, window rects and voice/clips settings — hardware- and
 ///   OS-shell-specific;
 /// - `projects`, `presets`, `selected`, `sort` — absolute paths and UI state;
-/// - `docs_root_paths` — the per-machine overrides for `docs_roots`, which is
-///   precisely the part of that setting that differs between PCs;
 /// - `secretary_enabled` and `memory_*` — read straight out of
 ///   `~/.workhub/config.json` by four separate agent-side scripts (the
 ///   Claude Code hooks, the memory engine, and two OpenCode plugins), so
@@ -55,9 +53,7 @@ const VAULT_SCOPED: &[&str] = &[
     "recurring",
     "tidy",
     // The one path-shaped setting that is portable: a shared drive's location
-    // is what the *team* agreed on, not a property of this machine. The half
-    // that genuinely varies per PC — `docs_root_paths` — stays local, and is
-    // why this one can be shared at all (T-0259).
+    // is what the *team* agreed on, not a property of this machine (T-0259).
     "docs_roots",
 ];
 
@@ -376,14 +372,11 @@ mod tests {
     }
 
     /// The Docs roots are the one path-shaped setting that travels with the
-    /// vault, and their per-machine overrides are the half that must not
-    /// (T-0259). Both halves are asserted here because getting the split
-    /// backwards breaks the *other* PC, which is not where it would be noticed.
+    /// vault (T-0259), so that a second machine cloning it gets the folders
+    /// back rather than re-registering them by hand.
     #[test]
-    fn docs_roots_travel_with_the_vault_but_their_local_overrides_do_not() {
+    fn docs_roots_travel_with_the_vault() {
         let vault = temp_vault("docs-roots");
-        let mut overrides = std::collections::HashMap::new();
-        overrides.insert("D-001".to_string(), "Z:/this pc only".to_string());
         let written = config_for(
             &vault,
             Settings {
@@ -392,7 +385,7 @@ mod tests {
                     name: "team share".into(),
                     path: "G:/shared drives/team".into(),
                 }],
-                docs_root_paths: overrides,
+                worktree_root: "D:/machine-local".into(),
                 ..Settings::default()
             },
         );
@@ -406,12 +399,11 @@ mod tests {
             read_back.settings.docs_roots[0].path,
             "G:/shared drives/team"
         );
-        assert!(
-            read_back.settings.docs_root_paths.is_empty(),
-            "a machine's own mount path must never reach the vault file"
+        assert_eq!(
+            read_back.settings.worktree_root,
+            Settings::default().worktree_root,
+            "a machine-local path beside it must still not travel"
         );
-        let raw = std::fs::read_to_string(vault.join(".workhub").join("settings.json")).unwrap();
-        assert!(!raw.contains("this pc only"), "{raw}");
         std::fs::remove_dir_all(&vault).ok();
     }
 

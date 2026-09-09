@@ -990,27 +990,19 @@ pub fn add_docs_root(path: String, name: String) -> Result<Vec<DocsRootStatus>, 
 pub fn remove_docs_root(id: String) -> Result<Vec<DocsRootStatus>, String> {
     let mut cfg = storage::load();
     cfg.settings.docs_roots.retain(|r| r.id != id);
-    // The machine-local override dies with the root it belonged to; the id is
-    // never reused, so leaving it would be dead weight forever.
-    cfg.settings.docs_root_paths.remove(&id);
     storage::save(&cfg)?;
     Ok(docs::root_statuses(&cfg.settings))
 }
 
-/// Updates a root's name, its shared path, and this machine's override, in one
-/// call.
+/// Updates a root's name and folder together.
 ///
-/// The three used to be separate commands behind separate buttons, which left
-/// the override looking like an unrelated feature rather than the other half
-/// of the path. They are edited together in one dialog now, so they are
-/// written together - a partial save would let the two paths disagree about
-/// which root they describe. An empty `local_path` clears the override.
+/// They were two commands behind two buttons, which made editing a root feel
+/// like two unrelated operations. One dialog writes both.
 #[tauri::command]
 pub fn update_docs_root(
     id: String,
     name: String,
     path: String,
-    local_path: String,
 ) -> Result<Vec<DocsRootStatus>, String> {
     let mut cfg = storage::load();
     let path = normalize_docs_path(&path);
@@ -1030,13 +1022,6 @@ pub fn update_docs_root(
     };
     root.name = name.trim().to_string();
     root.path = path;
-
-    let local_path = normalize_docs_path(&local_path);
-    if local_path.is_empty() {
-        cfg.settings.docs_root_paths.remove(&id);
-    } else {
-        cfg.settings.docs_root_paths.insert(id, local_path);
-    }
     storage::save(&cfg)?;
     Ok(docs::root_statuses(&cfg.settings))
 }
