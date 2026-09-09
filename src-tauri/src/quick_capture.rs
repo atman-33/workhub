@@ -145,7 +145,9 @@ pub fn apply_shortcut(app: &AppHandle) {
         };
         match app.global_shortcut().register(shortcut) {
             Ok(()) => {
-                if candidate != preferred {
+                if candidate == preferred {
+                    crate::diag!("quick-capture: hotkey {candidate} registered");
+                } else {
                     crate::diag!(
                         "quick-capture: {preferred} is taken, registered {candidate} instead"
                     );

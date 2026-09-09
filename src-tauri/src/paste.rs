@@ -19,9 +19,20 @@ pub fn paste_text(text: &str) -> Result<(), String> {
     std::thread::sleep(Duration::from_millis(50));
     clipboard::send_ctrl_v();
     std::thread::sleep(Duration::from_millis(150));
-    if let Some(prev) = previous {
-        let _ = clipboard::write_text(&prev);
-    }
+    // A failed restore is the one outcome the user notices later and cannot
+    // explain ("something ate my clipboard"), and nothing above returns it —
+    // the paste itself succeeded. Length only: the text is the user's own.
+    let restored = match previous {
+        Some(prev) => match clipboard::write_text(&prev) {
+            Ok(()) => "restored",
+            Err(_) => "restore failed",
+        },
+        None => "nothing to restore",
+    };
+    crate::diag!(
+        "paste: injected {} chars, previous clipboard {restored}",
+        text.chars().count()
+    );
     Ok(())
 }
 

@@ -233,6 +233,14 @@ where
     if already_running {
         request_reregister();
     }
+    crate::diag!(
+        "rawkey: consumer '{key}' registered (listener was {})",
+        if already_running {
+            "running"
+        } else {
+            "started"
+        }
+    );
     Ok(())
 }
 
@@ -244,6 +252,14 @@ pub fn unregister(key: &'static str) {
         consumers.retain(|c| c.key != key);
         consumers.is_empty()
     };
+    crate::diag!(
+        "rawkey: consumer '{key}' unregistered{}",
+        if empty {
+            " (last one — stopping)"
+        } else {
+            ""
+        }
+    );
     if empty {
         stop();
     }
@@ -256,12 +272,14 @@ pub fn unregister(key: &'static str) {
 /// itself) without disturbing which features are listening. Counted
 /// separately from the external watchdog's automatic rebuilds.
 pub fn restart() -> Result<(), String> {
+    crate::diag!("rawkey: manual restart requested");
     stop();
     let result = ensure_started();
     let mut health = lock(&HEALTH);
     health.restarts += 1;
     health.watchdog_backoff_ms = WATCHDOG_BACKOFF_BASE_MS;
     if let Err(e) = &result {
+        crate::diag!("rawkey: manual restart failed: {e}");
         health.last_error = Some(e.clone());
     }
     result
@@ -292,8 +310,15 @@ fn rebuild(reason: &str) {
     health.last_rebuild_reason = Some(reason.to_string());
     health.last_input_at = 0;
     health.last_reregister_at = 0;
-    if let Err(e) = result {
-        health.last_error = Some(e);
+    match result {
+        // Always worth a line: this is the recovery behind "the gesture
+        // works until I have used the machine for a while", and the counters
+        // that record it are lost with the process.
+        Ok(()) => crate::diag!("rawkey: listener rebuilt after {reason}"),
+        Err(e) => {
+            crate::diag!("rawkey: rebuild after {reason} failed: {e}");
+            health.last_error = Some(e);
+        }
     }
 }
 
@@ -569,6 +594,14 @@ unsafe fn reregister(hwnd: HWND, reason: &str) {
     health.last_reregister_reason = Some(reason.to_string());
     match result {
         Ok(()) => {
+            // The idle watchdog re-registers on a timer, so logging its
+            // successes would fill the 500-line ring with a night of
+            // "nothing happened" and push out the session anyone wants to
+            // read. Only the event-driven reasons — a locked session, an RDP
+            // reconnect, a display or power change — say something.
+            if reason != WATCHDOG_REASON {
+                crate::diag!("rawkey: re-registered after {reason}");
+            }
             health.reregistrations += 1;
             health.last_error = None;
         }

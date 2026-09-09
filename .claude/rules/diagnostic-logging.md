@@ -22,6 +22,33 @@ read by the Settings panel, and to `~/.workhub/logs/workhub.log`.
 `eprintln!` / `println!` remain correct inside `#[cfg(test)]` — test output
 belongs to the test harness, not to the user's log file.
 
+## What is worth a line
+
+The log's job is to let someone reconstruct what the app did from a report
+written after the fact. Four rules follow from that, and T-0257 applied them
+to the 45 lines the first version shipped with — almost all of which were
+failures, which is not enough.
+
+- **Record transitions, not counters.** The Settings panel shows live counters
+  (`rawkey::diagnostics`), and every one of them is lost with the process. The
+  log has to say *when* something happened: a listener rebuilt, a hotkey
+  registered, a recording started.
+- **Never log anything that fires on a timer.** The in-memory ring holds 500
+  lines. The raw-input watchdog re-registers on idle with a backoff, so
+  logging its successes would fill the ring overnight with "nothing happened"
+  and push out the session someone actually wants to read. `reregister` skips
+  the `WATCHDOG_REASON` case for exactly this reason; the rebuild that follows
+  a genuine break is still logged.
+- **An error shown to the user goes in the log too.** An error that appeared
+  on screen and then vanished is the thing bug reports are written about.
+  `voice::emit_error` is the worked example: one line at the single funnel
+  every user-visible voice error passes through, rather than at each caller.
+- **A feature with a fallback chain records which link won.** Failure-only
+  logging makes the case where a fallback quietly carried the day completely
+  invisible — which is how the voice indicator ended up in the wrong corner
+  with every log line green (T-0251). See also
+  `.claude/rules/focused-app-state.md`.
+
 ## Never log what the user wrote
 
 The log file is plain text, and users are asked to paste it into bug reports.
