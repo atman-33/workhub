@@ -22,7 +22,9 @@
 //! Archiving moves the folder to `archive/projects/<slug>/`, which keeps its
 //! provenance and is reversible from the same screen.
 
-use crate::models::{SharedSpace, VaultProject, VaultProjectFolder, VaultProjectIssue};
+use crate::models::{
+    BacklogItem, SharedSpace, VaultProject, VaultProjectFolder, VaultProjectIssue,
+};
 use crate::vault_note::{
     ensure_scaffold_file, frontmatter_list, frontmatter_value, norm_path, projects_dir,
     remove_frontmatter_key, rewrite_frontmatter, rewrite_frontmatter_list, split_frontmatter,
@@ -42,10 +44,12 @@ const REQUIRED_FILES: &[&str] = &["README.md", "prd.md", "roadmap.md", "links.md
 const CRITICAL_FILES: &[&str] = &["README.md", "_index.md"];
 
 /// Subfolders the documented layout names, in the order CLAUDE.md lists them.
+///
+/// `specs` and `research` were dropped in T-0253: a spec and its research
+/// belong to one unit of work, so they now live inside that unit's
+/// `backlog/` item rather than in folders of their own.
 const KNOWN_DIRS: &[&str] = &[
-    "specs",
     "backlog",
-    "research",
     "dev-notes",
     "deliverables",
     "schedules",
@@ -53,6 +57,10 @@ const KNOWN_DIRS: &[&str] = &[
     "shared",
     "attachments",
 ];
+
+/// Where units of work live. Counted differently from every other folder
+/// because an item is a note *or* a folder of notes (T-0253).
+const BACKLOG_DIR: &str = "backlog";
 
 /// Where a project records the team knowledge bases that live outside the
 /// vault. One note per place; the folder is the registry (T-0239).
@@ -389,9 +397,20 @@ fn inspect_folders(dir: &Path) -> (Vec<VaultProjectFolder>, Vec<VaultProjectIssu
             // folder look occupied.
             let count = if name == "attachments" {
                 count_files(&entry.path(), None)
+            } else if name == BACKLOG_DIR {
+                count_backlog_items(&entry.path())
             } else {
                 count_files(&entry.path(), Some("md"))
             };
+            if name == BACKLOG_DIR {
+                for target in backlog_items_without_entry_note(&entry.path()) {
+                    issues.push(VaultProjectIssue {
+                        kind: "backlog-entry-missing".into(),
+                        severity: "warn".into(),
+                        target,
+                    });
+                }
+            }
             folders.push(VaultProjectFolder { name, count, known });
         }
     }
@@ -436,6 +455,134 @@ fn count_files(dir: &Path, ext: Option<&str>) -> usize {
             }
         })
         .count()
+}
+
+/// Every backlog item in a project, in `B-NNN` order, for the task editor's
+/// item picker (T-0253). Both shapes of item are listed: a bare note and a
+/// folder whose entry note names it. Archived projects are searched too, so a
+/// task on a parked project still resolves its item.
+///
+/// Only the id and title are read — enough to choose one — so the picker
+/// costs one directory listing plus a frontmatter read per item, not a scan
+/// of every note the items contain.
+pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, String> {
+    let slug = check_slug(slug)?;
+    let dir = [false, true]
+        .iter()
+        .map(|&archived| project_dir(vault, slug, archived))
+        .find(|d| d.is_dir())
+        .map(|d| d.join(BACKLOG_DIR));
+    let Some(dir) = dir.filter(|d| d.is_dir()) else {
+        return Ok(Vec::new());
+    };
+
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(Vec::new());
+    };
+    let mut out: Vec<BacklogItem> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || name.starts_with('_') {
+                return None;
+            }
+            let ty = e.file_type().ok()?;
+            // An item is a note, or a folder holding the note that names it.
+            let note = if ty.is_dir() {
+                dir.join(&name).join(format!("{name}.md"))
+            } else if name.ends_with(".md") {
+                dir.join(&name)
+            } else {
+                return None;
+            };
+            let stem = name.trim_end_matches(".md").to_string();
+            let front = read_note(&note).map(|n| n.0);
+            let id = front
+                .as_ref()
+                .map(|f| frontmatter_value(f, "id"))
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                // A folder still without its entry note has no frontmatter to
+                // read; fall back to the name so the picker can still offer it
+                // rather than pretending the item is not there.
+                .unwrap_or_else(|| id_prefix(&stem));
+            let title = front
+                .as_ref()
+                .map(|f| frontmatter_value(f, "title"))
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| stem.clone());
+            let status = front
+                .as_ref()
+                .map(|f| frontmatter_value(f, "status"))
+                .map(|v| v.trim().to_string())
+                .unwrap_or_default();
+            Some(BacklogItem {
+                id,
+                title,
+                status,
+                folder: ty.is_dir(),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.id.cmp(&b.id).then_with(|| a.title.cmp(&b.title)));
+    Ok(out)
+}
+
+/// The `B-NNN` at the front of an item's file or folder name, or the whole
+/// name when it carries no such prefix.
+fn id_prefix(stem: &str) -> String {
+    let Some(rest) = stem.strip_prefix("B-") else {
+        return stem.to_string();
+    };
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        stem.to_string()
+    } else {
+        format!("B-{digits}")
+    }
+}
+
+/// How many units of work a `backlog/` folder holds. An item is either a
+/// single note or a folder of notes (T-0253), so both shapes count as one.
+fn count_backlog_items(dir: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || name.starts_with('_') {
+                return false;
+            }
+            match e.file_type() {
+                Ok(t) if t.is_dir() => true,
+                Ok(t) if t.is_file() => e.path().extension().and_then(|x| x.to_str()) == Some("md"),
+                _ => false,
+            }
+        })
+        .count()
+}
+
+/// Item folders missing the entry note that names them. An item promoted from
+/// a note to a folder keeps the note's filename so existing `[[B-NNN-…]]`
+/// links still resolve; a folder without it has no entry point and no
+/// frontmatter, so `_backlog.base` cannot see the item at all.
+fn backlog_items_without_entry_note(dir: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|name| !name.starts_with('.') && !name.starts_with('_'))
+        .filter(|name| !dir.join(name).join(format!("{name}.md")).is_file())
+        .map(|name| format!("backlog/{name}/"))
+        .collect();
+    out.sort();
+    out
 }
 
 /// Task deliverable notes (`T-XXXX-…`) sitting in the project root instead of
@@ -778,12 +925,83 @@ mod tests {
         assert_eq!(targets("misfiled-deliverable"), ["T-0042-a-deliverable.md"]);
         assert_eq!(targets("unknown-folder"), ["pbl/"]);
         assert!(targets("missing-file").contains(&"prd.md".to_string()));
-        assert!(targets("missing-folder").contains(&"specs/".to_string()));
+        assert!(targets("missing-folder").contains(&"dev-notes/".to_string()));
+        // Dropped from the layout in T-0253 — no longer reported as absent.
+        assert!(!targets("missing-folder").contains(&"specs/".to_string()));
+        assert!(!targets("missing-folder").contains(&"research/".to_string()));
 
         let deliverables = p.folders.iter().find(|f| f.name == "deliverables").unwrap();
         assert_eq!(deliverables.count, 1);
         assert!(deliverables.known);
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
+    }
+
+    /// A backlog item is a note *or* a folder of notes, and both count as one
+    /// item. A folder missing the entry note that names it has no frontmatter
+    /// for `_backlog.base` to read, so it is reported (T-0253).
+    #[test]
+    fn backlog_counts_notes_and_folders_and_flags_a_missing_entry_note() {
+        let vault = temp_vault("backlog-items");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        let backlog = dir.join("backlog");
+        write(backlog.join("_backlog.base"), "filters: {}\n");
+        write(
+            backlog.join("B-001-a-candidate.md"),
+            "---\nid: B-001\ntitle: A candidate\ntype: backlog\nstatus: idea\n---\n",
+        );
+        write(
+            backlog.join("B-002-grown").join("B-002-grown.md"),
+            "---\nid: B-002\ntitle: Grown\ntype: backlog\nstatus: doing\n---\n",
+        );
+        write(backlog.join("B-002-grown").join("010-design.md"), "note\n");
+        write(
+            backlog.join("B-003-headless").join("010-design.md"),
+            "note\n",
+        );
+
+        let projects = list_projects(&vault, false).unwrap();
+        let p = &projects[0];
+
+        // One note and two folders. `_backlog.base` and the notes inside an
+        // item are not items themselves, so the count is three.
+        let folder = p.folders.iter().find(|f| f.name == "backlog").unwrap();
+        assert_eq!(folder.count, 3);
+        assert!(folder.known);
+
+        let missing: Vec<String> = p
+            .issues
+            .iter()
+            .filter(|i| i.kind == "backlog-entry-missing")
+            .map(|i| i.target.clone())
+            .collect();
+        assert_eq!(missing, ["backlog/B-003-headless/"]);
+
+        // The picker sees all three in id order, and falls back to the folder
+        // name for the one whose entry note is missing.
+        let items = list_backlog_items(&vault, "demo").unwrap();
+        let ids: Vec<&str> = items.iter().map(|i| i.id.as_str()).collect();
+        assert_eq!(ids, ["B-001", "B-002", "B-003"]);
+        assert!(!items[0].folder);
+        assert!(items[1].folder);
+        assert_eq!(items[1].title, "Grown");
+        assert_eq!(items[1].status, "doing");
+        assert_eq!(items[2].title, "B-003-headless");
+        assert_eq!(items[2].status, "");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A project with no `backlog/` folder is not an error — the picker simply
+    /// has nothing to offer, so the task form still opens (T-0253).
+    #[test]
+    fn a_project_without_a_backlog_folder_has_no_items() {
+        let vault = temp_vault("backlog-empty");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        assert!(list_backlog_items(&vault, "demo").unwrap().is_empty());
+        assert!(list_backlog_items(&vault, "nope").unwrap().is_empty());
+        fs::remove_dir_all(&vault).ok();
     }
 
     /// `shared/` is read as a registry of notes, and a note that does not say

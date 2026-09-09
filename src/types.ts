@@ -228,10 +228,28 @@ export interface VaultProjectFolder {
 /** One way a project departs from the layout documented in the vault's
  * CLAUDE.md. */
 export interface VaultProjectIssue {
-  kind: "missing-file" | "missing-folder" | "misfiled-deliverable" | "unknown-folder";
+  kind:
+    | "missing-file"
+    | "missing-folder"
+    | "misfiled-deliverable"
+    | "unknown-folder"
+    | "backlog-entry-missing";
   severity: "warn" | "info";
   /** The path or name the finding is about, relative to the project folder. */
   target: string;
+}
+
+/** One backlog item in a project's `backlog/`, as the task editor's picker
+ * sees it. Enough to choose one without reading the notes inside it (T-0253). */
+export interface BacklogItem {
+  /** `B-NNN`, as a task's `backlog` field records it. */
+  id: string;
+  title: string;
+  /** idea | ready | doing | done | dropped, or empty when the item's entry
+   * note is missing or says nothing. */
+  status: string;
+  /** True once the item has grown into a folder of notes. */
+  folder: boolean;
 }
 
 /** One team knowledge base that lives outside the vault, recorded as a note in
@@ -635,6 +653,10 @@ export interface Task {
   status: TaskStatus;
   assignee: TaskAssignee;
   project: string;
+  /** `B-NNN` of the backlog item in `projects/<project>/backlog/` this task
+   * belongs to; empty when the task stands alone. The link runs this way only
+   * — the item never lists its tasks (T-0253). */
+  backlog: string;
   priority: TaskPriority;
   /** AI model passed as `--model` on task launches; empty = agent default. */
   model: string;
@@ -668,6 +690,7 @@ export interface CreateTaskInput {
   status?: TaskStatus;
   assignee?: TaskAssignee;
   project?: string;
+  backlog?: string;
   priority?: TaskPriority;
   model?: string;
   confirm?: boolean;
@@ -683,6 +706,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   id: string;
   title?: string;
+  backlog?: string;
   status?: TaskStatus;
   assignee?: TaskAssignee;
   project?: string;

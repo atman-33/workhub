@@ -5,7 +5,7 @@ type: backlog
 project: demo-site
 status: idea
 priority: low
-promoted:
+source:
 created: 2026-08-12
 updated: 2026-08-12
 tags:

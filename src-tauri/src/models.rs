@@ -698,6 +698,20 @@ pub struct VaultProject {
     pub shared: Vec<SharedSpace>,
 }
 
+/// One backlog item as the task editor's picker sees it — enough to choose
+/// one without reading the notes inside it (T-0253).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacklogItem {
+    /// `B-NNN`, as a task's `backlog:` records it.
+    pub id: String,
+    pub title: String,
+    /// idea | ready | doing | done | dropped. Empty when the item's entry note
+    /// is missing or says nothing.
+    pub status: String,
+    /// True when the item has grown into a folder of notes.
+    pub folder: bool,
+}
+
 /// A task's frontmatter fields plus location and body — the app's view of
 /// one `tasks/<id> <title>.md` file in the vault.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -710,6 +724,12 @@ pub struct Task {
     pub assignee: String,
     #[serde(default)]
     pub project: String,
+    /// `B-NNN` of the backlog item in `projects/<project>/backlog/` this task
+    /// belongs to; empty when the task stands alone. The link runs this way
+    /// only — the item never lists its tasks, because two hand-maintained
+    /// copies of one relationship drift apart (T-0253).
+    #[serde(default)]
+    pub backlog: String,
     /// low | medium | high
     pub priority: String,
     /// AI model passed to the agent CLI via `--model` on task launches

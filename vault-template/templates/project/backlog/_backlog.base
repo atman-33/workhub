@@ -11,30 +11,31 @@ properties:
     displayName: Status
   priority:
     displayName: Priority
-  promoted:
-    displayName: "Promoted to"
+  source:
+    displayName: "External backlog"
 
 views:
   - type: table
     name: "Open"
     filters:
       and:
-        - 'status != "promoted"'
+        - 'status != "done"'
         - 'status != "dropped"'
     order:
       - file.name
       - status
       - priority
-      - promoted
+      - source
     groupBy:
       property: status
       direction: ASC
 
   - type: table
-    name: "Promoted"
+    name: "Closed"
     filters:
-      and:
-        - 'status == "promoted"'
+      or:
+        - 'status == "done"'
+        - 'status == "dropped"'
     order:
       - file.name
-      - promoted
+      - status

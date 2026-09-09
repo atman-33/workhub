@@ -2,7 +2,7 @@ use crate::docs::{self, DocsEntry, DocsRootStatus};
 use crate::mindmap;
 use crate::mindmap_edit;
 use crate::models::{
-    BranchList, CommitFileChange, Config, DocsRoot, GitInfo, GitLog, GraphOp,
+    BacklogItem, BranchList, CommitFileChange, Config, DocsRoot, GitInfo, GitLog, GraphOp,
     InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
     VaultProject, Worktree,
 };
@@ -749,6 +749,21 @@ pub async fn list_vault_projects(
 ) -> Result<Vec<VaultProject>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         vault_project::list_projects(&PathBuf::from(vault_path), include_archived)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// The backlog items of one project, for the task editor's item picker.
+/// Empty — never an error — when the project has no `backlog/` folder, so the
+/// picker degrades to "no items" instead of failing the form (T-0253).
+#[tauri::command]
+pub async fn list_backlog_items(
+    vault_path: String,
+    slug: String,
+) -> Result<Vec<BacklogItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::list_backlog_items(&PathBuf::from(vault_path), &slug)
     })
     .await
     .map_err(|e| e.to_string())?

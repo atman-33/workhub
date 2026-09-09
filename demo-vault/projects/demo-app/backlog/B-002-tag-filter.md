@@ -5,7 +5,7 @@ type: backlog
 project: demo-app
 status: idea
 priority: medium
-promoted:
+source:
 created: 2026-08-11
 updated: 2026-08-11
 tags:

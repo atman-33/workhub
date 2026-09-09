@@ -13,6 +13,7 @@ const TASK: Task = {
   status: "todo",
   assignee: "me",
   project: "workhub",
+  backlog: "",
   priority: "medium",
   model: "",
   order: null,
@@ -38,6 +39,7 @@ describe("fieldsFromDraft", () => {
     expect(Object.keys(fields).sort()).toEqual(
       [
         "assignee",
+        "backlog",
         "blocked",
         "blockedNote",
         "blockedSince",

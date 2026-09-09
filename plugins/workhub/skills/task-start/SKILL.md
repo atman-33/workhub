@@ -61,7 +61,25 @@ argument-hint: "<task-id>"
      note's `## Promoted rules` as an axis. Say which you chose. An answer
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
-3. **Resolve the target repository through the project.** The task's
+3. **Load the backlog item, when the task names one.** A task's `backlog`
+   frontmatter key is `B-NNN` in `projects/<project>/backlog/`. Read that
+   item's entry note — `<id>-<slug>.md`, or the note of the same name inside
+   `<id>-<slug>/` once the item has grown into a folder — before starting:
+
+   - `## Status` is the item's dated log. It says where the work stands and
+     which of the numbered notes beside it is current, which a file listing
+     alone cannot tell you.
+   - `## What` and `## Why` are the standing intent behind every task on this
+     item, including ones finished by earlier sessions.
+   - The numbered notes in the folder are that item's specs, investigations
+     and past task outputs. Read the ones the entry note points at; do not
+     read the folder whole.
+
+   This is the point of the item folder: the context a previous session left
+   is one directory away instead of scattered across the project. A task with
+   no `backlog` key stands alone — skip this step.
+
+4. **Resolve the target repository through the project.** The task's
    `project` key names a vault project (`projects/<slug>/`), not a
    repository — the two do not share a naming scheme, so never guess a path
    from the slug.
@@ -74,7 +92,7 @@ argument-hint: "<task-id>"
    - When `project` is empty, read the target repository out of the task's
      `## Description` (tasks state it as `**対象リポジトリ:** <path>`).
    - If it still cannot be resolved, ask the user.
-4. **Set up a git worktree — only when the task opts in** (`worktree: true`
+5. **Set up a git worktree — only when the task opts in** (`worktree: true`
    in the frontmatter, which the app also states in the launch prompt).
    Isolating parallel tasks in their own worktree keeps them from colliding
    on one working tree. When enabled:
@@ -96,7 +114,7 @@ argument-hint: "<task-id>"
      repository root for the rest of the task.
    When `worktree` is unset/false, work directly in the resolved repository as
    before.
-5. **Record an approved plan — only for plan-first tasks** (`confirm: true`,
+6. **Record an approved plan — only for plan-first tasks** (`confirm: true`,
    or whenever the user approves a plan before implementation). Once the plan
    is approved and **before making any code changes**, write it into the task
    file's `## Plan` section. Writing it afterwards defeats the point: the
@@ -106,7 +124,7 @@ argument-hint: "<task-id>"
    - Change nothing else in the body.
    - If `## Plan` was already non-empty, you are executing a recorded plan
      (step 2) and should not be writing a new one.
-6. **Begin the work** in the target repository (or its worktree), following
+7. **Begin the work** in the target repository (or its worktree), following
    that repo's own instructions (CLAUDE.md etc.).
 
 ## Handing information to another session

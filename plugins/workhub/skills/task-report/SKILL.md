@@ -18,7 +18,23 @@ argument-hint: "<task-id>"
 3. **Write human-readable deliverables** where they belong:
    - Knowledge gained (research, gotchas, how-tos) → a note under
      `<vault>/knowledge/`, added to `knowledge/_index.md`.
-   - Project-specific outcomes → a note under `<vault>/projects/`.
+   - **The task names a backlog item** (`backlog: B-NNN` in its frontmatter)
+     → inside that item, in `projects/<project>/backlog/`:
+     - If the item is still a single note, promote it to a folder first: make
+       `B-NNN-<slug>/` and move the note into it **under its existing
+       filename**, so every `[[B-NNN-<slug>]]` written so far still resolves.
+     - Write the deliverable as `NNN-<task-id>-<title>.md` in that folder,
+       numbering in tens after the highest number already there (`010`,
+       `020`, …). Non-Markdown output (a test report, an exported image)
+       goes in the same folder, flat — no sub-folders.
+     - Append one dated line to the entry note's `## Status`, newest first,
+       and list the new note under its `## Notes`. This is the only thing
+       that tells a later reader which file is current, since the number
+       prefix records creation order and nothing else.
+     - Do **not** add the task to the item's frontmatter. The link runs one
+       way — the task names the item, never the reverse.
+   - **The task names no item** → a note under
+     `projects/<project>/deliverables/`, as before.
    - Keep these polished and short; link to the raw log with a wikilink
      only if the detail matters.
 4. **Append to the task's `## Results` section** (Edit tool): a 2-4 line

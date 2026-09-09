@@ -5,7 +5,7 @@ type: backlog
 project: demo-app
 status: dropped
 priority: low
-promoted:
+source:
 created: 2026-08-09
 updated: 2026-08-18
 tags:

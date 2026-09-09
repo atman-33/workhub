@@ -250,7 +250,16 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                         </span>
                       </Hint>
                     )}
-                    {task.project && <span>· {task.project}</span>}
+                    {task.project && (
+                      <span>
+                        {"· "}
+                        {task.project}
+                        {/* The item id rides on the project rather than
+                            standing alone: `B-007` means nothing without the
+                            project whose backlog it is in (T-0253). */}
+                        {task.backlog ? `/${task.backlog}` : ""}
+                      </span>
+                    )}
                     <span>· {task.assignee}</span>
                     {task.due && (
                       <span className={dueTone(task.due, task.status)}>· {task.due}</span>

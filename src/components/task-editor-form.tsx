@@ -51,7 +51,7 @@ import {
   type DraftField,
   type TaskDraft,
 } from "@/lib/task-editor-fields";
-import type { Task, TaskAssignee, TaskStatus } from "@/types";
+import type { BacklogItem, Task, TaskAssignee, TaskStatus } from "@/types";
 
 /** The three views the shared pane switches between. */
 type PaneTab = "description" | "plan" | "results";
@@ -61,6 +61,7 @@ const EMPTY_DRAFT: TaskDraft = {
   status: "inbox",
   assignee: "me",
   project: "",
+  backlog: "",
   priority: "medium",
   model: "",
   confirm: false,
@@ -107,6 +108,9 @@ interface Props {
   mode: "create" | "edit";
   task: Task | null;
   knownProjects: string[];
+  /** Vault root, used to read the selected project's backlog items. Without
+   *  it the item picker is simply not offered (T-0253). */
+  vaultPath?: string;
   /** A failure from the window around the form (create, autosave, settings),
    *  shown next to the form's own action errors. */
   error?: string | null;
@@ -134,6 +138,7 @@ export function TaskEditorForm({
   mode,
   task,
   knownProjects,
+  vaultPath,
   error,
   onClose,
   onCreate,
@@ -273,6 +278,59 @@ export function TaskEditorForm({
   const projectOptions = useMemo(
     () => (projectUnregistered ? [...knownProjects, draft.project] : knownProjects),
     [knownProjects, projectUnregistered, draft.project],
+  );
+
+  // A backlog item belongs to a project, so the picker follows the project
+  // field: change the project and the items are re-read for it. Switching
+  // project also clears the item, since a `B-NNN` from the old project would
+  // point at nothing (T-0253).
+  const [backlogItems, setBacklogItems] = useState<BacklogItem[]>([]);
+  const [backlogLoading, setBacklogLoading] = useState(false);
+  const project = draft.project.trim();
+  useEffect(() => {
+    if (!vaultPath || !project) {
+      setBacklogItems([]);
+      return;
+    }
+    let cancelled = false;
+    setBacklogLoading(true);
+    api
+      .listBacklogItems(vaultPath, project)
+      .then((items) => {
+        if (!cancelled) setBacklogItems(items);
+      })
+      // A project whose folder is missing or unreadable leaves the picker
+      // empty rather than failing the form — the task is still editable.
+      .catch(() => {
+        if (!cancelled) setBacklogItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBacklogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultPath, project]);
+
+  // Same reasoning as `projectUnregistered`: a task may name an item that has
+  // since been renamed or dropped. Keep the value selectable and say so,
+  // rather than blanking it the moment the editor opens.
+  const backlogUnknown =
+    draft.backlog.trim().length > 0 && !backlogItems.some((i) => i.id === draft.backlog);
+  const backlogOptions = useMemo(
+    () =>
+      backlogUnknown
+        ? [...backlogItems.map((i) => i.id), draft.backlog]
+        : backlogItems.map((i) => i.id),
+    [backlogItems, backlogUnknown, draft.backlog],
+  );
+  const selectedBacklog = backlogItems.find((i) => i.id === draft.backlog);
+
+  const handleProjectChange = useCallback(
+    (next: string) => {
+      update(draft.backlog ? { project: next, backlog: "" } : { project: next });
+    },
+    [update, draft.backlog],
   );
 
   const field = (label: string, node: ReactNode, className?: string) => (
@@ -425,6 +483,7 @@ export function TaskEditorForm({
     title: d.title,
     assignee: d.assignee,
     project: d.project,
+    backlog: d.backlog,
     model: d.model,
     confirm: d.confirm,
     worktree: d.worktree,
@@ -663,7 +722,7 @@ export function TaskEditorForm({
             <>
               <Combobox
                 value={draft.project}
-                onChange={(v) => update({ project: v })}
+                onChange={handleProjectChange}
                 options={projectOptions}
                 noneLabel="No project"
                 placeholder="vault project"
@@ -693,6 +752,40 @@ export function TaskEditorForm({
             />,
           )}
         </div>
+        {/* A backlog item belongs to a project, so the picker only appears
+            once one is chosen. The option list is bare `B-NNN` ids on
+            purpose — a decorated label has to be un-decorated on the way back
+            out, and a slip there rewrites the link (same lesson as T-0219).
+            The item's title goes under the field instead. */}
+        {project && (
+          <div className="grid grid-cols-2 gap-3">
+            {field(
+              "Backlog item",
+              <>
+                <Combobox
+                  value={draft.backlog}
+                  onChange={(v) => update({ backlog: v })}
+                  options={backlogOptions}
+                  noneLabel="No item"
+                  placeholder="backlog item"
+                  loading={backlogLoading}
+                  emptyText={`No backlog items in ${project}.`}
+                />
+                {selectedBacklog && (
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {selectedBacklog.title}
+                    {selectedBacklog.status ? ` · ${selectedBacklog.status}` : ""}
+                  </p>
+                )}
+                {backlogUnknown && (
+                  <p className="text-[11px] text-destructive">
+                    {draft.backlog} is not an item in {project}
+                  </p>
+                )}
+              </>,
+            )}
+          </div>
+        )}
         <Accordion
           type="single"
           collapsible

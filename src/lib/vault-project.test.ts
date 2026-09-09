@@ -84,7 +84,7 @@ describe("health", () => {
       issues: [
         issue({ severity: "warn", kind: "missing-file", target: "README.md" }),
         issue({ severity: "warn", kind: "misfiled-deliverable", target: "T-0042-x.md" }),
-        issue({ severity: "info", kind: "missing-folder", target: "specs/" }),
+        issue({ severity: "info", kind: "missing-folder", target: "mindmaps/" }),
       ],
     });
     expect(health(p)).toEqual({ warn: 2, info: 1 });

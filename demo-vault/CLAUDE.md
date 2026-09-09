@@ -128,6 +128,9 @@ title: ...
 status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
+backlog: B-007      # optional; the backlog item in
+                    # projects/<project>/backlog/ this task belongs to. The
+                    # link runs this way only — the item never lists its tasks
 priority: medium    # low | medium | high
 model: sonnet       # optional; AI model passed as `--model` when the app
                     # launches an agent for this task. Absent = agent default.
@@ -177,11 +180,9 @@ filling in the placeholders. Layout:
 | `prd.md` | Product intent, scope, goals — the single source of product intent |
 | `roadmap.md` | Milestones and schedule |
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
-| `specs/` | Feature specs, one file per feature |
-| `backlog/` | Backlog items (`B-NNN-<title>.md`), one per file; `_backlog.base` renders them by status/priority |
-| `research/` | Investigations and technical spikes |
-| `dev-notes/` | Development notes, design decisions, architecture |
-| `deliverables/` | Task deliverable notes (`T-XXXX-<title>`), linked from a task's `## Results` |
+| `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
+| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
+| `deliverables/` | Task deliverable notes (`T-XXXX-<title>`) for tasks that belong to no backlog item |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
 | `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
 | `attachments/` | Images and binaries for this project |
@@ -193,6 +194,14 @@ to everything else — do not scan the whole project folder.
 Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
+
+The layout has two axes, not one. `backlog/` groups by **unit of work** — one
+feature, one bug, one support case — keeping its spec, its research and its
+task outputs in one place. Everything else groups by **kind**, because it
+serves the project as a whole rather than any single item. Scattering one
+piece of work across four kind-named folders is exactly what this replaces:
+once an item folder holds both, a separate `specs/` and `research/` have
+nothing left to hold.
 
 `_index.md` also carries an optional `repos:` key listing the registered
 repositories this project belongs to — each entry an absolute path, or the
@@ -357,18 +366,75 @@ on screen when it was made:
   which lines the map up in columns at the cost of one long title widening
   every box on its level.
 
-### Backlog vs tasks
+### Backlog items
 
-`backlog/` is the project's idea pool; `tasks/` (vault root) is the app's
-single source of executable tasks. They are not the same list:
+`backlog/` is where a project's work actually lives. One item is one unit of
+work — a feature, a bug, a support case — and it holds everything that unit
+produces: the candidate write-up, the spec, the investigation, the notes each
+task left behind. `tasks/` at the vault root remains the app's executable task
+list; an item is what a task is *about*, never a duplicate of it.
 
-- A backlog item is a candidate (`status: idea | ready | dropped`). Keep it
-  lightweight.
-- When an item is `ready` and picked up, it becomes a real task in `tasks/`
-  (created via the app). Record the task id back on the item
-  (`promoted: T-XXXX`, `status: promoted`) so it drops out of the open view.
-- Deliverables produced by that task land in the project's `deliverables/`,
-  linked from the task's `## Results`.
+An item starts as a single note and grows into a folder when it needs one:
+
+```text
+backlog/
+  _backlog.base
+  B-005-task-editor-project-source.md   <- still just a candidate
+  B-007-mindmap/                        <- grew
+    B-007-mindmap.md                    <- entry note, named after the folder
+    010-feature-design.md
+    020-node-attributes.md
+    030-T-0194-sticky-notes.md
+    040-T-0194-manual-test.html
+```
+
+- Promote a note to a folder as soon as it needs a second file. **The entry
+  note keeps its exact filename** — the folder takes that name too — so every
+  `[[B-007-mindmap]]` written before the promotion still resolves.
+- Child notes are `NNN-<title>.md`, numbered in **tens** so a later note can be
+  slotted between two existing ones. A task's output is `NNN-T-XXXX-<title>.md`,
+  which puts it in sequence and names the task it came from.
+- Non-Markdown files (a test report, an exported image) sit directly in the
+  item folder. No sub-folders: a flat item folder is one glob to an agent.
+
+Frontmatter of the entry note:
+
+```yaml
+id: B-007
+title: Mindmap
+type: backlog
+project: <project-slug>
+status: doing        # idea | ready | doing | done | dropped
+priority: medium     # low | medium | high
+source:              # URL/id in an external backlog, when one owns this item
+created: 2026-09-01
+updated: 2026-09-10
+```
+
+Body sections, in document order:
+
+| Section | Contents |
+|---|---|
+| `## What` | The work, in a sentence or two |
+| `## Why` | The value or motivation |
+| `## Status` | Where it stands, in one line, then a dated log, newest first |
+| `## Notes` | Index of the child notes. Only once the item is a folder |
+
+`## Status` is what answers "which of these files is current?". A number prefix
+records the order things were *created*, which is not the same as which one is
+*live*; the dated log is, and the numbering only keeps the folder readable.
+
+**`source` decides who owns the priorities.** Filled in, an external backlog
+(GitHub Issues, monday.com, Jira) is authoritative: leave `status` and
+`priority` to it, and let the item folder be where the thinking and the outputs
+live. Empty, the vault owns them and `_backlog.base` *is* the product backlog.
+Same schema either way, so a project can move between the two without a
+rewrite.
+
+**The link to tasks runs one way.** A task names its item (`backlog: B-007`);
+the item never lists its tasks. Two hand-maintained copies of one relationship
+drift apart, and the query in the other direction is cheap — both the task
+board and `_backlog.base` filter on the task's own key.
 
 ## Agent harness
 

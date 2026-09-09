@@ -170,6 +170,7 @@ export function EditorApp() {
           mode={payload.mode}
           task={task}
           knownProjects={payload.knownProjects}
+          vaultPath={vaultPath}
           error={error}
           onClose={close}
           onCreate={payload.mode === "create" ? createTask : undefined}

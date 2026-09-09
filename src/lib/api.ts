@@ -2,6 +2,7 @@ import { type Channel, invoke } from "@tauri-apps/api/core";
 import type { MusicData } from "@/lib/music/types";
 import type { TaskEditorPayload } from "@/lib/task-editor-bridge";
 import type {
+  BacklogItem,
   BranchList,
   Clip,
   CommitFileChange,
@@ -130,6 +131,10 @@ export const api = {
    * and where it departs from the documented layout. */
   listVaultProjects: (vaultPath: string, includeArchived: boolean) =>
     invoke<VaultProject[]>("list_vault_projects", { vaultPath, includeArchived }),
+  /** The backlog items of one project, for the task editor's item picker.
+   * Empty rather than an error when the project has no `backlog/` folder. */
+  listBacklogItems: (vaultPath: string, slug: string) =>
+    invoke<BacklogItem[]>("list_backlog_items", { vaultPath, slug }),
   /** Moves the project to `archive/projects/<slug>/`; returns the new path.
    * There is no delete — archiving is the only removal, and it is reversible
    * with `restoreVaultProject`. */

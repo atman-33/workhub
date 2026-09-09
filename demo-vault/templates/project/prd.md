@@ -29,7 +29,8 @@ Who uses this and in what situations.
 
 ## Requirements
 
-High-level product requirements. Detailed behavior belongs in `specs/`.
+High-level product requirements. Detailed behavior belongs to the `backlog/`
+item that delivers it.
 
 ## Success metrics
 
