@@ -37,6 +37,32 @@
   which previously died in silence. The log holds what the app did — errors,
   timings, window placement — and never what you typed, dictated or copied; it
   rotates at 1 MB keeping one previous copy, so it cannot grow without bound.
+- **A dictation session can be discarded, not just stopped** (T-0250).
+  Stopping a recording only ended the capture — the audio was still
+  transcribed and pasted, so deciding against something you had just said
+  meant letting the text land and then deleting it. The indicator now carries
+  a discard button beside stop, offered while recording *and* while
+  transcribing: the moment you decide you do not want the text is usually the
+  moment the preview shows you what it would be. Discarding writes nothing —
+  no paste, no history entry, no clipboard. It is deliberately not on the
+  hotkey: that is a toggle, and a third press landing on a destructive action
+  would throw transcripts away on a mistimed stop.
+- **The voice indicator no longer parks itself in a window corner** (T-0251).
+  When UI Automation cannot measure a text selection it reports the focused
+  element's own rectangle instead — and in a browser, an editor pane or a
+  canvas app that rectangle is the entire window. The indicator was being
+  anchored to it, ending up at the window's top-left, and because that
+  placement counted as a success the mouse-cursor fallback never got its turn.
+  A rectangle the size of a window is now refused, and the placement falls
+  back to the cursor as it was always meant to.
+- **The clips popup closes with Escape again, and has a close button**
+  (T-0249). Its keys were handled by a React handler, which only sees keys
+  aimed at its own subtree — and after dragging the header or clicking the
+  list padding, nothing focusable holds focus and the keys went to the page
+  body instead. Escape, the arrow keys and Ctrl+1-9 all stopped working, with
+  nothing on screen to say why. Key handling moved to the window itself, and
+  the header gained a close button so the popup is never dismissable only by a
+  key.
 
 ## 0.102.0 (2026-09-05)
 
