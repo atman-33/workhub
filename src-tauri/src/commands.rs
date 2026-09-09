@@ -1,8 +1,10 @@
+use crate::docs::{self, DocsEntry, DocsRootStatus};
 use crate::mindmap;
 use crate::mindmap_edit;
 use crate::models::{
-    BranchList, CommitFileChange, Config, GitInfo, GitLog, GraphOp, InputListenerDiagnostics,
-    MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task, VaultProject, Worktree,
+    BranchList, CommitFileChange, Config, DocsRoot, GitInfo, GitLog, GraphOp,
+    InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
+    VaultProject, Worktree,
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
@@ -601,8 +603,7 @@ const MAX_FRONTEND_ERROR: usize = 4000;
 pub fn log_frontend_error(context: String, message: String, stack: Option<String>) {
     let mut text = format!("frontend error [{context}]: {message}");
     if let Some(stack) = stack.filter(|s| !s.trim().is_empty()) {
-        text.push_str("
-");
+        text.push('\n');
         text.push_str(&stack);
     }
     if text.chars().count() > MAX_FRONTEND_ERROR {
@@ -926,6 +927,120 @@ pub fn restore_schedule_snapshot(
     path: String,
 ) -> Result<ScheduleDoc, String> {
     schedule_edit::undo(app, path)
+}
+
+// ---- Docs tab: read-only browsing of shared Markdown (T-0259) -----------
+//
+// The roots these commands are allowed to reach are read from the config
+// here, never taken from the caller — see `docs::resolve_within_roots`. There
+// is no write command in this section on purpose: the whole point of the tab
+// is that nothing of ours ever lands in a folder the team shares.
+
+/// The registered roots, each resolved against this machine.
+#[tauri::command]
+pub fn docs_roots() -> Vec<DocsRootStatus> {
+    docs::root_statuses(&storage::load().settings)
+}
+
+/// Registers a folder as a document root and returns the new list. The path
+/// is stored as given (vault-scoped, shared with the team); a machine whose
+/// mount differs overrides it with `set_docs_root_local_path`.
+#[tauri::command]
+pub fn add_docs_root(path: String, name: String) -> Result<Vec<DocsRootStatus>, String> {
+    let path = path.trim().replace('\\', "/");
+    if path.is_empty() {
+        return Err("no folder given".into());
+    }
+    let mut cfg = storage::load();
+    if cfg
+        .settings
+        .docs_roots
+        .iter()
+        .any(|r| r.path.eq_ignore_ascii_case(&path))
+    {
+        return Err(format!("{path} is already registered"));
+    }
+    let id = docs::next_root_id(&cfg.settings.docs_roots);
+    cfg.settings.docs_roots.push(DocsRoot {
+        id,
+        name: name.trim().to_string(),
+        path,
+    });
+    storage::save(&cfg)?;
+    Ok(docs::root_statuses(&cfg.settings))
+}
+
+/// Forgets a root. Only the registration goes — nothing on the share is
+/// touched, here or anywhere else in this module.
+#[tauri::command]
+pub fn remove_docs_root(id: String) -> Result<Vec<DocsRootStatus>, String> {
+    let mut cfg = storage::load();
+    cfg.settings.docs_roots.retain(|r| r.id != id);
+    // The machine-local override dies with the root it belonged to; the id is
+    // never reused, so leaving it would be dead weight forever.
+    cfg.settings.docs_root_paths.remove(&id);
+    storage::save(&cfg)?;
+    Ok(docs::root_statuses(&cfg.settings))
+}
+
+#[tauri::command]
+pub fn rename_docs_root(id: String, name: String) -> Result<Vec<DocsRootStatus>, String> {
+    let mut cfg = storage::load();
+    let Some(root) = cfg.settings.docs_roots.iter_mut().find(|r| r.id == id) else {
+        return Err(format!("no such document root: {id}"));
+    };
+    root.name = name.trim().to_string();
+    storage::save(&cfg)?;
+    Ok(docs::root_statuses(&cfg.settings))
+}
+
+/// Points a root at where this machine mounts it, without changing the path
+/// the team shares. An empty path clears the override.
+#[tauri::command]
+pub fn set_docs_root_local_path(id: String, path: String) -> Result<Vec<DocsRootStatus>, String> {
+    let mut cfg = storage::load();
+    if !cfg.settings.docs_roots.iter().any(|r| r.id == id) {
+        return Err(format!("no such document root: {id}"));
+    }
+    let path = path.trim().replace('\\', "/");
+    if path.is_empty() {
+        cfg.settings.docs_root_paths.remove(&id);
+    } else {
+        cfg.settings.docs_root_paths.insert(id, path);
+    }
+    storage::save(&cfg)?;
+    Ok(docs::root_statuses(&cfg.settings))
+}
+
+/// Lists one directory inside a registered root. Never recurses — the tree
+/// calls again when a folder is opened, so a streamed share is only ever
+/// touched where the user is actually looking.
+#[tauri::command]
+pub async fn docs_list_dir(path: String) -> Result<Vec<DocsEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_list_dir(&storage::load().settings, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn docs_read_file(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_read_doc(&storage::load().settings, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Reads an image a document embeds and returns it as a `data:` URI.
+#[tauri::command]
+pub async fn docs_read_asset(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_read_asset(&storage::load().settings, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ---- mindmap notes (T-0188) ---------------------------------------------

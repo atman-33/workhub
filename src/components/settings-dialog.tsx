@@ -155,6 +155,9 @@ const DEFAULTS: Settings = {
   schedule_export_dir: "",
   schedule_locale: "en",
   recurring: [],
+  // Managed from the Docs tab itself, not from this dialog (T-0259).
+  docs_roots: [],
+  docs_root_paths: {},
 };
 
 interface Props {

@@ -4,6 +4,7 @@ mod caret;
 mod clips;
 mod commands;
 mod diag;
+mod docs;
 mod git;
 mod harness;
 mod herdr;
@@ -328,6 +329,14 @@ pub fn run() {
             commands::run_schedule_edit,
             commands::schedule_edit_status,
             commands::restore_schedule_snapshot,
+            commands::docs_roots,
+            commands::add_docs_root,
+            commands::remove_docs_root,
+            commands::rename_docs_root,
+            commands::set_docs_root_local_path,
+            commands::docs_list_dir,
+            commands::docs_read_file,
+            commands::docs_read_asset,
             commands::list_mindmaps,
             commands::read_mindmap,
             commands::write_mindmap,

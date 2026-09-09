@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CircleHelp,
+  BookOpen,
   ClipboardList,
   Drama,
   FolderOpen,
@@ -18,6 +19,7 @@ import {
   Timer,
 } from "lucide-react";
 import { ClipsView } from "@/components/clips-view";
+import { DocsView } from "@/components/docs/docs-view";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
@@ -75,6 +77,7 @@ type Tab =
   | "repos"
   | "schedule"
   | "mindmap"
+  | "docs"
   | "music"
   | "timer"
   | "voice"
@@ -93,6 +96,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "repos", label: "Repos", icon: GitBranch },
   { key: "schedule", label: "Schedule", icon: CalendarRange },
   { key: "mindmap", label: "Mindmap", icon: Network },
+  { key: "docs", label: "Docs", icon: BookOpen },
   { key: "inbox", label: "Inbox", icon: Inbox },
   { key: "music", label: "Music", icon: Music },
   { key: "timer", label: "Timer", icon: Timer },
@@ -328,6 +332,9 @@ export default function App() {
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("mindmap")}
             />
+          </TabPanel>
+          <TabPanel id="docs" tab={tab}>
+            <DocsView />
           </TabPanel>
           <TabPanel id="inbox" tab={tab}>
             <InboxView configVersion={configVersion} active={tab === "inbox"} />

@@ -128,6 +128,49 @@ export interface Settings {
   /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
    * local-time calendar arithmetic; the backend only persists them. */
   recurring: RecurringRule[];
+  /** Document roots browsed read-only by the Docs tab (T-0259) — typically a
+   * Google Drive share the team keeps its Markdown in. Vault-scoped: a shared
+   * drive is a value the team agreed on, not a property of this PC. Managed
+   * from the Docs tab itself, not from the Settings dialog. */
+  docs_roots: DocsRoot[];
+  /** Per-machine path overrides for `docs_roots`, keyed by root id. The half
+   * of that setting that really does differ per PC (a share mounted as G:
+   * here and Z: there), so it stays machine-local. */
+  docs_root_paths: Record<string, string>;
+}
+
+/** One registered document root (T-0259). */
+export interface DocsRoot {
+  /** Stable id (`D-001`), never reused — a machine-local path override is
+   * keyed by it. */
+  id: string;
+  /** Display name; empty = show the folder name. */
+  name: string;
+  /** The shared location, as the team knows it. */
+  path: string;
+}
+
+/** A document root resolved against this machine, as the Docs tab renders it. */
+export interface DocsRootStatus {
+  id: string;
+  name: string;
+  /** The path recorded in the vault — what the team agreed on. */
+  path: string;
+  /** The path actually used here (the override when there is one). */
+  effective_path: string;
+  overridden: boolean;
+  /** False when the folder is missing on this machine. */
+  available: boolean;
+}
+
+/** One row in the Docs tree: a folder, or a Markdown file. */
+export interface DocsEntry {
+  /** Absolute path, forward slashes — the id passed back to the backend. */
+  path: string;
+  name: string;
+  is_dir: boolean;
+  /** Last-modified time, unix seconds; 0 for folders and unreadable files. */
+  modified: number;
 }
 
 /** When a recurring rule fires. All times are the machine's local wall clock. */
