@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, Pencil, Trash2, Wrench } from "lucide-react";
+import { FolderPlus, Pencil, Trash2 } from "lucide-react";
+import { DocsRootDialog } from "@/components/docs/docs-root-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -32,19 +32,9 @@ interface Props {
  * the same way the Projects tab manages projects.
  */
 export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onError }: Props) {
-  const [renaming, setRenaming] = useState(false);
-  const [draftName, setDraftName] = useState("");
+  const [editing, setEditing] = useState<DocsRootStatus | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = roots.find((r) => r.id === selectedId);
-
-  const run = async (job: () => Promise<DocsRootStatus[]>) => {
-    try {
-      onRootsChanged(await job());
-      onError("");
-    } catch (e) {
-      onError(String(e));
-    }
-  };
 
   const add = async () => {
     const picked = await pickFolder({
@@ -53,20 +43,12 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
       title: "Add a document folder",
     });
     if (typeof picked !== "string") return;
-    await run(() => api.addDocsRoot(picked.replaceAll("\\", "/"), ""));
-  };
-
-  // Re-points a root at this machine's mount. The shared path stays as the
-  // team recorded it — only this PC's override changes.
-  const repoint = async () => {
-    if (!selected) return;
-    const picked = await pickFolder({
-      directory: true,
-      multiple: false,
-      title: `Where is "${selected.name || selected.path}" on this PC?`,
-    });
-    if (typeof picked !== "string") return;
-    await run(() => api.setDocsRootLocalPath(selected.id, picked.replaceAll("\\", "/")));
+    try {
+      onRootsChanged(await api.addDocsRoot(picked.replaceAll("\\", "/"), ""));
+      onError("");
+    } catch (e) {
+      onError(String(e));
+    }
   };
 
   return (
@@ -85,86 +67,33 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
         </SelectContent>
       </Select>
 
-      {renaming && selected ? (
-        <>
-          <Input
-            autoFocus
-            value={draftName}
-            placeholder={selected.path}
-            className="h-8 w-[220px]"
-            onChange={(e) => setDraftName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setRenaming(false);
-              if (e.key === "Enter") {
-                void run(() => api.renameDocsRoot(selected.id, draftName)).then(() =>
-                  setRenaming(false),
-                );
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              void run(() => api.renameDocsRoot(selected.id, draftName)).then(() =>
-                setRenaming(false),
-              )
-            }
-          >
-            Save
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setRenaming(false)}>
-            Cancel
-          </Button>
-        </>
-      ) : (
-        <>
-          <Hint label="Register a folder to browse">
-            <Button size="icon-sm" variant="ghost" aria-label="Add folder" onClick={() => void add()}>
-              <FolderPlus />
-            </Button>
-          </Hint>
-          <Hint label="Rename this folder" disabled={!selected}>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label="Rename folder"
-              disabled={!selected}
-              onClick={() => {
-                setDraftName(selected?.name ?? "");
-                setRenaming(true);
-              }}
-            >
-              <Pencil />
-            </Button>
-          </Hint>
-          <Hint
-            label="Point this folder at where it is mounted on this PC"
-            disabled={!selected}
-          >
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label="Set local path"
-              disabled={!selected}
-              onClick={() => void repoint()}
-            >
-              <Wrench />
-            </Button>
-          </Hint>
-          <Hint label="Forget this folder (nothing on the share is touched)" disabled={!selected}>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label="Remove folder"
-              disabled={!selected}
-              onClick={() => setConfirmRemove(true)}
-            >
-              <Trash2 />
-            </Button>
-          </Hint>
-        </>
-      )}
+      <Hint label="Register a folder to browse">
+        <Button size="icon-sm" variant="ghost" aria-label="Add folder" onClick={() => void add()}>
+          <FolderPlus />
+        </Button>
+      </Hint>
+      <Hint label="Edit this folder's name and paths" disabled={!selected}>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Edit folder"
+          disabled={!selected}
+          onClick={() => setEditing(selected ?? null)}
+        >
+          <Pencil />
+        </Button>
+      </Hint>
+      <Hint label="Forget this folder (nothing on the share is touched)" disabled={!selected}>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Remove folder"
+          disabled={!selected}
+          onClick={() => setConfirmRemove(true)}
+        >
+          <Trash2 />
+        </Button>
+      </Hint>
 
       {selected?.overridden && (
         <Hint label={`Shared path: ${selected.path}`}>
@@ -173,6 +102,15 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
           </span>
         </Hint>
       )}
+
+      <DocsRootDialog
+        root={editing}
+        onSaved={(list) => {
+          onRootsChanged(list);
+          onError("");
+        }}
+        onClose={() => setEditing(null)}
+      />
 
       <ConfirmDialog
         open={confirmRemove}
@@ -184,7 +122,15 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
         }
         confirmLabel="Remove"
         onConfirm={() => {
-          if (selected) void run(() => api.removeDocsRoot(selected.id));
+          if (selected) {
+            void api
+              .removeDocsRoot(selected.id)
+              .then((list) => {
+                onRootsChanged(list);
+                onError("");
+              })
+              .catch((e) => onError(String(e)));
+          }
           setConfirmRemove(false);
         }}
         onClose={() => setConfirmRemove(false)}

@@ -201,10 +201,10 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 
 - **Why not just open it in Obsidian?** Opening a shared folder as a vault writes an \`.obsidian/\` folder into it, and everyone's workspace state then collides. This tab never writes into a document folder — no index, no cache, nothing. It reads, and that is all it can do.
 - **Add a folder** with the folder button on the tab itself (not in Settings — a folder is what the tab is for). The path is stored **in the vault**, so a second PC that clones the vault gets the same list.
-- **If a share is mounted somewhere else on this PC**, the wrench button points the folder at the local mount. That override is machine-local; the path the team shares is left as it is.
-- **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added.
+- **The pencil button edits one folder**: its name, the shared path, and — when this PC mounts the share somewhere else — the path to use here. The local path is machine-local; the shared one is left as the team recorded it.
+- **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
-- Only folders and \`.md\` files appear in the tree; dot-folders like \`.obsidian\` and \`.git\` are hidden.
+- **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
 - **Editing is not offered.** The tab exists to stay out of a folder other people are working in.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)
@@ -1791,15 +1791,17 @@ export function HelpView() {
                 vault gets the same list.
               </li>
               <li>
-                <span className="font-medium text-foreground">If the share is mounted somewhere else here</span>,
-                the wrench button points the folder at the local mount. That override is machine-local; the path the
-                team shares is left as it is.
+                <span className="font-medium text-foreground">The pencil button edits one folder</span> — its
+                name, the shared path, and, when this PC mounts the share somewhere else, the path to use here.
+                The local path is machine-local; the shared one is left as the team recorded it.
               </li>
               <li>
                 <span className="font-medium text-foreground">The tree loads one folder at a time</span>, when you
                 open it. On a Drive share where files are placeholders until read, scanning the whole tree would
                 stall the tab. There is no file watcher either — press{" "}
                 <span className="font-medium text-foreground">↻</span> to pick up what a colleague added.
+                Refreshing re-reads the tree without collapsing it; the button beside it collapses every folder
+                at once.
               </li>
               <li>
                 <span className="font-medium text-foreground">Mermaid diagrams render</span>, and images a document
@@ -1809,9 +1811,12 @@ export function HelpView() {
                 document.
               </li>
               <li>
-                Only folders and <span className="font-mono text-xs">.md</span> files appear in the tree;
-                dot-folders such as <span className="font-mono text-xs">.obsidian</span> and{" "}
-                <span className="font-mono text-xs">.git</span> are hidden.
+                <span className="font-medium text-foreground">Everything in the folder is listed</span>, not just
+                Markdown, and names carry their extension. Clicking a{" "}
+                <span className="font-mono text-xs">.md</span> file previews it here; clicking anything else — a
+                PDF, a spreadsheet — opens it in whatever app the OS associates with it. Dot-folders such as{" "}
+                <span className="font-mono text-xs">.obsidian</span> and{" "}
+                <span className="font-mono text-xs">.git</span> stay hidden.
               </li>
               <li>
                 <span className="font-medium text-foreground">Editing is not offered.</span> The tab exists to stay

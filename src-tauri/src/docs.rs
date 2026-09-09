@@ -48,14 +48,19 @@ const MAX_DOC_BYTES: u64 = 4 * 1024 * 1024;
 /// Largest embedded image inlined as a data URI.
 const MAX_ASSET_BYTES: u64 = 16 * 1024 * 1024;
 
-/// One row in the tree: a folder, or a Markdown file.
+/// One row in the tree: a folder, or a file.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct DocsEntry {
     /// Absolute path, forward slashes — the id the frontend passes back.
     pub path: String,
-    /// File or folder name as it appears on disk.
+    /// File or folder name as it appears on disk, extension included.
     pub name: String,
     pub is_dir: bool,
+    /// True for the files this tab can render itself. Everything else is
+    /// listed too, but is opened in whatever the OS associates with it —
+    /// a share holds PDFs and spreadsheets, and hiding them made the tree
+    /// disagree with what the folder actually contains.
+    pub is_markdown: bool,
     /// Last-modified time, unix seconds; 0 when unreadable.
     pub modified: u64,
 }
@@ -205,8 +210,14 @@ fn is_markdown(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
-/// Lists one directory — folders and Markdown files only, folders first, each
-/// group by name. Never recurses: the tree asks again when a folder is opened.
+/// Lists one directory: folders first, then files, each group by name.
+///
+/// Everything the folder holds is listed, not only Markdown — a team share
+/// carries PDFs, spreadsheets and images, and a tree that showed none of them
+/// disagreed with the folder the user was looking at. `is_markdown` says which
+/// entries this tab can render; the rest are handed to the OS on click.
+///
+/// Never recurses: the tree asks again when a folder is opened.
 pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
     let mut out = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
@@ -218,12 +229,10 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
         // `file_type` avoids a second stat per entry, which matters on a share.
         let Ok(ft) = entry.file_type() else { continue };
         let is_dir = ft.is_dir();
-        if !is_dir && !is_markdown(&name) {
-            continue;
-        }
         let path = entry.path();
         out.push(DocsEntry {
             path: norm(&path),
+            is_markdown: !is_dir && is_markdown(&name),
             name,
             is_dir,
             modified: if is_dir { 0 } else { mtime_secs(&path) },
@@ -301,6 +310,20 @@ pub fn guarded_read_doc(settings: &Settings, path: &str) -> Result<String, Strin
     with_timeout(move || read_doc(&file))
 }
 
+/// Hands a file to whatever the OS associates with it.
+///
+/// This one launches another program, so the guard matters more here than
+/// anywhere else in the module: only a path inside a registered root is ever
+/// passed on, and a directory is refused — "open the folder" is what the
+/// tree's own expand does, and Explorer is reachable from the preview header.
+pub fn guarded_open_external(settings: &Settings, path: &str) -> Result<(), String> {
+    let file = resolve_within_roots(path, &allowed_roots(settings))?;
+    if file.is_dir() {
+        return Err(format!("{} is a folder, not a file", file.display()));
+    }
+    tauri_plugin_opener::open_path(&file, None::<&str>).map_err(|e| e.to_string())
+}
+
 pub fn guarded_read_asset(settings: &Settings, path: &str) -> Result<String, String> {
     let file = resolve_within_roots(path, &allowed_roots(settings))?;
     with_timeout(move || read_asset(&file))
@@ -356,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn lists_folders_and_markdown_only_folders_first() {
+    fn lists_every_visible_entry_folders_first() {
         let tree = TempTree::new("list");
         fs::create_dir(tree.path().join("sub")).unwrap();
         fs::create_dir(tree.path().join(".obsidian")).unwrap();
@@ -365,14 +388,36 @@ mod tests {
         fs::write(tree.path().join("sheet.xlsx"), "x").unwrap();
         fs::write(tree.path().join("desktop.ini"), "x").unwrap();
 
-        let names: Vec<String> = list_dir(tree.path())
+        let entries = list_dir(tree.path()).unwrap();
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        // `.obsidian` and desktop.ini stay hidden; the spreadsheet is listed
+        // because the folder really contains it. Folders sort ahead of files,
+        // and files sort case-insensitively — extensions and all.
+        assert_eq!(names, vec!["sub", "A.markdown", "b.md", "sheet.xlsx"]);
+    }
+
+    #[test]
+    fn only_markdown_is_flagged_as_renderable() {
+        let tree = TempTree::new("kinds");
+        fs::create_dir(tree.path().join("sub")).unwrap();
+        fs::write(tree.path().join("a.md"), "a").unwrap();
+        fs::write(tree.path().join("b.MARKDOWN"), "b").unwrap();
+        fs::write(tree.path().join("c.pdf"), "c").unwrap();
+
+        let flags: Vec<(String, bool, bool)> = list_dir(tree.path())
             .unwrap()
             .into_iter()
-            .map(|e| e.name)
+            .map(|e| (e.name, e.is_dir, e.is_markdown))
             .collect();
-        // `.obsidian` is hidden, the spreadsheet is not Markdown, the folder
-        // sorts ahead of the files, and the files sort case-insensitively.
-        assert_eq!(names, vec!["sub", "A.markdown", "b.md"]);
+        assert_eq!(
+            flags,
+            vec![
+                ("sub".to_string(), true, false),
+                ("a.md".to_string(), false, true),
+                ("b.MARKDOWN".to_string(), false, true),
+                ("c.pdf".to_string(), false, false),
+            ]
+        );
     }
 
     #[test]

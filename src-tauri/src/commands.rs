@@ -936,6 +936,20 @@ pub fn restore_schedule_snapshot(
 // is no write command in this section on purpose: the whole point of the tab
 // is that nothing of ours ever lands in a folder the team shares.
 
+/// A folder path as the Docs settings store it: trimmed, forward slashes,
+/// and no trailing separator, so the same folder typed two ways compares
+/// equal.
+fn normalize_docs_path(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/");
+    let trimmed = normalized.trim_end_matches('/');
+    // A bare drive root ("G:/") keeps its slash - "G:" alone is not a folder.
+    if trimmed.ends_with(':') {
+        format!("{trimmed}/")
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// The registered roots, each resolved against this machine.
 #[tauri::command]
 pub fn docs_roots() -> Vec<DocsRootStatus> {
@@ -947,7 +961,7 @@ pub fn docs_roots() -> Vec<DocsRootStatus> {
 /// mount differs overrides it with `set_docs_root_local_path`.
 #[tauri::command]
 pub fn add_docs_root(path: String, name: String) -> Result<Vec<DocsRootStatus>, String> {
-    let path = path.trim().replace('\\', "/");
+    let path = normalize_docs_path(&path);
     if path.is_empty() {
         return Err("no folder given".into());
     }
@@ -983,33 +997,60 @@ pub fn remove_docs_root(id: String) -> Result<Vec<DocsRootStatus>, String> {
     Ok(docs::root_statuses(&cfg.settings))
 }
 
+/// Updates a root's name, its shared path, and this machine's override, in one
+/// call.
+///
+/// The three used to be separate commands behind separate buttons, which left
+/// the override looking like an unrelated feature rather than the other half
+/// of the path. They are edited together in one dialog now, so they are
+/// written together - a partial save would let the two paths disagree about
+/// which root they describe. An empty `local_path` clears the override.
 #[tauri::command]
-pub fn rename_docs_root(id: String, name: String) -> Result<Vec<DocsRootStatus>, String> {
+pub fn update_docs_root(
+    id: String,
+    name: String,
+    path: String,
+    local_path: String,
+) -> Result<Vec<DocsRootStatus>, String> {
     let mut cfg = storage::load();
+    let path = normalize_docs_path(&path);
+    if path.is_empty() {
+        return Err("the shared folder path cannot be empty".into());
+    }
+    if cfg
+        .settings
+        .docs_roots
+        .iter()
+        .any(|r| r.id != id && r.path.eq_ignore_ascii_case(&path))
+    {
+        return Err(format!("{path} is already registered"));
+    }
     let Some(root) = cfg.settings.docs_roots.iter_mut().find(|r| r.id == id) else {
         return Err(format!("no such document root: {id}"));
     };
     root.name = name.trim().to_string();
+    root.path = path;
+
+    let local_path = normalize_docs_path(&local_path);
+    if local_path.is_empty() {
+        cfg.settings.docs_root_paths.remove(&id);
+    } else {
+        cfg.settings.docs_root_paths.insert(id, local_path);
+    }
     storage::save(&cfg)?;
     Ok(docs::root_statuses(&cfg.settings))
 }
 
-/// Points a root at where this machine mounts it, without changing the path
-/// the team shares. An empty path clears the override.
+/// Opens a file inside a registered root with whatever the OS associates with
+/// it. Markdown is rendered in the tab itself; this is for everything else a
+/// team share holds - PDFs, spreadsheets, images.
 #[tauri::command]
-pub fn set_docs_root_local_path(id: String, path: String) -> Result<Vec<DocsRootStatus>, String> {
-    let mut cfg = storage::load();
-    if !cfg.settings.docs_roots.iter().any(|r| r.id == id) {
-        return Err(format!("no such document root: {id}"));
-    }
-    let path = path.trim().replace('\\', "/");
-    if path.is_empty() {
-        cfg.settings.docs_root_paths.remove(&id);
-    } else {
-        cfg.settings.docs_root_paths.insert(id, path);
-    }
-    storage::save(&cfg)?;
-    Ok(docs::root_statuses(&cfg.settings))
+pub async fn docs_open_external(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_open_external(&storage::load().settings, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Lists one directory inside a registered root. Never recurses — the tree

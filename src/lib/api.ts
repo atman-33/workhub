@@ -199,12 +199,14 @@ export const api = {
   addDocsRoot: (path: string, name: string) =>
     invoke<DocsRootStatus[]>("add_docs_root", { path, name }),
   removeDocsRoot: (id: string) => invoke<DocsRootStatus[]>("remove_docs_root", { id }),
-  renameDocsRoot: (id: string, name: string) =>
-    invoke<DocsRootStatus[]>("rename_docs_root", { id, name }),
-  /** Points a root at this machine's mount without changing the shared path.
-   * An empty path clears the override. */
-  setDocsRootLocalPath: (id: string, path: string) =>
-    invoke<DocsRootStatus[]>("set_docs_root_local_path", { id, path }),
+  /** Name, shared path and this machine's override are written together —
+   * they are edited in one dialog, and a partial save would let the two paths
+   * disagree about which root they describe. Empty `localPath` clears the
+   * override. */
+  updateDocsRoot: (id: string, name: string, path: string, localPath: string) =>
+    invoke<DocsRootStatus[]>("update_docs_root", { id, name, path, localPath }),
+  /** Opens a non-Markdown file in the OS default app. */
+  docsOpenExternal: (path: string) => invoke<void>("docs_open_external", { path }),
   /** One directory only — the tree calls again when a folder is opened. */
   docsListDir: (path: string) => invoke<DocsEntry[]>("docs_list_dir", { path }),
   docsReadFile: (path: string) => invoke<string>("docs_read_file", { path }),

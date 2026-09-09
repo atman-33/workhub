@@ -163,12 +163,16 @@ export interface DocsRootStatus {
   available: boolean;
 }
 
-/** One row in the Docs tree: a folder, or a Markdown file. */
+/** One row in the Docs tree: a folder, or a file. */
 export interface DocsEntry {
   /** Absolute path, forward slashes — the id passed back to the backend. */
   path: string;
+  /** Name as it is on disk, extension included. */
   name: string;
   is_dir: boolean;
+  /** True for files the tab renders itself; the rest open in the OS default
+   * app. Everything the folder holds is listed either way. */
+  is_markdown: boolean;
   /** Last-modified time, unix seconds; 0 for folders and unreadable files. */
   modified: number;
 }

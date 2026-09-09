@@ -20,7 +20,17 @@
 - The tree lists one folder at a time, as you open it: on a Drive share whose
   files are placeholders until read, scanning the whole tree would stall the
   tab. There is no file watcher on a network share either — the refresh button
-  picks up what a colleague added.
+  picks up what a colleague added, and it re-reads the tree without collapsing
+  it. A second button collapses every folder at once.
+- **The tree lists everything the folder holds**, not only Markdown, with the
+  extension shown. A `.md` file previews in the tab; anything else — a PDF, a
+  spreadsheet — opens in whatever app the OS associates with it. A share is
+  rarely Markdown alone, and a tree that hid the rest disagreed with the folder
+  it was describing.
+- One pencil button now edits a folder's name, its shared path and this PC's
+  path together, in a single dialog. They were three controls behind two
+  buttons, which left the machine-local override reading as an unrelated
+  feature rather than as the other half of the path.
 
 ## 0.105.0 (2026-09-09)
 

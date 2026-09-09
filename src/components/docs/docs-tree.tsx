@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, File, FileText, Folder, FolderOpen } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -17,14 +17,19 @@ interface Props {
   /** Path of the document currently open in the preview. */
   selected: string;
   onSelect: (entry: DocsEntry) => void;
+  onError: (message: string) => void;
   /** Case-insensitive filter on file and folder names; "" shows everything. */
   filter: string;
   /**
    * Bumped by the toolbar's refresh button. Every cached listing is dropped
-   * when it changes — the tab has no file watcher (a network share is a bad
-   * thing to watch), so this is how a document added by a colleague appears.
+   * and re-fetched when it changes — the tab has no file watcher (a network
+   * share is a bad thing to watch), so this is how a document added by a
+   * colleague appears. **Which folders are open is deliberately kept**: a
+   * refresh that collapsed the tree threw away the place you were reading.
    */
   refreshToken: number;
+  /** Bumped by the toolbar's collapse button; closes every open folder. */
+  collapseToken: number;
 }
 
 /**
@@ -34,37 +39,67 @@ interface Props {
  * opened and cached until the next refresh. On a Google Drive share that is
  * the difference between a tab that opens instantly and one that stalls
  * pulling down a tree nobody asked to see.
+ *
+ * Each rendered level asks for its own listing rather than being fed one by
+ * the level above, and remembers which refresh it was fetched under. That is
+ * what lets a refresh keep the tree expanded: the token changes, and every
+ * level still on screen re-fetches itself where it stands.
  */
-export function DocsTree({ rootPath, selected, onSelect, filter, refreshToken }: Props) {
+export function DocsTree({
+  rootPath,
+  selected,
+  onSelect,
+  onError,
+  filter,
+  refreshToken,
+  collapseToken,
+}: Props) {
   const [dirs, setDirs] = useState<Record<string, DirState>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Which refresh each folder was last fetched under. A ref rather than state
+  // because the claim has to be synchronous: two levels mounting in the same
+  // tick would both see an unclaimed folder if this went through setState,
+  // and both would hit the share for it.
+  const fetchedAt = useRef<Record<string, number>>({});
 
-  // A new root, or a refresh, invalidates every cached listing.
+  // A different root is a different tree. A refresh is *not* — it re-reads the
+  // same tree, and collapsing it would throw away the place you were reading.
   useEffect(() => {
-    setDirs({});
     setOpen({});
-  }, [rootPath, refreshToken]);
+  }, [rootPath]);
 
-  const load = useCallback(async (path: string) => {
+  useEffect(() => {
+    if (collapseToken > 0) setOpen({});
+  }, [collapseToken]);
+
+  const ensureLoaded = useCallback((path: string, token: number) => {
+    if (fetchedAt.current[path] === token) return;
+    fetchedAt.current[path] = token;
     setDirs((prev) => ({ ...prev, [path]: { status: "loading" } }));
-    try {
-      const entries = await api.docsListDir(path);
-      setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } }));
-    } catch (e) {
-      setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } }));
-    }
+    api
+      .docsListDir(path)
+      .then((entries) => setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } })))
+      .catch((e) =>
+        setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } })),
+      );
   }, []);
 
-  // The root itself is always listed; everything below it waits to be opened.
-  useEffect(() => {
-    if (rootPath) void load(rootPath);
-  }, [rootPath, refreshToken, load]);
+  const toggle = useCallback((path: string) => {
+    setOpen((prev) => ({ ...prev, [path]: !prev[path] }));
+  }, []);
 
-  const toggle = (path: string) => {
-    const nowOpen = !open[path];
-    setOpen((prev) => ({ ...prev, [path]: nowOpen }));
-    if (nowOpen && !dirs[path]) void load(path);
-  };
+  const activate = useCallback(
+    (entry: DocsEntry) => {
+      if (entry.is_markdown) {
+        onSelect(entry);
+        return;
+      }
+      // Everything else is the share's own material — a PDF, a spreadsheet,
+      // an image. The tab cannot render it, so the OS gets it.
+      void api.docsOpenExternal(entry.path).catch((e) => onError(String(e)));
+    },
+    [onSelect, onError],
+  );
 
   if (!rootPath) return null;
 
@@ -75,10 +110,12 @@ export function DocsTree({ rootPath, selected, onSelect, filter, refreshToken }:
         depth={0}
         dirs={dirs}
         open={open}
+        ensureLoaded={ensureLoaded}
         onToggle={toggle}
-        onSelect={onSelect}
+        onActivate={activate}
         selected={selected}
         filter={filter.trim().toLowerCase()}
+        refreshToken={refreshToken}
       />
     </div>
   );
@@ -89,20 +126,30 @@ function DirListing({
   depth,
   dirs,
   open,
+  ensureLoaded,
   onToggle,
-  onSelect,
+  onActivate,
   selected,
   filter,
+  refreshToken,
 }: {
   path: string;
   depth: number;
   dirs: Record<string, DirState>;
   open: Record<string, boolean>;
+  ensureLoaded: (path: string, token: number) => void;
   onToggle: (path: string) => void;
-  onSelect: (entry: DocsEntry) => void;
+  onActivate: (entry: DocsEntry) => void;
   selected: string;
   filter: string;
+  refreshToken: number;
 }) {
+  // Every level on screen asks for its own listing, including after a refresh
+  // has emptied the cache underneath it.
+  useEffect(() => {
+    ensureLoaded(path, refreshToken);
+  }, [path, refreshToken, ensureLoaded]);
+
   const state = dirs[path];
   const indent = { paddingLeft: `${depth * 12 + 8}px` };
 
@@ -131,7 +178,7 @@ function DirListing({
   if (entries.length === 0) {
     return (
       <div style={indent} className="py-1 text-muted-foreground">
-        {filter ? "No matching documents here." : "No documents here."}
+        {filter ? "Nothing matching here." : "This folder is empty."}
       </div>
     );
   }
@@ -165,26 +212,37 @@ function DirListing({
                 depth={depth + 1}
                 dirs={dirs}
                 open={open}
+                ensureLoaded={ensureLoaded}
                 onToggle={onToggle}
-                onSelect={onSelect}
+                onActivate={onActivate}
                 selected={selected}
                 filter={filter}
+                refreshToken={refreshToken}
               />
             )}
           </div>
         ) : (
-          <Hint key={entry.path} label={entry.name}>
+          <Hint
+            key={entry.path}
+            label={entry.is_markdown ? entry.name : `${entry.name} — opens outside workhub`}
+          >
             <button
               type="button"
-              onClick={() => onSelect(entry)}
+              onClick={() => onActivate(entry)}
               style={{ paddingLeft: `${depth * 12 + 24}px` }}
               className={cn(
                 "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
                 entry.path === selected ? "bg-muted font-medium" : "hover:bg-muted/50",
               )}
             >
-              <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">{entry.name.replace(/\.(md|markdown)$/i, "")}</span>
+              {entry.is_markdown ? (
+                <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <File className="size-3.5 shrink-0 text-muted-foreground/60" />
+              )}
+              <span className={cn("truncate", !entry.is_markdown && "text-muted-foreground")}>
+                {entry.name}
+              </span>
             </button>
           </Hint>
         ),

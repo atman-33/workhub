@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { ChevronsDownUp, RefreshCw, Search } from "lucide-react";
 import { DocsPreview } from "@/components/docs/docs-preview";
 import { DocsRootsBar } from "@/components/docs/docs-roots-bar";
 import { DocsTree } from "@/components/docs/docs-tree";
@@ -51,8 +51,10 @@ export function DocsView() {
   const [error, setError] = useState("");
   // Bumped by the refresh button. There is no file watcher — watching a
   // network share is unreliable and expensive — so this is how a colleague's
-  // new document shows up.
+  // new document shows up. It re-reads the tree without collapsing it.
   const [refreshToken, setRefreshToken] = useState(0);
+  // Bumped by the collapse button; closes every folder the tree has open.
+  const [collapseToken, setCollapseToken] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -129,8 +131,9 @@ export function DocsView() {
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-xs leading-relaxed text-muted-foreground">
             <span className="font-medium">{selected?.path}</span> is not reachable on this PC.
-            If the share is mounted somewhere else here, use the wrench button above to point
-            this folder at it — the path the team shares stays as it is.
+            If the share is mounted somewhere else here, open the pencil button above and fill
+            in <span className="font-medium">Path on this PC</span> — the path the team shares
+            stays as it is.
           </p>
         </div>
       ) : (
@@ -145,7 +148,17 @@ export function DocsView() {
                   placeholder="Filter by name"
                   className="h-7 border-0 px-1 text-xs shadow-none focus-visible:ring-0"
                 />
-                <Hint label="Re-read the folder">
+                <Hint label="Collapse every folder">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Collapse all"
+                    onClick={() => setCollapseToken((n) => n + 1)}
+                  >
+                    <ChevronsDownUp />
+                  </Button>
+                </Hint>
+                <Hint label="Re-read the folder (keeps the tree open)">
                   <Button
                     size="icon-sm"
                     variant="ghost"
@@ -162,6 +175,8 @@ export function DocsView() {
                   selected={doc}
                   filter={filter}
                   refreshToken={refreshToken}
+                  collapseToken={collapseToken}
+                  onError={setError}
                   onSelect={(entry) => {
                     setDoc(entry.path);
                     remember(LAST_DOC, entry.path);
