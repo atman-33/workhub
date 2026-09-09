@@ -151,12 +151,23 @@ fn restore_saved_position(app: &AppHandle, win: &WebviewWindow) -> bool {
 /// indicator is shown (it is non-focusable, so showing it does not disturb
 /// them, but the caret probe is the slow part and there is nothing to gain
 /// from showing an unplaced window first).
+///
+/// The outcome is logged: "the indicator showed up somewhere odd" is only
+/// diagnosable if the probe's answer and the placement that followed from it
+/// are on the record (T-0251 was reported without either).
 fn position_at_caret(app: &AppHandle, win: &WebviewWindow) {
-    match crate::caret::probe_with_timeout() {
-        Some(caret) if window_place::place_near_caret(app, win, caret) => {}
-        // No caret (an app with no text focus, or a provider that reports
-        // none) — the mouse is the next best guess at where the eye is.
-        _ => window_place::place_at_cursor(app, win),
+    let probe = crate::caret::probe_with_timeout();
+    match probe {
+        Some(caret) if window_place::place_near_caret(app, win, caret) => {
+            eprintln!("voice: indicator anchored to {caret:?}");
+        }
+        // Either no caret at all (an app with no text focus, or a provider
+        // that reports none), or one `place_near_caret` refused to anchor to
+        // — the mouse is the next best guess at where the eye is.
+        _ => {
+            eprintln!("voice: indicator placed at the cursor (caret probe: {probe:?})");
+            window_place::place_at_cursor(app, win);
+        }
     }
 }
 

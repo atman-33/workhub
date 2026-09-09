@@ -8,7 +8,7 @@
 //! it was. A window that reopens somewhere the user is not looking costs a
 //! search every time.
 
-use crate::caret::CaretRect;
+use crate::caret::{CaretRect, CaretSource};
 use tauri::{AppHandle, PhysicalPosition, WebviewWindow};
 
 /// Gap between the cursor and the window's top-left corner, in physical
@@ -19,6 +19,17 @@ const CURSOR_OFFSET: i32 = 12;
 /// pixels. Larger than `CURSOR_OFFSET` so the window clears descenders and
 /// whatever the target app draws right under the caret line.
 const CARET_GAP: i32 = 8;
+
+/// A caret rect is one line of text. Anything taller than the work area
+/// divided by this, or wider than it divided by [`MAX_CARET_WIDTH_DIVISOR`],
+/// is a pane or a whole window — which is exactly what UI Automation reports
+/// when the focused element has no text selection to measure (see
+/// `CaretSource::ElementBounds`). Anchoring to one of those parks the
+/// indicator at a window corner, which is the bug T-0251 reported. The
+/// divisors are deliberately loose: they only have to separate "a line" from
+/// "a window", and a generous line at 200% DPI is still well under them.
+const MAX_CARET_HEIGHT_DIVISOR: i32 = 4;
+const MAX_CARET_WIDTH_DIVISOR: i32 = 2;
 
 /// Nudges `(x, y)` so a `size`-sized window sits fully inside `area`.
 /// Clamping the origin up (rather than down) wins when the window is larger
@@ -65,6 +76,44 @@ pub fn place_at_cursor(app: &AppHandle, win: &WebviewWindow) {
     let _ = win.set_position(PhysicalPosition::new(x, y));
 }
 
+/// Whether `caret` is small enough to be a line of text on a work area of
+/// `area_size`, rather than a pane or a window reported in its place.
+fn is_line_sized(caret: CaretRect, area_size: (i32, i32)) -> bool {
+    caret.height <= area_size.1 / MAX_CARET_HEIGHT_DIVISOR
+        && caret.width <= area_size.0 / MAX_CARET_WIDTH_DIVISOR
+}
+
+/// Whether `point` falls inside `caret`. A collapsed caret has zero width, so
+/// its rect is widened to one pixel before the test.
+fn contains(caret: CaretRect, point: (i32, i32)) -> bool {
+    point.0 >= caret.x
+        && point.0 < caret.x + caret.width.max(1)
+        && point.1 >= caret.y
+        && point.1 < caret.y + caret.height
+}
+
+/// Whether the indicator should be anchored to `caret` at all, given where
+/// the mouse is. Two rejections, both about `CaretSource::ElementBounds` —
+/// the rectangle UI Automation falls back to when it cannot measure a text
+/// selection:
+///
+/// 1. A rect that is not line-sized is a pane or a window, whatever its
+///    source claims. Its top-left corner is not where the user is looking.
+/// 2. A line-sized element rect (a single-line text box) is worth anchoring
+///    to — unless the mouse is already inside it, in which case the cursor is
+///    the more precise guess of the two and the caller's fallback wins.
+fn should_anchor(caret: CaretRect, area_size: (i32, i32), cursor: Option<(i32, i32)>) -> bool {
+    if !is_line_sized(caret, area_size) {
+        return false;
+    }
+    if caret.source == CaretSource::ElementBounds {
+        if let Some(cursor) = cursor {
+            return !contains(caret, cursor);
+        }
+    }
+    true
+}
+
 /// Picks the origin for a `size`-sized window anchored to a caret: below the
 /// caret's line by default, flipped above it when there is not enough room
 /// left below. Column-aligned with the caret so the window reads as
@@ -86,8 +135,10 @@ fn anchor_to_caret(
 }
 
 /// Move `win` next to the focused app's text caret, kept inside the work area
-/// of the monitor that caret is on. Returns `false` when the monitor could
-/// not be resolved and nothing was moved, so the caller can fall back.
+/// of the monitor that caret is on. Returns `false` — having moved nothing —
+/// when the monitor could not be resolved, or when the rect is not one this
+/// window should be anchored to (see `should_anchor`), so the caller can fall
+/// back to the mouse cursor.
 pub fn place_near_caret(app: &AppHandle, win: &WebviewWindow, caret: CaretRect) -> bool {
     let Ok(size) = win.outer_size() else {
         return false;
@@ -100,11 +151,20 @@ pub fn place_near_caret(app: &AppHandle, win: &WebviewWindow, caret: CaretRect) 
     let Some(monitor) = monitor else { return false };
 
     let area = monitor.work_area();
+    let area_size = (area.size.width as i32, area.size.height as i32);
+    let cursor = app
+        .cursor_position()
+        .ok()
+        .map(|pos| (pos.x as i32, pos.y as i32));
+    if !should_anchor(caret, area_size, cursor) {
+        return false;
+    }
+
     let (x, y) = anchor_to_caret(
         caret,
         (size.width as i32, size.height as i32),
         (area.position.x, area.position.y),
-        (area.size.width as i32, area.size.height as i32),
+        area_size,
     );
     let _ = win.set_position(PhysicalPosition::new(x, y));
     true
@@ -138,7 +198,7 @@ pub fn clamp_to_work_area(app: &AppHandle, win: &WebviewWindow) {
 
 #[cfg(test)]
 mod tests {
-    use super::{anchor_to_caret, clamp_into, CaretRect, CARET_GAP};
+    use super::{anchor_to_caret, clamp_into, should_anchor, CaretRect, CaretSource, CARET_GAP};
 
     const AREA_POS: (i32, i32) = (0, 0);
     const AREA_SIZE: (i32, i32) = (1920, 1040); // 1080 minus a taskbar
@@ -150,7 +210,76 @@ mod tests {
             y,
             width: 0,
             height: 18,
+            source: CaretSource::Caret,
         }
+    }
+
+    fn element_bounds(x: i32, y: i32, width: i32, height: i32) -> CaretRect {
+        CaretRect {
+            x,
+            y,
+            width,
+            height,
+            source: CaretSource::ElementBounds,
+        }
+    }
+
+    #[test]
+    fn a_real_caret_line_is_anchored_to() {
+        assert!(should_anchor(caret(400, 300), AREA_SIZE, Some((100, 100))));
+    }
+
+    #[test]
+    fn a_whole_window_rect_is_rejected() {
+        // What UI Automation reports for a browser viewport: the T-0251 bug.
+        assert!(!should_anchor(
+            element_bounds(0, 0, 1900, 1000),
+            AREA_SIZE,
+            None
+        ));
+    }
+
+    #[test]
+    fn a_tall_pane_is_rejected_even_when_narrow() {
+        assert!(!should_anchor(
+            element_bounds(100, 0, 300, 900),
+            AREA_SIZE,
+            None
+        ));
+    }
+
+    #[test]
+    fn a_wide_strip_is_rejected_even_when_short() {
+        assert!(!should_anchor(
+            element_bounds(0, 400, 1500, 30),
+            AREA_SIZE,
+            None
+        ));
+    }
+
+    #[test]
+    fn a_line_sized_text_box_is_anchored_to_when_the_mouse_is_elsewhere() {
+        assert!(should_anchor(
+            element_bounds(400, 300, 200, 24),
+            AREA_SIZE,
+            Some((50, 50))
+        ));
+    }
+
+    #[test]
+    fn the_cursor_wins_over_the_text_box_it_is_sitting_in() {
+        assert!(!should_anchor(
+            element_bounds(400, 300, 200, 24),
+            AREA_SIZE,
+            Some((450, 310))
+        ));
+    }
+
+    #[test]
+    fn a_real_caret_is_anchored_to_even_with_the_mouse_on_top_of_it() {
+        // Only the element-bounds fallback defers to the cursor: a genuine
+        // caret rect is the more precise of the two.
+        assert!(should_anchor(caret(400, 300), AREA_SIZE, Some((400, 310))));
     }
 
     #[test]
