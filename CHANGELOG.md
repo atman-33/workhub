@@ -22,6 +22,11 @@
   at nothing. The board shows it as `project/B-NNN`. Optional: a task that
   belongs to no item carries no `backlog:` line at all, so every task file
   written before this stays byte-identical.
+- **The task skills follow the item.** `task-start` reads the item's
+  `## Status` before starting, so a session inherits what earlier ones decided
+  instead of re-deriving it; `task-report` files the deliverable inside the
+  item folder and appends a dated line to `## Status`, promoting a one-note
+  item to a folder when it needs one. A task with no item reports as before.
 - The Projects tab counts an item folder as one item, and warns when one has no
   entry note named after it — that folder is invisible to `_backlog.base`.
   Existing vaults are untouched: the template never deletes, so old `specs/`

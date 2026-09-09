@@ -42,9 +42,11 @@ no files. Its whole output is a summary in the chat.
 
    - product intent and scope → `prd.md`
    - dates and milestones → `roadmap.md`
-   - design decisions and architecture → `dev-notes/`
-   - a named feature → the matching file in `specs/`
-   - candidate work, not yet executable → `backlog/`
+   - cross-cutting design and architecture → `dev-notes/`
+   - a named feature, bug or case → its item in `backlog/`. Read the entry
+     note first — its `## Status` says where the item stands and which of the
+     numbered notes beside it is current — and only then the notes it points at
+   - what is queued but not started → the rest of `backlog/`, entry notes only
    - repos, environments, dashboards → `links.md`
 
    Say which of these you read and which you skipped, so the user can send

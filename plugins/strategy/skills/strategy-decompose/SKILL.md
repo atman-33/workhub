@@ -17,7 +17,8 @@ phase's completion criterion is met.**
 Before any work, pin down two locations. Ask the owner if either is unclear.
 
 - **Where the notes go** — a Markdown home the owner and future sessions read
-  (in a workhub vault: `projects/<slug>/dev-notes/` and `research/`)
+  (in a workhub vault: `projects/<slug>/dev-notes/`, or the `backlog/` item
+  the decomposition belongs to)
 - **Where the xlsx goes** — somewhere the owner can actually open it. If the
   notes live in a vault the owner reads through Obsidian, the xlsx does **not**
   belong there; put it on their cloud drive
