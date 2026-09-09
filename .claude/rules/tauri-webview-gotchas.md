@@ -95,3 +95,14 @@ paths:
   never sees its click. Guard the handler with
   `if ((e.target as HTMLElement).closest("button")) return;` — see
   `src/quick-capture/capture-app.tsx` and `src/clips-popup/clips-app.tsx`.
+- **A `focusable(false)` window gets no keys at all — give it buttons.** The
+  voice indicator is built non-focusable on purpose: it must never take focus
+  from the app the transcript is about to be pasted into. The cost is that
+  every key pressed while it is on screen goes to *that* app, so neither a
+  React `onKeyDown` nor the `window` listener above can reach it, and there is
+  no way to add one without giving up the property that makes the feature
+  work. Every action such a window offers therefore needs a visible control.
+  A global shortcut is not the way out: registering a bare key (Escape) takes
+  it away from every other app for as long as it is registered, and hanging a
+  second meaning off an existing toggle hotkey turns a mistimed press into a
+  destructive one (T-0250).

@@ -11,6 +11,7 @@
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -48,9 +49,50 @@ pub struct VoiceState {
     phase: Mutex<Phase>,
     shortcut: Mutex<Option<Shortcut>>,
     recording: Mutex<Option<RecordingHandle>>,
+    /// Raised by `cancel_recording` for the dictation session in flight, and
+    /// lowered again when the next recording starts. It lives here rather
+    /// than on `RecordingHandle` because a cancel is just as likely to arrive
+    /// during transcription, by which point the handle is already gone.
+    cancelled: AtomicBool,
     /// Last position (physical pixels) seen via `WindowEvent::Moved` on the
     /// indicator window; persisted to config when the indicator is hidden.
     indicator_pos: Mutex<Option<(i32, i32)>>,
+}
+
+/// What a finished dictation session should do with what it produced. Pulled
+/// out of `record_and_finish` so the cancel semantics are testable without a
+/// microphone: a cancelled session discards its transcript, and stays quiet
+/// about a transcription error nobody is waiting for any more.
+#[derive(Debug, PartialEq)]
+enum Finish {
+    /// Paste the transcript and keep it in the history.
+    Deliver(String),
+    /// The user cancelled: drop the transcript, paste nothing, record
+    /// nothing, and leave the phase alone (`cancel_recording` already set
+    /// it).
+    Discard,
+    /// Nothing was said.
+    Nothing,
+    /// Transcription failed and the user is still waiting on it.
+    Failed(String),
+}
+
+fn finish_for(cancelled: bool, result: Result<String, String>) -> Finish {
+    if cancelled {
+        return Finish::Discard;
+    }
+    match result {
+        Ok(text) if !text.is_empty() => Finish::Deliver(text),
+        Ok(_) => Finish::Nothing,
+        Err(e) => Finish::Failed(e),
+    }
+}
+
+/// Whether the session in flight has been cancelled. Checked at every point
+/// the recording and transcription threads would otherwise change the phase
+/// or produce output, so a cancel lands wherever in the pipeline it arrives.
+fn is_cancelled(app: &AppHandle) -> bool {
+    app.state::<VoiceState>().cancelled.load(Ordering::SeqCst)
 }
 
 /// Ordered registration candidates: the preferred key first, then fallbacks,
@@ -397,6 +439,8 @@ fn start_recording(app: &AppHandle) {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         *recording = Some(RecordingHandle { stop_tx });
         drop(recording);
+        // A new session starts uncancelled, whatever the last one ended as.
+        state.cancelled.store(false, Ordering::SeqCst);
 
         let app_handle = app.clone();
         std::thread::Builder::new()
@@ -418,6 +462,37 @@ pub fn stop_recording_command(app: &AppHandle) {
     if matches!(phase, Phase::Recording) {
         stop_recording(app);
     }
+}
+
+/// Command entry point for the indicator's discard button: abandons the
+/// dictation session without pasting or recording anything.
+///
+/// Deliberately not on the hotkey. Discarding is destructive and the hotkey
+/// is a toggle, so a mistimed second press would silently throw a transcript
+/// away; and the indicator window is non-focusable (it must never take focus
+/// from the app the text is going into), so a key pressed while it is on
+/// screen is delivered to that app, not to it. The button it is, then.
+///
+/// Works in both live phases. During recording the capture loop is stopped
+/// and its audio dropped; during transcription whisper cannot be interrupted
+/// mid-call, so the chunk already running is allowed to finish and then
+/// thrown away with the rest — a second at most, and the indicator is gone
+/// before it happens either way.
+pub fn cancel_recording(app: &AppHandle) {
+    let phase = app.state::<VoiceState>().phase.lock().unwrap().clone();
+    if !matches!(phase, Phase::Recording | Phase::Transcribing) {
+        return;
+    }
+    let state = app.state::<VoiceState>();
+    state.cancelled.store(true, Ordering::SeqCst);
+    // Ends the capture loop when there is still one running; already `None`
+    // when the cancel arrives during transcription.
+    if let Some(handle) = state.recording.lock().unwrap().take() {
+        let _ = handle.stop_tx.send(());
+    }
+    // Close the indicator now: the worker threads still have a chunk of work
+    // to wind down, and the user has said they are done looking at it.
+    set_phase(app, Phase::Idle);
 }
 
 fn stop_recording(app: &AppHandle) {
@@ -577,8 +652,11 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
 
     // Auto-stop (MAX_RECORDING_SECS) never calls `stop_recording`, so the
     // phase can still be Recording here; make sure it reflects Transcribing
-    // either way (idempotent when `stop_recording` already set it).
-    set_phase(&app, Phase::Transcribing);
+    // either way (idempotent when `stop_recording` already set it). A
+    // cancelled session is already Idle and must not be dragged back out.
+    if !is_cancelled(&app) {
+        set_phase(&app, Phase::Transcribing);
+    }
 
     let state = app.state::<VoiceState>();
     *state.recording.lock().unwrap() = None;
@@ -590,6 +668,9 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             Ok(Ok(_)) => "transcription failed".to_string(),
             Err(_) => "voice: transcriber thread panicked".to_string(),
         };
+        if is_cancelled(&app) {
+            return;
+        }
         emit_error(&app, message);
         return;
     }
@@ -600,14 +681,20 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         let buf = buffer.lock().unwrap();
         buf[pending_start..].to_vec()
     };
-    if chunker.has_min_speech(&tail) {
+    // A cancelled session sends no tail: transcribing it would only delay
+    // the worker's exit to produce text that is about to be thrown away.
+    if !is_cancelled(&app) && chunker.has_min_speech(&tail) {
         let resampled = resample_to_16k(&tail, native_rate);
         let _ = chunk_tx.send(resampled);
     }
     drop(chunk_tx); // closes the channel so the worker's `for` loop ends
 
-    match worker.join() {
-        Ok(Ok(text)) if !text.is_empty() => {
+    let transcript = match worker.join() {
+        Ok(result) => result,
+        Err(_) => Err("voice: transcriber thread panicked".to_string()),
+    };
+    match finish_for(is_cancelled(&app), transcript) {
+        Finish::Deliver(text) => {
             // Recorded regardless of paste success below — this history is
             // the safety net for when the paste target lost focus (or the
             // paste otherwise failed) between recording and now.
@@ -617,9 +704,12 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             }
             set_phase(&app, Phase::Idle);
         }
-        Ok(Ok(_)) => set_phase(&app, Phase::Idle),
-        Ok(Err(e)) => emit_error(&app, e),
-        Err(_) => emit_error(&app, "voice: transcriber thread panicked"),
+        Finish::Nothing => set_phase(&app, Phase::Idle),
+        Finish::Failed(e) => emit_error(&app, e),
+        // `cancel_recording` already set the phase and hid the indicator.
+        // Touching it here would fight a recording the user may have started
+        // in the meantime.
+        Finish::Discard => {}
     }
 }
 
@@ -661,6 +751,11 @@ fn run_transcriber(app: AppHandle, chunk_rx: mpsc::Receiver<Vec<f32>>) -> Result
     let mut accumulated = String::new();
     let mut grown = false;
     for chunk in chunk_rx {
+        // The queue may still hold chunks cut before the user gave up on
+        // this session; none of them is worth a whisper pass.
+        if is_cancelled(&app) {
+            break;
+        }
         let prompt = tail_prompt(&accumulated);
         let text = crate::stt::transcribe(&stt_state, &chunk, Some(&prompt))?;
         let trimmed = text.trim();
@@ -777,6 +872,42 @@ pub fn matches(app: &AppHandle, pressed: &Shortcut) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cancelled_session_discards_a_successful_transcript() {
+        assert_eq!(finish_for(true, Ok("hello there".into())), Finish::Discard);
+    }
+
+    #[test]
+    fn a_cancelled_session_reports_no_transcription_error() {
+        // Nobody is waiting on the result any more, so an error popup would
+        // be about work the user already abandoned.
+        assert_eq!(
+            finish_for(true, Err("model exploded".into())),
+            Finish::Discard
+        );
+    }
+
+    #[test]
+    fn a_normal_session_delivers_its_transcript() {
+        assert_eq!(
+            finish_for(false, Ok("hello there".into())),
+            Finish::Deliver("hello there".into())
+        );
+    }
+
+    #[test]
+    fn a_silent_session_delivers_nothing() {
+        assert_eq!(finish_for(false, Ok(String::new())), Finish::Nothing);
+    }
+
+    #[test]
+    fn a_failed_session_reports_its_error() {
+        assert_eq!(
+            finish_for(false, Err("model exploded".into())),
+            Finish::Failed("model exploded".into())
+        );
+    }
 
     #[test]
     fn candidates_prefers_configured_key_then_fallbacks() {

@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AlertCircle, Loader2, Mic, Square } from "lucide-react";
+import { AlertCircle, Loader2, Mic, Square, X } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
@@ -102,6 +102,25 @@ export function VoiceIndicatorApp() {
     </button>
   );
 
+  // Offered while transcribing too: the moment you decide you do not want the
+  // text is usually the moment the preview shows you what it is going to be.
+  // No keyboard equivalent — this window is non-focusable by design, so keys
+  // pressed while it is up go to the app the transcript was headed for.
+  const cancelButton = (state === "recording" || state === "transcribing") && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void api.voiceCancelRecording();
+      }}
+      aria-label="Discard recording"
+      title="Discard"
+      className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+    >
+      <X className="size-3.5" />
+    </button>
+  );
+
   const statusRow = (
     <>
       {state === "recording" && (
@@ -154,7 +173,12 @@ export function VoiceIndicatorApp() {
             className="flex shrink-0 cursor-move select-none items-center gap-2 px-1.5 py-1"
           >
             {statusRow}
-            {stopButton && <span className="ml-auto flex items-center">{stopButton}</span>}
+            {(stopButton || cancelButton) && (
+              <span className="ml-auto flex items-center gap-1.5">
+                {stopButton}
+                {cancelButton}
+              </span>
+            )}
           </div>
           <div
             ref={previewRef}
@@ -181,6 +205,7 @@ export function VoiceIndicatorApp() {
         >
           {statusRow}
           {stopButton}
+          {cancelButton}
         </div>
       </div>
     </TooltipProvider>

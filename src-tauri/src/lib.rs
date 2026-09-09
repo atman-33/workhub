@@ -261,6 +261,7 @@ pub fn run() {
             commands::stt_download_model,
             commands::stt_delete_model,
             commands::voice_stop_recording,
+            commands::voice_cancel_recording,
             commands::voice_history_list,
             commands::voice_history_delete,
             commands::voice_history_clear,

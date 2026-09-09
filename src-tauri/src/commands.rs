@@ -1319,6 +1319,14 @@ pub fn voice_stop_recording(app: tauri::AppHandle) {
     crate::voice::stop_recording_command(&app);
 }
 
+/// Discard button on the indicator: abandons the dictation session without
+/// pasting or keeping anything. Works while recording and while transcribing;
+/// a no-op in any other phase.
+#[tauri::command]
+pub fn voice_cancel_recording(app: tauri::AppHandle) {
+    crate::voice::cancel_recording(&app);
+}
+
 // ---------------------------------------------------------------------
 // voice input: transcript history (safety net for lost-focus pastes)
 // ---------------------------------------------------------------------
