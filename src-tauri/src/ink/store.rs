@@ -51,7 +51,7 @@ pub fn capture_background(x: i32, y: i32, width: i32, height: i32) {
         Err(e) => {
             // Not fatal: drawing still works, only saving is unavailable, and
             // the overlay says so when Alt+C is pressed.
-            eprintln!("ink: screen capture failed: {e}");
+            crate::diag!("ink: screen capture failed: {e}");
             *background() = None;
         }
     }
@@ -111,7 +111,7 @@ pub fn save_capture(app: &AppHandle, dir: &Path, strokes_png_b64: &str) -> Resul
     // Best effort: a capture that is on disk but not on the clipboard is
     // still a capture, and the toast names the file either way.
     if let Err(e) = write_clipboard(app, &composed) {
-        eprintln!("ink: could not copy the capture to the clipboard: {e}");
+        crate::diag!("ink: could not copy the capture to the clipboard: {e}");
     }
     Ok(norm(&path))
 }
@@ -131,7 +131,7 @@ pub fn save_crop(app: &AppHandle, source: &Path, png_b64: &str) -> Result<String
     let path = unique_path(dir, &format!("{stem}-crop.png"))?;
     write_png(&path, &bytes)?;
     if let Err(e) = write_clipboard(app, &decode_png(&bytes)?) {
-        eprintln!("ink: could not copy the crop to the clipboard: {e}");
+        crate::diag!("ink: could not copy the crop to the clipboard: {e}");
     }
     Ok(norm(&path))
 }

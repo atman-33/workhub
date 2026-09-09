@@ -149,7 +149,7 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<Str
             Ok(()) => return Ok(format!("launched {} in a herdr workspace", params.task_id)),
             Err(e) => {
                 // Fall back to terminal launch so a herdr hiccup never blocks work.
-                eprintln!("herdr launch failed, falling back to terminal: {e}");
+                crate::diag!("herdr launch failed, falling back to terminal: {e}");
                 launch(&command_line)?;
                 return Ok(format!(
                     "herdr unavailable ({e}) — launched {} in a terminal instead",

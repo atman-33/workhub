@@ -486,6 +486,24 @@ export interface UpdateInfo {
   url: string;
 }
 
+/** One line of the app's own diagnostic log, from `diagnostic_log`. A release
+ * build has no console, so this is how the recorded lines reach the user. */
+export interface DiagEntry {
+  /** Local `HH:MM:SS.mmm`. The log file carries the date as well. */
+  time: string;
+  message: string;
+}
+
+/** Where the diagnostic log file is and how big it has grown, from
+ * `diagnostic_log_info`. */
+export interface DiagLogInfo {
+  path: string;
+  dir: string;
+  bytes: number;
+  /** Lines currently held in memory, i.e. the most `diagnostic_log` can return. */
+  buffered: number;
+}
+
 /** Health of the shared global keyboard listener behind the ink (double-press
  * Alt) and clips (double-tap Ctrl) gestures, from `input_listener_diagnostics`.
  * Durations are milliseconds; `null` means it has never happened. */

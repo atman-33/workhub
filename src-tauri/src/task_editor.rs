@@ -166,7 +166,7 @@ pub fn hide(app: &AppHandle) {
     }
     if dirty {
         if let Err(e) = storage::save(&cfg) {
-            eprintln!("task-editor: failed to persist window state: {e}");
+            crate::diag!("task-editor: failed to persist window state: {e}");
         }
     }
     let _ = win.hide();

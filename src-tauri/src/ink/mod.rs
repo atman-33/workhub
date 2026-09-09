@@ -38,14 +38,14 @@ pub fn start(app: &AppHandle) {
     let state = app.state::<InkState>();
     let mut running = state.0.lock().unwrap();
     if let Err(e) = overlay::create_overlay(app) {
-        eprintln!("ink: failed to create overlay window: {e}");
+        crate::diag!("ink: failed to create overlay window: {e}");
         return;
     }
     match hook::start(app) {
         Ok(()) => *running = true,
         Err(e) => {
             *running = false;
-            eprintln!("ink: failed to start the key listener: {e}");
+            crate::diag!("ink: failed to start the key listener: {e}");
         }
     }
 }

@@ -270,7 +270,7 @@ pub fn ensure_loaded(state: &SttState) -> Result<(), String> {
         )
         .map_err(|e| format!("failed to load model: {e}"))?;
         *guard = Some((model_name.clone(), ctx));
-        eprintln!(
+        crate::diag!(
             "stt: loaded model '{model_name}' in {}ms",
             started.elapsed().as_millis()
         );
@@ -288,7 +288,7 @@ pub fn preload(app: &tauri::AppHandle) {
         .spawn(move || {
             let state = tauri::Manager::state::<SttState>(&app);
             if let Err(e) = ensure_loaded(&state) {
-                eprintln!("stt: preload skipped: {e}");
+                crate::diag!("stt: preload skipped: {e}");
             }
         })
         .ok();
@@ -350,7 +350,7 @@ pub fn transcribe(
     whisper_state
         .full(params, samples)
         .map_err(|e| format!("transcription failed: {e}"))?;
-    eprintln!(
+    crate::diag!(
         "stt: transcribed {}ms of audio in {}ms",
         samples.len() / 16,
         started.elapsed().as_millis()

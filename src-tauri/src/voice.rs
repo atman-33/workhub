@@ -201,13 +201,13 @@ fn position_at_caret(app: &AppHandle, win: &WebviewWindow) {
     let probe = crate::caret::probe_with_timeout();
     match probe {
         Some(caret) if window_place::place_near_caret(app, win, caret) => {
-            eprintln!("voice: indicator anchored to {caret:?}");
+            crate::diag!("voice: indicator anchored to {caret:?}");
         }
         // Either no caret at all (an app with no text focus, or a provider
         // that reports none), or one `place_near_caret` refused to anchor to
         // — the mouse is the next best guess at where the eye is.
         _ => {
-            eprintln!("voice: indicator placed at the cursor (caret probe: {probe:?})");
+            crate::diag!("voice: indicator placed at the cursor (caret probe: {probe:?})");
             window_place::place_at_cursor(app, win);
         }
     }
@@ -294,7 +294,7 @@ fn persist_indicator_position(app: &AppHandle) {
     let mut cfg = storage::load();
     cfg.settings.voice_indicator_position = Some(pos);
     if let Err(e) = storage::save(&cfg) {
-        eprintln!("voice: failed to persist indicator position: {e}");
+        crate::diag!("voice: failed to persist indicator position: {e}");
     }
 }
 
@@ -528,7 +528,7 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
     let err_app = app.clone();
     let error_callback = move |err: cpal::StreamError| {
-        eprintln!("voice: input stream error: {err}");
+        crate::diag!("voice: input stream error: {err}");
         let _ = err_app.emit(
             "voice:state",
             StatePayload {
@@ -700,7 +700,7 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             // paste otherwise failed) between recording and now.
             record_history_entry(&app, &text);
             if let Err(e) = crate::paste::paste_text(&text) {
-                eprintln!("voice: paste failed: {e}");
+                crate::diag!("voice: paste failed: {e}");
             }
             set_phase(&app, Phase::Idle);
         }
@@ -845,22 +845,22 @@ pub fn apply_shortcut(app: &AppHandle) {
         let shortcut: Shortcut = match candidate.parse() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("voice: invalid shortcut {candidate}: {e}");
+                crate::diag!("voice: invalid shortcut {candidate}: {e}");
                 continue;
             }
         };
         match app.global_shortcut().register(shortcut) {
             Ok(()) => {
                 if candidate != preferred {
-                    eprintln!("voice: {preferred} is taken, registered {candidate} instead");
+                    crate::diag!("voice: {preferred} is taken, registered {candidate} instead");
                 }
                 *state.shortcut.lock().unwrap() = Some(shortcut);
                 return;
             }
-            Err(e) => eprintln!("voice: failed to register {candidate}: {e}"),
+            Err(e) => crate::diag!("voice: failed to register {candidate}: {e}"),
         }
     }
-    eprintln!("voice: could not register any hotkey ({preferred})");
+    crate::diag!("voice: could not register any hotkey ({preferred})");
 }
 
 /// True when `pressed` is the hotkey currently registered for voice input.

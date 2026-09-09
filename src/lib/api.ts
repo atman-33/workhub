@@ -7,6 +7,8 @@ import type {
   CommitFileChange,
   Config,
   CreateTaskInput,
+  DiagEntry,
+  DiagLogInfo,
   GitInfo,
   GitLog,
   GraphOp,
@@ -83,6 +85,9 @@ export const api = {
     invoke<InputListenerDiagnostics>("input_listener_diagnostics"),
   restartInputListener: () =>
     invoke<InputListenerDiagnostics>("restart_input_listener"),
+  // ---- the app's own diagnostic log (release builds have no console) ----
+  diagnosticLog: (limit?: number) => invoke<DiagEntry[]>("diagnostic_log", { limit }),
+  diagnosticLogInfo: () => invoke<DiagLogInfo>("diagnostic_log_info"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   applyUpdate: (url: string) => invoke<void>("apply_update", { url }),
   restartApp: () => invoke<void>("restart_app"),

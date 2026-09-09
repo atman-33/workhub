@@ -3,6 +3,7 @@ mod b64;
 mod caret;
 mod clips;
 mod commands;
+mod diag;
 mod git;
 mod harness;
 mod herdr;
@@ -39,6 +40,9 @@ mod wsl;
 use tauri::Manager;
 
 pub fn run() {
+    // First thing in the process: a release build has no console, so until
+    // this runs every diagnostic (a panic included) is written nowhere.
+    diag::init();
     update::cleanup_old();
     // Must run before the first `storage::load()` call below (or anywhere
     // else) so config reads see the migrated `~/.workhub` copy, not a fresh
@@ -124,29 +128,29 @@ pub fn run() {
             // gates the hotkey) so toggling it on later never has to build a
             // window from inside an event handler.
             if let Err(e) = quick_capture::create_window(app.handle()) {
-                eprintln!("quick-capture: failed to create window: {e}");
+                crate::diag!("quick-capture: failed to create window: {e}");
             }
             quick_capture::apply_shortcut(app.handle());
             // Same rationale: the ink preview is built hidden up front so
             // opening it from the Ink tab is a show, not a build.
             if let Err(e) = ink_preview::create_window(app.handle()) {
-                eprintln!("ink-preview: failed to create window: {e}");
+                crate::diag!("ink-preview: failed to create window: {e}");
             }
             // Same rationale: the task editor is built hidden up front so
             // opening a task from the board is a show, not a build.
             if let Err(e) = task_editor::create_window(app.handle()) {
-                eprintln!("task-editor: failed to create window: {e}");
+                crate::diag!("task-editor: failed to create window: {e}");
             }
             // Same rationale: build the (hidden) voice indicator window up
             // front so the hotkey handler only ever shows/hides it.
             if let Err(e) = voice::create_window(app.handle()) {
-                eprintln!("voice: failed to create indicator window: {e}");
+                crate::diag!("voice: failed to create indicator window: {e}");
             }
             voice::apply_shortcut(app.handle());
             // Same rationale again: the clips popup is built hidden up front
             // so the gesture handler only ever shows it.
             if let Err(e) = clips::create_window(app.handle()) {
-                eprintln!("clips: failed to create popup window: {e}");
+                crate::diag!("clips: failed to create popup window: {e}");
             }
             clips::apply_gesture(app.handle());
             // Background vault-tidy scheduler (T-0050). Cheap mechanical checks;
@@ -198,6 +202,8 @@ pub fn run() {
             commands::task_editor_request_terminal_panel,
             commands::focus_main_window,
             commands::input_listener_diagnostics,
+            commands::diagnostic_log,
+            commands::diagnostic_log_info,
             commands::restart_input_listener,
             commands::check_update,
             commands::apply_update,
