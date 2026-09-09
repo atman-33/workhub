@@ -294,6 +294,7 @@ pub fn run() {
             commands::input_listener_diagnostics,
             commands::diagnostic_log,
             commands::diagnostic_log_info,
+            commands::log_frontend_error,
             commands::restart_input_listener,
             commands::check_update,
             commands::apply_update,

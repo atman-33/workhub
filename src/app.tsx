@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CircleHelp,
   ClipboardList,
@@ -18,6 +18,7 @@ import {
   Timer,
 } from "lucide-react";
 import { ClipsView } from "@/components/clips-view";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
 import { InkView } from "@/components/ink-view";
@@ -47,6 +48,25 @@ import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
+
+/**
+ * One tab's slot in the shell.
+ *
+ * Every tab is mounted at once and the inactive ones are hidden with CSS,
+ * so that switching back to a tab does not throw away its scroll position,
+ * its unsaved edits or its watchers. The cost is that a hidden tab still
+ * renders — and before this had a boundary, an exception in one of them
+ * unmounted the entire app, blanking the window over a view the user could
+ * not even see (T-0254). The boundary is inside the hiding wrapper so a
+ * failed tab reports itself where that tab lives, and the others carry on.
+ */
+function TabPanel({ id, tab, children }: { id: Tab; tab: Tab; children: ReactNode }) {
+  return (
+    <div className={cn("h-full", tab !== id && "hidden")}>
+      <ErrorBoundary label={id}>{children}</ErrorBoundary>
+    </div>
+  );
+}
 
 type Tab =
   | "tasks"
@@ -272,70 +292,70 @@ export default function App() {
           </div>
         </nav>
         <div className="min-h-0 flex-1">
-          <div className={cn("h-full", tab !== "tasks" && "hidden")}>
+          <TabPanel id="tasks" tab={tab}>
             <TasksView
               configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("tasks")}
               onSettingsChange={(s) => setSettings(s)}
             />
-          </div>
-          <div className={cn("h-full", tab !== "projects" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="projects" tab={tab}>
             <ProjectsView
               configVersion={configVersion}
               active={tab === "projects"}
               onNavigate={focusOn}
               onProjectsChange={() => setVaultProjectsVersion((v) => v + 1)}
             />
-          </div>
-          <div className={cn("h-full", tab !== "repos" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="repos" tab={tab}>
             <ReposView
               configVersion={configVersion}
               active={tab === "repos"}
               focus={focusFor("repos")}
             />
-          </div>
-          <div className={cn("h-full", tab !== "schedule" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="schedule" tab={tab}>
             <ScheduleView
               configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("schedule")}
             />
-          </div>
-          <div className={cn("h-full", tab !== "mindmap" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="mindmap" tab={tab}>
             <MindmapView
               configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("mindmap")}
             />
-          </div>
-          <div className={cn("h-full", tab !== "inbox" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="inbox" tab={tab}>
             <InboxView configVersion={configVersion} active={tab === "inbox"} />
-          </div>
-          <div className={cn("h-full", tab !== "music" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="music" tab={tab}>
             <MusicView configVersion={configVersion} />
-          </div>
-          <div className={cn("h-full", tab !== "timer" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="timer" tab={tab}>
             <TimerView />
-          </div>
-          <div className={cn("h-full", tab !== "voice" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="voice" tab={tab}>
             <VoiceView />
-          </div>
-          <div className={cn("h-full", tab !== "clips" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="clips" tab={tab}>
             <ClipsView configVersion={configVersion} />
-          </div>
-          <div className={cn("h-full", tab !== "ink" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="ink" tab={tab}>
             <InkView configVersion={configVersion} />
-          </div>
-          <div className={cn("h-full", tab !== "persona" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="persona" tab={tab}>
             <PersonaView active={tab === "persona"} />
-          </div>
-          <div className={cn("h-full", tab !== "plugins" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="plugins" tab={tab}>
             <PluginsView active={tab === "plugins"} vaultPath={settings?.vault_path ?? ""} />
-          </div>
-          <div className={cn("h-full", tab !== "help" && "hidden")}>
+          </TabPanel>
+          <TabPanel id="help" tab={tab}>
             <HelpView />
-          </div>
+          </TabPanel>
         </div>
         {settings && (
           <SettingsDialog

@@ -165,6 +165,17 @@ interface Props {
   focus?: TabFocus;
 }
 
+/** Options for the Mindmap view's note reader. */
+interface LoadDocOptions {
+  /** Frame the map after loading — for opening a *different* note. */
+  fit?: boolean;
+  /** Skip the reload when the file on disk is the one we just wrote. */
+  skipUnchanged?: boolean;
+  /** Called when the note cannot be read any more, so the caller can let go
+   *  of the path it selected. */
+  onGone?: () => void;
+}
+
 export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
@@ -258,15 +269,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     void api.getConfig().then(setConfig);
   }, [configVersion]);
 
+  // A listing that fails is almost always a folder that moved while it was
+  // being read — archiving a project is a move, and the event that triggers
+  // the reload arrives while the rename is still settling. Falling back to an
+  // empty list lets the effects below reset the picker; throwing here would
+  // only leave an unhandled rejection and a stale list on screen (T-0254).
   const loadFiles = useCallback(async () => {
     if (!vaultPath) return;
-    setFiles(await api.listMindmaps(vaultPath, project));
+    setFiles(await api.listMindmaps(vaultPath, project).catch(() => []));
     setFilesLoaded(true);
   }, [vaultPath, project]);
 
   const loadProjects = useCallback(async () => {
     if (!vaultPath) return;
-    setProjects(await api.listScheduleProjects(vaultPath));
+    setProjects(await api.listScheduleProjects(vaultPath).catch(() => []));
     setProjectsLoaded(true);
     // `projectsVersion` is not read here — it is a reload trigger, and listing
     // it as a dependency is what makes the effect below re-run.
@@ -282,12 +298,27 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
    * the one we just wrote, which is what that watcher event usually is.
    */
   const loadDoc = useCallback(
-    async (target: string, { fit = false, skipUnchanged = false } = {}) => {
+    async (
+      target: string,
+      { fit = false, skipUnchanged = false, onGone }: LoadDocOptions = {},
+    ) => {
       if (!target) {
         setDoc(null);
         return;
       }
-      const read = await api.readMindmap(target);
+      let read: Awaited<ReturnType<typeof api.readMindmap>>;
+      try {
+        read = await api.readMindmap(target);
+      } catch {
+        // The note is no longer where it was. Archiving its project is a move
+        // to `archive/projects/`, and the event that triggers this reload
+        // arrives while the rename is still settling — so failing to read is
+        // an expected outcome here, not an error to reject into nothing and
+        // leave a dead path selected with it (T-0254).
+        setDoc(null);
+        onGone?.();
+        return;
+      }
       if (skipUnchanged && read.mtime === source.current.mtime) return;
       source.current = { content: read.content, mtime: read.mtime };
       // A reload means the file, not the user, decided the current state — the
@@ -311,7 +342,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   }, [vaultPath, loadProjects]);
 
   useEffect(() => {
-    void loadDoc(path, { fit: true });
+    void loadDoc(path, { fit: true, onGone: () => setPath("") });
     setSelectedId(null);
     setEditingId(null);
   }, [path, loadDoc]);
@@ -355,7 +386,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       // A pending local edit is the newer intent; letting the reload win would
       // throw away what the user typed a moment ago. The event is usually the
       // echo of our own save, which `skipUnchanged` drops.
-      if (path && !saveTimer.current) void loadDoc(path, { skipUnchanged: true });
+      if (path && !saveTimer.current)
+        void loadDoc(path, { skipUnchanged: true, onGone: () => setPath("") });
     });
     return () => {
       void unlisten.then((fn) => fn());
