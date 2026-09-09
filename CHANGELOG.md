@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.106.0 (2026-09-10)
+
+- **A new Docs tab reads Markdown that lives outside the vault** (T-0259) — a
+  Google Drive network drive the team keeps its notes on, a share on the file
+  server, any folder this PC can reach. Folder tree on the left, preview on the
+  right, with Mermaid diagrams rendered and embedded images shown (both the
+  Markdown `![](file.png)` form and Obsidian's `![[file.png]]`).
+- **It never writes into a document folder** — no index, no cache, nothing.
+  That is the whole point: opening a shared folder as an Obsidian vault drops
+  an `.obsidian/` folder into it and every member's workspace state then
+  collides. The tab is read-only, and the backend exposes no command that
+  could change that.
+- Folders are registered from the tab itself rather than from Settings, and the
+  list is stored **in the vault**, so a second PC that clones it gets the same
+  folders. One pencil button edits a folder's name and path together.
+- The tree lists one folder at a time, as you open it: on a Drive share whose
+  files are placeholders until read, scanning the whole tree would stall the
+  tab. There is no file watcher on a network share either — the refresh button
+  picks up what a colleague added, and it re-reads the tree without collapsing
+  it. A second button collapses every folder at once.
+- **The tree lists everything the folder holds**, not only Markdown, with the
+  extension shown. A `.md` file previews in the tab; anything else — a PDF, a
+  spreadsheet — opens in whatever app the OS associates with it. A share is
+  rarely Markdown alone, and a tree that hid the rest disagreed with the folder
+  it was describing.
+
 ## 0.105.0 (2026-09-09)
 
 - **workhub can now start when you sign in to Windows** (T-0258). The app is a

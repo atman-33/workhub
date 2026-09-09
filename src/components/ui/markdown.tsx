@@ -44,19 +44,129 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
-interface MarkdownProps {
-  children: string;
-  className?: string;
+/**
+ * Renders a ```mermaid fence as a diagram.
+ *
+ * Mermaid is loaded with a dynamic `import()` the first time a document
+ * actually contains one — it is by far the heaviest thing this component can
+ * pull in, and the task previews that share this renderer never need it.
+ * A diagram that fails to parse falls back to its source: a broken chart in
+ * someone else's document must not blank out the page around it.
+ */
+function MermaidBlock({ code }: { code: string }) {
+  const [svg, setSvg] = React.useState("");
+  const [failed, setFailed] = React.useState(false);
+  const id = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+
+  React.useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        // The app renders dark-only (see index.html), so the theme is fixed
+        // rather than observed.
+        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
+        const rendered = await mermaid.render(`mermaid-${id}`, code);
+        if (live) setSvg(rendered.svg);
+      } catch {
+        if (live) setFailed(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [code, id]);
+
+  if (failed) return <CodeBlock>{code}</CodeBlock>;
+  if (!svg) {
+    return <div className="my-2 text-xs text-muted-foreground">Rendering diagram…</div>;
+  }
+  return (
+    <div
+      className="my-3 overflow-x-auto rounded-md border bg-muted/20 p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+      // Mermaid's own output, produced with securityLevel "strict" — it strips
+      // script tags and event handlers out of the diagram source.
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
 }
 
 /**
- * Minimal markdown renderer shared by the task Description preview and the
- * Results sheet. Links open in the external browser (never navigate the
- * webview); fenced code blocks get a hover copy button. No syntax highlighting.
- * Single newlines render as hard breaks (remark-breaks) to match how the same
- * files read in Obsidian.
+ * An image whose bytes must be fetched through the backend before it can be
+ * shown — the Docs tab's case, where the file sits on a share the webview
+ * cannot reach on its own.
  */
-export function Markdown({ children, className }: MarkdownProps) {
+function ResolvedImage({
+  src,
+  alt,
+  resolveAsset,
+}: {
+  src: string;
+  alt: string;
+  resolveAsset: (src: string) => Promise<string | null>;
+}) {
+  const [resolved, setResolved] = React.useState<string | null>(null);
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    let live = true;
+    setFailed(false);
+    setResolved(null);
+    void resolveAsset(src)
+      .then((uri) => {
+        if (!live) return;
+        if (uri) setResolved(uri);
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (live) setFailed(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [src, resolveAsset]);
+
+  if (failed) {
+    // Name the file rather than showing a broken-image glyph: on a share,
+    // "not synced to this machine yet" is the usual reason and worth saying.
+    return (
+      <span className="my-1 inline-block rounded border border-dashed px-2 py-1 text-xs text-muted-foreground">
+        {alt || "image"} — could not read {src}
+      </span>
+    );
+  }
+  if (!resolved) {
+    return <span className="text-xs text-muted-foreground">Loading image…</span>;
+  }
+  return <img src={resolved} alt={alt} className="my-2 max-w-full rounded" />;
+}
+
+interface MarkdownProps {
+  children: string;
+  className?: string;
+  /** Render ```mermaid fences as diagrams (loads mermaid on demand). */
+  mermaid?: boolean;
+  /**
+   * Turns an image `src` written in the document into something the webview
+   * can display — a `data:` URI, typically. Returning `null` marks the image
+   * unreadable. Without this, image sources are passed through untouched,
+   * which is what the task previews want.
+   */
+  resolveAsset?: (src: string) => Promise<string | null>;
+}
+
+/**
+ * Minimal markdown renderer shared by the task Description preview, the
+ * Results sheet and the Docs tab. Links open in the external browser (never
+ * navigate the webview); fenced code blocks get a hover copy button. No
+ * syntax highlighting. Single newlines render as hard breaks (remark-breaks)
+ * to match how the same files read in Obsidian.
+ *
+ * `mermaid` and `resolveAsset` are opt-in: with neither set this renders
+ * exactly what it always did, so the task previews are unaffected by what the
+ * Docs tab needs.
+ */
+export function Markdown({ children, className, mermaid, resolveAsset }: MarkdownProps) {
   return (
     <div
       className={cn(
@@ -95,7 +205,23 @@ export function Markdown({ children, className }: MarkdownProps) {
             );
           },
           pre({ children }) {
+            // The fence's language lives on the <code> element react-markdown
+            // nests inside the <pre>, so it is read from the child.
+            const child = React.Children.toArray(children)[0];
+            const language = React.isValidElement(child)
+              ? ((child.props as { className?: string }).className ?? "")
+              : "";
+            if (mermaid && /\blanguage-mermaid\b/.test(language)) {
+              return <MermaidBlock code={nodeText(children).replace(/\n$/, "")} />;
+            }
             return <CodeBlock>{children}</CodeBlock>;
+          },
+          img({ src, alt }) {
+            const source = typeof src === "string" ? src : "";
+            if (resolveAsset && source) {
+              return <ResolvedImage src={source} alt={alt ?? ""} resolveAsset={resolveAsset} />;
+            }
+            return <img src={source} alt={alt ?? ""} className="my-2 max-w-full rounded" />;
           },
           code({ className: codeClass, children, ...props }) {
             // Block code is wrapped by <pre> (handled above); style inline code.

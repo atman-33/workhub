@@ -9,6 +9,8 @@ import type {
   CreateTaskInput,
   DiagEntry,
   DiagLogInfo,
+  DocsEntry,
+  DocsRootStatus,
   GitInfo,
   GitLog,
   GraphOp,
@@ -188,6 +190,25 @@ export const api = {
   scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
   restoreScheduleSnapshot: (path: string) =>
     invoke<ScheduleDoc>("restore_schedule_snapshot", { path }),
+
+  // ---- Docs tab: read-only browsing of shared Markdown (T-0259) ----
+  // The backend reads the allowed roots from the config itself, so these take
+  // a path and never a root — a path outside every registered root is refused
+  // there, not here.
+  docsRoots: () => invoke<DocsRootStatus[]>("docs_roots"),
+  addDocsRoot: (path: string, name: string) =>
+    invoke<DocsRootStatus[]>("add_docs_root", { path, name }),
+  removeDocsRoot: (id: string) => invoke<DocsRootStatus[]>("remove_docs_root", { id }),
+  /** Name and folder are written together — they are edited in one dialog. */
+  updateDocsRoot: (id: string, name: string, path: string) =>
+    invoke<DocsRootStatus[]>("update_docs_root", { id, name, path }),
+  /** Opens a non-Markdown file in the OS default app. */
+  docsOpenExternal: (path: string) => invoke<void>("docs_open_external", { path }),
+  /** One directory only — the tree calls again when a folder is opened. */
+  docsListDir: (path: string) => invoke<DocsEntry[]>("docs_list_dir", { path }),
+  docsReadFile: (path: string) => invoke<string>("docs_read_file", { path }),
+  /** An embedded image as a `data:` URI. */
+  docsReadAsset: (path: string) => invoke<string>("docs_read_asset", { path }),
 
   // ---- mindmap notes (projects/<slug>/mindmaps/*.md) ----
   /** `project` narrows to one project slug; pass "" for every project. */

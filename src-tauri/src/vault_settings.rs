@@ -52,6 +52,9 @@ const VAULT_SCOPED: &[&str] = &[
     "mindmap_confirm",
     "recurring",
     "tidy",
+    // The one path-shaped setting that is portable: a shared drive's location
+    // is what the *team* agreed on, not a property of this machine (T-0259).
+    "docs_roots",
 ];
 
 /// The `tidy` sub-fields that are policy (portable) rather than run history.
@@ -364,6 +367,42 @@ mod tests {
             read_back.settings.worktree_root,
             Settings::default().worktree_root,
             "the vault file carries no machine-local value to restore"
+        );
+        std::fs::remove_dir_all(&vault).ok();
+    }
+
+    /// The Docs roots are the one path-shaped setting that travels with the
+    /// vault (T-0259), so that a second machine cloning it gets the folders
+    /// back rather than re-registering them by hand.
+    #[test]
+    fn docs_roots_travel_with_the_vault() {
+        let vault = temp_vault("docs-roots");
+        let written = config_for(
+            &vault,
+            Settings {
+                docs_roots: vec![crate::models::DocsRoot {
+                    id: "D-001".into(),
+                    name: "team share".into(),
+                    path: "G:/shared drives/team".into(),
+                }],
+                worktree_root: "D:/machine-local".into(),
+                ..Settings::default()
+            },
+        );
+        write(&written).expect("write vault settings");
+
+        let mut read_back = config_for(&vault, Settings::default());
+        overlay(&mut read_back);
+
+        assert_eq!(read_back.settings.docs_roots.len(), 1);
+        assert_eq!(
+            read_back.settings.docs_roots[0].path,
+            "G:/shared drives/team"
+        );
+        assert_eq!(
+            read_back.settings.worktree_root,
+            Settings::default().worktree_root,
+            "a machine-local path beside it must still not travel"
         );
         std::fs::remove_dir_all(&vault).ok();
     }

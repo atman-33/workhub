@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useState } from "react";
 import {
+  BookOpen,
   BrainCircuit,
   CalendarRange,
   Check,
@@ -193,6 +194,18 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **The trash button moves the note to \`_ai/memory/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
 - **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
 - **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
+
+const DOCS_MD = `## Reading shared Markdown (Docs)
+
+The **Docs** tab reads Markdown that lives outside the vault — a Google Drive network drive the team keeps its notes on, a share on the file server, any folder you can reach from this PC.
+
+- **Why not just open it in Obsidian?** Opening a shared folder as a vault writes an \`.obsidian/\` folder into it, and everyone's workspace state then collides. This tab never writes into a document folder — no index, no cache, nothing. It reads, and that is all it can do.
+- **Add a folder** with the folder button on the tab itself (not in Settings — a folder is what the tab is for). The path is stored **in the vault**, so a second PC that clones the vault gets the same list.
+- **The pencil button edits one folder** — its name and its path. The path is recorded in the vault, so a PC that clones the vault gets the same folder; if that PC mounts the share elsewhere, correct the path there.
+- **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
+- **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
+- **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
+- **Editing is not offered.** The tab exists to stay out of a folder other people are working in.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)
 
@@ -404,6 +417,7 @@ const SECTIONS = [
   { value: "projects", title: "Projects", icon: FolderKanban },
   { value: "schedule", title: "Planning dates", icon: CalendarRange },
   { value: "mindmap", title: "Mapping ideas", icon: Network },
+  { value: "docs", title: "Reading shared Markdown", icon: BookOpen },
   { value: "persona", title: "Persona", icon: Drama },
   { value: "plugins", title: "Plugins", icon: Puzzle },
   { value: "tidy", title: "Vault tidy", icon: Sparkles },
@@ -1743,6 +1757,70 @@ export function HelpView() {
                 there appear here immediately. If the file changed underneath an
                 edit, the save is refused and the note reloads rather than
                 overwriting the other change.
+              </li>
+            </ul>
+          </Section>
+
+          <Section
+            icon={BookOpen}
+            title="Reading shared Markdown (Docs)"
+            value="docs"
+            markdown={DOCS_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The <span className="font-medium">Docs</span> tab reads Markdown
+              that lives outside the vault — a Google Drive network drive the
+              team keeps its notes on, a share on the file server, any folder
+              this PC can reach.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <span className="font-medium text-foreground">Why not just open it in Obsidian?</span> Opening a
+                shared folder as a vault writes an{" "}
+                <span className="font-mono text-xs">.obsidian/</span> folder into it, and everyone&apos;s workspace
+                state then collides. This tab{" "}
+                <span className="font-medium text-foreground">never writes into a document folder</span> — no index,
+                no cache, nothing. It reads, and that is all it can do.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Add a folder</span> with the folder button on the tab
+                itself, not in Settings — a folder is what the tab is for. The path is stored{" "}
+                <span className="font-medium text-foreground">in the vault</span>, so a second PC that clones the
+                vault gets the same list.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The pencil button edits one folder</span> — its
+                name and its path. The path is recorded in the vault, so a PC that clones the vault gets the
+                same folder; if that PC mounts the share elsewhere, correct the path there.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The tree loads one folder at a time</span>, when you
+                open it. On a Drive share where files are placeholders until read, scanning the whole tree would
+                stall the tab. There is no file watcher either — press{" "}
+                <span className="font-medium text-foreground">↻</span> to pick up what a colleague added.
+                Refreshing re-reads the tree without collapsing it; the button beside it collapses every folder
+                at once.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Mermaid diagrams render</span>, and images a document
+                embeds are shown — both the Markdown{" "}
+                <span className="font-mono text-xs">![](file.png)</span> form and Obsidian&apos;s{" "}
+                <span className="font-mono text-xs">![[file.png]]</span>. Relative paths resolve against the
+                document.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Everything in the folder is listed</span>, not just
+                Markdown, and names carry their extension. Clicking a{" "}
+                <span className="font-mono text-xs">.md</span> file previews it here; clicking anything else — a
+                PDF, a spreadsheet — opens it in whatever app the OS associates with it. Dot-folders such as{" "}
+                <span className="font-mono text-xs">.obsidian</span> and{" "}
+                <span className="font-mono text-xs">.git</span> stay hidden.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Editing is not offered.</span> The tab exists to stay
+                out of a folder other people are working in.
               </li>
             </ul>
           </Section>

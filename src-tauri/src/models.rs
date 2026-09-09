@@ -225,6 +225,24 @@ pub struct Settings {
     /// calendar arithmetic; the backend only persists them.
     #[serde(default)]
     pub recurring: Vec<RecurringRule>,
+    /// Registered document roots for the Docs tab (T-0259): folders whose
+    /// Markdown is browsed read-only, typically a Google Drive share the team
+    /// keeps its notes in.
+    ///
+    /// **Vault-scoped** (see `vault_settings::VAULT_SCOPED`), which is the one
+    /// deliberate exception to "paths are machine-local": a shared drive's
+    /// location is a value the *team* agreed on, not a property of this PC —
+    /// the vault's own `shared/` notes already record such locations in
+    /// `location:`.
+    ///
+    /// A machine that mounts the same share on a different letter therefore
+    /// has to edit the path, which changes it for every machine. That is the
+    /// accepted trade: a per-machine override existed here briefly and bought
+    /// nothing on a single-PC setup while costing a whole concept in the UI.
+    /// Reintroduce it only when a second machine actually disagrees — the
+    /// stored shape does not have to change for that.
+    #[serde(default)]
+    pub docs_roots: Vec<DocsRoot>,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -416,8 +434,23 @@ impl Default for Settings {
             schedule_export_dir: String::new(),
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),
+            docs_roots: Vec::new(),
         }
     }
+}
+
+/// One registered document root in the Docs tab (T-0259).
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct DocsRoot {
+    /// Stable id (`D-001`), never reused. It is how a root is addressed across
+    /// an edit that changes both its name and its path.
+    pub id: String,
+    /// Display name in the root picker. Empty = show the folder name.
+    #[serde(default)]
+    pub name: String,
+    /// The shared location, as the team knows it. Forward slashes.
+    #[serde(default)]
+    pub path: String,
 }
 
 /// One recurring-task rule (T-0110): a task template plus the calendar that
