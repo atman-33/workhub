@@ -128,6 +128,9 @@ title: ...
 status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
+backlog: B-007      # optional; the backlog item in
+                    # projects/<project>/backlog/ this task belongs to. The
+                    # link runs this way only — the item never lists its tasks
 priority: medium    # low | medium | high
 model: sonnet       # optional; AI model passed as `--model` when the app
                     # launches an agent for this task. Absent = agent default.

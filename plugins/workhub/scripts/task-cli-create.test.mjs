@@ -204,6 +204,29 @@ describe("refusals", () => {
   });
 });
 
+describe("backlog", () => {
+  // The app writes no `backlog:` line at all for a task that belongs to no
+  // item, and writes it directly under `project:` when it does. The CLI has
+  // to agree byte for byte, or a task rewritten by the other writer churns
+  // (T-0253).
+  it("writes no line when the task belongs to no item", () => {
+    const task = created("--title", "x", "--project", "workhub");
+    expect(readFileSync(task.file, "utf-8")).not.toMatch(/^backlog:/m);
+  });
+
+  it("writes the item directly under the project", () => {
+    const task = created("--title", "x", "--project", "workhub", "--backlog", "B-007");
+    expect(task.backlog).toBe("B-007");
+    expect(readFileSync(task.file, "utf-8")).toContain("project: workhub\nbacklog: B-007\n");
+  });
+
+  it("carries the item into the index", () => {
+    const task = created("--title", "x", "--project", "workhub", "--backlog", "B-007");
+    const index = JSON.parse(readFileSync(join(vault, "_ai", "index", "tasks.json"), "utf-8"));
+    expect(index.find((t) => t.id === task.id).backlog).toBe("B-007");
+  });
+});
+
 it("refreshes the task index", () => {
   seed({ id: "T-0001", title: "a", order: 1 });
   const task = created("--title", "b", "--status", "todo");

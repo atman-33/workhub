@@ -34,6 +34,7 @@ function task(overrides: Partial<Task> = {}): Task {
     status: "todo",
     assignee: "me",
     project: "",
+    backlog: "",
     priority: "medium",
     model: "",
     order: 1,

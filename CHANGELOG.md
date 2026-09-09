@@ -16,6 +16,12 @@
   Issues, monday.com or Jira means that tool is authoritative and the folder is
   just where the thinking lives; empty means `_backlog.base` *is* the product
   backlog. Same schema either way.
+- **A task says which backlog item it belongs to.** The task editor gained an
+  item picker next to the project — it lists that project's items and clears
+  itself when the project changes, since a `B-NNN` from another project points
+  at nothing. The board shows it as `project/B-NNN`. Optional: a task that
+  belongs to no item carries no `backlog:` line at all, so every task file
+  written before this stays byte-identical.
 - The Projects tab counts an item folder as one item, and warns when one has no
   entry note named after it — that folder is invisible to `_backlog.base`.
   Existing vaults are untouched: the template never deletes, so old `specs/`

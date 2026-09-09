@@ -18,6 +18,8 @@ export interface TaskDraft {
   status: TaskStatus;
   assignee: TaskAssignee;
   project: string;
+  /** `B-NNN` of the owning backlog item, or empty for a standalone task. */
+  backlog: string;
   priority: TaskPriority;
   model: string;
   confirm: boolean;
@@ -31,7 +33,7 @@ export interface TaskDraft {
 }
 
 /** One editable field of the editor form. `content` is the Description
- *  section of the body; the other thirteen map 1:1 onto frontmatter. */
+ *  section of the body; the other fourteen map 1:1 onto frontmatter. */
 export type DraftField = keyof TaskDraft;
 
 export function draftFromTask(task: Task): TaskDraft {
@@ -40,6 +42,7 @@ export function draftFromTask(task: Task): TaskDraft {
     status: task.status,
     assignee: task.assignee,
     project: task.project,
+    backlog: task.backlog,
     priority: task.priority,
     model: task.model,
     confirm: task.confirm,
@@ -72,6 +75,7 @@ export function fieldsFromDraft(
     status: draft.status,
     assignee: draft.assignee,
     project: draft.project,
+    backlog: draft.backlog,
     priority: draft.priority,
     model: draft.model.trim(),
     confirm: draft.confirm,

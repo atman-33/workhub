@@ -9,12 +9,14 @@
 //
 // Usage:
 //   node task-cli.mjs list   [--status s] [--assignee a] [--project p] [--json]
-//   node task-cli.mjs create --title "..." [--project p] [--assignee a]
+//   node task-cli.mjs create --title "..." [--project p] [--backlog B-NNN]
+//                            [--assignee a]
 //                                 [--priority p] [--status s] [--due d]
 //                                 [--model m] [--tags a,b] [--confirm]
 //                                 [--worktree] [--body-file path] [--json]
 //   node task-cli.mjs start  <id>
 //   node task-cli.mjs update <id> [--status s] [--assignee a] [--project p]
+//                                 [--backlog B-NNN]
 //                                 [--priority p] [--model m] [--due d]
 //                                 [--blocked true|false] [--blocked-note "..."]
 //   node task-cli.mjs report <id>
@@ -125,6 +127,7 @@ const KNOWN_KEYS = new Set([
   "status",
   "assignee",
   "project",
+  "backlog",
   "priority",
   "model",
   "order",
@@ -206,6 +209,10 @@ function renderTags(tags) {
 
 function renderFrontmatter(t) {
   const modelLine = t.model ? `model: ${yamlScalar(t.model)}\n` : "";
+  // Absent rather than empty when the task belongs to no backlog item, which
+  // is what the app writes too — the two must agree byte for byte, or every
+  // alternating write churns the file (T-0253).
+  const backlogLine = t.backlog ? `backlog: ${yamlScalar(t.backlog)}\n` : "";
   // JS String(3) is "3" (never "3.0"), matching the Rust render_order rule.
   const orderLine = t.order !== null && t.order !== undefined ? `order: ${String(t.order)}\n` : "";
   const archivedLine = t.archived ? "archived: true\n" : "";
@@ -219,6 +226,7 @@ function renderFrontmatter(t) {
     `status: ${t.status}\n` +
     `assignee: ${t.assignee}\n` +
     `project: ${yamlScalar(t.project)}\n` +
+    backlogLine +
     `priority: ${t.priority}\n` +
     modelLine +
     orderLine +
@@ -244,6 +252,7 @@ function parseTaskFile(file) {
     status: get("status") || "inbox",
     assignee: get("assignee") || "me",
     project: get("project"),
+    backlog: get("backlog"),
     priority: get("priority") || "medium",
     model: get("model"),
     order: Number.isFinite(orderRaw) ? orderRaw : null,
@@ -299,6 +308,7 @@ function regenerateIndex(vault) {
     status: t.status,
     assignee: t.assignee,
     project: t.project,
+    backlog: t.backlog,
     priority: t.priority,
     model: t.model,
     order: t.order,
@@ -410,7 +420,7 @@ function cmdList(vault, flags) {
 }
 
 function applyUpdates(task, flags) {
-  const editable = ["status", "assignee", "project", "priority", "model", "due"];
+  const editable = ["status", "assignee", "project", "backlog", "priority", "model", "due"];
   let changed = false;
   for (const key of editable) {
     if (flags[key] !== undefined) {
@@ -489,6 +499,7 @@ function cmdCreate(vault, flags) {
     status,
     assignee: flags.assignee ?? "me",
     project: flags.project ?? "",
+    backlog: flags.backlog ?? "",
     priority: flags.priority ?? "medium",
     model: flags.model ?? "",
     order: nextOrder(existing, status),
@@ -560,7 +571,7 @@ function cmdUpdate(vault, id, flags) {
   const task = findTask(vault, id);
   if (!applyUpdates(task, flags)) {
     fail(
-      "nothing to update — pass at least one of --status/--assignee/--project/--priority/--model/--due/--blocked",
+      "nothing to update — pass at least one of --status/--assignee/--project/--backlog/--priority/--model/--due/--blocked",
     );
   }
   task.updated = today();

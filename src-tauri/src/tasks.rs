@@ -227,13 +227,22 @@ fn render_frontmatter(t: &Task) -> String {
     } else {
         format!("model: {}\n", yaml_scalar(&t.model))
     };
+    // Same policy again: a task that belongs to no backlog item carries no
+    // `backlog:` line at all, so every task file written before T-0253 stays
+    // byte-identical.
+    let backlog_line = if t.backlog.is_empty() {
+        String::new()
+    } else {
+        format!("backlog: {}\n", yaml_scalar(&t.backlog))
+    };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\npriority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\n{}priority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
         t.assignee,
         yaml_scalar(&t.project),
+        backlog_line,
         t.priority,
         model_line,
         order_line,
@@ -273,6 +282,7 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
             }
         },
         project: get("project"),
+        backlog: get("backlog"),
         priority: {
             let v = get("priority");
             if v.is_empty() {
@@ -419,6 +429,7 @@ pub struct CreateTaskInput {
     pub status: Option<String>,
     pub assignee: Option<String>,
     pub project: Option<String>,
+    pub backlog: Option<String>,
     pub priority: Option<String>,
     pub model: Option<String>,
     pub confirm: Option<bool>,
@@ -449,6 +460,7 @@ pub struct UpdateTaskInput {
     pub status: Option<String>,
     pub assignee: Option<String>,
     pub project: Option<String>,
+    pub backlog: Option<String>,
     pub priority: Option<String>,
     pub model: Option<String>,
     pub order: Option<f64>,
@@ -480,6 +492,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         status,
         assignee: input.assignee.unwrap_or_else(|| "me".into()),
         project: input.project.unwrap_or_default(),
+        backlog: input.backlog.unwrap_or_default(),
         priority: input.priority.unwrap_or_else(|| "medium".into()),
         model: input.model.unwrap_or_default(),
         order: Some(order),
@@ -551,6 +564,9 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
     }
     if let Some(v) = input.project {
         task.project = v;
+    }
+    if let Some(v) = input.backlog {
+        task.backlog = v;
     }
     if let Some(v) = input.priority {
         task.priority = v;
@@ -683,6 +699,7 @@ struct IndexEntry<'a> {
     status: &'a str,
     assignee: &'a str,
     project: &'a str,
+    backlog: &'a str,
     priority: &'a str,
     model: &'a str,
     order: Option<f64>,
@@ -710,6 +727,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             status: &t.status,
             assignee: &t.assignee,
             project: &t.project,
+            backlog: &t.backlog,
             priority: &t.priority,
             model: &t.model,
             order: t.order,
@@ -1401,6 +1419,61 @@ mod tests {
         dir
     }
 
+    /// A task that belongs to no backlog item writes no `backlog:` line at
+    /// all, so every task file written before T-0253 stays byte-identical; one
+    /// that does belong to an item round-trips through the frontmatter.
+    #[test]
+    fn the_backlog_link_round_trips_and_is_absent_when_unset() {
+        let vault = temp_vault("task-backlog");
+
+        let plain = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "no item".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let text = fs::read_to_string(&plain.file).unwrap();
+        assert!(!text.contains("backlog:"), "frontmatter: {text}");
+
+        let linked = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "an item".into(),
+                project: Some("demo".into()),
+                backlog: Some("B-007".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(linked.backlog, "B-007");
+        let text = fs::read_to_string(&linked.file).unwrap();
+        assert!(
+            text.contains("project: demo\nbacklog: B-007\n"),
+            "frontmatter: {text}"
+        );
+        assert_eq!(
+            find_task_by_id(&vault, &linked.id).unwrap().backlog,
+            "B-007"
+        );
+
+        // Clearing it drops the line again rather than writing an empty key.
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: linked.id.clone(),
+                backlog: Some(String::new()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let text = fs::read_to_string(&linked.file).unwrap();
+        assert!(!text.contains("backlog:"), "frontmatter: {text}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
     #[test]
     fn only_the_top_level_of_projects_counts_as_a_project_folder() {
         let projects = PathBuf::from("C:/vault/projects");
@@ -1534,6 +1607,7 @@ mod tests {
                     status: "inbox".into(),
                     assignee: "me".into(),
                     project: String::new(),
+                    backlog: String::new(),
                     priority: "medium".into(),
                     model: String::new(),
                     order: None,

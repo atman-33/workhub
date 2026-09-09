@@ -106,7 +106,10 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                 </Badge>
               ))}
               {task.project && (
-                <span className="shrink-0 text-xs text-muted-foreground">{task.project}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {task.project}
+                  {task.backlog ? `/${task.backlog}` : ""}
+                </span>
               )}
               <span className="shrink-0 text-xs text-muted-foreground">{task.assignee}</span>
               <PriorityBadge
