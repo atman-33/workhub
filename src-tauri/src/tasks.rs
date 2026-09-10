@@ -1014,6 +1014,60 @@ fn tracked_files(vault: &Path, template: &Dir) -> Vec<(String, Vec<u8>)> {
     out
 }
 
+/// How a tracked path the template no longer ships should be treated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OrphanKind {
+    /// The vault does not have the file either. Nothing to remove; the
+    /// manifest entry is stale bookkeeping and can be dropped silently.
+    GoneAlready,
+    /// The vault still has it, byte-identical to what the template shipped.
+    /// Offerable for removal, never removed on its own.
+    Untouched,
+    /// The vault has it and the owner changed it. The template relinquishes
+    /// its claim: the baseline is dropped and the file is left alone,
+    /// forever, and it is not even listed.
+    Edited,
+}
+
+/// Classifies every manifest path the template no longer ships.
+///
+/// Template sync had only ever looked at what the template *has*, so a path
+/// it dropped stayed in the vault and in the manifest indefinitely — the
+/// other half of the problem T-0265 fixed (T-0274). Removing the old
+/// `templates/project/{deliverables,specs,research}/` left three manifest
+/// entries behind, and the pre-`profile/` layout left a pristine
+/// `knowledge/profile/decision-policy.md` sitting beside the real one.
+///
+/// The manifest is what makes this decidable. A path with a baseline is one
+/// the template provably put there; a vault file with no baseline is the
+/// owner's, and guessing otherwise is how an agent deletes someone's notes.
+fn orphan_paths(vault: &Path, template: &Dir) -> Result<Vec<(String, OrphanKind)>, String> {
+    let manifest = load_manifest(vault);
+    let shipped: HashSet<String> = tracked_files(vault, template)
+        .into_iter()
+        .map(|(rel, _)| rel)
+        .collect();
+
+    let mut out = Vec::new();
+    for (rel, baseline) in &manifest.files {
+        if shipped.contains(rel) {
+            continue;
+        }
+        let dst_path = vault.join(rel);
+        let kind = if !dst_path.exists() {
+            OrphanKind::GoneAlready
+        } else if sha256_hex(&fs::read(&dst_path).map_err(|e| e.to_string())?) == *baseline {
+            OrphanKind::Untouched
+        } else {
+            OrphanKind::Edited
+        };
+        out.push((rel.clone(), kind));
+    }
+    // `HashMap` iteration order is arbitrary; the dialog lists these.
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(out)
+}
+
 fn manifest_path(vault: &Path) -> PathBuf {
     vault.join("_ai").join("template-manifest.json")
 }
@@ -1082,9 +1136,27 @@ pub struct TemplateFileDiff {
     pub state: TemplateFileState,
 }
 
+/// One path the manifest tracks that the template no longer ships, and whose
+/// vault copy is still there and still byte-identical to what the template
+/// shipped — so removing it loses nothing that cannot be regenerated.
+///
+/// Kept out of [`TemplateFileState`] on purpose: removing a file is the
+/// opposite operation from writing template content into one, and folding it
+/// into that enum would make `apply_vault_template` do two opposite things
+/// under one name. Removal has its own command
+/// ([`remove_template_orphans`]), and is never part of the silent path.
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct TemplateRemoval {
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct TemplateDiff {
     pub files: Vec<TemplateFileDiff>,
+    /// Files the template dropped that the vault still has, untouched. Never
+    /// applied automatically — the update dialog offers them, unchecked.
+    #[serde(default)]
+    pub removed: Vec<TemplateRemoval>,
 }
 
 /// Copies the embedded `vault-template/` into `vault`, creating directories as
@@ -1204,7 +1276,16 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
         entries.push(TemplateFileDiff { path: rel, state });
     }
 
-    Ok(TemplateDiff { files: entries })
+    let removed = orphan_paths(vault, template)?
+        .into_iter()
+        .filter(|(_, kind)| *kind == OrphanKind::Untouched)
+        .map(|(path, _)| TemplateRemoval { path })
+        .collect();
+
+    Ok(TemplateDiff {
+        files: entries,
+        removed,
+    })
 }
 
 /// Applies the embedded template content for exactly the given relative
@@ -1314,6 +1395,10 @@ fn apply_safe_from(vault: &Path, template: &Dir) -> Result<Vec<String>, String> 
     // this task turns on: the seven project Bases were hand-corrected in
     // T-0263/T-0272 and would otherwise never take another update quietly.
     adopt_matching_baselines(vault, template)?;
+    // Bookkeeping only: a stale entry for a file that is already gone, and a
+    // baseline the template has no further claim to. No file is deleted here
+    // — a destructive step never rides the silent path.
+    drop_stale_baselines(vault, template)?;
 
     let diff = diff_against(vault, template)?;
     let safe: Vec<String> = diff
@@ -1373,6 +1458,90 @@ fn adopt_matching_baselines(vault: &Path, template: &Dir) -> Result<(), String> 
         write_manifest(vault, &manifest)?;
     }
     Ok(())
+}
+
+/// Drops the manifest baselines that no longer mean anything: a path the
+/// template stopped shipping whose vault copy is already gone, and one the
+/// owner has since edited.
+///
+/// Neither case deletes a file. The first is pure bookkeeping. The second is
+/// the template letting go: once the owner has changed a file the template no
+/// longer ships, it is theirs, and keeping a baseline for it only invites a
+/// later version of this code to think it has a say. Dropping it is also the
+/// safe direction — if the template ever ships that path again, no baseline
+/// means `Conflict`, not a silent overwrite.
+fn drop_stale_baselines(vault: &Path, template: &Dir) -> Result<(), String> {
+    let orphans = orphan_paths(vault, template)?;
+    if orphans.is_empty() {
+        return Ok(());
+    }
+
+    let mut manifest = load_manifest(vault);
+    let mut changed = false;
+    for (rel, kind) in orphans {
+        match kind {
+            OrphanKind::Untouched => continue,
+            OrphanKind::Edited => crate::diag!(
+                "workhub: '{rel}' is no longer in the template and was edited here;                  leaving it alone and dropping its baseline"
+            ),
+            OrphanKind::GoneAlready => {}
+        }
+        manifest.files.remove(&rel);
+        changed = true;
+    }
+
+    if changed {
+        manifest.schema_version = MANIFEST_SCHEMA_VERSION;
+        manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
+        write_manifest(vault, &manifest)?;
+    }
+    Ok(())
+}
+
+/// Removes exactly the listed files the template no longer ships, and drops
+/// their manifest entries.
+///
+/// Every path is re-classified here rather than trusted from the caller: the
+/// dialog's list can be minutes old, and the file may have been edited since.
+/// A path that is not `Untouched` at this instant is skipped, so the worst a
+/// stale selection can do is nothing. Returns the paths actually removed.
+///
+/// **Directories are never removed**, only files. An emptied folder is
+/// harmless, while deciding a folder is "empty enough" to delete is how a
+/// cleanup step reaches somewhere it was never asked to go.
+pub fn remove_template_orphans(vault: &Path, paths: &[String]) -> Result<Vec<String>, String> {
+    remove_orphans_from(vault, &VAULT_TEMPLATE, paths)
+}
+
+fn remove_orphans_from(
+    vault: &Path,
+    template: &Dir,
+    paths: &[String],
+) -> Result<Vec<String>, String> {
+    let removable: HashSet<String> = orphan_paths(vault, template)?
+        .into_iter()
+        .filter(|(_, kind)| *kind == OrphanKind::Untouched)
+        .map(|(rel, _)| rel)
+        .collect();
+
+    let mut manifest = load_manifest(vault);
+    let mut removed = Vec::new();
+    for rel in paths {
+        if !removable.contains(rel) {
+            crate::diag!("workhub: not removing '{rel}': it is not an untouched template leftover");
+            continue;
+        }
+        fs::remove_file(vault.join(rel)).map_err(|e| e.to_string())?;
+        manifest.files.remove(rel);
+        removed.push(rel.clone());
+    }
+
+    if !removed.is_empty() {
+        manifest.schema_version = MANIFEST_SCHEMA_VERSION;
+        manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
+        write_manifest(vault, &manifest)?;
+    }
+    Ok(removed)
 }
 
 /// Writes the seed-only template files the vault is missing, leaving every
@@ -2593,6 +2762,148 @@ mod tests {
             Some(&sha256_hex(b"filter: project == 'alpha' v2")),
             "a matching copy must record a baseline so the next update is quiet"
         );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    // -------------------------------------------------------------------
+    // template leftovers (T-0274)
+    // -------------------------------------------------------------------
+
+    /// Records a baseline for `rel` as if the template had once shipped
+    /// `content` there, which is what makes a path an *orphan* rather than
+    /// just a file the app has never seen.
+    fn seed_baseline(vault: &Path, rel: &str, content: &[u8]) {
+        let mut manifest = load_manifest(vault);
+        manifest.schema_version = MANIFEST_SCHEMA_VERSION;
+        manifest.files.insert(rel.into(), sha256_hex(content));
+        write_manifest(vault, &manifest).unwrap();
+    }
+
+    const GONE: &str = "dropped/old.md";
+
+    #[test]
+    fn an_untouched_leftover_is_offered_for_removal() {
+        let vault = temp_test_vault("orphan-untouched");
+        fs::create_dir_all(vault.join("dropped")).unwrap();
+        fs::write(vault.join(GONE), "shipped-content").unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff.removed
+                .iter()
+                .map(|r| r.path.as_str())
+                .collect::<Vec<_>>(),
+            vec![GONE]
+        );
+        // Offered, but never removed by the silent path.
+        apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(
+            vault.join(GONE).exists(),
+            "the silent path must never delete"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn an_edited_leftover_is_never_listed_and_never_removed() {
+        let vault = temp_test_vault("orphan-edited");
+        fs::create_dir_all(vault.join("dropped")).unwrap();
+        fs::write(vault.join(GONE), "the owner rewrote this").unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(
+            diff.removed.is_empty(),
+            "an edited leftover is the owner's file"
+        );
+
+        // Even asked for by name, it is refused.
+        let removed = remove_orphans_from(&vault, &TEST_TEMPLATE, &[GONE.to_string()]).unwrap();
+        assert!(removed.is_empty());
+        assert_eq!(
+            fs::read_to_string(vault.join(GONE)).unwrap(),
+            "the owner rewrote this"
+        );
+        // The template lets go of it: the baseline is dropped, the file stays.
+        apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(!load_manifest(&vault).files.contains_key(GONE));
+        assert!(vault.join(GONE).exists());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_baseline_for_a_file_that_is_already_gone_is_dropped_silently() {
+        let vault = temp_test_vault("orphan-bookkeeping");
+        fs::create_dir_all(&vault).unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(diff.removed.is_empty(), "there is no file to offer");
+
+        apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(!load_manifest(&vault).files.contains_key(GONE));
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn removing_a_leftover_drops_its_baseline_but_keeps_the_folder() {
+        let vault = temp_test_vault("orphan-remove");
+        fs::create_dir_all(vault.join("dropped")).unwrap();
+        fs::write(vault.join(GONE), "shipped-content").unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+
+        let removed = remove_orphans_from(&vault, &TEST_TEMPLATE, &[GONE.to_string()]).unwrap();
+
+        assert_eq!(removed, vec![GONE.to_string()]);
+        assert!(!vault.join(GONE).exists());
+        assert!(!load_manifest(&vault).files.contains_key(GONE));
+        assert!(
+            vault.join("dropped").is_dir(),
+            "directories are never removed, only files"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_stale_selection_removes_nothing_once_the_file_has_changed() {
+        let vault = temp_test_vault("orphan-stale");
+        fs::create_dir_all(vault.join("dropped")).unwrap();
+        fs::write(vault.join(GONE), "shipped-content").unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+        // The dialog listed it, then the owner edited it before confirming.
+        fs::write(vault.join(GONE), "edited after the dialog opened").unwrap();
+
+        let removed = remove_orphans_from(&vault, &TEST_TEMPLATE, &[GONE.to_string()]).unwrap();
+
+        assert!(removed.is_empty());
+        assert_eq!(
+            fs::read_to_string(vault.join(GONE)).unwrap(),
+            "edited after the dialog opened"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_file_the_template_still_ships_is_never_a_leftover() {
+        let vault = temp_test_vault("orphan-not");
+        fs::create_dir_all(&vault).unwrap();
+        init_from(&vault, &TEST_TEMPLATE).unwrap();
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(diff.removed.is_empty());
+        apply_safe_from(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(vault.join("stable.md").exists());
+        assert!(load_manifest(&vault).files.contains_key("stable.md"));
 
         fs::remove_dir_all(&vault).ok();
     }

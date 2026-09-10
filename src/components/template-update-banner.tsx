@@ -87,16 +87,20 @@ export function TemplateAutoAppliedBanner({
 
 export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: Props) {
   const pending = diff.files.filter((f) => isPending(f.state));
+  const removed = diff.removed ?? [];
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  if (pending.length === 0) return null;
+  // Leftovers count towards the banner: a vault whose only finding is a file
+  // the template dropped still has something to show the owner.
+  const findings = pending.length + removed.length;
+  if (findings === 0) return null;
 
   return (
     <>
       <div className="flex h-10 items-center gap-3 bg-primary px-4 text-[13px] text-primary-foreground">
         <FileDiff className="size-4 shrink-0" />
         <span className="font-medium">
-          Vault template has {pending.length} update{pending.length === 1 ? "" : "s"}
+          Vault template has {findings} update{findings === 1 ? "" : "s"}
         </span>
         <Button
           size="sm"
@@ -142,8 +146,11 @@ type Resolution = "keep" | "overwrite";
 
 function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: ReviewProps) {
   const pending = diff.files.filter((f) => isPending(f.state));
+  const removed = diff.removed ?? [];
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
+  /** Leftovers the user ticked for deletion. Never pre-filled. */
+  const [remove, setRemove] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
 
@@ -157,6 +164,8 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
       // Conflicts default to the non-destructive resolution (.new beside the
       // original); replacing is always an explicit per-file choice.
       setOverwrite(new Set());
+      // Deleting is never pre-selected, whatever the file is.
+      setRemove(new Set());
       setError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,16 +189,30 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
     });
   };
 
+  const toggleRemove = (path: string, checked: boolean) => {
+    setRemove((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(path);
+      else next.delete(path);
+      return next;
+    });
+  };
+
   const apply = async () => {
     setApplying(true);
     setError("");
     try {
-      // Only send overwrite choices for files actually being applied.
-      await api.applyVaultTemplate(
-        vaultPath,
-        [...selected],
-        [...overwrite].filter((p) => selected.has(p)),
-      );
+      if (selected.size > 0) {
+        // Only send overwrite choices for files actually being applied.
+        await api.applyVaultTemplate(
+          vaultPath,
+          [...selected],
+          [...overwrite].filter((p) => selected.has(p)),
+        );
+      }
+      if (remove.size > 0) {
+        await api.removeTemplateOrphans(vaultPath, [...remove]);
+      }
       onApplied();
     } catch (e) {
       setError(String(e));
@@ -236,15 +259,44 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
               <DiffPreview vaultPath={vaultPath} path={f.path} />
             </div>
           ))}
+          {removed.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <div className="space-y-1">
+                <p className="text-xs font-medium">No longer in the template</p>
+                <p className="text-[11px] text-muted-foreground">
+                  The template stopped shipping these and your copies are still
+                  byte-identical to what it shipped, so removing them loses nothing you
+                  wrote. Anything you edited is not listed here and is never touched.
+                  Folders are left in place.
+                </p>
+              </div>
+              {removed.map((r) => (
+                <label
+                  key={r.path}
+                  className="flex items-center gap-2 rounded-md border p-2 text-sm"
+                >
+                  <Checkbox
+                    checked={remove.has(r.path)}
+                    onCheckedChange={(v) => toggleRemove(r.path, v === true)}
+                  />
+                  <span className="flex-1 truncate font-mono text-xs">{r.path}</span>
+                  <Badge variant="outline">remove</Badge>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={applying}>
             Cancel
           </Button>
-          <Button onClick={() => void apply()} disabled={applying || selected.size === 0}>
+          <Button
+            onClick={() => void apply()}
+            disabled={applying || selected.size + remove.size === 0}
+          >
             {applying && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-            {applying ? "Updating…" : "Update selected"}
+            {applying ? "Updating…" : "Apply selected"}
           </Button>
         </DialogFooter>
       </DialogContent>

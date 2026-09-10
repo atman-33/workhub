@@ -124,6 +124,11 @@ export const api = {
    * leaving conflicts for the review dialog. Resolves to the written paths. */
   applySafeTemplateUpdates: (vaultPath: string) =>
     invoke<string[]>("apply_safe_template_updates", { vaultPath }),
+  /** Removes template leftovers the vault still has untouched. Each path is
+   * re-checked in Rust at removal time, so a stale selection does less rather
+   * than more. Resolves to the paths actually removed. */
+  removeTemplateOrphans: (vaultPath: string, paths: string[]) =>
+    invoke<string[]>("remove_template_orphans", { vaultPath, paths }),
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
   // ---- vault projects (projects/<slug>/, T-0190) ----

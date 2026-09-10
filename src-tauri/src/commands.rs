@@ -1285,6 +1285,23 @@ pub async fn apply_vault_template(
     .map_err(|e| e.to_string())?
 }
 
+/// Removes the listed files that the template no longer ships and whose
+/// vault copy is still byte-identical to what it shipped, and drops their
+/// manifest entries. Every path is re-checked at this moment, so a selection
+/// made against a stale dialog can only do less, never more; directories are
+/// never removed. Returns the paths actually removed.
+#[tauri::command]
+pub async fn remove_template_orphans(
+    vault_path: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::remove_template_orphans(&PathBuf::from(vault_path), &paths)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Applies only the template updates that cannot destroy user content —
 /// missing files (including seed-only ones the vault never received) and
 /// files whose vault copy still matches the last-applied baseline.
