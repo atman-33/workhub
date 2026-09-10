@@ -333,6 +333,27 @@ export function TaskEditorForm({
     [update, draft.backlog],
   );
 
+  // Creating an item from here is what makes the link worth requiring: if the
+  // only way to get one is to go to Obsidian first, the field stays empty and
+  // the task's output has nowhere to land (T-0266).
+  const [newItemTitle, setNewItemTitle] = useState("");
+  const [creatingItem, setCreatingItem] = useState(false);
+  const handleCreateBacklogItem = useCallback(async () => {
+    const title = newItemTitle.trim();
+    if (!vaultPath || !project || !title || creatingItem) return;
+    setCreatingItem(true);
+    try {
+      const item = await api.createBacklogItem(vaultPath, project, title);
+      setBacklogItems((prev) => [...prev, item].sort((a, b) => a.id.localeCompare(b.id)));
+      update({ backlog: item.id });
+      setNewItemTitle("");
+    } catch (e) {
+      setActionError(String(e));
+    } finally {
+      setCreatingItem(false);
+    }
+  }, [vaultPath, project, newItemTitle, creatingItem, update]);
+
   const field = (label: string, node: ReactNode, className?: string) => (
     <div className={cn("space-y-1.5", className)}>
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -783,6 +804,31 @@ export function TaskEditorForm({
                   </p>
                 )}
               </>,
+            )}
+            {field(
+              "New item",
+              <div className="flex gap-2">
+                <Input
+                  value={newItemTitle}
+                  onChange={(e) => setNewItemTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleCreateBacklogItem();
+                    }
+                  }}
+                  placeholder="title of a new item"
+                  disabled={creatingItem}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleCreateBacklogItem()}
+                  disabled={creatingItem || newItemTitle.trim().length === 0}
+                >
+                  Create
+                </Button>
+              </div>,
             )}
           </div>
         )}

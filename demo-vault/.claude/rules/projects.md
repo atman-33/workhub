@@ -16,15 +16,22 @@ This is the working checklist when touching `projects/<slug>/`.
   - product intent → `prd.md` · schedule → `roadmap.md`
   - anything belonging to one unit of work (a feature, a bug, a support case)
     → that item's `backlog/B-NNN-<title>[/]` — its spec, its research, and the
-    output of every task it spawned
+    output of every task it spawned (link from the task's `## Results`)
   - knowledge that serves the whole project → `dev-notes/`
-  - output of a task that belongs to no item → `deliverables/` (link from the
-    task's `## Results`)
   - external links (repos, environments, dashboards, references) → `links.md`
     — never credentials or tokens; link to the console instead
 - **Backlog ≠ tasks.** `backlog/` holds units of work and everything they
   produce; `tasks/` (vault root) is the app's executable task list. A task
   points at its item with `backlog: B-NNN`; the item never lists its tasks.
+- **A task with a project has an item.** No project = vault housekeeping, and
+  its output goes to `_ai/logs/` or `knowledge/`. An empty `backlog` means
+  "not chosen yet", never "no item needed" — settle it at `task-start` and
+  write it back onto the task. Recurring tasks are the exception: a habit is
+  not a unit of work.
+- **Only start a new item when nothing existing overlaps.** Overlap at all and
+  it goes on the existing item. A misfiled note is one move to undo; a
+  duplicate item splits a subject and nobody can see that it happened. A
+  project with no items yet is the one case where you just start one.
 - **An item grows into a folder.** One note until it needs a second file, then
   a folder of the same name with the entry note's filename unchanged, so
   existing `[[B-NNN-…]]` links keep resolving. Child notes are `NNN-<title>.md`

@@ -616,7 +616,8 @@ pub struct VaultProjectFolder {
 /// human `detail` lets the UI group findings without re-parsing prose.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultProjectIssue {
-    /// missing-file | missing-folder | misfiled-deliverable | unknown-folder
+    /// missing-file | missing-folder | loose-task-note | unknown-folder |
+    /// backlog-entry-missing
     pub kind: String,
     /// warn | info
     pub severity: String,

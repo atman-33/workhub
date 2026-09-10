@@ -769,6 +769,22 @@ pub async fn list_backlog_items(
     .map_err(|e| e.to_string())?
 }
 
+/// Creates a backlog item in a project from a title and returns it, so the
+/// task editor can offer "new item" instead of sending the user off to
+/// Obsidian. Naming an item has to be cheaper than skipping it (T-0266).
+#[tauri::command]
+pub async fn create_backlog_item(
+    vault_path: String,
+    slug: String,
+    title: String,
+) -> Result<BacklogItem, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::create_backlog_item(&PathBuf::from(vault_path), &slug, &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Moves `projects/<slug>/` to `archive/projects/<slug>/`. Returns the new
 /// path. There is no delete: see the `vault_project` module docs.
 #[tauri::command]

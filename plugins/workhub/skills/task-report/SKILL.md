@@ -18,8 +18,10 @@ argument-hint: "<task-id>"
 3. **Write human-readable deliverables** where they belong:
    - Knowledge gained (research, gotchas, how-tos) → a note under
      `<vault>/knowledge/`, added to `knowledge/_index.md`.
-   - **The task names a backlog item** (`backlog: B-NNN` in its frontmatter)
-     → inside that item, in `projects/<project>/backlog/`:
+   - **Project outcomes → the task's backlog item**, in
+     `projects/<project>/backlog/`. `task-start` has already settled which
+     item that is; if `backlog` is somehow still empty, settle it now the same
+     way rather than inventing a home for the note.
      - If the item is still a single note, promote it to a folder first: make
        `B-NNN-<slug>/` and move the note into it **under its existing
        filename**, so every `[[B-NNN-<slug>]]` written so far still resolves.
@@ -33,8 +35,9 @@ argument-hint: "<task-id>"
        prefix records creation order and nothing else.
      - Do **not** add the task to the item's frontmatter. The link runs one
        way — the task names the item, never the reverse.
-   - **The task names no item** → a note under
-     `projects/<project>/deliverables/`, as before.
+   - **A task with no `project`** is vault housekeeping: it has no item and no
+     project folder, so its outcome belongs in `knowledge/` or stays in the
+     raw log.
    - Keep these polished and short; link to the raw log with a wikilink
      only if the detail matters.
 4. **Append to the task's `## Results` section** (Edit tool): a 2-4 line

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.107.0 (2026-09-10)
+
+- **`deliverables/` is gone; every task's output lands on its backlog item**
+  (T-0266). A backlog item is a single note at its smallest, which is exactly
+  what a deliverable note was — same one file, but carrying `## What`,
+  `## Why` and `## Status` too. Keeping both folders bought nothing and left
+  behind a judgement call ("is this worth an item?") with no good rule to
+  answer it, and a rule you have to remember is one that stops working. A
+  project folder is now six: `backlog/` `dev-notes/` `schedules/`
+  `mindmaps/` `shared/` `attachments/`.
+- **A task with a project has an item.** The board still never blocks a save —
+  quick capture is most of what it is for — so an empty `backlog` now means
+  "not chosen yet", never "no item needed", and the agent settles it at
+  `task-start`: it compares the task against the project's existing items,
+  attaches it to the one it overlaps, and starts a new item only when nothing
+  overlaps at all. A misfiled note is one move to undo; a duplicate item
+  splits a subject and nobody can see that it happened.
+- **The task editor can create the item.** Type a title next to the picker and
+  it writes `backlog/B-NNN-<title>.md` from the template and selects it.
+  Requiring the link is only reasonable if naming an item is cheaper than
+  skipping it, and sending the user to Obsidian first was not.
+- Recurring tasks keep no item — a habit is not a unit of work and leaves
+  nothing durable for an item to accumulate.
+- The `misfiled-deliverable` finding is now `loose-task-note`, and says to
+  move the note onto the backlog item the task belonged to rather than into a
+  folder that no longer exists.
+
 ## 0.106.0 (2026-09-10)
 
 - **A project's `backlog/` now holds a whole unit of work, not just the idea**

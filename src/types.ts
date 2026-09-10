@@ -231,7 +231,7 @@ export interface VaultProjectIssue {
   kind:
     | "missing-file"
     | "missing-folder"
-    | "misfiled-deliverable"
+    | "loose-task-note"
     | "unknown-folder"
     | "backlog-entry-missing";
   severity: "warn" | "info";
