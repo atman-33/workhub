@@ -60,6 +60,9 @@ pub struct DocsEntry {
     /// a share holds PDFs and spreadsheets, and hiding them made the tree
     /// disagree with what the folder actually contains.
     pub is_markdown: bool,
+    /// True for HTML files, which the tab also renders itself — statically,
+    /// in a sandboxed frame with scripts off (T-0271).
+    pub is_html: bool,
     /// Last-modified time, unix seconds; 0 when unreadable.
     pub modified: u64,
 }
@@ -191,12 +194,18 @@ fn is_markdown(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
+fn is_html(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".html") || lower.ends_with(".htm")
+}
+
 /// Lists one directory: folders first, then files, each group by name.
 ///
 /// Everything the folder holds is listed, not only Markdown — a team share
 /// carries PDFs, spreadsheets and images, and a tree that showed none of them
-/// disagreed with the folder the user was looking at. `is_markdown` says which
-/// entries this tab can render; the rest are handed to the OS on click.
+/// disagreed with the folder the user was looking at. `is_markdown` and
+/// `is_html` say which entries this tab can render; the rest are handed to the
+/// OS on click.
 ///
 /// Never recurses: the tree asks again when a folder is opened.
 pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
@@ -214,6 +223,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
         out.push(DocsEntry {
             path: norm(&path),
             is_markdown: !is_dir && is_markdown(&name),
+            is_html: !is_dir && is_html(&name),
             name,
             is_dir,
             modified: if is_dir { 0 } else { mtime_secs(&path) },
@@ -227,7 +237,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
     Ok(out)
 }
 
-/// Reads a Markdown file as text.
+/// Reads a document (Markdown or HTML) as text.
 pub fn read_doc(path: &Path) -> Result<String, String> {
     let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     if size > MAX_DOC_BYTES {
@@ -376,25 +386,29 @@ mod tests {
     }
 
     #[test]
-    fn only_markdown_is_flagged_as_renderable() {
+    fn only_markdown_and_html_are_flagged_as_renderable() {
         let tree = TempTree::new("kinds");
         fs::create_dir(tree.path().join("sub")).unwrap();
         fs::write(tree.path().join("a.md"), "a").unwrap();
         fs::write(tree.path().join("b.MARKDOWN"), "b").unwrap();
         fs::write(tree.path().join("c.pdf"), "c").unwrap();
+        fs::write(tree.path().join("d.html"), "d").unwrap();
+        fs::write(tree.path().join("e.HTM"), "e").unwrap();
 
-        let flags: Vec<(String, bool, bool)> = list_dir(tree.path())
+        let flags: Vec<(String, bool, bool, bool)> = list_dir(tree.path())
             .unwrap()
             .into_iter()
-            .map(|e| (e.name, e.is_dir, e.is_markdown))
+            .map(|e| (e.name, e.is_dir, e.is_markdown, e.is_html))
             .collect();
         assert_eq!(
             flags,
             vec![
-                ("sub".to_string(), true, false),
-                ("a.md".to_string(), false, true),
-                ("b.MARKDOWN".to_string(), false, true),
-                ("c.pdf".to_string(), false, false),
+                ("sub".to_string(), true, false, false),
+                ("a.md".to_string(), false, true, false),
+                ("b.MARKDOWN".to_string(), false, true, false),
+                ("c.pdf".to_string(), false, false, false),
+                ("d.html".to_string(), false, false, true),
+                ("e.HTM".to_string(), false, false, true),
             ]
         );
     }

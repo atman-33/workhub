@@ -186,7 +186,7 @@ export function DocsView() {
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel id="preview" minSize="30%" className="min-h-0 min-w-0">
-            <DocsPreview path={doc} refreshToken={refreshToken} />
+            <DocsPreview path={doc} refreshToken={refreshToken} onError={setError} />
           </ResizablePanel>
         </ResizablePanelGroup>
       )}

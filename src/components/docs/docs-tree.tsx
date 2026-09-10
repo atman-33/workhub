@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, File, FileText, Folder, FolderOpen } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  File,
+  FileCode,
+  FileText,
+  Folder,
+  FolderOpen,
+} from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -88,17 +103,24 @@ export function DocsTree({
     setOpen((prev) => ({ ...prev, [path]: !prev[path] }));
   }, []);
 
+  const openExternal = useCallback(
+    (entry: DocsEntry) => {
+      void api.docsOpenExternal(entry.path).catch((e) => onError(String(e)));
+    },
+    [onError],
+  );
+
   const activate = useCallback(
     (entry: DocsEntry) => {
-      if (entry.is_markdown) {
+      if (isPreviewable(entry)) {
         onSelect(entry);
         return;
       }
       // Everything else is the share's own material — a PDF, a spreadsheet,
       // an image. The tab cannot render it, so the OS gets it.
-      void api.docsOpenExternal(entry.path).catch((e) => onError(String(e)));
+      openExternal(entry);
     },
-    [onSelect, onError],
+    [onSelect, openExternal],
   );
 
   if (!rootPath) return null;
@@ -113,6 +135,7 @@ export function DocsTree({
         ensureLoaded={ensureLoaded}
         onToggle={toggle}
         onActivate={activate}
+        onOpenExternal={openExternal}
         selected={selected}
         filter={filter.trim().toLowerCase()}
         refreshToken={refreshToken}
@@ -129,6 +152,7 @@ function DirListing({
   ensureLoaded,
   onToggle,
   onActivate,
+  onOpenExternal,
   selected,
   filter,
   refreshToken,
@@ -140,6 +164,7 @@ function DirListing({
   ensureLoaded: (path: string, token: number) => void;
   onToggle: (path: string) => void;
   onActivate: (entry: DocsEntry) => void;
+  onOpenExternal: (entry: DocsEntry) => void;
   selected: string;
   filter: string;
   refreshToken: number;
@@ -215,6 +240,7 @@ function DirListing({
                 ensureLoaded={ensureLoaded}
                 onToggle={onToggle}
                 onActivate={onActivate}
+                onOpenExternal={onOpenExternal}
                 selected={selected}
                 filter={filter}
                 refreshToken={refreshToken}
@@ -222,31 +248,56 @@ function DirListing({
             )}
           </div>
         ) : (
-          <Hint
-            key={entry.path}
-            label={entry.is_markdown ? entry.name : `${entry.name} — opens outside workhub`}
-          >
-            <button
-              type="button"
-              onClick={() => onActivate(entry)}
-              style={{ paddingLeft: `${depth * 12 + 24}px` }}
-              className={cn(
-                "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
-                entry.path === selected ? "bg-muted font-medium" : "hover:bg-muted/50",
-              )}
+          <ContextMenu key={entry.path}>
+            <Hint
+              label={isPreviewable(entry) ? entry.name : `${entry.name} — opens outside workhub`}
             >
-              {entry.is_markdown ? (
-                <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <File className="size-3.5 shrink-0 text-muted-foreground/60" />
-              )}
-              <span className={cn("truncate", !entry.is_markdown && "text-muted-foreground")}>
-                {entry.name}
-              </span>
-            </button>
-          </Hint>
+              <ContextMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onActivate(entry)}
+                  style={{ paddingLeft: `${depth * 12 + 24}px` }}
+                  className={cn(
+                    "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
+                    entry.path === selected ? "bg-muted font-medium" : "hover:bg-muted/50",
+                  )}
+                >
+                  {entry.is_markdown ? (
+                    <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : entry.is_html ? (
+                    <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <File className="size-3.5 shrink-0 text-muted-foreground/60" />
+                  )}
+                  <span
+                    className={cn("truncate", !isPreviewable(entry) && "text-muted-foreground")}
+                  >
+                    {entry.name}
+                  </span>
+                </button>
+              </ContextMenuTrigger>
+            </Hint>
+            {/* The preview is the default, not the only way in: an HTML report
+                that needs its scripts, or a note someone wants in their own
+                editor, still goes to the OS from here (T-0271). */}
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => onOpenExternal(entry)}>
+                <ExternalLink />
+                Open with default app
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void api.openExplorer(entry.path)}>
+                <FolderOpen />
+                Show in Explorer
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         ),
       )}
     </>
   );
+}
+
+/** True for a file the preview pane renders itself rather than handing to the OS. */
+function isPreviewable(entry: DocsEntry): boolean {
+  return entry.is_markdown || entry.is_html;
 }

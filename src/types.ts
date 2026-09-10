@@ -163,9 +163,12 @@ export interface DocsEntry {
   /** Name as it is on disk, extension included. */
   name: string;
   is_dir: boolean;
-  /** True for files the tab renders itself; the rest open in the OS default
-   * app. Everything the folder holds is listed either way. */
+  /** True for Markdown. With `is_html` this decides what the tab renders
+   * itself; the rest open in the OS default app. Everything the folder holds
+   * is listed either way. */
   is_markdown: boolean;
+  /** True for HTML, rendered statically (scripts off) in a sandboxed frame. */
+  is_html: boolean;
   /** Last-modified time, unix seconds; 0 for folders and unreadable files. */
   modified: number;
 }

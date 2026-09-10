@@ -1,5 +1,7 @@
 import * as React from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon } from "lucide-react";
@@ -143,10 +145,14 @@ function MermaidBlock({ code }: { code: string }) {
 function ResolvedImage({
   src,
   alt,
+  width,
+  height,
   resolveAsset,
 }: {
   src: string;
   alt: string;
+  width?: number | string;
+  height?: number | string;
   resolveAsset: (src: string) => Promise<string | null>;
 }) {
   const [resolved, setResolved] = React.useState<string | null>(null);
@@ -182,12 +188,85 @@ function ResolvedImage({
   if (!resolved) {
     return <span className="text-xs text-muted-foreground">Loading image…</span>;
   }
-  return <img src={resolved} alt={alt} className="my-2 max-w-full rounded" />;
+  return (
+    <img
+      src={resolved}
+      alt={alt}
+      width={width}
+      height={height}
+      className="my-2 h-auto max-w-full rounded"
+    />
+  );
 }
+
+/**
+ * What survives of raw HTML in a document: GitHub's own sanitation, which is
+ * what the team's notes are written against — `<details>`, `<kbd>`, `<img
+ * width>`, `<br>`, `<sup>`…
+ *
+ * Sanitizing is not optional here. The webview this renders into holds the
+ * Tauri IPC bridge, so a `<script>` or an `onerror=` in a document on a shared
+ * folder would be code running with the app's own permissions.
+ */
+const HTML_REHYPE_PLUGINS: Options["rehypePlugins"] = [rehypeRaw, [rehypeSanitize, defaultSchema]];
+
+/** The compact styling the task previews and the Results sheet are sized for. */
+const COMPACT_STYLE = [
+  "text-sm leading-relaxed break-words",
+  "[&_h1]:mt-3 [&_h1]:mb-1.5 [&_h1]:text-base [&_h1]:font-semibold",
+  "[&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-sm [&_h2]:font-semibold",
+  "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
+  "[&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5",
+  "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+  "[&_li]:my-0.5",
+  "[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
+  "[&_hr]:my-3 [&_hr]:border-border",
+  "[&_table]:my-2 [&_table]:block [&_table]:overflow-x-auto",
+  "[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left",
+  "[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1",
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
+];
+
+/**
+ * Reading styling for the Docs tab (T-0271): a bounded line length, a heading
+ * scale you can find your way around a long document by, and tables and
+ * quotes that stand apart from the prose. The compact style reads fine in a
+ * card and poorly as a page — its h1 is the size of the body text.
+ */
+const DOCUMENT_STYLE = [
+  "mx-auto max-w-3xl text-sm leading-7 break-words",
+  "[&>*:first-child]:mt-0",
+  "[&_h1]:mt-8 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-2 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:leading-tight",
+  "[&_h2]:mt-7 [&_h2]:mb-3 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-1.5 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:leading-snug",
+  "[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold",
+  "[&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:font-semibold",
+  "[&_h5]:mt-4 [&_h5]:mb-1 [&_h5]:font-semibold [&_h6]:mt-4 [&_h6]:mb-1 [&_h6]:font-semibold [&_h6]:text-muted-foreground",
+  "[&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3",
+  "[&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
+  "[&_li]:my-1 [&_li>ul]:my-1 [&_li>ol]:my-1",
+  // GFM task lists: the checkbox is the bullet.
+  "[&_li.task-list-item]:list-none [&_ul.contains-task-list]:pl-2 [&_input]:mr-1.5 [&_input]:align-middle",
+  "[&_blockquote]:my-4 [&_blockquote]:rounded-r-md [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-muted/30 [&_blockquote]:px-4 [&_blockquote]:py-1 [&_blockquote]:text-muted-foreground",
+  "[&_hr]:my-6 [&_hr]:border-border",
+  "[&_table]:my-4 [&_table]:block [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-[0.8125rem]",
+  "[&_th]:border [&_th]:border-border [&_th]:bg-muted/60 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold",
+  "[&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_tbody_tr:nth-child(even)]:bg-muted/20",
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
+  "[&_details]:my-3 [&_details]:rounded-md [&_details]:border [&_details]:border-border [&_details]:px-3 [&_details]:py-2",
+  "[&_summary]:cursor-pointer [&_summary]:font-medium",
+  "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-border [&_kbd]:bg-muted [&_kbd]:px-1.5 [&_kbd]:py-0.5 [&_kbd]:font-mono [&_kbd]:text-[0.8em]",
+];
 
 interface MarkdownProps {
   children: string;
   className?: string;
+  /** `compact` (the default) for cards and sheets, `document` for reading a page. */
+  variant?: "compact" | "document";
+  /**
+   * Render raw HTML written into the Markdown — sanitized to GitHub's rules
+   * first, see `HTML_REHYPE_PLUGINS`. Off, raw HTML is dropped as before.
+   */
+  allowHtml?: boolean;
   /** Render ```mermaid fences as diagrams (loads mermaid on demand). */
   mermaid?: boolean;
   /**
@@ -206,32 +285,23 @@ interface MarkdownProps {
  * syntax highlighting. Single newlines render as hard breaks (remark-breaks)
  * to match how the same files read in Obsidian.
  *
- * `mermaid` and `resolveAsset` are opt-in: with neither set this renders
- * exactly what it always did, so the task previews are unaffected by what the
- * Docs tab needs.
+ * `mermaid`, `resolveAsset`, `allowHtml` and `variant` are opt-in: with none
+ * set this renders exactly what it always did, so the task previews are
+ * unaffected by what the Docs tab needs.
  */
-export function Markdown({ children, className, mermaid, resolveAsset }: MarkdownProps) {
+export function Markdown({
+  children,
+  className,
+  variant = "compact",
+  allowHtml,
+  mermaid,
+  resolveAsset,
+}: MarkdownProps) {
   return (
-    <div
-      className={cn(
-        "text-sm leading-relaxed break-words",
-        "[&_h1]:mt-3 [&_h1]:mb-1.5 [&_h1]:text-base [&_h1]:font-semibold",
-        "[&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-sm [&_h2]:font-semibold",
-        "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
-        "[&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5",
-        "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
-        "[&_li]:my-0.5",
-        "[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
-        "[&_hr]:my-3 [&_hr]:border-border",
-        "[&_table]:my-2 [&_table]:block [&_table]:overflow-x-auto",
-        "[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left",
-        "[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1",
-        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
-        className,
-      )}
-    >
+    <div className={cn(variant === "document" ? DOCUMENT_STYLE : COMPACT_STYLE, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={allowHtml ? HTML_REHYPE_PLUGINS : undefined}
         components={{
           a({ href, children, ...props }) {
             return (
@@ -260,12 +330,30 @@ export function Markdown({ children, className, mermaid, resolveAsset }: Markdow
             }
             return <CodeBlock>{children}</CodeBlock>;
           },
-          img({ src, alt }) {
+          img({ src, alt, width, height }) {
+            // `width`/`height` only arrive from raw HTML (`<img width="300">`),
+            // which is the one way a Markdown author has to size an image.
             const source = typeof src === "string" ? src : "";
             if (resolveAsset && source) {
-              return <ResolvedImage src={source} alt={alt ?? ""} resolveAsset={resolveAsset} />;
+              return (
+                <ResolvedImage
+                  src={source}
+                  alt={alt ?? ""}
+                  width={width}
+                  height={height}
+                  resolveAsset={resolveAsset}
+                />
+              );
             }
-            return <img src={source} alt={alt ?? ""} className="my-2 max-w-full rounded" />;
+            return (
+              <img
+                src={source}
+                alt={alt ?? ""}
+                width={width}
+                height={height}
+                className="my-2 h-auto max-w-full rounded"
+              />
+            );
           },
           code({ className: codeClass, children, ...props }) {
             // Block code is wrapped by <pre> (handled above); style inline code.
