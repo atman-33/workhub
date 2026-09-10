@@ -11,6 +11,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The plugin-versions check diffs against the PR's base branch, and
+          # the default shallow clone fetches no branch but the PR's own —
+          # `origin/main` does not exist, so the check crashed instead of
+          # running. Full history also gives `base...HEAD` a merge base.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
