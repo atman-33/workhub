@@ -833,38 +833,54 @@ fn walk_template_files<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File
     }
 }
 
-/// Data-driven replacement for the old `INITIAL_ONLY_PATHS` const: paths
-/// (repo-relative to the template root) that are seeded into a vault only
-/// when missing and are otherwise excluded from the manifest and every
-/// `TemplateDiff` — there is nothing to "update" about them, so they can
-/// never be silently overwritten by a template sync.
+/// Data-driven replacement for the old `INITIAL_ONLY_PATHS` const, plus the
+/// opt-in list of scaffold files whose per-project copies take part in
+/// template sync.
+///
+/// `seed_only` holds paths (repo-relative to the template root) that are
+/// seeded into a vault only when missing and are otherwise excluded from the
+/// manifest and every `TemplateDiff` — there is nothing to "update" about
+/// them, so they can never be silently overwritten by a template sync.
+///
+/// `project_sync` holds paths relative to `templates/project/`. A project
+/// scaffold file is copied into `projects/<slug>/` when the project is
+/// created and then lives its own life: a later template update never reached
+/// the copies, which is how every project's `backlog/_backlog.base` sat on a
+/// dead filter for weeks (T-0263, T-0272). Listing a path here brings each
+/// project's copy into the same 3-way diff as any other managed file. It is
+/// opt-in because most of the scaffold is prose a project is *meant* to
+/// rewrite: listing `README.md` would report a permanent conflict for every
+/// project.
 #[derive(Debug, Default, serde::Deserialize)]
 struct TemplatePolicy {
     #[serde(default)]
-    seed_only: Vec<String>,
+    seed_only: HashSet<String>,
+    #[serde(default)]
+    project_sync: Vec<String>,
 }
 
-/// Collects every path `walk_template_files` would embed, used as the safe
-/// fallback when the policy file is missing or unparseable: treating every
-/// file as seed-only means a template sync can only ever add missing files,
-/// never overwrite one that already exists.
-fn all_template_paths(template: &Dir) -> HashSet<String> {
+/// The safe fallback for when the policy file is missing or unparseable:
+/// every template file seed-only, so a sync can only ever add a missing file
+/// and never overwrite an existing one, and no per-project sync at all.
+fn fallback_template_policy(template: &Dir) -> TemplatePolicy {
     let mut files = Vec::new();
     walk_template_files(template, &mut files);
-    files.into_iter().map(|f| norm_path(f.path())).collect()
+    TemplatePolicy {
+        seed_only: files.into_iter().map(|f| norm_path(f.path())).collect(),
+        project_sync: Vec::new(),
+    }
 }
 
-/// Loads the `seed_only` path set from `.template-policy.json` at the
-/// template root. Missing or unparseable policy data falls back to treating
-/// every template file as seed-only (the safe direction — never overwrite)
-/// and logs the reason to stderr.
-fn load_template_policy(template: &Dir) -> HashSet<String> {
+/// Loads `.template-policy.json` from the template root. Missing or
+/// unparseable policy data falls back to [`fallback_template_policy`] (the
+/// safe direction — never overwrite) and logs the reason to stderr.
+fn load_template_policy(template: &Dir) -> TemplatePolicy {
     let Some(file) = template.get_file(TEMPLATE_POLICY_FILE) else {
         crate::diag!(
             "workhub: {TEMPLATE_POLICY_FILE} not found in template; treating every \
              template file as seed-only (safe default)"
         );
-        return all_template_paths(template);
+        return fallback_template_policy(template);
     };
 
     let parsed = std::str::from_utf8(file.contents())
@@ -872,15 +888,130 @@ fn load_template_policy(template: &Dir) -> HashSet<String> {
         .and_then(|s| serde_json::from_str::<TemplatePolicy>(s).ok());
 
     match parsed {
-        Some(policy) => policy.seed_only.into_iter().collect(),
+        Some(policy) => policy,
         None => {
             crate::diag!(
                 "workhub: {TEMPLATE_POLICY_FILE} is unparseable; treating every \
                  template file as seed-only (safe default)"
             );
-            all_template_paths(template)
+            fallback_template_policy(template)
         }
     }
+}
+
+/// Every per-project copy that takes part in template sync, paired with the
+/// scaffold content rendered for that project.
+///
+/// A project scaffold file is not shareable: `_backlog.base` has to filter on
+/// `project == "<slug>"`, so the "same" file is different bytes in every
+/// project (T-0272). The comparison template sync needs is therefore not
+/// "does the copy match the template" but "does it match the template with
+/// this project's placeholders filled in", which is what the rendering here
+/// produces.
+///
+/// Two things are deliberately never done:
+///
+/// - **No folder is created.** A copy is offered only where its parent
+///   directory already exists, so a project that keeps no `backlog/` does not
+///   grow one because a Base was added to the scaffold.
+/// - **A file carrying `{{DATE}}` is skipped**, with a note to stderr. Its
+///   rendering changes every day, so it could never compare equal to what is
+///   on disk and would report a conflict forever.
+fn project_copies(vault: &Path, template: &Dir, policy: &TemplatePolicy) -> Vec<(String, Vec<u8>)> {
+    if policy.project_sync.is_empty() {
+        return Vec::new();
+    }
+    let Some(scaffold) = template.get_dir(PROJECT_TEMPLATE_DIR) else {
+        return Vec::new();
+    };
+    let Ok(slugs) = crate::vault_note::list_projects(vault) else {
+        return Vec::new();
+    };
+
+    let prefix = format!("{PROJECT_TEMPLATE_DIR}/");
+    let mut scaffold_files = Vec::new();
+    crate::vault_note::walk_project_template(scaffold, &mut scaffold_files);
+
+    let mut out = Vec::new();
+    for rel in &policy.project_sync {
+        let Some(file) = scaffold_files
+            .iter()
+            .find(|f| norm_path(f.path()).strip_prefix(&prefix) == Some(rel.as_str()))
+        else {
+            crate::diag!(
+                "workhub: project_sync lists '{rel}', which is not in the project scaffold"
+            );
+            continue;
+        };
+        let Ok(text) = std::str::from_utf8(file.contents()) else {
+            crate::diag!("workhub: project_sync lists '{rel}', which is not a text template");
+            continue;
+        };
+        if text.contains("{{DATE}}") {
+            crate::diag!(
+                "workhub: project_sync skips '{rel}': a template carrying {{{{DATE}}}} renders                  differently every day and can never compare equal to a project's copy"
+            );
+            continue;
+        }
+
+        for slug in &slugs {
+            let dst = crate::vault_note::projects_dir(vault).join(slug).join(rel);
+            match dst.parent() {
+                Some(parent) if parent.is_dir() => {}
+                _ => continue,
+            }
+            let name = project_display_name(vault, slug);
+            let rendered = crate::vault_note::render_project_scaffold(text, slug, &name);
+            let rel_path = dst.strip_prefix(vault).unwrap_or(&dst);
+            out.push((norm_path(rel_path), rendered.into_bytes()));
+        }
+    }
+    out
+}
+
+/// The project's `title:`, which is what `<Project name>` renders to. Read
+/// from `README.md` because that is where the Projects tab reads a project's
+/// display name from; the slug stands in when there is none.
+fn project_display_name(vault: &Path, slug: &str) -> String {
+    let readme = crate::vault_note::projects_dir(vault)
+        .join(slug)
+        .join("README.md");
+    let Ok(text) = fs::read_to_string(readme) else {
+        return slug.to_string();
+    };
+    let Ok((front, _)) = split_frontmatter(&text) else {
+        return slug.to_string();
+    };
+    let title = crate::vault_note::frontmatter_value(&front, "title");
+    if title.trim().is_empty() {
+        slug.to_string()
+    } else {
+        title
+    }
+}
+
+/// Every path template sync tracks, paired with the content the template says
+/// that path should hold: the non-seed-only files of the template itself,
+/// then the per-project copies of the scaffold files listed in
+/// `project_sync`.
+///
+/// Diffing, applying and baseline adoption all work off this one list, so a
+/// per-project copy is handled by exactly the same code as any other managed
+/// file — including the `Conflict` rule that refuses to overwrite something
+/// the owner edited by hand.
+fn tracked_files(vault: &Path, template: &Dir) -> Vec<(String, Vec<u8>)> {
+    let policy = load_template_policy(template);
+
+    let mut files = Vec::new();
+    walk_template_files(template, &mut files);
+
+    let mut out: Vec<(String, Vec<u8>)> = files
+        .into_iter()
+        .map(|f| (norm_path(f.path()), f.contents().to_vec()))
+        .filter(|(rel, _)| !policy.seed_only.contains(rel))
+        .collect();
+    out.extend(project_copies(vault, template, &policy));
+    out
 }
 
 fn manifest_path(vault: &Path) -> PathBuf {
@@ -981,7 +1112,7 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
 
     let mut files = Vec::new();
     walk_template_files(template, &mut files);
-    let seed_only = load_template_policy(template);
+    let policy = load_template_policy(template);
 
     let mut manifest = TemplateManifest {
         schema_version: MANIFEST_SCHEMA_VERSION,
@@ -1000,7 +1131,7 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
             fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
         }
 
-        if seed_only.contains(&rel) {
+        if policy.seed_only.contains(&rel) {
             continue;
         }
 
@@ -1040,19 +1171,10 @@ pub fn check_vault_template(vault: &Path) -> Result<TemplateDiff, String> {
 fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
     let manifest = load_manifest(vault);
 
-    let mut files = Vec::new();
-    walk_template_files(template, &mut files);
-    let seed_only = load_template_policy(template);
-
     let mut entries = Vec::new();
-    for file in files {
-        let rel = norm_path(file.path());
-        if seed_only.contains(&rel) {
-            continue;
-        }
-
-        let new_hash = sha256_hex(file.contents());
-        let dst_path = vault.join(file.path());
+    for (rel, content) in tracked_files(vault, template) {
+        let new_hash = sha256_hex(&content);
+        let dst_path = vault.join(&rel);
 
         let state = if !dst_path.exists() {
             TemplateFileState::Added
@@ -1116,6 +1238,11 @@ fn apply_from(
         .map(|f| (f.path.as_str(), f.state))
         .collect();
 
+    // Per-project copies are not files of the template — they are the
+    // template rendered for one project — so the content to write comes from
+    // `tracked_files`, which covers both kinds under one key space.
+    let contents: HashMap<String, Vec<u8>> = tracked_files(vault, template).into_iter().collect();
+
     let mut manifest = load_manifest(vault);
     manifest.schema_version = MANIFEST_SCHEMA_VERSION;
     manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
@@ -1124,7 +1251,7 @@ fn apply_from(
         let Some(state) = states.get(rel.as_str()).copied() else {
             continue;
         };
-        let Some(file) = template.get_file(rel) else {
+        let Some(content) = contents.get(rel) else {
             continue;
         };
 
@@ -1142,14 +1269,12 @@ fn apply_from(
                     .unwrap_or("template")
             );
             let side_path = dst_path.with_file_name(side_name);
-            fs::write(&side_path, file.contents()).map_err(|e| e.to_string())?;
+            fs::write(&side_path, content).map_err(|e| e.to_string())?;
             continue;
         }
 
-        fs::write(&dst_path, file.contents()).map_err(|e| e.to_string())?;
-        manifest
-            .files
-            .insert(rel.clone(), sha256_hex(file.contents()));
+        fs::write(&dst_path, content).map_err(|e| e.to_string())?;
+        manifest.files.insert(rel.clone(), sha256_hex(content));
     }
 
     write_manifest(vault, &manifest)
@@ -1182,6 +1307,14 @@ fn apply_safe_from(vault: &Path, template: &Dir) -> Result<Vec<String>, String> 
     // are never compared again.
     let mut written = seed_missing_files(vault, template)?;
 
+    // A vault that predates the manifest — or a file the owner brought into
+    // line with the template by hand — has no baseline recorded, which makes
+    // every future template change report `Conflict` for it. Adopting a
+    // baseline where the content already matches fixes that, and is the case
+    // this task turns on: the seven project Bases were hand-corrected in
+    // T-0263/T-0272 and would otherwise never take another update quietly.
+    adopt_matching_baselines(vault, template)?;
+
     let diff = diff_against(vault, template)?;
     let safe: Vec<String> = diff
         .files
@@ -1205,17 +1338,54 @@ fn apply_safe_from(vault: &Path, template: &Dir) -> Result<Vec<String>, String> 
     Ok(written)
 }
 
+/// Records a baseline for every tracked path with no baseline yet whose
+/// on-disk content already equals what the template says it should hold.
+///
+/// This cannot lose anything. The recorded hash is the hash of content that
+/// is byte-for-byte on disk right now, so the next check sees
+/// `current == baseline` and classifies an upstream change as `Updatable` —
+/// which is the truth: the owner has not diverged from the template. It is
+/// the same argument that lets `init_from` record a baseline for a file it
+/// just wrote. A path whose content differs is left alone and keeps
+/// reporting `Conflict`, which is also the truth.
+fn adopt_matching_baselines(vault: &Path, template: &Dir) -> Result<(), String> {
+    let mut manifest = load_manifest(vault);
+    let mut changed = false;
+
+    for (rel, content) in tracked_files(vault, template) {
+        if manifest.files.contains_key(&rel) {
+            continue;
+        }
+        let dst_path = vault.join(&rel);
+        if !dst_path.exists() {
+            continue;
+        }
+        if fs::read(&dst_path).map_err(|e| e.to_string())? != content {
+            continue;
+        }
+        manifest.files.insert(rel, sha256_hex(&content));
+        changed = true;
+    }
+
+    if changed {
+        manifest.schema_version = MANIFEST_SCHEMA_VERSION;
+        manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
+        write_manifest(vault, &manifest)?;
+    }
+    Ok(())
+}
+
 /// Writes the seed-only template files the vault is missing, leaving every
 /// existing file untouched. Returns the paths actually created.
 fn seed_missing_files(vault: &Path, template: &Dir) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
     walk_template_files(template, &mut files);
-    let seed_only = load_template_policy(template);
+    let policy = load_template_policy(template);
 
     let mut created = Vec::new();
     for file in files {
         let rel = norm_path(file.path());
-        if !seed_only.contains(&rel) {
+        if !policy.seed_only.contains(&rel) {
             continue;
         }
         let dst_path = vault.join(file.path());
@@ -1243,11 +1413,16 @@ pub fn template_file_diff(vault: &Path, path: &str) -> Result<String, String> {
 }
 
 fn template_file_diff_from(vault: &Path, template: &Dir, path: &str) -> Result<String, String> {
-    let file = template
-        .get_file(path)
+    // Tracked first, so a per-project copy diffs against its *rendered*
+    // content rather than the placeholder text. A seed-only path is not
+    // tracked but is still a real template file, so it falls back.
+    let content = tracked_files(vault, template)
+        .into_iter()
+        .find(|(rel, _)| rel == path)
+        .map(|(_, content)| content)
+        .or_else(|| template.get_file(path).map(|f| f.contents().to_vec()))
         .ok_or_else(|| format!("{path} is not part of the vault template"))?;
-    let new =
-        std::str::from_utf8(file.contents()).map_err(|_| format!("{path} is not a text file"))?;
+    let new = std::str::from_utf8(&content).map_err(|_| format!("{path} is not a text file"))?;
 
     let dst_path = vault.join(path);
     let current = if dst_path.exists() {
@@ -2231,6 +2406,239 @@ mod tests {
 
     fn diff_state(diff: &TemplateDiff, path: &str) -> Option<TemplateFileState> {
         diff.files.iter().find(|f| f.path == path).map(|f| f.state)
+    }
+
+    // A second synthetic template carrying a project scaffold, for the
+    // per-project copy sync (T-0265). `dated.md` exists to prove a template
+    // carrying `{{DATE}}` is refused: its rendering changes daily, so it
+    // could never compare equal to a copy on disk.
+    static PROJECT_TEST_TEMPLATE: Dir<'_> = Dir::new(
+        "",
+        &[
+            DirEntry::File(File::new(
+                ".template-policy.json",
+                br#"{"seed_only": [], "project_sync": ["backlog/_backlog.base", "dated.md"]}"#,
+            )),
+            DirEntry::Dir(Dir::new(
+                "templates",
+                &[DirEntry::Dir(Dir::new(
+                    "templates/project",
+                    &[
+                        DirEntry::File(File::new(
+                            "templates/project/dated.md",
+                            b"created: {{DATE}}",
+                        )),
+                        DirEntry::Dir(Dir::new(
+                            "templates/project/backlog",
+                            &[DirEntry::File(File::new(
+                                "templates/project/backlog/_backlog.base",
+                                b"filter: project == '<project-slug>' v2",
+                            ))],
+                        )),
+                    ],
+                ))],
+            )),
+        ],
+    );
+
+    const COPY_PATH: &str = "projects/alpha/backlog/_backlog.base";
+
+    /// Creates `projects/<slug>/`, optionally with the `backlog/` folder a
+    /// synced copy needs as its parent.
+    fn make_project(vault: &Path, slug: &str, with_backlog: bool) {
+        let dir = vault.join("projects").join(slug);
+        fs::create_dir_all(&dir).unwrap();
+        if with_backlog {
+            fs::create_dir_all(dir.join("backlog")).unwrap();
+        }
+    }
+
+    #[test]
+    fn project_copy_is_updatable_when_it_still_matches_its_baseline() {
+        let vault = temp_test_vault("copy-updatable");
+        make_project(&vault, "alpha", true);
+        fs::write(vault.join(COPY_PATH), "filter: project == 'alpha' v1").unwrap();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            app_version: "test".into(),
+            files: HashMap::new(),
+        };
+        manifest.files.insert(
+            COPY_PATH.into(),
+            sha256_hex(b"filter: project == 'alpha' v1"),
+        );
+        write_manifest(&vault, &manifest).unwrap();
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, COPY_PATH),
+            Some(TemplateFileState::Updatable)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn project_copy_is_a_conflict_once_it_was_hand_edited() {
+        let vault = temp_test_vault("copy-conflict");
+        make_project(&vault, "alpha", true);
+        fs::write(vault.join(COPY_PATH), "hand-edited by the owner").unwrap();
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            app_version: "test".into(),
+            files: HashMap::new(),
+        };
+        manifest.files.insert(
+            COPY_PATH.into(),
+            sha256_hex(b"filter: project == 'alpha' v1"),
+        );
+        write_manifest(&vault, &manifest).unwrap();
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, COPY_PATH),
+            Some(TemplateFileState::Conflict)
+        );
+        // And applying it leaves the owner's file alone.
+        apply_from(
+            &vault,
+            &PROJECT_TEST_TEMPLATE,
+            &[COPY_PATH.to_string()],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(vault.join(COPY_PATH)).unwrap(),
+            "hand-edited by the owner"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn applying_a_project_copy_renders_that_project_s_slug() {
+        let vault = temp_test_vault("copy-renders-slug");
+        make_project(&vault, "alpha", true);
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+        assert_eq!(diff_state(&diff, COPY_PATH), Some(TemplateFileState::Added));
+
+        apply_from(
+            &vault,
+            &PROJECT_TEST_TEMPLATE,
+            &[COPY_PATH.to_string()],
+            &[],
+        )
+        .unwrap();
+
+        let written = fs::read_to_string(vault.join(COPY_PATH)).unwrap();
+        assert_eq!(written, "filter: project == 'alpha' v2");
+        assert!(
+            !written.contains("<project-slug>"),
+            "the placeholder must not survive into the copy"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_project_without_the_parent_folder_never_grows_the_copy() {
+        let vault = temp_test_vault("copy-no-folder");
+        make_project(&vault, "beta", false);
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "projects/beta/backlog/_backlog.base"),
+            None,
+            "a project that keeps no backlog/ must not be offered one"
+        );
+        apply_safe_from(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+        assert!(!vault.join("projects/beta/backlog").exists());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn project_sync_refuses_a_template_carrying_a_date_placeholder() {
+        let vault = temp_test_vault("copy-dated");
+        make_project(&vault, "alpha", true);
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "projects/alpha/dated.md"),
+            None,
+            "a daily-changing rendering could never compare equal"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn apply_safe_adopts_a_baseline_when_the_copy_already_matches() {
+        let vault = temp_test_vault("copy-adopt");
+        make_project(&vault, "alpha", true);
+        // The owner already brought this copy into line by hand (T-0263), so
+        // it matches the template but has no baseline recorded.
+        fs::write(vault.join(COPY_PATH), "filter: project == 'alpha' v2").unwrap();
+        assert!(!load_manifest(&vault).files.contains_key(COPY_PATH));
+
+        apply_safe_from(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+
+        assert_eq!(
+            load_manifest(&vault).files.get(COPY_PATH),
+            Some(&sha256_hex(b"filter: project == 'alpha' v2")),
+            "a matching copy must record a baseline so the next update is quiet"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// Guards the real `.template-policy.json` rather than a synthetic one: a
+    /// typo in `project_sync` has no visible symptom — the feature simply
+    /// does nothing, which is the exact failure mode T-0265 exists to end.
+    #[test]
+    fn every_real_project_sync_path_is_a_usable_scaffold_file() {
+        let policy = load_template_policy(&VAULT_TEMPLATE);
+        let scaffold = project_template().expect("the project scaffold is embedded");
+        let prefix = format!("{PROJECT_TEMPLATE_DIR}/");
+        let mut files = Vec::new();
+        crate::vault_note::walk_project_template(scaffold, &mut files);
+
+        assert!(
+            !policy.project_sync.is_empty(),
+            "project_sync is what carries a scaffold change to existing projects"
+        );
+        for rel in &policy.project_sync {
+            let file = files
+                .iter()
+                .find(|f| norm_path(f.path()).strip_prefix(&prefix) == Some(rel.as_str()))
+                .unwrap_or_else(|| panic!("project_sync lists '{rel}', not in templates/project/"));
+            let text = std::str::from_utf8(file.contents())
+                .unwrap_or_else(|_| panic!("project_sync lists '{rel}', which is not text"));
+            assert!(
+                !text.contains("{{DATE}}"),
+                "'{rel}' renders differently every day, so it can never be synced"
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_project_sync_list_adds_no_project_paths() {
+        let vault = temp_test_vault("copy-opt-out");
+        make_project(&vault, "alpha", true);
+
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+
+        assert!(
+            !diff.files.iter().any(|f| f.path.starts_with("projects/")),
+            "a template that opts out must behave exactly as before"
+        );
+
+        fs::remove_dir_all(&vault).ok();
     }
 
     #[test]
