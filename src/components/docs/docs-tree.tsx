@@ -44,6 +44,8 @@ interface Props {
   selected: string;
   onSelect: (entry: DocsEntry) => void;
   onError: (message: string) => void;
+  /** Told whether any folder listing is being fetched right now. */
+  onBusyChange?: (busy: boolean) => void;
   /** Case-insensitive filter on file and folder names; "" shows everything. */
   filter: string;
   /**
@@ -76,6 +78,7 @@ export function DocsTree({
   selected,
   onSelect,
   onError,
+  onBusyChange,
   filter,
   refreshToken,
   collapseToken,
@@ -98,16 +101,27 @@ export function DocsTree({
     if (collapseToken > 0) setOpen({});
   }, [collapseToken]);
 
+  // How many listings are in flight. A count rather than a flag because a
+  // refresh re-reads every open folder at once; the callback sits in a ref so
+  // `ensureLoaded` can stay stable.
+  const inFlight = useRef(0);
+  const busyChange = useRef(onBusyChange);
+  busyChange.current = onBusyChange;
+
   const ensureLoaded = useCallback((path: string, token: number) => {
     if (fetchedAt.current[path] === token) return;
     fetchedAt.current[path] = token;
     setDirs((prev) => ({ ...prev, [path]: { status: "loading" } }));
+    if (inFlight.current++ === 0) busyChange.current?.(true);
     api
       .docsListDir(path)
       .then((entries) => setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } })))
       .catch((e) =>
         setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } })),
-      );
+      )
+      .finally(() => {
+        if (--inFlight.current === 0) busyChange.current?.(false);
+      });
   }, []);
 
   const toggle = useCallback((path: string) => {

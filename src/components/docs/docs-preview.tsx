@@ -13,6 +13,8 @@ interface Props {
   /** Bumped by the toolbar's refresh button to re-read the open document. */
   refreshToken: number;
   onError: (message: string) => void;
+  /** Told whether the document is being read right now. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** True when `path` names an HTML file, which gets a frame instead of Markdown. */
@@ -30,10 +32,14 @@ function isHtmlPath(path: string): boolean {
  *
  * An HTML file is shown as a page instead, in `HtmlPreview`'s sandboxed frame.
  */
-export function DocsPreview({ path, refreshToken, onError }: Props) {
+export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props) {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    onBusyChange?.(loading);
+  }, [loading, onBusyChange]);
 
   useEffect(() => {
     if (!path) {
