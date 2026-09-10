@@ -14,6 +14,11 @@ paths:
   marketplace entry — a `version` set there does nothing, and a stale copy just
   invites drift. Each entry in `.claude-plugin/marketplace.json` carries only
   `name` and `source`.
+- CI fails a pull request that changes `plugins/<name>/` without raising that
+  plugin's `version` (`scripts/check-plugin-versions.mjs`). The rule below is
+  the reason; the check is there because prose alone has been missed three
+  times, and the symptom — a script that keeps behaving like the old one — does
+  not look like a versioning problem.
 - **Every change under `plugins/<name>/` bumps that plugin's `version` in its
   `plugin.json`** (one place). Semver: new/changed skills/hooks/agents → minor;
   wording or doc-only fixes → patch. Installed copies update when this version
