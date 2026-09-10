@@ -147,9 +147,7 @@ pub fn read_log(path: &str, limit: u32, skip: u32) -> Result<GitLog, String> {
     let current_branch = git(path, &["symbolic-ref", "--short", "-q", "HEAD"])
         .map(|s| s.trim().to_string())
         .unwrap_or_default(); // detached HEAD (or unborn branch with no ref yet)
-    let uncommitted = git(path, &["status", "--porcelain"])
-        .map(|s| s.lines().filter(|l| !l.is_empty()).count() as u32)
-        .unwrap_or(0);
+    let uncommitted = worktree_change_count(path);
 
     Ok(GitLog {
         commits,
@@ -301,6 +299,20 @@ fn worktree_files(path: &str) -> Result<Vec<CommitFileChange>, String> {
         });
     }
     Ok(files)
+}
+
+/// How many uncommitted changes the working tree has, counted from the very
+/// list the diff panel renders.
+///
+/// Deliberately not `git status --porcelain`: status and `git diff HEAD` do
+/// not always agree. With `core.autocrlf=true` and `* text=auto`, a tracked
+/// file left with LF endings in the working tree is reported as modified by
+/// status while its HEAD, index and working-tree blobs are all the same hash,
+/// so `git diff HEAD` produces nothing. Counting from status then showed a
+/// "2 uncommitted changes" row whose file list was empty. Sharing one source
+/// keeps the count and the detail view from disagreeing by construction.
+pub fn worktree_change_count(path: &str) -> u32 {
+    worktree_files(path).map(|f| f.len() as u32).unwrap_or(0)
 }
 
 /// Parse paired `git diff --name-status` / `--numstat` output (same flags →
@@ -485,6 +497,12 @@ pub fn read_status(path: &str) -> GitInfo {
     };
 
     let mut info = parse_status(&out);
+    // Status over-reports (see `worktree_change_count`), so a non-zero count is
+    // re-measured against the diff. A clean repo — the common case — pays for
+    // no extra git call.
+    if info.changes > 0 {
+        info.changes = worktree_change_count(path);
+    }
     if let Ok(branches) = git(path, &["branch", "--format=%(refname:short)"]) {
         info.branches = branches
             .lines()
@@ -755,9 +773,7 @@ pub fn list_worktrees(
             let dirty = if is_main || w.bare {
                 false
             } else {
-                git(&w.path, &["status", "--porcelain"])
-                    .map(|s| s.lines().any(|l| !l.trim().is_empty()))
-                    .unwrap_or(false)
+                worktree_change_count(&w.path) > 0
             };
             crate::models::Worktree {
                 path: w.path,
@@ -795,6 +811,56 @@ pub fn remove_worktree(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A repo whose only "change" is a CRLF-converted file rewritten with LF
+    /// endings: `git status` reports it as modified, `git diff HEAD` finds
+    /// nothing. The count must follow the diff, or the graph shows an
+    /// uncommitted-changes row with an empty file list.
+    #[test]
+    fn crlf_only_difference_is_not_counted_as_a_change() {
+        let dir = std::env::temp_dir().join(format!(
+            "workhub-git-crlf-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().to_string();
+
+        for args in [
+            vec!["init", "-q", "."],
+            vec!["config", "core.autocrlf", "true"],
+            vec!["config", "user.email", "test@example.com"],
+            vec!["config", "user.name", "test"],
+        ] {
+            git(&path, &args).unwrap();
+        }
+        std::fs::write(dir.join(".gitattributes"), "* text=auto\n").unwrap();
+        std::fs::write(dir.join("f.txt"), "a\nb\n").unwrap();
+        git(&path, &["add", "-A"]).unwrap();
+        git(&path, &["commit", "-qm", "init"]).unwrap();
+
+        // Re-checkout so the index records the CRLF working-tree stat, then
+        // write the file back with LF endings — same blob, different stat.
+        std::fs::remove_file(dir.join("f.txt")).unwrap();
+        git(&path, &["checkout", "--", "f.txt"]).unwrap();
+        std::fs::write(dir.join("f.txt"), "a\nb\n").unwrap();
+
+        let status = git(&path, &["status", "--porcelain"]).unwrap();
+        assert!(
+            status.contains("f.txt"),
+            "expected status to over-report the file, got {status:?}"
+        );
+        assert_eq!(worktree_change_count(&path), 0);
+
+        // A real edit is still counted, and so is an untracked file.
+        std::fs::write(dir.join("f.txt"), "a\nb\nc\n").unwrap();
+        std::fs::write(dir.join("new.txt"), "hello\n").unwrap();
+        assert_eq!(worktree_change_count(&path), 2);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn parses_branch_ahead_behind_and_changes() {
