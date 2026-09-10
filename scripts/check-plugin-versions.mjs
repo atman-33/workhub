@@ -39,6 +39,23 @@ export function versionOf(json) {
 
 function main(base) {
   const git = (...args) => execFileSync("git", args, { encoding: "utf-8" });
+
+  // A checkout that cannot see the base ref used to fail as a node stack
+  // trace, which reads like a broken script rather than a broken checkout —
+  // and so the step sat red on three PRs without anyone reading what it said.
+  // Say it plainly instead.
+  try {
+    git("rev-parse", "--verify", "--quiet", `${base}^{commit}`);
+  } catch {
+    console.error(
+      `cannot resolve base ref '${base}'.\n\n` +
+        "The check diffs a branch against its base, so the base has to be in\n" +
+        "the clone. In CI that means `fetch-depth: 0` on actions/checkout —\n" +
+        "the default shallow clone fetches no other branch.\n",
+    );
+    return 1;
+  }
+
   const files = git("diff", "--name-only", `${base}...HEAD`).split("\n").filter(Boolean);
   const plugins = pluginsInDiff(files);
 
