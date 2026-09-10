@@ -33,10 +33,26 @@
   entry on the moved note: Obsidian resolves a wikilink through it, so every
   reference keeps working and none has to be edited. Child notes are also named
   once and never renumbered — that is what the tens are for.
+- **A broken diagram no longer takes the window with it** (T-0264). Mermaid
+  builds every diagram in a scratch element on the page body, and by default
+  drew its "Syntax error in text" bomb there *before* raising the error — so
+  the failure was caught while the bomb stayed. They accumulated at full width
+  until they covered the app's own tab bar, and killing the window was the only
+  way out of the screen. A diagram that fails now shows its own source, and
+  leaves nothing behind.
+- **The task editor's fields are grouped by what they answer** (T-0267). Title
+  had a full row to itself while Priority sat stranded at the end of Status and
+  Assignee, and Model was paired with Project, which it has nothing to do with.
+  Each row now answers one question: what the task is and how much it matters;
+  who and what runs it; where it belongs. "New item" moved directly under the
+  picker it feeds.
 - CI now fails a pull request that changes a plugin without raising its
   `version`. A plugin cache is keyed by version, so such a change never reaches
   an installed copy, and the symptom — a command that quietly does nothing —
-  does not look like a versioning problem. It had been missed three times.
+  does not look like a versioning problem. It had been missed three times. The
+  check needed a second pass before it ran at all: a shallow CI checkout has no
+  base branch to diff against, so it died on its first line on all three pull
+  requests that carried it.
 
 ## 0.106.0 (2026-09-10)
 
