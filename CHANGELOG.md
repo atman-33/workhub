@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.108.0 (2026-09-10)
+
+- **The task editor's backlog picker shows what each item is** (T-0273). The
+  list drew bare `B-NNN` ids and the search matched only those, so it could be
+  used by someone who already knew the ids — the one thing a picker exists to
+  spare you. Each option now carries the item's title and status, and typing
+  the title finds it. The committed value is still the bare id: the decoration
+  lives in its own map and is never parsed back into a value (the T-0219
+  lesson that produced the id-only list in the first place).
+
 ## 0.107.0 (2026-09-10)
 
 - **`deliverables/` is gone; every task's output lands on its backlog item**

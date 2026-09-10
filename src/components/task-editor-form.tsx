@@ -46,6 +46,7 @@ import { PriorityBadge } from "@/components/priority-badge";
 import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import {
+  backlogOptionDetails,
   draftFromTask,
   mergeExternalTask,
   type DraftField,
@@ -323,6 +324,10 @@ export function TaskEditorForm({
         ? [...backlogItems.map((i) => i.id), draft.backlog]
         : backlogItems.map((i) => i.id),
     [backlogItems, backlogUnknown, draft.backlog],
+  );
+  const backlogDetails = useMemo(
+    () => backlogOptionDetails(backlogItems),
+    [backlogItems],
   );
   const selectedBacklog = backlogItems.find((i) => i.id === draft.backlog);
 
@@ -759,11 +764,15 @@ export function TaskEditorForm({
         </div>
         {/* A backlog item belongs to a project, so the picker only appears
             once one is chosen — it shares the row with the project it hangs
-            off, and the left column stays empty until then. The option list is
-            bare `B-NNN` ids on purpose — a decorated label has to be
+            off, and the left column stays empty until then. The committed
+            value is a bare `B-NNN` on purpose — a decorated label has to be
             un-decorated on the way back out, and a slip there rewrites the
-            link (same lesson as T-0219). The item's title goes under the field
-            instead. */}
+            link (same lesson as T-0219). `optionDetails` keeps that intact
+            while still drawing each item's title and status in the list, and
+            letting the search match them: an id-only list can only be used by
+            someone who already knows the ids (T-0273). The selected item's
+            title stays under the field, where the narrow half-width trigger
+            cannot truncate it. */}
         <div className="grid grid-cols-2 gap-3">
           {field(
             "Project",
@@ -791,6 +800,7 @@ export function TaskEditorForm({
                   value={draft.backlog}
                   onChange={(v) => update({ backlog: v })}
                   options={backlogOptions}
+                  optionDetails={backlogDetails}
                   noneLabel="No item"
                   placeholder="backlog item"
                   loading={backlogLoading}
