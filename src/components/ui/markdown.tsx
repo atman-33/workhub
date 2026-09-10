@@ -45,6 +45,50 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Loads mermaid and configures it once per session.
+ *
+ * `initialize` is global state, so calling it per block only repeated the same
+ * write. The promise is memoised so concurrent blocks share one import.
+ */
+let mermaidReady: Promise<typeof import("mermaid").default> | null = null;
+function loadMermaid() {
+  mermaidReady ??= import("mermaid").then(({ default: mermaid }) => {
+    mermaid.initialize({
+      startOnLoad: false,
+      // The app renders dark-only (see index.html), so the theme is fixed
+      // rather than observed.
+      theme: "dark",
+      securityLevel: "strict",
+      // Without this, a diagram that fails to parse is not just an error we
+      // catch: mermaid draws its "Syntax error in text" bomb into the scratch
+      // element it appended to <body> and only then throws, leaving that
+      // element behind. They accumulate, take full-width layout space, and
+      // cover the app's own tab bar (T-0264). With it, mermaid removes the
+      // scratch element before throwing and we render the fallback ourselves.
+      suppressErrorRendering: true,
+    });
+    return mermaid;
+  });
+  return mermaidReady;
+}
+
+/**
+ * Removes the scratch nodes `mermaid.render` attaches to <body> for `id`.
+ *
+ * Belt and braces on top of `suppressErrorRendering`: an unmount mid-render,
+ * or a future mermaid version that misses a path, must not leave a stray
+ * diagram floating over the app.
+ */
+function removeMermaidScratch(id: string) {
+  // Scoped to direct children of <body> on purpose: mermaid appends its
+  // scratch there, while the SVG we render carries the same id inside our own
+  // container — an unscoped selector would delete the diagram we just drew.
+  for (const selector of [`body > #${id}`, `body > #d${id}`, `body > #i${id}`]) {
+    document.querySelector(selector)?.remove();
+  }
+}
+
+/**
  * Renders a ```mermaid fence as a diagram.
  *
  * Mermaid is loaded with a dynamic `import()` the first time a document
@@ -56,24 +100,24 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 function MermaidBlock({ code }: { code: string }) {
   const [svg, setSvg] = React.useState("");
   const [failed, setFailed] = React.useState(false);
-  const id = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  const id = `mermaid-${React.useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   React.useEffect(() => {
     let live = true;
     void (async () => {
       try {
-        const mermaid = (await import("mermaid")).default;
-        // The app renders dark-only (see index.html), so the theme is fixed
-        // rather than observed.
-        mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "strict" });
-        const rendered = await mermaid.render(`mermaid-${id}`, code);
+        const mermaid = await loadMermaid();
+        const rendered = await mermaid.render(id, code);
         if (live) setSvg(rendered.svg);
       } catch {
         if (live) setFailed(true);
+      } finally {
+        removeMermaidScratch(id);
       }
     })();
     return () => {
       live = false;
+      removeMermaidScratch(id);
     };
   }, [code, id]);
 
