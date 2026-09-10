@@ -27,8 +27,22 @@ argument-hint: "<task-id>"
        filename**, so every `[[B-NNN-<slug>]]` written so far still resolves.
      - Write the deliverable as `NNN-<task-id>-<title>.md` in that folder,
        numbering in tens after the highest number already there (`010`,
-       `020`, …). Non-Markdown output (a test report, an exported image)
-       goes in the same folder, flat — no sub-folders.
+       `020`, …). Never renumber what is already there: the tens exist so a
+       note that belongs in between can be `015`. Non-Markdown output (a test
+       report, an exported image) goes in the same folder, flat — no
+       sub-folders.
+     - If you are moving a note that **already existed** under another name,
+       add its old basename to its frontmatter as an alias:
+
+       ```yaml
+       aliases:
+         - <the name it had before>
+       ```
+
+       The `NNN-` prefix changes the basename, so every `[[old title]]` in the
+       vault stops resolving — including ones in archived tasks, which you will
+       not find by searching and should not be rewriting. An alias fixes all of
+       them without editing a single reference.
      - Append one dated line to the entry note's `## Status`, newest first,
        and list the new note under its `## Notes`. This is the only thing
        that tells a later reader which file is current, since the number

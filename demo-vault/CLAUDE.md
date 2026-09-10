@@ -402,6 +402,25 @@ backlog/
 - Child notes are `NNN-<title>.md`, numbered in **tens** so a later note can be
   slotted between two existing ones. A task's output is `NNN-T-XXXX-<title>.md`,
   which puts it in sequence and names the task it came from.
+- **A child note is named once and never renamed.** The tens are what make that
+  possible: a note that belongs between `010` and `020` becomes `015`, and
+  nothing else moves. Renumbering a folder to tidy it up breaks every link into
+  it, and buys nothing a reader can see.
+- **Moving an existing note into an item does rename it, so give it an alias.**
+  The `NNN-` prefix changes the basename, and `[[記事制作の自走化設計]]` written
+  anywhere in the vault stops resolving. Add the old basename to the note's
+  frontmatter:
+
+  ```yaml
+  aliases:
+    - 記事制作の自走化設計
+  ```
+
+  Obsidian resolves a wikilink through an alias, so every reference keeps
+  working and not one of them has to be edited. That matters more than it
+  sounds: T-0263 moved twelve notes and broke 28 references, seven of them in
+  **archived** tasks — historical records nobody should be rewriting, and the
+  ones you are least likely to find by searching.
 - Non-Markdown files (a test report, an exported image) sit directly in the
   item folder. No sub-folders: a flat item folder is one glob to an agent.
 

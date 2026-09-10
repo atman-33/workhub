@@ -36,6 +36,12 @@ This is the working checklist when touching `projects/<slug>/`.
   a folder of the same name with the entry note's filename unchanged, so
   existing `[[B-NNN-…]]` links keep resolving. Child notes are `NNN-<title>.md`
   numbered in tens; a task's output is `NNN-T-XXXX-<title>.md`.
+- **Name a child note once; never renumber.** The tens exist so a note that
+  belongs between `010` and `020` can be `015` without anything else moving.
+- **Moving an existing note in renames it — add `aliases:` with its old
+  basename.** The prefix changes the name, so `[[old title]]` stops resolving
+  everywhere, including in archived tasks you will not find by searching. An
+  alias fixes every reference without editing any of them.
 - **`## Status` says what is current, not the numbering.** Append a dated line
   to the entry note's `## Status` whenever the item moves. Number prefixes
   record creation order, which is not the same question.

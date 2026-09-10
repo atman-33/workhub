@@ -26,6 +26,17 @@
 - The `misfiled-deliverable` finding is now `loose-task-note`, and says to
   move the note onto the backlog item the task belonged to rather than into a
   folder that no longer exists.
+- **Moving a note into a backlog item renames it, and the convention now says
+  what to do about that** (T-0269). The `NNN-` prefix changes the basename, so
+  `[[old title]]` stops resolving everywhere — the migration in T-0263 broke 28
+  references, seven of them inside archived tasks. The answer is an `aliases:`
+  entry on the moved note: Obsidian resolves a wikilink through it, so every
+  reference keeps working and none has to be edited. Child notes are also named
+  once and never renumbered — that is what the tens are for.
+- CI now fails a pull request that changes a plugin without raising its
+  `version`. A plugin cache is keyed by version, so such a change never reaches
+  an installed copy, and the symptom — a command that quietly does nothing —
+  does not look like a versioning problem. It had been missed three times.
 
 ## 0.106.0 (2026-09-10)
 

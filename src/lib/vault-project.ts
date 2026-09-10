@@ -95,8 +95,15 @@ How to handle them:
   layout.
 - For a loose-task-note, move the note into the backlog item the task belonged
   to (backlog/B-NNN-x/, promoting that item to a folder if it is still a single
-  note), rename it to the item's NNN- sequence, and update the link in the
-  matching task's ## Results section so it still resolves. If no item fits,
+  note), rename it to the item's NNN- sequence, and add the note's old basename
+  to its frontmatter as an alias:
+
+      aliases:
+        - <the name it had before the NNN- prefix>
+
+  The rename breaks every [[wikilink]] pointing at the old name, including ones
+  in archived tasks; the alias fixes all of them without editing any. Then
+  update the link in the matching task's ## Results section. If no item fits,
   say so and leave the note alone rather than inventing one.
 - For a backlog-entry-missing, add the item's entry note inside the folder
   under the folder's own name (backlog/B-NNN-x/B-NNN-x.md), based on
