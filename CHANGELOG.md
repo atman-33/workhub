@@ -2,6 +2,41 @@
 
 ## 0.108.0 (2026-09-10)
 
+- **A template update now reaches the copies inside each project** (T-0265).
+  A scaffold file is copied into `projects/<slug>/` when the project is
+  created and then lives its own life, and the manifest tracked only the
+  `templates/**` originals — which is how every project's
+  `backlog/_backlog.base` sat on a dead filter for weeks before anyone noticed.
+  `.template-policy.json` gained a `project_sync` list, and each listed path's
+  per-project copy joins the same 3-way diff as any other managed file, so the
+  update banner reports it and a hand-edited copy is still refused rather than
+  overwritten. Opt-in on purpose: most of the scaffold is prose a project is
+  meant to rewrite, and only `backlog/_backlog.base` is listed today.
+- **The update dialog can also offer to remove what the template stopped
+  shipping** (T-0274). Sync had only ever looked at what the template *has*, so
+  a path it dropped stayed in the vault and in the manifest forever — three
+  entries left behind by the old `deliverables/` `specs/` `research/` folders,
+  and a pristine `knowledge/profile/decision-policy.md` sitting beside the real
+  one. The manifest is what makes this safe to decide: a file with a baseline
+  is one the template provably put there, and a file without one is the
+  owner's. A dropped path that is still byte-identical is offered, unchecked,
+  and removed only on an explicit click; one the owner edited is never listed
+  and never touched. Nothing is removed on the silent startup path, and folders
+  are never removed at all.
+- **Every project's backlog Base was rendering zero rows** (T-0272). The filter
+  read `file.inFolder("backlog")`, which matches from the vault root — where no
+  `backlog/` exists — so the condition had been false since the Base was
+  introduced. It now filters on `project == "<project-slug>"`. Identity beats
+  location: a path breaks the moment a project is archived, and
+  `this.file.folder` widens past `backlog/` when the Base is embedded in
+  `README.md`.
+- **A repo could show "N uncommitted changes" over an empty file list**
+  (T-0270). `git status --porcelain` and `git diff HEAD` do not always agree —
+  with `core.autocrlf=true`, a tracked file checked out CRLF and rewritten LF
+  is modified by status while the blobs hash identically — and the graph
+  counted status but rendered the diff. Both now come from the same source, so
+  the count and the detail cannot disagree. A clean repo pays for no extra git
+  call.
 - **The task editor's backlog picker shows what each item is** (T-0273). The
   list drew bare `B-NNN` ids and the search matched only those, so it could be
   used by someone who already knew the ids — the one thing a picker exists to
