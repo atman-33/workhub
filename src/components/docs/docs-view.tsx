@@ -12,6 +12,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { DocsRootStatus } from "@/types";
 
 /** localStorage keys — machine-local UI state, like the other views' (view-state.ts). */
@@ -43,6 +44,9 @@ function recall(key: string): string {
  * writes: there is no save path here, and the backend exposes no command that
  * could create one.
  */
+/** Shortest time the refresh button spins, so a fast re-read is still visible. */
+const MIN_SPIN_MS = 600;
+
 export function DocsView() {
   const [roots, setRoots] = useState<DocsRootStatus[]>([]);
   const [rootId, setRootId] = useState("");
@@ -55,6 +59,26 @@ export function DocsView() {
   const [refreshToken, setRefreshToken] = useState(0);
   // Bumped by the collapse button; closes every folder the tree has open.
   const [collapseToken, setCollapseToken] = useState(0);
+  // The refresh button spins from the click until the tree and the open
+  // document have both been re-read — on a streamed Drive share that can take
+  // seconds, and a button that gives no sign it did anything gets clicked
+  // again. It spins for at least `MIN_SPIN_MS` so a fast local folder still
+  // shows the click registered.
+  const [treeBusy, setTreeBusy] = useState(false);
+  const [docBusy, setDocBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [minSpinDone, setMinSpinDone] = useState(true);
+
+  useEffect(() => {
+    if (refreshing && minSpinDone && !treeBusy && !docBusy) setRefreshing(false);
+  }, [refreshing, minSpinDone, treeBusy, docBusy]);
+
+  const refresh = useCallback(() => {
+    setRefreshToken((n) => n + 1);
+    setRefreshing(true);
+    setMinSpinDone(false);
+    setTimeout(() => setMinSpinDone(true), MIN_SPIN_MS);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -162,9 +186,9 @@ export function DocsView() {
                     size="icon-sm"
                     variant="ghost"
                     aria-label="Refresh"
-                    onClick={() => setRefreshToken((n) => n + 1)}
+                    onClick={refresh}
                   >
-                    <RefreshCw />
+                    <RefreshCw className={cn(refreshing && "animate-spin")} />
                   </Button>
                 </Hint>
               </div>
@@ -176,6 +200,7 @@ export function DocsView() {
                   refreshToken={refreshToken}
                   collapseToken={collapseToken}
                   onError={setError}
+                  onBusyChange={setTreeBusy}
                   onSelect={(entry) => {
                     setDoc(entry.path);
                     remember(LAST_DOC, entry.path);
@@ -186,7 +211,12 @@ export function DocsView() {
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel id="preview" minSize="30%" className="min-h-0 min-w-0">
-            <DocsPreview path={doc} refreshToken={refreshToken} />
+            <DocsPreview
+              path={doc}
+              refreshToken={refreshToken}
+              onError={setError}
+              onBusyChange={setDocBusy}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       )}

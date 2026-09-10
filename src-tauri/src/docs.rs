@@ -60,6 +60,9 @@ pub struct DocsEntry {
     /// a share holds PDFs and spreadsheets, and hiding them made the tree
     /// disagree with what the folder actually contains.
     pub is_markdown: bool,
+    /// True for HTML files, which the tab also renders itself — statically,
+    /// in a sandboxed frame with scripts off (T-0271).
+    pub is_html: bool,
     /// Last-modified time, unix seconds; 0 when unreadable.
     pub modified: u64,
 }
@@ -79,8 +82,22 @@ pub struct DocsRootStatus {
 
 /// Absolute path with forward slashes, so a path compares equal regardless of
 /// which side produced it.
+///
+/// The Win32 verbatim prefix is dropped on the way: `fs::canonicalize` (which
+/// the guard runs on every path) returns `\\?\G:\...` and `\\?\UNC\server\...`,
+/// and every entry listed under such a directory inherits it. Left in, it
+/// reached the preview header and "Copy path", and the frontend's path
+/// helpers read `//?/` as a UNC server named `?`.
 fn norm(p: &Path) -> String {
-    p.to_string_lossy().replace('\\', "/")
+    let raw = p.to_string_lossy();
+    let plain = if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        raw.into_owned()
+    };
+    plain.replace('\\', "/")
 }
 
 fn mtime_secs(p: &Path) -> u64 {
@@ -191,12 +208,18 @@ fn is_markdown(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
+fn is_html(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".html") || lower.ends_with(".htm")
+}
+
 /// Lists one directory: folders first, then files, each group by name.
 ///
 /// Everything the folder holds is listed, not only Markdown — a team share
 /// carries PDFs, spreadsheets and images, and a tree that showed none of them
-/// disagreed with the folder the user was looking at. `is_markdown` says which
-/// entries this tab can render; the rest are handed to the OS on click.
+/// disagreed with the folder the user was looking at. `is_markdown` and
+/// `is_html` say which entries this tab can render; the rest are handed to the
+/// OS on click.
 ///
 /// Never recurses: the tree asks again when a folder is opened.
 pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
@@ -214,6 +237,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
         out.push(DocsEntry {
             path: norm(&path),
             is_markdown: !is_dir && is_markdown(&name),
+            is_html: !is_dir && is_html(&name),
             name,
             is_dir,
             modified: if is_dir { 0 } else { mtime_secs(&path) },
@@ -227,7 +251,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
     Ok(out)
 }
 
-/// Reads a Markdown file as text.
+/// Reads a document (Markdown or HTML) as text.
 pub fn read_doc(path: &Path) -> Result<String, String> {
     let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     if size > MAX_DOC_BYTES {
@@ -305,6 +329,16 @@ pub fn guarded_open_external(settings: &Settings, path: &str) -> Result<(), Stri
     tauri_plugin_opener::open_path(&file, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Shows a file or folder in the OS file manager, selected in its parent.
+///
+/// `explorer <path>` is not this: handed a file, Explorer *opens* it with the
+/// associated app, which is what "Open with default app" already does. The
+/// opener plugin's reveal passes `/select` properly.
+pub fn guarded_reveal(settings: &Settings, path: &str) -> Result<(), String> {
+    let target = resolve_within_roots(path, &allowed_roots(settings))?;
+    tauri_plugin_opener::reveal_item_in_dir(&target).map_err(|e| e.to_string())
+}
+
 pub fn guarded_read_asset(settings: &Settings, path: &str) -> Result<String, String> {
     let file = resolve_within_roots(path, &allowed_roots(settings))?;
     with_timeout(move || read_asset(&file))
@@ -358,6 +392,16 @@ mod tests {
     }
 
     #[test]
+    fn norm_drops_the_verbatim_prefix() {
+        assert_eq!(norm(Path::new(r"\\?\G:\docs\a.md")), "G:/docs/a.md");
+        assert_eq!(
+            norm(Path::new(r"\\?\UNC\server\share\a.md")),
+            "//server/share/a.md"
+        );
+        assert_eq!(norm(Path::new(r"C:\docs\a.md")), "C:/docs/a.md");
+    }
+
+    #[test]
     fn lists_every_visible_entry_folders_first() {
         let tree = TempTree::new("list");
         fs::create_dir(tree.path().join("sub")).unwrap();
@@ -376,25 +420,29 @@ mod tests {
     }
 
     #[test]
-    fn only_markdown_is_flagged_as_renderable() {
+    fn only_markdown_and_html_are_flagged_as_renderable() {
         let tree = TempTree::new("kinds");
         fs::create_dir(tree.path().join("sub")).unwrap();
         fs::write(tree.path().join("a.md"), "a").unwrap();
         fs::write(tree.path().join("b.MARKDOWN"), "b").unwrap();
         fs::write(tree.path().join("c.pdf"), "c").unwrap();
+        fs::write(tree.path().join("d.html"), "d").unwrap();
+        fs::write(tree.path().join("e.HTM"), "e").unwrap();
 
-        let flags: Vec<(String, bool, bool)> = list_dir(tree.path())
+        let flags: Vec<(String, bool, bool, bool)> = list_dir(tree.path())
             .unwrap()
             .into_iter()
-            .map(|e| (e.name, e.is_dir, e.is_markdown))
+            .map(|e| (e.name, e.is_dir, e.is_markdown, e.is_html))
             .collect();
         assert_eq!(
             flags,
             vec![
-                ("sub".to_string(), true, false),
-                ("a.md".to_string(), false, true),
-                ("b.MARKDOWN".to_string(), false, true),
-                ("c.pdf".to_string(), false, false),
+                ("sub".to_string(), true, false, false),
+                ("a.md".to_string(), false, true, false),
+                ("b.MARKDOWN".to_string(), false, true, false),
+                ("c.pdf".to_string(), false, false, false),
+                ("d.html".to_string(), false, false, true),
+                ("e.HTM".to_string(), false, false, true),
             ]
         );
     }

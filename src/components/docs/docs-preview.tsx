@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { ExternalLink, FolderOpen } from "lucide-react";
+import { HtmlPreview } from "@/components/docs/html-preview";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
@@ -11,6 +12,14 @@ interface Props {
   path: string;
   /** Bumped by the toolbar's refresh button to re-read the open document. */
   refreshToken: number;
+  onError: (message: string) => void;
+  /** Told whether the document is being read right now. */
+  onBusyChange?: (busy: boolean) => void;
+}
+
+/** True when `path` names an HTML file, which gets a frame instead of Markdown. */
+function isHtmlPath(path: string): boolean {
+  return /\.html?$/i.test(path);
 }
 
 /**
@@ -20,11 +29,17 @@ interface Props {
  * files sit on a share the webview has no access to, and the backend is where
  * the containment guard lives. Their bytes are cached per document so
  * scrolling a note full of screenshots does not re-read the share.
+ *
+ * An HTML file is shown as a page instead, in `HtmlPreview`'s sandboxed frame.
  */
-export function DocsPreview({ path, refreshToken }: Props) {
+export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props) {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    onBusyChange?.(loading);
+  }, [loading, onBusyChange]);
 
   useEffect(() => {
     if (!path) {
@@ -51,7 +66,8 @@ export function DocsPreview({ path, refreshToken }: Props) {
 
   // Obsidian's `![[file]]` embeds are not CommonMark, so they are rewritten
   // before the renderer ever sees them.
-  const markdown = useMemo(() => expandWikiEmbeds(content), [content]);
+  const html = isHtmlPath(path);
+  const markdown = useMemo(() => (html ? "" : expandWikiEmbeds(content)), [html, content]);
 
   // Keyed by the document *and* the refresh token so a re-read drops the
   // images with the text it belongs to.
@@ -101,24 +117,42 @@ export function DocsPreview({ path, refreshToken }: Props) {
         <Hint label={path}>
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{path}</span>
         </Hint>
+        <Hint label="Open with default app">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Open with default app"
+            onClick={() => void api.docsOpenExternal(path).catch((e) => onError(String(e)))}
+          >
+            <ExternalLink />
+          </Button>
+        </Hint>
         <Hint label="Show this file in Explorer">
           <Button
             size="icon-sm"
             variant="ghost"
             aria-label="Show in Explorer"
-            onClick={() => void api.openExplorer(path)}
+            onClick={() => void api.docsReveal(path).catch((e) => onError(String(e)))}
           >
             <FolderOpen />
           </Button>
         </Hint>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      {/* The frame scrolls itself, so an HTML page gets the pane edge to edge. */}
+      <div
+        className={
+          html && !error && content
+            ? "min-h-0 flex-1"
+            : "min-h-0 flex-1 overflow-y-auto px-6 py-4"
+        }
+      >
         {error && <p className="text-xs text-destructive">{error}</p>}
         {!error && loading && !content && (
           <p className="text-xs text-muted-foreground">Reading…</p>
         )}
-        {!error && content && (
-          <Markdown mermaid resolveAsset={resolveAsset}>
+        {!error && content && html && <HtmlPreview path={path} content={content} />}
+        {!error && content && !html && (
+          <Markdown variant="document" allowHtml mermaid resolveAsset={resolveAsset}>
             {markdown}
           </Markdown>
         )}

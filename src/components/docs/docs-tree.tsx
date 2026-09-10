@@ -1,9 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, File, FileText, Folder, FolderOpen } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  File,
+  FileCode,
+  FileText,
+  Folder,
+  FolderOpen,
+} from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { toWindowsPath } from "@/lib/docs/markdown";
 import { cn } from "@/lib/utils";
 import type { DocsEntry } from "@/types";
+
+/** What a tree row's context menu can do. Errors are reported by the tree. */
+interface EntryActions {
+  openExternal: (entry: DocsEntry) => void;
+  reveal: (entry: DocsEntry) => void;
+  copyPath: (entry: DocsEntry) => void;
+}
 
 /** What one folder's listing is doing, keyed by that folder's path. */
 type DirState =
@@ -18,6 +44,8 @@ interface Props {
   selected: string;
   onSelect: (entry: DocsEntry) => void;
   onError: (message: string) => void;
+  /** Told whether any folder listing is being fetched right now. */
+  onBusyChange?: (busy: boolean) => void;
   /** Case-insensitive filter on file and folder names; "" shows everything. */
   filter: string;
   /**
@@ -50,6 +78,7 @@ export function DocsTree({
   selected,
   onSelect,
   onError,
+  onBusyChange,
   filter,
   refreshToken,
   collapseToken,
@@ -72,33 +101,55 @@ export function DocsTree({
     if (collapseToken > 0) setOpen({});
   }, [collapseToken]);
 
+  // How many listings are in flight. A count rather than a flag because a
+  // refresh re-reads every open folder at once; the callback sits in a ref so
+  // `ensureLoaded` can stay stable.
+  const inFlight = useRef(0);
+  const busyChange = useRef(onBusyChange);
+  busyChange.current = onBusyChange;
+
   const ensureLoaded = useCallback((path: string, token: number) => {
     if (fetchedAt.current[path] === token) return;
     fetchedAt.current[path] = token;
     setDirs((prev) => ({ ...prev, [path]: { status: "loading" } }));
+    if (inFlight.current++ === 0) busyChange.current?.(true);
     api
       .docsListDir(path)
       .then((entries) => setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } })))
       .catch((e) =>
         setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } })),
-      );
+      )
+      .finally(() => {
+        if (--inFlight.current === 0) busyChange.current?.(false);
+      });
   }, []);
 
   const toggle = useCallback((path: string) => {
     setOpen((prev) => ({ ...prev, [path]: !prev[path] }));
   }, []);
 
+  const actions = useMemo<EntryActions>(
+    () => ({
+      openExternal: (entry) =>
+        void api.docsOpenExternal(entry.path).catch((e) => onError(String(e))),
+      reveal: (entry) => void api.docsReveal(entry.path).catch((e) => onError(String(e))),
+      copyPath: (entry) =>
+        void writeText(toWindowsPath(entry.path)).catch((e) => onError(String(e))),
+    }),
+    [onError],
+  );
+
   const activate = useCallback(
     (entry: DocsEntry) => {
-      if (entry.is_markdown) {
+      if (isPreviewable(entry)) {
         onSelect(entry);
         return;
       }
       // Everything else is the share's own material — a PDF, a spreadsheet,
       // an image. The tab cannot render it, so the OS gets it.
-      void api.docsOpenExternal(entry.path).catch((e) => onError(String(e)));
+      actions.openExternal(entry);
     },
-    [onSelect, onError],
+    [onSelect, actions],
   );
 
   if (!rootPath) return null;
@@ -113,6 +164,7 @@ export function DocsTree({
         ensureLoaded={ensureLoaded}
         onToggle={toggle}
         onActivate={activate}
+        actions={actions}
         selected={selected}
         filter={filter.trim().toLowerCase()}
         refreshToken={refreshToken}
@@ -129,6 +181,7 @@ function DirListing({
   ensureLoaded,
   onToggle,
   onActivate,
+  actions,
   selected,
   filter,
   refreshToken,
@@ -140,6 +193,7 @@ function DirListing({
   ensureLoaded: (path: string, token: number) => void;
   onToggle: (path: string) => void;
   onActivate: (entry: DocsEntry) => void;
+  actions: EntryActions;
   selected: string;
   filter: string;
   refreshToken: number;
@@ -188,24 +242,29 @@ function DirListing({
       {entries.map((entry) =>
         entry.is_dir ? (
           <div key={entry.path}>
-            <button
-              type="button"
-              onClick={() => onToggle(entry.path)}
-              style={indent}
-              className="flex w-full items-center gap-1 py-1 pr-2 text-left hover:bg-muted/50"
-            >
-              {open[entry.path] ? (
-                <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
-              )}
-              {open[entry.path] ? (
-                <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <span className="truncate">{entry.name}</span>
-            </button>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onToggle(entry.path)}
+                  style={indent}
+                  className="flex w-full items-center gap-1 py-1 pr-2 text-left hover:bg-muted/50"
+                >
+                  {open[entry.path] ? (
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                  )}
+                  {open[entry.path] ? (
+                    <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="truncate">{entry.name}</span>
+                </button>
+              </ContextMenuTrigger>
+              <EntryMenu entry={entry} actions={actions} />
+            </ContextMenu>
             {open[entry.path] && (
               <DirListing
                 path={entry.path}
@@ -215,6 +274,7 @@ function DirListing({
                 ensureLoaded={ensureLoaded}
                 onToggle={onToggle}
                 onActivate={onActivate}
+                actions={actions}
                 selected={selected}
                 filter={filter}
                 refreshToken={refreshToken}
@@ -222,31 +282,78 @@ function DirListing({
             )}
           </div>
         ) : (
-          <Hint
-            key={entry.path}
-            label={entry.is_markdown ? entry.name : `${entry.name} — opens outside workhub`}
-          >
-            <button
-              type="button"
-              onClick={() => onActivate(entry)}
-              style={{ paddingLeft: `${depth * 12 + 24}px` }}
-              className={cn(
-                "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
-                entry.path === selected ? "bg-muted font-medium" : "hover:bg-muted/50",
-              )}
+          <ContextMenu key={entry.path}>
+            <Hint
+              label={isPreviewable(entry) ? entry.name : `${entry.name} — opens outside workhub`}
             >
-              {entry.is_markdown ? (
-                <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <File className="size-3.5 shrink-0 text-muted-foreground/60" />
-              )}
-              <span className={cn("truncate", !entry.is_markdown && "text-muted-foreground")}>
-                {entry.name}
-              </span>
-            </button>
-          </Hint>
+              <ContextMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onActivate(entry)}
+                  style={{ paddingLeft: `${depth * 12 + 24}px` }}
+                  className={cn(
+                    "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
+                    entry.path === selected ? "bg-muted font-medium" : "hover:bg-muted/50",
+                  )}
+                >
+                  {entry.is_markdown ? (
+                    <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : entry.is_html ? (
+                    <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <File className="size-3.5 shrink-0 text-muted-foreground/60" />
+                  )}
+                  <span
+                    className={cn("truncate", !isPreviewable(entry) && "text-muted-foreground")}
+                  >
+                    {entry.name}
+                  </span>
+                </button>
+              </ContextMenuTrigger>
+            </Hint>
+            <EntryMenu entry={entry} actions={actions} />
+          </ContextMenu>
         ),
       )}
     </>
   );
+}
+
+/**
+ * A row's right-click menu (T-0271).
+ *
+ * Ordered the way file managers order it: opening first, then showing where
+ * it lives, then — after a separator — copying, which does nothing visible.
+ * A folder has no "open with default app": expanding it is what a click on it
+ * already does, and the backend refuses to hand a folder to the OS anyway.
+ *
+ * The preview is the default way into a file, not the only one: an HTML
+ * report that needs its scripts, or a note someone wants in their own editor,
+ * still goes to the OS from here.
+ */
+function EntryMenu({ entry, actions }: { entry: DocsEntry; actions: EntryActions }) {
+  return (
+    <ContextMenuContent>
+      {!entry.is_dir && (
+        <ContextMenuItem onSelect={() => actions.openExternal(entry)}>
+          <ExternalLink />
+          Open with default app
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem onSelect={() => actions.reveal(entry)}>
+        <FolderOpen />
+        Show in Explorer
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={() => actions.copyPath(entry)}>
+        <Copy />
+        Copy path
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
+/** True for a file the preview pane renders itself rather than handing to the OS. */
+function isPreviewable(entry: DocsEntry): boolean {
+  return entry.is_markdown || entry.is_html;
 }

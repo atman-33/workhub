@@ -337,6 +337,7 @@ pub fn run() {
             commands::remove_docs_root,
             commands::update_docs_root,
             commands::docs_open_external,
+            commands::docs_reveal,
             commands::docs_list_dir,
             commands::docs_read_file,
             commands::docs_read_asset,
