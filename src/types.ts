@@ -599,8 +599,17 @@ export interface TemplateDiffFile {
   state: TemplateFileState;
 }
 
+/** One file the template stopped shipping whose vault copy is still there and
+ * still identical to what it shipped, so removing it loses nothing (T-0274).
+ * Kept separate from `files` because removing is the opposite operation from
+ * applying content, and is never done automatically. */
+export interface TemplateRemoval {
+  path: string;
+}
+
 export interface TemplateDiff {
   files: TemplateDiffFile[];
+  removed: TemplateRemoval[];
 }
 
 export interface BranchList {
