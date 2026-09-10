@@ -10,7 +10,8 @@
 // follow the vault instead of reverting it. These helpers are pure so that
 // contract can be unit-tested.
 
-import type { Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
+import type { BacklogItem, Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
+import type { ComboboxOptionDetails } from "@/lib/combobox-options";
 import { parseBody } from "@/lib/task-body";
 
 export interface TaskDraft {
@@ -138,4 +139,26 @@ export function mergeExternalTask(
     }
   }
   return changed ? next : null;
+}
+
+/** Decoration for the editor's backlog-item picker: the item's title beside
+ * its `B-NNN`, and its status after that. Items whose entry note says nothing
+ * about status contribute no meta rather than an empty separator.
+ *
+ * The picker still commits the bare id — this only decides what is drawn and
+ * what the search matches, so an item can be found by its title. */
+export function backlogOptionDetails(
+  items: readonly BacklogItem[],
+): ComboboxOptionDetails {
+  const details: ComboboxOptionDetails = {};
+  for (const item of items) {
+    const label = item.title.trim();
+    const meta = item.status.trim();
+    if (!label && !meta) continue;
+    details[item.id] = {
+      ...(label ? { label } : {}),
+      ...(meta ? { meta } : {}),
+    };
+  }
+  return details;
 }

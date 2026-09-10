@@ -2,6 +2,10 @@ import * as React from "react";
 import { CheckIcon, ChevronsUpDownIcon, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  optionSearchValue,
+  type ComboboxOptionDetails,
+} from "@/lib/combobox-options";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -57,6 +61,15 @@ interface ComboboxProps {
    * open. Has no effect once `options` or `leadingOptions` are non-empty.
    */
   loading?: boolean;
+  /**
+   * Display-only decoration for the options, keyed by option value: a `label`
+   * drawn beside the value and a dimmer `meta` after it. A list of bare ids
+   * can only be searched by someone who already knows the ids, which is the
+   * one thing a picker exists to spare you — so the decoration also feeds the
+   * search text. The committed value stays the option string itself: nothing
+   * here is ever parsed back into one (T-0219).
+   */
+  optionDetails?: ComboboxOptionDetails;
 }
 
 /**
@@ -79,6 +92,7 @@ export function Combobox({
   noneLabel,
   mainHeading,
   loading = false,
+  optionDetails,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -101,6 +115,26 @@ export function Combobox({
   // is not rendered twice. Leading wins (kept at top, removed from the tail).
   const leadingLower = new Set(leadingOptions.map((o) => o.toLowerCase()));
   const dedupedOptions = options.filter((o) => !leadingLower.has(o.toLowerCase()));
+
+  // One option row. Undecorated options render exactly as they did before the
+  // decoration existed, which is what keeps `optionDetails` opt-in.
+  const renderOption = (option: string) => {
+    const detail = optionDetails?.[option];
+    if (!detail?.label && !detail?.meta) return option;
+    return (
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="shrink-0">{option}</span>
+        {detail.label && (
+          <span className="truncate text-muted-foreground">{detail.label}</span>
+        )}
+        {detail.meta && (
+          <span className="shrink-0 text-[10px] text-muted-foreground/70">
+            {detail.meta}
+          </span>
+        )}
+      </span>
+    );
+  };
 
   return (
     <Popover
@@ -162,28 +196,36 @@ export function Combobox({
             {leadingOptions.length > 0 && (
               <CommandGroup heading={leadingHeading}>
                 {leadingOptions.map((option) => (
-                  <CommandItem key={option} value={option} onSelect={() => commit(option)}>
+                  <CommandItem
+                    key={option}
+                    value={optionSearchValue(option, optionDetails?.[option])}
+                    onSelect={() => commit(option)}
+                  >
                     <CheckIcon
                       className={cn(
                         "size-3.5",
                         value === option ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    {option}
+                    {renderOption(option)}
                   </CommandItem>
                 ))}
               </CommandGroup>
             )}
             <CommandGroup heading={leadingOptions.length > 0 ? mainHeading : undefined}>
               {dedupedOptions.map((option) => (
-                <CommandItem key={option} value={option} onSelect={() => commit(option)}>
+                <CommandItem
+                  key={option}
+                  value={optionSearchValue(option, optionDetails?.[option])}
+                  onSelect={() => commit(option)}
+                >
                   <CheckIcon
                     className={cn(
                       "size-3.5",
                       value === option ? "opacity-100" : "opacity-0",
                     )}
                   />
-                  {option}
+                  {renderOption(option)}
                 </CommandItem>
               ))}
               {showCustom && (

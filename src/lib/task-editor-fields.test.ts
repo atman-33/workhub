@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  backlogOptionDetails,
   draftFromTask,
   fieldsFromDraft,
   mergeExternalTask,
   type TaskDraft,
 } from "./task-editor-fields";
-import type { Task } from "@/types";
+import type { BacklogItem, Task } from "@/types";
 
 const TASK: Task = {
   id: "T-0001",
@@ -105,5 +106,30 @@ describe("mergeExternalTask", () => {
       status: "review",
       content: "New body",
     });
+  });
+});
+
+describe("backlogOptionDetails", () => {
+  const item = (id: string, title: string, status: string): BacklogItem => ({
+    id,
+    title,
+    status,
+    folder: false,
+  });
+
+  it("maps each item's title and status onto its id", () => {
+    expect(backlogOptionDetails([item("B-007", "Mindmap", "doing")])).toEqual({
+      "B-007": { label: "Mindmap", meta: "doing" },
+    });
+  });
+
+  it("omits a status the entry note does not state", () => {
+    expect(backlogOptionDetails([item("B-009", "Picker labels", "")])).toEqual({
+      "B-009": { label: "Picker labels" },
+    });
+  });
+
+  it("skips an item with nothing to draw", () => {
+    expect(backlogOptionDetails([item("B-010", "  ", "")])).toEqual({});
   });
 });
