@@ -675,17 +675,31 @@ export function TaskEditorForm({
       {/* min-w-0 keeps wide content (e.g. code blocks) from stretching the
           window; the pre's own overflow-x handles horizontal scrolling. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        {field(
-          "Title",
-          <Input
-            autoFocus
-            value={draft.title}
-            onChange={(e) => update({ title: e.target.value })}
-            className="h-8 text-sm"
-            placeholder="Task title"
-          />,
-        )}
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
+        {/* The rows group the fields that are read together: what the task is
+            and how much it matters; who and what runs it; where it belongs. */}
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          {field(
+            "Title",
+            <Input
+              autoFocus
+              value={draft.title}
+              onChange={(e) => update({ title: e.target.value })}
+              className="h-8 text-sm"
+              placeholder="Task title"
+            />,
+          )}
+          {field(
+            "Priority",
+            // Click cycles low → medium → high → low; no more dropdown.
+            <div className="flex h-8 items-center">
+              <PriorityBadge
+                priority={draft.priority}
+                onCycle={(next) => update({ priority: next })}
+              />
+            </div>,
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-3">
           {field(
             "Status",
             <Select
@@ -727,16 +741,29 @@ export function TaskEditorForm({
             </Select>,
           )}
           {field(
-            "Priority",
-            // Click cycles low → medium → high → low; no more dropdown.
-            <div className="flex h-8 items-center">
-              <PriorityBadge
-                priority={draft.priority}
-                onCycle={(next) => update({ priority: next })}
-              />
-            </div>,
+            "Model (AI launches)",
+            <ModelCombobox
+              assignee={draft.assignee}
+              value={draft.model}
+              onChange={handleModelChange}
+              // The form only exists while the window is showing a task, so
+              // the opencode catalog fetch is already gated by that.
+              active
+              // A "me" (human) task launches no AI agent, so a model is
+              // meaningless — disable the field. Assignee changes already
+              // clear draft.model, so nothing stale lingers here.
+              disabled={draft.assignee === "me"}
+              placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
+            />,
           )}
         </div>
+        {/* A backlog item belongs to a project, so the picker only appears
+            once one is chosen — it shares the row with the project it hangs
+            off, and the left column stays empty until then. The option list is
+            bare `B-NNN` ids on purpose — a decorated label has to be
+            un-decorated on the way back out, and a slip there rewrites the
+            link (same lesson as T-0219). The item's title goes under the field
+            instead. */}
         <div className="grid grid-cols-2 gap-3">
           {field(
             "Project",
@@ -756,31 +783,8 @@ export function TaskEditorForm({
               )}
             </>,
           )}
-          {field(
-            "Model (AI launches)",
-            <ModelCombobox
-              assignee={draft.assignee}
-              value={draft.model}
-              onChange={handleModelChange}
-              // The form only exists while the window is showing a task, so
-              // the opencode catalog fetch is already gated by that.
-              active
-              // A "me" (human) task launches no AI agent, so a model is
-              // meaningless — disable the field. Assignee changes already
-              // clear draft.model, so nothing stale lingers here.
-              disabled={draft.assignee === "me"}
-              placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
-            />,
-          )}
-        </div>
-        {/* A backlog item belongs to a project, so the picker only appears
-            once one is chosen. The option list is bare `B-NNN` ids on
-            purpose — a decorated label has to be un-decorated on the way back
-            out, and a slip there rewrites the link (same lesson as T-0219).
-            The item's title goes under the field instead. */}
-        {project && (
-          <div className="grid grid-cols-2 gap-3">
-            {field(
+          {project &&
+            field(
               "Backlog item",
               <>
                 <Combobox
@@ -805,6 +809,11 @@ export function TaskEditorForm({
                 )}
               </>,
             )}
+        </div>
+        {/* Kept directly under the picker it feeds, in the same column, so the
+            eye runs straight down from "no item here" to creating one. */}
+        {project && (
+          <div className="grid grid-cols-2 gap-3">
             {field(
               "New item",
               <div className="flex gap-2">
@@ -829,6 +838,7 @@ export function TaskEditorForm({
                   Create
                 </Button>
               </div>,
+              "col-start-2",
             )}
           </div>
         )}
