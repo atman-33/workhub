@@ -9,7 +9,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | Folder | Zone | Contents |
 |--------|------|----------|
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
-| `projects/` | human + AI | per-project notes and task deliverables |
+| `projects/` | human + AI | per-project notes, one backlog item per unit of work |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
 | `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md` for the axes, `decision-log.md` for the individual calls) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
 | `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
@@ -128,9 +128,11 @@ title: ...
 status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
-backlog: B-007      # optional; the backlog item in
+backlog: B-007      # required once `project` is set: the backlog item in
                     # projects/<project>/backlog/ this task belongs to. The
-                    # link runs this way only — the item never lists its tasks
+                    # link runs this way only — the item never lists its
+                    # tasks. Left blank it means "not chosen yet", never "no
+                    # item": the agent fills it in at task-start
 priority: medium    # low | medium | high
 model: sonnet       # optional; AI model passed as `--model` when the app
                     # launches an agent for this task. Absent = agent default.
@@ -182,7 +184,6 @@ filling in the placeholders. Layout:
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
 | `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
-| `deliverables/` | Task deliverable notes (`T-XXXX-<title>`) for tasks that belong to no backlog item |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
 | `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
 | `attachments/` | Images and binaries for this project |
@@ -200,8 +201,15 @@ feature, one bug, one support case — keeping its spec, its research and its
 task outputs in one place. Everything else groups by **kind**, because it
 serves the project as a whole rather than any single item. Scattering one
 piece of work across four kind-named folders is exactly what this replaces:
-once an item folder holds both, a separate `specs/` and `research/` have
-nothing left to hold.
+once an item holds all of it, a separate `specs/`, `research/` and
+`deliverables/` have nothing left to hold.
+
+`deliverables/` is worth a word, because dropping it looks like it costs
+something. It does not: an item is a **single note** at its smallest, which is
+precisely what a deliverable note was — same one file, but carrying `## What`,
+`## Why` and `## Status` as well. Keeping both folders bought nothing and left
+a judgement call behind ("is this worth an item?") that has no good rule to
+answer it. A rule you have to remember is a rule that stops working.
 
 `_index.md` also carries an optional `repos:` key listing the registered
 repositories this project belongs to — each entry an absolute path, or the
@@ -394,6 +402,25 @@ backlog/
 - Child notes are `NNN-<title>.md`, numbered in **tens** so a later note can be
   slotted between two existing ones. A task's output is `NNN-T-XXXX-<title>.md`,
   which puts it in sequence and names the task it came from.
+- **A child note is named once and never renamed.** The tens are what make that
+  possible: a note that belongs between `010` and `020` becomes `015`, and
+  nothing else moves. Renumbering a folder to tidy it up breaks every link into
+  it, and buys nothing a reader can see.
+- **Moving an existing note into an item does rename it, so give it an alias.**
+  The `NNN-` prefix changes the basename, and `[[記事制作の自走化設計]]` written
+  anywhere in the vault stops resolving. Add the old basename to the note's
+  frontmatter:
+
+  ```yaml
+  aliases:
+    - 記事制作の自走化設計
+  ```
+
+  Obsidian resolves a wikilink through an alias, so every reference keeps
+  working and not one of them has to be edited. That matters more than it
+  sounds: T-0263 moved twelve notes and broke 28 references, seven of them in
+  **archived** tasks — historical records nobody should be rewriting, and the
+  ones you are least likely to find by searching.
 - Non-Markdown files (a test report, an exported image) sit directly in the
   item folder. No sub-folders: a flat item folder is one glob to an agent.
 
@@ -435,6 +462,29 @@ rewrite.
 the item never lists its tasks. Two hand-maintained copies of one relationship
 drift apart, and the query in the other direction is cheap — both the task
 board and `_backlog.base` filter on the task's own key.
+
+**Every task with a project has an item.** A task with no `project` is vault
+housekeeping and its output belongs in `_ai/logs/` or `knowledge/`; a task
+that names a project has somewhere for its output to land, and that somewhere
+is an item. The board does not enforce this — blocking a save would ruin quick
+capture, which is most of what the board is for. An empty `backlog` therefore
+means **"not chosen yet"**, never "no item needed", and the agent settles it
+at `task-start`:
+
+- Read the project's items and compare each one's `## What` against the task's
+  `## Description`.
+- **Only start a new item when the task overlaps none of the existing ones.**
+  If it overlaps at all, attach it to that one. The costs are not symmetric:
+  a note filed under the wrong item is one move to fix, while a duplicate item
+  splits a subject in two and the next reader cannot see that it happened.
+  The exception is a project with no items at all — there is nothing to
+  compare against, so start one.
+- Write the answer back onto the task (`backlog: B-NNN`) and say which item
+  was chosen, so the next session does not repeat the judgement.
+
+A recurring task is the one thing that stays without an item. It is a habit
+rather than a unit of work, and it leaves nothing durable behind for an item
+to accumulate.
 
 ## Agent harness
 
@@ -540,7 +590,7 @@ mechanical authoring):
 - Never rewrite an approved `## Plan` in place — it is the user's approval
   record. Append if the plan genuinely changes, and say so.
 - Raw work reports go to `_ai/logs/`. Polished, human-readable summaries and
-  deliverables go to `projects/` or `knowledge/`, linked from the task's
+  deliverables go to the task's backlog item or `knowledge/`, linked from its
   `## Results`.
 - Read `_ai/index/tasks.json` first to find tasks; do not scan the whole
   vault. Fall back to reading `tasks/` frontmatter if the index is missing.

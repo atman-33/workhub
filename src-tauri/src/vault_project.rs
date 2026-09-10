@@ -45,13 +45,16 @@ const CRITICAL_FILES: &[&str] = &["README.md", "_index.md"];
 
 /// Subfolders the documented layout names, in the order CLAUDE.md lists them.
 ///
-/// `specs` and `research` were dropped in T-0253: a spec and its research
-/// belong to one unit of work, so they now live inside that unit's
-/// `backlog/` item rather than in folders of their own.
+/// `specs` and `research` went in T-0253 and `deliverables` in T-0266: a
+/// spec, its research and the output of every task that worked on it belong
+/// to one unit of work, so they live inside that unit's `backlog/` item
+/// rather than in folders of their own. An item is a single note at its
+/// smallest, which is exactly what a deliverable note was — so keeping both
+/// only left a judgement call ("is this worth an item?") with no good rule
+/// behind it.
 const KNOWN_DIRS: &[&str] = &[
     "backlog",
     "dev-notes",
-    "deliverables",
     "schedules",
     "mindmaps",
     "shared",
@@ -238,9 +241,9 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
             });
         }
     }
-    for name in misfiled_deliverables(dir) {
+    for name in loose_task_notes(dir) {
         issues.push(VaultProjectIssue {
-            kind: "misfiled-deliverable".into(),
+            kind: "loose-task-note".into(),
             severity: "warn".into(),
             target: name,
         });
@@ -543,6 +546,110 @@ fn id_prefix(stem: &str) -> String {
     }
 }
 
+/// Creates a backlog item in a project and returns it, for the task editor's
+/// "new item" path (T-0266).
+///
+/// Naming an item has to be cheaper than skipping it, or a required link is
+/// just friction: the editor collects a title and this does the rest — next
+/// `B-NNN`, the scaffold from `templates/project/backlog/`, the file. The id
+/// is the highest existing one plus one, mirroring how a task's id is
+/// assigned, so an item filed here is indistinguishable from one written by
+/// hand.
+pub fn create_backlog_item(vault: &Path, slug: &str, title: &str) -> Result<BacklogItem, String> {
+    let slug = check_slug(slug)?;
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("a backlog item needs a title".into());
+    }
+    let dir = project_dir(vault, slug, false);
+    if !dir.is_dir() {
+        return Err(format!("no project named {slug}"));
+    }
+    let backlog = dir.join(BACKLOG_DIR);
+    fs::create_dir_all(&backlog).map_err(|e| e.to_string())?;
+
+    let id = next_item_id(&list_backlog_items(vault, slug)?);
+    let name = format!("{id}-{}", sanitize_item_name(title));
+    let path = backlog.join(format!("{name}.md"));
+    if path.exists() {
+        return Err(format!("{name}.md already exists"));
+    }
+    let today = today();
+    // Written with real newlines rather than escapes so the literal looks
+    // like the note it produces, and reviewing it does not mean decoding it.
+    let body = format!(
+        "\
+---
+id: {id}
+title: {title}
+type: backlog
+project: {slug}
+status: idea
+priority: medium
+source:
+created: {today}
+updated: {today}
+tags:
+  - backlog
+---
+
+# {title}
+
+## What
+
+{title}
+
+## Why
+
+## Status
+
+- {today} raised
+
+## Notes
+
+"
+    );
+    fs::write(&path, body).map_err(|e| e.to_string())?;
+
+    Ok(BacklogItem {
+        id,
+        title: title.to_string(),
+        status: "idea".into(),
+        folder: false,
+    })
+}
+
+/// Next `B-NNN` for a project: the highest existing number plus one, so a
+/// dropped item's number is never handed out twice.
+fn next_item_id(existing: &[BacklogItem]) -> String {
+    let highest = existing
+        .iter()
+        .filter_map(|i| i.id.strip_prefix("B-"))
+        .filter_map(|n| n.parse::<u32>().ok())
+        .max()
+        .unwrap_or(0);
+    format!("B-{:03}", highest + 1)
+}
+
+/// The slug part of an item's file name. Path separators and the characters
+/// Windows refuses are replaced rather than stripped, so the name still reads
+/// as the title it came from.
+fn sanitize_item_name(title: &str) -> String {
+    let cleaned: String = title
+        .chars()
+        .map(|c| match c {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
+            c => c,
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.').trim();
+    if trimmed.is_empty() {
+        "untitled".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// How many units of work a `backlog/` folder holds. An item is either a
 /// single note or a folder of notes (T-0253), so both shapes count as one.
 fn count_backlog_items(dir: &Path) -> usize {
@@ -585,11 +692,13 @@ fn backlog_items_without_entry_note(dir: &Path) -> Vec<String> {
     out
 }
 
-/// Task deliverable notes (`T-XXXX-…`) sitting in the project root instead of
-/// `deliverables/`. This is the single most common drift in the owner's vault
-/// — the workhub project alone has 26 — and it is mechanically detectable,
-/// which is exactly the kind of check worth automating.
-fn misfiled_deliverables(dir: &Path) -> Vec<String> {
+/// Task deliverable notes (`T-XXXX-…`) sitting loose in the project root.
+/// This is the single most common drift in the owner's vault, and it is
+/// mechanically detectable, which is exactly the kind of check worth
+/// automating. Since T-0266 the destination is the backlog item the task
+/// belonged to, not a folder of its own — which is why the finding says
+/// "loose" rather than naming a folder to move it into.
+fn loose_task_notes(dir: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -922,17 +1031,27 @@ mod tests {
                 .map(|i| i.target.clone())
                 .collect()
         };
-        assert_eq!(targets("misfiled-deliverable"), ["T-0042-a-deliverable.md"]);
-        assert_eq!(targets("unknown-folder"), ["pbl/"]);
+        assert_eq!(targets("loose-task-note"), ["T-0042-a-deliverable.md"]);
+        // `deliverables/` left the layout in T-0266, so a project that still
+        // has one is told about it like any other undocumented folder.
+        assert_eq!(targets("unknown-folder"), ["deliverables/", "pbl/"]);
         assert!(targets("missing-file").contains(&"prd.md".to_string()));
         assert!(targets("missing-folder").contains(&"dev-notes/".to_string()));
-        // Dropped from the layout in T-0253 — no longer reported as absent.
-        assert!(!targets("missing-folder").contains(&"specs/".to_string()));
-        assert!(!targets("missing-folder").contains(&"research/".to_string()));
+        // Dropped from the layout: specs/research in T-0253, deliverables in
+        // T-0266 — none of them is reported as absent any more.
+        for gone in ["specs/", "research/", "deliverables/"] {
+            assert!(!targets("missing-folder").contains(&gone.to_string()));
+        }
 
-        let deliverables = p.folders.iter().find(|f| f.name == "deliverables").unwrap();
-        assert_eq!(deliverables.count, 1);
-        assert!(deliverables.known);
+        // A folder that left the layout is reported like any other folder the
+        // layout does not name.
+        assert!(
+            !p.folders
+                .iter()
+                .find(|f| f.name == "deliverables")
+                .unwrap()
+                .known
+        );
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
     }
 
@@ -988,6 +1107,59 @@ mod tests {
         assert_eq!(items[1].status, "doing");
         assert_eq!(items[2].title, "B-003-headless");
         assert_eq!(items[2].status, "");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// Creating an item has to be a one-field affair, or a required link is
+    /// just friction. The id continues the project's own numbering and the
+    /// note comes out readable without another editor (T-0266).
+    #[test]
+    fn creating_an_item_numbers_it_after_the_existing_ones() {
+        let vault = temp_vault("backlog-create");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        write(
+            dir.join("backlog").join("B-002-existing.md"),
+            "---\nid: B-002\ntitle: Existing\ntype: backlog\n---\n",
+        );
+
+        let item = create_backlog_item(&vault, "demo", "Search the note list").unwrap();
+        assert_eq!(item.id, "B-003");
+        assert_eq!(item.status, "idea");
+        assert!(!item.folder);
+
+        let path = dir.join("backlog").join("B-003-Search the note list.md");
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("id: B-003"), "note: {text}");
+        assert!(text.contains("title: Search the note list"), "note: {text}");
+        assert!(text.contains("project: demo"), "note: {text}");
+        assert!(text.contains("status: idea"), "note: {text}");
+        // The sections a later session reads, present from the start.
+        for section in ["## What", "## Why", "## Status", "## Notes"] {
+            assert!(text.contains(section), "note: {text}");
+        }
+
+        // And the picker sees it straight away.
+        let ids: Vec<String> = list_backlog_items(&vault, "demo")
+            .unwrap()
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        assert_eq!(ids, ["B-002", "B-003"]);
+
+        // The first item of a project starts the numbering.
+        let fresh = vault.join("projects").join("blank");
+        write(fresh.join("README.md"), "---\ntitle: Blank\n---\n");
+        assert_eq!(
+            create_backlog_item(&vault, "blank", "First").unwrap().id,
+            "B-001"
+        );
+
+        // A title is required, and an unknown project is an error rather than
+        // a folder created out of nowhere.
+        assert!(create_backlog_item(&vault, "demo", "   ").is_err());
+        assert!(create_backlog_item(&vault, "nope", "x").is_err());
 
         fs::remove_dir_all(&vault).ok();
     }

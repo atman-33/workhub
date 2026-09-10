@@ -34,7 +34,6 @@ Link to the full spec in [`prd.md`](prd.md).
 | [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
 | `backlog/` | One note or folder per unit of work — its spec, its research, its task outputs. See the Base view below |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions |
-| `deliverables/` | Task deliverable notes (`T-XXXX-…`) for tasks belonging to no item |
 | `shared/` | Team knowledge bases outside the vault — where each one is and how it is organised |
 | `attachments/` | Images and binaries for this project |
 

@@ -83,7 +83,7 @@ describe("health", () => {
     const p = project({
       issues: [
         issue({ severity: "warn", kind: "missing-file", target: "README.md" }),
-        issue({ severity: "warn", kind: "misfiled-deliverable", target: "T-0042-x.md" }),
+        issue({ severity: "warn", kind: "loose-task-note", target: "T-0042-x.md" }),
         issue({ severity: "info", kind: "missing-folder", target: "mindmaps/" }),
       ],
     });
@@ -96,9 +96,9 @@ describe("health", () => {
 });
 
 describe("issueLabel", () => {
-  it("says what to do about a misfiled deliverable", () => {
-    expect(issueLabel(issue({ kind: "misfiled-deliverable", target: "T-0042-x.md" }))).toBe(
-      "T-0042-x.md belongs in deliverables/",
+  it("says what to do about a task note left loose at the project root", () => {
+    expect(issueLabel(issue({ kind: "loose-task-note", target: "T-0042-x.md" }))).toBe(
+      "T-0042-x.md is loose at the project root",
     );
   });
 

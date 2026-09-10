@@ -315,6 +315,7 @@ pub fn run() {
             commands::create_vault_project,
             commands::list_vault_projects,
             commands::list_backlog_items,
+            commands::create_backlog_item,
             commands::archive_vault_project,
             commands::restore_vault_project,
             commands::set_vault_project_repos,

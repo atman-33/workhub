@@ -18,23 +18,40 @@ argument-hint: "<task-id>"
 3. **Write human-readable deliverables** where they belong:
    - Knowledge gained (research, gotchas, how-tos) → a note under
      `<vault>/knowledge/`, added to `knowledge/_index.md`.
-   - **The task names a backlog item** (`backlog: B-NNN` in its frontmatter)
-     → inside that item, in `projects/<project>/backlog/`:
+   - **Project outcomes → the task's backlog item**, in
+     `projects/<project>/backlog/`. `task-start` has already settled which
+     item that is; if `backlog` is somehow still empty, settle it now the same
+     way rather than inventing a home for the note.
      - If the item is still a single note, promote it to a folder first: make
        `B-NNN-<slug>/` and move the note into it **under its existing
        filename**, so every `[[B-NNN-<slug>]]` written so far still resolves.
      - Write the deliverable as `NNN-<task-id>-<title>.md` in that folder,
        numbering in tens after the highest number already there (`010`,
-       `020`, …). Non-Markdown output (a test report, an exported image)
-       goes in the same folder, flat — no sub-folders.
+       `020`, …). Never renumber what is already there: the tens exist so a
+       note that belongs in between can be `015`. Non-Markdown output (a test
+       report, an exported image) goes in the same folder, flat — no
+       sub-folders.
+     - If you are moving a note that **already existed** under another name,
+       add its old basename to its frontmatter as an alias:
+
+       ```yaml
+       aliases:
+         - <the name it had before>
+       ```
+
+       The `NNN-` prefix changes the basename, so every `[[old title]]` in the
+       vault stops resolving — including ones in archived tasks, which you will
+       not find by searching and should not be rewriting. An alias fixes all of
+       them without editing a single reference.
      - Append one dated line to the entry note's `## Status`, newest first,
        and list the new note under its `## Notes`. This is the only thing
        that tells a later reader which file is current, since the number
        prefix records creation order and nothing else.
      - Do **not** add the task to the item's frontmatter. The link runs one
        way — the task names the item, never the reverse.
-   - **The task names no item** → a note under
-     `projects/<project>/deliverables/`, as before.
+   - **A task with no `project`** is vault housekeeping: it has no item and no
+     project folder, so its outcome belongs in `knowledge/` or stays in the
+     raw log.
    - Keep these polished and short; link to the raw log with a wikilink
      only if the detail matters.
 4. **Append to the task's `## Results` section** (Edit tool): a 2-4 line

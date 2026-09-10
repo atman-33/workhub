@@ -61,10 +61,42 @@ argument-hint: "<task-id>"
      note's `## Promoted rules` as an axis. Say which you chose. An answer
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
-3. **Load the backlog item, when the task names one.** A task's `backlog`
-   frontmatter key is `B-NNN` in `projects/<project>/backlog/`. Read that
-   item's entry note — `<id>-<slug>.md`, or the note of the same name inside
-   `<id>-<slug>/` once the item has grown into a folder — before starting:
+3. **Settle the backlog item, then load it.** A task's `backlog` frontmatter
+   key is `B-NNN` in `projects/<project>/backlog/`. It is where everything
+   this task produces will go, so it has to be decided before the work starts,
+   not after.
+
+   **When it is empty and the task has a `project`, choose one yourself.** An
+   empty value means "not chosen yet" — the board never blocks a save, because
+   that would ruin quick capture — it never means "no item needed". Do not ask
+   the owner; everything the decision needs is in the vault:
+
+   - List the project's items and compare each one's `## What` against this
+     task's `## Description`.
+   - **Start a new item only when the task overlaps none of them.** If it
+     overlaps at all, use that one. The costs are not symmetric: a note filed
+     under the wrong item is one move to fix, while a duplicate item splits a
+     subject in two and the next reader cannot see that it happened. The one
+     exception is a project with no items at all — nothing to compare against,
+     so start one.
+   - Write the answer back onto the task so the judgement is made once:
+
+     ```bash
+     node "C:/Users/gpbjk/.claude/plugins/cache/workhub-marketplace/workhub/0.31.0/scripts/task-cli.mjs" update <task-id> --backlog B-NNN
+     ```
+
+     A new item is created from the app's task editor, or by copying
+     `templates/project/backlog/B-000-example.md` to
+     `projects/<project>/backlog/B-NNN-<slug>.md` and filling it in.
+   - Say which item you chose and why, in your first message. If the owner
+     disagrees, that is the cheapest moment to correct it.
+
+   Two tasks keep no item: one with no `project` (vault housekeeping — its
+   output goes to `_ai/logs/` or `knowledge/`), and a recurring task, which is
+   a habit rather than a unit of work and leaves nothing durable behind.
+
+   **Then read the item's entry note** — `<id>-<slug>.md`, or the note of the
+   same name inside `<id>-<slug>/` once the item has grown into a folder:
 
    - `## Status` is the item's dated log. It says where the work stands and
      which of the numbered notes beside it is current, which a file listing
@@ -75,9 +107,8 @@ argument-hint: "<task-id>"
      and past task outputs. Read the ones the entry note points at; do not
      read the folder whole.
 
-   This is the point of the item folder: the context a previous session left
-   is one directory away instead of scattered across the project. A task with
-   no `backlog` key stands alone — skip this step.
+   This is the point of the item: the context a previous session left is one
+   directory away instead of scattered across the project.
 
 4. **Resolve the target repository through the project.** The task's
    `project` key names a vault project (`projects/<slug>/`), not a

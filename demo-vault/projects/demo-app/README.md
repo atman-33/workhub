@@ -36,7 +36,6 @@ vault. Nothing in this folder describes a real product — see
 | [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
 | `backlog/` | One note or folder per unit of work — its spec, its research, its task outputs. See the Base view below |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions |
-| `deliverables/` | Task deliverable notes (`T-XXXX-…`) for tasks belonging to no item |
 | `schedules/` | Date plans, read and written by the Schedule tab |
 | `mindmaps/` | Idea maps, read and written by the Mindmap tab |
 | `attachments/` | Images and binaries for this project |

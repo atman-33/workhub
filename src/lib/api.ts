@@ -135,6 +135,9 @@ export const api = {
    * Empty rather than an error when the project has no `backlog/` folder. */
   listBacklogItems: (vaultPath: string, slug: string) =>
     invoke<BacklogItem[]>("list_backlog_items", { vaultPath, slug }),
+  /** Creates a backlog item in the project from a title and returns it. */
+  createBacklogItem: (vaultPath: string, slug: string, title: string) =>
+    invoke<BacklogItem>("create_backlog_item", { vaultPath, slug, title }),
   /** Moves the project to `archive/projects/<slug>/`; returns the new path.
    * There is no delete — archiving is the only removal, and it is reversible
    * with `restoreVaultProject`. */

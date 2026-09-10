@@ -38,6 +38,12 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+      # A plugin cache is keyed by version, so a plugin change that keeps the
+      # version never reaches an installed copy. Prose has not been enough:
+      # see scripts/check-plugin-versions.mjs.
+      - name: Plugin versions
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-plugin-versions.mjs origin/${{ github.base_ref }}
       - name: Test (frontend)
         run: npm test
       - name: Test (backend)
