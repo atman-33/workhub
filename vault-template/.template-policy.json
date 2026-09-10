@@ -17,5 +17,8 @@
     ".claude/settings.json",
     "projects/_index.md",
     "archive/_index.md"
+  ],
+  "project_sync": [
+    "backlog/_backlog.base"
   ]
 }

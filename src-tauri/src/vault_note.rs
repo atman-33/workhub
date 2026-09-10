@@ -334,6 +334,25 @@ pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// Fills the project scaffold's placeholders for one project.
+///
+/// `<Project name>` becomes `name` (the slug stands in when it is blank),
+/// `<project-slug>` becomes `slug`, and `{{DATE}}` becomes today. Shared by
+/// every path that renders scaffold content — whole-project creation,
+/// single-file backfill, and the template sync of per-project copies
+/// (`tasks::project_copies`) — so the three cannot drift apart. That last one
+/// compares its output against what is on disk, which only works while every
+/// renderer produces the same bytes.
+pub fn render_project_scaffold(text: &str, slug: &str, name: &str) -> String {
+    let display_name = match name.trim() {
+        "" => slug,
+        n => n,
+    };
+    text.replace("<Project name>", display_name)
+        .replace("<project-slug>", slug)
+        .replace("{{DATE}}", &today())
+}
+
 /// Creates `projects/<slug>/` from the embedded project scaffold (T-0178).
 ///
 /// The picker above lists folders under `projects/`, and until this existed a
@@ -367,12 +386,6 @@ pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String
     let template = crate::tasks::project_template()
         .ok_or_else(|| "the project template is missing from this build".to_string())?;
     let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
-    let display_name = match name.trim() {
-        "" => slug,
-        n => n,
-    };
-    let now = today();
-
     let mut files = Vec::new();
     walk_project_template(template, &mut files);
     for file in files {
@@ -390,10 +403,7 @@ pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String
         }
         match std::str::from_utf8(file.contents()) {
             Ok(text) => {
-                let rendered = text
-                    .replace("<Project name>", display_name)
-                    .replace("<project-slug>", slug)
-                    .replace("{{DATE}}", &now);
+                let rendered = render_project_scaffold(text, slug, name);
                 fs::write(&dst, rendered).map_err(|e| e.to_string())?;
             }
             // Every scaffold file is text today; a future binary one must be
@@ -438,14 +448,7 @@ pub fn ensure_scaffold_file(
         .ok_or_else(|| format!("'{rel}' is not part of the project template"))?;
     let text = std::str::from_utf8(file.contents())
         .map_err(|_| format!("'{rel}' is not a text template"))?;
-    let display_name = match name.trim() {
-        "" => slug,
-        n => n,
-    };
-    let rendered = text
-        .replace("<Project name>", display_name)
-        .replace("<project-slug>", slug)
-        .replace("{{DATE}}", &today());
+    let rendered = render_project_scaffold(text, slug, name);
     if let Some(parent) = dst.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -453,7 +456,10 @@ pub fn ensure_scaffold_file(
     Ok(dst)
 }
 
-fn walk_project_template<'a>(dir: &'a Dir<'a>, out: &mut Vec<&'a include_dir::File<'a>>) {
+pub(crate) fn walk_project_template<'a>(
+    dir: &'a Dir<'a>,
+    out: &mut Vec<&'a include_dir::File<'a>>,
+) {
     for file in dir.files() {
         out.push(file);
     }
