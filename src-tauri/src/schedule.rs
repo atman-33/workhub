@@ -545,6 +545,23 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         fs::remove_dir_all(&vault).ok();
     }
 
+    /// The backlog Base filters on `project == "<slug>"`, which only works
+    /// because the scaffold substitutes the slug. A Base that kept the
+    /// placeholder — or the old `file.inFolder("backlog")`, which matches from
+    /// the vault root and so never matched at all — renders zero rows in every
+    /// project, silently.
+    #[test]
+    fn create_project_renders_the_slug_into_the_backlog_base() {
+        let vault = temp_vault("project-base");
+        create_project(&vault, "demo", "Demo project").unwrap();
+
+        let base = fs::read_to_string(vault.join("projects/demo/backlog/_backlog.base")).unwrap();
+        assert!(base.contains(r#"project == "demo""#), "base: {base}");
+        assert!(!base.contains("<project-slug>"), "base: {base}");
+        assert!(!base.contains("inFolder"), "base: {base}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
     #[test]
     fn create_project_defaults_the_display_name_to_the_slug() {
         let vault = temp_vault("project-noname");
