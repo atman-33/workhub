@@ -217,6 +217,8 @@ export const api = {
     invoke<DocsRootStatus[]>("update_docs_root", { id, name, path }),
   /** Opens a non-Markdown file in the OS default app. */
   docsOpenExternal: (path: string) => invoke<void>("docs_open_external", { path }),
+  /** Shows a file or folder in Explorer, selected in its parent. */
+  docsReveal: (path: string) => invoke<void>("docs_reveal", { path }),
   /** One directory only — the tree calls again when a folder is opened. */
   docsListDir: (path: string) => invoke<DocsEntry[]>("docs_list_dir", { path }),
   docsReadFile: (path: string) => invoke<string>("docs_read_file", { path }),

@@ -207,7 +207,7 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **HTML written inside a document renders** — \`<details>\`, \`<kbd>\`, \`<img width="300">\`, \`<br>\` and the like — after being cleaned to GitHub's rules, so scripts and event handlers in a shared note never run.
 - **HTML files preview as a page**, in a sandboxed frame with **scripts switched off**. Relative images and stylesheets are loaded; nothing is fetched from the web. A page that needs its scripts (an interactive report) will look incomplete here — open it in the browser instead.
 - **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` or \`.html\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
-- **Right-click a file** for **Open with default app** and **Show in Explorer** — the way to see a previewable file in the browser or your own editor. The same "open with default app" button sits in the preview header.
+- **Right-click a file or folder** for **Open with default app** (files only — the way to see a previewable file in the browser or your own editor), **Show in Explorer** (selects it in its folder) and **Copy path** (the absolute path, backslashes and all). The preview header carries the first two as buttons.
 - **Editing is not offered.** The tab exists to stay out of a folder other people are working in.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)

@@ -1069,6 +1069,17 @@ pub async fn docs_open_external(path: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Shows a file or folder inside a registered root in the OS file manager,
+/// selected in its parent folder.
+#[tauri::command]
+pub async fn docs_reveal(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_reveal(&storage::load().settings, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Lists one directory inside a registered root. Never recurses — the tree
 /// calls again when a folder is opened, so a streamed share is only ever
 /// touched where the user is actually looking.

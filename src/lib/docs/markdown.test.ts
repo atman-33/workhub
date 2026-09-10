@@ -5,6 +5,7 @@ import {
   isExternalSrc,
   normalizeSlashPath,
   resolveDocRelative,
+  toWindowsPath,
 } from "./markdown";
 
 describe("expandWikiEmbeds", () => {
@@ -118,5 +119,17 @@ describe("dirOf", () => {
   it("returns the containing folder", () => {
     expect(dirOf("C:/a/b/c.md")).toBe("C:/a/b");
     expect(dirOf("C:\\a\\b\\c.md")).toBe("C:/a/b");
+  });
+});
+
+describe("toWindowsPath", () => {
+  it("writes drive and UNC paths with backslashes", () => {
+    expect(toWindowsPath("C:/docs/a b/note.md")).toBe(String.raw`C:\docs\a b\note.md`);
+    expect(toWindowsPath("//server/share/docs")).toBe(String.raw`\\server\share\docs`);
+  });
+
+  it("leaves anything else as it is", () => {
+    expect(toWindowsPath("/home/me/docs")).toBe("/home/me/docs");
+    expect(toWindowsPath("relative/a.md")).toBe("relative/a.md");
   });
 });

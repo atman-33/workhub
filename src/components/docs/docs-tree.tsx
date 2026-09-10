@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
   File,
   FileCode,
@@ -9,16 +10,26 @@ import {
   Folder,
   FolderOpen,
 } from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { toWindowsPath } from "@/lib/docs/markdown";
 import { cn } from "@/lib/utils";
 import type { DocsEntry } from "@/types";
+
+/** What a tree row's context menu can do. Errors are reported by the tree. */
+interface EntryActions {
+  openExternal: (entry: DocsEntry) => void;
+  reveal: (entry: DocsEntry) => void;
+  copyPath: (entry: DocsEntry) => void;
+}
 
 /** What one folder's listing is doing, keyed by that folder's path. */
 type DirState =
@@ -103,10 +114,14 @@ export function DocsTree({
     setOpen((prev) => ({ ...prev, [path]: !prev[path] }));
   }, []);
 
-  const openExternal = useCallback(
-    (entry: DocsEntry) => {
-      void api.docsOpenExternal(entry.path).catch((e) => onError(String(e)));
-    },
+  const actions = useMemo<EntryActions>(
+    () => ({
+      openExternal: (entry) =>
+        void api.docsOpenExternal(entry.path).catch((e) => onError(String(e))),
+      reveal: (entry) => void api.docsReveal(entry.path).catch((e) => onError(String(e))),
+      copyPath: (entry) =>
+        void writeText(toWindowsPath(entry.path)).catch((e) => onError(String(e))),
+    }),
     [onError],
   );
 
@@ -118,9 +133,9 @@ export function DocsTree({
       }
       // Everything else is the share's own material — a PDF, a spreadsheet,
       // an image. The tab cannot render it, so the OS gets it.
-      openExternal(entry);
+      actions.openExternal(entry);
     },
-    [onSelect, openExternal],
+    [onSelect, actions],
   );
 
   if (!rootPath) return null;
@@ -135,7 +150,7 @@ export function DocsTree({
         ensureLoaded={ensureLoaded}
         onToggle={toggle}
         onActivate={activate}
-        onOpenExternal={openExternal}
+        actions={actions}
         selected={selected}
         filter={filter.trim().toLowerCase()}
         refreshToken={refreshToken}
@@ -152,7 +167,7 @@ function DirListing({
   ensureLoaded,
   onToggle,
   onActivate,
-  onOpenExternal,
+  actions,
   selected,
   filter,
   refreshToken,
@@ -164,7 +179,7 @@ function DirListing({
   ensureLoaded: (path: string, token: number) => void;
   onToggle: (path: string) => void;
   onActivate: (entry: DocsEntry) => void;
-  onOpenExternal: (entry: DocsEntry) => void;
+  actions: EntryActions;
   selected: string;
   filter: string;
   refreshToken: number;
@@ -213,24 +228,29 @@ function DirListing({
       {entries.map((entry) =>
         entry.is_dir ? (
           <div key={entry.path}>
-            <button
-              type="button"
-              onClick={() => onToggle(entry.path)}
-              style={indent}
-              className="flex w-full items-center gap-1 py-1 pr-2 text-left hover:bg-muted/50"
-            >
-              {open[entry.path] ? (
-                <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
-              )}
-              {open[entry.path] ? (
-                <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <span className="truncate">{entry.name}</span>
-            </button>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onToggle(entry.path)}
+                  style={indent}
+                  className="flex w-full items-center gap-1 py-1 pr-2 text-left hover:bg-muted/50"
+                >
+                  {open[entry.path] ? (
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                  )}
+                  {open[entry.path] ? (
+                    <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="truncate">{entry.name}</span>
+                </button>
+              </ContextMenuTrigger>
+              <EntryMenu entry={entry} actions={actions} />
+            </ContextMenu>
             {open[entry.path] && (
               <DirListing
                 path={entry.path}
@@ -240,7 +260,7 @@ function DirListing({
                 ensureLoaded={ensureLoaded}
                 onToggle={onToggle}
                 onActivate={onActivate}
-                onOpenExternal={onOpenExternal}
+                actions={actions}
                 selected={selected}
                 filter={filter}
                 refreshToken={refreshToken}
@@ -277,23 +297,45 @@ function DirListing({
                 </button>
               </ContextMenuTrigger>
             </Hint>
-            {/* The preview is the default, not the only way in: an HTML report
-                that needs its scripts, or a note someone wants in their own
-                editor, still goes to the OS from here (T-0271). */}
-            <ContextMenuContent>
-              <ContextMenuItem onSelect={() => onOpenExternal(entry)}>
-                <ExternalLink />
-                Open with default app
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => void api.openExplorer(entry.path)}>
-                <FolderOpen />
-                Show in Explorer
-              </ContextMenuItem>
-            </ContextMenuContent>
+            <EntryMenu entry={entry} actions={actions} />
           </ContextMenu>
         ),
       )}
     </>
+  );
+}
+
+/**
+ * A row's right-click menu (T-0271).
+ *
+ * Ordered the way file managers order it: opening first, then showing where
+ * it lives, then — after a separator — copying, which does nothing visible.
+ * A folder has no "open with default app": expanding it is what a click on it
+ * already does, and the backend refuses to hand a folder to the OS anyway.
+ *
+ * The preview is the default way into a file, not the only one: an HTML
+ * report that needs its scripts, or a note someone wants in their own editor,
+ * still goes to the OS from here.
+ */
+function EntryMenu({ entry, actions }: { entry: DocsEntry; actions: EntryActions }) {
+  return (
+    <ContextMenuContent>
+      {!entry.is_dir && (
+        <ContextMenuItem onSelect={() => actions.openExternal(entry)}>
+          <ExternalLink />
+          Open with default app
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem onSelect={() => actions.reveal(entry)}>
+        <FolderOpen />
+        Show in Explorer
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={() => actions.copyPath(entry)}>
+        <Copy />
+        Copy path
+      </ContextMenuItem>
+    </ContextMenuContent>
   );
 }
 

@@ -315,6 +315,16 @@ pub fn guarded_open_external(settings: &Settings, path: &str) -> Result<(), Stri
     tauri_plugin_opener::open_path(&file, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Shows a file or folder in the OS file manager, selected in its parent.
+///
+/// `explorer <path>` is not this: handed a file, Explorer *opens* it with the
+/// associated app, which is what "Open with default app" already does. The
+/// opener plugin's reveal passes `/select` properly.
+pub fn guarded_reveal(settings: &Settings, path: &str) -> Result<(), String> {
+    let target = resolve_within_roots(path, &allowed_roots(settings))?;
+    tauri_plugin_opener::reveal_item_in_dir(&target).map_err(|e| e.to_string())
+}
+
 pub fn guarded_read_asset(settings: &Settings, path: &str) -> Result<String, String> {
     let file = resolve_within_roots(path, &allowed_roots(settings))?;
     with_timeout(move || read_asset(&file))

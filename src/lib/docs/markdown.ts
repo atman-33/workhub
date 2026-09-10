@@ -70,6 +70,16 @@ function mapOutsideCode(markdown: string, fn: (text: string) => string): string 
   return out.join("");
 }
 
+/**
+ * A tree path as Windows writes it — `C:\docs\a.md`, `\\server\share\a.md` —
+ * which is what "Copy path" should put on the clipboard: it is going to be
+ * pasted into Explorer, a terminal or a chat, not back into this tab. A path
+ * that is neither a drive path nor UNC is returned as it is.
+ */
+export function toWindowsPath(path: string): string {
+  return /^([a-zA-Z]:\/|\/\/)/.test(path) ? path.replace(/\//g, "\\") : path;
+}
+
 /** The directory a document lives in, forward slashes, no trailing slash. */
 export function dirOf(filePath: string): string {
   const norm = filePath.replace(/\\/g, "/");

@@ -126,7 +126,7 @@ export function DocsPreview({ path, refreshToken, onError }: Props) {
             size="icon-sm"
             variant="ghost"
             aria-label="Show in Explorer"
-            onClick={() => void api.openExplorer(path)}
+            onClick={() => void api.docsReveal(path).catch((e) => onError(String(e)))}
           >
             <FolderOpen />
           </Button>
