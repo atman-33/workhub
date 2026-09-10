@@ -11,6 +11,24 @@ interface Props {
 }
 
 /**
+ * Scrolls the frame to the element a `#fragment` names, the way the browser
+ * would: by `id`, then by `<a name>`, with an empty fragment or `#top` meaning
+ * the top of the page.
+ */
+function scrollToFragment(doc: Document, fragment: string) {
+  let id = fragment;
+  try {
+    id = decodeURIComponent(fragment);
+  } catch {
+    // A stray `%` — look the fragment up as written.
+  }
+  const target =
+    doc.getElementById(id) ?? doc.getElementsByName(id)[0] ?? null;
+  if (target) target.scrollIntoView();
+  else if (id === "" || id.toLowerCase() === "top") doc.defaultView?.scrollTo(0, 0);
+}
+
+/**
  * Shows an HTML file from the share as the page it is, in a sandboxed frame.
  *
  * The sandbox is `allow-same-origin` and nothing else, and that combination is
@@ -46,18 +64,24 @@ export function HtmlPreview({ path, content }: Props) {
     };
   }, [path, content]);
 
-  // Links behave as they do in the Markdown preview: an external one opens in
-  // the browser, never inside the frame. An in-page `#anchor` is left to the
-  // frame so a table of contents still scrolls.
+  // No link is ever allowed to navigate the frame. An external one opens in
+  // the browser, as in the Markdown preview; an in-page `#anchor` is scrolled
+  // to by hand; anything else does nothing.
+  //
+  // The anchor case cannot be left to the browser: a srcdoc document takes its
+  // base URL from the parent, so `#bottom` resolves to the *app's* URL plus a
+  // fragment. That is a different document, the frame navigates to it, and
+  // the app's own index.html loads with scripts off — its boot spinner then
+  // turns forever inside the preview.
   const onLoad = useCallback((e: SyntheticEvent<HTMLIFrameElement>) => {
     const doc = e.currentTarget.contentDocument;
     doc?.addEventListener("click", (event) => {
-      const anchor = (event.target as Element | null)?.closest?.("a[href]");
+      const anchor = (event.target as Element | null)?.closest?.("a[href], area[href]");
       if (!anchor) return;
-      const href = anchor.getAttribute("href") ?? "";
-      if (href.startsWith("#")) return;
       event.preventDefault();
-      if (/^(https?:|mailto:)/i.test(href)) void openUrl(href);
+      const href = anchor.getAttribute("href") ?? "";
+      if (href.startsWith("#")) scrollToFragment(doc, href.slice(1));
+      else if (/^(https?:|mailto:)/i.test(href)) void openUrl(href);
     });
   }, []);
 

@@ -82,8 +82,22 @@ pub struct DocsRootStatus {
 
 /// Absolute path with forward slashes, so a path compares equal regardless of
 /// which side produced it.
+///
+/// The Win32 verbatim prefix is dropped on the way: `fs::canonicalize` (which
+/// the guard runs on every path) returns `\\?\G:\...` and `\\?\UNC\server\...`,
+/// and every entry listed under such a directory inherits it. Left in, it
+/// reached the preview header and "Copy path", and the frontend's path
+/// helpers read `//?/` as a UNC server named `?`.
 fn norm(p: &Path) -> String {
-    p.to_string_lossy().replace('\\', "/")
+    let raw = p.to_string_lossy();
+    let plain = if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        raw.into_owned()
+    };
+    plain.replace('\\', "/")
 }
 
 fn mtime_secs(p: &Path) -> u64 {
@@ -375,6 +389,16 @@ mod tests {
             name: String::new(),
             path: path.into(),
         }
+    }
+
+    #[test]
+    fn norm_drops_the_verbatim_prefix() {
+        assert_eq!(norm(Path::new(r"\\?\G:\docs\a.md")), "G:/docs/a.md");
+        assert_eq!(
+            norm(Path::new(r"\\?\UNC\server\share\a.md")),
+            "//server/share/a.md"
+        );
+        assert_eq!(norm(Path::new(r"C:\docs\a.md")), "C:/docs/a.md");
     }
 
     #[test]
