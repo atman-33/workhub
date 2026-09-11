@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  basename,
   dirOf,
   expandWikiEmbeds,
   isExternalSrc,
@@ -131,5 +132,17 @@ describe("toWindowsPath", () => {
   it("leaves anything else as it is", () => {
     expect(toWindowsPath("/home/me/docs")).toBe("/home/me/docs");
     expect(toWindowsPath("relative/a.md")).toBe("relative/a.md");
+  });
+});
+
+describe("basename", () => {
+  it("returns the file name from either slash style", () => {
+    expect(basename("G:/share/notes/設計.md")).toBe("設計.md");
+    expect(basename("//server/share/a.html")).toBe("a.html");
+    expect(basename("C:\\docs\\b.md")).toBe("b.md");
+  });
+
+  it("ignores a trailing slash", () => {
+    expect(basename("G:/share/folder/")).toBe("folder");
   });
 });

@@ -80,6 +80,12 @@ export function toWindowsPath(path: string): string {
   return /^([a-zA-Z]:\/|\/\/)/.test(path) ? path.replace(/\//g, "\\") : path;
 }
 
+/** A path's last segment — the file name, extension included. */
+export function basename(filePath: string): string {
+  const norm = filePath.replace(/\\/g, "/").replace(/\/+$/, "");
+  return norm.slice(norm.lastIndexOf("/") + 1);
+}
+
 /** The directory a document lives in, forward slashes, no trailing slash. */
 export function dirOf(filePath: string): string {
   const norm = filePath.replace(/\\/g, "/");

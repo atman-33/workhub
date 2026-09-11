@@ -4,11 +4,12 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { calloutKind, colonBlocksToCallouts, rehypeCallouts } from "@/lib/callouts";
 import { cn } from "@/lib/utils";
+import type { DocsFigure } from "@/types";
 import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
 
 /** Collect the plain text of a React node tree (for copying a code block). */
@@ -93,6 +94,46 @@ function removeMermaidScratch(id: string) {
 }
 
 /**
+ * Wraps a figure (a diagram or an image) with the way out of the pane it is
+ * squeezed into (T-0279): a button on hover, and a double-click, that open it
+ * in a viewer window of its own. Without `onOpen` the figure is returned as
+ * is, which is what the task previews get.
+ *
+ * The wrapper is always a `<span>`, since an image usually sits inside a
+ * paragraph, where a `<div>` is not allowed. `inline` sizes it to the figure
+ * (inline-block) so the button sits on the image's corner; without it the
+ * wrapper is a block.
+ */
+function FigureFrame({
+  onOpen,
+  inline,
+  children,
+}: {
+  onOpen?: () => void;
+  inline?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!onOpen) return <>{children}</>;
+  return (
+    <span
+      className={cn("group/figure relative", inline ? "inline-block max-w-full" : "block")}
+      onDoubleClick={onOpen}
+    >
+      {children}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Open in a window"
+        title="Open in a window (or double-click)"
+        className="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/figure:opacity-100"
+      >
+        <Maximize2Icon className="size-3" />
+      </button>
+    </span>
+  );
+}
+
+/**
  * Renders a ```mermaid fence as a diagram.
  *
  * Mermaid is loaded with a dynamic `import()` the first time a document
@@ -101,7 +142,13 @@ function removeMermaidScratch(id: string) {
  * A diagram that fails to parse falls back to its source: a broken chart in
  * someone else's document must not blank out the page around it.
  */
-function MermaidBlock({ code }: { code: string }) {
+function MermaidBlock({
+  code,
+  onOpenFigure,
+}: {
+  code: string;
+  onOpenFigure?: (figure: DocsFigure) => void;
+}) {
   const [svg, setSvg] = React.useState("");
   const [failed, setFailed] = React.useState(false);
   const id = `mermaid-${React.useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -130,12 +177,97 @@ function MermaidBlock({ code }: { code: string }) {
     return <div className="my-2 text-xs text-muted-foreground">Rendering diagram…</div>;
   }
   return (
-    <div
-      className="my-3 overflow-x-auto rounded-md border bg-muted/20 p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
-      // Mermaid's own output, produced with securityLevel "strict" — it strips
-      // script tags and event handlers out of the diagram source.
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <FigureFrame
+      onOpen={
+        onOpenFigure &&
+        (() => onOpenFigure({ type: "svg", content: svg, title: "Mermaid diagram" }))
+      }
+    >
+      <div
+        className="my-3 overflow-x-auto rounded-md border bg-muted/20 p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+        // Mermaid's own output, produced with securityLevel "strict" — it strips
+        // script tags and event handlers out of the diagram source.
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </FigureFrame>
+  );
+}
+
+/**
+ * Rendered PlantUML diagrams, by source, for the session. A diagram costs a
+ * round trip to the server, and a document re-renders on every refresh and
+ * zoom — the same source always draws the same picture.
+ */
+const plantumlCache = new Map<string, Promise<string>>();
+
+/** An SVG as an `<img>` source. */
+function svgDataUri(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Renders a ```plantuml fence (T-0279) through `render`, which asks a
+ * PlantUML server for the SVG.
+ *
+ * The SVG is shown as an `<img>`, never inlined: it comes from a server, and
+ * an image cannot run the scripts or handlers an SVG document can carry.
+ * When rendering fails — no server set, the server unreachable — the source
+ * is shown as code with the reason under it, the same fallback a broken
+ * mermaid diagram gets.
+ */
+function PlantumlBlock({
+  code,
+  render,
+  onOpenFigure,
+}: {
+  code: string;
+  render: (source: string) => Promise<string>;
+  onOpenFigure?: (figure: DocsFigure) => void;
+}) {
+  const [uri, setUri] = React.useState("");
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    let live = true;
+    setUri("");
+    setError("");
+    let pending = plantumlCache.get(code);
+    if (!pending) {
+      pending = render(code);
+      plantumlCache.set(code, pending);
+      // A failure is not remembered: the server may be back, or set, next time.
+      pending.catch(() => plantumlCache.delete(code));
+    }
+    pending
+      .then((svg) => live && setUri(svgDataUri(svg)))
+      .catch((e) => live && setError(String(e)));
+    return () => {
+      live = false;
+    };
+  }, [code, render]);
+
+  if (error) {
+    return (
+      <div className="my-2">
+        <CodeBlock>{code}</CodeBlock>
+        <p className="-mt-1 text-xs text-muted-foreground">PlantUML not rendered: {error}</p>
+      </div>
+    );
+  }
+  if (!uri) {
+    return <div className="my-2 text-xs text-muted-foreground">Rendering diagram…</div>;
+  }
+  return (
+    <FigureFrame
+      onOpen={
+        onOpenFigure &&
+        (() => onOpenFigure({ type: "image", content: uri, title: "PlantUML diagram" }))
+      }
+    >
+      <div className="my-3 overflow-x-auto rounded-md border bg-white p-3">
+        <img src={uri} alt="PlantUML diagram" className="mx-auto h-auto max-w-full" />
+      </div>
+    </FigureFrame>
   );
 }
 
@@ -150,15 +282,18 @@ function ResolvedImage({
   width,
   height,
   resolveAsset,
+  onOpenFigure,
 }: {
   src: string;
   alt: string;
   width?: number | string;
   height?: number | string;
   resolveAsset: (src: string) => Promise<string | null>;
+  onOpenFigure?: (figure: DocsFigure) => void;
 }) {
   const [resolved, setResolved] = React.useState<string | null>(null);
   const [failed, setFailed] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState(false);
 
   React.useEffect(() => {
     let live = true;
@@ -191,13 +326,31 @@ function ResolvedImage({
     return <span className="text-xs text-muted-foreground">Loading image…</span>;
   }
   return (
-    <img
-      src={resolved}
-      alt={alt}
-      width={width}
-      height={height}
-      className="my-2 h-auto max-w-full rounded"
-    />
+    <FigureFrame
+      inline={!collapsed}
+      onOpen={
+        onOpenFigure &&
+        (() => onOpenFigure({ type: "image", content: resolved, title: alt || src }))
+      }
+    >
+      <img
+        src={resolved}
+        alt={alt}
+        width={width}
+        height={height}
+        className="my-2 h-auto max-w-full rounded"
+        // An image with no width of its own — an SVG saved with
+        // `width="100%"`, as mermaid exports them — sizes itself to its
+        // container, and the inline-block frame sizes itself to the image:
+        // the two resolve to nothing. Such an image gets a block frame, which
+        // is what it had before the frame existed.
+        onLoad={(e) => {
+          if (onOpenFigure && e.currentTarget.getBoundingClientRect().width === 0) {
+            setCollapsed(true);
+          }
+        }}
+      />
+    </FigureFrame>
   );
 }
 
@@ -298,6 +451,17 @@ interface MarkdownProps {
    * `@/lib/callouts`. Off, they read as the plain quotes and text they are.
    */
   callouts?: boolean;
+  /**
+   * Render ```plantuml / ```puml fences as diagrams with this function, which
+   * returns the SVG (T-0279). Off, they stay code blocks.
+   */
+  plantuml?: (source: string) => Promise<string>;
+  /**
+   * Offer to open a diagram or a resolved image in a window of its own
+   * (T-0279) — a hover button and a double-click on the figure. Off, the
+   * figures are plain.
+   */
+  onOpenFigure?: (figure: DocsFigure) => void;
 }
 
 /**
@@ -307,9 +471,10 @@ interface MarkdownProps {
  * syntax highlighting. Single newlines render as hard breaks (remark-breaks)
  * to match how the same files read in Obsidian.
  *
- * `mermaid`, `resolveAsset`, `allowHtml`, `callouts` and `variant` are
- * opt-in: with none set this renders exactly what it always did, so the task
- * previews are unaffected by what the Docs tab needs.
+ * `mermaid`, `plantuml`, `resolveAsset`, `allowHtml`, `callouts`,
+ * `onOpenFigure` and `variant` are opt-in: with none set this renders exactly
+ * what it always did, so the task previews are unaffected by what the Docs tab
+ * needs.
  */
 export function Markdown({
   children,
@@ -319,116 +484,140 @@ export function Markdown({
   mermaid,
   resolveAsset,
   callouts,
+  plantuml,
+  onOpenFigure,
 }: MarkdownProps) {
   const source = React.useMemo(
     () => (callouts ? colonBlocksToCallouts(children) : children),
     [callouts, children],
+  );
+  // Memoised: react-markdown treats each entry as a component type, so a fresh
+  // object on every render would remount every block beneath it — a zoom step
+  // in the Docs tab re-rendered every diagram and re-asked the PlantUML server.
+  const components = React.useMemo<NonNullable<Options["components"]>>(
+    () => ({
+      div({ node: _node, children, ...props }) {
+        // Only `rehypeCallouts` produces these attributes: sanitizing
+        // strips `data-*` from raw HTML, so a document cannot forge one.
+        const data = props as Record<string, unknown>;
+        const type = data["data-callout-type"];
+        if (callouts && typeof type === "string") {
+          const fold = data["data-callout-fold"];
+          return (
+            <CalloutBox
+              kind={calloutKind(type)}
+              type={type}
+              fold={typeof fold === "string" ? fold : undefined}
+              noTitle={"data-callout-notitle" in data}
+              details={"data-callout-details" in data}
+            >
+              {children}
+            </CalloutBox>
+          );
+        }
+        if (callouts && "data-callout-title" in data) {
+          return <CalloutTitle>{children}</CalloutTitle>;
+        }
+        if (callouts && "data-callout-body" in data) {
+          return <CalloutBody>{children}</CalloutBody>;
+        }
+        return <div {...props}>{children}</div>;
+      },
+      a({ href, children, ...props }) {
+        return (
+          <a
+            {...props}
+            href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (href) void openUrl(href);
+            }}
+          >
+            {children}
+          </a>
+        );
+      },
+      pre({ children }) {
+        // The fence's language lives on the <code> element react-markdown
+        // nests inside the <pre>, so it is read from the child.
+        const child = React.Children.toArray(children)[0];
+        const language = React.isValidElement(child)
+          ? ((child.props as { className?: string }).className ?? "")
+          : "";
+        if (mermaid && /\blanguage-mermaid\b/.test(language)) {
+          return (
+            <MermaidBlock
+              code={nodeText(children).replace(/\n$/, "")}
+              onOpenFigure={onOpenFigure}
+            />
+          );
+        }
+        if (plantuml && /\blanguage-(plantuml|puml)\b/.test(language)) {
+          return (
+            <PlantumlBlock
+              code={nodeText(children).replace(/\n$/, "")}
+              render={plantuml}
+              onOpenFigure={onOpenFigure}
+            />
+          );
+        }
+        return <CodeBlock>{children}</CodeBlock>;
+      },
+      img({ src, alt, width, height }) {
+        // `width`/`height` only arrive from raw HTML (`<img width="300">`),
+        // which is the one way a Markdown author has to size an image.
+        const source = typeof src === "string" ? src : "";
+        if (resolveAsset && source) {
+          return (
+            <ResolvedImage
+              src={source}
+              alt={alt ?? ""}
+              width={width}
+              height={height}
+              resolveAsset={resolveAsset}
+              onOpenFigure={onOpenFigure}
+            />
+          );
+        }
+        return (
+          <img
+            src={source}
+            alt={alt ?? ""}
+            width={width}
+            height={height}
+            className="my-2 h-auto max-w-full rounded"
+          />
+        );
+      },
+      code({ className: codeClass, children, ...props }) {
+        // Block code is wrapped by <pre> (handled above); style inline code.
+        const isBlock = /language-/.test(codeClass ?? "");
+        if (isBlock) {
+          return (
+            <code className={codeClass} {...props}>
+              {children}
+            </code>
+          );
+        }
+        return (
+          <code
+            className="rounded bg-muted px-1 py-0.5 text-[0.85em] font-mono"
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      },
+    }),
+    [callouts, mermaid, plantuml, resolveAsset, onOpenFigure],
   );
   return (
     <div className={cn(variant === "document" ? DOCUMENT_STYLE : COMPACT_STYLE, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={rehypePluginsFor(allowHtml, callouts)}
-        components={{
-          div({ node: _node, children, ...props }) {
-            // Only `rehypeCallouts` produces these attributes: sanitizing
-            // strips `data-*` from raw HTML, so a document cannot forge one.
-            const data = props as Record<string, unknown>;
-            const type = data["data-callout-type"];
-            if (callouts && typeof type === "string") {
-              const fold = data["data-callout-fold"];
-              return (
-                <CalloutBox
-                  kind={calloutKind(type)}
-                  type={type}
-                  fold={typeof fold === "string" ? fold : undefined}
-                  noTitle={"data-callout-notitle" in data}
-                  details={"data-callout-details" in data}
-                >
-                  {children}
-                </CalloutBox>
-              );
-            }
-            if (callouts && "data-callout-title" in data) {
-              return <CalloutTitle>{children}</CalloutTitle>;
-            }
-            if (callouts && "data-callout-body" in data) {
-              return <CalloutBody>{children}</CalloutBody>;
-            }
-            return <div {...props}>{children}</div>;
-          },
-          a({ href, children, ...props }) {
-            return (
-              <a
-                {...props}
-                href={href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (href) void openUrl(href);
-                }}
-              >
-                {children}
-              </a>
-            );
-          },
-          pre({ children }) {
-            // The fence's language lives on the <code> element react-markdown
-            // nests inside the <pre>, so it is read from the child.
-            const child = React.Children.toArray(children)[0];
-            const language = React.isValidElement(child)
-              ? ((child.props as { className?: string }).className ?? "")
-              : "";
-            if (mermaid && /\blanguage-mermaid\b/.test(language)) {
-              return <MermaidBlock code={nodeText(children).replace(/\n$/, "")} />;
-            }
-            return <CodeBlock>{children}</CodeBlock>;
-          },
-          img({ src, alt, width, height }) {
-            // `width`/`height` only arrive from raw HTML (`<img width="300">`),
-            // which is the one way a Markdown author has to size an image.
-            const source = typeof src === "string" ? src : "";
-            if (resolveAsset && source) {
-              return (
-                <ResolvedImage
-                  src={source}
-                  alt={alt ?? ""}
-                  width={width}
-                  height={height}
-                  resolveAsset={resolveAsset}
-                />
-              );
-            }
-            return (
-              <img
-                src={source}
-                alt={alt ?? ""}
-                width={width}
-                height={height}
-                className="my-2 h-auto max-w-full rounded"
-              />
-            );
-          },
-          code({ className: codeClass, children, ...props }) {
-            // Block code is wrapped by <pre> (handled above); style inline code.
-            const isBlock = /language-/.test(codeClass ?? "");
-            if (isBlock) {
-              return (
-                <code className={codeClass} {...props}>
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <code
-                className="rounded bg-muted px-1 py-0.5 text-[0.85em] font-mono"
-                {...props}
-              >
-                {children}
-              </code>
-            );
-          },
-        }}
+        components={components}
       >
         {source}
       </ReactMarkdown>

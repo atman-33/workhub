@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, Pencil, Trash2 } from "lucide-react";
+import { FolderPlus, Pencil, Settings2, Trash2 } from "lucide-react";
 import { DocsRootDialog } from "@/components/docs/docs-root-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ interface Props {
   /** Called with the list every command returns, so the view re-renders. */
   onRootsChanged: (roots: DocsRootStatus[]) => void;
   onError: (message: string) => void;
+  /** Opens the tab's own settings (the PlantUML server). */
+  onOpenSettings: () => void;
 }
 
 /**
@@ -31,7 +33,14 @@ interface Props {
  * tab is *for*, and the owner asked to add one where they are looking at it —
  * the same way the Projects tab manages projects.
  */
-export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onError }: Props) {
+export function DocsRootsBar({
+  roots,
+  selectedId,
+  onSelect,
+  onRootsChanged,
+  onError,
+  onOpenSettings,
+}: Props) {
   const [editing, setEditing] = useState<DocsRootStatus | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = roots.find((r) => r.id === selectedId);
@@ -92,6 +101,18 @@ export function DocsRootsBar({ roots, selectedId, onSelect, onRootsChanged, onEr
           onClick={() => setConfirmRemove(true)}
         >
           <Trash2 />
+        </Button>
+      </Hint>
+
+      <Hint label="Docs settings (PlantUML server)">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Docs settings"
+          className="ml-auto"
+          onClick={onOpenSettings}
+        >
+          <Settings2 />
         </Button>
       </Hint>
 

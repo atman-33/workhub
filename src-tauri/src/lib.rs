@@ -5,6 +5,7 @@ mod clips;
 mod commands;
 mod diag;
 mod docs;
+mod docs_viewer;
 mod git;
 mod harness;
 mod herdr;
@@ -17,6 +18,7 @@ mod models;
 mod music;
 mod paste;
 mod persona;
+mod plantuml;
 mod plugins;
 mod quick_capture;
 mod rawkey;
@@ -174,6 +176,7 @@ pub fn run() {
         .manage(tidy::TidyState::default())
         .manage(schedule_edit::ScheduleEditState::default())
         .manage(mindmap_edit::MindmapEditState::default())
+        .manage(docs_viewer::DocsViewerState::default())
         .setup(|app| {
             // Closing the main window used to leave the process running
             // (the hidden quick-capture/voice windows below keep Tauri
@@ -341,6 +344,11 @@ pub fn run() {
             commands::docs_list_dir,
             commands::docs_read_file,
             commands::docs_read_asset,
+            commands::docs_plantuml_server,
+            commands::set_docs_plantuml_server,
+            commands::docs_render_plantuml,
+            commands::open_docs_viewer,
+            commands::docs_viewer_payload,
             commands::list_mindmaps,
             commands::read_mindmap,
             commands::write_mindmap,

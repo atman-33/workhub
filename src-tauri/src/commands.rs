@@ -1115,6 +1115,58 @@ pub async fn docs_read_asset(path: String) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// The PlantUML server the Docs tab renders diagrams with; "" when rendering
+/// is off (the default).
+#[tauri::command]
+pub fn docs_plantuml_server() -> String {
+    storage::load().settings.docs_plantuml_server
+}
+
+/// Sets the PlantUML server. An empty string turns rendering off.
+#[tauri::command]
+pub fn set_docs_plantuml_server(server: String) -> Result<(), String> {
+    let server = server.trim().trim_end_matches('/').to_string();
+    if !server.is_empty() && !server.starts_with("http://") && !server.starts_with("https://") {
+        return Err("the PlantUML server must be an http:// or https:// URL".into());
+    }
+    let mut cfg = storage::load();
+    cfg.settings.docs_plantuml_server = server;
+    storage::save(&cfg)
+}
+
+/// Renders a PlantUML diagram on the configured server and returns the SVG.
+/// Fails without contacting anything when no server is set.
+#[tauri::command]
+pub async fn docs_render_plantuml(source: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plantuml::render(&storage::load().settings.docs_plantuml_server, &source)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Opens a Docs viewer window on `payload` (a document or one figure).
+///
+/// `async` on purpose: building a window from a synchronous command deadlocks
+/// on Windows, and unlike the pre-built helper windows this one is built on
+/// every call.
+#[tauri::command]
+pub async fn open_docs_viewer(
+    app: tauri::AppHandle,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    crate::docs_viewer::open(&app, payload)
+}
+
+/// What the calling Docs viewer window was opened to show.
+#[tauri::command]
+pub fn docs_viewer_payload(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Option<serde_json::Value> {
+    crate::docs_viewer::payload(&app, window.label())
+}
+
 // ---- mindmap notes (T-0188) ---------------------------------------------
 
 /// Lists mindmap notes, optionally narrowed to one project slug (pass an empty

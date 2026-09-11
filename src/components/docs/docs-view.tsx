@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { ChevronsDownUp, RefreshCw, Search } from "lucide-react";
 import { DocsPreview } from "@/components/docs/docs-preview";
 import { DocsRootsBar } from "@/components/docs/docs-roots-bar";
+import { DocsSettingsDialog } from "@/components/docs/docs-settings-dialog";
 import { DocsTree } from "@/components/docs/docs-tree";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -68,6 +70,10 @@ export function DocsView() {
   const [docBusy, setDocBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [minSpinDone, setMinSpinDone] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // The tree / preview split survives a restart (T-0279), like the Repos
+  // tab's panels.
+  const splitLayout = useDefaultLayout({ id: "docs-split", storage: localStorage });
 
   useEffect(() => {
     if (refreshing && minSpinDone && !treeBusy && !docBusy) setRefreshing(false);
@@ -75,9 +81,21 @@ export function DocsView() {
 
   const refresh = useCallback(() => {
     setRefreshToken((n) => n + 1);
+    setError("");
     setRefreshing(true);
     setMinSpinDone(false);
     setTimeout(() => setMinSpinDone(true), MIN_SPIN_MS);
+  }, []);
+
+  // Whether a root is reachable is decided by the backend when the list is
+  // read, so a share that was offline at startup stayed "not reachable" until
+  // the app restarted (T-0279). Re-reading the list is what re-asks.
+  const recheckRoots = useCallback(async () => {
+    try {
+      setRoots(await api.docsRoots());
+    } catch (e) {
+      setError(String(e));
+    }
   }, []);
 
   useEffect(() => {
@@ -101,12 +119,21 @@ export function DocsView() {
     })();
   }, []);
 
-  const selectRoot = useCallback((id: string) => {
-    setRootId(id);
-    setDoc("");
-    remember(LAST_ROOT, id);
-    remember(LAST_DOC, "");
-  }, []);
+  // Picking a folder reads it afresh (T-0279): its reachability, its tree, and
+  // nothing left over from the last attempt. A folder whose read failed once
+  // used to show that failure until the app restarted — its listing was
+  // cached under the same refresh, and the error banner never cleared.
+  const selectRoot = useCallback(
+    (id: string) => {
+      setRootId(id);
+      setDoc("");
+      remember(LAST_ROOT, id);
+      remember(LAST_DOC, "");
+      refresh();
+      void recheckRoots();
+    },
+    [refresh, recheckRoots],
+  );
 
   const onRootsChanged = useCallback(
     (list: DocsRootStatus[]) => {
@@ -135,6 +162,14 @@ export function DocsView() {
         onSelect={selectRoot}
         onRootsChanged={onRootsChanged}
         onError={setError}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      {/* A new server re-renders the open document's diagrams. */}
+      <DocsSettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={refresh}
       />
 
       {error && (
@@ -153,14 +188,31 @@ export function DocsView() {
         </div>
       ) : !selected?.available ? (
         <div className="flex flex-1 items-center justify-center p-6">
-          <p className="max-w-md text-center text-xs leading-relaxed text-muted-foreground">
-            <span className="font-medium">{selected?.path}</span> is not reachable on this PC.
-            Check that the drive is mounted and, if it lives somewhere else now, correct the
-            path with the pencil button above.
-          </p>
+          <div className="flex max-w-md flex-col items-center gap-3">
+            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium">{selected?.path}</span> is not reachable on this PC.
+              Check that the drive is mounted and, if it lives somewhere else now, correct the
+              path with the pencil button above.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setError("");
+                void recheckRoots();
+              }}
+            >
+              <RefreshCw />
+              Try again
+            </Button>
+          </div>
         </div>
       ) : (
-        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
+          {...splitLayout}
+        >
           <ResizablePanel id="tree" defaultSize="28%" minSize="16%" className="min-h-0">
             <div className="flex h-full flex-col">
               <div className="flex items-center gap-1 border-b px-2 py-1.5">

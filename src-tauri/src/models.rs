@@ -243,6 +243,15 @@ pub struct Settings {
     /// stored shape does not have to change for that.
     #[serde(default)]
     pub docs_roots: Vec<DocsRoot>,
+    /// PlantUML server the Docs tab renders ```plantuml fences with
+    /// (T-0279), e.g. `https://www.plantuml.com/plantuml`. Empty — the
+    /// default — leaves the fences as code: rendering sends the diagram's
+    /// source to that server, and a team's documents are not something to
+    /// hand to a third party without being asked. Vault-scoped with
+    /// `docs_roots`, since which server the team's diagrams go to is the
+    /// team's call, not a property of this machine.
+    #[serde(default)]
+    pub docs_plantuml_server: String,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -435,6 +444,7 @@ impl Default for Settings {
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
+            docs_plantuml_server: String::new(),
         }
     }
 }

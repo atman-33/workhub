@@ -204,6 +204,9 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **The pencil button edits one folder** — its name and its path. The path is recorded in the vault, so a PC that clones the vault gets the same folder; if that PC mounts the share elsewhere, correct the path there.
 - **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
+- **PlantUML diagrams render once a server is set.** \`\`\`plantuml\` (or \`\`\`puml\`) blocks are drawn by a PlantUML server, which receives each diagram's source. Until you enter one with the **gear button** on the tab, they stay code and nothing is sent. The public \`https://www.plantuml.com/plantuml\` works; a server your team runs is the better home for a team's documents. The setting is stored in the vault, like the folder list.
+- **Reading a wide document.** The preview header zooms the text (**Ctrl+wheel** too), and its width button drops the reading line length so the document uses the whole pane. Both are remembered. The **window button** opens the whole document in a window of its own, and hovering a diagram or an image shows a button — or double-click it — that opens just that figure in a window where the **wheel zooms around the cursor** and **dragging pans**. The divider between the tree and the preview remembers where you left it.
+- **Picking a folder reads it afresh**, so a share that was offline a moment ago is tried again rather than remembered as broken. A folder that is not reachable offers **Try again** as well.
 - **HTML written inside a document renders** — \`<details>\`, \`<kbd>\`, \`<img width="300">\`, \`<br>\` and the like — after being cleaned to GitHub's rules, so scripts and event handlers in a shared note never run.
 - **Callouts render as coloured boxes** — Obsidian's \`> [!note]\` / \`> [!warning]\` (with a custom title, and \`-\` / \`+\` to fold), NotePM's \`:::note info|warn|alert\` and Zenn's \`:::message\` / \`:::message alert\` / \`:::details Title\`. Click a foldable callout's (or a details block's) title to open or close it. Code blocks are not syntax-highlighted.
 - **HTML files preview as a page**, in a sandboxed frame with **scripts switched off**. Relative images and stylesheets are loaded; nothing is fetched from the web. A page that needs its scripts (an interactive report) will look incomplete here — open it in the browser instead.
@@ -1813,6 +1816,26 @@ export function HelpView() {
                 <span className="font-mono text-xs">![](file.png)</span> form and Obsidian&apos;s{" "}
                 <span className="font-mono text-xs">![[file.png]]</span>. Relative paths resolve against the
                 document.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">PlantUML diagrams render once a server is set.</span>{" "}
+                <span className="font-mono text-xs">```plantuml</span> blocks are drawn by a PlantUML server, which
+                receives each diagram&apos;s source. Until you enter one with the gear button on the tab, they stay
+                code and nothing is sent. The public server works; one your team runs is the better home for a
+                team&apos;s documents. The setting is stored in the vault, like the folder list.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Reading a wide document.</span> The preview header
+                zooms the text (<span className="font-medium text-foreground">Ctrl+wheel</span> too), and its width
+                button lets the document use the whole pane. Both are remembered. The window button opens the
+                whole document in a window of its own; hovering a diagram or an image shows a button — or
+                double-click it — that opens just that figure, where the wheel zooms around the cursor and
+                dragging pans. The divider between the tree and the preview remembers where you left it.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Picking a folder reads it afresh</span>, so a share
+                that was offline a moment ago is tried again rather than remembered as broken. A folder that is
+                not reachable offers <span className="font-medium text-foreground">Try again</span> as well.
               </li>
               <li>
                 <span className="font-medium text-foreground">Everything in the folder is listed</span>, not just

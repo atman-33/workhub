@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.110.0 (2026-09-11)
+
+- **Picking a Docs folder reads it afresh** (T-0279). A folder whose read
+  failed once kept showing the failure until the app restarted: whether a root
+  is reachable was only decided when the list was first read, a failed listing
+  stayed cached under the same refresh, and the error banner never cleared.
+  Selecting a folder now re-checks it, re-reads its tree and clears the
+  banner, and an unreachable folder offers "Try again". A slow listing that
+  answers after a newer one no longer paints over it.
+- **The Docs preview is easier to read in a narrow pane** (T-0279). The header
+  zooms the text (70–200%, Ctrl+wheel too) and switches between the reading
+  width and the full pane; both are remembered, as is the tree / preview
+  split. The whole document can open in a window of its own, and a mermaid
+  diagram or an image — from a hover button or a double-click — opens alone in
+  a window with wheel zoom around the cursor, drag to pan, fit and 100%.
+  Viewer windows are ordinary decorated windows, built per pop-out, so several
+  can sit side by side.
+- **PlantUML in the Docs tab** (T-0279). ```` ```plantuml ```` / ```` ```puml ````
+  blocks render through a PlantUML server set from the tab's new settings
+  button — the public server or one the team runs. It is off until a server is
+  entered, because rendering sends the diagram's source to that server; with
+  none set the block stays code and nothing is sent. The setting is
+  vault-scoped with the folder list. The request is made from the backend with
+  PlantUML's own URL encoding, and the SVG that comes back is shown as an
+  image, so nothing in it can run.
+
 ## 0.109.0 (2026-09-11)
 
 - **The Docs tab draws callouts** (T-0275). Obsidian's `> [!note]` blocks —
