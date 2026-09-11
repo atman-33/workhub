@@ -234,19 +234,41 @@ export function unknownProjects(tasks: Task[], projects: VaultProject[]): Unknow
 }
 
 /**
- * Owning project slug of a note path (`…/projects/<slug>/<kind>/<name>.md`),
+ * The slug a project folder name carries — the TypeScript twin of
+ * `vault_note::parse_project_folder` (T-0278).
+ *
+ * A project folder is `NNNN-<slug>`: a 4-digit zero-padded sort number, a
+ * hyphen, then the slug. The number is a position in the file explorer and
+ * nothing else, so it is never part of the identity the rest of the vault uses
+ * — a task's `project:`, a backlog item's `project:`, a picker's value. A
+ * folder with no such prefix is its own slug, which is the same rule rather
+ * than a separate fallback.
+ */
+export function projectSlugOfFolder(folder: string): string {
+  return /^[0-9]{4}-.+/.test(folder) ? folder.slice(5) : folder;
+}
+
+/**
+ * Owning project slug of a note path (`…/projects/<folder>/<kind>/<name>.md`),
  * or `""` when the path is not under a project.
  *
  * Read back out of the path rather than kept in state because the case it
  * exists for is the note *leaving* the list: once a project is archived its
  * notes are gone from every listing, so the listing can no longer say which
  * project the still-open note belonged to.
+ *
+ * It returns the slug, not the folder name, because that is what every list it
+ * is compared against holds — the backend strips the `NNNN-` prefix before it
+ * reports a project. Returning the raw folder made that comparison fail for
+ * every numbered project, which left the Schedule and Mindmap views clearing
+ * and reopening the same note until React aborted the render (T-0284).
  */
 export function projectOfNotePath(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
   const at = parts.lastIndexOf("projects");
   if (at < 0) return "";
-  return parts[at + 1] ?? "";
+  const folder = parts[at + 1] ?? "";
+  return folder ? projectSlugOfFolder(folder) : "";
 }
 
 /**

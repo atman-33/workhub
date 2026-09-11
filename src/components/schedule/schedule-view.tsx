@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import type { TabFocus } from "@/lib/tab-focus";
-import { projectOfNotePath } from "@/lib/vault-project";
+import { resolveOpenNote } from "@/lib/note-picker";
 import { readViewState, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
@@ -275,17 +275,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
     setSelectedId(null);
   }, [path, loadDoc]);
 
-  // The open note's project may be the one that just left. Judged from the
-  // note's own path rather than from the file list, because switching the
-  // picker to another project also empties the list of it — and that is not a
-  // reason to close what the user is editing. Holding on to the path would
-  // leave the editor writing into `archive/projects/` behind the user's back.
-  useEffect(() => {
-    if (!path || !projectsLoaded) return;
-    const owner = projectOfNotePath(path);
-    if (owner && !projects.includes(owner)) setPath("");
-  }, [path, projects, projectsLoaded]);
-
   // A project folder appearing or disappearing (created here, in the Projects
   // tab, in Obsidian, or by an agent) changes what the picker may offer.
   // Archiving is a *move* to `archive/projects/`, so an archived project drops
@@ -306,14 +295,20 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
     if (projectsLoaded && project && !projects.includes(project)) setProject("");
   }, [projectsLoaded, projects, project]);
 
-  // Open a note automatically: a picker showing files over an empty grid is a
-  // click the user never wants to make. The restored path wins while it is
-  // still in the list; once it is gone, the first note takes over.
+  // The one writer of `path` that reacts to the listings: it keeps the open
+  // note while both still account for it, opens one automatically when they do
+  // not (a picker showing files over an empty grid is a click the user never
+  // wants to make), and lets go of a note whose project has been archived out
+  // from under the editor.
+  //
+  // Deliberately one effect and one rule. Two of them, each judging the same
+  // note its own way, is what made this view clear and reopen the same file
+  // until React aborted the render (T-0284) — see `resolveOpenNote`.
   useEffect(() => {
-    if (!filesLoaded) return;
-    if (path && files.some((f) => f.path === path)) return;
-    setPath(files[0]?.path ?? "");
-  }, [files, filesLoaded, path]);
+    if (!filesLoaded || !projectsLoaded) return;
+    const next = resolveOpenNote({ path, files, projects });
+    if (next !== path) setPath(next);
+  }, [files, filesLoaded, path, projects, projectsLoaded]);
 
   // Remember where the user was. Written on every change rather than on unmount
   // because the view is never unmounted — the tab bar only hides it.
