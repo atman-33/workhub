@@ -13,6 +13,7 @@
 import type { BacklogItem, Task, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 import type { ComboboxOptionDetails } from "@/lib/combobox-options";
 import { parseBody } from "@/lib/task-body";
+import { projectNumberOfFolder } from "@/lib/vault-project";
 
 export interface TaskDraft {
   title: string;
@@ -147,6 +148,27 @@ export function mergeExternalTask(
  *
  * The picker still commits the bare id — this only decides what is drawn and
  * what the search matches, so an item can be found by its title. */
+/** Decoration for the editor's project picker: the `NNNN` sort number of each
+ * project's folder, drawn beside its slug. The number is what the owner's file
+ * explorer sorts by and what the folder is called there, so showing it is how
+ * a slug-only list can be matched against the folders they actually see
+ * (T-0282).
+ *
+ * Like the backlog picker, the field still commits the bare slug — the number
+ * is drawn and searched, never parsed back (T-0219). A project whose folder
+ * carries no number contributes no entry, so it renders undecorated. */
+export function projectOptionDetails(
+  folders: Readonly<Record<string, string>>,
+): ComboboxOptionDetails {
+  const details: ComboboxOptionDetails = {};
+  for (const [slug, folder] of Object.entries(folders)) {
+    const number = projectNumberOfFolder(folder ?? "");
+    if (!number) continue;
+    details[slug] = { label: number };
+  }
+  return details;
+}
+
 export function backlogOptionDetails(
   items: readonly BacklogItem[],
 ): ComboboxOptionDetails {

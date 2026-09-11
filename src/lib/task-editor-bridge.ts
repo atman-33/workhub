@@ -26,6 +26,12 @@ export interface TaskEditorPayload {
   mode: "create" | "edit";
   /** The task being edited; null in create mode. */
   task: Task | null;
-  /** Suggestions for the Project field. */
+  /** Suggestions for the Project field, in the order the picker lists them. */
   knownProjects: string[];
+  /** Folder name of each project in `knownProjects`, keyed by slug — the slug
+   *  with its `NNNN-` sort prefix put back. Display only: the picker draws the
+   *  number so the list can be matched against the folder listing the owner
+   *  sees in Obsidian, and still commits the bare slug (T-0282). A project
+   *  with no entry here simply draws undecorated. */
+  projectFolders?: Record<string, string>;
 }

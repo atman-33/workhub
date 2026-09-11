@@ -262,8 +262,25 @@ export function TasksView({
   // Offering registered repository names here is what produced the "unknown
   // projects" the Projects tab reports — the field was recommending values
   // that the rest of the app then flags as orphans (T-0219).
+  //
+  // Ordered by folder name rather than by slug, so the list reads in the order
+  // the owner arranged their projects in — the `NNNN-` prefix is zero-padded,
+  // so a plain string compare is already number order, and an unnumbered
+  // folder falls wherever its own name does. Sorting by slug instead put the
+  // picker in an order that matched neither Obsidian nor the Projects tab
+  // (T-0282).
   const knownProjects = useMemo(
-    () => vaultProjects.map((p) => p.slug).sort(),
+    () =>
+      [...vaultProjects]
+        .sort((a, b) => a.folder.localeCompare(b.folder))
+        .map((p) => p.slug),
+    [vaultProjects],
+  );
+
+  // Folder name per slug, so the editor's picker can draw each project's sort
+  // number beside it. Display only — the field still commits the slug.
+  const projectFolders = useMemo(
+    () => Object.fromEntries(vaultProjects.map((p) => [p.slug, p.folder])),
     [vaultProjects],
   );
 
@@ -472,11 +489,13 @@ export function TasksView({
   // editor writes (see tasks.rs::start_watcher).
   const openEditor = useCallback(
     (mode: "create" | "edit", task: Task | null) => {
-      void api.openTaskEditor({ mode, task, knownProjects }).catch((e) => {
-        setStatus(`Could not open the task editor — ${e}`);
-      });
+      void api.openTaskEditor({ mode, task, knownProjects, projectFolders }).catch(
+        (e) => {
+          setStatus(`Could not open the task editor — ${e}`);
+        },
+      );
     },
-    [knownProjects],
+    [knownProjects, projectFolders],
   );
 
   if (!config || vaultExists === null) return null;

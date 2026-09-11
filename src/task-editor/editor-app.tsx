@@ -170,6 +170,7 @@ export function EditorApp() {
           mode={payload.mode}
           task={task}
           knownProjects={payload.knownProjects}
+          projectFolders={payload.projectFolders}
           vaultPath={vaultPath}
           error={error}
           onClose={close}

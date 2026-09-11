@@ -4,6 +4,7 @@ import {
   draftFromTask,
   fieldsFromDraft,
   mergeExternalTask,
+  projectOptionDetails,
   type TaskDraft,
 } from "./task-editor-fields";
 import type { BacklogItem, Task } from "@/types";
@@ -131,5 +132,20 @@ describe("backlogOptionDetails", () => {
 
   it("skips an item with nothing to draw", () => {
     expect(backlogOptionDetails([item("B-010", "  ", "")])).toEqual({});
+  });
+});
+
+describe("projectOptionDetails", () => {
+  it("draws each project's sort number beside its slug", () => {
+    expect(
+      projectOptionDetails({ workhub: "0010-workhub", "life-hub": "0020-life-hub" }),
+    ).toEqual({
+      workhub: { label: "0010" },
+      "life-hub": { label: "0020" },
+    });
+  });
+
+  it("skips a project whose folder carries no number", () => {
+    expect(projectOptionDetails({ workhub: "workhub" })).toEqual({});
   });
 });
