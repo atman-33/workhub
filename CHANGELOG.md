@@ -14,6 +14,30 @@
   unchanged and a document cannot forge a callout. Task previews are
   untouched, and code blocks stay unhighlighted on purpose — the weight of a
   highlighter is not worth it in a tab for reading.
+- **The Docs tab reads the HTML a team actually writes** (T-0271). Raw HTML
+  inside Markdown — `<details>`, `<kbd>`, `<img width>`, `<br>` — now renders
+  instead of showing as tag text, sanitized to GitHub's rules first, because
+  the webview holds the Tauri IPC bridge and a `<script>` from a shared folder
+  would run with the app's permissions. HTML files open as a page in a frame
+  with scripts off; relative images and stylesheets are inlined through the
+  backend and a CSP keeps the frame off the network, so an interactive report
+  goes to the browser instead. Documents get a reading layout — a bounded line
+  length, a real heading scale, tables and quotes that stand apart from the
+  prose — where they used to borrow the compact styling sized for task cards.
+- **The Docs tree has a context menu** (T-0271): open with the default app
+  (files), show in Explorer, and copy the path in Windows form. The preview
+  header gained the same "open with default app" button, and the refresh
+  button now spins until the re-read finishes — on a streamed Drive share
+  that can take seconds, and a click that showed nothing looked ignored.
+- **An in-page link in a previewed HTML page no longer hangs the frame**
+  (T-0271). A `#fragment` resolved against the app's own URL, so the frame
+  navigated to workhub's index page with scripts off and sat on its boot
+  spinner forever; the preview now scrolls to the fragment itself. Paths in
+  the header and in Copy path also lost the `\\?\` verbatim prefix.
+- **"Show in Explorer" shows the file instead of opening it**. `explorer
+  <file>` launches the file's associated app, so the Ink capture card and the
+  reveal after a Mindmap or Schedule export all behaved like "Open". Files are
+  now selected in their parent folder; folders open as before.
 
 ## 0.108.0 (2026-09-10)
 
