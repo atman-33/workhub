@@ -65,7 +65,12 @@ const EMPTY_DRAFT: TaskDraft = {
   backlog: "",
   priority: "medium",
   model: "",
-  confirm: false,
+  // Confirm mode is on by default (T-0285): the point of it is to have the
+  // agent give its own read on the request before it starts, which is worth
+  // having on almost every task. Only this new-task draft defaults on — an
+  // existing task file with no `confirm:` key still means off, so the meaning
+  // of every task written before this does not flip.
+  confirm: true,
   worktree: false,
   blocked: false,
   blockedNote: "",
@@ -370,8 +375,9 @@ export function TaskEditorForm({
     update({ model: nextModel });
   }, [update]);
 
-  // Launch-mode toggles (confirm / worktree) only affect AI agent launches, so
-  // they are disabled for "me" tasks, which spawn no agent.
+  // Launch-mode toggles only affect AI agent launches, so they are disabled for
+  // "me" tasks, which spawn no agent. Confirm mode has its own compact control
+  // in the Status/Assignee/Model row (T-0285), so this is the worktree flag's.
   const toggle = (
     label: string,
     description: string,
@@ -448,18 +454,19 @@ export function TaskEditorForm({
   );
 
   // What "Optional details" holds, and therefore when it opens by itself.
-  // The launch toggles and the blocked flag live in here because they are
-  // rarely touched — the first two do nothing at all for a task assigned to
+  // The worktree toggle and the blocked flag live in here because they are
+  // rarely touched — the worktree does nothing at all for a task assigned to
   // "me", and blocking is normally set from the board, which has its own
   // dialog for it. Anything already set still opens the section on sight, so
-  // a blocked task never hides why it is blocked behind a click.
+  // a blocked task never hides why it is blocked behind a click. Confirm mode
+  // used to be here and moved out to the main row (T-0285) — it is set often
+  // enough that hiding it behind a click was the wrong trade.
   const hasOptionalDetails = Boolean(
-    draft.due || draft.tags.trim() || draft.confirm || draft.worktree || draft.blocked,
+    draft.due || draft.tags.trim() || draft.worktree || draft.blocked,
   );
   const optionalSummary = [
     draft.due ? `Due: ${draft.due}` : "",
     draft.tags.trim() ? `Tags: ${draft.tags.trim()}` : "",
-    draft.confirm ? "Confirm" : "",
     draft.worktree ? "Worktree" : "",
     draft.blocked ? `Blocked${draft.blockedNote ? `: ${draft.blockedNote}` : ""}` : "",
   ]
@@ -704,7 +711,13 @@ export function TaskEditorForm({
             </div>,
           )}
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        {/* Confirm mode sits with Status / Assignee / Model rather than in
+            "Optional details" (T-0285): it is on for most tasks and is read
+            at a glance before a launch, which is the opposite of the rarely
+            touched flags the section was built for. Model keeps the widest
+            column — it holds the longest values — and the switch takes only
+            what it needs. */}
+        <div className="grid grid-cols-[1fr_1fr_1.4fr_auto] gap-3">
           {field(
             "Status",
             <Select
@@ -760,6 +773,23 @@ export function TaskEditorForm({
               disabled={draft.assignee === "me"}
               placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
             />,
+          )}
+          {field(
+            "Confirm",
+            <div
+              className="flex h-8 items-center gap-2 rounded-md border px-2.5"
+              data-disabled={draft.assignee === "me" || undefined}
+              title="Agent gives its opinion, drafts a plan, and waits for your approval before executing."
+            >
+              <Switch
+                checked={draft.confirm}
+                onCheckedChange={(v) => update({ confirm: v })}
+                disabled={draft.assignee === "me"}
+              />
+              <span className="text-[11px] text-muted-foreground">
+                {draft.confirm ? "ON" : "OFF"}
+              </span>
+            </div>,
           )}
         </div>
         {/* A backlog item belongs to a project, so the picker only appears
@@ -887,13 +917,6 @@ export function TaskEditorForm({
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {toggle(
-                    "Confirm mode",
-                    "Agent drafts a plan and waits for your approval before executing.",
-                    draft.confirm,
-                    (v) => update({ confirm: v }),
-                    draft.assignee === "me",
-                  )}
                   {toggle(
                     "Git worktree",
                     "Agent works in a dedicated worktree so parallel tasks don't collide.",

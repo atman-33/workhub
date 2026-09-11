@@ -132,11 +132,15 @@ A task's `project` field points at one of them, by short name (a folder under
 
 ![Launching an agent from a task](docs/images/tasks-launch-agent.png)
 
-Worth knowing on the Edit Task dialog: **Confirm mode** makes the agent get its
-plan approved before executing, **Git worktree** gives it a dedicated worktree
-so parallel tasks cannot collide, and **Model** picks the model per task. Two
-more buttons sit beside **Launch agent**: **Copy prompt**, and **Send to
-Claude Desktop** for when you would rather not open a terminal.
+Worth knowing on the Edit Task dialog: **Confirm mode** — on by default, and
+sitting beside **Model** — asks the agent to say what it makes of the request,
+draft a plan and wait for your approval before it implements anything, so a
+better approach than the one you wrote has a chance to surface. **Git
+worktree** gives it a dedicated worktree so parallel tasks cannot collide, and
+**Model** picks the model per task. Two more buttons sit beside **Launch
+agent**: **Copy prompt**, and **Send to Claude Desktop** for when you would
+rather not open a terminal. A copied prompt arrives with one instruction per
+line; Settings → Commands can switch it back to a single line.
 
 ## Features
 

@@ -96,9 +96,14 @@ export interface Settings {
    * commit messages, or other repository artifacts. */
   task_language: string;
   /** Free-form instructions appended to every agent prompt (launch and copy
-   * alike). Empty = nothing appended; whitespace is normalized by the
-   * backend so the prompt survives being quoted into a one-line command. */
+   * alike). Empty = nothing appended; whitespace is normalized by the backend
+   * so the prompt survives being quoted into a one-line command — except in a
+   * multiline copy, which keeps the line breaks as written. */
   custom_prompt: string;
+  /** Whether "copy prompt" puts each instruction on its own line. Only the
+   * clipboard copy is affected — a launch command line and the Claude Desktop
+   * URL stay single-line, since a newline there truncates the command. */
+  prompt_copy_multiline: boolean;
   /** What "send to Claude Desktop" opens: "code" = a Claude Code session
    * rooted at the vault (same prompt a terminal launch uses), "chat" = a plain
    * chat with the task's Description (no skills, consultation only). */

@@ -42,6 +42,9 @@ const FORMAT_VERSION: u32 = 1;
 ///   moving them means teaching all of them this overlay first.
 const VAULT_SCOPED: &[&str] = &[
     "custom_prompt",
+    // How the copied prompt is shaped is a property of how this vault's
+    // prompts read, like `custom_prompt` itself — not of one machine (T-0285).
+    "prompt_copy_multiline",
     "task_language",
     "schedule_locale",
     "schedule_assignee",
@@ -355,6 +358,7 @@ mod tests {
             Settings {
                 task_language: "ja".into(),
                 custom_prompt: "answer in Japanese".into(),
+                prompt_copy_multiline: false,
                 worktree_root: "D:/machine-local".into(),
                 ..Settings::default()
             },
@@ -366,12 +370,27 @@ mod tests {
 
         assert_eq!(read_back.settings.task_language, "ja");
         assert_eq!(read_back.settings.custom_prompt, "answer in Japanese");
+        assert!(!read_back.settings.prompt_copy_multiline);
         assert_eq!(
             read_back.settings.worktree_root,
             Settings::default().worktree_root,
             "the vault file carries no machine-local value to restore"
         );
         std::fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A config written before `prompt_copy_multiline` existed carries no such
+    /// key, and must read back as on rather than as `false` (T-0285).
+    #[test]
+    fn missing_prompt_copy_multiline_deserializes_as_on() {
+        let mut all = match serde_json::to_value(Settings::default()) {
+            Ok(Value::Object(map)) => map,
+            _ => panic!("settings serialize to an object"),
+        };
+        assert!(all.remove("prompt_copy_multiline").is_some());
+        let parsed: Settings =
+            serde_json::from_value(Value::Object(all)).expect("parse settings without the key");
+        assert!(parsed.prompt_copy_multiline);
     }
 
     /// The Docs roots are the one path-shaped setting that travels with the

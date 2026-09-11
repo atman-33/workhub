@@ -129,6 +129,7 @@ const DEFAULTS: Settings = {
   clips_rect: null,
   task_language: "en",
   custom_prompt: "",
+  prompt_copy_multiline: true,
   claude_desktop_mode: "code",
   tidy: TIDY_DEFAULTS,
   schedule_assignee: "claude-code",
@@ -572,7 +573,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
                   Appended to the end of every task prompt, both when launching an agent and when
-                  copying the prompt. Line breaks are collapsed into spaces.
+                  copying the prompt. Line breaks are collapsed into spaces unless the copy below
+                  keeps them.
                 </p>
                 <Textarea
                   value={draft.custom_prompt}
@@ -580,6 +582,22 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   placeholder="e.g. Respond to me in Japanese."
                   className="min-h-20 text-xs"
                 />
+              </div>
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Line breaks in copied prompt
+                  <VaultScopedBadge />
+                </label>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] leading-tight text-muted-foreground/70">
+                    Copy prompt puts each instruction on its own line. Off copies it as one line.
+                    Launching an agent always uses one line — a command line cannot carry a break.
+                  </p>
+                  <Switch
+                    checked={draft.prompt_copy_multiline}
+                    onCheckedChange={(v) => setDraft({ ...draft, prompt_copy_multiline: v })}
+                  />
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="vault" className="mt-0 space-y-3">
