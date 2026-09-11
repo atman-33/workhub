@@ -20,6 +20,25 @@
   rather than landing between `B-100` and `B-101`.
 - Creating a schedule or mindmap for a project whose folder does not exist now
   fails instead of creating a stray folder beside the real one.
+- **Voice settings live in the Voice tab** (T-0277). The enable switch,
+  hotkey, model, language, indicator placement and the local model downloads
+  now sit above the transcript history and save as you change them, like the
+  Ink and Clips tabs; the Settings dialog no longer has a Voice tab. The
+  settings sit next to the feature they control instead of three clicks away.
+- **Settings changed in one place no longer revert in another** (T-0277,
+  T-0281). The Voice, Ink and Clips tabs save on their own, but the Settings
+  dialog and the tabs each saved the whole settings copy they had loaded
+  earlier — so pressing Save in the dialog, or changing an Ink or Clips
+  setting, could quietly undo a change made elsewhere. The dialog now re-reads
+  the config before it opens, and the tabs merge each change into a fresh
+  read. The Repos tab had the same problem when a repository was added,
+  reordered or selected, and now writes only the repository list it owns.
+- **Restart the input listener from the tab bar** (T-0280). A keyboard button
+  beside ⚙ Settings restarts the listener behind the double-press Alt
+  annotation and the clips popup in one click, with a check mark on success
+  and the error in its tooltip on failure. When a gesture stops responding
+  the fix is now one click rather than a trip into Settings → General; the
+  diagnostics stay there.
 
 ## 0.110.0 (2026-09-11)
 
