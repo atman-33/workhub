@@ -285,7 +285,9 @@ pub fn launch_agent(template: String, path: String) -> Result<(), String> {
 }
 
 /// Copies the agent prompt for a task to the system clipboard so the user can
-/// paste it into another AI terminal manually.
+/// paste it into another AI terminal manually. `multiline` is the
+/// `prompt_copy_multiline` setting — one instruction per line when it is on
+/// (T-0285).
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub fn copy_task_prompt(
@@ -301,8 +303,9 @@ pub fn copy_task_prompt(
     vault_path: String,
     task_language: String,
     custom_prompt: String,
+    multiline: bool,
 ) -> Result<(), String> {
-    let prompt = actions::build_agent_prompt(&actions::LaunchAgentForTaskParams {
+    let params = actions::LaunchAgentForTaskParams {
         agent_cmd: "",
         assignee: &assignee,
         task_id: &task_id,
@@ -318,7 +321,12 @@ pub fn copy_task_prompt(
         terminal_embed: false,
         task_language: &task_language,
         custom_prompt: &custom_prompt,
-    });
+    };
+    let prompt = if multiline {
+        actions::build_agent_prompt_multiline(&params)
+    } else {
+        actions::build_agent_prompt(&params)
+    };
     app.clipboard()
         .write_text(prompt)
         .map_err(|e| format!("failed to copy prompt: {e}"))

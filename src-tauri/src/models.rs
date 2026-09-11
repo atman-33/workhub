@@ -182,6 +182,13 @@ pub struct Settings {
     /// `actions::build_agent_prompt`.
     #[serde(default)]
     pub custom_prompt: String,
+    /// Whether "copy prompt" puts each instruction of the agent prompt on its
+    /// own line (T-0285). On by default, because the copied prompt is read by
+    /// a human before it is pasted. Only the clipboard copy is affected: a
+    /// launch command line and the Claude Desktop URL stay single-line
+    /// whatever this says, since a newline there truncates the command.
+    #[serde(default = "default_true")]
+    pub prompt_copy_multiline: bool,
     /// What "send to Claude Desktop" opens (T-0095): "code" opens a Claude
     /// Code session rooted at the vault, carrying the same prompt a terminal
     /// launch would; "chat" opens a plain chat with the task's Description,
@@ -432,6 +439,7 @@ impl Default for Settings {
             clips_rect: None,
             task_language: default_task_language(),
             custom_prompt: String::new(),
+            prompt_copy_multiline: true,
             claude_desktop_mode: default_claude_desktop_mode(),
             tidy: TidySettings::default(),
             schedule_assignee: default_schedule_assignee(),

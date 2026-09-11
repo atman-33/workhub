@@ -340,6 +340,7 @@ export const api = {
     vaultPath: string,
     taskLanguage: string,
     customPrompt: string,
+    multiline: boolean,
   ) =>
     invoke<void>("copy_task_prompt", {
       assignee,
@@ -353,6 +354,7 @@ export const api = {
       vaultPath,
       taskLanguage,
       customPrompt,
+      multiline,
     }),
 
   /** Opens Claude Desktop on a new session for the task with the prompt

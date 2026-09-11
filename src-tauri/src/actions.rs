@@ -91,9 +91,11 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// Passed to the agent CLI as `--model <model>`; empty = agent default.
     pub model: &'a str,
     /// Confirm/plan-first mode. When true, the initial prompt tells the agent
-    /// to draft a plan and get the user's approval before executing, and the
-    /// CLI is launched without auto-approve flags (claude uses
-    /// `--permission-mode plan`; opencode drops `--auto`).
+    /// to give its own opinion first, then write a plan into the task file and
+    /// wait for the user's approval before executing. The CLI flags are the
+    /// same as in autonomous mode (T-0285): the stop is asked for in the
+    /// prompt, not enforced by a permission mode, so the agent is free to
+    /// investigate and propose an alternative while it thinks.
     pub confirm: bool,
     /// git worktree mode. When true, the initial prompt tells the agent to
     /// create and work inside a dedicated git worktree for the task rather than
@@ -205,76 +207,124 @@ fn in_pane_command(command_line: &str) -> String {
     rest.join(" ")
 }
 
-/// Builds the plain agent prompt text (without CLI wrapping) that tells an
-/// agent which task to work, how to execute it, and where to report results.
-/// This is the same text that `agent_command_template` embeds into the
-/// launch command line, exposed separately so the UI can copy it to the
-/// clipboard for manual pasting into another terminal.
-pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
-    let project_note = if params.project.trim().is_empty() {
-        String::new()
-    } else {
-        format!(" Target project: {}.", params.project)
-    };
+/// The agent prompt, as the list of instructions it is made of.
+///
+/// Kept as separate clauses rather than one string because the two consumers
+/// want different shapes (T-0285): the launch command line needs a single line
+/// (it is embedded in a quoted PowerShell argument, where a newline would cut
+/// the command in half), while the clipboard copy is read by a human and is
+/// far easier to check when each instruction sits on its own line.
+///
+/// `multiline` therefore only decides how `custom_prompt` is treated — the
+/// joining is left to the caller. In single-line mode the custom prompt's own
+/// newlines collapse to spaces, because they would otherwise break the command
+/// line the same way.
+fn agent_prompt_clauses(params: &LaunchAgentForTaskParams<'_>, multiline: bool) -> Vec<String> {
     // Execution clause: autonomous by default; plan-first when the task opts
     // into confirm mode (T-0016 — a task Description asking for confirmation is
     // otherwise overridden by the "run without asking" instruction below).
     // When approval lands, the plan is written into `## Plan` before any code
     // changes (T-0057) — that's what makes it resumable if the session ends
     // mid-implementation, possibly picked up later by a different agent CLI.
+    //
+    // Confirm mode asks for the stop in prose rather than through the CLI's
+    // plan permission mode (T-0285). The point of the mode is to get the
+    // agent's own read on the request — possibly a better approach than the
+    // one the task describes — and a permission mode that forbids acting gets
+    // in the way of the investigation that opinion has to come from.
+    //
     // Backticks (not double quotes) around section names throughout this
     // function — double quotes would collide with the outer prompt quoting
     // in `agent_command_template` (see `quoted_prompt` there).
+    let language_name = language_name(params.task_language);
+    // In confirm mode the plan-first instructions are their own clauses rather
+    // than a tail on the first one, so a multiline copy breaks them apart the
+    // same way it breaks apart everything else.
     let execution = if params.confirm {
-        ". Understand the Description, create an implementation plan, and get the user's approval before proceeding. Once approved, write the approved plan into the task file's `## Plan` section before making any code changes. Do not change code until approved"
+        ""
     } else {
         ", then complete it automatically without asking for confirmation"
     };
+    let mut clauses = vec![format!(
+        "Please implement task {}. First run the task-start skill{execution}.",
+        params.task_id
+    )];
+    if params.confirm {
+        clauses.push(
+            "Before changing anything, tell the user what you make of the request, including a better approach if you see one."
+                .to_string(),
+        );
+        clauses.push(format!(
+            "Then draft an implementation plan in {language_name} and ask the user to approve it; do not implement anything until they do."
+        ));
+        clauses.push(
+            "Once approved, write the plan into the task file's `## Plan` section before making any code changes."
+                .to_string(),
+        );
+    }
     // Worktree clause: only when the task opts into git worktree mode (T-0017).
     // The agent session starts in the vault; task-start resolves the repo and
     // creates the worktree there, so this only has to tell it where and how.
-    let worktree_note = if params.worktree {
-        format!(
-            " This task uses git worktree mode. In task-start, do not modify the repository's working tree directly; instead create a new worktree with `git worktree add` under `.worktrees/{0}/<repository-name>` (branch `task/{0}`) and work there. For multiple repositories, create each repository's worktree under the same `.worktrees/{0}/` folder.",
+    if params.worktree {
+        clauses.push(format!(
+            "This task uses git worktree mode. In task-start, do not modify the repository's working tree directly; instead create a new worktree with `git worktree add` under `.worktrees/{0}/<repository-name>` (branch `task/{0}`) and work there. For multiple repositories, create each repository's worktree under the same `.worktrees/{0}/` folder.",
             params.task_id
-        )
-    } else {
-        String::new()
-    };
+        ));
+    }
+    clauses.push("When finished, run the task-report skill to update the status.".to_string());
+    if !params.project.trim().is_empty() {
+        clauses.push(format!("Target project: {}.", params.project));
+    }
     // Plan clause (T-0057): applies regardless of confirm mode, because the
     // resume/handoff case — a plan approved in an earlier session, executed
     // later, possibly by a different agent CLI — is exactly when `confirm` is
     // no longer meaningful.
-    let plan_note = " If the task file's `## Plan` section is already non-empty, treat it as the approved implementation plan: follow it rather than re-planning, and ask before deviating from it.";
+    clauses.push(
+        "If the task file's `## Plan` section is already non-empty, treat it as the approved implementation plan: follow it rather than re-planning, and ask before deviating from it."
+            .to_string(),
+    );
     // Language clause (T-0057): scoped strictly to the task file's `## Plan`
     // and `## Results` sections. Deliberately does not say "write in
     // <language>" unqualified, so an agent cannot over-apply it to code,
     // comments, commit messages, PR text, or repository documentation.
-    let language_name = language_name(params.task_language);
-    let language_note = format!(
-        " Write the task file's `## Plan` and `## Results` sections in {language_name}. This applies only to those two sections of the task file — never change the language of code, code comments, commit messages, PR titles/bodies, or other repository documentation.",
-    );
+    clauses.push(format!(
+        "Write the task file's `## Plan` and `## Results` sections in {language_name}. This applies only to those two sections of the task file — never change the language of code, code comments, commit messages, PR titles/bodies, or other repository documentation."
+    ));
+    clauses.push(format!("Task file: {}", params.task_file));
     // Custom clause (T-0078): free-form instructions the user configured once
     // in Settings, appended verbatim to every task's prompt. Appended last, so
     // it reads as the user's own addition rather than splitting the fixed
-    // instructions. Whitespace (newlines included) collapses to single spaces —
-    // a multi-line value would otherwise break the quoted command line.
-    let custom_note = {
-        let normalized = params
+    // instructions.
+    let custom = if multiline {
+        params.custom_prompt.trim().to_string()
+    } else {
+        params
             .custom_prompt
             .split_whitespace()
             .collect::<Vec<_>>()
-            .join(" ");
-        if normalized.is_empty() {
-            String::new()
-        } else {
-            format!(" {normalized}")
-        }
+            .join(" ")
     };
-    format!(
-        "Please implement task {}. First run the task-start skill{}{}. When finished, run the task-report skill to update the status.{}{}{} Task file: {}{}",
-        params.task_id, execution, worktree_note, project_note, plan_note, language_note, params.task_file, custom_note
-    )
+    if !custom.is_empty() {
+        clauses.push(custom);
+    }
+    clauses
+}
+
+/// Builds the plain agent prompt text (without CLI wrapping) that tells an
+/// agent which task to work, how to execute it, and where to report results,
+/// as a single line.
+///
+/// This is the text that `agent_command_template` embeds into the launch
+/// command line, and the one the Claude Desktop URL carries.
+pub fn build_agent_prompt(params: &LaunchAgentForTaskParams<'_>) -> String {
+    agent_prompt_clauses(params, false).join(" ")
+}
+
+/// The same prompt with one instruction per line, for copying to the clipboard
+/// (T-0285). Only the copy path uses it — a newline inside the launch command
+/// line would truncate the command.
+pub fn build_agent_prompt_multiline(params: &LaunchAgentForTaskParams<'_>) -> String {
+    agent_prompt_clauses(params, true).join("\n")
 }
 
 /// Builds the full agent command template: agent_cmd + model + auto-run flags
@@ -292,18 +342,13 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
 
     // opencode's positional argument is a project path, not a prompt, so the
     // prompt must go through --prompt; claude takes it as the positional arg.
-    // In confirm mode the auto-approve flag is dropped so the agent actually
-    // stops for the user (claude switches to its plan permission mode).
+    // Confirm mode no longer changes these flags (T-0285): the stop for
+    // approval is asked for in the prompt, so the agent keeps the tool access
+    // it needs to investigate before it has an opinion to offer.
     let (auto_flag, prompt_arg): (&str, String) = if params.assignee == "opencode" {
-        let flag = if params.confirm { "" } else { " --auto" };
-        (flag, format!(" --prompt {quoted_prompt}"))
+        (" --auto", format!(" --prompt {quoted_prompt}"))
     } else {
-        let flag = if params.confirm {
-            " --permission-mode plan"
-        } else {
-            " --permission-mode auto"
-        };
-        (flag, format!(" {quoted_prompt}"))
+        (" --permission-mode auto", format!(" {quoted_prompt}"))
     };
     format!(
         "{}{}{auto_flag}{prompt_arg}",
@@ -916,27 +961,39 @@ mod tests {
     }
 
     #[test]
-    fn confirm_mode_uses_plan_permission_and_plan_first_prompt() {
+    fn confirm_mode_asks_for_an_opinion_and_approval_in_the_prompt() {
         let mut params = test_params("claude-code", "");
         params.confirm = true;
         let template = agent_command_template(&params);
-        // Plan permission mode instead of the autonomous auto mode.
-        assert!(template.contains(" --permission-mode plan "));
-        assert!(!template.contains("--permission-mode auto"));
-        // Prompt asks for a plan + approval, not "run without asking".
-        // Single quotes inside the prompt are doubled for PowerShell escaping.
-        assert!(template.contains("create an implementation plan, and get the user"));
+        // The stop is asked for in prose, so the CLI flags are unchanged — the
+        // agent still needs its tools to form an opinion worth having (T-0285).
+        assert!(template.contains(" --permission-mode auto "));
+        assert!(!template.contains("--permission-mode plan"));
+        // Prompt asks for an opinion, a plan and approval, not "run without
+        // asking". Single quotes inside the prompt are doubled for PowerShell
+        // escaping, so assert on fragments without them.
+        assert!(template.contains("tell the user what you make of the request"));
+        assert!(template.contains("ask the user to approve it"));
         assert!(!template.contains("complete it automatically without asking for confirmation"));
     }
 
     #[test]
-    fn confirm_mode_drops_opencode_auto_flag() {
+    fn confirm_mode_keeps_the_opencode_auto_flag() {
         let mut params = test_params("opencode", "");
         params.agent_cmd = "wt -d {path} powershell -NoExit -Command opencode";
         params.confirm = true;
         let template = agent_command_template(&params);
-        assert!(!template.contains("--auto"));
+        assert!(template.contains(" --auto "));
         assert!(template.contains(" --prompt "));
+    }
+
+    #[test]
+    fn confirm_mode_drafts_the_plan_in_the_task_language() {
+        let mut params = test_params("claude-code", "");
+        params.confirm = true;
+        params.task_language = "ja";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.contains("draft an implementation plan in Japanese"));
     }
 
     #[test]
@@ -973,8 +1030,31 @@ mod tests {
         params.confirm = true;
         let prompt = build_agent_prompt(&params);
         assert!(prompt.contains(
-            "write the approved plan into the task file's `## Plan` section before making any code changes"
+            "write the plan into the task file's `## Plan` section before making any code changes"
         ));
+    }
+
+    #[test]
+    fn multiline_prompt_puts_each_instruction_on_its_own_line() {
+        let params = test_params("claude-code", "");
+        let single = build_agent_prompt(&params);
+        let multi = build_agent_prompt_multiline(&params);
+        assert!(!single.contains('\n'));
+        assert!(multi.contains('\n'));
+        // Same instructions, only the separator differs.
+        assert_eq!(multi.replace('\n', " "), single);
+        assert!(multi.starts_with("Please implement task T-1."));
+        assert!(multi.ends_with("Task file: tasks/T-1.md"));
+    }
+
+    #[test]
+    fn multiline_prompt_keeps_the_custom_prompts_own_line_breaks() {
+        let mut params = test_params("claude-code", "");
+        params.custom_prompt = "  First line.\n\nSecond   line.\r\n";
+        let multi = build_agent_prompt_multiline(&params);
+        // Kept verbatim apart from the outer trim — the launch path is the only
+        // one that has to survive being quoted into a command line.
+        assert!(multi.ends_with("First line.\n\nSecond   line."));
     }
 
     #[test]

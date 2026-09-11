@@ -37,7 +37,9 @@ export function launchAgentForTask(config: Config, task: Task): Promise<string> 
   );
 }
 
-/** Copies the agent prompt for `task` to the clipboard. */
+/** Copies the agent prompt for `task` to the clipboard. `prompt_copy_multiline`
+ *  decides whether it arrives as one instruction per line or as the single line
+ *  a launch command needs (T-0285). */
 export function copyTaskPrompt(config: Config, task: Task): Promise<void> {
   return api.copyTaskPrompt(
     task.assignee,
@@ -51,6 +53,7 @@ export function copyTaskPrompt(config: Config, task: Task): Promise<void> {
     config.settings.vault_path ?? "",
     config.settings.task_language,
     config.settings.custom_prompt,
+    config.settings.prompt_copy_multiline,
   );
 }
 
