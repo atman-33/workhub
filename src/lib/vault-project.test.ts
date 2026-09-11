@@ -10,6 +10,7 @@ import {
   linkedRepos,
   planProjectMove,
   projectOfNotePath,
+  projectSlugOfFolder,
   sortProjects,
   sortProjectsByMode,
   taskCountsByProject,
@@ -314,6 +315,32 @@ describe("projectOfNotePath", () => {
   it("returns nothing for a path outside a project", () => {
     expect(projectOfNotePath("")).toBe("");
     expect(projectOfNotePath("C:/vault/tasks/T-0001 a.md")).toBe("");
+  });
+
+  // The backend reports slugs, so a folder name here matches nothing in the
+  // picker's list — and the two effects that compare them clear and reopen the
+  // same note until React aborts the render (T-0284).
+  it("drops a numbered folder's sort prefix", () => {
+    expect(projectOfNotePath("C:/vault/projects/0010-workhub/schedules/plan.md")).toBe("workhub");
+    expect(projectOfNotePath("C:\\vault\\projects\\0010-workhub\\mindmaps\\a.md")).toBe("workhub");
+  });
+});
+
+describe("projectSlugOfFolder", () => {
+  // The same cases as `parse_project_folder`'s Rust test, so the two copies of
+  // the rule cannot drift apart.
+  it("strips a well-formed 4-digit prefix and nothing else", () => {
+    expect(projectSlugOfFolder("0010-workhub")).toBe("workhub");
+    expect(projectSlugOfFolder("workhub")).toBe("workhub");
+    expect(projectSlugOfFolder("0010-0020-workhub")).toBe("0020-workhub");
+    expect(projectSlugOfFolder("123-workhub")).toBe("123-workhub");
+    expect(projectSlugOfFolder("00010-workhub")).toBe("00010-workhub");
+    expect(projectSlugOfFolder("0010workhub")).toBe("0010workhub");
+  });
+
+  it("leaves a bare prefix alone — a folder is never only its number", () => {
+    expect(projectSlugOfFolder("0010-")).toBe("0010-");
+    expect(projectSlugOfFolder("")).toBe("");
   });
 });
 
