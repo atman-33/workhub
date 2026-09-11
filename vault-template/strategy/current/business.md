@@ -23,7 +23,7 @@ freely.
 ## Active work
 
 <!-- What you are spending time on right now. Link the project note rather than
-     restating it, e.g. [[projects/<project>/README]]. One line each on why it
+     restating it, e.g. [[projects/NNNN-<project>/README]]. One line each on why it
      is active and what stage it is at. -->
 
 ## Numbers

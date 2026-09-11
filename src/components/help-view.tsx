@@ -162,8 +162,9 @@ The **Projects** tab is the screen for a *vault project* — a folder under \`pr
 - **Repositories** links the project to the repositories registered on the Repos tab. The list is stored as \`repos:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme. A project may legitimately span several — an app and its vault, say — and the first entry is the one an agent defaults to.
 - **Shared spaces** records the team knowledge bases that live outside the vault — a network drive, a Google Drive or SharePoint folder. Each is a note in the project's \`shared/\` folder saying where the place is and how the team organises it, and each carries a **direction**: \`read-only\` (the default — never write anything there) or \`export-ok\`. The app only reads these notes: **Copy prompt** gives you a prompt to paste the location into and hand to an AI agent, which surveys the place and writes the note. A **stale** mark means the rules have not been checked against reality in three months.
 - **Name and description** are edited in the detail pane and stored as \`title:\` and \`description:\` in the project's README.md. The folder slug does not change, so task \`project:\` values stay valid. An empty description falls back to the first prose paragraph of the README.
-- **New project** scaffolds \`projects/<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from.
-- **Archive** moves the folder to \`archive/projects/<slug>/\` and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
+- **New project** scaffolds \`projects/NNNN-<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from. The \`NNNN-\` sort number is assigned automatically (the next multiple of ten); the slug is everything after it, and is what a task's \`project:\` names — the number is only a folder-name detail for sorting in Obsidian.
+- **The Order/Name button** switches how the list is sorted: **Order** is the pinned-then-dragged position kept in \`_index.md\`, **Name** sorts by the folder itself, so numbered projects line up by their \`NNNN-\` prefix. Dragging to reorder only works in Order mode. The choice is remembered on this machine.
+- **Archive** moves the folder to \`archive/projects/NNNN-<slug>/\` (keeping its number) and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
 - The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Schedule**, **Mindmap** and **Repos** tabs already scoped to it.`;
 
 const SCHEDULE_MD = `## Planning dates (Schedule)
@@ -1352,17 +1353,35 @@ export function HelpView() {
               <li>
                 <span className="font-medium">New project</span> scaffolds{" "}
                 <span className="font-mono text-xs">
-                  projects/&lt;slug&gt;/
+                  projects/NNNN-&lt;slug&gt;/
                 </span>{" "}
                 from the bundled template — the same folder the Schedule and
-                Mindmap tabs pick from.
+                Mindmap tabs pick from. The{" "}
+                <span className="font-mono text-xs">NNNN-</span> sort number is
+                assigned automatically (the next multiple of ten); the slug is
+                everything after it, and is what a task&apos;s{" "}
+                <span className="font-mono text-xs">project:</span> names — the
+                number is only a folder-name detail for sorting in Obsidian.
+              </li>
+              <li>
+                <span className="font-medium">The Order/Name button</span>{" "}
+                switches how the list is sorted:{" "}
+                <span className="font-medium">Order</span> is the
+                pinned-then-dragged position kept in{" "}
+                <span className="font-mono text-xs">_index.md</span>,{" "}
+                <span className="font-medium">Name</span> sorts by the folder
+                itself, so numbered projects line up by their{" "}
+                <span className="font-mono text-xs">NNNN-</span> prefix.
+                Dragging to reorder only works in Order mode. The choice is
+                remembered on this machine.
               </li>
               <li>
                 <span className="font-medium">Archive</span> moves the folder to{" "}
                 <span className="font-mono text-xs">
-                  archive/projects/&lt;slug&gt;/
+                  archive/projects/NNNN-&lt;slug&gt;/
                 </span>{" "}
-                and <span className="font-medium">Restore</span> brings it back.
+                (keeping its number) and{" "}
+                <span className="font-medium">Restore</span> brings it back.
                 There is no delete: a project folder holds months of hand-written
                 prose, so archiving is the only removal, and it is reversible. An
                 archived project also disappears from the Schedule and Mindmap

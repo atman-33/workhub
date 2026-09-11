@@ -1,6 +1,6 @@
 {
   "name": "strategy",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn a strategy handed down from above into your own organization's target states: decompose it into aspects and states (strategy-decompose), audit it for necessity, sufficiency and overlap (strategy-auditor), and ship it as a spreadsheet.",
   "author": {
     "name": "atman-33",

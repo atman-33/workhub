@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.111.0 (2026-09-11)
+
+- **Project folders carry a sort number** (T-0278). A vault project now lives
+  in `projects/NNNN-<slug>/` — four digits in tens, then the slug — so
+  Obsidian's name-sorted file explorer lists projects in a chosen order instead
+  of alphabetically. **New project** assigns the next ten above every number in
+  `projects/` and `archive/projects/` and previews the folder name. The slug is
+  still the part after the number, so tasks' and backlog items' `project:`
+  values do not change and renumbering is only a folder rename. Archive and
+  restore keep the number. Two folders that answer to the same slug are flagged
+  as `duplicate-slug` instead of one being picked silently.
+- **The Projects tab sorts by order or by name** (T-0278). A toggle in the list
+  header switches between the manual `order` (drag to rearrange, as before) and
+  the folder name — the number, which is Obsidian's order. Pinned projects stay
+  on top in both; dragging is off while sorting by name. Each row shows its
+  number, and the choice is remembered on this machine.
+- **Backlog items sort by number** (T-0278). `B-1000` now follows `B-999`
+  rather than landing between `B-100` and `B-101`.
+- Creating a schedule or mindmap for a project whose folder does not exist now
+  fails instead of creating a stray folder beside the real one.
+
 ## 0.110.0 (2026-09-11)
 
 - **Picking a Docs folder reads it afresh** (T-0279). A folder whose read

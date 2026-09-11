@@ -25,8 +25,9 @@
 use crate::models::{MindmapDoc, MindmapFile};
 use crate::vault_note::{
     frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs, norm_path,
-    projects_dir, restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
-    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
+    projects_dir, resolve_project_dir, restore_snapshot as note_restore_snapshot,
+    rewrite_frontmatter, save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today,
+    unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -126,7 +127,13 @@ pub fn create_mindmap(vault: &Path, project: &str, title: &str) -> Result<Mindma
     if project.is_empty() {
         return Err("a project is required to create a mindmap".into());
     }
-    let dir = projects_dir(vault).join(project).join(MINDMAPS_DIR);
+    // Resolved by slug rather than joined directly (T-0278): a project folder
+    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
+    // a second, unnumbered folder beside it instead of writing into the real
+    // one.
+    let project_dir = resolve_project_dir(&projects_dir(vault), project)?
+        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
+    let dir = project_dir.join(MINDMAPS_DIR);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let title = if title.trim().is_empty() {
         KIND
@@ -279,13 +286,16 @@ mod tests {
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;
 
+    /// Every test here creates a mindmap in the "demo" project, so the
+    /// fixture creates that folder up front — `create_mindmap` resolves an
+    /// existing project by slug rather than conjuring one (T-0278).
     fn temp_vault(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let dir = std::env::temp_dir().join(format!("workhub-mind-{name}-{nanos}"));
-        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(dir.join("projects").join("demo")).unwrap();
         dir
     }
 

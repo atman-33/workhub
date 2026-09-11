@@ -322,6 +322,61 @@ export function sortProjects(projects: VaultProject[]): VaultProject[] {
   });
 }
 
+export type ProjectSortMode = "order" | "name";
+
+/**
+ * The Projects tab's two sort modes (T-0278). `"order"` is `sortProjects`
+ * above — the drag-to-reorder position kept in `_index.md`. `"name"` ignores
+ * that and sorts by the folder name itself: a numbered folder's `NNNN-`
+ * prefix is zero-padded, so an ordinary string compare already puts numbered
+ * folders in numeric order, and a folder that predates T-0278 (no number)
+ * sorts after every numbered one, alphabetically among themselves.
+ *
+ * Both modes share the same pinned-first, archived-last grouping — only what
+ * breaks a tie within a group changes. Drag-reordering only makes sense in
+ * "order" mode, exactly like it is disabled while a search narrows the list
+ * (`reorderable` in `project-list.tsx`) — the position on screen would not be
+ * the one the drop should write.
+ */
+export function sortProjectsByMode(
+  projects: VaultProject[],
+  mode: ProjectSortMode,
+): VaultProject[] {
+  if (mode === "order") return sortProjects(projects);
+  return [...projects].sort((a, b) => {
+    if (a.archived !== b.archived) return a.archived ? 1 : -1;
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.number !== null && b.number !== null && a.number !== b.number) {
+      return a.number - b.number;
+    }
+    if (a.number !== null && b.number === null) return -1;
+    if (a.number === null && b.number !== null) return 1;
+    return a.folder.toLowerCase().localeCompare(b.folder.toLowerCase());
+  });
+}
+
+const SORT_MODE_KEY = "projects.sortMode";
+
+/** The sort mode last chosen on this machine; defaults to `"order"`. Kept in
+ * `localStorage` rather than the vault, like the rest of the Projects tab's
+ * view state — it describes how this machine likes to look at the list, not
+ * anything about the vault's content. */
+export function readProjectSortMode(): ProjectSortMode {
+  try {
+    return localStorage.getItem(SORT_MODE_KEY) === "name" ? "name" : "order";
+  } catch {
+    return "order";
+  }
+}
+
+export function writeProjectSortMode(mode: ProjectSortMode): void {
+  try {
+    localStorage.setItem(SORT_MODE_KEY, mode);
+  } catch {
+    // storage unavailable (private mode / quota) — persisting is a convenience
+  }
+}
+
 /** One project's pin and position, as `api.setVaultProjectOrder` takes them. */
 export interface ProjectOrderWrite {
   slug: string;

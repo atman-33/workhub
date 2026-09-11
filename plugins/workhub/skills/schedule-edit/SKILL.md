@@ -1,6 +1,6 @@
 ---
 name: schedule-edit
-description: Edit a workhub schedule note (projects/<slug>/schedules/*.md) from a natural-language instruction — move or resize the bars, arrows, milestones and notes in `## Items`, and adjust `## Non-working` days. Use when asked to shift a phase, rebalance a plan, add or remove non-working days, or when the workhub app launches a schedule edit.
+description: Edit a workhub schedule note (projects/NNNN-<slug>/schedules/*.md) from a natural-language instruction — move or resize the bars, arrows, milestones and notes in `## Items`, and adjust `## Non-working` days. Use when asked to shift a phase, rebalance a plan, add or remove non-working days, or when the workhub app launches a schedule edit.
 argument-hint: "<schedule-file-path> <instruction>"
 ---
 

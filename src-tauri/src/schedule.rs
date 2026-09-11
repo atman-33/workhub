@@ -24,7 +24,7 @@
 use crate::models::{ScheduleDoc, ScheduleFile};
 use crate::vault_note::{
     frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs, norm_path,
-    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
+    resolve_project_dir, restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
     save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
 };
 use std::fs;
@@ -133,9 +133,13 @@ pub fn create_schedule(
     if project.is_empty() {
         return Err("a project is required to create a schedule".into());
     }
-    let dir = crate::vault_note::projects_dir(vault)
-        .join(project)
-        .join(SCHEDULES_DIR);
+    // Resolved by slug rather than joined directly (T-0278): a project folder
+    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
+    // a second, unnumbered folder beside it instead of writing into the real
+    // one.
+    let project_dir = resolve_project_dir(&crate::vault_note::projects_dir(vault), project)?
+        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
+    let dir = project_dir.join(SCHEDULES_DIR);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let title = if title.trim().is_empty() {
         KIND
@@ -293,9 +297,20 @@ mod tests {
         dir
     }
 
+    /// Most tests here create a schedule in the "demo" project, so this
+    /// creates that folder up front — `create_schedule` resolves an existing
+    /// project by slug rather than conjuring one (T-0278). The handful of
+    /// tests that exercise `create_project`/`list_projects` directly build
+    /// their own vault from the bare `temp_vault` instead.
+    fn temp_vault_with_demo(name: &str) -> PathBuf {
+        let vault = temp_vault(name);
+        fs::create_dir_all(vault.join("projects").join("demo")).unwrap();
+        vault
+    }
+
     #[test]
     fn create_then_list_finds_the_note() {
-        let vault = temp_vault("create-list");
+        let vault = temp_vault_with_demo("create-list");
         let created =
             create_schedule(&vault, "demo", "2026Q3 plan", "2026-07-20..2026-08-31").unwrap();
         assert!(created
@@ -315,7 +330,7 @@ mod tests {
 
     #[test]
     fn create_never_overwrites_an_existing_note() {
-        let vault = temp_vault("create-dup");
+        let vault = temp_vault_with_demo("create-dup");
         let a = create_schedule(&vault, "demo", "plan", "").unwrap();
         let b = create_schedule(&vault, "demo", "plan", "").unwrap();
         assert_ne!(a.path, b.path);
@@ -325,7 +340,7 @@ mod tests {
 
     #[test]
     fn delete_moves_the_note_to_the_trash_instead_of_unlinking() {
-        let vault = temp_vault("delete");
+        let vault = temp_vault_with_demo("delete");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
 
@@ -344,7 +359,7 @@ mod tests {
 
     #[test]
     fn delete_drops_the_ai_snapshot_with_the_note() {
-        let vault = temp_vault("delete-snapshot");
+        let vault = temp_vault_with_demo("delete-snapshot");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
 
@@ -357,7 +372,7 @@ mod tests {
 
     #[test]
     fn write_preserves_memo_and_unmanaged_frontmatter() {
-        let vault = temp_vault("write-preserve");
+        let vault = temp_vault_with_demo("write-preserve");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
 
@@ -375,7 +390,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn write_rejects_a_stale_mtime() {
-        let vault = temp_vault("write-stale");
+        let vault = temp_vault_with_demo("write-stale");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
         let doc = read_schedule(&path).unwrap();
@@ -392,7 +407,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn write_rejects_content_that_is_not_a_schedule() {
-        let vault = temp_vault("write-invalid");
+        let vault = temp_vault_with_demo("write-invalid");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
 
@@ -404,7 +419,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn rename_moves_the_title_and_the_file_together() {
-        let vault = temp_vault("rename");
+        let vault = temp_vault_with_demo("rename");
         let created = create_schedule(&vault, "demo", "plan", "2026-07-20..2026-08-31").unwrap();
         let path = PathBuf::from(&created.path);
         let with_memo = read_schedule(&path)
@@ -436,7 +451,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn rename_never_overwrites_another_note() {
-        let vault = temp_vault("rename-dup");
+        let vault = temp_vault_with_demo("rename-dup");
         create_schedule(&vault, "demo", "taken", "").unwrap();
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
@@ -453,7 +468,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn rename_carries_the_snapshot_to_the_new_path() {
-        let vault = temp_vault("rename-snapshot");
+        let vault = temp_vault_with_demo("rename-snapshot");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
         let original = read_schedule(&path).unwrap().content;
@@ -473,7 +488,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn rename_rejects_an_empty_title() {
-        let vault = temp_vault("rename-empty");
+        let vault = temp_vault_with_demo("rename-empty");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
         assert!(rename_schedule(&vault, &path, "   ").is_err());
@@ -483,7 +498,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn snapshot_round_trips() {
-        let vault = temp_vault("snapshot");
+        let vault = temp_vault_with_demo("snapshot");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
         let original = read_schedule(&path).unwrap().content;
@@ -524,7 +539,8 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         let vault = temp_vault("project-create");
         create_project(&vault, "demo", "Demo project").unwrap();
 
-        let readme = fs::read_to_string(vault.join("projects/demo/README.md")).unwrap();
+        // A fresh vault's first project is numbered 0010 (T-0278).
+        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
         assert!(readme.contains("title: Demo project"), "README: {readme}");
         assert!(readme.contains("project: demo"), "README: {readme}");
         assert!(
@@ -533,14 +549,17 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         );
         assert!(!readme.contains("<Project name>"), "README: {readme}");
         // The (example-free) schedules folder exists from the start.
-        assert!(vault.join("projects/demo/schedules").is_dir());
+        assert!(vault.join("projects/0010-demo/schedules").is_dir());
         // The notation demos are not part of a fresh project.
-        assert!(!vault.join("projects/demo/schedules/_example.md").exists());
-        assert!(!vault.join("projects/demo/shared/_example.md").exists());
         assert!(!vault
-            .join("projects/demo/backlog/B-000-example.md")
+            .join("projects/0010-demo/schedules/_example.md")
             .exists());
-        // The new project shows up in the picker.
+        assert!(!vault.join("projects/0010-demo/shared/_example.md").exists());
+        assert!(!vault
+            .join("projects/0010-demo/backlog/B-000-example.md")
+            .exists());
+        // The new project shows up in the picker under its stripped slug —
+        // the number is a folder-name detail, not part of the identity.
         assert_eq!(list_projects(&vault).unwrap(), vec!["demo"]);
         fs::remove_dir_all(&vault).ok();
     }
@@ -555,7 +574,8 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         let vault = temp_vault("project-base");
         create_project(&vault, "demo", "Demo project").unwrap();
 
-        let base = fs::read_to_string(vault.join("projects/demo/backlog/_backlog.base")).unwrap();
+        let base =
+            fs::read_to_string(vault.join("projects/0010-demo/backlog/_backlog.base")).unwrap();
         assert!(base.contains(r#"project == "demo""#), "base: {base}");
         assert!(!base.contains("<project-slug>"), "base: {base}");
         assert!(!base.contains("inFolder"), "base: {base}");
@@ -566,7 +586,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
     fn create_project_defaults_the_display_name_to_the_slug() {
         let vault = temp_vault("project-noname");
         create_project(&vault, "demo", "  ").unwrap();
-        let readme = fs::read_to_string(vault.join("projects/demo/README.md")).unwrap();
+        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
         assert!(readme.contains("title: demo"), "README: {readme}");
         fs::remove_dir_all(&vault).ok();
     }
@@ -596,7 +616,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
 
     #[test]
     fn list_skips_non_schedule_notes() {
-        let vault = temp_vault("list-skip");
+        let vault = temp_vault_with_demo("list-skip");
         create_schedule(&vault, "demo", "plan", "").unwrap();
         let dir = vault.join("projects").join("demo").join(SCHEDULES_DIR);
         fs::write(dir.join("_example.md"), "---\ntype: schedule\n---\n").unwrap();

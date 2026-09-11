@@ -260,7 +260,8 @@ export interface VaultProjectIssue {
     | "missing-folder"
     | "loose-task-note"
     | "unknown-folder"
-    | "backlog-entry-missing";
+    | "backlog-entry-missing"
+    | "duplicate-slug";
   severity: "warn" | "info";
   /** The path or name the finding is about, relative to the project folder. */
   target: string;
@@ -309,7 +310,18 @@ export interface SharedSpace {
  * from `Project`, which is a *registered repository* in the Repos tab — the
  * two are linked by `repos`, never merged (see `vault_project.rs`). */
 export interface VaultProject {
+  /** Stripped identity — every other command takes this, never `folder`
+   * (T-0278). A folder may carry a `NNNN-` sort prefix; the slug is what is
+   * left once that prefix is removed. */
   slug: string;
+  /** The folder name exactly as it sits under `projects/` (or
+   * `archive/projects/`) — `slug` with its `NNNN-` prefix, if it has one,
+   * put back. */
+  folder: string;
+  /** The `NNNN-` sort prefix, parsed from `folder`. Null for a project
+   * folder that predates T-0278 and was never renumbered — it sorts after
+   * every numbered one in name order. */
+  number: number | null;
   name: string;
   /** Absolute path, forward slashes. */
   path: string;

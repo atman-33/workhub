@@ -176,10 +176,17 @@ export const api = {
    * first schedule impossible to create. */
   listScheduleProjects: (vaultPath: string) =>
     invoke<string[]>("list_schedule_projects", { vaultPath }),
-  /** Creates `projects/<slug>/` from the bundled scaffold, filling its
-   * placeholders (`name` falls back to the slug when empty) (T-0178). */
+  /** Creates `projects/NNNN-<slug>/` from the bundled scaffold, filling its
+   * placeholders (`name` falls back to the slug when empty). The `NNNN-`
+   * sort number is assigned automatically (T-0178, numbered folders T-0278). */
   createVaultProject: (vaultPath: string, slug: string, name: string) =>
     invoke<void>("create_vault_project", { vaultPath, slug, name }),
+  /** The folder name `createVaultProject` will give a new project with this
+   * slug — `NNNN-<slug>` — so the create dialog can preview it before the
+   * folder exists. Rejects the same slugs `createVaultProject` would
+   * (T-0278). */
+  nextProjectFolder: (vaultPath: string, slug: string) =>
+    invoke<string>("next_project_folder", { vaultPath, slug }),
   /** `project` narrows to one project slug; pass "" for every project. */
   listSchedules: (vaultPath: string, project = "") =>
     invoke<ScheduleFile[]>("list_schedules", { vaultPath, project }),

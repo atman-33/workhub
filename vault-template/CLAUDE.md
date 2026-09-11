@@ -66,7 +66,7 @@ when the owner wants to think out loud, and cross-checks the three against
 each other. Read it yourself only when a task turns on the owner's priorities.
 
 Nothing in `strategy/` duplicates a project: a project keeps its own plan in
-`projects/<project>/roadmap.md` and `schedules/`, and
+`projects/NNNN-<project>/roadmap.md` and `schedules/`, and
 `strategy/current/roadmap.md` links to them rather than restating their dates.
 
 **Questions carry a recommendation.** Never put an open choice to the owner.
@@ -129,7 +129,7 @@ status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
 backlog: B-007      # required once `project` is set: the backlog item in
-                    # projects/<project>/backlog/ this task belongs to. The
+                    # projects/*-<project>/backlog/ this task belongs to. The
                     # link runs this way only — the item never lists its
                     # tasks. Left blank it means "not chosen yet", never "no
                     # item": the agent fills it in at task-start
@@ -172,9 +172,9 @@ in Obsidian.
 
 ## Project layout
 
-Each development project gets one folder under `projects/<project-slug>/`
-(English kebab-case). Start a new project by copying `templates/project/` and
-filling in the placeholders. Layout:
+Each development project gets one folder under `projects/NNNN-<project-slug>/`
+(slug in English kebab-case). Create one from the app's **Projects** tab, which
+assigns the number and fills in `templates/project/`'s placeholders. Layout:
 
 | Path | Contents |
 |---|---|
@@ -194,7 +194,7 @@ filling in the placeholders. Layout:
 to everything else — do not scan the whole project folder.
 
 **The project root is a closed set.** The only files directly under
-`projects/<slug>/` are the five in the table above — `README.md`, `prd.md`,
+`projects/NNNN-<slug>/` are the five in the table above — `README.md`, `prd.md`,
 `roadmap.md`, `links.md` and `_index.md`. Every other note lives in a
 subfolder. The table is written for development projects, so an operational
 one will hold documents none of those folders describe — correspondence with a
@@ -205,6 +205,35 @@ document rather than dropping it at the root, and register it in the project's
 Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
+
+**The project folder carries a number; the slug does not.** A project folder
+is `NNNN-<slug>` — four digits, a hyphen, the slug (`projects/0010-workhub/`).
+The slug is everything after the first `NNNN-`, and it is the only thing the
+rest of the vault uses: a task's `project: workhub`, a backlog item's
+`project:`, the `project == "workhub"` filter in `_backlog.base`. To find a
+project's folder from its slug, glob `projects/*-<slug>/` (or
+`archive/projects/*-<slug>/`); never build the path as `projects/<slug>/`.
+
+- The number exists so a file explorer that sorts by name — Obsidian's does —
+  lists projects in an order the owner chose rather than alphabetically. It has
+  no other meaning: no category, no priority.
+- Numbers go in tens, like a backlog item's child notes, so a project can be
+  slotted between two others without renaming either. The app gives a new
+  project the next ten above the highest number in `projects/` and
+  `archive/projects/`.
+- Renumbering is a folder rename and nothing more. That is why the number is
+  not part of the slug: `project:` appears in hundreds of task files, archived
+  ones included, and none of them should change because a folder moved in a
+  list. Only path-style links (`projects/0010-workhub/README.md`) follow the
+  rename; wikilinks resolve by basename and do not care.
+- Four digits, not three: the numbers are never reused, archived projects keep
+  theirs, and three digits in tens run out at 99 projects.
+- A folder with no number reads the same way — its slug is its whole name — so
+  the rule has no second path. The app flags two folders that resolve to the
+  same slug.
+- `B-NNN` stays three digits. It is an identifier, not a sort order, so
+  `B-1000` works as written; widening it would mean renaming ids that are
+  promised never to change.
 
 The layout has two axes, not one. `backlog/` groups by **unit of work** — one
 feature, one bug, one support case — keeping its spec, its research and its
@@ -260,12 +289,19 @@ mechanism as a task's `order`. A project with no `order` is listed after every
 project that has one, alphabetically; archived projects sort last whatever
 either key says.
 
+The Projects tab can also list by **name** — the folder name, so by number —
+which is the order Obsidian shows. `order` and the folder number are two
+orders on purpose: `order` is the app's list, rearranged by dragging; the
+number is the file explorer's, rearranged by renaming. Pinned projects stay
+on top in both.
+
 Both live in the vault rather than in the app's machine-local config, so a
 second PC that clones the vault gets the pins and the order back. (The Repos
 tab's star is machine-local instead, because a repository path is specific to
 one machine.)
 
-A project that is finished or parked moves to `archive/projects/<slug>/` —
+A project that is finished or parked moves to `archive/projects/NNNN-<slug>/`,
+number and all —
 under `archive/projects/`, not `archive/<slug>/`, so the folder's origin
 survives the move. The **Projects** tab archives and restores it; a project
 folder is never deleted, because it holds months of hand-written prose.

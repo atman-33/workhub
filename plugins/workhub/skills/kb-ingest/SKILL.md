@@ -16,7 +16,7 @@ indexes — and proposes tasks for actionable items.
 | Zone | Contents |
 |------|----------|
 | `inbox/` | raw input landing zone — the default ingest source |
-| `projects/<name>/` | notes tied to an active project (deliverables, design notes) |
+| `projects/NNNN-<name>/` | notes tied to an active project (deliverables, design notes) |
 | `knowledge/<topic>/` | durable reference knowledge, organized by topic |
 | `archive/` | completed, historical, or inactive material |
 | `journal/` | daily/weekly notes — **never an ingest target or source** |
@@ -57,7 +57,7 @@ For each document to ingest:
 
 | Signal | Classification |
 |--------|---------------|
-| Belongs to a registered project (see `.claude/project-context.json`) or an existing `projects/<name>/` | `projects/<name>/` |
+| Belongs to a registered project (see `.claude/project-context.json`) or an existing `projects/NNNN-<name>/` | `projects/NNNN-<name>/` |
 | Actionable: todo, request, bug report, concrete idea to implement | propose a **task** (see step 3-T) — the note itself still gets filed |
 | Tutorial, how-to, reference, research result, collected info | `knowledge/<topic>/` |
 | Ongoing life/work domain knowledge with no end date | `knowledge/<topic>/` |

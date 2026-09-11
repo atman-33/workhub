@@ -169,6 +169,11 @@ export function ProjectList({
             )}
           </div>
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {p.number !== null && (
+              <span className="font-mono text-muted-foreground/70">
+                {String(p.number).padStart(4, "0")}
+              </span>
+            )}
             <span className="font-mono">{p.slug}</span>
             <span>·</span>
             <span>{c ? `${c.total} tasks` : "no tasks"}</span>

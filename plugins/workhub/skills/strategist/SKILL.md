@@ -33,7 +33,7 @@ var → the current directory when it has `tasks/` and `_ai/` → `vault_path` i
 | `_ai/logs/decisions.md` | where a settled decision is appended |
 
 `strategy/` is not a project. A project's own plan lives in
-`projects/<project>/roadmap.md` and `schedules/`; follow the links rather than
+`projects/NNNN-<project>/roadmap.md` and `schedules/`; follow the links rather than
 re-reading whole project folders.
 
 ## Steps

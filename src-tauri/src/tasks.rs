@@ -955,12 +955,25 @@ fn project_copies(vault: &Path, template: &Dir, policy: &TemplatePolicy) -> Vec<
         }
 
         for slug in &slugs {
-            let dst = crate::vault_note::projects_dir(vault).join(slug).join(rel);
+            // Resolved by slug rather than joined directly (T-0278): the
+            // project's folder may carry a `NNNN-` sort prefix, and a copy
+            // written at the bare slug would land beside the real folder
+            // instead of inside it.
+            let Ok(Some(project_dir)) = crate::vault_note::resolve_project_dir(
+                &crate::vault_note::projects_dir(vault),
+                slug,
+            ) else {
+                continue;
+            };
+            let dst = project_dir.join(rel);
             match dst.parent() {
                 Some(parent) if parent.is_dir() => {}
                 _ => continue,
             }
-            let name = project_display_name(vault, slug);
+            // The scaffold's `<project-slug>` placeholder always renders to
+            // the *stripped* slug — the identity `_backlog.base` filters on —
+            // never the numbered folder name.
+            let name = project_display_name(&project_dir);
             let rendered = crate::vault_note::render_project_scaffold(text, slug, &name);
             let rel_path = dst.strip_prefix(vault).unwrap_or(&dst);
             out.push((norm_path(rel_path), rendered.into_bytes()));
@@ -971,20 +984,30 @@ fn project_copies(vault: &Path, template: &Dir, policy: &TemplatePolicy) -> Vec<
 
 /// The project's `title:`, which is what `<Project name>` renders to. Read
 /// from `README.md` because that is where the Projects tab reads a project's
-/// display name from; the slug stands in when there is none.
-fn project_display_name(vault: &Path, slug: &str) -> String {
-    let readme = crate::vault_note::projects_dir(vault)
-        .join(slug)
-        .join("README.md");
+/// display name from; the folder's stripped slug stands in when there is
+/// none. Takes the project's already-resolved directory rather than its slug,
+/// since the caller has typically just resolved one to build `dst` anyway
+/// (T-0278).
+fn project_display_name(project_dir: &Path) -> String {
+    let slug = project_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|folder| {
+            crate::vault_note::parse_project_folder(folder)
+                .1
+                .to_string()
+        })
+        .unwrap_or_default();
+    let readme = project_dir.join("README.md");
     let Ok(text) = fs::read_to_string(readme) else {
-        return slug.to_string();
+        return slug;
     };
     let Ok((front, _)) = split_frontmatter(&text) else {
-        return slug.to_string();
+        return slug;
     };
     let title = crate::vault_note::frontmatter_value(&front, "title");
     if title.trim().is_empty() {
-        slug.to_string()
+        slug
     } else {
         title
     }
@@ -2708,6 +2731,33 @@ mod tests {
             !written.contains("<project-slug>"),
             "the placeholder must not survive into the copy"
         );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A project folder carrying a `NNNN-` sort prefix (T-0278) still renders
+    /// its *stripped* slug into the copy — `_backlog.base`'s filter has to
+    /// read `project == "alpha"`, never `project == "0010-alpha"`, since a
+    /// task's own `project:` is always the stripped form.
+    #[test]
+    fn applying_a_project_copy_renders_the_stripped_slug_for_a_numbered_folder() {
+        let vault = temp_test_vault("copy-renders-numbered-slug");
+        fs::create_dir_all(vault.join("projects/0010-alpha/backlog")).unwrap();
+        let copy_path = "projects/0010-alpha/backlog/_backlog.base";
+
+        let diff = diff_against(&vault, &PROJECT_TEST_TEMPLATE).unwrap();
+        assert_eq!(diff_state(&diff, copy_path), Some(TemplateFileState::Added));
+
+        apply_from(
+            &vault,
+            &PROJECT_TEST_TEMPLATE,
+            &[copy_path.to_string()],
+            &[],
+        )
+        .unwrap();
+
+        let written = fs::read_to_string(vault.join(copy_path)).unwrap();
+        assert_eq!(written, "filter: project == 'alpha' v2");
 
         fs::remove_dir_all(&vault).ok();
     }

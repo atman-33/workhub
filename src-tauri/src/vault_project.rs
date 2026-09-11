@@ -26,10 +26,11 @@ use crate::models::{
     BacklogItem, SharedSpace, VaultProject, VaultProjectFolder, VaultProjectIssue,
 };
 use crate::vault_note::{
-    ensure_scaffold_file, frontmatter_list, frontmatter_value, norm_path, projects_dir,
-    remove_frontmatter_key, rewrite_frontmatter, rewrite_frontmatter_list, split_frontmatter,
-    today,
+    archive_projects_dir, ensure_scaffold_file, find_project_folders, frontmatter_list,
+    frontmatter_value, norm_path, parse_project_folder, projects_dir, remove_frontmatter_key,
+    resolve_project_dir, rewrite_frontmatter, rewrite_frontmatter_list, split_frontmatter, today,
 };
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -86,17 +87,18 @@ const MTIME_DEPTH: usize = 3;
 /// Longest README excerpt kept for the list row.
 const SUMMARY_CHARS: usize = 180;
 
-pub fn archive_projects_dir(vault: &Path) -> PathBuf {
-    vault.join("archive").join("projects")
-}
-
-fn project_dir(vault: &Path, slug: &str, archived: bool) -> PathBuf {
+/// Resolves a project's existing folder by slug, in `projects/` or
+/// `archive/projects/`. `Ok(None)` means no folder answers to the slug in
+/// that root — callers word "no such project" themselves, since it differs
+/// by call site; an ambiguous slug (two folders claiming it) is an error
+/// either way (T-0278).
+fn find_project(vault: &Path, slug: &str, archived: bool) -> Result<Option<PathBuf>, String> {
     let root = if archived {
         archive_projects_dir(vault)
     } else {
         projects_dir(vault)
     };
-    root.join(slug)
+    resolve_project_dir(&root, slug)
 }
 
 /// Rejects anything that would let a slug escape the projects folder. Every
@@ -156,22 +158,53 @@ fn order_key(order: Option<f64>) -> f64 {
     order.unwrap_or(f64::INFINITY)
 }
 
+/// Reads every project folder directly under `root` into `out`, one entry
+/// per folder — including a folder whose slug collides with another's, so
+/// neither is silently dropped from the list. Collisions are then flagged as
+/// a `duplicate-slug` finding on every folder that shares one, computed here
+/// (rather than per-folder in `inspect`) because spotting a collision needs
+/// to see every folder in the root first (T-0278).
 fn scan_root(root: &Path, archived: bool, out: &mut Vec<VaultProject>) -> Result<(), String> {
     if !root.is_dir() {
         return Ok(());
     }
+    let mut folders = Vec::new();
     for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             continue;
         }
-        let slug = entry.file_name().to_string_lossy().to_string();
+        let folder = entry.file_name().to_string_lossy().to_string();
         // Same rule as the note pickers: `_`/`.` folders are zone machinery,
         // not projects, so a project created there could never be picked.
-        if slug.starts_with('_') || slug.starts_with('.') {
+        if folder.starts_with('_') || folder.starts_with('.') {
             continue;
         }
-        out.push(inspect(&entry.path(), &slug, archived));
+        folders.push((entry.path(), folder));
+    }
+
+    let mut slug_counts: HashMap<String, usize> = HashMap::new();
+    let parsed: Vec<(PathBuf, String, Option<u32>, String)> = folders
+        .iter()
+        .map(|(path, folder)| {
+            let (number, slug) = parse_project_folder(folder);
+            (path.clone(), folder.clone(), number, slug.to_string())
+        })
+        .collect();
+    for (_, _, _, slug) in &parsed {
+        *slug_counts.entry(slug.clone()).or_insert(0) += 1;
+    }
+
+    for (path, folder, number, slug) in parsed {
+        let mut project = inspect(&path, &folder, &slug, number, archived);
+        if slug_counts.get(&slug).copied().unwrap_or(0) > 1 {
+            project.issues.push(VaultProjectIssue {
+                kind: "duplicate-slug".into(),
+                severity: "warn".into(),
+                target: slug,
+            });
+        }
+        out.push(project);
     }
     Ok(())
 }
@@ -179,7 +212,18 @@ fn scan_root(root: &Path, archived: bool, out: &mut Vec<VaultProject>) -> Result
 /// Reads one project folder into a summary. Never fails: an unreadable
 /// subfolder produces a project with fewer findings, not a Projects tab that
 /// refuses to open.
-fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
+///
+/// `folder` is the folder name as it sits on disk (possibly `NNNN-`
+/// prefixed); `slug` is its stripped identity — the two are kept apart from
+/// `create_project` onward so nothing downstream of this scan ever sees the
+/// sort prefix (T-0278).
+fn inspect(
+    dir: &Path,
+    folder: &str,
+    slug: &str,
+    number: Option<u32>,
+    archived: bool,
+) -> VaultProject {
     let readme = read_note(&dir.join("README.md"));
     let index = read_note(&dir.join(INDEX_FILE));
     let name = match readme.as_ref().map(|n| frontmatter_value(&n.0, "title")) {
@@ -251,6 +295,8 @@ fn inspect(dir: &Path, slug: &str, archived: bool) -> VaultProject {
 
     VaultProject {
         slug: slug.to_string(),
+        folder: folder.to_string(),
+        number,
         name,
         path: norm_path(dir),
         status: status.trim().to_string(),
@@ -470,11 +516,14 @@ fn count_files(dir: &Path, ext: Option<&str>) -> usize {
 /// of every note the items contain.
 pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, String> {
     let slug = check_slug(slug)?;
-    let dir = [false, true]
-        .iter()
-        .map(|&archived| project_dir(vault, slug, archived))
-        .find(|d| d.is_dir())
-        .map(|d| d.join(BACKLOG_DIR));
+    let mut project_dir = None;
+    for archived in [false, true] {
+        if let Some(d) = find_project(vault, slug, archived)? {
+            project_dir = Some(d);
+            break;
+        }
+    }
+    let dir = project_dir.map(|d| d.join(BACKLOG_DIR));
     let Some(dir) = dir.filter(|d| d.is_dir()) else {
         return Ok(Vec::new());
     };
@@ -528,8 +577,27 @@ pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, 
             })
         })
         .collect();
-    out.sort_by(|a, b| a.id.cmp(&b.id).then_with(|| a.title.cmp(&b.title)));
+    out.sort_by(|a, b| backlog_id_cmp(&a.id, &b.id).then_with(|| a.title.cmp(&b.title)));
     Ok(out)
+}
+
+/// Orders two backlog ids numerically on their `B-NNN` number rather than
+/// lexically, so `B-1000` sorts after `B-200` (T-0278: lexical order was fine
+/// while every project stayed under a thousand items, but stopped being a
+/// safe assumption once one didn't). An id that does not parse as `B-<digits>`
+/// falls back to a string compare and sorts after every id that does.
+fn backlog_id_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    match (backlog_id_num(a), backlog_id_num(b)) {
+        (Some(x), Some(y)) => x.cmp(&y),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.cmp(b),
+    }
+}
+
+fn backlog_id_num(id: &str) -> Option<u64> {
+    id.strip_prefix("B-")
+        .and_then(|rest| rest.parse::<u64>().ok())
 }
 
 /// The `B-NNN` at the front of an item's file or folder name, or the whole
@@ -561,10 +629,8 @@ pub fn create_backlog_item(vault: &Path, slug: &str, title: &str) -> Result<Back
     if title.is_empty() {
         return Err("a backlog item needs a title".into());
     }
-    let dir = project_dir(vault, slug, false);
-    if !dir.is_dir() {
-        return Err(format!("no project named {slug}"));
-    }
+    let dir =
+        find_project(vault, slug, false)?.ok_or_else(|| format!("no project named {slug}"))?;
     let backlog = dir.join(BACKLOG_DIR);
     fs::create_dir_all(&backlog).map_err(|e| e.to_string())?;
 
@@ -757,7 +823,8 @@ fn newest_mtime(dir: &Path, depth: usize) -> u64 {
 // archive / restore
 // ---------------------------------------------------------------------
 
-/// Moves `projects/<slug>/` to `archive/projects/<slug>/`.
+/// Moves `projects/NNNN-<slug>/` to `archive/projects/NNNN-<slug>/`, keeping
+/// its full folder name — including the sort number — unchanged.
 ///
 /// Under `archive/projects/` rather than `archive/<slug>/` so the folder's
 /// provenance survives the move: a year later, `archive/workhub/` says nothing
@@ -765,36 +832,44 @@ fn newest_mtime(dir: &Path, depth: usize) -> u64 {
 /// it is written down in CLAUDE.md alongside the rest of the layout.
 pub fn archive_project(vault: &Path, slug: &str) -> Result<String, String> {
     let slug = check_slug(slug)?;
-    let from = project_dir(vault, slug, false);
-    if !from.is_dir() {
-        return Err(format!("no project named '{slug}' is in projects/"));
-    }
-    let to = project_dir(vault, slug, true);
-    if to.exists() {
+    let from = find_project(vault, slug, false)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
+    let folder = folder_name(&from, slug);
+    if !find_project_folders(&archive_projects_dir(vault), slug)?.is_empty() {
         return Err(format!(
-            "archive/projects/{slug}/ already exists — rename or remove it first"
+            "a project named '{slug}' already exists in archive/projects/ — rename or remove it first"
         ));
     }
+    let to = archive_projects_dir(vault).join(&folder);
     move_dir(&from, &to)?;
     Ok(norm_path(&to))
 }
 
 /// The exact inverse of `archive_project`, so archiving is never a one-way
-/// door.
+/// door. Also keeps the folder's full name, number included.
 pub fn restore_project(vault: &Path, slug: &str) -> Result<String, String> {
     let slug = check_slug(slug)?;
-    let from = project_dir(vault, slug, true);
-    if !from.is_dir() {
-        return Err(format!("no project named '{slug}' is in archive/projects/"));
-    }
-    let to = project_dir(vault, slug, false);
-    if to.exists() {
+    let from = find_project(vault, slug, true)?
+        .ok_or_else(|| format!("no project named '{slug}' is in archive/projects/"))?;
+    let folder = folder_name(&from, slug);
+    if !find_project_folders(&projects_dir(vault), slug)?.is_empty() {
         return Err(format!(
-            "projects/{slug}/ already exists — rename or remove it first"
+            "a project named '{slug}' already exists in projects/ — rename or remove it first"
         ));
     }
+    let to = projects_dir(vault).join(&folder);
     move_dir(&from, &to)?;
     Ok(norm_path(&to))
+}
+
+/// The folder name of an already-resolved project directory, falling back to
+/// the bare slug on the (practically unreachable) case that the path carries
+/// no file name.
+fn folder_name(dir: &Path, slug: &str) -> String {
+    dir.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(slug)
+        .to_string()
 }
 
 /// `fs::rename` with a copy-then-delete fallback, because the vault's
@@ -846,10 +921,8 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
 /// projects at all.
 pub fn set_project_repos(vault: &Path, slug: &str, repos: &[String]) -> Result<(), String> {
     let slug = check_slug(slug)?;
-    let dir = project_dir(vault, slug, false);
-    if !dir.is_dir() {
-        return Err(format!("no project named '{slug}' is in projects/"));
-    }
+    let dir = find_project(vault, slug, false)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
     let name = read_note(&dir.join("README.md"))
         .map(|n| frontmatter_value(&n.0, "title"))
         .filter(|t| !t.trim().is_empty())
@@ -903,10 +976,8 @@ pub fn set_project_order(
     order: Option<f64>,
 ) -> Result<(), String> {
     let slug = check_slug(slug)?;
-    let dir = project_dir(vault, slug, false);
-    if !dir.is_dir() {
-        return Err(format!("no project named '{slug}' is in projects/"));
-    }
+    let dir = find_project(vault, slug, false)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
     if let Some(v) = order {
         if !v.is_finite() {
             return Err("a project order must be a finite number".into());
@@ -967,10 +1038,10 @@ pub fn set_project_details(
     if name.is_empty() {
         return Err("a project name is required".into());
     }
-    let dir = project_dir(vault, slug, false);
-    if !dir.is_dir() {
-        return Err(format!("no project named '{slug}' is in projects/"));
-    }
+    // Existence check only: `ensure_scaffold_file` resolves the slug again to
+    // get the write path, so the folder itself is not needed here.
+    find_project(vault, slug, false)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
     let path = ensure_scaffold_file(vault, slug, &name, "README.md")?;
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let (front, body) = split_frontmatter(&content)
@@ -1113,6 +1184,29 @@ mod tests {
 
     /// Creating an item has to be a one-field affair, or a required link is
     /// just friction. The id continues the project's own numbering and the
+    /// `B-1000` sorts after `B-200`: the comparison is numeric, not lexical
+    /// (T-0278 — lexical order broke the first time a project's backlog
+    /// crossed a thousand items).
+    #[test]
+    fn backlog_items_sort_numerically_not_lexically() {
+        let vault = temp_vault("backlog-numeric");
+        let dir = vault.join("projects").join("demo");
+        write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
+        for id in ["B-1000", "B-200", "B-3", "B-40"] {
+            write(
+                dir.join("backlog").join(format!("{id}-item.md")),
+                &format!("---\nid: {id}\ntitle: item\ntype: backlog\n---\n"),
+            );
+        }
+
+        let ids: Vec<String> = list_backlog_items(&vault, "demo")
+            .unwrap()
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        assert_eq!(ids, ["B-3", "B-40", "B-200", "B-1000"]);
+    }
+
     /// note comes out readable without another editor (T-0266).
     #[test]
     fn creating_an_item_numbers_it_after_the_existing_ones() {
@@ -1344,6 +1438,70 @@ mod tests {
             .join("README.md")
             .is_file());
         assert!(!vault.join("archive").join("projects").join("demo").exists());
+    }
+
+    /// Archiving and restoring keep the folder's full `NNNN-slug` name — the
+    /// number is not stripped or reassigned by the move (T-0278).
+    #[test]
+    fn archive_and_restore_keep_the_numbered_folder_name() {
+        let vault = temp_vault("archive-numbered");
+        write(
+            vault.join("projects").join("0010-demo").join("README.md"),
+            "---\ntitle: Demo\n---\n",
+        );
+
+        let to = archive_project(&vault, "demo").unwrap();
+        assert!(to.ends_with("archive/projects/0010-demo"), "{to}");
+        assert!(!vault.join("projects").join("0010-demo").exists());
+        assert!(vault
+            .join("archive")
+            .join("projects")
+            .join("0010-demo")
+            .join("README.md")
+            .is_file());
+        let all = list_projects(&vault, true).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].slug, "demo");
+        assert_eq!(all[0].folder, "0010-demo");
+        assert_eq!(all[0].number, Some(10));
+
+        let back = restore_project(&vault, "demo").unwrap();
+        assert!(back.ends_with("projects/0010-demo"), "{back}");
+        assert!(vault
+            .join("projects")
+            .join("0010-demo")
+            .join("README.md")
+            .is_file());
+    }
+
+    /// Two folders answering to the same slug are both kept in the list — the
+    /// scan reports, it never picks one silently — and each carries a
+    /// `duplicate-slug` finding (T-0278).
+    #[test]
+    fn two_folders_sharing_a_slug_are_both_listed_and_flagged() {
+        let vault = temp_vault("duplicate-slug");
+        write(
+            vault.join("projects").join("0010-demo").join("README.md"),
+            "---\ntitle: First\n---\n",
+        );
+        write(
+            vault.join("projects").join("0020-demo").join("README.md"),
+            "---\ntitle: Second\n---\n",
+        );
+
+        let projects = list_projects(&vault, false).unwrap();
+        assert_eq!(projects.len(), 2);
+        for p in &projects {
+            assert_eq!(p.slug, "demo");
+            assert!(
+                p.issues.iter().any(|i| i.kind == "duplicate-slug"),
+                "issues: {:?}",
+                p.issues
+            );
+        }
+
+        // Every command that resolves the slug by name refuses to guess.
+        assert!(list_backlog_items(&vault, "demo").is_err());
     }
 
     #[test]

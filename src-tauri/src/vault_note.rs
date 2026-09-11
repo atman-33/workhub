@@ -305,14 +305,127 @@ pub fn projects_dir(vault: &Path) -> PathBuf {
     vault.join("projects")
 }
 
-/// Project slugs the vault has, i.e. the folder names under `projects/`.
+pub fn archive_projects_dir(vault: &Path) -> PathBuf {
+    vault.join("archive").join("projects")
+}
+
+/// Parses a project folder name into its optional sort number and its slug —
+/// the identity used everywhere a project is named: a task's `project:`, a
+/// backlog item's `project:`, and the `<project-slug>` scaffold placeholder.
+/// A number is a 4-digit zero-padded prefix followed by a hyphen
+/// (`0010-workhub`); a folder with no such prefix has slug == folder name,
+/// which is the same rule rather than a separate fallback (T-0278).
+pub fn parse_project_folder(name: &str) -> (Option<u32>, &str) {
+    if name.len() > 5
+        && name.as_bytes()[4] == b'-'
+        && name.as_bytes()[..4].iter().all(u8::is_ascii_digit)
+    {
+        if let Ok(n) = name[..4].parse::<u32>() {
+            return (Some(n), &name[5..]);
+        }
+    }
+    (None, name)
+}
+
+/// The folder name a project with this number and slug gets — the inverse of
+/// [`parse_project_folder`].
+pub fn project_folder_name(number: u32, slug: &str) -> String {
+    format!("{number:04}-{slug}")
+}
+
+/// One folder under a projects root that answers to a given slug, found by
+/// [`find_project_folders`].
+pub struct ProjectMatch {
+    pub folder: String,
+    pub number: Option<u32>,
+    pub path: PathBuf,
+}
+
+/// Every folder directly under `root` (`projects/` or `archive/projects/`)
+/// whose stripped slug is `slug`. Usually one folder; more than one means two
+/// folders claim the same identity, which a caller must not silently pick
+/// between (T-0278). `_`/`.` folders are zone machinery, never projects, and
+/// are skipped — the same rule every project scan already applies.
+pub fn find_project_folders(root: &Path, slug: &str) -> Result<Vec<ProjectMatch>, String> {
+    let mut out = Vec::new();
+    if !root.is_dir() {
+        return Ok(out);
+    }
+    for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('_') || name.starts_with('.') {
+            continue;
+        }
+        let (number, s) = parse_project_folder(&name);
+        if s == slug {
+            out.push(ProjectMatch {
+                folder: name,
+                number,
+                path: entry.path(),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Resolves a slug to its one existing folder under `root`, or `Ok(None)`
+/// when no folder answers to it. Two folders answering to the same slug is a
+/// vault inconsistency, not a choice for the app to make silently — it is an
+/// error here, and the Projects scan surfaces the same condition as a
+/// `duplicate-slug` finding so the owner sees it without triggering it
+/// (T-0278).
+pub fn resolve_project_dir(root: &Path, slug: &str) -> Result<Option<PathBuf>, String> {
+    let mut matches = find_project_folders(root, slug)?;
+    match matches.len() {
+        0 => Ok(None),
+        1 => Ok(Some(matches.remove(0).path)),
+        _ => Err(format!(
+            "more than one folder under {} answers to the slug '{slug}' — rename one so it is unique",
+            norm_path(root)
+        )),
+    }
+}
+
+/// The next project number to allocate: the highest existing number across
+/// both `projects/` and `archive/projects/`, rounded up to the next multiple
+/// of ten, or 10 when the vault has no numbered project yet. Both roots are
+/// counted together so archiving a project never frees its number for reuse
+/// (T-0278).
+pub fn next_project_number(vault: &Path) -> u32 {
+    let mut highest = 0u32;
+    for root in [projects_dir(vault), archive_projects_dir(vault)] {
+        let Ok(entries) = fs::read_dir(&root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if let (Some(n), _) = parse_project_folder(&name) {
+                highest = highest.max(n);
+            }
+        }
+    }
+    (highest / 10) * 10 + 10
+}
+
+/// Project slugs the vault has, i.e. the stripped slugs of the folders under
+/// `projects/` (T-0278: a folder may carry a `NNNN-` sort prefix, which is
+/// not part of the identity).
 ///
 /// A picker cannot derive this from existing notes: a vault with no notes yet
 /// would offer no projects, and "create a note" needs a project first — which
 /// is a deadlock, not an empty state.
 ///
 /// Folders starting with `_` (the zone index and any scratch area) are not
-/// projects and are skipped.
+/// projects and are skipped. Two folders answering to the same slug collapse
+/// to one entry here — a picker has nothing useful to do with a duplicate,
+/// and the Projects tab is where that inconsistency is reported.
 pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
     let root = projects_dir(vault);
     if !root.is_dir() {
@@ -328,9 +441,11 @@ pub fn list_projects(vault: &Path) -> Result<Vec<String>, String> {
         if name.starts_with('_') || name.starts_with('.') {
             continue;
         }
-        out.push(name);
+        let (_, slug) = parse_project_folder(&name);
+        out.push(slug.to_string());
     }
     out.sort();
+    out.dedup();
     Ok(out)
 }
 
@@ -353,6 +468,60 @@ pub fn render_project_scaffold(text: &str, slug: &str, name: &str) -> String {
         .replace("{{DATE}}", &today())
 }
 
+/// Checks a caller-supplied project slug for the constraints every creation
+/// path shares, and rejects it against both `projects/` and
+/// `archive/projects/` — a slug already used by an archived project is not
+/// available either, since restoring it later would collide.
+fn check_new_project_slug(vault: &Path, slug: &str) -> Result<(), String> {
+    if slug.is_empty() {
+        return Err("a project slug is required".into());
+    }
+    if slug == ".." || slug.contains(['/', '\\']) {
+        return Err("a project slug cannot contain path separators".into());
+    }
+    // `list_projects` skips such folders, so creating one would make a
+    // project that exists on disk but can never be picked.
+    if slug.starts_with('_') || slug.starts_with('.') {
+        return Err("a project slug cannot start with '_' or '.'".into());
+    }
+    if parse_project_folder(slug).0.is_some() {
+        return Err(
+            "a project slug cannot start with a number and a hyphen — the sort number is assigned automatically"
+                .into(),
+        );
+    }
+    if let Some(existing) = find_project_folders(&projects_dir(vault), slug)?.first() {
+        return Err(format!(
+            "a project named '{slug}' already exists as '{}'{}",
+            existing.folder,
+            existing
+                .number
+                .map(|n| format!(" (number {n:04})"))
+                .unwrap_or_default()
+        ));
+    }
+    if let Some(existing) = find_project_folders(&archive_projects_dir(vault), slug)?.first() {
+        return Err(format!(
+            "a project named '{slug}' already exists in archive/projects/ as '{}'{}",
+            existing.folder,
+            existing
+                .number
+                .map(|n| format!(" (number {n:04})"))
+                .unwrap_or_default()
+        ));
+    }
+    Ok(())
+}
+
+/// The folder name `create_project` will give a new project with this slug,
+/// for the create dialog's preview — asked before the folder is written so
+/// the owner sees the `NNNN-` prefix they are about to get (T-0278).
+pub fn next_project_folder(vault: &Path, slug: &str) -> Result<String, String> {
+    let slug = slug.trim();
+    check_new_project_slug(vault, slug)?;
+    Ok(project_folder_name(next_project_number(vault), slug))
+}
+
 /// Creates `projects/<slug>/` from the embedded project scaffold (T-0178).
 ///
 /// The picker above lists folders under `projects/`, and until this existed a
@@ -365,23 +534,16 @@ pub fn render_project_scaffold(text: &str, slug: &str, name: &str) -> String {
 ///
 /// An existing folder is refused rather than merged: scaffolding is for
 /// starting a project, and the template update flow owns any later changes.
+///
+/// The folder gets a `NNNN-` sort prefix the caller never chooses (T-0278):
+/// `next_project_number` allocates it, so two agents creating a project at
+/// the same time still both get a folder, and a slug that already looks
+/// numbered (`0010-workhub`) is refused rather than double-prefixed.
 pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String> {
     let slug = slug.trim();
-    if slug.is_empty() {
-        return Err("a project slug is required".into());
-    }
-    if slug == ".." || slug.contains(['/', '\\']) {
-        return Err("a project slug cannot contain path separators".into());
-    }
-    // `list_projects` skips such folders, so creating one would make a
-    // project that exists on disk but can never be picked.
-    if slug.starts_with('_') || slug.starts_with('.') {
-        return Err("a project slug cannot start with '_' or '.'".into());
-    }
-    let dir = projects_dir(vault).join(slug);
-    if dir.exists() {
-        return Err(format!("a project named '{slug}' already exists"));
-    }
+    check_new_project_slug(vault, slug)?;
+    let folder = project_folder_name(next_project_number(vault), slug);
+    let dir = projects_dir(vault).join(&folder);
 
     let template = crate::tasks::project_template()
         .ok_or_else(|| "the project template is missing from this build".to_string())?;
@@ -433,7 +595,9 @@ pub fn ensure_scaffold_file(
     name: &str,
     rel: &str,
 ) -> Result<PathBuf, String> {
-    let dst = projects_dir(vault).join(slug).join(rel);
+    let dir = resolve_project_dir(&projects_dir(vault), slug)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
+    let dst = dir.join(rel);
     if dst.exists() {
         return Ok(dst);
     }
@@ -476,7 +640,8 @@ pub(crate) fn walk_project_template<'a>(
 /// unparsed so each feature can read the keys it cares about.
 pub struct NoteScan {
     pub path: PathBuf,
-    /// Owning project slug (the `projects/<slug>/` folder name).
+    /// Owning project's stripped slug (T-0278: the folder itself may carry a
+    /// `NNNN-` sort prefix, which is not part of the identity).
     pub project: String,
     /// File name without the `.md` extension — the title fallback.
     pub name: String,
@@ -505,7 +670,9 @@ pub fn scan_notes(
         if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             continue;
         }
-        let slug = entry.file_name().to_string_lossy().to_string();
+        let folder = entry.file_name().to_string_lossy().to_string();
+        let (_, slug) = parse_project_folder(&folder);
+        let slug = slug.to_string();
         if let Some(want) = project {
             if !want.is_empty() && want != slug {
                 continue;
@@ -651,5 +818,120 @@ mod tests {
             sanitize_filename("日本語 の 名前", "note"),
             "日本語 の 名前"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // numbered project folders (T-0278)
+    // -----------------------------------------------------------------
+
+    fn temp_project_vault(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("workhub-projnum-{name}-{nanos}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("projects")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn parse_project_folder_strips_only_a_well_formed_number_prefix() {
+        assert_eq!(parse_project_folder("0010-workhub"), (Some(10), "workhub"));
+        assert_eq!(parse_project_folder("workhub"), (None, "workhub"));
+        // Only the first `NNNN-` is stripped, so a slug that itself looks
+        // numbered keeps its own prefix.
+        assert_eq!(
+            parse_project_folder("0010-0020-workhub"),
+            (Some(10), "0020-workhub")
+        );
+        // Not exactly 4 digits followed by a hyphen: read as an unnumbered
+        // folder rather than guessing.
+        assert_eq!(parse_project_folder("123-workhub"), (None, "123-workhub"));
+        assert_eq!(
+            parse_project_folder("00010-workhub"),
+            (None, "00010-workhub")
+        );
+        assert_eq!(parse_project_folder("0010workhub"), (None, "0010workhub"));
+    }
+
+    #[test]
+    fn resolve_project_dir_finds_a_numbered_and_an_unnumbered_folder() {
+        let vault = temp_project_vault("resolve");
+        fs::create_dir_all(vault.join("projects").join("0010-workhub")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("legacy")).unwrap();
+
+        let root = projects_dir(&vault);
+        assert_eq!(
+            resolve_project_dir(&root, "workhub").unwrap(),
+            Some(vault.join("projects").join("0010-workhub"))
+        );
+        assert_eq!(
+            resolve_project_dir(&root, "legacy").unwrap(),
+            Some(vault.join("projects").join("legacy"))
+        );
+        assert_eq!(resolve_project_dir(&root, "nope").unwrap(), None);
+    }
+
+    #[test]
+    fn resolve_project_dir_errs_on_a_duplicate_slug() {
+        let vault = temp_project_vault("duplicate");
+        fs::create_dir_all(vault.join("projects").join("0010-workhub")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("0020-workhub")).unwrap();
+
+        let err = resolve_project_dir(&projects_dir(&vault), "workhub").unwrap_err();
+        assert!(err.contains("workhub"), "error: {err}");
+    }
+
+    #[test]
+    fn next_project_number_rounds_up_to_the_next_ten_across_both_roots() {
+        let vault = temp_project_vault("numbering");
+        assert_eq!(
+            next_project_number(&vault),
+            10,
+            "an empty vault starts at 10"
+        );
+
+        fs::create_dir_all(vault.join("projects").join("0010-a")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("0025-b")).unwrap();
+        assert_eq!(next_project_number(&vault), 30);
+
+        // An archived project's number is never handed out again, even once
+        // its active folder is gone.
+        fs::create_dir_all(vault.join("archive").join("projects").join("0090-c")).unwrap();
+        assert_eq!(next_project_number(&vault), 100);
+    }
+
+    #[test]
+    fn create_project_allocates_a_numbered_folder_and_next_project_folder_previews_it() {
+        let vault = temp_project_vault("create");
+        assert_eq!(next_project_folder(&vault, "demo").unwrap(), "0010-demo");
+        create_project(&vault, "demo", "Demo").unwrap();
+        assert!(vault.join("projects").join("0010-demo").is_dir());
+        assert_eq!(list_projects(&vault).unwrap(), vec!["demo"]);
+
+        // The next project continues the sequence in tens.
+        assert_eq!(
+            next_project_folder(&vault, "second").unwrap(),
+            "0020-second"
+        );
+        create_project(&vault, "second", "Second").unwrap();
+        assert!(vault.join("projects").join("0020-second").is_dir());
+    }
+
+    #[test]
+    fn create_project_rejects_a_slug_that_already_looks_numbered() {
+        let vault = temp_project_vault("numbered-slug");
+        let err = create_project(&vault, "0010-workhub", "x").unwrap_err();
+        assert!(err.contains("automatically"), "error: {err}");
+        assert!(next_project_folder(&vault, "0010-workhub").is_err());
+    }
+
+    #[test]
+    fn create_project_refuses_a_slug_already_used_by_an_archived_project() {
+        let vault = temp_project_vault("archived-clash");
+        fs::create_dir_all(vault.join("archive").join("projects").join("0010-demo")).unwrap();
+        let err = create_project(&vault, "demo", "x").unwrap_err();
+        assert!(err.contains("already exists"), "error: {err}");
     }
 }

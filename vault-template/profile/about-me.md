@@ -32,7 +32,7 @@ freely.
 ## Current work
 
 <!-- What you are working on right now and why it matters. Link the project
-     notes rather than restating them, e.g. [[projects/<project>/README]]. -->
+     notes rather than restating them, e.g. [[projects/NNNN-<project>/README]]. -->
 
 ## Preferences
 

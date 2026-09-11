@@ -14,8 +14,8 @@ Short horizon on purpose: a two-year plan cannot be checked against reality
 often enough to be worth reviewing.
 
 **Do not duplicate a project's own plan here.** Each project keeps its schedule
-in `projects/<project>/roadmap.md` and its dated elements in
-`projects/<project>/schedules/`. This note is the layer above: which of them
+in `projects/NNNN-<project>/roadmap.md` and its dated elements in
+`projects/NNNN-<project>/schedules/`. This note is the layer above: which of them
 matter this quarter, and what they add up to. Link, do not copy — two copies of
 a date means one of them is wrong.
 
