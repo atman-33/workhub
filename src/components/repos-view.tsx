@@ -122,9 +122,16 @@ export function ReposView({ configVersion, active, focus }: Props) {
   // No view is notified of a repo add/remove/rename any more: the one consumer
   // was the task editor's Project suggestions, and those now come from the
   // vault's projects rather than from this list (T-0219).
+  // This tab owns `projects` and `selected` and writes only those, onto a
+  // fresh read of the config: its own copy is only reloaded after a Settings
+  // dialog save, so saving it whole would revert settings another tab saved
+  // meanwhile (T-0281).
   const persist = useCallback((cfg: Config, sel: Set<string>) => {
     const ordered = cfg.projects.map((p) => p.path).filter((p) => sel.has(p));
-    void api.saveConfig({ ...cfg, selected: ordered });
+    void (async () => {
+      const latest = await api.getConfig();
+      await api.saveConfig({ ...latest, projects: cfg.projects, selected: ordered });
+    })();
   }, []);
 
   const mutateConfig = useCallback(

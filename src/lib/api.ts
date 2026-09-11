@@ -46,6 +46,14 @@ export const api = {
   /// Returns the config that took effect — it differs from what was sent
   /// when the vault changed and its own settings were adopted (T-0206).
   saveConfig: (config: Config) => invoke<Config>("save_config", { config }),
+  /// Saves a few settings without touching the rest. The patch is merged into
+  /// a fresh read of the config, never into a copy a view loaded earlier —
+  /// every save writes the whole struct, so a stale copy would revert whatever
+  /// another tab changed meanwhile (T-0281).
+  patchSettings: async (patch: Partial<Config["settings"]>) => {
+    const cfg = await api.getConfig();
+    return api.saveConfig({ ...cfg, settings: { ...cfg.settings, ...patch } });
+  },
   // ---- vault tidy (T-0050) ----
   tidyStatus: () => invoke<TidyRun>("tidy_status"),
   runVaultTidyNow: (force: boolean) =>
