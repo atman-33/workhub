@@ -374,9 +374,13 @@ pub async fn opencode_models() -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Off the main thread: revealing a file goes through the shell, which can
+/// stall on a slow or network path (a WSL share, a mapped drive).
 #[tauri::command]
-pub fn open_explorer(path: String) -> Result<(), String> {
-    actions::open_explorer(&path.replace('/', "\\"))
+pub async fn open_explorer(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || actions::open_explorer(&path.replace('/', "\\")))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
