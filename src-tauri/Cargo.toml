@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.109.0"
+version = "0.110.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -25,6 +25,9 @@ serde_json = "1"
 dirs = "5"
 # rustls-based (no schannel): avoids OS revocation-check failures seen on this network
 ureq = { version = "2", features = ["json"] }
+# PlantUML's URL encoding is raw deflate (Docs tab, T-0279). Already in the
+# tree through ureq and png, so naming it costs no extra build.
+flate2 = "1"
 # vault task-file watching (debounced manually in tasks.rs; kept to the plain
 # channel API — no extra debouncer crate needed).
 notify = "6"

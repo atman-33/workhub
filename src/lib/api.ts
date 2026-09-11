@@ -12,6 +12,7 @@ import type {
   DiagLogInfo,
   DocsEntry,
   DocsRootStatus,
+  DocsViewerPayload,
   GitInfo,
   GitLog,
   GraphOp,
@@ -225,6 +226,16 @@ export const api = {
   docsReadFile: (path: string) => invoke<string>("docs_read_file", { path }),
   /** An embedded image as a `data:` URI. */
   docsReadAsset: (path: string) => invoke<string>("docs_read_asset", { path }),
+  /** The PlantUML server diagrams are rendered on; "" when rendering is off. */
+  docsPlantumlServer: () => invoke<string>("docs_plantuml_server"),
+  setDocsPlantumlServer: (server: string) =>
+    invoke<void>("set_docs_plantuml_server", { server }),
+  /** A PlantUML diagram as SVG markup. Fails, sending nothing, when no server is set. */
+  docsRenderPlantuml: (source: string) => invoke<string>("docs_render_plantuml", { source }),
+  /** Pops a document or one figure out into a window of its own (T-0279). */
+  openDocsViewer: (payload: DocsViewerPayload) => invoke<void>("open_docs_viewer", { payload }),
+  /** Read by a viewer window: what it was opened to show. */
+  docsViewerPayload: () => invoke<DocsViewerPayload | null>("docs_viewer_payload"),
 
   // ---- mindmap notes (projects/<slug>/mindmaps/*.md) ----
   /** `project` narrows to one project slug; pass "" for every project. */

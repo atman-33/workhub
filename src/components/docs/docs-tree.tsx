@@ -113,12 +113,19 @@ export function DocsTree({
     fetchedAt.current[path] = token;
     setDirs((prev) => ({ ...prev, [path]: { status: "loading" } }));
     if (inFlight.current++ === 0) busyChange.current?.(true);
+    // A slow read answering after a newer one was started (a refresh, or the
+    // folder picked again) must not paint its stale result over the fresh one.
+    const current = () => fetchedAt.current[path] === token;
     api
       .docsListDir(path)
-      .then((entries) => setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } })))
-      .catch((e) =>
-        setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } })),
-      )
+      .then((entries) => {
+        if (current()) setDirs((prev) => ({ ...prev, [path]: { status: "ready", entries } }));
+      })
+      .catch((e) => {
+        if (current()) {
+          setDirs((prev) => ({ ...prev, [path]: { status: "error", message: String(e) } }));
+        }
+      })
       .finally(() => {
         if (--inFlight.current === 0) busyChange.current?.(false);
       });

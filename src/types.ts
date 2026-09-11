@@ -133,6 +133,11 @@ export interface Settings {
    * drive is a value the team agreed on, not a property of this PC. Managed
    * from the Docs tab itself, not from the Settings dialog. */
   docs_roots: DocsRoot[];
+  /** PlantUML server the Docs tab renders ```plantuml fences with (T-0279);
+   * "" (the default) leaves them as code, since rendering sends the diagram
+   * source to that server. Vault-scoped with `docs_roots`. Managed from the
+   * Docs tab. */
+  docs_plantuml_server: string;
 }
 
 /** One registered document root (T-0259). */
@@ -155,6 +160,25 @@ export interface DocsRootStatus {
   /** False when the folder is missing on this machine. */
   available: boolean;
 }
+
+/**
+ * A figure lifted out of a Docs preview into a viewer window (T-0279): a
+ * rendered mermaid diagram's SVG markup, or an image as a `data:` URI.
+ */
+export interface DocsFigure {
+  type: "svg" | "image";
+  content: string;
+  /** What the figure is — the image's alt text, or "Mermaid diagram". */
+  title: string;
+}
+
+/**
+ * What a Docs viewer window shows (T-0279) — handed to the backend by the tab
+ * and read back by the window. Opaque to Rust, which only reads `title`.
+ */
+export type DocsViewerPayload =
+  | { kind: "doc"; title: string; path: string }
+  | { kind: "figure"; title: string; figure: DocsFigure };
 
 /** One row in the Docs tree: a folder, or a file. */
 export interface DocsEntry {

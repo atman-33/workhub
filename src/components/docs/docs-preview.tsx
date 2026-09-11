@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ExternalLink, FolderOpen } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ExternalLink,
+  FolderOpen,
+  MoveHorizontal,
+  PictureInPicture2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { HtmlPreview } from "@/components/docs/html-preview";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/lib/api";
-import { expandWikiEmbeds, resolveDocRelative } from "@/lib/docs/markdown";
+import { basename, expandWikiEmbeds, resolveDocRelative } from "@/lib/docs/markdown";
+import { PREVIEW_ZOOM, parsePreviewZoom, stepPreviewZoom } from "@/lib/docs/zoom";
+import { cn } from "@/lib/utils";
+import type { DocsFigure } from "@/types";
 
 interface Props {
   /** Absolute path of the document to render; "" when nothing is selected. */
@@ -15,11 +25,47 @@ interface Props {
   onError: (message: string) => void;
   /** Told whether the document is being read right now. */
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * True inside a Docs viewer window (T-0279). The document already has a
+   * window of its own there, so the pop-out button is not offered again.
+   */
+  standalone?: boolean;
+}
+
+/**
+ * localStorage keys for the reading preferences (T-0279). Machine-local UI
+ * state, like the tab's last root and document; shared by the tab and its
+ * viewer windows, which run on the same origin.
+ */
+const ZOOM_KEY = "docs.zoom";
+const FULL_WIDTH_KEY = "docs.fullWidth";
+
+function recall(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage unavailable — the preference just does not survive a restart
+  }
 }
 
 /** True when `path` names an HTML file, which gets a frame instead of Markdown. */
 function isHtmlPath(path: string): boolean {
   return /\.html?$/i.test(path);
+}
+
+/** Opens one figure in a viewer window of its own. */
+function openFigure(figure: DocsFigure, onError: (message: string) => void) {
+  void api
+    .openDocsViewer({ kind: "figure", title: figure.title, figure })
+    .catch((e) => onError(String(e)));
 }
 
 /**
@@ -31,15 +77,30 @@ function isHtmlPath(path: string): boolean {
  * scrolling a note full of screenshots does not re-read the share.
  *
  * An HTML file is shown as a page instead, in `HtmlPreview`'s sandboxed frame.
+ *
+ * The pane is narrow beside the tree, so it carries its own ways to read a
+ * wide document (T-0279): a text zoom (also Ctrl+wheel), a full-width switch
+ * that lifts the reading line length, and pop-outs — the whole document, or
+ * one diagram or image, in a window of its own.
  */
-export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props) {
+export function DocsPreview({ path, refreshToken, onError, onBusyChange, standalone }: Props) {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [zoom, setZoom] = useState(() => parsePreviewZoom(recall(ZOOM_KEY)));
+  const [fullWidth, setFullWidth] = useState(() => recall(FULL_WIDTH_KEY) === "1");
 
   useEffect(() => {
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
+
+  useEffect(() => {
+    remember(ZOOM_KEY, String(zoom));
+  }, [zoom]);
+
+  useEffect(() => {
+    remember(FULL_WIDTH_KEY, fullWidth ? "1" : "0");
+  }, [fullWidth]);
 
   useEffect(() => {
     if (!path) {
@@ -103,6 +164,25 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props
     [cache, cacheKey, path],
   );
 
+  const onOpenFigure = useCallback((figure: DocsFigure) => openFigure(figure, onError), [onError]);
+
+  // Ctrl+wheel zooms the text, as in a browser. A native listener because
+  // React's wheel handler is passive and could not stop the page scrolling
+  // underneath the zoom.
+  const scroller = useRef<HTMLDivElement>(null);
+  const zoomable = !html && !!content && !error;
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !zoomable) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom((z) => stepPreviewZoom(z, e.deltaY < 0 ? 1 : -1));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomable]);
+
   if (!path) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
@@ -113,10 +193,73 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+      <div className="flex items-center gap-1 border-b px-3 py-1.5">
         <Hint label={path}>
-          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{path}</span>
+          <span className="mr-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">{path}</span>
         </Hint>
+        {!html && (
+          <>
+            <Hint label="Zoom out (Ctrl+wheel)">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Zoom out"
+                disabled={zoom <= PREVIEW_ZOOM.min}
+                onClick={() => setZoom((z) => stepPreviewZoom(z, -1))}
+              >
+                <ZoomOut />
+              </Button>
+            </Hint>
+            <Hint label="Reset zoom">
+              <button
+                type="button"
+                onClick={() => setZoom(PREVIEW_ZOOM.initial)}
+                className="w-10 text-center text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+            </Hint>
+            <Hint label="Zoom in (Ctrl+wheel)">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Zoom in"
+                disabled={zoom >= PREVIEW_ZOOM.max}
+                onClick={() => setZoom((z) => stepPreviewZoom(z, 1))}
+              >
+                <ZoomIn />
+              </Button>
+            </Hint>
+            <Hint label={fullWidth ? "Reading width" : "Use the full width"}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Toggle full width"
+                aria-pressed={fullWidth}
+                className={cn(fullWidth && "bg-muted text-foreground")}
+                onClick={() => setFullWidth((w) => !w)}
+              >
+                <MoveHorizontal />
+              </Button>
+            </Hint>
+          </>
+        )}
+        {!standalone && (
+          <Hint label="Open in a new window">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Open in a new window"
+              onClick={() =>
+                void api
+                  .openDocsViewer({ kind: "doc", title: basename(path), path })
+                  .catch((e) => onError(String(e)))
+              }
+            >
+              <PictureInPicture2 />
+            </Button>
+          </Hint>
+        )}
         <Hint label="Open with default app">
           <Button
             size="icon-sm"
@@ -140,6 +283,7 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props
       </div>
       {/* The frame scrolls itself, so an HTML page gets the pane edge to edge. */}
       <div
+        ref={scroller}
         className={
           html && !error && content
             ? "min-h-0 flex-1"
@@ -152,9 +296,24 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props
         )}
         {!error && content && html && <HtmlPreview path={path} content={content} />}
         {!error && content && !html && (
-          <Markdown variant="document" allowHtml mermaid callouts resolveAsset={resolveAsset}>
-            {markdown}
-          </Markdown>
+          // `zoom` rather than a transform: the text re-flows at the new size,
+          // so a zoomed document still fits the pane instead of overflowing it.
+          // Keyed by the refresh, so a re-read also redraws the diagrams — a
+          // PlantUML server set since the last draw included.
+          <div key={refreshToken} style={{ zoom }}>
+            <Markdown
+              variant="document"
+              className={cn(fullWidth && "max-w-none")}
+              allowHtml
+              mermaid
+              callouts
+              plantuml={api.docsRenderPlantuml}
+              resolveAsset={resolveAsset}
+              onOpenFigure={onOpenFigure}
+            >
+              {markdown}
+            </Markdown>
+          </div>
         )}
         {!error && !loading && !content && (
           <p className="text-xs text-muted-foreground">This document is empty.</p>

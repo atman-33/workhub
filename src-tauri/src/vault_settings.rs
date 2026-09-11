@@ -55,6 +55,9 @@ const VAULT_SCOPED: &[&str] = &[
     // The one path-shaped setting that is portable: a shared drive's location
     // is what the *team* agreed on, not a property of this machine (T-0259).
     "docs_roots",
+    // Which server renders the team's PlantUML diagrams travels with the
+    // roots it renders them for (T-0279).
+    "docs_plantuml_server",
 ];
 
 /// The `tidy` sub-fields that are policy (portable) rather than run history.

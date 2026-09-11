@@ -28,6 +28,9 @@ export default defineConfig({
         "voice-indicator": path.resolve(__dirname, "voice-indicator.html"),
         // Clips snippet picker popup (see src-tauri/src/clips/).
         clips: path.resolve(__dirname, "clips.html"),
+        // Docs viewer windows: a document or figure popped out of the Docs tab
+        // (see src-tauri/src/docs_viewer.rs).
+        "docs-viewer": path.resolve(__dirname, "docs-viewer.html"),
       },
     },
   },

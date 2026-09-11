@@ -6042,10 +6042,11 @@ dependencies = [
 
 [[package]]
 name = "workhub"
-version = "0.109.0"
+version = "0.110.0"
 dependencies = [
  "cpal",
  "dirs 5.0.1",
+ "flate2",
  "image",
  "include_dir",
  "notify",
