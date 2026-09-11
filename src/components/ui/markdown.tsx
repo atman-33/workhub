@@ -293,8 +293,8 @@ interface MarkdownProps {
    */
   resolveAsset?: (src: string) => Promise<string | null>;
   /**
-   * Draw Obsidian callouts (`> [!note]`) and the NotePM (`:::note info`) and
-   * Zenn (`:::message`) emphasis blocks as coloured boxes — see
+   * Draw Obsidian callouts (`> [!note]`), NotePM's `:::note info` and Zenn's
+   * `:::message` / `:::details` blocks as boxes — see
    * `@/lib/callouts`. Off, they read as the plain quotes and text they are.
    */
   callouts?: boolean;
@@ -343,6 +343,7 @@ export function Markdown({
                   type={type}
                   fold={typeof fold === "string" ? fold : undefined}
                   noTitle={"data-callout-notitle" in data}
+                  details={"data-callout-details" in data}
                 >
                   {children}
                 </CalloutBox>

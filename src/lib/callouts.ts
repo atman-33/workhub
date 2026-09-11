@@ -1,7 +1,7 @@
 /**
  * Callouts for the Docs tab (T-0275): Obsidian's `> [!note]` blocks, plus the
- * `:::note info` (NotePM) and `:::message` (Zenn) emphasis blocks teams write
- * in the notes they drop on a share.
+ * `:::note info` (NotePM) and `:::message` / `:::details` (Zenn) blocks teams
+ * write in the notes they drop on a share.
  *
  * Two halves, both plain functions so they can be tested without rendering:
  *
@@ -71,33 +71,44 @@ export function calloutKind(type: string): CalloutKind {
 
 /**
  * Callout metadata (`[!type|meta]`) marking a callout that came from a `:::`
- * block: NotePM and Zenn draw those as a coloured box with no title line.
+ * block. `notitle`: NotePM and Zenn draw their emphasis blocks as a coloured
+ * box with no title line. `details`: Zenn's disclosure, drawn as a plain
+ * folded box rather than a coloured callout.
  */
 const NO_TITLE = "notitle";
+const DETAILS = "details";
 
-/** `:::note <type>` (NotePM) and `:::message [alert]` (Zenn). */
-function colonBlockType(name: string, arg: string | undefined): string | null {
-  const value = arg?.toLowerCase();
+/**
+ * The callout line a `:::` opener becomes: `:::note <type>` (NotePM),
+ * `:::message [alert]` and `:::details <title>` (Zenn). `null` for any other
+ * block, which is left as written.
+ */
+function colonBlockMarker(name: string, rest: string): string | null {
+  const value = rest.split(/\s+/)[0].toLowerCase();
   if (name === "note") {
-    if (value === "warn") return "warning";
-    if (value === "alert") return "danger";
-    return "info";
+    if (value === "warn") return `> [!warning|${NO_TITLE}]`;
+    if (value === "alert") return `> [!danger|${NO_TITLE}]`;
+    return `> [!info|${NO_TITLE}]`;
   }
-  if (name === "message") return value === "alert" ? "danger" : "warning";
+  if (name === "message") {
+    return `> [!${value === "alert" ? "danger" : "warning"}|${NO_TITLE}]`;
+  }
+  // Zenn's details start closed, which is Obsidian's `-` fold.
+  if (name === "details") return `> [!note|${DETAILS}]- ${rest}`.trimEnd();
   return null;
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-const COLON_OPEN = /^ {0,3}(:{3,})\s*([A-Za-z][\w-]*)(?:\s+(\S+))?.*$/;
+const COLON_OPEN = /^ {0,3}(:{3,})\s*([A-Za-z][\w-]*)(?:\s+(.*?))?\s*$/;
 const COLON_CLOSE = /^ {0,3}(:{3,})\s*$/;
 
 /**
- * Rewrites NotePM / Zenn `:::` blocks into `> [!type|notitle]` callouts.
+ * Rewrites NotePM / Zenn `:::` blocks into callouts (see `colonBlockMarker`).
  *
  * Fenced code is left alone. Blocks nest; as in Zenn, a closing `:::` line
  * belongs to the innermost open block with the same number of colons, so an
- * outer block can be written `::::`. Other `:::` blocks (`:::details`, …) are
- * tracked only so their closing line is not mistaken for ours, and are
+ * outer block can be written `::::`. Other `:::` blocks (Docusaurus' `:::tip`,
+ * …) are tracked only so their closing line is not mistaken for ours, and are
  * emitted untouched. A block left open closes at the end of the document —
  * this is a reader, and a missing `:::` should not swallow the page.
  */
@@ -155,10 +166,10 @@ export function colonBlocksToCallouts(markdown: string): string {
 
     const start = COLON_OPEN.exec(line);
     if (start) {
-      const type = colonBlockType(start[2].toLowerCase(), start[3]);
+      const marker = colonBlockMarker(start[2].toLowerCase(), start[3] ?? "");
       const colons = start[1].length;
-      if (type) {
-        out.push(`${prefix()}> [!${type}|${NO_TITLE}]`);
+      if (marker) {
+        out.push(prefix() + marker);
         open.push({ colons, converted: true });
       } else {
         out.push(prefix() + line);
@@ -237,7 +248,8 @@ function toCallout(quote: Element): Element | null {
     ...first.children.slice(1),
   ];
   const { title, rest } = splitTitle(paragraph);
-  const noTitle = meta.split(/\s+/).includes(NO_TITLE);
+  const flags = meta.split(/\s+/);
+  const noTitle = flags.includes(NO_TITLE);
 
   const body: ElementContent[] = [];
   // A NotePM/Zenn block has no title line, so anything written on the marker
@@ -255,6 +267,7 @@ function toCallout(quote: Element): Element | null {
   };
   if (fold) properties.dataCalloutFold = fold;
   if (noTitle) properties.dataCalloutNotitle = "";
+  if (flags.includes(DETAILS)) properties.dataCalloutDetails = "";
 
   const children: ElementContent[] = [];
   if (!noTitle) {

@@ -104,6 +104,15 @@ describe("Markdown callouts", () => {
     expect(zenn).toMatch(/<p>メモ<\/p>/);
   });
 
+  it("draws Zenn's details as a closed disclosure with its title", () => {
+    const out = renderCallouts(":::details 詳しく\n隠れた本文\n:::");
+    expect(out).toContain('data-callout="details"');
+    expect(out).toContain("詳しく");
+    expect(out).toContain('aria-expanded="false"');
+    expect(out).not.toContain("隠れた本文");
+    expect(renderCallouts(":::details\nx\n:::")).toContain("Details");
+  });
+
   it("still sanitizes HTML inside a callout, and a raw data-callout is not honoured", () => {
     const out = renderCallouts(
       '> [!note]\n> <img src="x.png" onerror="alert(1)">\n\n<div data-callout-type="danger">forged</div>',

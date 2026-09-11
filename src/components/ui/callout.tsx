@@ -46,6 +46,7 @@ interface CalloutState {
   kind: CalloutKind;
   type: string;
   foldable: boolean;
+  details: boolean;
   open: boolean;
   toggle: () => void;
 }
@@ -60,26 +61,45 @@ function titleCase(type: string): string {
  * The box around a callout — `div[data-callout]` from `rehypeCallouts`.
  * Folding (`[!note]-` / `[!note]+`) is React state rather than a `<details>`,
  * which the document styling already dresses as a bordered disclosure.
+ * `details` is Zenn's `:::details`: that same plain disclosure look, drawn
+ * without a callout's colour and icon.
  */
 export function CalloutBox({
   kind,
   type,
   fold,
   noTitle,
+  details = false,
   children,
 }: {
   kind: CalloutKind;
   type: string;
   fold?: string;
   noTitle: boolean;
+  details?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(fold !== "-");
   const style = KIND_STYLE[kind];
   const state = React.useMemo<CalloutState>(
-    () => ({ kind, type, foldable: !!fold, open, toggle: () => setOpen((value) => !value) }),
-    [kind, type, fold, open],
+    () => ({
+      kind,
+      type,
+      foldable: !!fold,
+      details,
+      open,
+      toggle: () => setOpen((value) => !value),
+    }),
+    [kind, type, fold, details, open],
   );
+
+  if (details) {
+    return (
+      <div className="my-3 rounded-md border border-border px-3 py-1.5" data-callout="details">
+        <CalloutContext.Provider value={state}>{children}</CalloutContext.Provider>
+      </div>
+    );
+  }
 
   if (noTitle) {
     const Icon = UNTITLED_ICON[kind] ?? style.icon;
@@ -106,6 +126,7 @@ export function CalloutBox({
 export function CalloutTitle({ children }: { children: React.ReactNode }) {
   const state = React.useContext(CalloutContext);
   if (!state) return <div>{children}</div>;
+  if (state.details) return <DetailsSummary state={state}>{children}</DetailsSummary>;
   const style = KIND_STYLE[state.kind];
   const Icon = style.icon;
   const empty = React.Children.count(children) === 0;
@@ -131,6 +152,25 @@ export function CalloutTitle({ children }: { children: React.ReactNode }) {
       className={cn(className, "w-full cursor-pointer text-left")}
     >
       {content}
+    </button>
+  );
+}
+
+/** A `:::details` title: a chevron and the summary text, nothing coloured. */
+function DetailsSummary({ state, children }: { state: CalloutState; children: React.ReactNode }) {
+  const empty = React.Children.count(children) === 0;
+  return (
+    <button
+      type="button"
+      onClick={state.toggle}
+      aria-expanded={state.open}
+      className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left font-medium"
+    >
+      <ChevronRight
+        className={cn("size-4 shrink-0 transition-transform", state.open && "rotate-90")}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1">{empty ? "Details" : children}</span>
     </button>
   );
 }

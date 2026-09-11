@@ -40,10 +40,23 @@ describe("colonBlocksToCallouts", () => {
     );
   });
 
+  it("converts Zenn's details into a folded callout titled by the rest of the line", () => {
+    expect(colonBlocksToCallouts(":::details タイトル は ここ\nbody\n:::")).toBe(
+      "> [!note|details]- タイトル は ここ\n> body\n",
+    );
+    expect(colonBlocksToCallouts(":::details\nbody\n:::")).toBe("> [!note|details]-\n> body\n");
+  });
+
+  it("nests a message inside a Zenn details written with ::::", () => {
+    expect(colonBlocksToCallouts("::::details Outer\n:::message\nx\n:::\n::::")).toBe(
+      "> [!note|details]- Outer\n> > [!warning|notitle]\n> > x\n>\n",
+    );
+  });
+
   it("passes other ::: blocks through without letting them close ours", () => {
-    const zenn = "::::message\n:::details Title\nbody\n:::\n::::";
-    expect(colonBlocksToCallouts(zenn)).toBe(
-      "> [!warning|notitle]\n> :::details Title\n> body\n> :::\n",
+    const docusaurus = "::::message\n:::tip Title\nbody\n:::\n::::";
+    expect(colonBlocksToCallouts(docusaurus)).toBe(
+      "> [!warning|notitle]\n> :::tip Title\n> body\n> :::\n",
     );
   });
 
