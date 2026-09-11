@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.112.0 (2026-09-12)
+
+- **Confirm mode asks for the plan in the prompt, not through a permission
+  mode** (T-0285). It used to launch the agent in the CLI's plan permission
+  mode, which forbids the agent from doing anything at all — including the
+  reading it needs before it can have an opinion worth hearing. The agent is
+  now launched normally and told, in the prompt, to say what it makes of the
+  request (a better approach included), draft a plan in the configured task
+  language, and wait for approval before implementing. The point of the mode
+  was always the second opinion; this is what makes one possible.
+- **Confirm mode sits beside Model, and is on for new tasks** (T-0285). It
+  moved out of *Optional details* into the Status / Assignee / Model row as an
+  ON/OFF switch, so the setting that now applies to most tasks is visible
+  before a launch instead of hidden behind a click. Only newly created tasks
+  default to on — an existing task file with no `confirm:` key still means off,
+  so nothing already on the board changes meaning.
+- **Copy prompt copies something readable** (T-0285). The copied prompt now
+  puts each instruction on its own line and keeps the custom prompt's own line
+  breaks, instead of arriving as one unbroken paragraph. Launching an agent
+  still uses a single line, because a newline truncates the command line it is
+  quoted into. **Settings → Commands → Line breaks in copied prompt** switches
+  the copy back to one line; it travels with the vault, like the custom prompt
+  it shapes.
+- **The Schedule and Mindmap tabs open again in a numbered-project vault**
+  (T-0284). Since project folders gained their `NNNN-` sort prefix in 0.111.0,
+  both tabs crashed on open: the open note's project was read as the folder
+  name while everything else reported the slug, so one effect closed the note
+  as orphaned and another immediately reopened it, until React aborted the
+  render. The prefix is now stripped where the slug is read, and the two
+  effects were replaced by one rule that decides which note is open — so a
+  disagreement between the two listings can no longer produce a loop at all.
+
 ## 0.111.0 (2026-09-11)
 
 - **Project folders carry a sort number** (T-0278). A vault project now lives
