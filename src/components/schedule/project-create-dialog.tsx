@@ -47,6 +47,10 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
   const [slugEdited, setSlugEdited] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // The folder name the backend will actually create — `NNNN-<slug>`. Asked
+  // fresh on every slug change so the dialog shows the real sort number
+  // instead of guessing one client-side (T-0278).
+  const [folderPreview, setFolderPreview] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -55,10 +59,32 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
       setSlugEdited(false);
       setError("");
       setBusy(false);
+      setFolderPreview("");
     }
   }, [open]);
 
   const effectiveSlug = (slugEdited ? slug : slugify(name)).trim();
+
+  useEffect(() => {
+    if (!open || !effectiveSlug) {
+      setFolderPreview("");
+      return;
+    }
+    let cancelled = false;
+    api
+      .nextProjectFolder(vaultPath, effectiveSlug)
+      .then((folder) => {
+        if (!cancelled) setFolderPreview(folder);
+      })
+      .catch(() => {
+        if (!cancelled) setFolderPreview("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, vaultPath, effectiveSlug]);
+
+  const folderLabel = folderPreview || `NNNN-${effectiveSlug || "<slug>"}`;
 
   const create = async () => {
     if (!effectiveSlug || busy) return;
@@ -81,8 +107,9 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
             A schedule lives inside a project — a folder under the vault at
-            projects/&lt;slug&gt;/. This creates the folder from the bundled
-            scaffold (README, prd, roadmap, …).
+            projects/NNNN-&lt;slug&gt;/. This creates the folder from the bundled
+            scaffold (README, prd, roadmap, …); the NNNN sort number is
+            assigned automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -101,7 +128,7 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
           </label>
           <label className="block space-y-1">
             <span className="text-xs text-muted-foreground">
-              Folder — projects/&lt;slug&gt;/ (lowercase, kebab-case)
+              Slug — projects/{folderLabel}/ (lowercase, kebab-case)
             </span>
             <Input
               value={effectiveSlug}

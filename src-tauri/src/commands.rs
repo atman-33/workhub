@@ -741,6 +741,18 @@ pub async fn create_vault_project(
     .map_err(|e| e.to_string())?
 }
 
+/// The folder name `create_vault_project` will give a new project with this
+/// slug — `NNNN-<slug>`, with the sort number the vault would allocate right
+/// now — so the create dialog can show it before the folder exists (T-0278).
+#[tauri::command]
+pub async fn next_project_folder(vault_path: String, slug: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_note::next_project_folder(&PathBuf::from(vault_path), &slug)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---- vault projects (T-0190) --------------------------------------------
 
 /// Every project folder under the vault's `projects/`, with what it holds and

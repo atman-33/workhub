@@ -41,7 +41,7 @@ Build a mapping table. Defaults by scheme:
 
 | Source pattern | Destination |
 |---|---|
-| Active project folders (incl. per-project inbox subtrees) | `projects/<kebab-name>/` |
+| Active project folders (incl. per-project inbox subtrees) | `projects/NNNN-<kebab-name>/` |
 | Ongoing-domain / reference folders (PARA Areas + Resources) | `knowledge/<kebab-topic>/` (translate topic names to English kebab-case) |
 | Archive folders | `archive/<kebab-name>/` |
 | Unclassified capture folders | `inbox/` (keep subfolders; `/kb-ingest` classifies later) |

@@ -81,7 +81,7 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 | Issue | Condition |
 |-------|-----------|
 | POSSIBLY_STALE | Project note not modified >30 days while the project is active |
-| SHOULD_ARCHIVE | `projects/<name>/` whose project is finished but still outside `archive/` |
+| SHOULD_ARCHIVE | `projects/NNNN-<name>/` whose project is finished but still outside `archive/` |
 | MISPLACED | Actively edited material found in `archive/` |
 | INBOX_PILEUP | `inbox/` holds items older than 14 days → suggest `/kb-ingest` |
 

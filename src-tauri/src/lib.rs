@@ -317,6 +317,7 @@ pub fn run() {
             commands::watch_vault,
             commands::list_schedule_projects,
             commands::create_vault_project,
+            commands::next_project_folder,
             commands::list_vault_projects,
             commands::list_backlog_items,
             commands::create_backlog_item,

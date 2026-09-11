@@ -17,7 +17,7 @@ phase's completion criterion is met.**
 Before any work, pin down two locations. Ask the owner if either is unclear.
 
 - **Where the notes go** — a Markdown home the owner and future sessions read
-  (in a workhub vault: `projects/<slug>/dev-notes/`, or the `backlog/` item
+  (in a workhub vault: `projects/NNNN-<slug>/dev-notes/`, or the `backlog/` item
   the decomposition belongs to)
 - **Where the xlsx goes** — somewhere the owner can actually open it. If the
   notes live in a vault the owner reads through Obsidian, the xlsx does **not**
@@ -29,7 +29,7 @@ owner's (`<name>.xlsx`). See [`references/xlsx-format.md`](references/xlsx-forma
 ## Phase 1 — take in the upper strategy
 
 1. Read the material. **Store the original verbatim** — never a summary. In a
-   vault, `projects/<slug>/research/`
+   vault, `projects/NNNN-<slug>/research/`
 2. Identify the hierarchy (e.g. company → department → team → your unit). For
    each level write down what it commits to and where it gets measured
 3. Capture spoken context too (kickoff Q&A, decisions made in a meeting). Later

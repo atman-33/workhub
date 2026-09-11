@@ -4,6 +4,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   Archive,
   ArchiveRestore,
+  ArrowUpDown,
   CalendarRange,
   CircleAlert,
   CircleCheck,
@@ -15,6 +16,7 @@ import {
   Network,
   RefreshCw,
 } from "lucide-react";
+import { Hint } from "@/components/ui/hint";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ProjectList } from "@/components/projects/project-list";
@@ -42,10 +44,13 @@ import {
   isSurveyStale,
   issueLabel,
   linkedRepos,
-  sortProjects,
+  readProjectSortMode,
+  sortProjectsByMode,
   taskCountsByProject,
   unknownProjects,
+  writeProjectSortMode,
   type ProjectOrderWrite,
+  type ProjectSortMode,
 } from "@/lib/vault-project";
 import { cn } from "@/lib/utils";
 import type { Config, Task, VaultProject } from "@/types";
@@ -111,6 +116,9 @@ export function ProjectsView({
   const [error, setError] = useState("");
   const [editName, setEditName] = useState("");
   const [editSummary, setEditSummary] = useState("");
+  // Persisted per machine (T-0278) — this is how the owner likes to look at
+  // the list, not anything about the vault's content.
+  const [sortMode, setSortMode] = useState<ProjectSortMode>(() => readProjectSortMode());
 
   const vaultPath = config?.settings.vault_path ?? null;
   const repos = config?.projects ?? [];
@@ -174,14 +182,16 @@ export function ProjectsView({
         p.summary.toLowerCase().includes(needle)
       );
     });
-    // The backend already returns this order; sorting again keeps the list
-    // right when a pin or a drag is applied to the local array (T-0231).
-    return sortProjects(matched);
-  }, [projects, search, showArchived]);
+    // The backend already returns "order" mode in this order; sorting again
+    // keeps the list right when a pin or a drag is applied to the local array
+    // (T-0231), and is what applies "name" mode at all (T-0278).
+    return sortProjectsByMode(matched, sortMode);
+  }, [projects, search, showArchived, sortMode]);
 
   // A search hides rows between the ones on screen, so a position computed
-  // from what is visible would not be the position the user meant.
-  const reorderable = search.trim() === "";
+  // from what is visible would not be the position the user meant; "name"
+  // mode has no position to compute one for in the first place (T-0278).
+  const reorderable = search.trim() === "" && sortMode === "order";
   const activeVisible = useMemo(() => visible.filter((p) => !p.archived), [visible]);
   const archivedVisible = useMemo(() => visible.filter((p) => p.archived), [visible]);
 
@@ -353,6 +363,27 @@ export function ProjectsView({
           <Archive className="size-3.5" />
           Archived
         </Button>
+        <Hint
+          label={
+            sortMode === "order"
+              ? "Sorted by position — switch to name/number"
+              : "Sorted by folder name/number — switch to position"
+          }
+        >
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-1.5"
+            onClick={() => {
+              const next = sortMode === "order" ? "name" : "order";
+              setSortMode(next);
+              writeProjectSortMode(next);
+            }}
+          >
+            <ArrowUpDown className="size-3.5" />
+            {sortMode === "order" ? "Order" : "Name"}
+          </Button>
+        </Hint>
         <Button size="sm" variant="ghost" className="h-8 gap-1.5" onClick={() => void load()}>
           <RefreshCw className="size-3.5" />
           Refresh

@@ -1,6 +1,6 @@
 ---
 name: shared-space
-description: Record and use a team knowledge base that lives outside the vault - a network drive, Google Drive, OneDrive or SharePoint folder. Survey mode reads the place and writes down how it is organised into projects/<slug>/shared/; place mode says where a vault note belongs in it. Use when the user wants to register a team share for a project, refresh what is recorded about one, or work out where to file something.
+description: Record and use a team knowledge base that lives outside the vault - a network drive, Google Drive, OneDrive or SharePoint folder. Survey mode reads the place and writes down how it is organised into projects/NNNN-<slug>/shared/; place mode says where a vault note belongs in it. Use when the user wants to register a team share for a project, refresh what is recorded about one, or work out where to file something.
 argument-hint: "survey <project> <location> | place <note>"
 ---
 
@@ -15,7 +15,7 @@ say where something belongs. It has two modes.
 
 | Mode | What it does |
 |---|---|
-| `survey <project> <location>` | Read the place, work out how it is organised, and write `projects/<slug>/shared/<name>.md` |
+| `survey <project> <location>` | Read the place, work out how it is organised, and write `projects/NNNN-<slug>/shared/<name>.md` |
 | `place <note>` | Say where a vault note belongs in the project's shared spaces, and prepare the copy |
 
 The app's **Projects** tab lists what `shared/` holds and offers a prompt that
@@ -33,7 +33,7 @@ A place with no rules to record is just a link, and belongs in the project's
 
 ## The note
 
-`projects/<slug>/shared/<name>.md`. One file is one place; the folder is the
+`projects/NNNN-<slug>/shared/<name>.md`. One file is one place; the folder is the
 registry, so nothing lists these notes in `_index.md`. `<name>` is English
 kebab-case, like every other folder name in the vault.
 
@@ -79,7 +79,7 @@ The owner's own notes. Neither the app nor this skill rewrites this section.
 ## Survey mode
 
 1. **Resolve the project.** The first argument is a project slug
-   (`projects/<slug>/`) or part of a project's title. Vault resolution follows
+   (`projects/NNNN-<slug>/`) or part of a project's title. Vault resolution follows
    `task-start`: `WORKHUB_VAULT` → the current directory when it is a vault
    (it has `tasks/` and `_ai/`) → `vault_path` in
    `%APPDATA%\workhub\config.json`. Ask when nothing matches or several do.

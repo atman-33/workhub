@@ -62,7 +62,7 @@ argument-hint: "<task-id>"
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
 3. **Settle the backlog item, then load it.** A task's `backlog` frontmatter
-   key is `B-NNN` in `projects/<project>/backlog/`. It is where everything
+   key is `B-NNN` in `projects/NNNN-<project>/backlog/`. It is where everything
    this task produces will go, so it has to be decided before the work starts,
    not after.
 
@@ -87,7 +87,7 @@ argument-hint: "<task-id>"
 
      A new item is created from the app's task editor, or by copying
      `templates/project/backlog/B-000-example.md` to
-     `projects/<project>/backlog/B-NNN-<slug>.md` and filling it in.
+     `projects/NNNN-<project>/backlog/B-NNN-<slug>.md` and filling it in.
    - Say which item you chose and why, in your first message. If the owner
      disagrees, that is the cheapest moment to correct it.
 
@@ -111,10 +111,12 @@ argument-hint: "<task-id>"
    directory away instead of scattered across the project.
 
 4. **Resolve the target repository through the project.** The task's
-   `project` key names a vault project (`projects/<slug>/`), not a
+   `project` key names a vault project (`projects/NNNN-<slug>/`), not a
    repository — the two do not share a naming scheme, so never guess a path
    from the slug.
-   - Read `repos:` from `projects/<slug>/_index.md`. Each entry is an
+   - The project folder is `NNNN-<slug>`: a sort number, then the slug. Find it
+     with the glob `projects/*-<slug>/`; `projects/<slug>/` does not exist.
+   - Read `repos:` from `projects/NNNN-<slug>/_index.md`. Each entry is an
      absolute path or a repository name as registered in the app
      (`.claude/project-context.json`); resolve a name through that file.
    - One entry: use it. Several: use the one the task's `## Description`

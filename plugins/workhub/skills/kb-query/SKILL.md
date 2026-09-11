@@ -14,7 +14,7 @@ sources with wikilinks, and optionally accumulate new insights as vault notes.
 | Zone | What lives there |
 |------|------------------|
 | `tasks/` | task board (`_ai/index/tasks.json` is the fast index) |
-| `projects/<name>/` | per-project notes and deliverables |
+| `projects/NNNN-<name>/` | per-project notes and deliverables |
 | `knowledge/<topic>/` | durable reference knowledge by topic |
 | `journal/` | daily/weekly notes (temporal queries) |
 | `archive/` | completed/inactive material |
@@ -117,7 +117,7 @@ Decide whether the result is worth saving:
 
 If saving:
 - Choose the zone (`knowledge/<topic>/` for reusable insight,
-  `projects/<name>/` for project-specific synthesis)
+  `projects/NNNN-<name>/` for project-specific synthesis)
 - Create with proper frontmatter and tags; wikilink source documents
 - Update the zone's `_index.md` and append to `_ai/logs/kb-log.md`
 

@@ -16,7 +16,8 @@ no files. Its whole output is a summary in the chat.
 ## Steps
 
 1. **Resolve the project.** The argument is a project slug
-   (`projects/<slug>/`) or part of a project's title.
+   (`projects/NNNN-<slug>/`) or part of a project's title. The folder is the
+   slug behind a sort number, so find it with the glob `projects/*-<slug>/`.
 
    - No argument, or nothing matches: list the folders under
      `<vault>/projects/` (skipping names that start with `_` or `.`) with the
@@ -29,7 +30,7 @@ no files. Its whole output is a summary in the chat.
    `%APPDATA%\workhub\config.json`.
 
    A project that is finished or parked lives under
-   `<vault>/archive/projects/<slug>/` instead. Read it from there and say
+   `<vault>/archive/projects/NNNN-<slug>/` instead. Read it from there and say
    that it is archived.
 
 2. **Read `README.md` first.** It is the documented entry point: current
@@ -53,7 +54,7 @@ no files. Its whole output is a summary in the chat.
    you back for more.
 
 4. **Resolve the project's repositories** from `repos:` in
-   `projects/<slug>/_index.md`. Each entry is an absolute path or a
+   `projects/NNNN-<slug>/_index.md`. Each entry is an absolute path or a
    repository name as registered in the app
    (`.claude/project-context.json`); resolve a name through that file. The
    **first entry is the project's default repository**. When the key is

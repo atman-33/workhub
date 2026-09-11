@@ -627,7 +627,7 @@ pub struct VaultProjectFolder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultProjectIssue {
     /// missing-file | missing-folder | loose-task-note | unknown-folder |
-    /// backlog-entry-missing
+    /// backlog-entry-missing | duplicate-slug
     pub kind: String,
     /// warn | info
     pub severity: String,
@@ -672,8 +672,20 @@ pub struct SharedSpace {
 /// folder holds, and where it departs from the documented layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultProject {
-    /// Folder name under `projects/` — the id every other command takes.
+    /// Stripped identity — every other command takes this, never `folder`
+    /// (T-0278). A folder may carry a `NNNN-` sort prefix; the slug is what
+    /// is left once that prefix is removed, and is what a task's `project:`
+    /// and a backlog item's `project:` both name.
     pub slug: String,
+    /// The folder name exactly as it sits under `projects/` (or
+    /// `archive/projects/`) — `slug` with its `NNNN-` prefix, if it has one,
+    /// put back. Shown next to the slug so the owner can see the sort prefix
+    /// without opening the folder (T-0278).
+    pub folder: String,
+    /// The `NNNN-` sort prefix, parsed from `folder`. `None` for a project
+    /// folder that predates T-0278 and was never renumbered; such a project
+    /// sorts after every numbered one in name order.
+    pub number: Option<u32>,
     /// `title` from README.md, falling back to the slug.
     pub name: String,
     /// Absolute path, forward slashes.

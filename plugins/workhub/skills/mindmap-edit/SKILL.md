@@ -1,6 +1,6 @@
 ---
 name: mindmap-edit
-description: Edit a workhub mindmap note (projects/<slug>/mindmaps/*.md) from a natural-language instruction — add, rename, move, group, colour or link the nodes in `## Nodes`, and annotate them with sticky notes in `## Stickies`. Use when asked to restructure a mindmap, group ideas under a new branch, prune a subtree, pin a note to a node, or when the workhub app launches a mindmap edit.
+description: Edit a workhub mindmap note (projects/NNNN-<slug>/mindmaps/*.md) from a natural-language instruction — add, rename, move, group, colour or link the nodes in `## Nodes`, and annotate them with sticky notes in `## Stickies`. Use when asked to restructure a mindmap, group ideas under a new branch, prune a subtree, pin a note to a node, or when the workhub app launches a mindmap edit.
 argument-hint: "<mindmap-file-path> <instruction>"
 ---
 

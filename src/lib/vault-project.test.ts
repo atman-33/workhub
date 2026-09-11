@@ -11,6 +11,7 @@ import {
   planProjectMove,
   projectOfNotePath,
   sortProjects,
+  sortProjectsByMode,
   taskCountsByProject,
   unknownProjects,
 } from "./vault-project";
@@ -18,6 +19,8 @@ import {
 function project(over: Partial<VaultProject> = {}): VaultProject {
   return {
     slug: "demo",
+    folder: "demo",
+    number: null,
     name: "Demo",
     path: "C:/vault/projects/demo",
     status: "active",
@@ -342,6 +345,53 @@ describe("sortProjects", () => {
     const list = [project({ slug: "b" }), project({ slug: "a" })];
     sortProjects(list);
     expect(list.map((p) => p.slug)).toEqual(["b", "a"]);
+  });
+});
+
+describe("sortProjectsByMode", () => {
+  it("in name mode, sorts numbered folders by their number, unnumbered ones after", () => {
+    const list = [
+      project({ slug: "b", folder: "0020-b", number: 20 }),
+      project({ slug: "legacy", folder: "legacy", number: null }),
+      project({ slug: "a", folder: "0010-a", number: 10 }),
+    ];
+    expect(sortProjectsByMode(list, "name").map((p) => p.slug)).toEqual([
+      "a",
+      "b",
+      "legacy",
+    ]);
+  });
+
+  it("in name mode, unnumbered folders still sort alphabetically among themselves", () => {
+    const list = [
+      project({ slug: "zeta", folder: "zeta", number: null }),
+      project({ slug: "alpha", folder: "alpha", number: null }),
+    ];
+    expect(sortProjectsByMode(list, "name").map((p) => p.slug)).toEqual([
+      "alpha",
+      "zeta",
+    ]);
+  });
+
+  it("keeps pinned-first and archived-last in both modes", () => {
+    const list = [
+      project({ slug: "old", folder: "0005-old", number: 5, archived: true, pinned: true }),
+      project({ slug: "b", folder: "0020-b", number: 20 }),
+      project({ slug: "a", folder: "0010-a", number: 10, pinned: true }),
+    ];
+    expect(sortProjectsByMode(list, "name").map((p) => p.slug)).toEqual([
+      "a",
+      "b",
+      "old",
+    ]);
+  });
+
+  it("order mode is unchanged — the same as sortProjects", () => {
+    const list = [
+      project({ slug: "b", order: 2 }),
+      project({ slug: "a", order: 1 }),
+    ];
+    expect(sortProjectsByMode(list, "order")).toEqual(sortProjects(list));
   });
 });
 

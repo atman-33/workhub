@@ -19,7 +19,7 @@ argument-hint: "<task-id>"
    - Knowledge gained (research, gotchas, how-tos) → a note under
      `<vault>/knowledge/`, added to `knowledge/_index.md`.
    - **Project outcomes → the task's backlog item**, in
-     `projects/<project>/backlog/`. `task-start` has already settled which
+     `projects/NNNN-<project>/backlog/`. `task-start` has already settled which
      item that is; if `backlog` is somehow still empty, settle it now the same
      way rather than inventing a home for the note.
      - If the item is still a single note, promote it to a folder first: make
