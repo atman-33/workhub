@@ -353,7 +353,7 @@ export interface VaultProject {
 export interface ScheduleFile {
   /** Absolute path, forward slashes — the id used by every other command. */
   path: string;
-  /** Owning project slug (the `projects/<slug>/` folder name). */
+  /** Owning project slug — the folder name with its `NNNN-` sort prefix stripped. */
   project: string;
   title: string;
   /** `YYYY-MM-DD..YYYY-MM-DD` display range from the frontmatter. */
@@ -398,7 +398,7 @@ export interface ScheduleEditRun {
 export interface MindmapFile {
   /** Absolute path, forward slashes — the id used by every other command. */
   path: string;
-  /** Owning project slug (the `projects/<slug>/` folder name). */
+  /** Owning project slug — the folder name with its `NNNN-` sort prefix stripped. */
   project: string;
   title: string;
   updated: string;
