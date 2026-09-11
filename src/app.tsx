@@ -29,6 +29,7 @@ import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
 import { PersonaView } from "@/components/persona-view";
 import { PluginsView } from "@/components/plugins-view";
+import { NavListenerButton } from "@/components/nav-listener-button";
 import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
@@ -299,6 +300,7 @@ export default function App() {
             <span className="hidden text-[11px] text-muted-foreground md:inline">
               v{version}
             </span>
+            <NavListenerButton />
             <Button
               size="icon"
               variant="ghost"

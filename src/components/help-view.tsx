@@ -109,7 +109,7 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 - In the preview, drag a rectangle to crop, then copy the selection or save it beside the original as \`<name>-crop.png\` — the original is never overwritten. **Ctrl** + **C** copies, **Enter** saves the crop, **Esc** clears the selection (press it again to close the window).
 - Each capture in the list can be copied to the clipboard, shown in Explorer, or deleted (deleting sends it to the recycle bin).
 - Captures are written to the vault's \`attachments/ink/\`; the **Ink** tab can point them somewhere else.
-- **If the gesture stops responding**, open **⚙ Settings → General → Input listener**: it shows whether keystrokes are still reaching workhub and offers **Restart listener**. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. A watchdog recovers from those on its own — it even rebuilds a dead listener automatically, and the panel's **Auto rebuilds** count shows when it did. The button is for the cases it misses, so restarting the whole app is not necessary.
+- **If the gesture stops responding**, click the **keyboard** button at the right end of the tab bar, beside ⚙ Settings — it restarts the listener in one click. **⚙ Settings → General → Input listener** offers the same **Restart listener** and also shows whether keystrokes are still reaching workhub. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. A watchdog recovers from those on its own — it even rebuilds a dead listener automatically, and the panel's **Auto rebuilds** count shows when it did. The button is for the cases it misses, so restarting the whole app is not necessary.
 - Can be turned off in the **Ink** tab.`;
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
@@ -1048,12 +1048,15 @@ export function HelpView() {
                 <span className="font-medium">
                   If the gesture stops responding
                 </span>
-                , open{" "}
+                , click the <span className="font-medium">keyboard</span>{" "}
+                button at the right end of the tab bar, beside ⚙ Settings — it
+                restarts the listener in one click.{" "}
                 <span className="font-medium">
                   ⚙ Settings → General → Input listener
-                </span>
-                : it shows whether keystrokes are still reaching workhub and
-                offers <span className="font-medium">Restart listener</span>.
+                </span>{" "}
+                offers the same{" "}
+                <span className="font-medium">Restart listener</span> and also
+                shows whether keystrokes are still reaching workhub.
                 Locking the session, reconnecting over remote desktop, or
                 changing displays can stop Windows from delivering keys to the
                 app. A watchdog recovers from those on its own — it even
