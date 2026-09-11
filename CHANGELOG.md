@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.109.0 (2026-09-11)
+
+- **The Docs tab draws callouts** (T-0275). Obsidian's `> [!note]` blocks —
+  every built-in type and alias, a custom title, `-` / `+` folding, nesting —
+  and the `:::note info|warn|alert` (NotePM) and `:::message [alert]` (Zenn)
+  emphasis blocks now render as coloured boxes instead of a quote with
+  `[!note]` in it, or a paragraph of colons. Zenn's `:::details <title>` opens
+  and closes like a `<details>`, starting closed. The `:::` blocks are rewritten
+  into callout syntax before parsing rather than through `remark-directive`,
+  which cannot read `:::note info` and would also eat every `a:b` in prose;
+  the callout pass runs after sanitizing, so the GitHub rules for raw HTML are
+  unchanged and a document cannot forge a callout. Task previews are
+  untouched, and code blocks stay unhighlighted on purpose — the weight of a
+  highlighter is not worth it in a tab for reading.
+
 ## 0.108.0 (2026-09-10)
 
 - **A template update now reaches the copies inside each project** (T-0265).

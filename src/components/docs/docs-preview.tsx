@@ -152,7 +152,7 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange }: Props
         )}
         {!error && content && html && <HtmlPreview path={path} content={content} />}
         {!error && content && !html && (
-          <Markdown variant="document" allowHtml mermaid resolveAsset={resolveAsset}>
+          <Markdown variant="document" allowHtml mermaid callouts resolveAsset={resolveAsset}>
             {markdown}
           </Markdown>
         )}
