@@ -80,6 +80,7 @@ export const api = {
   launchAgent: (template: string, path: string) =>
     invoke<void>("launch_agent", { template, path }),
   opencodeModels: () => invoke<string[]>("opencode_models"),
+  /** A folder opens in Explorer; a file is selected in its parent folder, never launched. */
   openExplorer: (path: string) => invoke<void>("open_explorer", { path }),
   openInObsidian: (path: string) => invoke<void>("open_in_obsidian", { path }),
   appVersion: () => invoke<string>("app_version"),

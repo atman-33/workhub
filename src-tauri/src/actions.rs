@@ -678,12 +678,40 @@ pub fn send_task_to_claude_desktop(
     ))
 }
 
+/// What "show in Explorer" does with a path.
+#[derive(Debug, PartialEq, Eq)]
+enum ExplorerTarget {
+    /// Open the folder itself.
+    OpenFolder,
+    /// Open the parent folder with the item selected.
+    RevealItem,
+}
+
+/// A file is revealed, anything else is opened. `explorer <file>` does not
+/// show the file: it launches it with its associated app, which turns every
+/// "Show in Explorer" handed a file into "Open". A missing path falls through
+/// to `explorer` unchanged, so nothing that worked before starts failing.
+fn explorer_target(path: &std::path::Path) -> ExplorerTarget {
+    if path.is_file() {
+        ExplorerTarget::RevealItem
+    } else {
+        ExplorerTarget::OpenFolder
+    }
+}
+
+/// Shows a path in Explorer: a folder is opened, a file is selected in its
+/// parent folder (the opener plugin passes `/select` properly).
 pub fn open_explorer(path: &str) -> Result<(), String> {
-    Command::new("explorer")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    match explorer_target(std::path::Path::new(path)) {
+        ExplorerTarget::RevealItem => {
+            tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
+        }
+        ExplorerTarget::OpenFolder => Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+    }
 }
 
 /// Open one or more projects in VS Code. A single project opens as a plain
@@ -737,6 +765,23 @@ pub fn open_in_vscode(vscode_cmd: &str, paths: &[String]) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explorer_reveals_files_and_opens_everything_else() {
+        let dir = std::env::temp_dir().join(format!("explorer-target-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("capture.png");
+        std::fs::write(&file, b"x").unwrap();
+
+        assert_eq!(explorer_target(&file), ExplorerTarget::RevealItem);
+        assert_eq!(explorer_target(&dir), ExplorerTarget::OpenFolder);
+        assert_eq!(
+            explorer_target(&dir.join("missing.html")),
+            ExplorerTarget::OpenFolder
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn obsidian_url_encodes_spaces_and_normalizes_backslashes() {
