@@ -129,14 +129,14 @@ const VOICE_MD = `## Voice input (local dictation)
 A global hotkey turns speech into text and pastes it into whatever app has focus — fully offline, no cloud, no LLM.
 
 - Press **Ctrl** + **Shift** + **Space** (the default) to start recording; press it again to stop and transcribe, or click the stop button on the indicator. Recording auto-stops after 2 minutes.
-- The first time, download a model in **⚙ Settings → Voice** (\`tiny\`/\`base\`/\`small\` plus quantized variants; larger models are more accurate but slower). \`small-q5_1\` is a good speed/accuracy default on CPU; \`large-v3-turbo-q5_0\` is the most accurate and fast on a GPU. Transcription won't work until a model is downloaded.
+- The first time, download a model under **Local models** in the **Voice** tab (\`tiny\`/\`base\`/\`small\` plus quantized variants; larger models are more accurate but slower). \`small-q5_1\` is a good speed/accuracy default on CPU; \`large-v3-turbo-q5_0\` is the most accurate and fast on a GPU. Transcription won't work until a model is downloaded.
 - Transcription runs on the GPU (Vulkan) when one is available, and falls back to CPU automatically otherwise.
 - A small indicator shows recording (with elapsed time), transcribing, or an error. While speaking, it grows into a live preview of the transcript so far, built from short chunks transcribed as you go — no need to wait for the final pass.
 - By default the indicator appears next to the text cursor of the app you are dictating into, so it is where you are already looking. When no text cursor can be found (some apps don't report one), it appears next to the mouse pointer instead.
-- Prefer it to stay put? Set **⚙ Settings → Voice → Indicator position** to **Fixed**: the indicator then opens where you last dragged it, or bottom-center of the primary screen.
+- Prefer it to stay put? Set **Indicator** in the **Voice** tab to **Fixed**: the indicator then opens where you last dragged it, or bottom-center of the primary screen.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
-- The hotkey, model, and language (auto-detect, Japanese, English) can be changed in **⚙ Settings → Voice**.
+- The hotkey, model, and language (auto-detect, Japanese, English) can be changed at the top of the **Voice** tab; each change takes effect as soon as you make it.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)
@@ -1130,8 +1130,9 @@ export function HelpView() {
                 Recording auto-stops after 2 minutes.
               </li>
               <li>
-                The first time, download a model in{" "}
-                <span className="font-medium">⚙ Settings → Voice</span> (
+                The first time, download a model under{" "}
+                <span className="font-medium">Local models</span> in the{" "}
+                <span className="font-medium">Voice</span> tab (
                 <span className="font-mono text-xs">tiny</span>/
                 <span className="font-mono text-xs">base</span>/
                 <span className="font-mono text-xs">small</span> plus
@@ -1162,10 +1163,8 @@ export function HelpView() {
               </li>
               <li>
                 Prefer it to stay put? Set{" "}
-                <span className="font-medium">
-                  ⚙ Settings → Voice → Indicator position
-                </span>{" "}
-                to <span className="font-medium">Fixed</span>: the indicator
+                <span className="font-medium">Indicator</span> in the{" "}
+                <span className="font-medium">Voice</span> tab to <span className="font-medium">Fixed</span>: the indicator
                 then opens where you last dragged it, or bottom-center of the
                 primary screen.
               </li>
@@ -1182,8 +1181,9 @@ export function HelpView() {
                 actions.
               </li>
               <li>
-                The hotkey, model, and language can be changed in{" "}
-                <span className="font-medium">⚙ Settings → Voice</span>.
+                The hotkey, model, and language can be changed at the top of
+                the <span className="font-medium">Voice</span> tab; each change
+                takes effect as soon as you make it.
               </li>
               <li>
                 workhub has no tray icon: closing its main window quits the

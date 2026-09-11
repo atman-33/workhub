@@ -5,6 +5,7 @@ paths:
   - "src-tauri/src/vault_settings.rs"
   - "src/types.ts"
   - "src/components/settings-dialog.tsx"
+  - "src/components/*-view.tsx"
 ---
 
 # Where a new setting goes
@@ -66,3 +67,17 @@ Two traps:
    which settings follow the vault.
 4. Never read `~/.workhub/config.json` directly from Rust: go through
    `storage::load()`, which is what applies the overlay.
+
+## Settings owned by a feature tab
+
+A feature's settings may live in its own tab instead of the dialog — Voice,
+Ink, Clips and Docs do (T-0277). Such a tab saves each change immediately,
+and every writer saves the *whole* `Settings` struct, so a stale copy reverts
+whatever another place changed meanwhile:
+
+- Merge a tab's patch into a fresh `api.getConfig()`, not into the copy the
+  tab loaded on mount (see `patchSettings` in `voice-view.tsx`).
+- The dialog saves its whole draft, which is why `app.tsx` re-reads the
+  config before opening it. Keep that re-read when touching `openSettings`.
+- Leave the moved keys in the dialog's `DEFAULTS` with a comment naming the
+  tab that owns them — the object still has to satisfy the `Settings` type.

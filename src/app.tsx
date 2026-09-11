@@ -206,6 +206,20 @@ export default function App() {
     setConfigVersion((v) => v + 1);
   }, []);
 
+  // Re-read the config before opening Settings: the Voice, Ink, Clips and
+  // Docs tabs save their own settings straight to disk, so the copy held here
+  // can be stale — and the dialog saves its whole draft, which would silently
+  // revert whatever those tabs changed (T-0277).
+  const openSettings = useCallback(async () => {
+    try {
+      const cfg = await api.getConfig();
+      setSettings(cfg.settings);
+    } catch {
+      // Fall back to the copy already held rather than not opening at all.
+    }
+    setShowSettings(true);
+  }, []);
+
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-full flex-col overflow-hidden">
@@ -289,7 +303,7 @@ export default function App() {
               size="icon"
               variant="ghost"
               className="size-7"
-              onClick={() => setShowSettings(true)}
+              onClick={() => void openSettings()}
             >
               <SettingsIcon className="size-4" />
             </Button>
@@ -346,7 +360,7 @@ export default function App() {
             <TimerView />
           </TabPanel>
           <TabPanel id="voice" tab={tab}>
-            <VoiceView />
+            <VoiceView configVersion={configVersion} />
           </TabPanel>
           <TabPanel id="clips" tab={tab}>
             <ClipsView configVersion={configVersion} />
