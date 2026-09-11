@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.113.0 (2026-09-12)
+
+- **The task editor's Project picker shows each project's folder number**
+  (T-0282). A project folder is `NNNN-<slug>`, but the picker listed bare
+  slugs in alphabetical order — neither the name nor the order the folder
+  listing in Obsidian shows, so matching one against the other meant
+  remembering which slug had which number. The number is now drawn beside each
+  option and feeds its search text, the selected project's full folder name
+  sits under the field, and the list is ordered by folder name, which is the
+  order the numbers were chosen for. The field still commits the bare slug:
+  the number is display only and is never parsed back out of the label.
+
 ## 0.112.0 (2026-09-12)
 
 - **Confirm mode asks for the plan in the prompt, not through a permission

@@ -10,6 +10,7 @@ import {
   linkedRepos,
   planProjectMove,
   projectOfNotePath,
+  projectNumberOfFolder,
   projectSlugOfFolder,
   sortProjects,
   sortProjectsByMode,
@@ -341,6 +342,23 @@ describe("projectSlugOfFolder", () => {
   it("leaves a bare prefix alone — a folder is never only its number", () => {
     expect(projectSlugOfFolder("0010-")).toBe("0010-");
     expect(projectSlugOfFolder("")).toBe("");
+  });
+});
+
+describe("projectNumberOfFolder", () => {
+  // The mirror of `projectSlugOfFolder`: whatever that strips, this returns.
+  it("returns the prefix exactly where the slug rule strips one", () => {
+    expect(projectNumberOfFolder("0010-workhub")).toBe("0010");
+    expect(projectNumberOfFolder("0010-0020-workhub")).toBe("0010");
+  });
+
+  it("returns nothing for a folder the slug rule leaves whole", () => {
+    expect(projectNumberOfFolder("workhub")).toBe("");
+    expect(projectNumberOfFolder("123-workhub")).toBe("");
+    expect(projectNumberOfFolder("00010-workhub")).toBe("");
+    expect(projectNumberOfFolder("0010workhub")).toBe("");
+    expect(projectNumberOfFolder("0010-")).toBe("");
+    expect(projectNumberOfFolder("")).toBe("");
   });
 });
 

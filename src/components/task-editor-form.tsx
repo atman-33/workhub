@@ -49,6 +49,7 @@ import {
   backlogOptionDetails,
   draftFromTask,
   mergeExternalTask,
+  projectOptionDetails,
   type DraftField,
   type TaskDraft,
 } from "@/lib/task-editor-fields";
@@ -114,6 +115,10 @@ interface Props {
   mode: "create" | "edit";
   task: Task | null;
   knownProjects: string[];
+  /** Folder name of each known project, keyed by slug. Lets the picker draw
+   *  each project's `NNNN-` sort number; absent, the list renders exactly as
+   *  it did before (T-0282). */
+  projectFolders?: Record<string, string>;
   /** Vault root, used to read the selected project's backlog items. Without
    *  it the item picker is simply not offered (T-0253). */
   vaultPath?: string;
@@ -144,6 +149,7 @@ export function TaskEditorForm({
   mode,
   task,
   knownProjects,
+  projectFolders,
   vaultPath,
   error,
   onClose,
@@ -285,6 +291,15 @@ export function TaskEditorForm({
     () => (projectUnregistered ? [...knownProjects, draft.project] : knownProjects),
     [knownProjects, projectUnregistered, draft.project],
   );
+  // The sort number beside each project, and the folder name under the field
+  // once one is picked — the trigger is half-width and truncates, so the line
+  // below is where the full folder name fits (same shape as the backlog item's
+  // title line). An unregistered value has no folder and draws bare.
+  const projectDetails = useMemo(
+    () => projectOptionDetails(projectFolders ?? {}),
+    [projectFolders],
+  );
+  const selectedProjectFolder = projectFolders?.[draft.project.trim()] ?? "";
 
   // A backlog item belongs to a project, so the picker follows the project
   // field: change the project and the items are re-read for it. Switching
@@ -811,10 +826,16 @@ export function TaskEditorForm({
                 value={draft.project}
                 onChange={handleProjectChange}
                 options={projectOptions}
+                optionDetails={projectDetails}
                 noneLabel="No project"
                 placeholder="vault project"
                 emptyText="No vault projects. Create one in the Projects tab."
               />
+              {selectedProjectFolder && (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {selectedProjectFolder}
+                </p>
+              )}
               {projectUnregistered && (
                 <p className="text-[11px] text-destructive">
                   {draft.project} is not a vault project

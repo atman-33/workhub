@@ -249,6 +249,17 @@ export function projectSlugOfFolder(folder: string): string {
 }
 
 /**
+ * The `NNNN` sort number a project folder carries, or `""` when it has none —
+ * the other half of `projectSlugOfFolder`, which throws that number away.
+ *
+ * Display only. The number orders the file explorer and means nothing else, so
+ * it never travels as identity: a picker that draws it still commits the slug.
+ */
+export function projectNumberOfFolder(folder: string): string {
+  return /^[0-9]{4}-.+/.test(folder) ? folder.slice(0, 4) : "";
+}
+
+/**
  * Owning project slug of a note path (`…/projects/<folder>/<kind>/<name>.md`),
  * or `""` when the path is not under a project.
  *
