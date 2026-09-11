@@ -144,17 +144,15 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
     };
   }, [refreshModelStatus]);
 
-  /** Settings save immediately — there is nothing to review. The patch is
-   * merged into a fresh read of the config rather than the copy loaded with
-   * this tab, so a setting another tab saved meanwhile is not reverted. */
+  /** Settings save immediately — there is nothing to review. The patch goes
+   * onto a fresh read of the config, so a setting another tab saved
+   * meanwhile is not reverted. */
   const patchSettings = useCallback(
     async (patch: Partial<Config["settings"]>) => {
       setError("");
       setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
       try {
-        const cfg = await api.getConfig();
-        const saved = await api.saveConfig({ ...cfg, settings: { ...cfg.settings, ...patch } });
-        setConfig(saved);
+        setConfig(await api.patchSettings(patch));
         // The "active" badge follows the selected model.
         if ("voice_model" in patch) await refreshModelStatus();
       } catch (e) {

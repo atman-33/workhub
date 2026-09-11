@@ -126,20 +126,20 @@ export function InkView({ configVersion }: { configVersion: number }) {
     };
   }, [refresh]);
 
-  /** Feature settings save immediately — there is nothing to review. */
+  /** Feature settings save immediately — there is nothing to review. The
+   * patch goes onto a fresh read of the config, so a setting another tab
+   * saved meanwhile is not reverted. */
   const patchSettings = useCallback(
     async (patch: Partial<Config["settings"]>) => {
-      if (!config) return;
-      const next = { ...config, settings: { ...config.settings, ...patch } };
-      setConfig(next);
+      setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
       try {
-        await api.saveConfig(next);
+        setConfig(await api.patchSettings(patch));
         await refresh();
       } catch (e) {
         setError(String(e));
       }
     },
-    [config, refresh],
+    [refresh],
   );
 
   const copy = async (capture: InkCapture) => {

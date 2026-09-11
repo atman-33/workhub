@@ -178,13 +178,13 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
     }
   };
 
-  /** Gesture settings save immediately — there is nothing to review. */
+  /** Gesture settings save immediately — there is nothing to review. The
+   * patch goes onto a fresh read of the config, so a setting another tab
+   * saved meanwhile is not reverted. */
   const patchSettings = async (patch: Partial<Config["settings"]>) => {
-    if (!config) return;
-    const next = { ...config, settings: { ...config.settings, ...patch } };
-    setConfig(next);
+    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
     try {
-      await api.saveConfig(next);
+      setConfig(await api.patchSettings(patch));
     } catch (e) {
       setError(String(e));
     }

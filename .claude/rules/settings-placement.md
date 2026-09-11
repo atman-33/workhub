@@ -75,8 +75,14 @@ Ink, Clips and Docs do (T-0277). Such a tab saves each change immediately,
 and every writer saves the *whole* `Settings` struct, so a stale copy reverts
 whatever another place changed meanwhile:
 
-- Merge a tab's patch into a fresh `api.getConfig()`, not into the copy the
-  tab loaded on mount (see `patchSettings` in `voice-view.tsx`).
+- Save a tab's settings with `api.patchSettings(patch)`, which merges the
+  patch into a fresh `api.getConfig()` — never into the copy the tab loaded
+  on mount (T-0281).
+- The same holds for anything else a view saves through `api.saveConfig`: the
+  Repos tab writes only the `projects` / `selected` it owns, onto a fresh
+  read, because its copy also carries `settings`.
+- Docs needs none of this: its roots and PlantUML server are saved by Rust
+  commands that `storage::load()` right before `storage::save()`.
 - The dialog saves its whole draft, which is why `app.tsx` re-reads the
   config before opening it. Keep that re-read when touching `openSettings`.
 - Leave the moved keys in the dialog's `DEFAULTS` with a comment naming the
