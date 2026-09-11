@@ -6,12 +6,10 @@ import {
   AlertTriangle,
   Check,
   Copy,
-  Download,
   FolderOpen,
   Loader2,
   Play,
   RotateCcw,
-  Trash2,
 } from "lucide-react";
 import { api, timeAgo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -41,7 +39,7 @@ import { DiagnosticLogPanel } from "@/components/diagnostic-log-panel";
 import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
-import type { Settings, SttModelStatus, TidyRun, UpdateInfo } from "@/types";
+import type { Settings, TidyRun, UpdateInfo } from "@/types";
 
 const TIDY_DEFAULTS: Settings["tidy"] = {
   enabled: false,
@@ -75,20 +73,6 @@ function nextCheck(tidy: Settings["tidy"]): number | null {
   const elapsed = Math.max(0, now - tidy.anchor);
   return tidy.anchor + (Math.floor(elapsed / interval) + 1) * interval;
 }
-
-const VOICE_MODELS: { id: string; label: string; size: string }[] = [
-  { id: "tiny", label: "Tiny", size: "75MB" },
-  { id: "base", label: "Base", size: "142MB" },
-  { id: "small", label: "Small", size: "466MB" },
-  { id: "small-q5_1", label: "Small (quantized)", size: "182MB" },
-  { id: "large-v3-turbo-q5_0", label: "Large v3 Turbo (quantized)", size: "547MB" },
-];
-
-const VOICE_LANGUAGES: { id: string; label: string }[] = [
-  { id: "auto", label: "Auto-detect" },
-  { id: "ja", label: "Japanese" },
-  { id: "en", label: "English" },
-];
 
 const TASK_LANGUAGES: { id: string; label: string }[] = [
   { id: "en", label: "English" },
@@ -133,6 +117,7 @@ const DEFAULTS: Settings = {
   ink_preview_rect: null,
   task_editor_rect: null,
   task_editor_maximized: false,
+  // Managed from the Voice tab itself, not from this dialog (T-0277).
   voice_enabled: true,
   voice_hotkey: "Ctrl+Shift+Space",
   voice_model: "small",
@@ -178,10 +163,6 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "failed"
   >("idle");
   const [error, setError] = useState("");
-  const [modelStatus, setModelStatus] = useState<SttModelStatus[]>([]);
-  const [downloading, setDownloading] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadError, setDownloadError] = useState("");
   const [tidyRun, setTidyRun] = useState<TidyRun | null>(null);
   const [tidyMsg, setTidyMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -191,71 +172,28 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const setTidy = (patch: Partial<Settings["tidy"]>) =>
     setDraft((d) => ({ ...d, tidy: { ...d.tidy, ...patch } }));
 
-  const refreshModelStatus = () => void api.sttModelStatus().then(setModelStatus);
-
   useEffect(() => {
     if (open) {
       setDraft(settings);
       setUpdate(null);
       setPhase("idle");
       setError("");
-      setDownloadError("");
       setSaveError("");
       void api.appVersion().then(setVersion);
       void api.tidyStatus().then(setTidyRun);
       setTidyMsg("");
-      refreshModelStatus();
     }
-    // refreshModelStatus is stable enough for this effect's purpose (only
-    // depends on api, which never changes); omitting it avoids a re-run loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings]);
 
   useEffect(() => {
     if (!open) return;
-    const unlistenProgress = listen<{ model: string; downloaded: number; total: number }>(
-      "stt:download-progress",
-      (event) => {
-        if (event.payload.total > 0) {
-          setDownloadProgress(Math.round((event.payload.downloaded / event.payload.total) * 100));
-        }
-      },
-    );
-    const unlistenDone = listen<string>("stt:download-done", () => {
-      setDownloading(null);
-      refreshModelStatus();
-    });
-    const unlistenError = listen<{ model: string; message: string }>("stt:download-error", (event) => {
-      setDownloading(null);
-      setDownloadError(event.payload.message);
-    });
     const unlistenTidy = listen<TidyRun>("tidy:status", (event) => {
       setTidyRun(event.payload);
     });
     return () => {
-      void unlistenProgress.then((fn) => fn());
-      void unlistenDone.then((fn) => fn());
-      void unlistenError.then((fn) => fn());
       void unlistenTidy.then((fn) => fn());
     };
   }, [open]);
-
-  const downloadModel = async (model: string) => {
-    setDownloading(model);
-    setDownloadProgress(0);
-    setDownloadError("");
-    try {
-      await api.sttDownloadModel(model);
-    } catch (e) {
-      setDownloading(null);
-      setDownloadError(String(e));
-    }
-  };
-
-  const deleteModel = async (model: string) => {
-    await api.sttDeleteModel(model);
-    refreshModelStatus();
-  };
 
   const runTidy = async (force: boolean) => {
     setTidyMsg("");
@@ -353,7 +291,6 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
-            <TabsTrigger value="voice">Voice</TabsTrigger>
             <TabsTrigger value="vault">Vault</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
@@ -644,152 +581,6 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   className="min-h-20 text-xs"
                 />
               </div>
-            </TabsContent>
-            <TabsContent value="voice" className="mt-0 space-y-3">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={draft.voice_enabled}
-                  onCheckedChange={(v) => setDraft({ ...draft, voice_enabled: v === true })}
-                />
-                Voice input (hotkey dictates into the focused app)
-              </label>
-              {draft.voice_enabled && (
-                <>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Voice input hotkey
-                    </label>
-                    <Input
-                      value={draft.voice_hotkey}
-                      onChange={(e) => setDraft({ ...draft, voice_hotkey: e.target.value })}
-                      placeholder="Ctrl+Shift+Space"
-                      className="h-8 font-mono text-xs"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="min-w-0 space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Model</label>
-                      <Select
-                        value={draft.voice_model}
-                        onValueChange={(v) => setDraft({ ...draft, voice_model: v })}
-                      >
-                        <SelectTrigger size="sm" className="w-full">
-                          <SelectValue className="truncate" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VOICE_MODELS.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.label} ({m.size})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="min-w-0 space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Language</label>
-                      <Select
-                        value={draft.voice_language}
-                        onValueChange={(v) => setDraft({ ...draft, voice_language: v })}
-                      >
-                        <SelectTrigger size="sm" className="w-full">
-                          <SelectValue className="truncate" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VOICE_LANGUAGES.map((l) => (
-                            <SelectItem key={l.id} value={l.id}>
-                              {l.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Indicator position
-                    </label>
-                    <Select
-                      value={draft.voice_indicator_placement}
-                      onValueChange={(v) =>
-                        setDraft({
-                          ...draft,
-                          voice_indicator_placement: v as Settings["voice_indicator_placement"],
-                        })
-                      }
-                    >
-                      <SelectTrigger size="sm" className="w-full">
-                        <SelectValue className="truncate" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="caret">Follow the text cursor</SelectItem>
-                        <SelectItem value="fixed">Fixed (remembers where you drag it)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {draft.voice_indicator_placement === "caret"
-                        ? "The indicator appears next to the text cursor of the app you are dictating into, or by the mouse pointer when no text cursor can be found."
-                        : "The indicator appears where you last dragged it, or bottom-center of the primary screen."}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Local models</p>
-                    {VOICE_MODELS.map((m) => {
-                      const status = modelStatus.find((s) => s.model === m.id);
-                      const isDownloading = downloading === m.id;
-                      return (
-                        <div key={m.id} className="space-y-1 rounded-md border p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-1.5 text-xs">
-                              {m.label} <span className="text-muted-foreground">({m.size})</span>
-                              {status?.active && (
-                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">
-                                  active
-                                </span>
-                              )}
-                            </span>
-                            {status?.downloaded ? (
-                              <Button
-                                type="button"
-                                size="icon-xs"
-                                variant="ghost"
-                                aria-label={`Delete ${m.label}`}
-                                onClick={() => void deleteModel(m.id)}
-                                disabled={isDownloading}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            ) : (
-                              <Button
-                                type="button"
-                                size="icon-xs"
-                                variant="ghost"
-                                aria-label={`Download ${m.label}`}
-                                onClick={() => void downloadModel(m.id)}
-                                disabled={isDownloading}
-                              >
-                                {isDownloading ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <Download className="size-3.5" />
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                          {isDownloading && (
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full bg-primary transition-all"
-                                style={{ width: `${downloadProgress}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {downloadError && <p className="text-xs text-destructive">{downloadError}</p>}
-                  </div>
-                </>
-              )}
             </TabsContent>
             <TabsContent value="vault" className="mt-0 space-y-3">
               {field("Worktree root", "worktree_root")}
