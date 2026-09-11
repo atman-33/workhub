@@ -7,7 +7,9 @@ import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { calloutKind, colonBlocksToCallouts, rehypeCallouts } from "@/lib/callouts";
 import { cn } from "@/lib/utils";
+import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
 
 /** Collect the plain text of a React node tree (for copying a code block). */
 function nodeText(node: React.ReactNode): string {
@@ -208,7 +210,21 @@ function ResolvedImage({
  * Tauri IPC bridge, so a `<script>` or an `onerror=` in a document on a shared
  * folder would be code running with the app's own permissions.
  */
-const HTML_REHYPE_PLUGINS: Options["rehypePlugins"] = [rehypeRaw, [rehypeSanitize, defaultSchema]];
+const HTML_REHYPE_PLUGINS: NonNullable<Options["rehypePlugins"]> = [
+  rehypeRaw,
+  [rehypeSanitize, defaultSchema],
+];
+
+/**
+ * The rehype pipeline for a combination of options. Callouts run last, after
+ * sanitizing: their `data-*` attributes would not survive the GitHub schema,
+ * and the tree they rearrange is safe by then.
+ */
+function rehypePluginsFor(allowHtml?: boolean, callouts?: boolean): Options["rehypePlugins"] {
+  const plugins = allowHtml ? [...HTML_REHYPE_PLUGINS] : [];
+  if (callouts) plugins.push(rehypeCallouts);
+  return plugins.length > 0 ? plugins : undefined;
+}
 
 /** The compact styling the task previews and the Results sheet are sized for. */
 const COMPACT_STYLE = [
@@ -276,6 +292,12 @@ interface MarkdownProps {
    * which is what the task previews want.
    */
   resolveAsset?: (src: string) => Promise<string | null>;
+  /**
+   * Draw Obsidian callouts (`> [!note]`) and the NotePM (`:::note info`) and
+   * Zenn (`:::message`) emphasis blocks as coloured boxes — see
+   * `@/lib/callouts`. Off, they read as the plain quotes and text they are.
+   */
+  callouts?: boolean;
 }
 
 /**
@@ -285,9 +307,9 @@ interface MarkdownProps {
  * syntax highlighting. Single newlines render as hard breaks (remark-breaks)
  * to match how the same files read in Obsidian.
  *
- * `mermaid`, `resolveAsset`, `allowHtml` and `variant` are opt-in: with none
- * set this renders exactly what it always did, so the task previews are
- * unaffected by what the Docs tab needs.
+ * `mermaid`, `resolveAsset`, `allowHtml`, `callouts` and `variant` are
+ * opt-in: with none set this renders exactly what it always did, so the task
+ * previews are unaffected by what the Docs tab needs.
  */
 export function Markdown({
   children,
@@ -296,13 +318,44 @@ export function Markdown({
   allowHtml,
   mermaid,
   resolveAsset,
+  callouts,
 }: MarkdownProps) {
+  const source = React.useMemo(
+    () => (callouts ? colonBlocksToCallouts(children) : children),
+    [callouts, children],
+  );
   return (
     <div className={cn(variant === "document" ? DOCUMENT_STYLE : COMPACT_STYLE, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
-        rehypePlugins={allowHtml ? HTML_REHYPE_PLUGINS : undefined}
+        rehypePlugins={rehypePluginsFor(allowHtml, callouts)}
         components={{
+          div({ node: _node, children, ...props }) {
+            // Only `rehypeCallouts` produces these attributes: sanitizing
+            // strips `data-*` from raw HTML, so a document cannot forge one.
+            const data = props as Record<string, unknown>;
+            const type = data["data-callout-type"];
+            if (callouts && typeof type === "string") {
+              const fold = data["data-callout-fold"];
+              return (
+                <CalloutBox
+                  kind={calloutKind(type)}
+                  type={type}
+                  fold={typeof fold === "string" ? fold : undefined}
+                  noTitle={"data-callout-notitle" in data}
+                >
+                  {children}
+                </CalloutBox>
+              );
+            }
+            if (callouts && "data-callout-title" in data) {
+              return <CalloutTitle>{children}</CalloutTitle>;
+            }
+            if (callouts && "data-callout-body" in data) {
+              return <CalloutBody>{children}</CalloutBody>;
+            }
+            return <div {...props}>{children}</div>;
+          },
           a({ href, children, ...props }) {
             return (
               <a
@@ -376,7 +429,7 @@ export function Markdown({
           },
         }}
       >
-        {children}
+        {source}
       </ReactMarkdown>
     </div>
   );

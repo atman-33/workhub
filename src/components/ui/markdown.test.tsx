@@ -43,3 +43,82 @@ describe("Markdown allowHtml", () => {
     expect(out).not.toContain("<details>");
   });
 });
+
+function renderCallouts(markdown: string): string {
+  return renderToStaticMarkup(
+    <Markdown variant="document" allowHtml callouts>
+      {markdown}
+    </Markdown>,
+  );
+}
+
+describe("Markdown callouts", () => {
+  it("draws an Obsidian callout with its type as the default title", () => {
+    const out = renderCallouts("> [!warning]\n> Mind the **gap**.");
+    expect(out).toContain('data-callout="warning"');
+    expect(out).toContain("Warning");
+    expect(out).toContain("<strong>gap</strong>");
+    expect(out).not.toContain("<blockquote");
+    expect(out).not.toContain("[!warning]");
+  });
+
+  it("uses a custom title and keeps the rest of the paragraph as body", () => {
+    const out = renderCallouts("> [!tip] Faster *builds*\n> Use the cache.\n>\n> - one");
+    expect(out).toMatch(/data-callout="tip"[\s\S]*Faster <em>builds<\/em>[\s\S]*Use the cache\./);
+    expect(out).toContain("<li>one</li>");
+    expect(out).not.toContain("Tip");
+  });
+
+  it("resolves aliases and draws unknown types as a note", () => {
+    expect(renderCallouts("> [!FAQ]\n> x")).toContain('data-callout="question"');
+    const unknown = renderCallouts("> [!custom] Title\n> x");
+    expect(unknown).toContain('data-callout="note"');
+  });
+
+  it("starts a '-' callout folded and a '+' one open", () => {
+    const folded = renderCallouts("> [!note]- Hidden\n> secret body");
+    expect(folded).toContain('aria-expanded="false"');
+    expect(folded).not.toContain("secret body");
+    const open = renderCallouts("> [!note]+ Shown\n> visible body");
+    expect(open).toContain('aria-expanded="true"');
+    expect(open).toContain("visible body");
+  });
+
+  it("converts nested callouts", () => {
+    const out = renderCallouts("> [!info] Outer\n> > [!bug] Inner\n> > deep");
+    expect(out).toContain('data-callout="info"');
+    expect(out).toContain('data-callout="bug"');
+    expect(out).toContain("deep");
+  });
+
+  it("draws NotePM and Zenn blocks without a title line", () => {
+    const notepm = renderCallouts(":::note alert\n\n危険な操作\n:::\n\nafter");
+    expect(notepm).toContain('data-callout="danger"');
+    expect(notepm).toContain("危険な操作");
+    expect(notepm).not.toContain("Danger");
+    expect(notepm).not.toContain(":::");
+    expect(notepm).toMatch(/<\/div>\s*<p>after<\/p>/);
+    const zenn = renderCallouts(":::message\nメモ\n:::");
+    expect(zenn).toContain('data-callout="warning"');
+    // The marker line's break must not open the body with an empty line.
+    expect(zenn).toMatch(/<p>メモ<\/p>/);
+  });
+
+  it("still sanitizes HTML inside a callout, and a raw data-callout is not honoured", () => {
+    const out = renderCallouts(
+      '> [!note]\n> <img src="x.png" onerror="alert(1)">\n\n<div data-callout-type="danger">forged</div>',
+    );
+    expect(out).not.toContain("onerror");
+    expect(out.match(/data-callout=/g)).toHaveLength(1);
+  });
+
+  it("leaves plain quotes and ::: text alone when callouts are off", () => {
+    const out = renderToStaticMarkup(
+      <Markdown allowHtml>{"> [!note]\n> x\n\n:::note info\ny\n:::"}</Markdown>,
+    );
+    expect(out).toContain("<blockquote>");
+    expect(out).toContain("[!note]");
+    expect(out).toContain(":::note info");
+    expect(out).not.toContain("data-callout");
+  });
+});
