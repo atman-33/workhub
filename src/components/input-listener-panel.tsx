@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, Loader2, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
+import { useRestartInputListener } from "@/lib/use-restart-input-listener";
 import { Button } from "@/components/ui/button";
 import type { InputListenerDiagnostics } from "@/types";
 
@@ -30,9 +31,8 @@ function uptime(ms: number | null): string {
 
 export function InputListenerPanel() {
   const [info, setInfo] = useState<InputListenerDiagnostics | null>(null);
-  const [restarting, setRestarting] = useState(false);
-  const [restarted, setRestarted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { restart, restarting, restarted, error, setError } =
+    useRestartInputListener(setInfo);
 
   const refresh = useCallback(async () => {
     try {
@@ -40,27 +40,13 @@ export function InputListenerPanel() {
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [setError]);
 
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), REFRESH_MS);
     return () => clearInterval(timer);
   }, [refresh]);
-
-  const restart = async () => {
-    setRestarting(true);
-    setError(null);
-    try {
-      setInfo(await api.restartInputListener());
-      setRestarted(true);
-      setTimeout(() => setRestarted(false), 3000);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setRestarting(false);
-    }
-  };
 
   // Typing anywhere feeds the listener, so a long silence while the user is
   // clearly at the keyboard is the signature of a registration that died.
