@@ -101,6 +101,12 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// create and work inside a dedicated git worktree for the task rather than
     /// the repository's main working tree.
     pub worktree: bool,
+    /// Root directory task worktrees are created under, laid out as
+    /// `<worktree_root>/<task-id>/<repo-name>` (Settings -> Agents -> Worktree
+    /// root). Only read when `worktree` is set. Empty means the user cleared
+    /// it, and the prompt then asks for the repo-relative `.worktrees/` layout
+    /// instead of naming an absolute path it does not have.
+    pub worktree_root: &'a str,
     pub vault_path: &'a str,
     pub use_herdr: bool,
     pub herdr_cmd: &'a str,
@@ -266,8 +272,26 @@ fn agent_prompt_clauses(params: &LaunchAgentForTaskParams<'_>, multiline: bool) 
     // The agent session starts in the vault; task-start resolves the repo and
     // creates the worktree there, so this only has to tell it where and how.
     if params.worktree {
+        // The configured root is what the user set and what the worktree panel
+        // lists, so the prompt has to name it rather than a path of its own
+        // (T-0305). Backslashes are normalized because this is free text the
+        // user typed, and the prompt is read as a path by the agent.
+        let root = params.worktree_root.trim().replace('\\', "/");
+        let root = root.trim_end_matches('/');
+        let base = if root.is_empty() {
+            // No root configured: fall back to the layout relative to the
+            // repository, which is the one place the agent can always resolve.
+            "`.worktrees`, beside the repository".to_string()
+        } else {
+            format!("`{root}`")
+        };
+        let path = if root.is_empty() {
+            format!("`.worktrees/{}/<repository-name>`", params.task_id)
+        } else {
+            format!("`{root}/{}/<repository-name>`", params.task_id)
+        };
         clauses.push(format!(
-            "This task uses git worktree mode. In task-start, do not modify the repository's working tree directly; instead create a new worktree with `git worktree add` under `.worktrees/{0}/<repository-name>` (branch `task/{0}`) and work there. For multiple repositories, create each repository's worktree under the same `.worktrees/{0}/` folder.",
+            "This task uses git worktree mode. In task-start, do not modify the repository's working tree directly; instead create a new worktree with `git worktree add` at {path} (branch `task/{0}`) and work there. Worktrees live under {base}. For multiple repositories, create each repository's worktree side by side under the same `{0}` folder.",
             params.task_id
         ));
     }
@@ -931,6 +955,7 @@ mod tests {
             model,
             confirm: false,
             worktree: false,
+            worktree_root: "C:/repos/.worktrees",
             vault_path: "C:/vault",
             use_herdr: false,
             herdr_cmd: "herdr",
@@ -1002,8 +1027,30 @@ mod tests {
         params.worktree = true;
         let template = agent_command_template(&params);
         assert!(template.contains("This task uses git worktree mode"));
-        assert!(template.contains(".worktrees/T-1/<repository-name>"));
+        assert!(template.contains("C:/repos/.worktrees/T-1/<repository-name>"));
         assert!(template.contains("task/T-1"));
+    }
+
+    #[test]
+    fn worktree_mode_uses_the_configured_root() {
+        let mut params = test_params("claude-code", "");
+        params.worktree = true;
+        params.worktree_root = r"D:\work\trees\";
+        let prompt = build_agent_prompt(&params);
+        // Typed by hand, so backslashes are normalized and the trailing
+        // separator dropped before the path reaches the agent.
+        assert!(prompt.contains("D:/work/trees/T-1/<repository-name>"));
+        assert!(!prompt.contains('\\'));
+    }
+
+    #[test]
+    fn worktree_mode_without_a_root_falls_back_to_the_repo_relative_layout() {
+        let mut params = test_params("claude-code", "");
+        params.worktree = true;
+        params.worktree_root = "  ";
+        let prompt = build_agent_prompt(&params);
+        assert!(prompt.contains("`.worktrees/T-1/<repository-name>`"));
+        assert!(prompt.contains("beside the repository"));
     }
 
     #[test]
