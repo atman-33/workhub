@@ -301,6 +301,14 @@ export function TasksView({
     [vaultProjects],
   );
 
+  // Switching to the board drops the status filter with it: the picker is
+  // hidden there (the columns are the statuses), and a filter you cannot see
+  // is one you cannot undo.
+  const showKanban = useCallback(() => {
+    setViewMode("kanban");
+    setStatusFilter("");
+  }, []);
+
   // The toolbar filter answers a different question — "narrow what is on the
   // board" — so it also lists values tasks actually carry, including ones no
   // project answers to. Without them a mis-filed task cannot be filtered for,
@@ -608,19 +616,25 @@ export function TasksView({
           </TooltipContent>
         </Tooltip>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger size="sm" className="min-w-[7rem]">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
-            {(["inbox", "todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* List view only. On the kanban board the columns *are* the statuses,
+            so filtering by one leaves a single column standing with nothing on
+            screen to say why. The list is flat and shows status as a badge, so
+            there this is the only way to narrow by it. */}
+        {viewMode === "list" && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger size="sm" className="min-w-[7rem]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All statuses</SelectItem>
+              {(["inbox", "todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
           <SelectTrigger size="sm" className="min-w-[7.5rem]">
             <SelectValue placeholder="All assignees" />
@@ -749,7 +763,7 @@ export function TasksView({
               "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",
               viewMode === "kanban" ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent/50",
             )}
-            onClick={() => setViewMode("kanban")}
+            onClick={() => showKanban()}
           >
             <LayoutGrid className="size-3.5" /> Kanban
           </button>
