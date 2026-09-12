@@ -791,20 +791,23 @@ export function TaskEditorForm({
           )}
           {field(
             "Confirm",
-            <div
-              className="flex h-8 items-center gap-2 rounded-md border px-2.5"
-              data-disabled={draft.assignee === "me" || undefined}
-              title="Agent gives its opinion, drafts a plan, and waits for your approval before executing."
-            >
-              <Switch
-                checked={draft.confirm}
-                onCheckedChange={(v) => update({ confirm: v })}
-                disabled={draft.assignee === "me"}
-              />
-              <span className="text-[11px] text-muted-foreground">
-                {draft.confirm ? "ON" : "OFF"}
-              </span>
-            </div>,
+            // The wrapper stays hoverable even when the switch inside is
+            // disabled, so `Hint` needs no `disabled` of its own here.
+            <Hint label="Agent gives its opinion, drafts a plan, and waits for your approval before executing.">
+              <div
+                className="flex h-8 items-center gap-2 rounded-md border px-2.5"
+                data-disabled={draft.assignee === "me" || undefined}
+              >
+                <Switch
+                  checked={draft.confirm}
+                  onCheckedChange={(v) => update({ confirm: v })}
+                  disabled={draft.assignee === "me"}
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  {draft.confirm ? "ON" : "OFF"}
+                </span>
+              </div>
+            </Hint>,
           )}
         </div>
         {/* A backlog item belongs to a project, so the picker only appears
