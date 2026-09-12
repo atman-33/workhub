@@ -130,8 +130,7 @@ absent — a machine with no vault and no configured project sees no difference.
 ### SessionStart hook: project context injection
 
 On every session start, the plugin injects a `<project-context>` XML block into
-Claude's context containing your registered project paths and the openspec docs
-folder. This mirrors the kind of "active project context" you may have wired up
+Claude's context containing your registered project paths. This mirrors the kind of "active project context" you may have wired up
 manually with a `settings.json` hook, but ships with the plugin and works on both
 Windows and WSL.
 
@@ -154,7 +153,6 @@ or run this plugin's `setup-project-context` skill.
 
 ```json
 {
-  "openspecPath": "C:/repos/workhub/openspec",
   "postToolFormatCommands": [
     "npm run format"
   ],
@@ -177,14 +175,9 @@ or run this plugin's `setup-project-context` skill.
 }
 ```
 
-- `roleBasedDelegation`, `openspecPath`, `postToolFormatCommands`, and
+- `roleBasedDelegation`, `postToolFormatCommands`, and
   `projects` are all optional. Omit any and the relevant hook skips that part;
   a missing file injects nothing.
-- `openspecPath` falls back to `<project-root>/openspec` when it is empty **or**
-  points at a folder that does not exist, so switching projects rarely needs a
-  manual path edit. If neither path exists, the `<openspec>` line is omitted.
-  Use the `set-openspec-path` skill to switch it by picking a registered
-  project from a menu instead of hand-editing the absolute path.
 - `postToolFormatCommands` is read by the `engineering` plugin's PostToolUse
   hook, not by this one. It can be declared either at the top level (global
   default for all registered targets) or inside each `projects[]` entry
@@ -208,7 +201,6 @@ This produces:
 
 ```xml
 <project-context>
-  <openspec path="C:/repos/workhub/openspec" />
   <registered-projects>
     <project name="workhub" path="C:/repos/workhub">
       <summary>Claude Code plugin marketplace</summary>

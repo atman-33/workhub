@@ -8,7 +8,7 @@ import {
 const injectProjectContextPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
   const configPath = workspaceRoot + "/.claude/project-context.json";
-  const projectContext = buildProjectContext(configPath, workspaceRoot);
+  const projectContext = buildProjectContext(configPath);
   const contextInjectedSessions = new Set<string>();
 
   return {

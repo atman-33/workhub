@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * SessionStart hook: inject the registered project paths and the openspec docs
- * folder path into Claude's context as a <project-context> XML block.
+ * SessionStart hook: inject the registered project paths into Claude's
+ * context as a <project-context> XML block.
  *
  * Reads `<project-root>/.claude/project-context.json` — the file the workhub
  * app writes — and emits `hookSpecificOutput.additionalContext`. Runs
@@ -24,7 +24,7 @@
  * Always exits 0 (SessionStart cannot block and hooks must be failure-tolerant).
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
@@ -39,7 +39,6 @@ const CONFIG_RELATIVE_PATH = ".claude/project-context.json";
 
 /**
  * @typedef {{
- *   openspecPath?: string,
  *   projects?: unknown[],
  * }} ProjectContextConfig
  */
@@ -106,27 +105,6 @@ function resolveProjectRoot(stdinRaw) {
 }
 
 /**
- * Resolve the openspec docs folder to inject.
- *
- * Priority:
- *   1. `config.openspecPath` when it is set and the folder exists on disk.
- *   2. Otherwise `<projectRoot>/openspec` (the working directory's openspec),
- *      so switching projects rarely requires editing the path by hand.
- * Returns "" when neither exists, so the <openspec> line is simply omitted.
- */
-/** @param {ProjectContextConfig} config @param {string} projectRoot */
-function resolveOpenspecPath(config, projectRoot) {
-  const candidate =
-    typeof config.openspecPath === "string" ? config.openspecPath.trim() : "";
-  if (candidate && existsSync(candidate)) {
-    return candidate;
-  }
-  const fallback =
-    projectRoot.replace(/\\/g, "/").replace(/\/+$/, "") + "/openspec";
-  return existsSync(fallback) ? fallback : "";
-}
-
-/**
  * @param {unknown[]} projects
  * @returns {RegisteredProject[]}
  */
@@ -150,13 +128,9 @@ function getValidProjects(projects) {
 }
 
 /** Build the <project-context> XML block from the parsed config. */
-/** @param {ProjectContextConfig} config @param {string} openspecPath */
-function buildXml(config, openspecPath) {
+/** @param {ProjectContextConfig} config */
+function buildXml(config) {
   const lines = ["<project-context>"];
-
-  if (openspecPath) {
-    lines.push(`  <openspec path="${xmlEscape(openspecPath)}" />`);
-  }
 
   const projects = Array.isArray(config.projects) ? config.projects : [];
   const validProjects = getValidProjects(projects);
@@ -215,16 +189,14 @@ function main() {
   }
 
   // Nothing useful configured -> inject nothing.
-  const resolvedOpenspec = resolveOpenspecPath(config, projectRoot);
-  const hasOpenspec = resolvedOpenspec !== "";
   const hasProjects =
     Array.isArray(config.projects) && getValidProjects(config.projects).length > 0;
-  if (!hasOpenspec && !hasProjects) {
+  if (!hasProjects) {
     emit(null);
     return;
   }
 
-  emit(buildXml(config, resolvedOpenspec));
+  emit(buildXml(config));
 }
 
 main();

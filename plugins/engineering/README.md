@@ -13,11 +13,9 @@ Engineering utilities and helpers for software development tasks.
 - `create-adr` — record an architecture decision as a numbered ADR in the target repo's `docs/adr/` (context, decision, alternatives, consequences).
 - `investigate-bug-report` — diagnose a reported bug to its root cause with evidence (reproduce/trace, blast radius, fix candidates) without changing code.
 - `develop-small-feature` — implement a small, well-scoped feature/fix end-to-end (branch → TDD → static checks → user verification → commit → PR).
-- `setup-openspec` — install the OpenSpec CLI and run `openspec init --tools claude`.
-- `set-openspec-path` — switch `openspecPath` by picking a registered project from a menu (see below).
-- `setup-all` — run every project setup step in sequence. Phases 2 and 3 delegate to the `workhub` plugin's `setup-project-context` and `setup-rules-ex` skills, and are skipped with a note when that plugin is not installed.
+- `setup-all` — run every project setup step in sequence. Both phases delegate to the `workhub` plugin's `setup-project-context` and `setup-rules-ex` skills, and are skipped with a note when that plugin is not installed.
 
-`develop-small-feature`, `setup-openspec`, `set-openspec-path`, and `setup-all`
+`develop-small-feature` and `setup-all`
 are explicit-invocation only (`disable-model-invocation: true`) — type the skill
 name to run them.
 
@@ -138,4 +136,4 @@ match the environment you launch from (or keep separate configs).
 
 #### Requirements
 
-- Node.js on `PATH` (already required by the `setup-openspec` skill).
+- Node.js on `PATH` (the hooks in this plugin are `node`-based).

@@ -15,7 +15,6 @@ export interface ProjectEntry {
 }
 
 export interface ProjectContextConfig {
-  openspecPath?: string;
   postToolFormatCommands?: unknown[];
   projects?: ProjectEntry[];
   // Set to false to consider registered project roots only, without walking up
@@ -100,17 +99,12 @@ export function loadProjectContextConfig(
   }
 }
 
-export function buildProjectContext(
-  configPath: string,
-  workspaceRoot: string,
-): string | null {
+export function buildProjectContext(configPath: string): string | null {
   const config = loadProjectContextConfig(configPath);
   if (!config) {
     return null;
   }
 
-  const resolvedOpenspec = resolveOpenspecPath(config, workspaceRoot);
-  const hasOpenspec = resolvedOpenspec !== "";
   const hasProjects =
     Array.isArray(config.projects) &&
     config.projects.some(
@@ -118,36 +112,15 @@ export function buildProjectContext(
         project && typeof project.path === "string" && project.path.trim() !== "",
     );
 
-  if (!hasOpenspec && !hasProjects) {
+  if (!hasProjects) {
     return null;
   }
 
-  return buildProjectContextXml(config, resolvedOpenspec);
+  return buildProjectContextXml(config);
 }
 
-export function resolveOpenspecPath(
-  config: ProjectContextConfig,
-  workspaceRoot: string,
-): string {
-  const candidate =
-    typeof config.openspecPath === "string" ? config.openspecPath.trim() : "";
-  if (candidate && existsSync(candidate)) {
-    return candidate;
-  }
-
-  const fallback = normalizePath(workspaceRoot) + "/openspec";
-  return existsSync(fallback) ? fallback : "";
-}
-
-export function buildProjectContextXml(
-  config: ProjectContextConfig,
-  openspecPath: string,
-): string {
+export function buildProjectContextXml(config: ProjectContextConfig): string {
   const lines = ["<project-context>"];
-
-  if (openspecPath) {
-    lines.push(`  <openspec path="${xmlEscape(openspecPath)}" />`);
-  }
 
   const projects = Array.isArray(config.projects) ? config.projects : [];
   const validProjects = projects.filter(
