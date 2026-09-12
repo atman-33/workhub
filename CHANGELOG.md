@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.117.1 (2026-09-13)
+
+- **OpenSpec leftovers are gone.** The dormant `setup-openspec` /
+  `set-openspec-path` skills are deleted and the project-context hooks (Claude
+  and OpenCode sides) no longer resolve or inject an `openspec` folder, so
+  sessions stop paying for a workflow no repository uses. Ships as
+  `engineering` 0.28.0 and `workhub` 0.35.0.
+
 ## 0.117.0 (2026-09-13)
 
 - **The opencode harness syncs a fixed default skill set** (T-0303). The vault
