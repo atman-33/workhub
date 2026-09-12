@@ -17,6 +17,7 @@ import {
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { MindmapAiPanel } from "@/components/mindmap/mindmap-ai-panel";
 import { ChipSettings } from "@/components/mindmap/chip-settings";
+import { MindmapSettings } from "@/components/mindmap/mindmap-settings";
 import {
   MindmapCanvas,
   type NodeAbilities,
@@ -268,6 +269,14 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   useEffect(() => {
     void api.getConfig().then(setConfig);
   }, [configVersion]);
+
+  /** Settings owned by this tab save immediately. The patch goes onto a fresh
+   * read of the config, so a setting another tab changed meanwhile is not
+   * reverted (T-0281). */
+  const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
+    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
+    setConfig(await api.patchSettings(patch));
+  }, []);
 
   // A listing that fails is almost always a folder that moved while it was
   // being read — archiving a project is a move, and the event that triggers
@@ -1446,6 +1455,10 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <Image className="size-3.5" />
             </Button>
           </Hint>
+          <MindmapSettings
+            settings={config?.settings ?? null}
+            onPatch={(patch) => void patchSettings(patch)}
+          />
           <Hint label="Edit with AI" disabled={!doc}>
             <Button
               size="sm"

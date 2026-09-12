@@ -20,6 +20,7 @@ import { ItemEditor } from "@/components/schedule/item-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
+import { ScheduleSettings } from "@/components/schedule/schedule-settings";
 import { SprintSettings } from "@/components/schedule/sprint-settings";
 import { TimelineGrid } from "@/components/schedule/timeline-grid";
 import { Button } from "@/components/ui/button";
@@ -198,6 +199,14 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   useEffect(() => {
     void api.getConfig().then(setConfig);
   }, [configVersion]);
+
+  /** Settings owned by this tab save immediately. The patch goes onto a fresh
+   * read of the config, so a setting another tab changed meanwhile is not
+   * reverted (T-0281). */
+  const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
+    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
+    setConfig(await api.patchSettings(patch));
+  }, []);
 
   // Today is state, not a value read during render: the view re-renders only on
   // file events, so a window left open overnight would keep marking yesterday.
@@ -991,6 +1000,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               <Download className="size-3.5" />
             </Button>
           </Hint>
+          <ScheduleSettings
+            settings={config?.settings ?? null}
+            onPatch={(patch) => void patchSettings(patch)}
+          />
           <Hint label="Edit with AI" disabled={!doc}>
             <Button
               size="sm"
