@@ -17,6 +17,7 @@
     { "name": "zenn", "source": "./plugins/zenn" },
     { "name": "strategy", "source": "./plugins/strategy" },
     { "name": "team-ops", "source": "./plugins/team-ops" },
+    { "name": "team-comms", "source": "./plugins/team-comms" },
     { "name": "obsidian", "source": "./plugins/obsidian" },
     { "name": "persona", "source": "./plugins/persona" },
     { "name": "stack-cloudflare", "source": "./plugins/stack-cloudflare" },
