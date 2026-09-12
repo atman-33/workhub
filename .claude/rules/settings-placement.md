@@ -72,9 +72,13 @@ Two traps:
 
 A feature's settings may live in its own tab instead of the dialog — Voice,
 Ink, Clips and Docs do (T-0277), Schedule and Mindmap followed behind a ⚙
-button in their toolbars (T-0289), and Inbox (vault tidy) and Tasks (the
-embedded terminal) behind the same ⚙ (T-0300). The test is whether anything
-outside that tab reads the setting; if nothing does, it belongs there. Such a
+button in their toolbars (T-0289), Inbox (vault tidy) and Tasks (the embedded
+terminal) behind the same ⚙ (T-0300), and Repos (the VS Code and terminal
+commands) behind one more (T-0304). The test is whether anything outside that
+tab reads the setting; if nothing does, it belongs there — and answer it by
+tracing the readers, not by what the setting looks like it belongs to. The
+command templates all look alike, but three launch agents and two open a
+repository from the Repos tab. Such a
 tab saves each change immediately, and every writer saves the *whole*
 `Settings` struct, so a stale copy reverts whatever another place changed
 meanwhile:
@@ -101,8 +105,9 @@ Two tabs, split by what the setting governs (T-0300):
 
 - **General** — the app itself: startup, startup checks, quick capture, the
   app updater.
-- **Agents** — the AI agents it launches: command templates, worktree root,
-  Claude Desktop mode, prompt and task language, long-term memory, secretary.
+- **Agents** — the AI agents it launches: the agent/OpenCode/herdr command
+  templates, worktree root, Claude Desktop mode, prompt and task language,
+  long-term memory, secretary.
 
 The vault folder sits above both, outside the tabs: every feature reads that
 one path, so it should not take a tab to find. A setting that is neither about

@@ -52,6 +52,7 @@ const CLAUDE_DESKTOP_MODES: { id: string; label: string }[] = [
 ];
 
 const DEFAULTS: Settings = {
+  // Managed from the Repos tab itself, not from this dialog (T-0304).
   vscode_cmd: "code",
   terminal_cmd: "wt -d {path}",
   agent_cmd: "wt -d {path} pwsh -NoExit -Command claude",
@@ -184,7 +185,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
 
   const field = (
     label: string,
-    key: "vscode_cmd" | "terminal_cmd" | "agent_cmd" | "opencode_cmd" | "herdr_cmd" | "worktree_root",
+    key: "agent_cmd" | "opencode_cmd" | "herdr_cmd" | "worktree_root",
   ) => (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -390,10 +391,9 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               <p className="text-xs text-muted-foreground">
                 How workhub launches an agent for a task, and what it hands one. Command
                 templates take <code className="text-xs">{"{path}"}</code> in place of the
-                project path.
+                project path. The commands that open a repository in VS Code or a terminal
+                belong to the Repos tab and are set there.
               </p>
-              {field("VS Code command", "vscode_cmd")}
-              {field("Terminal command", "terminal_cmd")}
               {field("Claude Code command", "agent_cmd")}
               {field("OpenCode command", "opencode_cmd")}
               <label className="flex items-center gap-2 pt-1 text-sm">
