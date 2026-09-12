@@ -141,7 +141,7 @@ by **Quick capture** gets it too, and the dialog is where you turn it off.
 collide, and **Model** picks the model per task. Two more buttons sit beside
 **Launch agent**: **Copy prompt**, and **Send to Claude Desktop** for when you would
 rather not open a terminal. A copied prompt arrives with one instruction per
-line; Settings → Commands can switch it back to a single line.
+line; Settings → Agents can switch it back to a single line.
 
 ## Features
 

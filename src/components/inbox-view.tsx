@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Inbox, Lightbulb, RefreshCw } from "lucide-react";
+import { InboxSettings } from "@/components/inbox/inbox-settings";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { InboxNote } from "@/types";
+import type { InboxNote, Settings } from "@/types";
 
 /**
  * The Inbox tab (design note "Inbox — 受信ノート処理導線", phase 1).
@@ -46,6 +47,10 @@ function formatAge(days: number): string {
 
 export function InboxView({ configVersion, active }: Props) {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
+  // Held whole rather than as the few tidy fields, because the settings popover
+  // patches onto it and `patchSettings` merges the patch into a fresh read
+  // (T-0281).
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [notes, setNotes] = useState<InboxNote[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -56,8 +61,14 @@ export function InboxView({ configVersion, active }: Props) {
     void (async () => {
       const cfg = await api.getConfig();
       setVaultPath(cfg.settings.vault_path?.trim() || null);
+      setSettings(cfg.settings);
     })();
   }, [configVersion]);
+
+  const patchSettings = useCallback(async (patch: Partial<Settings>) => {
+    setSettings((s) => (s ? { ...s, ...patch } : s));
+    setSettings((await api.patchSettings(patch)).settings);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!vaultPath) {
@@ -137,6 +148,9 @@ export function InboxView({ configVersion, active }: Props) {
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
           </Button>
         </Hint>
+        {/* Vault tidy lives here rather than in the settings dialog: it is what
+            files these notes and writes the proposals listed below (T-0300). */}
+        <InboxSettings settings={settings} onPatch={(patch) => void patchSettings(patch)} />
       </div>
       {error && (
         <div className="border-b bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">

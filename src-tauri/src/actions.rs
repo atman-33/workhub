@@ -113,7 +113,7 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// commit messages, or other repository artifacts.
     pub task_language: &'a str,
     /// User-defined extra instructions appended to every agent prompt
-    /// (Settings → Commands → Custom prompt). Empty = nothing appended.
+    /// (Settings → Agents → Custom prompt). Empty = nothing appended.
     /// Whitespace is normalized to single spaces before it is embedded,
     /// because the prompt has to survive being quoted into a one-line
     /// command line (see `agent_command_template`).

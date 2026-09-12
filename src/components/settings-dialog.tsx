@@ -1,20 +1,9 @@
 import { useEffect, useState } from "react";
 import { open as pickFolders } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  FolderOpen,
-  Loader2,
-  Play,
-  RotateCcw,
-} from "lucide-react";
-import { api, timeAgo } from "@/lib/api";
+import { Check, FolderOpen, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -33,13 +22,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { ModelCombobox } from "@/components/model-combobox";
 import { DiagnosticLogPanel } from "@/components/diagnostic-log-panel";
 import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
-import type { Settings, TidyRun, UpdateInfo } from "@/types";
+import type { Settings, UpdateInfo } from "@/types";
 
 const TIDY_DEFAULTS: Settings["tidy"] = {
   enabled: false,
@@ -52,27 +39,6 @@ const TIDY_DEFAULTS: Settings["tidy"] = {
   last_run: null,
   last_session_id: null,
 };
-
-/** Timestamps in this dialog are formatted in English rather than via
- * `toLocaleString()`, so the app reads the same on a Japanese Windows as it
- * does on an English one. */
-const TIMESTAMP = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-/** Next scheduled check time from anchor + interval (unix seconds). */
-function nextCheck(tidy: Settings["tidy"]): number | null {
-  if (!tidy.anchor) return null;
-  const interval = Math.max(1, tidy.interval_hours) * 3600;
-  const now = Math.floor(Date.now() / 1000);
-  const elapsed = Math.max(0, now - tidy.anchor);
-  return tidy.anchor + (Math.floor(elapsed / interval) + 1) * interval;
-}
 
 const TASK_LANGUAGES: { id: string; label: string }[] = [
   { id: "en", label: "English" },
@@ -104,6 +70,7 @@ const DEFAULTS: Settings = {
   ink_dir: "",
   vault_path: null,
   worktree_root: "C:/repos/.worktrees",
+  // Managed from the Tasks tab itself, not from this dialog (T-0300).
   terminal_embed: false,
   quick_capture_enabled: true,
   quick_capture_shortcut: "Ctrl+Alt+N",
@@ -125,6 +92,7 @@ const DEFAULTS: Settings = {
   custom_prompt: "",
   prompt_copy_multiline: true,
   claude_desktop_mode: "code",
+  // Managed from the Inbox tab itself, not from this dialog (T-0300).
   tidy: TIDY_DEFAULTS,
   // Managed from the Schedule tab itself, not from this dialog (T-0289).
   schedule_assignee: "claude-code",
@@ -162,14 +130,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "failed"
   >("idle");
   const [error, setError] = useState("");
-  const [tidyRun, setTidyRun] = useState<TidyRun | null>(null);
-  const [tidyMsg, setTidyMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-
-  // A tidy config helper so the many nested fields stay readable.
-  const setTidy = (patch: Partial<Settings["tidy"]>) =>
-    setDraft((d) => ({ ...d, tidy: { ...d.tidy, ...patch } }));
 
   useEffect(() => {
     if (open) {
@@ -179,53 +141,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setError("");
       setSaveError("");
       void api.appVersion().then(setVersion);
-      void api.tidyStatus().then(setTidyRun);
-      setTidyMsg("");
     }
   }, [open, settings]);
-
-  useEffect(() => {
-    if (!open) return;
-    const unlistenTidy = listen<TidyRun>("tidy:status", (event) => {
-      setTidyRun(event.payload);
-    });
-    return () => {
-      void unlistenTidy.then((fn) => fn());
-    };
-  }, [open]);
-
-  const runTidy = async (force: boolean) => {
-    setTidyMsg("");
-    try {
-      setTidyMsg(await api.runVaultTidyNow(force));
-      setTidyRun(await api.tidyStatus());
-    } catch (e) {
-      setTidyMsg(String(e));
-    }
-  };
-
-  const resumeTidy = async () => {
-    setTidyMsg("");
-    try {
-      setTidyMsg(await api.resumeTidySession());
-    } catch (e) {
-      setTidyMsg(String(e));
-    }
-  };
-
-  /** Live run first, then the id persisted in settings — the latter is all
-   * that survives an app restart. */
-  const tidySessionId = tidyRun?.session_id || draft.tidy.last_session_id || "";
-
-  const copySessionId = async () => {
-    if (!tidySessionId) return;
-    try {
-      await writeText(tidySessionId);
-      setTidyMsg("Session id copied.");
-    } catch (e) {
-      setTidyMsg(String(e));
-    }
-  };
 
   const check = async () => {
     setPhase("checking");
@@ -284,13 +201,42 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       <DialogContent draggable className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Configure workhub commands, vault, and behavior.</DialogDescription>
+          <DialogDescription>
+            The vault this app works in, how the app behaves, and how it launches AI agents.
+            Settings a single tab owns live in that tab.
+          </DialogDescription>
         </DialogHeader>
+        {/* Above the tabs, not inside one: every feature in the app reads this
+            one path, and a setting that important should not need a tab to be
+            found (T-0300). */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Vault folder</label>
+          <div className="flex gap-1.5">
+            <Input
+              value={draft.vault_path ?? ""}
+              onChange={(e) => setDraft({ ...draft, vault_path: e.target.value || null })}
+              placeholder="C:/obsidian/workhub-vault"
+              className="h-8 font-mono text-xs"
+            />
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              onClick={async () => {
+                const picked = await pickFolders({ directory: true, title: "Choose vault folder" });
+                if (typeof picked === "string") {
+                  setDraft({ ...draft, vault_path: picked.replaceAll("\\", "/") });
+                }
+              }}
+            >
+              <FolderOpen className="size-3.5" />
+            </Button>
+          </div>
+        </div>
         <Tabs defaultValue="general" className="flex flex-col gap-3">
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="commands">Commands</TabsTrigger>
-            <TabsTrigger value="vault">Vault</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
               tabs, regardless of how much content each tab holds. The bottom
@@ -346,51 +292,6 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 <p className="pl-6 text-xs text-muted-foreground">
                   New files and files you have not edited are updated silently. Files you
                   edited yourself still ask before anything is changed.
-                </p>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.check_memory_setup}
-                    onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
-                  />
-                  Notify when long-term memory is not set up on this machine
-                </label>
-              </div>
-              <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Long-term memory</p>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.memory_claude_code}
-                    onCheckedChange={(v) =>
-                      setDraft({ ...draft, memory_claude_code: v === true })
-                    }
-                  />
-                  Enabled in Claude Code sessions
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.memory_opencode}
-                    onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
-                  />
-                  Enabled in OpenCode sessions
-                </label>
-              </div>
-              <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Secretary agent</p>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.secretary_enabled}
-                    onCheckedChange={(v) => setDraft({ ...draft, secretary_enabled: v === true })}
-                  />
-                  Consult the secretary before asking me
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Agents check your decision policy (
-                  <code>profile/decision-policy.md</code>) through a secretary subagent
-                  and file what it cannot decide into <code>_ai/comms/</code> instead of
-                  interrupting you. Consulting costs tokens, so this is off by default; turn it on
-                  to enable it in both Claude Code and OpenCode sessions. With it off, agents
-                  still read the policy and still bring you a recommended answer — they just
-                  ask you directly.
                 </p>
               </div>
               <div className="space-y-2 rounded-md border p-3">
@@ -485,9 +386,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 )}
               </div>
             </TabsContent>
-            <TabsContent value="commands" className="mt-0 space-y-3">
+            <TabsContent value="agents" className="mt-0 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Command templates — <code className="text-xs">{"{path}"}</code> is replaced with the
+                How workhub launches an agent for a task, and what it hands one. Command
+                templates take <code className="text-xs">{"{path}"}</code> in place of the
                 project path.
               </p>
               {field("VS Code command", "vscode_cmd")}
@@ -502,15 +404,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 Open AI tasks in a fresh herdr workspace
               </label>
               {draft.use_herdr && field("herdr command", "herdr_cmd")}
-              {draft.use_herdr && (
-                <label className="flex items-center gap-2 pt-1 text-sm">
-                  <Checkbox
-                    checked={draft.terminal_embed}
-                    onCheckedChange={(v) => setDraft({ ...draft, terminal_embed: v === true })}
-                  />
-                  Embed terminal (show herdr inside the app)
-                </label>
-              )}
+              {field("Worktree root", "worktree_root")}
               <div className="space-y-1.5 pt-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Send to Claude Desktop
@@ -597,223 +491,51 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   />
                 </div>
               </div>
-            </TabsContent>
-            <TabsContent value="vault" className="mt-0 space-y-3">
-              {field("Worktree root", "worktree_root")}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tasks vault path</label>
-                <div className="flex gap-1.5">
-                  <Input
-                    value={draft.vault_path ?? ""}
-                    onChange={(e) => setDraft({ ...draft, vault_path: e.target.value || null })}
-                    placeholder="C:/obsidian/workhub-vault"
-                    className="h-8 font-mono text-xs"
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Long-term memory</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.memory_claude_code}
+                    onCheckedChange={(v) => setDraft({ ...draft, memory_claude_code: v === true })}
                   />
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    onClick={async () => {
-                      const picked = await pickFolders({ directory: true, title: "Choose vault folder" });
-                      if (typeof picked === "string") {
-                        setDraft({ ...draft, vault_path: picked.replaceAll("\\", "/") });
-                      }
-                    }}
-                  >
-                    <FolderOpen className="size-3.5" />
-                  </Button>
-                </div>
+                  Enabled in Claude Code sessions
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.memory_opencode}
+                    onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
+                  />
+                  Enabled in OpenCode sessions
+                </label>
+                {/* Grouped with the two switches above rather than with the
+                    other startup checks: it is about long-term memory, and a
+                    reader looking for it looks here. */}
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.check_memory_setup}
+                    onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
+                  />
+                  Notify at startup when it is not set up on this machine
+                </label>
               </div>
-
-              {/* Vault tidy (T-0050) */}
-              <div className="space-y-3 rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                      Vault tidy
-                      <VaultScopedBadge />
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      File stale inbox notes and refresh the archive index with a headless agent.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={draft.tidy.enabled}
-                    onCheckedChange={(v) => setTidy({ enabled: v })}
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Secretary agent</p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={draft.secretary_enabled}
+                    onCheckedChange={(v) => setDraft({ ...draft, secretary_enabled: v === true })}
                   />
-                </div>
-
-                {tidyRun && (
-                  <div className="rounded-md bg-muted p-2 text-xs">
-                    {tidyRun.state === "running" ? (
-                      <span className="flex items-center gap-1.5">
-                        <Loader2 className="size-3.5 animate-spin" />
-                        {tidyRun.stalled ? "Running — may be stuck" : "Running…"}
-                      </span>
-                    ) : tidyRun.state === "failed" ? (
-                      <span className="flex items-start gap-1.5 text-destructive">
-                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                        <span>Failed{tidyRun.error ? `: ${tidyRun.error}` : ""}</span>
-                      </span>
-                    ) : tidyRun.state === "completed" ? (
-                      <span className="flex items-start gap-1.5">
-                        <Check className="mt-0.5 size-3.5 shrink-0 text-green-500" />
-                        <span>{tidyRun.summary ?? "Completed"}</span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Idle</span>
-                    )}
-                    <div className="mt-1 text-[11px] text-muted-foreground">
-                      {tidyRun.at
-                        ? `Last run ${timeAgo(tidyRun.at)}. `
-                        : draft.tidy.last_run
-                          ? `Last run ${timeAgo(draft.tidy.last_run)}. `
-                          : "Not run yet. "}
-                      {draft.tidy.enabled && nextCheck(draft.tidy)
-                        ? `Next check ${TIMESTAMP.format(new Date((nextCheck(draft.tidy) as number) * 1000))}.`
-                        : ""}
-                    </div>
-                    {tidySessionId && (
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="shrink-0">Session</span>
-                        <code className="truncate font-mono">{tidySessionId}</code>
-                        <Hint label="Copy session id">
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="size-5 shrink-0"
-                            onClick={() => void copySessionId()}
-                          >
-                            <Copy className="size-3" />
-                          </Button>
-                        </Hint>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Agent</label>
-                    <Select
-                      value={draft.tidy.assignee}
-                      onValueChange={(v) => setTidy({ assignee: v })}
-                    >
-                      <SelectTrigger size="sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="claude-code">Claude Code</SelectItem>
-                        <SelectItem value="opencode">OpenCode</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Model</label>
-                    <ModelCombobox
-                      assignee={draft.tidy.assignee}
-                      value={draft.tidy.model}
-                      onChange={(model) => setTidy({ model })}
-                      active={open}
-                      // Lives inside a modal Radix Dialog — see the prop's doc
-                      // comment.
-                      modal
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">First run at</label>
-                    <DateTimePicker
-                      value={draft.tidy.anchor}
-                      onChange={(anchor) => setTidy({ anchor })}
-                      placeholder="not scheduled"
-                      modal
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Run every (hours)
-                    </label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={draft.tidy.interval_hours}
-                      onChange={(e) =>
-                        setTidy({ interval_hours: Math.max(1, Number(e.target.value) || 1) })
-                      }
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Inbox age (days)
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={draft.tidy.stale_days}
-                      onChange={(e) =>
-                        setTidy({ stale_days: Math.max(0, Number(e.target.value) || 0) })
-                      }
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Exclude folders
-                    </label>
-                    <Input
-                      value={draft.tidy.exclude_dirs.join(", ")}
-                      onChange={(e) =>
-                        setTidy({
-                          exclude_dirs: e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder="_wip"
-                      className="h-8 font-mono text-xs"
-                    />
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  24 = daily, 168 = weekly. Save to apply schedule changes.
+                  Consult the secretary before asking me
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Agents check your decision policy (
+                  <code>profile/decision-policy.md</code>) through a secretary subagent
+                  and file what it cannot decide into <code>_ai/comms/</code> instead of
+                  interrupting you. Consulting costs tokens, so this is off by default; turn it on
+                  to enable it in both Claude Code and OpenCode sessions. With it off, agents
+                  still read the policy and still bring you a recommended answer — they just
+                  ask you directly.
                 </p>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void runTidy(false)}
-                    disabled={tidyRun?.state === "running"}
-                  >
-                    <Play className="mr-1.5 size-3.5" />
-                    Run now
-                  </Button>
-                  {/* Any known session id is resumable — a run that was killed
-                      mid-way never reports a failure, but is exactly the one
-                      worth picking up by hand. */}
-                  {(tidySessionId || tidyRun?.state === "failed" || tidyRun?.stalled) && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void resumeTidy()}
-                    >
-                      <RotateCcw className="mr-1.5 size-3.5" />
-                      Resume session
-                    </Button>
-                  )}
-                </div>
-                {tidyMsg && <p className="text-xs text-muted-foreground">{tidyMsg}</p>}
               </div>
             </TabsContent>
           </div>

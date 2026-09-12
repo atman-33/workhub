@@ -52,7 +52,7 @@ const SETUP_MD = `## Initial setup
 A few steps to get workhub ready on a new machine. The fastest path is to run the \`vault-setup\` skill in Claude Code from the vault folder — it checks and installs the prerequisites, initializes the vault, wires up the plugins, and syncs OpenCode. To do it by hand:
 
 1. **Install the prerequisite software.** \`git\`, \`Node.js\` (≥ 20), and \`Claude Code\` are required. \`Obsidian\` (edit the vault by hand), \`OpenCode\` (optional second agent), and \`herdr\` (the default launcher — workhub opens each AI task in a fresh herdr workspace) are optional but recommended. The \`vault-setup\` skill probes for these and offers the install commands.
-2. **Create the task vault, and let the app set it up.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`). Choosing it opens the **setup dialog**, which names three steps and runs them together on one press: expand the bundled template into the folder, register the marketplace, and switch on the \`workhub\` plugin at user scope. Each step is skipped when it is already done, so the dialog is safe to re-open; a failed step offers a retry and the command to run by hand. Press **Later** and a banner keeps the way back. You can change the folder later in **⚙ Settings → Vault → Tasks vault path**; **Init vault** stays in the toolbar for re-applying the template.
+2. **Create the task vault, and let the app set it up.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`). Choosing it opens the **setup dialog**, which names three steps and runs them together on one press: expand the bundled template into the folder, register the marketplace, and switch on the \`workhub\` plugin at user scope. Each step is skipped when it is already done, so the dialog is safe to re-open; a failed step offers a retry and the command to run by hand. Press **Later** and a banner keeps the way back. You can change the folder later in **⚙ Settings → Vault folder**; **Init vault** stays in the toolbar for re-applying the template.
 3. **Add the plugins you want.** Setup switches on \`workhub\` alone — the one plugin the app itself needs. Everything else is a matter of how you like to work, so it is left to you: the **Plugins** tab lists every plugin with its tier, what it carries, and a toggle. To do it from a terminal instead:
 
 \`\`\`bash
@@ -242,7 +242,7 @@ const INBOX_MD = `## Notes waiting in the vault (Inbox)
 
 The **Inbox** tab shows the raw notes sitting in the vault's \`inbox/\` folder — the ones you dropped there to file later. Until now they were visible only in Obsidian, so anything you forgot about simply stayed forgotten.
 
-- The list is exactly what **Vault tidy** considers: \`README.md\` is ignored, and so is every folder listed under **⚙ Settings → Vault → Vault tidy → Exclude folders** (\`inbox/_wip/\` by default). A note you keep out of tidy's way stays out of this list too.
+- The list is exactly what **Vault tidy** considers: \`README.md\` is ignored, and so is every folder listed under **Inbox tab → ⚙ → Vault tidy → Exclude folders** (\`inbox/_wip/\` by default). A note you keep out of tidy's way stays out of this list too.
 - Each row shows when the note was last edited and how long it has been sitting. The age turns amber once it passes tidy's age threshold — that is the point at which a tidy run would act on the note.
 - A **proposal** badge means a tidy run looked at the note, could not decide where it belonged, and parked its suggestion. Select the note to read the proposed destination and the reason under the preview.
 - The tab is read-only for now: file the note in Obsidian (the gem button opens it there). Acting on a proposal from inside workhub comes later.
@@ -252,7 +252,7 @@ const TIDY_MD = `## Vault tidy (automatic housekeeping)
 
 Keeps the vault easy for AI to search: files stale notes out of \`inbox/\` and refreshes the \`tasks/archive/_index.md\` summary — by launching an agent headlessly (no terminal window).
 
-- Turn it on in **⚙ Settings → Vault → Vault tidy**. It is **off by default**; leave it off if you drive the same routine from a Claude Desktop routine instead.
+- Turn it on in **Inbox tab → ⚙ → Vault tidy**. It is **off by default**; leave it off if you drive the same routine from a Claude Desktop routine instead.
 - The app decides *whether* there is work with a cheap mechanical scan (no tokens) — a run only starts when \`inbox/\` has a note older than the age threshold, or the archive index has drifted.
 - **Schedule** is "first run at" + "run every N hours" (24 = daily, 168 = weekly). Because it counts from that anchor, a run missed while the app was closed is caught up on the next launch.
 - Notes you're still writing: keep them in **\`inbox/_wip/\`** (or any folder listed under "Exclude folders") — tidy never touches those.
@@ -302,8 +302,8 @@ Gives every agent session on the vault — Claude Code and OpenCode — a memory
 - **One-time setup per machine**: run the \`/memory-setup\` skill in a Claude Code session on the vault. It installs the engine's dependencies and a local Japanese-capable embedding model (~320 MB) under \`~/.workhub/memory-engine/\`. Nothing is compiled from source, so no C/C++ build tools are required — only Node 20+. Until then the memory hooks stay silently disabled, and workhub shows a startup banner as a reminder.
 - **Recall on demand**: the \`/memory-recall <keyword> [days]\` skill searches past conversations explicitly; without arguments it lists the recent timeline.
 - **Privacy**: the database stores conversation text verbatim and may contain sensitive material, so setup adds it to the vault's \`.gitignore\` — it never leaves the machine with a vault backup.
-- **Per-agent switches**: **⚙ Settings → General** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
-- The setup banner can be disabled in **⚙ Settings → General → Notify when long-term memory is not set up on this machine**.`;
+- **Per-agent switches**: **⚙ Settings → Agents** has separate toggles for Claude Code and OpenCode sessions (both on by default). OpenCode support runs through the vault's \`.opencode/plugins/memory-plugin.ts\`, which uses the same engine and database.
+- The setup banner can be disabled in **⚙ Settings → Agents → Notify at startup when it is not set up on this machine**.`;
 
 const SECRETARY_MD = `## Your profile — fewer, better questions
 
@@ -314,12 +314,12 @@ Agents ask you for a decision far more often than they need to, and when they do
 - **Optional: the secretary answers for you.** Turned on, a small subagent judges each question against the same policy and only forwards what it genuinely cannot decide. Before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
 - **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
 - **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules, and *Preferences* is where standing leanings go. Agents are told to append there whenever you settle something, so the note grows on its own. The more it holds, the less you are asked.
-- **Switch**: **⚙ Settings → General → Consult the secretary before asking me** (**off by default**) controls the subagent only. Consulting it costs tokens; with the switch off nothing is consulted, but your profile is still read and questions still arrive with a recommendation. Deleting the policy note turns off both.
+- **Switch**: **⚙ Settings → Agents → Consult the secretary before asking me** (**off by default**) controls the subagent only. Consulting it costs tokens; with the switch off nothing is consulted, but your profile is still read and questions still arrive with a recommendation. Deleting the policy note turns off both.
 - **Both agent CLIs**: Claude Code sessions get this through the workhub plugin's hooks. OpenCode sessions get it through \`.opencode/plugins/secretary-plugin.ts\`, where filing a question is a tool the agent calls (\`ask_owner\`). Run \`/sync-claude-skills\` in the vault once so the secretary agent itself lands in \`.opencode/agent/\`.`;
 
 const CUSTOM_PROMPT_MD = `## Your own instructions in every agent prompt
 
-Every task you hand to an agent — by launching it or by copying its prompt — is sent with a generated prompt telling the agent which task to work and how to report back. **⚙ Settings → Commands → Custom prompt** lets you append your own standing instructions to it.
+Every task you hand to an agent — by launching it or by copying its prompt — is sent with a generated prompt telling the agent which task to work and how to report back. **⚙ Settings → Agents → Custom prompt** lets you append your own standing instructions to it.
 
 - Whatever you write there is added to the end of *every* task prompt, so it fits instructions that always apply (e.g. "Respond to me in Japanese", "Ask before touching CI config") rather than task-specific ones — those belong in the task's own Description.
 - Line breaks are collapsed into spaces when the prompt is built, so a multi-line note stays a single valid command line. Leave the field empty to add nothing.
@@ -329,7 +329,7 @@ const CLAUDE_DESKTOP_MD = `## Sending a task to Claude Desktop
 
 An AI task carries three buttons on its card, its list row, and its editor: **Launch agent** starts the agent in a terminal (or a herdr workspace), **Copy prompt** puts the generated prompt on the clipboard for a manual paste, and **Send to Claude Desktop** opens Claude Desktop on a new session with that same prompt already filled in — the one-click form of copy-and-paste.
 
-- **⚙ Settings → Commands → Send to Claude Desktop** picks what the button opens. *Code session* (the default) starts a Claude Code session with the vault as its folder, so the prompt behaves exactly as it does in a terminal: the same instructions, the same skills (\`task-start\`, \`task-report\`), the same working directory. *Chat* opens a plain chat instead, which has no skills and no vault access — it receives the task's Description and is meant for talking a task over, not working it.
+- **⚙ Settings → Agents → Send to Claude Desktop** picks what the button opens. *Code session* (the default) starts a Claude Code session with the vault as its folder, so the prompt behaves exactly as it does in a terminal: the same instructions, the same skills (\`task-start\`, \`task-report\`), the same working directory. *Chat* opens a plain chat instead, which has no skills and no vault access — it receives the task's Description and is meant for talking a task over, not working it.
 - The first time a session opens with a folder, **Claude Desktop asks you to confirm that folder**. That prompt is part of its own link handling and cannot be skipped.
 - Requires Claude Desktop to be installed — it is what registers the \`claude://\` links the button opens. Without it, the button reports that no handler is available.
 - Like **Copy prompt**, the sent prompt honors the task's confirm and worktree flags, the task file language, and your custom prompt.`;
@@ -630,7 +630,7 @@ export function HelpView() {
                 command to run by hand. Press{" "}
                 <span className="font-medium">Later</span> and a banner keeps
                 the way back. You can change the folder later in{" "}
-                <span className="font-medium">⚙ Settings → Vault → Tasks vault path</span>;{" "}
+                <span className="font-medium">⚙ Settings → Vault folder</span>;{" "}
                 <span className="font-medium">Init vault</span> stays in the
                 toolbar for re-applying the template.
               </li>
@@ -831,7 +831,7 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">Per-agent switches</span>:{" "}
-                <span className="font-medium">⚙ Settings → General</span> has separate
+                <span className="font-medium">⚙ Settings → Agents</span> has separate
                 toggles for Claude Code and OpenCode sessions (both on by default).
                 OpenCode support runs through the vault&apos;s{" "}
                 <span className="font-mono text-xs">.opencode/plugins/memory-plugin.ts</span>,
@@ -840,7 +840,7 @@ export function HelpView() {
               <li>
                 The setup banner can be disabled in{" "}
                 <span className="font-medium">
-                  ⚙ Settings → General → Notify when long-term memory is not set up on
+                  ⚙ Settings → Agents → Notify at startup when it is not set up on
                   this machine
                 </span>
                 .
@@ -926,7 +926,7 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Switch</span>:{" "}
                 <span className="font-medium">
-                  ⚙ Settings → General → Consult the secretary before asking me
+                  ⚙ Settings → Agents → Consult the secretary before asking me
                 </span>{" "}
                 (off by default) controls the subagent only. Consulting it costs tokens;
                 with the switch off nothing is consulted, but your profile is still read
@@ -961,7 +961,7 @@ export function HelpView() {
               Every task you hand to an agent — by launching it or by copying its
               prompt — is sent with a generated prompt telling the agent which task to
               work and how to report back.{" "}
-              <span className="font-medium">⚙ Settings → Commands → Custom prompt</span>{" "}
+              <span className="font-medium">⚙ Settings → Agents → Custom prompt</span>{" "}
               lets you append your own standing instructions to it.
             </p>
             <ul className="ml-4 list-disc space-y-1.5">
@@ -1003,7 +1003,7 @@ export function HelpView() {
             <ul className="ml-4 list-disc space-y-1.5">
               <li>
                 <span className="font-medium">
-                  ⚙ Settings → Commands → Send to Claude Desktop
+                  ⚙ Settings → Agents → Send to Claude Desktop
                 </span>{" "}
                 picks what the button opens. <em>Code session</em> (the default) starts a
                 Claude Code session with the vault as its folder, so the prompt behaves
@@ -2105,7 +2105,7 @@ export function HelpView() {
             <ul className="ml-4 list-disc space-y-1.5">
               <li>
                 Turn it on in{" "}
-                <span className="font-medium">⚙ Settings → Vault → Vault tidy</span>.
+                <span className="font-medium">Inbox tab → ⚙ → Vault tidy</span>.
                 It is <span className="font-medium">off by default</span>; leave
                 it off if you drive the same routine from a Claude Desktop
                 routine instead.

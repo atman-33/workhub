@@ -57,7 +57,7 @@ argument-hint: "<target-path>"
      never fill in. It grows over time.
    - The file is seeded once and never overwritten by a template sync, so it
      is safe to edit.
-   - Mention **Settings → Commands → Custom prompt** in the app for a short
+   - Mention **Settings → Agents → Custom prompt** in the app for a short
      personal delta appended to every task prompt; anything longer belongs in
      these two vault files instead (its whitespace collapses to single spaces).
 8. **Suggest next steps**: open the folder as a vault in Obsidian, then
