@@ -8,6 +8,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { HtmlPreview } from "@/components/docs/html-preview";
+import { type DocNotesPane, useNoteLayer } from "@/components/docs/use-note-layer";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
@@ -18,7 +19,9 @@ import {
   resolveDocRelative,
   splitFrontmatter,
 } from "@/lib/docs/markdown";
+import { contentStamp } from "@/lib/docs/annotations";
 import { previewKindForPath } from "@/lib/docs/preview-kind";
+import { frontmatterOffset } from "@/lib/docs/rehype-line";
 import { PREVIEW_ZOOM, parsePreviewZoom, stepPreviewZoom } from "@/lib/docs/zoom";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
@@ -36,6 +39,12 @@ interface Props {
    * window of its own there, so the pop-out button is not offered again.
    */
   standalone?: boolean;
+  /**
+   * Lets the reader leave notes on the document, and hands them back to draw
+   * (T-0299). Absent — a viewer window, or a document outside any root — the
+   * pane is the read-only view it has always been.
+   */
+  notes?: DocNotesPane;
 }
 
 /**
@@ -106,7 +115,14 @@ function openFigure(figure: DocsFigure, onError: (message: string) => void) {
  * that lifts the reading line length, and pop-outs — the whole document, or
  * one diagram or image, in a window of its own.
  */
-export function DocsPreview({ path, refreshToken, onError, onBusyChange, standalone }: Props) {
+export function DocsPreview({
+  path,
+  refreshToken,
+  onError,
+  onBusyChange,
+  standalone,
+  notes,
+}: Props) {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,10 +174,16 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
   // `![[file]]` embeds are rewritten, since neither is CommonMark.
   // Anything with no kind of its own is read as Markdown, which is what the
   // pane has always done with a path it was handed and did not recognise.
-  const { frontmatter, markdown } = useMemo(() => {
-    if (html || text) return { frontmatter: "", markdown: "" };
+  const { frontmatter, markdown, lineOffset } = useMemo(() => {
+    if (html || text) return { frontmatter: "", markdown: "", lineOffset: 0 };
     const split = splitFrontmatter(content);
-    return { frontmatter: split.frontmatter, markdown: expandWikiEmbeds(split.body) };
+    return {
+      frontmatter: split.frontmatter,
+      markdown: expandWikiEmbeds(split.body),
+      // What a note's `data-line` is shifted by to name a line of the file
+      // rather than of the body the renderer sees.
+      lineOffset: frontmatterOffset(content, split.body),
+    };
   }, [html, text, content]);
 
   // Keyed by the document *and* the refresh token so a re-read drops the
@@ -216,6 +238,30 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoomable]);
+
+  // The note layer (T-0299). Markdown and plain text render into this
+  // document, so it listens here; an HTML page lives in a frame, and
+  // `HtmlPreview` runs the same layer against that frame's document.
+  //
+  // The root is held in state rather than a ref: the layer needs the document
+  // the moment it exists, and assigning a ref does not re-render.
+  const [noteRoot, setNoteRoot] = useState<HTMLDivElement | null>(null);
+  const stamp = useMemo(() => contentStamp(content), [content]);
+  const onStamp = notes?.onStamp;
+  useEffect(() => {
+    onStamp?.(stamp);
+  }, [onStamp, stamp]);
+  const getNoteRoot = useCallback(() => noteRoot, [noteRoot]);
+  const getNoteDoc = useCallback(() => noteRoot?.ownerDocument ?? null, [noteRoot]);
+  const noteLayer = useNoteLayer({
+    api: html ? undefined : notes,
+    getRoot: getNoteRoot,
+    getDoc: getNoteDoc,
+    stamp,
+    // A value, not an identity: this also closes an open bubble, and a fresh
+    // object on every render would close it as soon as it opened.
+    version: `${path}|${refreshToken}|${stamp}`,
+  });
 
   if (!path) {
     return (
@@ -333,13 +379,15 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
         {!error && loading && !content && (
           <p className="text-xs text-muted-foreground">Reading…</p>
         )}
-        {!error && content && html && <HtmlPreview path={path} content={content} />}
+        {!error && content && html && (
+          <HtmlPreview path={path} content={content} notes={notes} stamp={stamp} />
+        )}
         {!error && content && text && (
           // Shown exactly as it is on disk (T-0294): no parsing, no
           // highlighting, no table made out of a CSV. The point is to read a
           // small file without leaving the tab; anything the raw form cannot
           // carry is what "Open with default app" is still there for.
-          <div style={{ zoom }}>
+          <div ref={setNoteRoot} style={{ zoom }}>
             <pre
               className={cn(
                 "whitespace-pre-wrap break-words font-mono text-xs leading-relaxed",
@@ -355,7 +403,7 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
           // so a zoomed document still fits the pane instead of overflowing it.
           // Keyed by the refresh, so a re-read also redraws the diagrams — a
           // PlantUML server set since the last draw included.
-          <div key={refreshToken} style={{ zoom }}>
+          <div key={refreshToken} ref={setNoteRoot} style={{ zoom }}>
             {frontmatter && <Frontmatter text={frontmatter} fullWidth={fullWidth} />}
             <Markdown
               variant="document"
@@ -363,6 +411,7 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
               allowHtml
               mermaid
               callouts
+              sourceLineOffset={notes ? lineOffset : undefined}
               plantuml={api.docsRenderPlantuml}
               resolveAsset={resolveAsset}
               onOpenFigure={onOpenFigure}
@@ -375,6 +424,7 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
           <p className="text-xs text-muted-foreground">This document is empty.</p>
         )}
       </div>
+      {noteLayer}
     </div>
   );
 }

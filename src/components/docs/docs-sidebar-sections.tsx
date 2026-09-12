@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  MessageSquareText,
   FileCode,
   FileText,
   Folder,
@@ -28,7 +29,9 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { Hint } from "@/components/ui/hint";
+import type { DocNote } from "@/lib/docs/annotations";
 import { baseName } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsShortcut } from "@/types";
@@ -358,6 +361,109 @@ export function RecentSection({
               </li>
             ))}
           </ul>
+        ))}
+    </div>
+  );
+}
+
+/**
+ * The notes taken on the document being read, and the button that turns them
+ * into a request for an AI agent (T-0299).
+ *
+ * It sits with Shortcuts and Recent files because it belongs to the same
+ * question — what am I doing with this folder — but it is the one section
+ * about the *open document* rather than about the root, so it is empty
+ * whenever nothing is open, and says so.
+ */
+export function NotesSection({
+  notes,
+  stale,
+  onReveal,
+  onRemove,
+  onClear,
+  onCopyPrompt,
+}: {
+  notes: DocNote[];
+  /** The document has changed since some of these notes were taken. */
+  stale: boolean;
+  onReveal: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+  onCopyPrompt: () => Promise<unknown>;
+}) {
+  const [collapsed, setCollapsed] = useCollapsed("docs.notes.collapsed");
+
+  return (
+    <div className="border-b">
+      <div className="flex items-center">
+        <SectionHeader
+          icon={<MessageSquareText className="size-3" />}
+          label="Notes"
+          count={notes.length}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+        />
+        {notes.length > 0 && (
+          <>
+            <CopyPromptButton
+              label="Copy the notes as a prompt"
+              size="icon-sm"
+              variant="ghost"
+              onCopy={onCopyPrompt}
+            />
+            <Hint label="Delete every note on this document">
+              <button
+                type="button"
+                aria-label="Clear notes"
+                onClick={onClear}
+                className="mr-1 shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            </Hint>
+          </>
+        )}
+      </div>
+      {!collapsed &&
+        (notes.length === 0 ? (
+          <p className="px-2 pb-2 text-[11px] leading-relaxed text-muted-foreground">
+            Select text in the document and right-click to note what should change.
+          </p>
+        ) : (
+          <>
+            {stale && (
+              <p className="px-2 pb-1 text-[11px] leading-relaxed text-amber-500">
+                This document has changed since some of these notes were taken.
+              </p>
+            )}
+            <ul className="pb-1 text-xs">
+              {notes.map((note) => (
+                <li key={note.id}>
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onReveal(note.id)}
+                        className="flex w-full flex-col items-start gap-0.5 px-2 py-1 text-left hover:bg-muted/50"
+                      >
+                        <span className="w-full truncate text-muted-foreground">
+                          {note.line ? `L${note.line} ` : ""}
+                          {note.quote}
+                        </span>
+                        <span className="w-full truncate">{note.comment}</span>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={() => onRemove(note.id)}>
+                        <X />
+                        Delete this note
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                </li>
+              ))}
+            </ul>
+          </>
         ))}
     </div>
   );

@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import { ChevronsDownUp, RefreshCw, Search } from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { DocsFileList } from "@/components/docs/docs-file-list";
 import { DocsPreview } from "@/components/docs/docs-preview";
 import { DocsRootsBar } from "@/components/docs/docs-roots-bar";
 import { DocsSettingsDialog } from "@/components/docs/docs-settings-dialog";
-import { RecentSection, ShortcutsSection } from "@/components/docs/docs-sidebar-sections";
+import {
+  NotesSection,
+  RecentSection,
+  ShortcutsSection,
+} from "@/components/docs/docs-sidebar-sections";
 import { DocsTree, useEntryActions } from "@/components/docs/docs-tree";
 import { useDocsDirs } from "@/components/docs/use-docs-dirs";
 import { Button } from "@/components/ui/button";
@@ -13,9 +18,20 @@ import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import {
+  addNote,
+  buildPrompt,
+  clearNotes,
+  type DocNote,
+  notesAreStale,
+  readNotes,
+  removeNote,
+  updateNote,
+} from "@/lib/docs/annotations";
 import { clearRecent, pushRecent, readRecent, removeRecent } from "@/lib/docs/recent";
 import { reorderWithinRoot, shortcutsInRoot } from "@/lib/docs/shortcuts";
-import { ancestorsWithin, baseName, parentPath } from "@/lib/docs/tree-nav";
+import { rootLabel } from "@/lib/docs/roots";
+import { ancestorsWithin, baseName, parentPath, relativeWithin } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsEntry, DocsRootStatus, DocsShortcut } from "@/types";
 
@@ -213,6 +229,52 @@ export function DocsView() {
   );
 
   const selected = roots.find((r) => r.id === rootId);
+
+  // The notes taken on the open document (T-0299). Keyed by the root's id and
+  // the path within it, so they are not lost when the same share is mounted on
+  // another letter — see `@/lib/docs/annotations`.
+  const relDoc = useMemo(
+    () => (selected?.path && doc ? relativeWithin(selected.path, doc) : ""),
+    [selected?.path, doc],
+  );
+  const [notes, setNotes] = useState<DocNote[]>([]);
+  const [docStamp, setDocStamp] = useState("");
+  const [revealNote, setRevealNote] = useState("");
+  useEffect(() => {
+    setNotes(readNotes(rootId, relDoc));
+    setRevealNote("");
+  }, [rootId, relDoc]);
+
+  const notesPane = useMemo(() => {
+    // No root, or nothing open: there is nowhere to key the notes, so the
+    // pane stays the read-only view it was.
+    if (!rootId || !relDoc) return undefined;
+    return {
+      notes,
+      add: (note: Omit<DocNote, "id" | "createdAt">) =>
+        setNotes(addNote(rootId, relDoc, notes, note)),
+      update: (id: string, comment: string) =>
+        setNotes(updateNote(rootId, relDoc, notes, id, comment)),
+      remove: (id: string) => setNotes(removeNote(rootId, relDoc, notes, id)),
+      onStamp: setDocStamp,
+      reveal: revealNote,
+      onRevealed: () => setRevealNote(""),
+    };
+  }, [rootId, relDoc, notes, revealNote]);
+
+  const copyNotesPrompt = useCallback(
+    () =>
+      writeText(
+        buildPrompt({
+          rootName: selected ? rootLabel(selected) : "",
+          relPath: relDoc,
+          absPath: doc,
+          notes,
+          stale: notesAreStale(notes, docStamp),
+        }),
+      ),
+    [selected, relDoc, doc, notes, docStamp],
+  );
 
   // With the file list on, the root's own files would otherwise be
   // unreachable: the tree lists a root's children, so the root itself has no
@@ -439,6 +501,14 @@ export function DocsView() {
                 onForget={(path) => setRecent(removeRecent(rootId, path))}
                 onClear={() => setRecent(clearRecent(rootId))}
               />
+              <NotesSection
+                notes={notes}
+                stale={notesAreStale(notes, docStamp)}
+                onReveal={setRevealNote}
+                onRemove={(id) => setNotes(removeNote(rootId, relDoc, notes, id))}
+                onClear={() => setNotes(clearNotes(rootId, relDoc))}
+                onCopyPrompt={copyNotesPrompt}
+              />
 
               {listPane ? (
                 <ResizablePanelGroup
@@ -475,6 +545,7 @@ export function DocsView() {
               refreshToken={refreshToken}
               onError={setError}
               onBusyChange={setDocBusy}
+              notes={notesPane}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

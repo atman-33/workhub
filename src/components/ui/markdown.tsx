@@ -8,6 +8,7 @@ import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { calloutKind, colonBlocksToCallouts, rehypeCallouts } from "@/lib/callouts";
+import { rehypeLineNumbers } from "@/lib/docs/rehype-line";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
 import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
@@ -379,9 +380,17 @@ const HTML_REHYPE_PLUGINS: NonNullable<Options["rehypePlugins"]> = [
  * sanitizing: their `data-*` attributes would not survive the GitHub schema,
  * and the tree they rearrange is safe by then.
  */
-function rehypePluginsFor(allowHtml?: boolean, callouts?: boolean): Options["rehypePlugins"] {
+function rehypePluginsFor(
+  allowHtml?: boolean,
+  callouts?: boolean,
+  sourceLineOffset?: number,
+): Options["rehypePlugins"] {
   const plugins = allowHtml ? [...HTML_REHYPE_PLUGINS] : [];
   if (callouts) plugins.push(rehypeCallouts);
+  // Also after sanitizing, which strips the `data-line` it writes.
+  if (sourceLineOffset !== undefined) {
+    plugins.push([rehypeLineNumbers, { offset: sourceLineOffset }]);
+  }
   return plugins.length > 0 ? plugins : undefined;
 }
 
@@ -468,6 +477,17 @@ interface MarkdownProps {
    * figures are plain.
    */
   onOpenFigure?: (figure: DocsFigure) => void;
+  /**
+   * Write each block's source line onto the rendered element as `data-line`,
+   * offset by this many lines (T-0299) — what a note taken in the Docs tab
+   * records, so an agent can be told where in the file it belongs. The offset
+   * is how much was lifted off the front of the source before rendering, i.e.
+   * the frontmatter.
+   *
+   * Left out, no line attributes are written and the markup is exactly what it
+   * was before. `0` is a real value and turns them on.
+   */
+  sourceLineOffset?: number;
 }
 
 /**
@@ -492,6 +512,7 @@ export function Markdown({
   callouts,
   plantuml,
   onOpenFigure,
+  sourceLineOffset,
 }: MarkdownProps) {
   const source = React.useMemo(
     () => (callouts ? colonBlocksToCallouts(children) : children),
@@ -622,7 +643,7 @@ export function Markdown({
     <div className={cn(variant === "document" ? DOCUMENT_STYLE : COMPACT_STYLE, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
-        rehypePlugins={rehypePluginsFor(allowHtml, callouts)}
+        rehypePlugins={rehypePluginsFor(allowHtml, callouts, sourceLineOffset)}
         components={components}
       >
         {source}

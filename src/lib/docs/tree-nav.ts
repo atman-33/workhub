@@ -303,6 +303,20 @@ export function ancestorsWithin(rootPath: string, path: string): string[] {
   return out;
 }
 
+/**
+ * `path` as written from inside `rootPath` — the form a note keeps.
+ *
+ * An absolute path is machine-local (`docs_root_paths`), so anything stored
+ * per document is keyed by the root's id plus this, and a second machine that
+ * mounts the share elsewhere still finds it. Outside the root there is no
+ * relative form, and the absolute path is returned rather than a guess.
+ */
+export function relativeWithin(rootPath: string, path: string): string {
+  if (!isWithinRoot(rootPath, path)) return path;
+  const root = rootPath.replace(/\/+$/, "");
+  return path === root ? "" : path.slice(root.length + 1);
+}
+
 /** The display name of a path — its last segment. */
 export function baseName(path: string): string {
   const trimmed = path.replace(/\/+$/, "");

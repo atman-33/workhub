@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.116.0 (2026-09-12)
+
+- **The Docs tab takes notes on a document and hands them to an agent as a
+  prompt** (T-0299). Reading a shared document and wanting to fix a line in it
+  was a dead end: the tab is deliberately unable to write into a document
+  folder — `docs.rs` has no write command, and gaining one would be a design
+  change rather than a feature — so the only way to act on what you noticed was
+  to copy it somewhere else by hand. The way out is that the app is not what
+  does the writing. Select some text in the preview, right-click, and write
+  what should change; the passage is underlined from then on, and clicking it
+  reopens the note. The sidebar's new **Notes** section lists every note on the
+  open document, and its copy button puts them on the clipboard as a request an
+  AI agent can act on — the root-relative and absolute path, each note's line
+  and quote, and two standing instructions: re-read the file first, and do not
+  overwrite a shared folder without asking. The app therefore still writes
+  nothing into the folder, and whether an agent may is an operational call
+  rather than something built into the tab.
+  - Notes work on Markdown, on plain-text files, and on an HTML page in its
+    sandboxed frame. That frame already has `allow-same-origin` and the
+    component already reaches into it to catch link clicks, so nothing about
+    the sandbox changes — scripts in a shared file still never run.
+  - A note is anchored by its quoted text and which occurrence of it this is,
+    plus the source line where one is known. Not by a block index: these
+    documents sit on a share a colleague also edits, and an anchor that depends
+    on the document standing still drifts silently. Markdown gains `data-line`
+    attributes from remark's own positions for this, which is also what lets
+    the prompt say `L120`.
+  - Noted passages are painted with the CSS Custom Highlight API rather than by
+    wrapping them in elements or laying rectangles over them — the pane's zoom
+    and its draggable split would otherwise mean re-measuring on every reflow.
+  - Notes are this machine's own, beside Recent files, and are meant to be
+    discarded once they are in a prompt. The section says so when the document
+    has changed since a note was taken.
+
 ## 0.115.0 (2026-09-12)
 
 - **Choosing a vault folder now sets the vault up** (T-0297). Picking the
