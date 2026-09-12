@@ -75,9 +75,9 @@
     },
     {
       "name": "obsidian",
-      "tier": "optional",
+      "tier": "recommended",
       "scope": "either",
-      "summary": "Generic Obsidian helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, CLI). Vault-agnostic - useful in the workhub vault and any other."
+      "summary": "Generic Obsidian helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, CLI). Vault-agnostic - useful in the workhub vault and any other. Recommended because the vault itself is an Obsidian vault: the workhub knowledge-base skills assume the CLI, and OpenCode sessions ship these skills by default."
     },
     {
       "name": "persona",
