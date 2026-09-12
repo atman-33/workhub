@@ -14,6 +14,10 @@
  *   node comms.mjs scan    [--full] [--json]
  *   node comms.mjs list    [--all] [--json]
  *   node comms.mjs read    <thread-id> [--full] [--unread] [--no-mark] [--json]
+ *   node comms.mjs catchup [<thread-id>] [--full] [--all] [--json]
+ *   node comms.mjs digest  [<thread-id>] --file <path> | --show
+ *   node comms.mjs index   [--out <path>]
+ *   node comms.mjs search  <text> [--json]
  *   node comms.mjs focus   <thread-id>
  *   node comms.mjs unfocus
  *
@@ -24,11 +28,12 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   AGENT_ID_RE,
   KINDS,
+  STATE_DIR,
   STATES,
   THREAD_ID_RE,
   collectOddities,
@@ -39,15 +44,19 @@ import {
   getFocus,
   isDir,
   loadConfig,
+  loadDigest,
   loadState,
   markRead,
   mentionsDir,
+  postsSinceDigest,
   publishAttachment,
   publishFile,
   readThread,
   removeQuietly,
+  renderIndexHtml,
   resolveProjectRoot,
   rnd4,
+  saveDigest,
   saveState,
   scanThreads,
   setFocus,
@@ -595,6 +604,237 @@ function cmdRead(flags, positional) {
 }
 
 // ---------------------------------------------------------------------
+// catchup / digest
+// ---------------------------------------------------------------------
+
+/**
+ * Restore a thread into a fresh session — incrementally.
+ *
+ * A session knows nothing about a thread it was not part of, and focus only
+ * points at one; it does not remember its contents. Re-reading a long thread
+ * every session is the one genuinely expensive thing this plugin can do, so a
+ * saved digest is printed first and only the posts after it follow.
+ */
+function cmdCatchup(flags, positional) {
+  const config = requireConfig(flags);
+  requireRoot(config);
+  const state = loadState();
+
+  let threadId = positional[0];
+  if (!threadId) {
+    const focus = getFocus(state, config.projectRoot);
+    if (focus) threadId = focus.thread;
+  }
+  if (!threadId) fail("usage: comms catchup <thread-id>  (or focus a thread first)");
+
+  const dir = findThreadDir(config, threadId);
+  if (!dir) fail(`thread ${threadId} not found.`);
+  const thread = readThread(String(dir), threadId);
+  const digest = flags.all ? null : loadDigest(threadId);
+  const known = thread.posts.filter((p) => p.known);
+  const since = digest?.upTo ?? "";
+  const fresh = postsSinceDigest(digest, known);
+
+  if (flags.json) {
+    console.log(
+      JSON.stringify(
+        {
+          thread: thread.id,
+          title: thread.title,
+          state: thread.state,
+          participants: thread.participants,
+          decisions: thread.decisions.length,
+          digest: digest ? { upTo: digest.upTo, covered: digest.covered, body: digest.body } : null,
+          since,
+          posts: fresh.map((p) => ({
+            id: p.id,
+            kind: p.kind,
+            person: p.person,
+            created: p.created,
+            summary: p.summary,
+            attachments: p.attachments,
+            body: flags.full ? p.body : undefined,
+          })),
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  console.log(`# ${thread.title}`);
+  console.log(`${thread.id} · ${thread.state} · ${thread.count} post(s) · ${thread.participants.join(", ")}`);
+  if (thread.decisions.length > 1) {
+    console.log(`NOTE: ${thread.decisions.length} decisions recorded — a person has to pick.`);
+  }
+
+  if (digest) {
+    console.log("");
+    console.log(`## Digest so far (saved ${digest.savedAt}, covers ${digest.covered} post(s))`);
+    console.log("");
+    console.log(digest.body);
+    console.log("");
+    console.log(
+      fresh.length
+        ? `## ${fresh.length} post(s) since then`
+        : "## Nothing new since that digest",
+    );
+  } else {
+    console.log("");
+    console.log(
+      `## Whole thread (${known.length} post(s)) — no digest cached yet`,
+    );
+    console.log(
+      `Write one with "comms digest ${thread.id} --file <path>" so the next session ` +
+        `reads the digest plus what arrived after it, instead of all of this again.`,
+    );
+  }
+
+  for (const post of fresh) {
+    console.log("");
+    console.log(
+      `--- ${post.created} · ${post.person} · ${post.kind}${post.state ? ` -> ${post.state}` : ""}`,
+    );
+    console.log(post.summary);
+    if (post.attachments.length) {
+      console.log(`attachments: ${post.attachments.join(", ")}`);
+      console.log(`  in ${join(thread.path, `${post.name.replace(/\.md$/, "")}.d`)}`);
+    }
+    if (flags.full) {
+      const body = post.body.replace(/^##\s*(?:要旨|Summary)[\s\S]*?(?=^##\s|\Z)/m, "").trim();
+      if (body) {
+        console.log("");
+        console.log(body);
+      }
+    }
+  }
+
+  if (!flags["no-mark"]) {
+    markRead(state, thread.id, known.map((p) => p.id));
+    saveState(state);
+  }
+}
+
+/** Cache a digest of a thread, recording how far it reads. */
+function cmdDigest(flags, positional) {
+  const config = requireConfig(flags);
+  requireRoot(config);
+  const state = loadState();
+
+  let threadId = positional[0];
+  if (!threadId) {
+    const focus = getFocus(state, config.projectRoot);
+    if (focus) threadId = focus.thread;
+  }
+  if (!threadId) fail("usage: comms digest <thread-id> --file <path>");
+
+  const dir = findThreadDir(config, threadId);
+  if (!dir) fail(`thread ${threadId} not found.`);
+
+  if (flags.show) {
+    const existing = loadDigest(threadId);
+    if (!existing) fail(`no digest cached for ${threadId}.`);
+    console.log(existing.body);
+    return;
+  }
+
+  const body = typeof flags.file === "string"
+    ? readFileSync(flags.file, "utf8")
+    : typeof flags.text === "string"
+      ? flags.text
+      : "";
+  if (!body.trim()) fail("--file <path> (or --text) is required: the digest is written by you.");
+
+  const thread = readThread(String(dir), threadId);
+  const known = thread.posts.filter((p) => p.known);
+  const saved = saveDigest(threadId, body, known);
+  console.log(`digest saved for ${threadId} (covers ${saved.covered} post(s) up to ${saved.upTo})`);
+  console.log(`  ${saved.path}`);
+}
+
+// ---------------------------------------------------------------------
+// index / search
+// ---------------------------------------------------------------------
+
+function cmdIndex(flags) {
+  const config = requireConfig(flags);
+  requireRoot(config);
+  const { state, focus, threads } = gather(config, flags);
+
+  const rows = threads.map((t) => ({
+    focused: focus?.thread === t.id,
+    state: t.state,
+    unread: unreadPosts(t, state, config.agentId).length,
+    updated: t.updated ? t.updated.slice(0, 16).replace("T", " ") : "",
+    lastBy: t.lastBy,
+    id: t.id,
+    title: t.title,
+    people: t.participants.join(", "),
+    decisions: t.decisions.length,
+  }));
+
+  const out = typeof flags.out === "string" ? flags.out : join(STATE_DIR, "index.html");
+  ensureDir(dirname(out));
+  writeFileSync(
+    out,
+    renderIndexHtml({
+      rows,
+      agentId: config.agentId,
+      commsRoot: config.commsRoot,
+      mentions: unreadMentions(config, state).length,
+    }),
+    "utf8",
+  );
+  console.log(`wrote ${rows.length} thread(s) to ${out}`);
+}
+
+function cmdSearch(flags, positional) {
+  const config = requireConfig(flags);
+  requireRoot(config);
+  const query = positional.join(" ").trim();
+  if (!query) fail("usage: comms search <text>");
+  const needle = query.toLowerCase();
+
+  const { state, threads } = gather(config, { ...flags, full: true });
+  const hits = [];
+  for (const thread of threads) {
+    for (const post of thread.posts) {
+      if (!post.known) continue;
+      const haystack = `${post.summary}\n${post.body}`.toLowerCase();
+      if (!haystack.includes(needle)) continue;
+      hits.push({
+        thread: thread.id,
+        title: thread.title,
+        state: thread.state,
+        person: post.person,
+        kind: post.kind,
+        created: post.created,
+        summary: post.summary,
+        file: post.file,
+      });
+    }
+  }
+  hits.sort((a, b) => (a.created > b.created ? -1 : 1));
+
+  if (flags.json) {
+    console.log(JSON.stringify(hits, null, 2));
+    return;
+  }
+  if (!hits.length) {
+    console.log(`no post matches "${query}".`);
+    return;
+  }
+  console.log(`${hits.length} match(es) for "${query}"`);
+  for (const hit of hits) {
+    console.log("");
+    console.log(`${hit.created} · ${hit.person} · ${hit.kind} · ${hit.thread} (${hit.state})`);
+    console.log(`  ${hit.title} — ${hit.summary}`);
+  }
+  void state;
+}
+
+// ---------------------------------------------------------------------
 // focus
 // ---------------------------------------------------------------------
 
@@ -651,6 +891,18 @@ try {
     case "read":
       cmdRead(flags, positional);
       break;
+    case "catchup":
+      cmdCatchup(flags, positional);
+      break;
+    case "digest":
+      cmdDigest(flags, positional);
+      break;
+    case "index":
+      cmdIndex(flags);
+      break;
+    case "search":
+      cmdSearch(flags, positional);
+      break;
     case "focus":
       cmdFocus(flags, positional);
       break;
@@ -669,6 +921,12 @@ try {
           "  comms scan [--full]         check for new posts and stray files",
           "  comms list [--all]          threads, state, unread count",
           "  comms read <thread-id> [--full] [--unread]",
+          "  comms catchup [<thread-id>] [--full] [--all]",
+          "                              cached digest + only what arrived since",
+          "  comms digest [<thread-id>] --file <path> | --show",
+          "                              cache a digest so the next catch-up is incremental",
+          "  comms index [--out <path>]  write the thread list as local HTML",
+          "  comms search <text>         search summaries and bodies",
           "  comms focus <thread-id> | comms unfocus",
           "",
           `  kinds:  ${KINDS.join(", ")}`,

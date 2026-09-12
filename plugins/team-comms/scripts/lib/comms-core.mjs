@@ -401,7 +401,17 @@ export function readThread(dir, threadId) {
       known: !attrs.schema || String(attrs.schema).startsWith("team-comms/post@1"),
     });
   }
-  posts.sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : a.id < b.id ? -1 : 1));
+  // Order by time, then by the sequence prefix, then by id. The prefix is the
+  // tie-breaker that matters: timestamps only resolve to the second, so several
+  // posts made in one second by one agent would otherwise come back shuffled.
+  // Across agents the order within a second is arbitrary but stable, which is
+  // the honest answer - nobody can know which of two simultaneous posts came
+  // first.
+  posts.sort((a, b) => {
+    if (a.created !== b.created) return a.created < b.created ? -1 : 1;
+    if (a.seq !== b.seq) return a.seq < b.seq ? -1 : 1;
+    return a.id < b.id ? -1 : 1;
+  });
   return { id: threadId, path: dir, posts, oddities, ...foldThread(posts) };
 }
 
@@ -704,4 +714,229 @@ export function isDir(path) {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------
+// catch-up digests
+// ---------------------------------------------------------------------
+
+/**
+ * Where a thread's catch-up digest is cached. Local, like everything else a
+ * single machine knows: a digest is one session's reading of the thread, not a
+ * fact about it, and writing it to the shared space would make it one more
+ * file several people want to rewrite.
+ * @param {string} threadId
+ */
+export function digestPath(threadId) {
+  return join(STATE_DIR, "digest", `${threadId}.md`);
+}
+
+/**
+ * Read a cached digest. `upTo` is the timestamp of the newest post it covers,
+ * which is what makes the next catch-up incremental instead of a re-read of the
+ * whole thread - the one place in this plugin where tokens are really spent.
+ * @param {string} threadId
+ */
+export function loadDigest(threadId) {
+  const path = digestPath(threadId);
+  let text = "";
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+  const { attrs, body } = parseFrontmatter(text);
+  return {
+    path,
+    upTo: typeof attrs.up_to === "string" ? attrs.up_to : "",
+    // Ids of the posts sharing that exact second. Timestamps resolve to the
+    // second, so a cutoff of "later than up_to" alone would silently drop a
+    // post written in the same second as the last one the digest covers.
+    boundaryIds: Array.isArray(attrs.boundary_ids) ? attrs.boundary_ids : [],
+    savedAt: typeof attrs.saved === "string" ? attrs.saved : "",
+    covered: Number(attrs.covered) || 0,
+    body: body.trim(),
+  };
+}
+
+/**
+ * Posts a digest does not yet cover.
+ * @param {{ upTo: string, boundaryIds: string[] } | null} digest
+ * @param {{ id: string, created: string }[]} posts
+ */
+export function postsSinceDigest(digest, posts) {
+  if (!digest || !digest.upTo) return posts;
+  const boundary = new Set(digest.boundaryIds);
+  return posts.filter(
+    (p) => p.created > digest.upTo || (p.created === digest.upTo && !boundary.has(p.id)),
+  );
+}
+
+/**
+ * Cache a digest for a thread, recording exactly how far it reads.
+ * @param {string} threadId @param {string} body
+ * @param {{ id: string, created: string }[]} covered the posts it summarises
+ */
+export function saveDigest(threadId, body, covered) {
+  const path = digestPath(threadId);
+  ensureDir(join(STATE_DIR, "digest"));
+  const upTo = covered.length ? covered[covered.length - 1].created : "";
+  const boundaryIds = covered.filter((p) => p.created === upTo).map((p) => p.id);
+  const content = [
+    "---",
+    "schema: team-comms/digest@1",
+    `thread: ${threadId}`,
+    `up_to: ${upTo}`,
+    `covered: ${covered.length}`,
+    "boundary_ids:",
+    ...boundaryIds.map((id) => `  - ${id}`),
+    `saved: ${utcIso()}`,
+    "---",
+    "",
+    body.trim(),
+    "",
+  ].join("\n");
+  const tmp = `${path}.tmp-${rnd4()}`;
+  writeFileSync(tmp, content, "utf8");
+  renameSync(tmp, path);
+  return { path, upTo, covered: covered.length };
+}
+
+// ---------------------------------------------------------------------
+// local thread list
+// ---------------------------------------------------------------------
+
+/** @param {unknown} value */
+function htmlEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Render the thread list as one self-contained HTML file.
+ *
+ * This is generated **locally**, never into the shared space (design §6/§7 of
+ * the vault note): a single index file in the shared folder is precisely the
+ * "one file everybody wants to rewrite" that the whole design removes, and
+ * per-author copies would just leave nobody able to tell which is current.
+ *
+ * @param {{ rows: any[], agentId: string, commsRoot: string, mentions: number }} input
+ */
+export function renderIndexHtml(input) {
+  const rows = input.rows
+    .map((row) => {
+      const decisions =
+        row.decisions > 1
+          ? `<span class="warn">${row.decisions} decisions</span>`
+          : row.decisions === 1
+            ? `<span class="ok">decided</span>`
+            : "";
+      return `      <tr data-state="${htmlEscape(row.state)}" data-unread="${row.unread > 0}">
+        <td>${row.focused ? '<span class="focus" title="focused in one of your working directories">●</span>' : ""}</td>
+        <td><span class="pill ${htmlEscape(row.state)}">${htmlEscape(row.state)}</span></td>
+        <td class="num">${row.unread ? `<b>${row.unread}</b>` : ""}</td>
+        <td>${htmlEscape(row.title)}<div class="id">${htmlEscape(row.id)}</div></td>
+        <td>${htmlEscape(row.people)}</td>
+        <td class="when">${htmlEscape(row.updated)}<div class="id">${htmlEscape(row.lastBy)}</div></td>
+        <td>${decisions}</td>
+      </tr>`;
+    })
+    .join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>team-comms — threads</title>
+<style>
+  :root { --ink:#1f2430; --muted:#6b7280; --bg:#f7f8fa; --card:#fff; --line:#e3e6ec;
+          --accent:#4f46e5; --green:#059669; --amber:#d97706; --rose:#e11d48; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e9ee; --muted:#9aa0b0; --bg:#101219; --card:#181b23; --line:#2a2e3a;
+            --accent:#a5b4fc; --green:#34d399; --amber:#fbbf24; --rose:#fb7185; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:28px; background:var(--bg); color:var(--ink);
+         font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif; font-size:14px; line-height:1.6; }
+  h1 { font-size:19px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:12.5px; margin-bottom:16px; }
+  .sub code { font-size:12px; }
+  .filters { margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap; }
+  .filters button { font:inherit; font-size:12.5px; padding:5px 12px; min-height:32px;
+    border:1px solid var(--line); background:var(--card); color:var(--muted);
+    border-radius:999px; cursor:pointer; }
+  .filters button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  table { border-collapse:collapse; width:100%; background:var(--card);
+          border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:9px 12px; text-align:left; vertical-align:top; border-top:1px solid var(--line); }
+  th { background:transparent; color:var(--muted); font-weight:600; font-size:12px;
+       text-transform:uppercase; letter-spacing:.04em; border-top:none; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.when { white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .id { color:var(--muted); font-size:11.5px; font-family:Consolas,monospace; }
+  .pill { display:inline-block; padding:1px 9px; border-radius:999px; font-size:11.5px; font-weight:600; }
+  .pill.open { background:rgba(79,70,229,.14); color:var(--accent); }
+  .pill.discussing { background:rgba(217,119,6,.16); color:var(--amber); }
+  .pill.decided { background:rgba(5,150,105,.16); color:var(--green); }
+  .pill.closed { background:rgba(107,114,128,.18); color:var(--muted); }
+  .focus { color:var(--accent); }
+  .ok { color:var(--green); font-size:12.5px; }
+  .warn { color:var(--rose); font-size:12.5px; font-weight:600; }
+  .note { margin-top:14px; color:var(--muted); font-size:12.5px; }
+  tr[hidden] { display:none; }
+</style>
+</head>
+<body>
+  <h1>team-comms — threads</h1>
+  <div class="sub">
+    ${htmlEscape(input.commsRoot)} · as ${htmlEscape(input.agentId)}
+    ${input.mentions ? ` · <b>${input.mentions} mention(s) for you</b>` : ""}
+    · generated ${htmlEscape(utcIso())}
+  </div>
+
+  <div class="filters">
+    <button type="button" data-f="all" aria-pressed="true">All</button>
+    <button type="button" data-f="unread" aria-pressed="false">Unread</button>
+    <button type="button" data-f="open" aria-pressed="false">Open</button>
+    <button type="button" data-f="discussing" aria-pressed="false">Discussing</button>
+    <button type="button" data-f="decided" aria-pressed="false">Decided</button>
+    <button type="button" data-f="closed" aria-pressed="false">Closed</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th></th><th>State</th><th>Unread</th><th>Thread</th><th>People</th><th>Updated</th><th></th></tr>
+    </thead>
+    <tbody>
+${rows || '      <tr><td colspan="7">No threads yet.</td></tr>'}
+    </tbody>
+  </table>
+
+  <p class="note">
+    This file is a snapshot generated on this machine. It is deliberately not written into the
+    shared folder — a single index everyone rewrites is the one thing that would reintroduce
+    write conflicts. Re-run <code>comms index</code> to refresh it.
+  </p>
+
+<script>
+  var buttons = document.querySelectorAll('.filters button');
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var f = btn.dataset.f;
+      buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+      document.querySelectorAll('tbody tr').forEach(function (row) {
+        if (!row.dataset.state) return;
+        row.hidden = !(f === 'all'
+          || (f === 'unread' ? row.dataset.unread === 'true' : row.dataset.state === f));
+      });
+    });
+  });
+</script>
+</body>
+</html>
+`;
 }
