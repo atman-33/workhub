@@ -318,11 +318,16 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
       {/* The frame scrolls itself, so an HTML page gets the pane edge to edge. */}
       <div
         ref={scroller}
-        className={
+        className={cn(
+          // The app sets `user-select: none` on the body to feel native, and
+          // only inputs opt back in — which left the one pane whose whole
+          // content is prose unselectable (T-0294). Read-only text you cannot
+          // copy out of is a document you have to open somewhere else.
+          "select-text cursor-auto",
           html && !error && content
             ? "min-h-0 flex-1"
-            : "min-h-0 flex-1 overflow-y-auto px-6 py-4"
-        }
+            : "min-h-0 flex-1 overflow-y-auto px-6 py-4",
+        )}
       >
         {error && <p className="text-xs text-destructive">{error}</p>}
         {!error && loading && !content && (
