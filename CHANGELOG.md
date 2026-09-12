@@ -39,6 +39,42 @@
   - Notes are this machine's own, beside Recent files, and are meant to be
     discarded once they are in a prompt. The section says so when the document
     has changed since a note was taken.
+- **The settings dialog is two tabs, and the settings a single tab owns have
+  moved into that tab** (T-0300). The dialog had grown to three tabs by
+  accretion, and two of its sections configured features you had to leave to
+  reach them. **Vault tidy** is now behind a gear on the **Inbox** tab — it is
+  what files the notes that tab lists — and the **embedded terminal** switch
+  sits in the **Tasks** toolbar beside the Terminal toggle it governs. The
+  **vault folder** moved above the tabs entirely: every feature in the app
+  reads that one path, so it should not take a tab to find. What is left splits
+  by what it governs — **General** for the app itself, **Agents** for the AI
+  agents it launches — and the Vault tab is gone.
+  - The rule for what may move is whether anything outside a tab reads the
+    setting, and it is answered by tracing the readers rather than by what a
+    setting looks like it belongs to. The custom prompt looks like a Tasks
+    setting; the Docs and Projects tabs copy prompts too, so it stays in the
+    dialog.
+  - **The VS Code and terminal commands moved to the Repos tab** (T-0304),
+    behind a gear of its own, for the same reason: the Repos rows and the
+    worktrees panel are the only things that run them.
+  - The long-term-memory startup notice now sits with the other two memory
+    switches instead of among unrelated startup checks.
+- **The Worktree root setting works** (T-0305). It has existed since worktree
+  mode shipped and had never been read: the launch prompt hardcoded a path, so
+  changing the setting did nothing. It went unnoticed because the default and
+  the hardcoded path name the same folder for repositories sitting directly
+  under `C:/repos` — and stop agreeing for any repository that does not. A task
+  with worktree mode on now tells the agent to build the worktree under the
+  root you actually set. Clearing the setting is not an error; the prompt then
+  asks for `.worktrees/` beside the repository.
+- **Quick capture's project picker matches the task editor's** (T-0300). It
+  shows each project's folder number and lists projects in folder order, so the
+  two pickers over the same vault no longer disagree about what a project is
+  called or what order they come in.
+- **The task status filter appears in list view only** (T-0300). On the kanban
+  board the columns are the statuses, so picking one left a single column
+  standing with nothing on screen to say where the rest went. The list view is
+  flat and shows status as a badge, which is where the filter earns its place.
 
 ## 0.115.0 (2026-09-12)
 
