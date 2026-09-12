@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { describeSchedule, newRule, nextOccurrence } from "@/lib/recurring";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelCombobox } from "@/components/model-combobox";
+import { projectOptionDetails } from "@/lib/task-editor-fields";
 import { cn } from "@/lib/utils";
 import type { RecurringRule, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
 
@@ -36,8 +37,14 @@ interface Props {
   onChange: (rules: RecurringRule[]) => void;
   /** True while the hosting dialog is open (drives the model combobox). */
   open: boolean;
-  /** Vault project slugs a rule's generated task may name (T-0219). */
+  /** Vault project slugs a rule's generated task may name (T-0219), already
+   *  in folder-name order. */
   knownProjects: string[];
+  /** Folder name per slug, so the project picker can draw each project's
+   *  `NNNN` sort number beside it and name the chosen folder underneath —
+   *  the same answer the task editor gives (T-0282, T-0286). Display only:
+   *  the rule still stores the bare slug. */
+  projectFolders?: Record<string, string>;
 }
 
 /**
@@ -45,8 +52,18 @@ interface Props {
  * draft array of rules. Persisting it — and running the rules — belongs to the
  * hosting dialog (`recurring-dialog.tsx`).
  */
-export function RecurringSettings({ rules, onChange, open, knownProjects }: Props) {
+export function RecurringSettings({
+  rules,
+  onChange,
+  open,
+  knownProjects,
+  projectFolders,
+}: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const projectDetails = useMemo(
+    () => projectOptionDetails(projectFolders ?? {}),
+    [projectFolders],
+  );
 
   const patch = (id: string, changes: Partial<RecurringRule>) =>
     onChange(rules.map((r) => (r.id === id ? { ...r, ...changes } : r)));
@@ -330,11 +347,17 @@ export function RecurringSettings({ rules, onChange, open, knownProjects }: Prop
                           ? [...knownProjects, rule.project]
                           : knownProjects
                       }
+                      optionDetails={projectDetails}
                       noneLabel="No project"
                       placeholder="vault project"
                       emptyText="No vault projects. Create one in the Projects tab."
                       modal
                     />
+                    {projectFolders?.[rule.project] && (
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {projectFolders[rule.project]}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Model</label>
