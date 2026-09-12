@@ -23,6 +23,9 @@ interface Props {
   onSaved?: (rules: RecurringRule[]) => void;
   /** Vault project slugs a rule's generated task may name (T-0219). */
   knownProjects: string[];
+  /** Folder name per slug, passed straight through so the project picker can
+   *  show each project's sort number (T-0286). */
+  projectFolders?: Record<string, string>;
 }
 
 /**
@@ -34,7 +37,13 @@ interface Props {
  * writes only `settings.recurring` back, leaving every other setting alone even
  * if the settings dialog saved something while this was open.
  */
-export function RecurringDialog({ open, onClose, onSaved, knownProjects }: Props) {
+export function RecurringDialog({
+  open,
+  onClose,
+  onSaved,
+  knownProjects,
+  projectFolders,
+}: Props) {
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -123,6 +132,7 @@ export function RecurringDialog({ open, onClose, onSaved, knownProjects }: Props
               onChange={setRules}
               open={open}
               knownProjects={knownProjects}
+              projectFolders={projectFolders}
             />
           )}
         </div>

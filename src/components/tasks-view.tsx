@@ -277,8 +277,9 @@ export function TasksView({
     [vaultProjects],
   );
 
-  // Folder name per slug, so the editor's picker can draw each project's sort
-  // number beside it. Display only — the field still commits the slug.
+  // Folder name per slug, so the project pickers — the task editor's and the
+  // recurring-rule dialog's (T-0286) — can draw each project's sort number
+  // beside it. Display only: both fields still commit the slug.
   const projectFolders = useMemo(
     () => Object.fromEntries(vaultProjects.map((p) => [p.slug, p.folder])),
     [vaultProjects],
@@ -825,6 +826,7 @@ export function TasksView({
         open={recurringOpen}
         onClose={() => setRecurringOpen(false)}
         knownProjects={knownProjects}
+        projectFolders={projectFolders}
         // Keep the toolbar count (and any later config read) in step with what
         // the dialog just wrote, without a full config reload.
         onSaved={(recurring) =>
