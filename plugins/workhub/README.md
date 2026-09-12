@@ -181,10 +181,9 @@ or run this plugin's `setup-project-context` skill.
   `projects` are all optional. Omit any and the relevant hook skips that part;
   a missing file injects nothing.
 - `openspecPath` falls back to `<project-root>/openspec` when it is empty **or**
-  points at a folder that does not exist, so switching projects rarely needs a
-  manual path edit. If neither path exists, the `<openspec>` line is omitted.
-  Use the `set-openspec-path` skill to switch it by picking a registered
-  project from a menu instead of hand-editing the absolute path.
+  points at a folder that does not exist. If neither path exists, the
+  `<openspec>` line is omitted; edit the path by hand when you need to point
+  it at another project's `openspec` folder.
 - `postToolFormatCommands` is read by the `engineering` plugin's PostToolUse
   hook, not by this one. It can be declared either at the top level (global
   default for all registered targets) or inside each `projects[]` entry
