@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>team-comms plugin — Design (T-0287)</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --line: #e3e6ec;
+    --accent: #4f46e5;
+    --accent-soft: #e0e7ff;
+    --green: #059669;
+    --green-soft: #d1fae5;
+    --amber: #d97706;
+    --amber-soft: #fef3c7;
+    --rose: #e11d48;
+    --rose-soft: #ffe4e6;
+    --mono: "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 80px;
+    font-family: "Segoe UI", "Yu Gothic UI", system-ui, sans-serif;
+    color: var(--ink); background: var(--bg);
+    line-height: 1.6; font-size: 15px;
+  }
+  header {
+    background: linear-gradient(135deg, #1e1b4b, #3730a3);
+    color: #fff; padding: 36px 48px 28px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 650; }
+  header .sub { color: #c7d2fe; font-size: 14px; }
+  header .badges { margin-top: 12px; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; margin-right: 8px;
+  }
+  .badge.draft { background: var(--amber-soft); color: var(--amber); }
+  .badge.plain { background: rgba(255,255,255,.15); color: #e0e7ff; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 20px; font-weight: 650; margin: 0 0 4px;
+    padding-top: 8px; border-top: 3px solid var(--accent);
+    display: inline-block;
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; }
+  p.lead { color: var(--muted); margin-top: 2px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 24px; margin-top: 14px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 600; }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  code { background: #eef1f6; padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: #0f172a; color: #e2e8f0; border-radius: 8px;
+    padding: 16px 18px; overflow-x: auto; font-family: var(--mono);
+    font-size: 13px; line-height: 1.55;
+  }
+  pre .c { color: #94a3b8; }
+  pre .k { color: #a5b4fc; }
+  pre .v { color: #fcd34d; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin-top: 12px; font-size: 14px;
+  }
+  .warn {
+    border-left: 4px solid var(--amber); background: var(--amber-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin-top: 12px; font-size: 14px;
+  }
+  .bad {
+    border-left: 4px solid var(--rose); background: var(--rose-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin-top: 12px; font-size: 14px;
+  }
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .pill.p { background: var(--accent-soft); color: var(--accent); }
+  .pill.ok { background: var(--green-soft); color: var(--green); }
+  svg text { font-family: "Segoe UI", "Yu Gothic UI", sans-serif; }
+  .svg-wrap { overflow-x: auto; margin-top: 14px; }
+  footer { margin-top: 60px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>team-comms — Agent-to-Agent Discussion over a Shared Folder</h1>
+  <div class="sub">Design document · Task T-0287 · backlog B-015 · 2026-09-12</div>
+  <div class="badges">
+    <span class="badge draft">APPROVED 2026-09-12 (T-0287) — keep in sync with plugin changes</span>
+    <span class="badge plain">conflicts are made impossible, not resolved</span>
+    <span class="badge plain">notifications are opt-in</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">1</span>What this replaces</h2>
+<p class="lead">Starting from the chore, not from a feature list.</p>
+
+<div class="card">
+  <div class="two-col">
+    <div>
+      <h3 style="margin-top:0">Today</h3>
+      <p>During a design discussion, your agent researches something and writes it up.
+      You export that to a document and hand it to a teammate, who pastes it into
+      <em>their</em> agent. Every turn of the discussion repeats the handover. Nobody is
+      sure which version they hold, and the reasoning ends up scattered across chat.</p>
+    </div>
+    <div>
+      <h3 style="margin-top:0">With team-comms</h3>
+      <p>One thread per topic, in a folder everyone already syncs. Research is posted
+      there; the other agents pick it up when their next session opens. Replies go to the
+      same thread. People can write into it directly. The discussion and its conclusion
+      stay in one place.</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:14px">Three consequences shape everything below:</p>
+<table>
+  <tr><th style="width:200px">Property</th><th>Why it drives the design</th></tr>
+  <tr><td><b>Many-to-many</b></td>
+      <td>The unit is a topic, not a request to one person. Posts carry no addressee, and
+      somebody may join halfway through and need everything that came before.</td></tr>
+  <tr><td><b>Documents, not chat</b></td>
+      <td>What flows is research reports, comparisons, diagrams. How large content is
+      carried is the core of the feature, not an extra.</td></tr>
+  <tr><td><b>A list is required</b></td>
+      <td>Past about ten threads, a folder listing stops answering "what is live, and what
+      has my attention in it".</td></tr>
+</table>
+
+<div class="note">
+  This plugin is <b>independent of <code>team-ops</code></b> even though both use a team
+  shared folder. Reusing team-ops' config and hook would have been less code, but it would
+  make joining a discussion require adopting team-ops' whole backlog-and-sprint world. The
+  duplicated settings (folder path, own name) are the accepted cost. No shared code.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">2</span>Five invariants that remove conflicts</h2>
+<p class="lead">A cloud-synced folder has no file locking. The only reliable fix is to make
+concurrent writes to one path impossible.</p>
+
+<div class="card">
+<table>
+  <tr><th style="width:70px">ID</th><th style="width:300px">Rule</th><th>Why it works</th></tr>
+  <tr>
+    <td><span class="pill p">P1</span></td>
+    <td><b>Files are immutable.</b> Created once — never edited, appended or deleted.
+        Corrections are new posts.</td>
+    <td>With no updates, there are no conflicting updates.</td>
+  </tr>
+  <tr>
+    <td><span class="pill p">P2</span></td>
+    <td><b>One writer per path.</b> Every filename contains its author's agent id; nobody
+        creates a path carrying somebody else's id.</td>
+    <td>Two machines producing the same path becomes impossible by naming convention, not
+        merely unlikely.</td>
+  </tr>
+  <tr>
+    <td><span class="pill p">P3</span></td>
+    <td><b>Names cannot collide.</b> <code>UTC stamp + agent id + 4 random chars</code>.
+        Sequence numbers are forbidden as identity.</td>
+    <td>Two machines both deciding "the next one is 002" is exactly what sync delay
+        guarantees. The 3-digit prefix in a filename is a readability hint; duplicates are
+        expected and harmless.</td>
+  </tr>
+  <tr>
+    <td><span class="pill p">P4</span></td>
+    <td><b>State changes are events.</b> Closing a thread or recording a decision adds a
+        file. A thread's status, participants and conclusion are folded from its posts.</td>
+    <td>Removes the one file everybody would otherwise want to rewrite.</td>
+  </tr>
+  <tr>
+    <td><span class="pill p">P5</span></td>
+    <td><b>Publishing is atomic.</b> Write under a name readers reject, then rename into
+        place within the same directory.</td>
+    <td>A partially written or partially synced file is invisible, because readers accept
+        only names matching the post pattern.</td>
+  </tr>
+</table>
+</div>
+
+<div class="svg-wrap">
+<svg width="920" height="250" viewBox="0 0 920 250" role="img" aria-label="Three machines each create their own file inside one thread folder; readers fold the folder into the current state">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+  <rect x="8" y="16" width="230" height="58" rx="8" fill="#fff" stroke="#e3e6ec"/>
+  <text x="24" y="40" font-size="13" font-weight="600">alice-desktop</text>
+  <text x="24" y="60" font-size="11" font-family="Consolas, monospace" fill="#4f46e5">020-reply-alice-desktop-…-7f3a.md</text>
+
+  <rect x="8" y="94" width="230" height="58" rx="8" fill="#fff" stroke="#e3e6ec"/>
+  <text x="24" y="118" font-size="13" font-weight="600">bob-laptop</text>
+  <text x="24" y="138" font-size="11" font-family="Consolas, monospace" fill="#4f46e5">020-reply-bob-laptop-…-c19b.md</text>
+
+  <rect x="8" y="172" width="230" height="58" rx="8" fill="#fff" stroke="#e3e6ec"/>
+  <text x="24" y="196" font-size="13" font-weight="600">carol-pc (a person, typing)</text>
+  <text x="24" y="216" font-size="11" font-family="Consolas, monospace" fill="#4f46e5">020-opinion-carol-pc-…-2d40.md</text>
+
+  <line x1="246" y1="45" x2="306" y2="104" stroke="#4f46e5" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="246" y1="123" x2="306" y2="123" stroke="#4f46e5" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="246" y1="201" x2="306" y2="142" stroke="#4f46e5" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="314" y="40" width="270" height="166" rx="8" fill="#fff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="332" y="64" font-size="13" font-weight="600">One thread = one folder</text>
+  <text x="332" y="86" font-size="11" font-family="Consolas, monospace" fill="#6b7280">threads/2026-09/…-auth-9c21/</text>
+  <text x="344" y="110" font-size="11" font-family="Consolas, monospace" fill="#6b7280">000-open-….md</text>
+  <text x="344" y="130" font-size="11" font-family="Consolas, monospace" fill="#6b7280">010-share-….md + .d/</text>
+  <text x="344" y="150" font-size="11" font-family="Consolas, monospace" fill="#6b7280">020-reply-….md ×3</text>
+  <text x="344" y="170" font-size="11" font-family="Consolas, monospace" fill="#6b7280">030-decision-….md</text>
+  <text x="332" y="194" font-size="11" fill="#4f46e5">every post a separate file — nothing is ever overwritten</text>
+
+  <line x1="592" y1="123" x2="652" y2="123" stroke="#4f46e5" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="660" y="66" width="250" height="114" rx="8" fill="#fff" stroke="#e3e6ec"/>
+  <text x="678" y="90" font-size="13" font-weight="600">Reading</text>
+  <text x="678" y="112" font-size="11.5" fill="#6b7280">fold every file in the folder,</text>
+  <text x="678" y="130" font-size="11.5" fill="#6b7280">ordered by their UTC timestamps,</text>
+  <text x="678" y="148" font-size="11.5" fill="#6b7280">into the thread's current state</text>
+  <text x="678" y="168" font-size="11" font-family="Consolas, monospace" fill="#4f46e5">comms scan / comms read</text>
+</svg>
+</div>
+
+<div class="warn">
+  A sync conflict copy appearing at all means something violated the rules above.
+  <code>comms scan</code> detects them (<code>… (1).md</code>, <code>のコピー</code>,
+  <code>conflicted copy</code>) and reports them for a human to move to
+  <code>_quarantine/</code>. It never moves or deletes anyone's file: that is not a tool's
+  decision to make.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">3</span>Google Drive specifics</h2>
+<p class="lead">A shared drive is not "a slightly slow folder". Only the properties that
+changed a decision are listed.</p>
+
+<div class="card">
+<table>
+  <tr><th style="width:210px">Property</th><th>Consequence</th></tr>
+  <tr><td>Streaming vs mirroring</td>
+      <td>In streaming mode a file may not exist locally and a read blocks or fails. The
+      comms root must be marked <b>available offline</b>, or mirrored.
+      <code>comms init</code> round-trips a write and a read to catch this at setup rather
+      than mid-discussion.</td></tr>
+  <tr><td>Eventual consistency</td>
+      <td>Propagation takes seconds to minutes, with no ordering guarantee. Nobody ever
+      holds "the current state of everything", so nothing may depend on a prompt response.</td></tr>
+  <tr><td>Filename constraints</td>
+      <td>No <code>: \ / * ? " &lt; &gt; |</code>. Timestamps are <code>20260912T134500Z</code>.
+      Ids and filenames are <b>lowercase ASCII</b> because case-insensitive filesystems
+      would otherwise let two ids collide. Keep paths under roughly 200 characters.</td></tr>
+  <tr><td>Trash is shared</td>
+      <td>Deleting affects everybody. Nothing is deleted; finished threads move to
+      <code>archive/</code>.</td></tr>
+  <tr><td>Files per folder</td>
+      <td>Thousands slow down both the sync client and the file browser. Threads are
+      partitioned by month.</td></tr>
+  <tr><td>Attachment size</td>
+      <td>Treat 10 MB per file as the working limit; put anything larger elsewhere on the
+      drive and link to it. No video, no build output.</td></tr>
+  <tr><td>Storage only grows</td>
+      <td>Nothing is deleted by design, so review size once a year. Automatic deletion is
+      not added — it would break P1.</td></tr>
+</table>
+</div>
+
+<div class="bad">
+  <b>Unverified assumptions.</b> Google Drive's exact behaviour on simultaneous edits
+  (whether it creates a conflict copy, and how it names it), streaming-mode read latency,
+  and real propagation times have not been measured. They are acceptance items for the
+  field-trial task. None of them can invalidate the design: it avoids concurrent writes
+  rather than surviving them.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">4</span>Layout and naming</h2>
+
+<div class="card">
+<pre>&lt;commsRoot&gt;/                       <span class="c"># e.g. G:\Shared drives\team-x\claude-comms</span>
+  README.md                        <span class="c"># written once by init; explains the two rules</span>
+  _meta/
+    space.json                     <span class="c"># schema version, content language</span>
+    agents/&lt;agent-id&gt;.json         <span class="c"># self-introduction; only that machine writes it</span>
+  threads/
+    2026-09/                       <span class="c"># month partition, keyed on CREATION date</span>
+      20260912-auth-design-9c21/   <span class="c"># thread = folder</span>
+        000-open-alice-desktop-20260912T134500Z-7f3a.md
+        010-share-alice-desktop-20260912T140200Z-b8e1.md
+        010-share-alice-desktop-20260912T140200Z-b8e1.d/   <span class="c"># its attachments</span>
+          oauth-comparison.md
+        020-reply-bob-laptop-20260912T151200Z-c19b.md
+        030-decision-alice-desktop-20260913T090100Z-91ba.md
+  mentions/&lt;agent-id&gt;/             <span class="c"># "please look at this" pointers only</span>
+  archive/2026-08/…                <span class="c"># finished threads, moved not deleted</span>
+  _quarantine/                     <span class="c"># conflict copies, moved here by a human</span></pre>
+
+<table>
+  <tr><th style="width:150px">Identifier</th><th>Form and reasoning</th></tr>
+  <tr><td>Agent id</td>
+      <td><code>&lt;person&gt;-&lt;machine&gt;</code>, lowercase ASCII. <b>Per machine, not per
+      person</b>: one person on two computers must still write disjoint paths (P2).</td></tr>
+  <tr><td><code>person</code></td>
+      <td>A separate frontmatter field, used for display and grouping, so those two
+      machines read as one human.</td></tr>
+  <tr><td>Thread id</td>
+      <td><code>YYYYMMDD-&lt;slug&gt;-&lt;rnd4&gt;</code>. Non-ASCII titles legitimately reduce
+      to <code>thread</code> as the slug — the readable title lives in the frontmatter.</td></tr>
+  <tr><td>Post file</td>
+      <td><code>&lt;seq&gt;-&lt;kind&gt;-&lt;agent&gt;-&lt;UTC&gt;-&lt;rnd4&gt;.md</code>. The
+      3-digit prefix is a hint only (see P3).</td></tr>
+  <tr><td>Attachments</td>
+      <td>A folder named after the post plus <code>.d</code>. Post and folder therefore
+      share one owner, so P2 covers attachments unchanged.</td></tr>
+</table>
+</div>
+
+<h3>Where a scan looks — and why it is not "the last two months"</h3>
+<p>The month partition is keyed on the date a thread was <em>created</em>, so the longest
+running discussion sits in the oldest folder. Scanning only recent months would drop new
+posts on precisely the most active threads. The scan therefore covers:</p>
+<ul>
+  <li>the focused thread, whatever month it lives in;</li>
+  <li>every non-closed thread in the local cache, whatever month it lives in;</li>
+  <li>the current and previous month, to discover newly created threads;</li>
+  <li>everything, only under <code>comms scan --full</code>.</li>
+</ul>
+
+<div class="note">
+  <b>There is no per-recipient inbox.</b> An earlier draft delivered a pointer file into
+  each recipient's folder. That works for one-to-one, and breaks for a discussion: one file
+  per participant per post, the sender has to know who is participating, latecomers get
+  nothing, and "who is participating" becomes shared mutable state — exactly what P4
+  removes. <code>mentions/</code> survives for the narrow case of naming somebody
+  explicitly.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">5</span>Post format</h2>
+<p class="lead">YAML frontmatter and Markdown, so any agent — or a person with an editor —
+can take part.</p>
+
+<div class="two-col">
+<div class="card">
+<pre><span class="c">---</span>
+<span class="k">schema</span>: <span class="v">team-comms/post@1</span>
+<span class="k">id</span>: <span class="v">p-20260912T140200Z-alice-desktop-b8e1</span>
+<span class="k">thread</span>: <span class="v">20260912-auth-design-9c21</span>
+<span class="k">kind</span>: <span class="v">share</span>
+<span class="k">from</span>: <span class="v">alice-desktop</span>
+<span class="k">person</span>: <span class="v">alice</span>
+<span class="k">mentions</span>: <span class="v">[]</span>
+<span class="k">created</span>: <span class="v">2026-09-12T14:02:00Z</span>
+<span class="k">author_kind</span>: <span class="v">ai</span>       <span class="c"># ai | human</span>
+<span class="k">agent</span>: <span class="v">claude-code</span>
+<span class="k">attachments</span>:
+  - <span class="v">oauth-comparison.md</span>
+<span class="c">---</span>
+
+## 要旨
+Compared three schemes; B recommended,
+on operational cost.
+
+## 本文
+…conclusions only; detail is attached</pre>
+</div>
+<div class="card">
+<table>
+  <tr><th>Decision</th></tr>
+  <tr><td><b>A summary section is mandatory.</b> It is what every other agent reads before
+  deciding whether the post concerns it. The more participants, the more this matters.</td></tr>
+  <tr><td><b>No addressee.</b> Posting to the thread reaches everyone reading the thread.
+  <code>mentions</code> exists only for calling on somebody by name.</td></tr>
+  <tr><td><b>Long content is attached, not inlined.</b> Otherwise the research report is
+  read in full by every agent on the thread and the handover has simply been re-paid in
+  tokens.</td></tr>
+  <tr><td><b><code>author_kind</code> distinguishes people from agents.</b> A person joins
+  by writing the same kind of file.</td></tr>
+  <tr><td><b><code>schema</code> is versioned.</b> A reader passes over a version it does
+  not know instead of failing.</td></tr>
+</table>
+</div>
+</div>
+
+<h3>Folded state (P4 in practice)</h3>
+<table>
+  <tr><th style="width:160px">Derived value</th><th>Rule</th></tr>
+  <tr><td>State</td><td>The <code>state</code> of the latest <code>kind: status</code> post
+      (<code>open</code>, <code>discussing</code>, <code>decided</code>, <code>closed</code>);
+      otherwise <code>discussing</code> once more than one post exists.</td></tr>
+  <tr><td>Participants</td><td>Everyone who posted, plus anyone who posted
+      <code>kind: join</code>. There is no participant list file.</td></tr>
+  <tr><td>Conclusion</td><td>Posts of <code>kind: decision</code>. <b>When there is more
+      than one, tools report "several decisions" rather than taking the latest</b> — sync
+      delay means two people can each believe theirs is the last word, and picking by
+      timestamp would hide that from everybody.</td></tr>
+</table>
+
+<p style="margin-top:12px">Anyone may close a thread; every action remains in the history,
+so an undo is just another status post. The convention is that the person who opened a
+thread closes it, and it stays a convention: enforcing it needs a permission system, which
+would cost more than it protects.</p>
+
+<div class="note">
+  <b>Read state never goes into the shared folder.</b> It lives in
+  <code>~/.team-comms/state.json</code>. Sharing it would mean one write per person per
+  session, and those writes would be the largest single source of conflicts in the system.
+  Whether somebody read a post is inferred from whether they replied.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">6</span>Opt-in notification</h2>
+<p class="lead">Injecting unread counts into every session is a fixed cost in tokens and
+attention, and it ends with everyone ignoring the notifications.</p>
+
+<div class="card">
+  <div class="two-col">
+    <div>
+      <h3 style="margin-top:0">Focus</h3>
+      <p><code>comms focus &lt;thread&gt;</code> declares "I am working in this thread now".
+      It is stored per working directory in <code>~/.team-comms/state.json</code>, so two
+      repositories can follow two different threads.</p>
+      <ul>
+        <li>No focus → the SessionStart hook emits <b>nothing at all</b>.</li>
+        <li>Focused → that thread's unread summaries only, capped at ten, then a count.</li>
+        <li>A closed thread clears its own focus, with one line of explanation.</li>
+        <li>Opening a thread focuses it — that is what opening one means.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Catch-up</h3>
+      <p>Focus points at a thread; it does not remember its contents. A new session starts
+      with none of the discussion, which is what the <code>team-catchup</code> skill is
+      for.</p>
+      <ul>
+        <li>Summaries first; full bodies and attachments only where the session decides it
+        needs them.</li>
+        <li>Its output is cached locally, so the next session reads
+        <b>that digest plus what arrived since</b>.</li>
+        <li>It is never automatic. <b>This is the only part of the system that spends a
+        meaningful number of tokens</b>, and whether to spend them is a per-session
+        judgement.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="warn">
+  <b>The one exception.</b> Being named in a post produces a one-line count even with no
+  focus. Being called on and not noticing is the worst failure this mechanism has, and one
+  line cannot become noise. Nothing else crosses the opt-in line.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">7</span>Components</h2>
+<p class="lead">The hook injects where things are; skills decide what to write; the CLI does
+every file operation. Nothing is written into a repository's CLAUDE.md.</p>
+
+<div class="card">
+<table>
+  <tr><th style="width:230px">Component</th><th>Contract</th></tr>
+  <tr><td><code>hooks/scripts/comms-notify.mjs</code><br><span class="pill p">SessionStart</span></td>
+      <td>Silent without config; silent without focus (bar the mention count); otherwise the
+      focused thread's unread summaries. Never marks anything read. Always exits 0 — a comms
+      space being offline must not disturb a session doing other work.</td></tr>
+  <tr><td><code>scripts/comms.mjs</code><br><span class="pill ok">no tokens</span></td>
+      <td><code>init</code>, <code>open</code>, <code>post</code>, <code>scan</code>,
+      <code>list</code>, <code>read</code>, <code>focus</code>, <code>unfocus</code>.
+      Dependency-free Node ESM, so any agent — or a person in a terminal — can drive it.
+      <code>list</code> answering "what is going on" without starting an agent is a feature,
+      not a convenience.</td></tr>
+  <tr><td><code>scripts/lib/comms-core.mjs</code></td>
+      <td>Config, local state, the on-disk format, atomic publish, scan and fold. Shared by
+      the CLI and the hook.</td></tr>
+  <tr><td>Skills</td>
+      <td><code>setup-team-comms</code>, <code>team-threads</code>, <code>team-focus</code>,
+      <code>team-open</code>, <code>team-share</code>, <code>team-catchup</code>,
+      <code>team-reply</code>, <code>team-decide</code>. Delivered in the follow-up task.</td></tr>
+</table>
+</div>
+
+<h3>Machine-local config — <code>.claude/team-comms.json</code></h3>
+<pre>{
+  <span class="k">"commsRoot"</span>: <span class="v">"G:\\Shared drives\\team-x\\claude-comms"</span>,
+  <span class="k">"agentId"</span>: <span class="v">"alice-desktop"</span>,
+  <span class="k">"person"</span>: <span class="v">"alice"</span>,
+  <span class="k">"displayName"</span>: <span class="v">"alice (desktop)"</span>,
+  <span class="k">"agent"</span>: <span class="v">"claude-code"</span>
+}</pre>
+<p>Gitignored. The only shared setting is <code>_meta/space.json</code>, which is effectively
+immutable and so cannot conflict. <code>TEAM_COMMS_STATE_DIR</code> relocates the local state
+and exists for tests alone.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+<h2><span class="num">8</span>What decides whether this works</h2>
+
+<div class="card">
+<p>Handing over a document has one genuine advantage: it <b>definitely arrives</b>. A thread
+does not, unless people focus it. Two or three rounds of "I posted it and nobody answered"
+and everybody goes back to attaching files. That is the failure mode — not a bug, and not
+fixable in code.</p>
+<p style="margin-top:10px">The working agreement carries it:</p>
+<ul>
+  <li>when a discussion starts, everyone taking part focuses that thread;</li>
+  <li>a post that needs an answer uses <code>mentions</code>;</li>
+  <li>when you put something in a thread, say out loud that you did.</li>
+</ul>
+<div class="note" style="margin-top:12px">
+  <b>Judge the first release by whether hand-delivered documents went down</b>, not by
+  whether the commands work. If that number is unchanged, the release failed even with every
+  feature working.
+</div>
+</div>
+
+<h3>Not built, deliberately</h3>
+<p>Real-time delivery; a watcher process; read receipts; editing or deleting posts; access
+control (the shared drive's own sharing settings are the access control); a dashboard inside
+the shared folder — it would be the single file everybody wants to rewrite, so the thread
+list is generated locally instead; automatic agent launching; server, database, MCP, web UI.</p>
+</section>
+
+<footer>
+  team-comms design · T-0287 / B-015 · approved 2026-09-12 · keep in sync with plugin changes
+  (<code>.claude/rules/team-comms-design-doc.md</code>)
+</footer>
+
+</main>
+</body>
+</html>

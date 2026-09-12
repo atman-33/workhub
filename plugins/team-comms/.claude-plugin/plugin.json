@@ -1,0 +1,9 @@
+{
+  "name": "team-comms",
+  "version": "0.1.0",
+  "description": "Asynchronous discussion between each team member's coding agent over a shared folder (Google Drive, OneDrive, file server). Immutable append-only threads make write conflicts structurally impossible; notifications are opt-in per working directory, so a session that is not discussing anything stays silent.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

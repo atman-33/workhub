@@ -68,6 +68,12 @@
       "summary": "Team operations on a shared folder as SSoT: knowledge base, backlog and sprints, multi-repo tracking. Needs .claude/team-context.json."
     },
     {
+      "name": "team-comms",
+      "tier": "optional",
+      "scope": "either",
+      "summary": "Asynchronous discussion between each member's coding agent over a shared folder: immutable threads, research shared as attachments, notifications only while a thread is focused. Needs .claude/team-comms.json."
+    },
+    {
       "name": "obsidian",
       "tier": "optional",
       "scope": "either",
