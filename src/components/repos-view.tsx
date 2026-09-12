@@ -22,6 +22,7 @@ import { GitGraphView } from "@/components/graph/git-graph-view";
 import { NotesDialog } from "@/components/notes-dialog";
 import { ProjectRow, type RowAction } from "@/components/project-row";
 import { ChangesPanel } from "@/components/repos/changes-panel";
+import { ReposSettings } from "@/components/repos/repos-settings";
 import { WorktreesPanel } from "@/components/worktrees-panel";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -145,6 +146,14 @@ export function ReposView({ configVersion, active, focus }: Props) {
     },
     [persist],
   );
+
+  // Settings are patched onto a fresh read rather than through `persist`,
+  // which deliberately writes only the `projects` / `selected` this tab owns
+  // (T-0281).
+  const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
+    setConfig((prev) => (prev ? { ...prev, settings: { ...prev.settings, ...patch } } : prev));
+    setConfig(await api.patchSettings(patch));
+  }, []);
 
   const updateSelection = useCallback(
     (fn: (sel: Set<string>) => Set<string>) => {
@@ -511,6 +520,12 @@ export function ReposView({ configVersion, active, focus }: Props) {
               <PanelBottom className="size-3.5" /> Changes
             </Button>
           </Hint>
+          {/* The commands that open a repository are read by this tab alone,
+              so they live here rather than in the settings dialog (T-0304). */}
+          <ReposSettings
+            settings={config.settings}
+            onPatch={(patch) => void patchSettings(patch)}
+          />
   
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
