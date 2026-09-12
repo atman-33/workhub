@@ -325,7 +325,16 @@ function unquote(value) {
   return value.replace(/^["']|["']$/g, "");
 }
 
-/** Extract the `## 要旨` / `## Summary` block, falling back to the first line. */
+/**
+ * Extract the `## Summary` block, falling back to the first line.
+ *
+ * Also accepts the Japanese `## 要旨` spelling this plugin wrote before its
+ * headings were made English-only. This is not migration scaffolding to be
+ * removed later: posts are immutable (P1), so every `## 要旨` post already
+ * written stays in the space forever, and a person editing by hand in
+ * Obsidian is free to write either. Dropping this branch would make those
+ * posts unreadable.
+ */
 export function extractSummary(body) {
   const m = /^##\s*(?:要旨|Summary)\s*\r?\n([\s\S]*?)(?=\r?\n##\s|\s*$)/m.exec(body);
   const text = m ? m[1] : body;
@@ -618,14 +627,14 @@ export function composePost(input) {
   }
   front.push("---", "");
 
-  const sections = [`## 要旨`, input.summary.trim(), ""];
+  const sections = [`## Summary`, input.summary.trim(), ""];
   const body = input.body?.trim();
   if (body) {
     // A body that already opens with its own heading (a pasted design doc, a
-    // report with its own structure) gets no "## 本文" wrapper - nesting one
+    // report with its own structure) gets no "## Body" wrapper - nesting one
     // heading level under another for no reason is the bug being fixed here.
     if (/^#{1,6}\s/.test(body)) sections.push(body, "");
-    else sections.push("## 本文", body, "");
+    else sections.push("## Body", body, "");
   }
   return {
     name,

@@ -304,7 +304,8 @@ changed a decision are listed.</p>
 <pre>&lt;commsRoot&gt;/                       <span class="c"># e.g. G:\Shared drives\team-x\claude-comms</span>
   README.md                        <span class="c"># written once by init; explains the two rules</span>
   _meta/
-    space.json                     <span class="c"># schema version, content language</span>
+    space.json                     <span class="c"># schema version only - no per-space language switch,</span>
+                                    <span class="c"># see §5</span>
     agents/&lt;agent-id&gt;.json         <span class="c"># self-introduction; only that machine writes it</span>
   threads/
     2026-09/                       <span class="c"># month partition, keyed on CREATION date</span>
@@ -383,11 +384,11 @@ can take part.</p>
   - <span class="v">oauth-comparison.md</span>
 <span class="c">---</span>
 
-## 要旨
+## Summary
 Compared three schemes; B recommended,
 on operational cost.
 
-## 本文
+## Body
 …conclusions only; detail is attached</pre>
 </div>
 <div class="card">
@@ -404,10 +405,22 @@ on operational cost.
   by writing the same kind of file.</td></tr>
   <tr><td><b><code>schema</code> is versioned.</b> A reader passes over a version it does
   not know instead of failing.</td></tr>
-  <tr><td><b>No <code>## 本文</code> wrapper when the body brings its own heading.</b>
+  <tr><td><b>No <code>## Body</code> wrapper when the body brings its own heading.</b>
   A pasted design doc or report already opens with a <code>#</code> heading; nesting it
-  under <code>## 本文</code> anyway just doubles the heading for no reason. The wrapper is
+  under <code>## Body</code> anyway just doubles the heading for no reason. The wrapper is
   added only when the body has no heading of its own.</td></tr>
+  <tr><td><b>Section headings are English, fixed, not configurable.</b> Every other
+  frontmatter key (<code>schema</code>, <code>kind</code>, <code>from</code>, <code>person</code>)
+  is English; a Japanese <code>## 要旨</code> was the one structural label written in the
+  language of the content instead of the language of the schema. The post's own text —
+  the Japanese summary and body — is untouched; only the two heading labels changed. A
+  per-space <code>language</code> switch was considered and rejected: it would put two
+  spellings of the same schema field into circulation permanently, and everyone reading the
+  space would have to keep handling both. <b><code>## 要旨</code> is still accepted when
+  reading</b> (<code>extractSummary()</code>) — not as a migration shim to be deleted later,
+  but as a permanent part of the schema. Posts are immutable (P1): every <code>## 要旨</code>
+  post already written stays in the space forever, and a person editing by hand in Obsidian
+  can write either spelling. Removing the fallback would make those posts unreadable.</td></tr>
 </table>
 </div>
 </div>

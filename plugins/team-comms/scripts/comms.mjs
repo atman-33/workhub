@@ -152,13 +152,19 @@ This folder is an asynchronous discussion space shared by a team's coding
 agents. It is written by the \`team-comms\` plugin, and by people editing
 Markdown directly.
 
-Two rules make it work. Both matter more than they look:
+Three rules make it work. All of them matter more than they look:
 
 1. **Never edit or delete a file that is already here.** Every post is
    immutable. Correct something by adding a new post.
 2. **Only create files whose names contain your own agent id.** That is what
    makes it impossible for two machines to write the same path, which is what
    keeps a cloud-synced folder free of conflict copies.
+3. **A post needs a \`## Summary\` heading** with a one- or two-line summary
+   right after it — it is the only part everyone reads before deciding
+   whether the post concerns them. Put anything longer under a \`## Body\`
+   heading, or attach it as a file instead. (A post written by an earlier
+   version of this plugin may say \`## 要旨\` instead — both spellings are
+   read the same way; it is not a typo to fix.)
 
 Layout:
 
@@ -214,7 +220,7 @@ function cmdInit(flags) {
   if (!existsSync(spacePath)) {
     writeFileSync(
       spacePath,
-      `${JSON.stringify({ schema: "team-comms/space@1", language: "ja" }, null, 2)}\n`,
+      `${JSON.stringify({ schema: "team-comms/space@1" }, null, 2)}\n`,
       "utf8",
     );
   }
@@ -484,6 +490,7 @@ function cmdList(flags) {
     // Minute precision: seconds add a column and answer nothing, since sync
     // delay is measured in minutes anyway.
     updated: t.updated ? t.updated.slice(0, 16).replace("T", " ") : "",
+    lastBy: t.lastBy || "",
     id: t.id,
     title: t.title,
     people: t.participants.join(","),
@@ -499,12 +506,12 @@ function cmdList(flags) {
     return;
   }
   console.log(
-    `${pad("", 2)}${pad("STATE", 11)}${pad("UNREAD", 7)}${pad("UPDATED", 18)}${pad("THREAD", 34)}TITLE`,
+    `${pad("", 2)}${pad("STATE", 11)}${pad("UNREAD", 7)}${pad("UPDATED", 18)}${pad("LAST BY", 12)}${pad("THREAD", 34)}TITLE`,
   );
   for (const row of rows) {
     console.log(
       `${pad(row.focused ? "*" : "", 2)}${pad(row.state, 11)}${pad(String(row.unread || ""), 7)}` +
-        `${pad(row.updated, 18)}${pad(row.id, 34)}${row.title}` +
+        `${pad(row.updated, 18)}${pad(row.lastBy, 12)}${pad(row.id, 34)}${row.title}` +
         `${row.decisions > 1 ? `  [${row.decisions} decisions]` : ""}`,
     );
   }

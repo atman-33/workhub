@@ -238,7 +238,7 @@ describe("attachments", () => {
 });
 
 describe("post body", () => {
-  it("wraps a heading-less body in \"## 本文\"", () => {
+  it("wraps a heading-less body in \"## Body\"", () => {
     const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
     const bodyFile = join(alice.root, "body.md");
     writeFileSync(bodyFile, "plain conclusion, no heading of its own\n", "utf8");
@@ -250,7 +250,7 @@ describe("post body", () => {
 
     const post = postFiles(threadId).find((n) => n.includes("-share-"));
     const content = readFileSync(join(threadDir(threadId), post), "utf8");
-    expect(content).toMatch(/## 本文\nplain conclusion/);
+    expect(content).toMatch(/## Body\nplain conclusion/);
   });
 
   it("does not double up a heading the body already brings", () => {
@@ -265,8 +265,29 @@ describe("post body", () => {
 
     const post = postFiles(threadId).find((n) => n.includes("-share-"));
     const content = readFileSync(join(threadDir(threadId), post), "utf8");
-    expect(content).not.toMatch(/## 本文/);
+    expect(content).not.toMatch(/## Body/);
     expect(content).toMatch(/## 詳細設計\n\npasted design doc content/);
+  });
+});
+
+describe("heading spelling", () => {
+  it("writes posts with English section headings", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    const post = postFiles(threadId)[0];
+    const content = readFileSync(join(threadDir(threadId), post), "utf8");
+    expect(content).toMatch(/## Summary\n/);
+    expect(content).not.toMatch(/## 要旨/);
+  });
+
+  it("still reads a pre-existing \"## 要旨\" post - not a migration shim, a permanent fallback", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    const legacy = postFiles(threadId)[0];
+    const legacyPath = join(threadDir(threadId), legacy);
+    const rewritten = readFileSync(legacyPath, "utf8").replace("## Summary", "## 要旨");
+    writeFileSync(legacyPath, rewritten, "utf8");
+
+    const view = JSON.parse(run(bob, ["read", threadId, "--json"]));
+    expect(view.posts[0].summary).toBe("q");
   });
 });
 
