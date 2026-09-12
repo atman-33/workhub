@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.117.0 (2026-09-13)
+
+- **The opencode harness syncs a fixed default skill set** (T-0303). The vault
+  template's `.claude/settings.json` now enables `workhub` + `engineering` +
+  `obsidian` at project scope, so one `/sync-claude-skills` run materializes
+  the default `.opencode/skills/` and `.opencode/agent/` with no per-machine
+  judgment about what belongs; anything else stays opt-in via the user-scope
+  sync. `sync-claude-skills.mjs` gains `--prune`, which deletes only
+  manifest-tracked orphans (hand-written targets are left alone), and the
+  third-party `install-recommended-skills-globally` command is removed.
+  `obsidian` moves from optional to recommended: the vault is an Obsidian
+  vault, the knowledge-base skills already assume its CLI, and OpenCode
+  sessions ship it by default.
+
 ## 0.116.0 (2026-09-12)
 
 - **The Docs tab takes notes on a document and hands them to an agent as a

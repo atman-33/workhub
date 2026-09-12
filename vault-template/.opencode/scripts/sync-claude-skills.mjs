@@ -5,6 +5,12 @@
 // .claude/skills (and .claude/agents), which are listed as "(vault-local)".
 // A plugin of the same name wins; the vault copy is skipped with a warning.
 //
+// The template's `.claude/settings.json` `enabledPlugins` is the allowlist:
+// it ships exactly workhub + engineering + obsidian (T-0303), so a fresh
+// vault syncs the default harness set with no per-machine judgment. Anything
+// else stays opt-in via the user-scope sync (sync-claude-user-plugins.mjs),
+// which targets the global OpenCode directories instead of this project.
+//
 // Uses the shared core (lib/claude-plugin-sync-core.mjs) for discovery, hashing,
 // and manifest handling, so the drift reminder plugin and the check script see
 // exactly what this script did.
@@ -18,6 +24,10 @@
 //     so future drift detection works without an immediate --force.
 //   - The manifest file lives at .opencode/.claude-plugin-sync-manifest.json and
 //     is gitignored (per-machine baseline; do not commit).
+//   - `--prune` deletes manifest-tracked orphans: targets whose source plugin
+//     no longer provides them (e.g. a plugin removed from `enabledPlugins`).
+//     Only manifest entries are eligible — hand-written targets the manifest
+//     never recorded are left alone.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -37,6 +47,7 @@ import {
 } from "./lib/claude-plugin-sync-core.mjs";
 
 const FORCE = process.argv.includes("--force");
+const PRUNE = process.argv.includes("--prune");
 const cwd = process.cwd();
 const claudePluginsRoot = process.env.CLAUDE_PLUGINS_ROOT || undefined;
 const manifestPath = defaultProjectManifestPath(cwd);
@@ -116,15 +127,47 @@ if (agentDiscovery.sources.length > 0) {
 }
 warnings.push(...agentDiscovery.warnings);
 
-// Drop manifest entries whose target disappeared (user rm'd the dir manually).
+// Drop manifest entries whose target disappeared (user rm'd it manually).
 pruneManifestMissingTargets(manifest, scopeKey, targetSkillsRoot);
 pruneManifestMissingTargets(manifest, agentsScopeKey, agentDiscovery.targetRoot);
+
+const pruned = [];
+if (PRUNE) {
+  // Remove manifest-tracked orphans: the source plugin no longer provides the
+  // artifact (e.g. removed from `enabledPlugins`), but the copy is still on
+  // disk. Only entries the manifest knows are eligible; hand-written targets
+  // without a manifest entry are never touched.
+  for (const [bucketKey, targetRoot] of [
+    [scopeKey, targetSkillsRoot],
+    [agentsScopeKey, agentDiscovery.targetRoot],
+  ]) {
+    const bucket = manifest.buckets[bucketKey] || {};
+    const live = new Set(
+      (bucketKey === agentsScopeKey ? agentDiscovery.sources : sources).map(
+        (source) => `${source.kind}/${source.name}`,
+      ),
+    );
+    for (const key of Object.keys(bucket)) {
+      if (live.has(key)) continue;
+      const entry = bucket[key];
+      const targetPath = path.join(targetRoot, entry.name);
+      if (!fs.existsSync(targetPath)) {
+        delete bucket[key];
+        continue;
+      }
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      delete bucket[key];
+      pruned.push(`${entry.pluginRef}/${entry.name}`);
+    }
+  }
+}
 
 writeManifest(manifestPath, manifest);
 
 logSection("Copied", copied);
 logSection("Skipped (already exists)", skipped);
 logSection("Manifest seeded (target pre-existed, no copy performed)", seeded);
+if (PRUNE) logSection("Pruned (orphan targets removed)", pruned);
 logSection("Missing source directories (see warnings)", warnings);
 
 if (warnings.length > 0) {

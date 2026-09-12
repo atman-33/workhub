@@ -22,6 +22,16 @@ To overwrite copies that already exist, run:
 node .opencode/scripts/sync-claude-skills.mjs --force
 ```
 
+To also delete copies whose source plugin no longer provides them (e.g. after
+a plugin was removed from `.claude/settings.json`), run:
+
+```bash
+node .opencode/scripts/sync-claude-skills.mjs --prune
+```
+
+`--prune` only deletes manifest-tracked orphans; hand-written targets the
+manifest never recorded are left alone. The two flags combine (`--force --prune`).
+
 Steps:
 
 1. Verify `.claude/settings.json` exists in the working directory and contains at least one enabled plugin.

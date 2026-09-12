@@ -7,5 +7,9 @@
       }
     }
   },
-  "enabledPlugins": {}
+  "enabledPlugins": {
+    "workhub@workhub-marketplace": true,
+    "engineering@workhub-marketplace": true,
+    "obsidian@workhub-marketplace": true
+  }
 }

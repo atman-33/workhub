@@ -27,6 +27,8 @@ The tier answers one question — *what breaks without it?*
   that explains its own absence (`persona`) belongs here, not above it. So does
   `engineering`: how a team commits, branches and reviews is that team's own
   call, and switching those conventions off must not take the app with them.
+  And so does `obsidian`: the vault itself is an Obsidian vault, and the
+  knowledge-base skills assume its CLI (falling back when it is absent).
   That is why the app-coupled hooks moved out of it and into `workhub`.
 - **optional**: a matter of taste or of which tech stack a repository uses.
 
@@ -107,7 +109,7 @@ changed in both.
 | `strategy` | Optional | project or user | Turning a strategy handed down from above into your own organization's target states: `strategy-decompose` (take in the upper strategy, close the unknowns with the owner, decompose it into aspects and states, audit, output an xlsx) plus the `strategy-auditor` agent, which checks a decomposition for necessity, sufficiency and overlap from a context other than the one that wrote it. Ships `build_xlsx.py` / `read_xlsx.py` so the workbook shape does not drift between runs. No vault or project-context dependency. |
 | `team-ops` | Optional | user or project | Team operations on a shared folder as SSoT: team knowledge base, file-based backlog + sprints, multi-repo dev-main tracking, daily burndown/spec reporting. Needs `.claude/team-context.json` (see `plugins/team-ops/docs/design.html`). |
 | `team-comms` | Optional | user or project | Asynchronous discussion between each member's coding agent over a shared folder (Drive/OneDrive/file server): one thread per topic, one immutable file per post, research shared as attachments instead of hand-delivered documents. Write conflicts are made impossible rather than resolved — files are never edited, every filename carries its author's agent id, and names cannot collide — so a sync conflict copy is treated as a bug report and surfaced by `comms scan`. The SessionStart hook is silent unless the working directory has focused a thread (`comms focus`), which is what keeps a session that is not discussing anything from paying for the mechanism; the sole exception is a one-line count when you are named in a post. Needs `.claude/team-comms.json` (see `plugins/team-comms/docs/design.html`). Separate from `team-ops` on purpose: joining a discussion must not require adopting a backlog-and-sprint workflow, so the two share no code and no config. |
-| `obsidian` | Optional | project or user | Generic Obsidian format helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, defuddle). Vault-agnostic — useful in the workhub vault and any other vault. |
+| `obsidian` | Recommended | project or user | Generic Obsidian format helpers (Obsidian Flavored Markdown, Bases, JSON Canvas, Obsidian CLI, defuddle). Vault-agnostic — useful in the workhub vault and any other vault. Recommended because the vault itself is an Obsidian vault: the `workhub` knowledge-base skills assume the Obsidian CLI (with a fallback when it is absent), and OpenCode sessions ship these skills by default (T-0303). |
 | `persona` | Recommended | project or user | Switchable response personas over a shared token-reduction engine. Bundled characters (`holmes`, `genshijin`, `noctis`, `lunafreya`, `ignis`) live in the plugin — `holmes` doubles as the worked example of a character file written entirely in English;  user-defined ones live in `~/.claude/personas/` so they survive plugin updates. Three compression levels, persisted across sessions in `~/.claude/persona.json`. Character-agnostic subskills (commit, review, compress, stats, crew), three compressed-output subagents, and the `persona-shrink` MCP proxy. `scripts/persona-switch.mjs` lets another skill switch character for a session and switch back (this is how `workhub`'s `strategist` puts on `ignis`); it writes the same session flag `/persona` does, which is what makes the switch survive the per-turn reminder. A character is treated as an identity rather than a costume: descriptions are first-person, the per-turn reminder names the character, and `core/boundaries.md` tells an agent to answer to that name — with one deliberate exception, that a sincere question about being an AI is answered honestly. The workhub app’s **Persona** tab reads these same characters and writes `persona.json`; it is always shown, and with no characters found it explains what is missing and hands over a paste-ready setup prompt instead of a character list. A character written by hand can also be deleted from that tab — confirmed, and to the recycle bin rather than unlinked; bundled ones are refused, since they would come back with the next plugin update. It also warns when a cached `genshijin` plugin is sitting alongside `persona`. Derived from genshijin (MIT). No vault or project-context dependency — install at either scope. Do not enable alongside the standalone genshijin plugin; both inject per-turn style instructions. Recommended rather than required: the Persona tab is the only thing that depends on it, and that tab is built to be shown with the plugin absent (T-0215) — nothing else in the app changes. |
 | `stack-cloudflare` | Optional | user or project | Cloudflare (Workers, Pages, R2, D1) development helpers. |
 | `stack-dnd-kit` | Optional | user or project | dnd-kit drag-and-drop UI helpers. |
@@ -126,9 +128,11 @@ inside `plugins/persona/characters/` would not carry across an update.
 ## Setup summary
 
 Per machine, once. `vault-template/.claude/settings.json` declares the
-marketplace via `extraKnownMarketplaces` (GitHub `atman-33/workhub`) but enables
-no plugins: a plugin is switched on per machine, not per vault, so a fresh vault
-carries the marketplace and nothing else. Turn the plugins you want on from the
+marketplace via `extraKnownMarketplaces` (GitHub `atman-33/workhub`) and
+enables the default harness set at project scope — `workhub`, `engineering`
+and `obsidian` (T-0303). A fresh vault therefore carries the marketplace plus
+the default selection; anything beyond that is switched on per machine, not
+per vault. Turn the remaining plugins on from the
 app's **Plugins** tab — the toggle writes `~/.claude/settings.json` — or with
 `/plugin` inside a session. Claude Code installs them on the next launch.
 
@@ -147,6 +151,7 @@ claude plugin install workhub@workhub-marketplace
 # recommended
 claude plugin install engineering@workhub-marketplace
 claude plugin install persona@workhub-marketplace
+claude plugin install obsidian@workhub-marketplace
 
 # optional, as needed
 claude plugin install claude-tooling@workhub-marketplace
@@ -155,7 +160,6 @@ claude plugin install mcp-context7@workhub-marketplace
 claude plugin install authoring@workhub-marketplace
 claude plugin install agent-ops@workhub-marketplace
 claude plugin install zenn@workhub-marketplace
-claude plugin install obsidian@workhub-marketplace
 claude plugin install team-ops@workhub-marketplace
 claude plugin install team-comms@workhub-marketplace
 claude plugin install stack-react-router@workhub-marketplace
@@ -222,10 +226,20 @@ To diagnose:
 ## OpenCode
 
 OpenCode cannot consume Claude Code plugins directly. The vault's
-`.opencode/skills/` is treated as a **generated artifact**: a sync script
-materializes skills from the enabled Claude plugins, records hashes in a
-manifest, and a session-start reminder plugin reports drift (missing / stale /
-diverged / orphan). Never hand-edit synced skills on the OpenCode side; edit
-the plugin source here and re-sync. (The tooling lives in
+`.opencode/skills/` (and `.opencode/agent/`) is treated as a **generated
+artifact**: a sync script materializes skills from the enabled Claude plugins,
+records hashes in a manifest, and a session-start reminder plugin reports drift
+(missing / stale / diverged / orphan). Never hand-edit synced skills on the
+OpenCode side; edit the plugin source here and re-sync. (The tooling lives in
 `vault-template/.opencode/scripts/`, ported from workhub's predecessor
 repository.)
+
+The template's `.claude/settings.json` `enabledPlugins` is the allowlist: it
+ships exactly `workhub` + `engineering` + `obsidian` (T-0303), so a fresh vault
+gets the default harness set from one `/sync-claude-skills` run with no
+per-machine judgment about what belongs. Anything beyond the default stays
+opt-in via the user-scope sync (`/sync-claude-user-plugins`), which targets
+the global OpenCode directories instead of the project. `node
+.opencode/scripts/sync-claude-skills.mjs --prune` deletes manifest-tracked
+orphans left behind when a plugin leaves the allowlist; hand-written targets
+the manifest never recorded are left alone.
