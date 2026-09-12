@@ -309,6 +309,74 @@ describe("the SessionStart hook", () => {
   });
 });
 
+describe("catch-up", () => {
+  it("shows the whole thread when no digest is cached, and only the rest afterwards", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "which scheme"]));
+    run(alice, ["post", "--thread", threadId, "--summary", "point one"]);
+    run(alice, ["post", "--thread", threadId, "--summary", "point two"]);
+
+    const cold = run(bob, ["catchup", threadId]);
+    expect(cold).toMatch(/no digest cached yet/);
+    expect(cold).toMatch(/point one/);
+
+    writeFileSync(join(bob.root, "digest.md"), "alice raised two points.\n", "utf8");
+    run(bob, ["digest", threadId, "--file", join(bob.root, "digest.md")]);
+    run(alice, ["post", "--thread", threadId, "--summary", "point three"]);
+
+    const warm = run(bob, ["catchup", threadId]);
+    expect(warm).toMatch(/alice raised two points/);
+    expect(warm).toMatch(/point three/);
+    // The point of the digest: what it already covers is not re-read.
+    expect(warm).not.toMatch(/point one/);
+  });
+
+  it("does not lose a post written in the same second as the digest cutoff", () => {
+    // Timestamps resolve to the second, so a plain "newer than the cutoff"
+    // comparison drops a post that landed in that same second — permanently,
+    // and with no symptom other than a missing contribution.
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    writeFileSync(join(bob.root, "digest.md"), "just the opening question.\n", "utf8");
+    run(bob, ["digest", threadId, "--file", join(bob.root, "digest.md")]);
+    run(alice, ["post", "--thread", threadId, "--summary", "landed in the same second"]);
+
+    const view = JSON.parse(run(bob, ["catchup", threadId, "--json"]));
+    expect(view.posts.map((p) => p.summary)).toContain("landed in the same second");
+  });
+
+  it("keeps posts made in one second in the order they were written", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    for (const n of ["first", "second", "third"]) {
+      run(alice, ["post", "--thread", threadId, "--summary", n]);
+    }
+    const posts = JSON.parse(run(bob, ["read", threadId, "--json"])).posts;
+    expect(posts.map((p) => p.summary)).toEqual(["q", "first", "second", "third"]);
+  });
+});
+
+describe("the thread list", () => {
+  it("is written locally, never into the shared space", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    const out = join(alice.root, "index.html");
+    run(alice, ["index", "--out", out]);
+
+    const html = readFileSync(out, "utf8");
+    expect(html).toMatch(threadId);
+    expect(html).toMatch(/auth/);
+    // A shared index file would be the one thing everybody rewrites — exactly
+    // the conflict the rest of the design removes.
+    expect(readdirSync(space).filter((n) => n.endsWith(".html"))).toHaveLength(0);
+  });
+
+  it("finds a post by its summary", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    run(alice, ["post", "--thread", threadId, "--summary", "device flow is operationally heavy"]);
+
+    const hits = JSON.parse(run(bob, ["search", "operationally", "--json"]));
+    expect(hits).toHaveLength(1);
+    expect(hits[0].thread).toBe(threadId);
+  });
+});
+
 describe("init", () => {
   it("warns when an agent id is already registered to someone else", () => {
     const carol = makeAgent("carol");

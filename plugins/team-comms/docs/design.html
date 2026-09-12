@@ -463,8 +463,11 @@ attention, and it ends with everyone ignoring the notifications.</p>
       <ul>
         <li>Summaries first; full bodies and attachments only where the session decides it
         needs them.</li>
-        <li>Its output is cached locally, so the next session reads
-        <b>that digest plus what arrived since</b>.</li>
+        <li>Its output is cached locally (<code>comms digest</code>), so the next session
+        reads <b>that digest plus what arrived since</b>. The cutoff records the ids of the
+        posts sharing its final second, because timestamps resolve to the second and a plain
+        "newer than" comparison would drop a post written in that same second — permanently,
+        with no symptom but a missing contribution.</li>
         <li>It is never automatic. <b>This is the only part of the system that spends a
         meaningful number of tokens</b>, and whether to spend them is a per-session
         judgement.</li>
@@ -495,7 +498,8 @@ every file operation. Nothing is written into a repository's CLAUDE.md.</p>
       space being offline must not disturb a session doing other work.</td></tr>
   <tr><td><code>scripts/comms.mjs</code><br><span class="pill ok">no tokens</span></td>
       <td><code>init</code>, <code>open</code>, <code>post</code>, <code>scan</code>,
-      <code>list</code>, <code>read</code>, <code>focus</code>, <code>unfocus</code>.
+      <code>list</code>, <code>read</code>, <code>catchup</code>, <code>digest</code>,
+      <code>index</code>, <code>search</code>, <code>focus</code>, <code>unfocus</code>.
       Dependency-free Node ESM, so any agent — or a person in a terminal — can drive it.
       <code>list</code> answering "what is going on" without starting an agent is a feature,
       not a convenience.</td></tr>
@@ -505,7 +509,8 @@ every file operation. Nothing is written into a repository's CLAUDE.md.</p>
   <tr><td>Skills</td>
       <td><code>setup-team-comms</code>, <code>team-threads</code>, <code>team-focus</code>,
       <code>team-open</code>, <code>team-share</code>, <code>team-catchup</code>,
-      <code>team-reply</code>, <code>team-decide</code>. Delivered in the follow-up task.</td></tr>
+      <code>team-reply</code>, <code>team-decide</code>. Each decides what to write; none of
+      them touches the shared folder except through the CLI.</td></tr>
 </table>
 </div>
 
@@ -547,8 +552,16 @@ fixable in code.</p>
 <h3>Not built, deliberately</h3>
 <p>Real-time delivery; a watcher process; read receipts; editing or deleting posts; access
 control (the shared drive's own sharing settings are the access control); a dashboard inside
-the shared folder — it would be the single file everybody wants to rewrite, so the thread
-list is generated locally instead; automatic agent launching; server, database, MCP, web UI.</p>
+the shared folder — it would be the single file everybody wants to rewrite, so
+<code>comms index</code> writes the thread list under <code>~/.team-comms/</code> instead;
+automatic agent launching; server, database, MCP, web UI.</p>
+
+<h3>Ordering within one second</h3>
+<p>Posts are ordered by timestamp, then by the sequence prefix in the filename, then by id.
+The prefix is the tie-breaker that matters: timestamps resolve to the second, so several
+posts written in one second by one agent would otherwise come back shuffled. Across agents
+the order inside a second is arbitrary but stable, which is the honest answer — nobody can
+know which of two simultaneous posts came first.</p>
 </section>
 
 <footer>

@@ -47,8 +47,28 @@ attention, and it trains everyone to ignore the thing. So:
   worst failure this mechanism has; one line cannot become noise.
 
 Focus points at a thread — it does not remember its contents. A new session
-starts with none of the discussion, which is what the `team-catchup` skill is
-for (shipped in the follow-up task).
+starts with none of the discussion, which is what `team-catchup` is for: it
+prints the cached digest and then only the posts that arrived after it, so
+rejoining a long thread is not paid for again every session. It is never
+automatic — whether the discussion is worth loading is a judgement for the
+moment.
+
+## Skills
+
+| Skill | For |
+|---|---|
+| `setup-team-comms` | Connect a machine and project to a space |
+| `team-threads` | What is live, what is unread, what to do about it |
+| `team-focus` | Opt this directory into a thread, or out |
+| `team-open` | Start a discussion |
+| `team-share` | Put research in as a summary plus attachments |
+| `team-catchup` | Restore a thread into a cold session, incrementally |
+| `team-reply` | Answer, or add an independent opinion |
+| `team-decide` | Record the conclusion and close the thread |
+
+The thread list also renders as HTML with `comms index`. It is written under
+`~/.team-comms/`, never into the shared folder: one index file everybody
+rewrites is exactly the write conflict the rest of the design removes.
 
 ## Setup
 
@@ -79,6 +99,10 @@ node scripts/comms.mjs init --root "G:\\Shared drives\\team-x\\claude-comms" \
 | `comms list [--all]` | Threads, state, unread count, last activity. Readable without starting an agent. |
 | `comms read <thread> [--full] [--unread]` | One thread in order. Marks it read locally. |
 | `comms scan [--full]` | Unread totals, mentions, and conflict-copy detection. |
+| `comms catchup [<thread>]` | The cached digest, then only what arrived since. |
+| `comms digest [<thread>] --file <path>` | Cache a digest so the next catch-up is incremental. |
+| `comms index [--out <path>]` | Write the thread list as HTML, **locally**. |
+| `comms search <text>` | Search summaries and bodies. |
 | `comms focus <thread>` / `comms unfocus` | Opt this directory in and out. |
 
 Kinds: `open`, `share`, `reply`, `opinion`, `decision`, `status`, `join`,
