@@ -11,6 +11,26 @@
   sits under the field, and the list is ordered by folder name, which is the
   order the numbers were chosen for. The field still commits the bare slug:
   the number is display only and is never parsed back out of the label.
+- **The recurring-rule settings answer "which project?" the same way**
+  (T-0286). Settings → Recurring rules asked the same question as the task
+  editor but gave less back: bare slugs, no folder number. It now draws the
+  same `NNNN` beside each option and names the chosen project's folder under
+  the field, so a rule can be matched against the folder listing without
+  opening the editor to check. Like the editor's, the rule still stores the
+  bare slug.
+- **The Confirm toggle's hint is the app's, not the browser's** (T-0288). The
+  switch added in 0.112.0 explained itself through the native tooltip, which
+  renders as an unthemed browser popup on a dark window. It now uses the same
+  hint every other control in the app uses.
+- **Serena and context7 are their own plugins** (T-0283). Claude Code can only
+  turn an MCP server off by turning its whole plugin off, so bundling both
+  into `engineering` meant switching either one off cost that plugin's skills
+  and sub-agents as well — and serena, which pulls a Python toolchain and a
+  language server per language, is the one most likely to need switching off.
+  They now ship as `mcp-serena` and `mcp-context7`; `engineering`'s agents
+  treat both as optional and fall back to the built-in search tools. Machines
+  that had the servers through `engineering` need to enable the two new
+  plugins; the migration is documented in the plugin catalog.
 
 ## 0.112.0 (2026-09-12)
 
