@@ -527,34 +527,40 @@ the app automatically falls back to the configured terminal command.
 ### Git worktree mode
 
 Set `worktree: true` in the task frontmatter to have the agent work in a
-dedicated git worktree instead of the repository's main working tree. The
-workhub app places worktrees in a `.worktrees/` folder at the same level as the
-registered repositories. Relative to a repo root, the layout is:
+dedicated git worktree instead of the repository's main working tree.
+
+**The launch prompt names the root to put them under.** It is the app's
+**Worktree root** setting (⚙ Settings → Agents), so it is the user's choice —
+never derive the location from the repository's own path when the prompt states
+one. Relative to that root, the layout is:
 
 ```text
-../.worktrees/<task-id>/<repo-name>
+<worktree-root>/<task-id>/<repo-name>
 ```
 
-For example, from the repository root:
+For example, with the default root `C:/repos/.worktrees`:
 
 ```bash
 # create a new worktree and branch
-git worktree add ../.worktrees/T-0042/workhub -b task/T-0042
+git worktree add C:/repos/.worktrees/T-0042/workhub -b task/T-0042
 
 # reuse an existing branch
-git worktree add ../.worktrees/T-0042/workhub task/T-0042
+git worktree add C:/repos/.worktrees/T-0042/workhub task/T-0042
 
 # remove the worktree when it is no longer needed
-git worktree remove ../.worktrees/T-0042/workhub
+git worktree remove C:/repos/.worktrees/T-0042/workhub
 ```
+
+If the setting is empty the prompt says so, and the worktree then goes beside
+the repository instead — `<repo>/../.worktrees/<task-id>/<repo-name>`.
 
 Do all task work inside the worktree path. If the worktree or branch already
 exists (e.g. resuming a task), reuse it instead of recreating. Never delete the
 worktree folder directly — that leaves stale git metadata. `task-report` offers
 this cleanup when the task is finished.
 
-For a multi-repo task, put each repo's worktree under the same
-`.worktrees/<task-id>/` folder.
+For a multi-repo task, put each repo's worktree side by side under the same
+`<worktree-root>/<task-id>/` folder.
 
 ### Capturing knowledge
 

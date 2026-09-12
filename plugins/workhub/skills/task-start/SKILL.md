@@ -129,17 +129,23 @@ argument-hint: "<task-id>"
    in the frontmatter, which the app also states in the launch prompt).
    Isolating parallel tasks in their own worktree keeps them from colliding
    on one working tree. When enabled:
-   - Create the worktree under the repository's parent directory, grouped by
-     task id and keyed by repo name, on a task branch:
+   - **The launch prompt names the worktree root.** It comes from the app's
+     Worktree root setting, so it is the user's choice and not something to
+     derive from the repository's path. Create the worktree under that root,
+     grouped by task id and keyed by repo name, on a task branch:
 
      ```bash
-     git -C <repo> worktree add "<repo>/../.worktrees/<task-id>/<repo-name>" -b task/<task-id>
+     git -C <repo> worktree add "<worktree-root>/<task-id>/<repo-name>" -b task/<task-id>
      ```
 
-     e.g. for repo `C:/repos/workhub` and task `T-0017` →
-     `C:/repos/.worktrees/T-0017/workhub` on branch `task/T-0017`.
-     Grouping by task id keeps a multi-repo task's worktrees together under
-     one `.worktrees/<task-id>/` folder (one sub-folder per repo).
+     e.g. with the default root `C:/repos/.worktrees`, repo `C:/repos/workhub`
+     and task `T-0017` → `C:/repos/.worktrees/T-0017/workhub` on branch
+     `task/T-0017`. Grouping by task id keeps a multi-repo task's worktrees
+     together under one `<worktree-root>/<task-id>/` folder (one sub-folder
+     per repo).
+
+     When the prompt names no root — the setting is empty — fall back to
+     `.worktrees/` beside the repository (`<repo>/../.worktrees/<task-id>/`).
    - If the worktree or branch already exists (a resumed task), reuse it
      instead of recreating (`git -C <repo> worktree list` to check; drop the
      `-b` flag and point at the existing path/branch).
