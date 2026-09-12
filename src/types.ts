@@ -216,6 +216,9 @@ export interface DocsEntry {
   is_markdown: boolean;
   /** True for HTML, rendered statically (scripts off) in a sandboxed frame. */
   is_html: boolean;
+  /** True for plain text — JSON, YAML, CSV, logs — shown verbatim, neither
+   * parsed nor highlighted (T-0294). The default app stays one click away. */
+  is_text: boolean;
   /** Last-modified time, unix seconds; 0 for folders and unreadable files. */
   modified: number;
 }

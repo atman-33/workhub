@@ -63,6 +63,12 @@ pub struct DocsEntry {
     /// True for HTML files, which the tab also renders itself — statically,
     /// in a sandboxed frame with scripts off (T-0271).
     pub is_html: bool,
+    /// True for plain-text files the tab shows verbatim — JSON, YAML, CSV,
+    /// logs and the like (T-0294). Nothing is parsed or highlighted: they are
+    /// text the reader wants to glance at, and sending a ten-line file to
+    /// another application to read it was the whole complaint. The default
+    /// app is still one click away when the raw form is not enough.
+    pub is_text: bool,
     /// Last-modified time, unix seconds; 0 when unreadable.
     pub modified: u64,
 }
@@ -213,13 +219,34 @@ fn is_html(name: &str) -> bool {
     lower.ends_with(".html") || lower.ends_with(".htm")
 }
 
+/// Extensions shown as plain text in the preview (T-0294).
+///
+/// An allow-list rather than a guess at the bytes: reading a file to decide
+/// whether it is text would mean a network read per row of the tree, and the
+/// tab's whole design is that a listing costs one `read_dir` and nothing more.
+/// Markdown and HTML are absent on purpose — they have renderers of their own.
+const TEXT_EXTENSIONS: &[&str] = &[
+    "txt", "text", "log", "json", "jsonc", "yaml", "yml", "toml", "ini", "cfg", "conf", "csv",
+    "tsv", "xml",
+];
+
+fn is_text(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    // A name that is all extension (`.gitignore`) is hidden from the tree
+    // anyway, so "no stem" needs no special case here.
+    match lower.rsplit_once('.') {
+        Some((_, ext)) => TEXT_EXTENSIONS.contains(&ext),
+        None => false,
+    }
+}
+
 /// Lists one directory: folders first, then files, each group by name.
 ///
 /// Everything the folder holds is listed, not only Markdown — a team share
 /// carries PDFs, spreadsheets and images, and a tree that showed none of them
 /// disagreed with the folder the user was looking at. `is_markdown` and
 /// `is_html` say which entries this tab can render; the rest are handed to the
-/// OS on click.
+/// OS on click. `is_text` joins them for the plain-text kinds (T-0294).
 ///
 /// Never recurses: the tree asks again when a folder is opened.
 pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
@@ -238,6 +265,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
             path: norm(&path),
             is_markdown: !is_dir && is_markdown(&name),
             is_html: !is_dir && is_html(&name),
+            is_text: !is_dir && is_text(&name),
             name,
             is_dir,
             modified: if is_dir { 0 } else { mtime_secs(&path) },
@@ -251,7 +279,7 @@ pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
     Ok(out)
 }
 
-/// Reads a document (Markdown or HTML) as text.
+/// Reads a document (Markdown, HTML, or one of the plain-text kinds) as text.
 pub fn read_doc(path: &Path) -> Result<String, String> {
     let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     if size > MAX_DOC_BYTES {
@@ -420,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn only_markdown_and_html_are_flagged_as_renderable() {
+    fn each_file_is_flagged_with_the_renderer_that_can_show_it() {
         let tree = TempTree::new("kinds");
         fs::create_dir(tree.path().join("sub")).unwrap();
         fs::write(tree.path().join("a.md"), "a").unwrap();
@@ -428,23 +456,45 @@ mod tests {
         fs::write(tree.path().join("c.pdf"), "c").unwrap();
         fs::write(tree.path().join("d.html"), "d").unwrap();
         fs::write(tree.path().join("e.HTM"), "e").unwrap();
+        fs::write(tree.path().join("f.json"), "{}").unwrap();
+        fs::write(tree.path().join("g.YAML"), "a: 1").unwrap();
+        fs::write(tree.path().join("h.csv"), "a,b").unwrap();
+        fs::write(tree.path().join("i.xlsx"), "x").unwrap();
 
-        let flags: Vec<(String, bool, bool, bool)> = list_dir(tree.path())
+        let flags: Vec<(String, bool, bool, bool, bool)> = list_dir(tree.path())
             .unwrap()
             .into_iter()
-            .map(|e| (e.name, e.is_dir, e.is_markdown, e.is_html))
+            .map(|e| (e.name, e.is_dir, e.is_markdown, e.is_html, e.is_text))
             .collect();
+        // The three flags never overlap: Markdown and HTML have renderers of
+        // their own, `is_text` is for what would otherwise leave the app, and
+        // a spreadsheet still gets none of them.
         assert_eq!(
             flags,
             vec![
-                ("sub".to_string(), true, false, false),
-                ("a.md".to_string(), false, true, false),
-                ("b.MARKDOWN".to_string(), false, true, false),
-                ("c.pdf".to_string(), false, false, false),
-                ("d.html".to_string(), false, false, true),
-                ("e.HTM".to_string(), false, false, true),
+                ("sub".to_string(), true, false, false, false),
+                ("a.md".to_string(), false, true, false, false),
+                ("b.MARKDOWN".to_string(), false, true, false, false),
+                ("c.pdf".to_string(), false, false, false, false),
+                ("d.html".to_string(), false, false, true, false),
+                ("e.HTM".to_string(), false, false, true, false),
+                ("f.json".to_string(), false, false, false, true),
+                ("g.YAML".to_string(), false, false, false, true),
+                ("h.csv".to_string(), false, false, false, true),
+                ("i.xlsx".to_string(), false, false, false, false),
             ]
         );
+    }
+
+    #[test]
+    fn a_text_extension_is_matched_whole_not_as_a_suffix() {
+        // `.geojson` ends with "json" but is not in the list; matching on the
+        // substring would quietly pull in every neighbour of every extension.
+        assert!(is_text("notes.txt"));
+        assert!(is_text("data.JSON"));
+        assert!(!is_text("map.geojson"));
+        assert!(!is_text("archive.tar"));
+        assert!(!is_text("README"));
     }
 
     #[test]

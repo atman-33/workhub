@@ -25,6 +25,12 @@ export type Row =
       depth: number;
       /** The synthetic row for the root folder; drawn permanently expanded. */
       isRoot?: true;
+      /**
+       * A folder already listed and known to hold nothing this mode would
+       * show. Drawn without a chevron, so it reads as a leaf rather than
+       * opening onto an apology (T-0294).
+       */
+      isLeaf?: true;
     }
   | {
       kind: "message";
@@ -66,6 +72,13 @@ export interface FlattenOptions {
  * it when it is on screen and open (the root always is), so the caller can ask
  * for exactly those listings and no others. Nothing is walked that is not
  * visible, which is what keeps a Drive share from being pulled down whole.
+ *
+ * A visible folder already known to be a leaf is in `needed` too, even though
+ * it is closed and nothing is drawn under it. It costs no extra read — the
+ * cache serves it until the refresh token changes — and it is what lets a
+ * refresh notice that the folder has gained a sub-folder and give its chevron
+ * back. A folder that has *never* been listed stays out: fetching one just for
+ * being on screen is the whole-tree walk this module exists to avoid.
  */
 export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: string[] } {
   const { rootPath, dirs, open, filter, foldersOnly, rootName } = options;
@@ -88,6 +101,29 @@ export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: str
     });
   }
 
+  // Folders are never filtered out: a match may be inside one, and this tree
+  // only knows what has been opened. Filtering files is enough to make a long
+  // folder usable without pretending to search the whole share.
+  const visible = (entries: DocsEntry[]) =>
+    entries.filter((e) => {
+      if (e.is_dir) return true;
+      if (foldersOnly) return false;
+      return !filter || e.name.toLowerCase().includes(filter);
+    });
+
+  /**
+   * True for a folder already listed and holding nothing this mode would show.
+   *
+   * Never while a filter is on: an empty result there is the filter's doing and
+   * lasts as long as the typing does, and a folder that lost its chevron
+   * mid-search would be unopenable once the search was cleared.
+   */
+  const isLeaf = (path: string): boolean => {
+    if (filter) return false;
+    const state = dirs[path];
+    return state?.status === "ready" && visible(state.entries).length === 0;
+  };
+
   const walk = (path: string, depth: number) => {
     needed.push(path);
     const state = dirs[path];
@@ -106,32 +142,35 @@ export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: str
       return;
     }
 
-    // Folders are never filtered out: a match may be inside one, and this tree
-    // only knows what has been opened. Filtering files is enough to make a long
-    // folder usable without pretending to search the whole share.
-    const entries = state.entries.filter((e) => {
-      if (e.is_dir) return true;
-      if (foldersOnly) return false;
-      return !filter || e.name.toLowerCase().includes(filter);
-    });
+    const entries = visible(state.entries);
 
     if (entries.length === 0) {
-      rows.push({
-        kind: "message",
-        key: `${path}:empty`,
-        depth,
-        text: foldersOnly
-          ? "No folders here."
-          : filter
-            ? "Nothing matching here."
-            : "This folder is empty.",
-        tone: "muted",
-      });
+      // Only the root can be drawn open-and-empty: every other empty folder is
+      // a leaf, has no chevron and was never walked. Saying so beats a row that
+      // reads as an apology for having opened at all (T-0294).
+      if (filter || path === rootPath) {
+        rows.push({
+          kind: "message",
+          key: `${path}:empty`,
+          depth,
+          text: filter ? "Nothing matching here." : "This folder is empty.",
+          tone: "muted",
+        });
+      }
       return;
     }
 
     for (const entry of entries) {
-      rows.push({ kind: "entry", entry, depth });
+      const leaf = entry.is_dir && isLeaf(entry.path);
+      rows.push({ kind: "entry", entry, depth, ...(leaf ? { isLeaf: true as const } : {}) });
+      // A leaf is closed by definition — `open` may still say otherwise if the
+      // folder emptied since it was expanded, and the leaf wins.
+      if (leaf) {
+        // Visible and already listed: keep it in `needed` so the next refresh
+        // re-reads it and a newly added sub-folder brings the chevron back.
+        needed.push(entry.path);
+        continue;
+      }
       if (entry.is_dir && open[entry.path]) walk(entry.path, depth + 1);
     }
   };
@@ -194,6 +233,8 @@ export function navigate(
       if (at < 0) return { type: "none" };
       const row = entries[at];
       if (!row.entry.is_dir) return { type: "none" };
+      // A leaf has nothing to step into, the same way a file has not.
+      if (row.isLeaf) return { type: "none" };
       // Closed → open it. Already open → step into it, which is where the
       // eye goes next anyway.
       // The root row is drawn expanded and has no closed state to open.
@@ -206,7 +247,9 @@ export function navigate(
     case "ArrowLeft": {
       if (at < 0) return { type: "none" };
       const row = entries[at];
-      if (!row.isRoot && row.entry.is_dir && open[row.entry.path]) {
+      // A leaf draws closed whatever `open` still says, so Left goes up a
+      // level rather than closing something that does not look open.
+      if (!row.isRoot && !row.isLeaf && row.entry.is_dir && open[row.entry.path]) {
         return { type: "close", path: row.entry.path };
       }
       // Otherwise go up a level: the nearest row above that is shallower. On a
