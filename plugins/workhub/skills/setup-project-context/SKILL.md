@@ -7,8 +7,8 @@ allowed-tools: Read Write
 
 Set up the per-project configuration consumed by the workhub plugin's harness
 hooks (and, for `roleBasedDelegation`, by the engineering plugin). `SessionStart` reads `.claude/project-context.json` from the project root
-and injects a `<project-context>` block (registered project absolute paths +
-openspec docs folder) into Claude's context at session start.
+and injects a `<project-context>` block (registered project absolute paths)
+into Claude's context at session start.
 
 Steps:
 
@@ -20,10 +20,9 @@ Steps:
 2. If it does not exist, create `.claude/project-context.json` with this
    template (replace the placeholder paths with the user's real absolute paths):
 
-   ```json
-   {
-     "roleBasedDelegation": true,
-     "openspecPath": "<absolute path to the openspec docs folder>",
+    ```json
+    {
+      "roleBasedDelegation": true,
       "postToolFormatCommands": [
         "<optional global default command run in any target project root after Edit/Write>"
       ],
@@ -41,9 +40,9 @@ Steps:
    ```
 
 3. Report what was done and remind the user:
-   - `roleBasedDelegation`, `openspecPath`, `postToolFormatCommands`, and
-     `projects` are all optional; omit any of them and the relevant hook skips
-     that part. A missing file injects nothing.
+    - `roleBasedDelegation`, `postToolFormatCommands`, and
+      `projects` are all optional; omit any of them and the relevant hook skips
+      that part. A missing file injects nothing.
    - A sibling repo's own guidance is injected lazily by the plugin's PreToolUse
      hook (`inject-target-rules.mjs`): when you Read/Edit/Write a file under a
      registered project, it injects that repo's root instruction file
@@ -67,11 +66,7 @@ Steps:
      outside the current working directory. Each command runs in the matched
      target project's root, and failures are reported in a `systemMessage`
      without blocking the main flow.
-   - `openspecPath` may be left empty (or pointed at a missing folder); the hook
-     then auto-resolves it to the working-directory `openspec`
-     (`<project-root>/openspec`). Use the **set-openspec-path** skill to switch
-     it later by picking a registered project from a menu.
-   - Set `roleBasedDelegation` to `true` to inject the engineering plugin's
+    - Set `roleBasedDelegation` to `true` to inject the engineering plugin's
      role-based delegation criteria (when/whom to delegate to the `code-explore`,
      `implementer`, `heavy-implementer`, and `test-runner` sub-agents) at session
      start. Leave it out to keep sessions lean.

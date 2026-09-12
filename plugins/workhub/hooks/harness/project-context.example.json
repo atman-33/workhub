@@ -1,6 +1,5 @@
 {
   "roleBasedDelegation": true,
-  "openspecPath": "C:/repos/workhub/openspec",
   "postToolFormatCommands": [
     "npm run format"
   ],
