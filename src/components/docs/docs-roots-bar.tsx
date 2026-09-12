@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { FolderPlus, Pencil, Settings2, Trash2 } from "lucide-react";
 import { DocsRootDialog } from "@/components/docs/docs-root-dialog";
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { rootLabel, sortRootsByLabel } from "@/lib/docs/roots";
 import type { DocsRootStatus } from "@/types";
 
 interface Props {
@@ -44,6 +45,10 @@ export function DocsRootsBar({
   const [editing, setEditing] = useState<DocsRootStatus | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = roots.find((r) => r.id === selectedId);
+  // Listed by name, not by when they were registered: the picker is where a
+  // folder is looked for, and registration order says nothing about where to
+  // look (T-0294). The stored list keeps its own order — this is the picker's.
+  const listed = useMemo(() => sortRootsByLabel(roots), [roots]);
 
   const add = async () => {
     const picked = await pickFolder({
@@ -67,9 +72,9 @@ export function DocsRootsBar({
           <SelectValue placeholder={roots.length ? "Pick a folder" : "No folders registered"} />
         </SelectTrigger>
         <SelectContent>
-          {roots.map((root) => (
+          {listed.map((root) => (
             <SelectItem key={root.id} value={root.id}>
-              {root.name || root.path}
+              {rootLabel(root)}
               {!root.available && " (not on this PC)"}
             </SelectItem>
           ))}
