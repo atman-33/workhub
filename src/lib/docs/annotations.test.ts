@@ -115,21 +115,31 @@ describe("buildPrompt", () => {
 
   it("names the document both ways and lists every note", () => {
     const prompt = buildPrompt(ctx);
-    expect(prompt).toContain("対象: Design share/notes/design.md");
-    expect(prompt).toContain("絶対パス: G:/share/notes/design.md");
+    expect(prompt).toContain("Document: Design share/notes/design.md");
+    expect(prompt).toContain("Path: G:/share/notes/design.md");
     // Whitespace in a quote is collapsed so one note stays one line.
-    expect(prompt).toContain("- L12 「the wordy bit」 — shorten");
-    expect(prompt).toContain("- 「no line here」 — fix the link");
+    expect(prompt).toContain('- L12 "the wordy bit" — shorten');
+    expect(prompt).toContain('- "no line here" — fix the link');
   });
 
-  it("always tells the agent to re-read the file and not to overwrite a share", () => {
+  it("always tells the agent to re-read the file and to get the change approved", () => {
     const prompt = buildPrompt(ctx);
-    expect(prompt).toContain("読み直して");
-    expect(prompt).toContain("直接上書きせず");
+    expect(prompt).toContain("Read the file as it is now");
+    expect(prompt).toContain("get it approved before writing it");
+  });
+
+  it("does not make the write gate conditional on the folder being shared", () => {
+    // Nothing can tell a synced folder from a local one by its path, so a
+    // condition worded that way would be decided differently every time — and
+    // a document root has no git to undo an overwrite either way.
+    expect(buildPrompt(ctx)).not.toContain("shared");
+    expect(buildPrompt(ctx)).not.toContain("unless");
   });
 
   it("says so when the document has moved on since the notes were taken", () => {
-    expect(buildPrompt(ctx)).not.toContain("更新されている");
-    expect(buildPrompt({ ...ctx, stale: true })).toContain("更新されている");
+    expect(buildPrompt(ctx)).not.toContain("Warning:");
+    expect(buildPrompt({ ...ctx, stale: true })).toContain(
+      "has changed since these notes were taken",
+    );
   });
 });

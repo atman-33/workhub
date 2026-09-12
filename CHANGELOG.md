@@ -13,10 +13,16 @@
   reopens the note. The sidebar's new **Notes** section lists every note on the
   open document, and its copy button puts them on the clipboard as a request an
   AI agent can act on — the root-relative and absolute path, each note's line
-  and quote, and two standing instructions: re-read the file first, and do not
-  overwrite a shared folder without asking. The app therefore still writes
-  nothing into the folder, and whether an agent may is an operational call
-  rather than something built into the tab.
+  and quote, and two standing instructions: read the file as it is now, and
+  show the change as a diff and get it approved before writing. The app
+  therefore still writes nothing into the folder, and the one write that does
+  happen is gated on the reader seeing it first.
+  - That gate is **not** conditional on the folder being shared. Nothing can
+    tell a synced folder from a local one by its path — a mapped drive is just
+    a drive letter — and a document folder has no git in it either way, so an
+    overwrite of somebody's prose has no undo. A condition nobody can evaluate
+    would only be decided differently every time.
+  - The prompt is in English, like the rest of the app's strings.
   - Notes work on Markdown, on plain-text files, and on an HTML page in its
     sandboxed frame. That frame already has `allow-same-origin` and the
     component already reaches into it to catch link clicks, so nothing about

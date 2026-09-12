@@ -189,9 +189,11 @@ export function notesAreStale(notes: DocNote[], stamp: string): boolean {
 /** One note's line in the prompt. */
 function promptLine(note: DocNote): string {
   const where = note.line ? `L${note.line} ` : "";
+  // Collapsed, so a note taken across a line break stays one line of the
+  // prompt rather than breaking the list.
   const quote = note.quote.replace(/\s+/g, " ").trim();
   const comment = note.comment.trim();
-  return `- ${where}「${quote}」${comment ? ` — ${comment}` : ""}`;
+  return `- ${where}"${quote}"${comment ? ` — ${comment}` : ""}`;
 }
 
 export interface PromptContext {
@@ -214,28 +216,38 @@ export interface PromptContext {
  *
  * - **re-read the file.** The line numbers and quotes are from when the notes
  *   were taken, and the document may well have moved on.
- * - **confirm before overwriting.** A document root can be a folder the team
- *   syncs, where a write is not a local edit but a change that reaches
- *   colleagues. The app cannot tell a shared root from a local one — a mapped
- *   drive looks like any other path — so the caution is unconditional rather
- *   than guessed at.
+ * - **show the change before writing it.** A document root is not a
+ *   repository: no diff, no CI, no review, and usually no git at all — so an
+ *   overwrite of somebody's prose has no undo. That is as true of a local
+ *   folder as of a shared one, which is why this is unconditional.
+ *
+ * It deliberately does *not* say "unless the folder is shared". Nothing can
+ * tell a synced folder from a local one by its path — a mapped drive is just a
+ * drive letter — so a condition worded that way asks the agent to decide
+ * something it cannot know, and it would decide differently every time. The
+ * instruction also stops at approval rather than at a proposal: the write
+ * still happens in the same session, it just happens after the reader has
+ * seen it.
  */
 export function buildPrompt(ctx: PromptContext): string {
   const lines = [
-    "以下の指摘を反映してください。",
+    "Apply the notes below to this document.",
     "",
-    "- 対象ファイルは現在の内容を読み直してから直すこと（下の行番号と引用は指摘を取った時点のもの）。",
-    "- 共有フォルダの文書である場合は、直接上書きせず修正案を提示すること。判断がつかなければ確認すること。",
+    "- Read the file as it is now before changing anything. The line numbers and",
+    "  quotes below are from when the notes were taken.",
+    "- Show the change as a diff and get it approved before writing it. Never",
+    "  overwrite the file silently.",
     "",
-    `対象: ${ctx.rootName}/${ctx.relPath}`,
-    `絶対パス: ${ctx.absPath}`,
+    `Document: ${ctx.rootName}/${ctx.relPath}`,
+    `Path: ${ctx.absPath}`,
   ];
   if (ctx.stale) {
     lines.push(
-      "注意: この文書は指摘を取った後に更新されている。該当箇所が動いている可能性がある。",
+      "Warning: the file has changed since these notes were taken, so a passage",
+      "may have moved or be gone.",
     );
   }
-  lines.push("", "## 指摘", "");
+  lines.push("", "## Notes", "");
   for (const note of ctx.notes) lines.push(promptLine(note));
   return `${lines.join("\n")}\n`;
 }
