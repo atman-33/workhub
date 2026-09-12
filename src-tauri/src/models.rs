@@ -101,8 +101,11 @@ pub struct Settings {
     #[serde(default)]
     pub vault_path: Option<String>,
     /// Root directory under which task worktrees are created, laid out as
-    /// `<worktree_root>/<task-id>/<repo-name>`. Used by the worktree panel to
-    /// locate task worktrees; the agent's task-start also follows this layout.
+    /// `<worktree_root>/<task-id>/<repo-name>`. Named in the launch prompt of
+    /// a task with `worktree: true`, so the agent creates them where the user
+    /// asked (T-0305). The worktree panel does not read it — `git worktree
+    /// list` reports the real paths, so the panel finds them wherever they
+    /// are. Machine-local: a worktree root is a path on one PC.
     #[serde(default = "default_worktree_root")]
     pub worktree_root: String,
     /// Show the herdr client inside an embedded terminal panel (xterm.js +
