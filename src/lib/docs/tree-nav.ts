@@ -19,7 +19,13 @@ export type DirState =
 
 /** One rendered line: a real entry, or a placeholder standing in for one. */
 export type Row =
-  | { kind: "entry"; entry: DocsEntry; depth: number }
+  | {
+      kind: "entry";
+      entry: DocsEntry;
+      depth: number;
+      /** The synthetic row for the root folder; drawn permanently expanded. */
+      isRoot?: true;
+    }
   | {
       kind: "message";
       /** Unique among rows — the folder the message is about, plus its kind. */
@@ -40,6 +46,16 @@ export interface FlattenOptions {
    * when the file-list pane is on.
    */
   foldersOnly: boolean;
+  /**
+   * Draw a row for the root itself, so its own files can be selected in the
+   * file-list pane. Without it the root has no row — the tree lists a root's
+   * children — and the documents sitting directly in the shared folder would
+   * be unreachable the moment a sub-folder was picked.
+   *
+   * The root row is always expanded: collapsing it would hide the whole tree
+   * and leave nothing to click but itself.
+   */
+  rootName?: string;
 }
 
 /**
@@ -52,10 +68,25 @@ export interface FlattenOptions {
  * visible, which is what keeps a Drive share from being pulled down whole.
  */
 export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: string[] } {
-  const { rootPath, dirs, open, filter, foldersOnly } = options;
+  const { rootPath, dirs, open, filter, foldersOnly, rootName } = options;
   const rows: Row[] = [];
   const needed: string[] = [];
   if (!rootPath) return { rows, needed };
+  const base = rootName ? 1 : 0;
+  if (rootName) {
+    rows.push({
+      kind: "entry",
+      depth: 0,
+      isRoot: true,
+      entry: {
+        path: rootPath,
+        name: rootName,
+        is_dir: true,
+        is_markdown: false,
+        is_html: false,
+      } as DocsEntry,
+    });
+  }
 
   const walk = (path: string, depth: number) => {
     needed.push(path);
@@ -105,7 +136,7 @@ export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: str
     }
   };
 
-  walk(rootPath, 0);
+  walk(rootPath, base);
   return { rows, needed };
 }
 
@@ -165,7 +196,8 @@ export function navigate(
       if (!row.entry.is_dir) return { type: "none" };
       // Closed → open it. Already open → step into it, which is where the
       // eye goes next anyway.
-      if (!open[row.entry.path]) return { type: "open", path: row.entry.path };
+      // The root row is drawn expanded and has no closed state to open.
+      if (!row.isRoot && !open[row.entry.path]) return { type: "open", path: row.entry.path };
       const child = entries[at + 1];
       return child && child.depth > row.depth
         ? { type: "move", path: child.entry.path }
@@ -174,7 +206,9 @@ export function navigate(
     case "ArrowLeft": {
       if (at < 0) return { type: "none" };
       const row = entries[at];
-      if (row.entry.is_dir && open[row.entry.path]) return { type: "close", path: row.entry.path };
+      if (!row.isRoot && row.entry.is_dir && open[row.entry.path]) {
+        return { type: "close", path: row.entry.path };
+      }
       // Otherwise go up a level: the nearest row above that is shallower. On a
       // top-level row there is nowhere to go, and nothing happens.
       for (let i = at - 1; i >= 0; i--) {

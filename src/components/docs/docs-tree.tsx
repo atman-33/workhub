@@ -41,6 +41,8 @@ export interface EntryActions {
 interface Props {
   /** Path of the root being browsed. */
   rootPath: string;
+  /** What to call the root's own row in the split layout. */
+  rootName: string;
   /** Path of the document currently open in the preview. */
   selected: string;
   /** Path of the folder the file-list pane is showing, in split mode. */
@@ -84,6 +86,7 @@ interface Props {
  */
 export function DocsTree({
   rootPath,
+  rootName,
   selected,
   selectedDir,
   onSelect,
@@ -108,8 +111,11 @@ export function DocsTree({
         open,
         filter: filter.trim().toLowerCase(),
         foldersOnly,
+        // Only the split layout needs a row for the root: it is what selects
+        // the documents sitting directly in the shared folder.
+        rootName: foldersOnly ? rootName : undefined,
       }),
-    [rootPath, dirs, open, filter, foldersOnly],
+    [rootPath, rootName, dirs, open, filter, foldersOnly],
   );
 
   // The array's identity changes every render; its contents do not. Keying on
@@ -215,7 +221,8 @@ export function DocsTree({
           <TreeRow
             key={row.entry.path}
             row={row}
-            open={!!open[row.entry.path]}
+            open={row.isRoot || !!open[row.entry.path]}
+            isRoot={!!row.isRoot}
             selected={
               row.entry.is_dir ? row.entry.path === selectedDir : row.entry.path === selected
             }
@@ -234,6 +241,7 @@ export function DocsTree({
 function TreeRow({
   row,
   open,
+  isRoot,
   selected,
   cursored,
   foldersOnly,
@@ -243,6 +251,7 @@ function TreeRow({
 }: {
   row: Extract<Row, { kind: "entry" }>;
   open: boolean;
+  isRoot: boolean;
   selected: boolean;
   cursored: boolean;
   foldersOnly: boolean;
@@ -273,17 +282,23 @@ function TreeRow({
           >
             {/* The chevron is its own target: in folders-only mode the row
                 selects the folder, so expanding has to be a separate intent. */}
-            <button
-              type="button"
-              aria-label={open ? "Collapse" : "Expand"}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(entry.path);
-              }}
-            >
-              {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-            </button>
+            {/* The root row has no chevron: collapsing it would hide the
+                whole tree and leave nothing to click but itself. */}
+            {isRoot ? (
+              <span className="size-3 shrink-0" />
+            ) : (
+              <button
+                type="button"
+                aria-label={open ? "Collapse" : "Expand"}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(entry.path);
+                }}
+              >
+                {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+              </button>
+            )}
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-1 text-left"

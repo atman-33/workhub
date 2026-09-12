@@ -103,6 +103,33 @@ describe("flattenTree", () => {
     expect(entryRows(rows).map((r) => r.entry.name)).toEqual(["docs", "sub"]);
   });
 
+  it("draws a row for the root when asked, and keeps its children beneath it", () => {
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: {},
+      filter: "",
+      foldersOnly: true,
+      rootName: "share",
+    });
+    expect(entryRows(rows).map((r) => [r.entry.name, r.depth])).toEqual([
+      ["share", 0],
+      ["docs", 1],
+    ]);
+    expect(entryRows(rows)[0].isRoot).toBe(true);
+  });
+
+  it("leaves the root row out unless one is asked for", () => {
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: {},
+      filter: "",
+      foldersOnly: true,
+    });
+    expect(entryRows(rows).map((r) => r.entry.name)).toEqual(["docs"]);
+  });
+
   it("stands a placeholder in for a folder still being read", () => {
     const { rows } = flattenTree({
       rootPath: ROOT,
@@ -181,6 +208,29 @@ describe("navigate", () => {
       path: `${ROOT}/docs`,
     });
     expect(navigate("ArrowLeft", rows, `${ROOT}/notes.md`, open)).toEqual({ type: "none" });
+  });
+
+  it("never collapses the root row, and steps into it instead", () => {
+    const withRoot = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open,
+      filter: "",
+      foldersOnly: true,
+      rootName: "share",
+    }).rows;
+    expect(navigate("ArrowRight", withRoot, ROOT, open)).toEqual({
+      type: "move",
+      path: `${ROOT}/docs`,
+    });
+    expect(navigate("ArrowLeft", withRoot, ROOT, open)).toEqual({ type: "none" });
+  });
+
+  it("still collapses a top-level folder when there is no root row", () => {
+    expect(navigate("ArrowLeft", rows, `${ROOT}/docs`, open)).toEqual({
+      type: "close",
+      path: `${ROOT}/docs`,
+    });
   });
 
   it("jumps to the ends", () => {

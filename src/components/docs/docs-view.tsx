@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
 import { clearRecent, pushRecent, readRecent, removeRecent } from "@/lib/docs/recent";
-import { ancestorsWithin, parentPath } from "@/lib/docs/tree-nav";
+import { ancestorsWithin, baseName, parentPath } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsEntry, DocsRootStatus, DocsShortcut } from "@/types";
 
@@ -306,6 +306,7 @@ export function DocsView() {
   const sidebarTree = (
     <DocsTree
       rootPath={selected?.path ?? ""}
+      rootName={selected?.name || (selected ? baseName(selected.path) : "")}
       selected={doc}
       selectedDir={listPane ? selectedDir : ""}
       filter={filter}
