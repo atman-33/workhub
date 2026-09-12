@@ -61,6 +61,11 @@ const VAULT_SCOPED: &[&str] = &[
     // Which server renders the team's PlantUML diagrams travels with the
     // roots it renders them for (T-0279).
     "docs_plantuml_server",
+    // Shortcuts are paths into the roots above, and whether the sidebar is
+    // split is how these documents are read - neither belongs to one PC
+    // (T-0276).
+    "docs_shortcuts",
+    "docs_list_pane",
 ];
 
 /// The `tidy` sub-fields that are policy (portable) rather than run history.

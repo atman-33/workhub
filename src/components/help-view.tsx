@@ -206,13 +206,17 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
 - **PlantUML diagrams render once a server is set.** \`\`\`plantuml\` (or \`\`\`puml\`) blocks are drawn by a PlantUML server, which receives each diagram's source. Until you enter one with the **gear button** on the tab, they stay code and nothing is sent. The public \`https://www.plantuml.com/plantuml\` works; a server your team runs is the better home for a team's documents. The setting is stored in the vault, like the folder list.
-- **Reading a wide document.** The preview header zooms the text (**Ctrl+wheel** too), and its width button drops the reading line length so the document uses the whole pane. Both are remembered. The **window button** opens the whole document in a window of its own, and hovering a diagram or an image shows a button — or double-click it — that opens just that figure in a window where the **wheel zooms around the cursor** and **dragging pans**. The divider between the tree and the preview remembers where you left it.
+- **Shortcuts keep the documents you keep coming back to.** Right-click a file or a folder and choose **Add to shortcuts**: it is listed at the top of the sidebar, and dragging by the grip reorders the list. The list is stored in the vault beside the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
+- **Recent files** lists the last ten documents you opened, per folder. It is this PC's own history — it is not stored in the vault — and the x beside the heading clears it.
+- **A file list beside the tree, optionally.** The gear button's **File list beside the tree** splits the sidebar the way Obsidian's Notebook Navigator does: folders on the left, the files of the folder you pick on the right. It is off by default, and off the sidebar is one tree holding both. With it on, a folder's name selects it and its chevron expands it.
+- **The keyboard walks the tree.** Click a row, then **↑** / **↓** move between rows, **→** opens a folder (and again steps into it), **←** closes it or goes up a level, and **Home** / **End** jump to the ends. **Enter** is what opens a document — moving the cursor deliberately does not, because reading a file per keypress off a network share is unusable.
+- **Reading a wide document.** The preview header zooms the text (**Ctrl+wheel** too), and its width button drops the reading line length so the document uses the whole pane. Both are remembered. The **window button** opens the whole document in a window of its own, and hovering a diagram or an image shows a button — or double-click it — that opens just that figure in a window where the **wheel zooms around the cursor** and **dragging pans** (any mouse button; a right-drag that moved the figure does not open the context menu). The divider between the tree and the preview remembers where you left it.
 - **Picking a folder reads it afresh**, so a share that was offline a moment ago is tried again rather than remembered as broken. A folder that is not reachable offers **Try again** as well.
 - **HTML written inside a document renders** — \`<details>\`, \`<kbd>\`, \`<img width="300">\`, \`<br>\` and the like — after being cleaned to GitHub's rules, so scripts and event handlers in a shared note never run.
 - **Callouts render as coloured boxes** — Obsidian's \`> [!note]\` / \`> [!warning]\` (with a custom title, and \`-\` / \`+\` to fold), NotePM's \`:::note info|warn|alert\` and Zenn's \`:::message\` / \`:::message alert\` / \`:::details Title\`. Click a foldable callout's (or a details block's) title to open or close it. Code blocks are not syntax-highlighted.
 - **HTML files preview as a page**, in a sandboxed frame with **scripts switched off**. Relative images and stylesheets are loaded; nothing is fetched from the web. A page that needs its scripts (an interactive report) will look incomplete here — open it in the browser instead.
 - **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` or \`.html\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
-- **Right-click a file or folder** for **Open with default app** (files only — the way to see a previewable file in the browser or your own editor), **Show in Explorer** (selects it in its folder) and **Copy path** (the absolute path, backslashes and all). The preview header carries the first two as buttons.
+- **Right-click a file or folder** for **Open with default app** (files only — the way to see a previewable file in the browser or your own editor), **Show in Explorer** (selects it in its folder), **Add to shortcuts** and **Copy path** (the absolute path, backslashes and all). The preview header carries the first two as buttons.
 - **Editing is not offered.** The tab exists to stay out of a folder other people are working in.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)
@@ -1844,12 +1848,45 @@ export function HelpView() {
                 team&apos;s documents. The setting is stored in the vault, like the folder list.
               </li>
               <li>
+                <span className="font-medium text-foreground">Shortcuts keep what you keep coming back to.</span>{" "}
+                Right-click a file or folder and choose{" "}
+                <span className="font-medium text-foreground">Add to shortcuts</span>: it is listed at the top of
+                the sidebar, and the grip reorders the list by dragging. The list is stored in the vault beside
+                the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Recent files</span> lists the last ten documents you
+                opened, per folder. It is this PC&apos;s own history — not stored in the vault — and the x beside
+                the heading clears it.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">A file list beside the tree, optionally.</span> The
+                gear button&apos;s{" "}
+                <span className="font-medium text-foreground">File list beside the tree</span> splits the sidebar
+                the way Obsidian&apos;s Notebook Navigator does: folders on the left, the files of the folder you
+                pick on the right. It is off by default, and off the sidebar is one tree holding both. With it on,
+                a folder&apos;s name selects it and its chevron expands it.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">The keyboard walks the tree.</span> Click a row, then{" "}
+                <span className="font-medium text-foreground">↑</span> /{" "}
+                <span className="font-medium text-foreground">↓</span> move between rows,{" "}
+                <span className="font-medium text-foreground">→</span> opens a folder (and again steps into it),{" "}
+                <span className="font-medium text-foreground">←</span> closes it or goes up a level, and{" "}
+                <span className="font-medium text-foreground">Home</span> /{" "}
+                <span className="font-medium text-foreground">End</span> jump to the ends.{" "}
+                <span className="font-medium text-foreground">Enter</span> is what opens a document — moving the
+                cursor deliberately does not, because reading a file per keypress off a network share is
+                unusable.
+              </li>
+              <li>
                 <span className="font-medium text-foreground">Reading a wide document.</span> The preview header
                 zooms the text (<span className="font-medium text-foreground">Ctrl+wheel</span> too), and its width
                 button lets the document use the whole pane. Both are remembered. The window button opens the
                 whole document in a window of its own; hovering a diagram or an image shows a button — or
                 double-click it — that opens just that figure, where the wheel zooms around the cursor and
-                dragging pans. The divider between the tree and the preview remembers where you left it.
+                dragging pans with any mouse button (a right-drag that moved the figure does not open the context
+                menu). The divider between the tree and the preview remembers where you left it.
               </li>
               <li>
                 <span className="font-medium text-foreground">Picking a folder reads it afresh</span>, so a share

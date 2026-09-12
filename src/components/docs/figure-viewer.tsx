@@ -8,6 +8,9 @@ import type { DocsFigure } from "@/types";
 /** Zoom factor of one button press or one wheel notch. */
 const STEP = 1.25;
 
+/** Pixels a right-drag must travel before it counts as a pan, not a click. */
+const DRAG_SLOP = 4;
+
 /**
  * One figure — a mermaid diagram or an image — on a pan/zoom canvas (T-0279),
  * in a Docs viewer window.
@@ -15,6 +18,11 @@ const STEP = 1.25;
  * The wheel zooms around the cursor and a drag pans, the way a map or an image
  * viewer behaves; the figure opens fitted to the window. It stays fitted as
  * the window is resized until the user zooms or pans it themselves.
+ *
+ * Panning takes the right and middle buttons as well as the left (T-0276).
+ * Reading a big diagram is mostly panning, and the hand is already on the
+ * right button from the context menu; a right-drag that actually moved the
+ * figure swallows the menu that would otherwise open on release.
  *
  * A mermaid diagram is inlined as the SVG mermaid produced (already rendered
  * with `securityLevel: "strict"` in the tab); everything else — an image, a
@@ -26,7 +34,11 @@ export function FigureViewer({ figure }: { figure: DocsFigure }) {
   const [view, setView] = useState<View>({ scale: 1, x: 0, y: 0 });
   // True until the user zooms or pans; while it is, a resize re-fits.
   const [fitted, setFitted] = useState(true);
-  const drag = useRef<{ x: number; y: number; view: View } | null>(null);
+  const drag = useRef<{ x: number; y: number; view: View; button: number } | null>(null);
+  // Set when a right-drag moved the figure, and cleared by the `contextmenu`
+  // it suppresses. Without it, letting go of the right button opens the menu
+  // on top of the diagram you just dragged into place.
+  const swallowContextMenu = useRef(false);
 
   // A mermaid SVG sizes itself to its container (`width="100%"` and a
   // max-width), which on a canvas with no width means nothing useful. Pin it to
@@ -106,23 +118,33 @@ export function FigureViewer({ figure }: { figure: DocsFigure }) {
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoomBy]);
 
+  // Left, middle and right all pan. Middle is what most figure viewers use and
+  // costs nothing to accept here.
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, y: e.clientY, view };
+    drag.current = { x: e.clientX, y: e.clientY, view, button: e.button };
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const start = drag.current;
     if (!start) return;
-    setView({
-      ...start.view,
-      x: start.view.x + e.clientX - start.x,
-      y: start.view.y + e.clientY - start.y,
-    });
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    // A right-click that wobbles by a pixel is still a right-click; only a
+    // real drag takes the context menu away.
+    if (start.button === 2 && Math.abs(dx) + Math.abs(dy) > DRAG_SLOP) {
+      swallowContextMenu.current = true;
+    }
+    setView({ ...start.view, x: start.view.x + dx, y: start.view.y + dy });
     setFitted(false);
   };
   const onPointerUp = () => {
     drag.current = null;
+  };
+  const onContextMenu = (e: React.MouseEvent) => {
+    if (!swallowContextMenu.current) return;
+    swallowContextMenu.current = false;
+    e.preventDefault();
   };
 
   return (
@@ -162,6 +184,7 @@ export function FigureViewer({ figure }: { figure: DocsFigure }) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onContextMenu={onContextMenu}
         onDoubleClick={() => (fitted ? actualSize() : fit())}
       >
         <div

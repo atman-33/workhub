@@ -12,6 +12,7 @@ import type {
   DiagLogInfo,
   DocsEntry,
   DocsRootStatus,
+  DocsShortcut,
   DocsViewerPayload,
   GitInfo,
   GitLog,
@@ -242,6 +243,12 @@ export const api = {
   /** An embedded image as a `data:` URI. */
   docsReadAsset: (path: string) => invoke<string>("docs_read_asset", { path }),
   /** The PlantUML server diagrams are rendered on; "" when rendering is off. */
+  docsShortcuts: () => invoke<DocsShortcut[]>("docs_shortcuts"),
+  /** Replaces the whole list: adding, removing and reordering are one write. */
+  setDocsShortcuts: (shortcuts: DocsShortcut[]) =>
+    invoke<void>("set_docs_shortcuts", { shortcuts }),
+  docsListPane: () => invoke<boolean>("docs_list_pane"),
+  setDocsListPane: (enabled: boolean) => invoke<void>("set_docs_list_pane", { enabled }),
   docsPlantumlServer: () => invoke<string>("docs_plantuml_server"),
   setDocsPlantumlServer: (server: string) =>
     invoke<void>("set_docs_plantuml_server", { server }),
