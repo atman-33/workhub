@@ -27,9 +27,9 @@
     },
     {
       "name": "claude-tooling",
-      "tier": "recommended",
+      "tier": "optional",
       "scope": "user",
-      "summary": "Extending Claude Code itself. Its SessionStart notice reports outdated plugins across every marketplace - the Plugins tab now answers the same question for this one."
+      "summary": "Extending Claude Code itself: authoring commands and skills, and stress-testing a plan. Its SessionStart notice reports outdated plugins across every marketplace, which is what the tab it used to justify now answers - a matter of whether you extend Claude Code at all (T-0297)."
     },
     {
       "name": "authoring",
