@@ -5,6 +5,7 @@ import {
   type DirState,
   entryRows,
   flattenTree,
+  isWithinRoot,
   navigate,
   parentPath,
 } from "./tree-nav";
@@ -349,6 +350,30 @@ describe("navigate", () => {
       type: "move",
       path: `${ROOT}/notes.md`,
     });
+  });
+});
+
+describe("isWithinRoot", () => {
+  it("counts the root itself and anything under it", () => {
+    expect(isWithinRoot(ROOT, ROOT)).toBe(true);
+    expect(isWithinRoot(ROOT, `${ROOT}/docs`)).toBe(true);
+    expect(isWithinRoot(ROOT, `${ROOT}/docs/sub/b.md`)).toBe(true);
+  });
+
+  it("does not count a sibling that merely shares the prefix", () => {
+    // The separator in the test is the whole point: without it `G:/share-old`
+    // reads as living inside `G:/share`.
+    expect(isWithinRoot(ROOT, `${ROOT}-old/a.md`)).toBe(false);
+    expect(isWithinRoot(ROOT, "H:/other/a.md")).toBe(false);
+  });
+
+  it("ignores a trailing slash on the root", () => {
+    expect(isWithinRoot(`${ROOT}/`, `${ROOT}/docs`)).toBe(true);
+  });
+
+  it("is false when either side is missing", () => {
+    expect(isWithinRoot("", `${ROOT}/a.md`)).toBe(false);
+    expect(isWithinRoot(ROOT, "")).toBe(false);
   });
 });
 

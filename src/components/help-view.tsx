@@ -206,7 +206,7 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **The tree loads one folder at a time**, when you open it. On a Drive share where files are placeholders until read, a whole-tree scan would stall the tab — so nothing is scanned until you look at it. There is no file watcher either: press **↻** to pick up what a colleague added. Refreshing re-reads the tree without collapsing it, and the button beside it collapses every folder at once.
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
 - **PlantUML diagrams render once a server is set.** \`\`\`plantuml\` (or \`\`\`puml\`) blocks are drawn by a PlantUML server, which receives each diagram's source. Until you enter one with the **gear button** on the tab, they stay code and nothing is sent. The public \`https://www.plantuml.com/plantuml\` works; a server your team runs is the better home for a team's documents. The setting is stored in the vault, like the folder list.
-- **Shortcuts keep the documents you keep coming back to.** Right-click a file or a folder and choose **Add to shortcuts**: it is listed at the top of the sidebar, and dragging by the grip reorders the list. The list is stored in the vault beside the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
+- **Shortcuts keep the documents you keep coming back to.** Right-click a file or a folder and choose **Add to shortcuts**: it is listed at the top of the sidebar, and dragging by the grip reorders the list. The list is stored in the vault beside the folder list, so a second PC gets it back, and each folder shows only its own shortcuts. Clicking a shortcut opens the tree down to it.
 - **Recent files** lists the last five documents you opened, per folder. It is this PC's own history — it is not stored in the vault — and the x beside the heading clears it.
 - **A file list beside the tree, optionally.** The gear button's **File list beside the tree** splits the sidebar the way Obsidian's Notebook Navigator does: folders on the left, the files of the folder you pick on the right. It is off by default, and off the sidebar is one tree holding both. With it on, a folder's name selects it and its chevron expands it.
 - **The keyboard walks the tree.** Click a row, then **↑** / **↓** move between rows, **→** opens a folder (and again steps into it), **←** closes it or goes up a level, and **Home** / **End** jump to the ends. **Enter** is what opens a document — moving the cursor deliberately does not, because reading a file per keypress off a network share is unusable.
@@ -1852,7 +1852,8 @@ export function HelpView() {
                 Right-click a file or folder and choose{" "}
                 <span className="font-medium text-foreground">Add to shortcuts</span>: it is listed at the top of
                 the sidebar, and the grip reorders the list by dragging. The list is stored in the vault beside
-                the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
+                the folder list, so a second PC gets it back, and each folder shows only its own shortcuts.
+                Clicking a shortcut opens the tree down to it.
               </li>
               <li>
                 <span className="font-medium text-foreground">Recent files</span> lists the last five documents you

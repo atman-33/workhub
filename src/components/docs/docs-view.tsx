@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
 import { clearRecent, pushRecent, readRecent, removeRecent } from "@/lib/docs/recent";
+import { reorderWithinRoot, shortcutsInRoot } from "@/lib/docs/shortcuts";
 import { ancestorsWithin, baseName, parentPath } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsEntry, DocsRootStatus, DocsShortcut } from "@/types";
@@ -251,6 +252,15 @@ export function DocsView() {
     [shortcuts],
   );
 
+  // Only the picked root's shortcuts are listed (T-0296). One stored list, a
+  // root at a time on screen: a path means nothing outside the root it belongs
+  // to, and a row that cannot be revealed in the tree only half works. The
+  // star itself still reads the whole list — a file is starred or it is not.
+  const visibleShortcuts = useMemo(
+    () => shortcutsInRoot(shortcuts, selected?.path ?? ""),
+    [shortcuts, selected],
+  );
+
   const toggleShortcut = useCallback(
     (entry: DocsEntry) => {
       saveShortcuts(
@@ -412,12 +422,15 @@ export function DocsView() {
               </div>
 
               <ShortcutsSection
-                shortcuts={shortcuts}
+                shortcuts={visibleShortcuts}
+                elsewhere={shortcuts.length - visibleShortcuts.length}
                 activePath={doc || selectedDir}
                 onOpen={openShortcut}
                 onReveal={(shortcut) => reveal(shortcut.path)}
                 onRemove={(path) => saveShortcuts(shortcuts.filter((s) => s.path !== path))}
-                onReorder={saveShortcuts}
+                onReorder={(next) =>
+                  saveShortcuts(reorderWithinRoot(shortcuts, selected?.path ?? "", next))
+                }
               />
               <RecentSection
                 paths={recent}
