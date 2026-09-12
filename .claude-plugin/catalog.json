@@ -11,7 +11,19 @@
       "name": "engineering",
       "tier": "recommended",
       "scope": "user",
-      "summary": "Development workflow: role-based sub-agents, the commit/PR/ADR/TDD skills, serena/context7 MCP launchers. How a team commits and branches is a team's own call, so this is a recommendation - nothing in the app stops working without it."
+      "summary": "Development workflow: role-based sub-agents, the commit/PR/ADR/TDD skills. How a team commits and branches is a team's own call, so this is a recommendation - nothing in the app stops working without it. The serena/context7 MCP servers it used to carry now live in mcp-serena and mcp-context7."
+    },
+    {
+      "name": "mcp-serena",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "The serena MCP server alone: symbol-aware code retrieval and editing, run via uvx. Split out of engineering because plugin enable/disable is the only granularity there is for an MCP server, and this one is heavy (a Python toolchain plus language servers) and fails independently of any engineering workflow."
+    },
+    {
+      "name": "mcp-context7",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "The context7 MCP server alone: up-to-date library and framework documentation lookup, run via npx. Its own plugin rather than bundled with mcp-serena so switching serena off does not take it along - it is cheap, needs no API key, and is useful on its own."
     },
     {
       "name": "claude-tooling",

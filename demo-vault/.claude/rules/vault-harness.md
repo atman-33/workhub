@@ -18,6 +18,6 @@ These notes load only while editing the vault's own harness machinery (the
   without that plugin enabled nothing in it is injected.
 - `.opencode/skills/` (when present) is a generated artifact synced from the
   enabled Claude plugins — never hand-edit the copies.
-- The engineering plugin's serena MCP launcher pins Python 3.11; if serena
+- The mcp-serena plugin's serena MCP launcher pins Python 3.11; if serena
   fails with an OpenSSL error, check that the launcher still passes
   `--python 3.11` (not 3.12+).

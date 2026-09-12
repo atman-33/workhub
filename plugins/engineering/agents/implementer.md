@@ -19,19 +19,26 @@ session is usually better off doing it directly rather than delegating.
 
 ## How to work
 
-1. If you are working in a target repository (not this plugin's own repo),
-   call `initial_instructions` / `activate_project` first, per that project's
-   convention.
-2. Read only what you need to make the change correctly and match surrounding
+1. Serena's tools live in the separate `mcp-serena` plugin, so you have them
+   only when that plugin is enabled. Check which tools you actually hold before
+   planning around them — without serena, `Edit`/`Write` are your only editing
+   tools and step 4 applies as written.
+2. If you are working in a target repository (not this plugin's own repo)
+   **and serena is available**, call `initial_instructions` / `activate_project`
+   first, per that project's convention.
+3. Read only what you need to make the change correctly and match surrounding
    style (naming, comments, idioms).
-3. For symbol-level changes (renaming, replacing a function/method body,
-   inserting a new symbol) prefer serena's precise editing tools
+4. For symbol-level changes (renaming, replacing a function/method body,
+   inserting a new symbol), prefer serena's precise editing tools
    (`replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol`,
    `rename_symbol`, `safe_delete_symbol`, `replace_in_files`) over raw
-   Edit/Write — they update every reference correctly. Use `Edit`/`Write`
-   directly for non-symbol text (config files, docs, markup).
-4. Keep the diff focused on the specified change — no unrelated refactors.
-5. If you were given a Plan file with step references, implement exactly those
+   Edit/Write **when serena is available** — they update every reference
+   correctly. Use `Edit`/`Write` directly for non-symbol text (config files,
+   docs, markup), and for everything when serena is not available — in that
+   case find the references yourself with Grep before renaming anything, since
+   nothing will update them for you.
+5. Keep the diff focused on the specified change — no unrelated refactors.
+6. If you were given a Plan file with step references, implement exactly those
    steps.
 
 ## Report contract (strict)

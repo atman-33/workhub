@@ -39,43 +39,25 @@ Claude automatically, enable delegation-criteria injection (below).
 
 ### MCP servers
 
-The plugin ships an `.mcp.json` that registers two MCP servers:
+None. The `serena` and `context7` servers this plugin used to register now live
+in their own plugins:
 
-| Server | Role |
-|--------|------|
-| `serena` | Semantic code retrieval / editing toolkit ([oraios/serena](https://github.com/oraios/serena)), run via `uvx`. |
-| `context7` | Up-to-date library/framework documentation lookup ([@upstash/context7-mcp](https://github.com/upstash/context7)). |
+| Plugin | Server |
+|--------|--------|
+| [`mcp-serena`](../mcp-serena/README.md) | `serena` — semantic, symbol-aware code retrieval and editing. |
+| [`mcp-context7`](../mcp-context7/README.md) | `context7` — up-to-date library/framework documentation lookup. |
 
-Each server is started through a small Node launcher under
-[`mcp/`](mcp/) that is referenced via `${CLAUDE_PLUGIN_ROOT}`:
+They were split out because plugin enable/disable is Claude Code's only
+granularity for an MCP server: bundled here, neither could be switched off
+without also losing this plugin's skills and sub-agents — and Serena in
+particular is heavy (it pulls a Python toolchain and language servers) and can
+fail to start for reasons that have nothing to do with engineering workflow.
+They are two plugins rather than one for the same reason: turning Serena off
+should not take context7 with it.
 
-```json
-{
-  "mcpServers": {
-    "serena":   { "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/serena-mcp-launcher.mjs"] },
-    "context7": { "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/context7-mcp-launcher.mjs"] }
-  }
-}
-```
-
-#### Why launcher scripts?
-
-The two environments need different invocations (Windows calls `uvx` directly;
-WSL/Linux runs it inside a login shell so PATH/uv resolve), and a static
-`.mcp.json` can't branch on platform. Each launcher does that branch at runtime
-via `process.platform`, so **one `.mcp.json` works on both Windows and WSL**.
-
-#### Requirements
-
-- **Node.js** on `PATH` (already required by the other components).
-- **serena**: [`uv`/`uvx`](https://docs.astral.sh/uv/) on `PATH`. On WSL it must
-  resolve in a login shell (`bash -l`). First launch pulls Serena from git and
-  may take a while.
-- **context7**: nothing extra — it falls back to `npx -y @upstash/context7-mcp`
-  (slower first run). Install globally to speed startup:
-  `npm i -g @upstash/context7-mcp`. No API key is required.
-
-After installing/reloading the plugin, confirm both servers connect with `/mcp`.
+The sub-agents above still prefer Serena's symbol-aware tools **when
+`mcp-serena` is enabled**, and fall back to `Grep`/`Glob`/`Edit` when it is
+not. Nothing in this plugin requires either server.
 
 ### The shared config: `.claude/project-context.json`
 
