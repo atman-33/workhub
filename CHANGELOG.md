@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.115.0 (2026-09-12)
+
+- **Choosing a vault folder now sets the vault up** (T-0297). Picking the
+  folder was the whole of the app's onboarding, and it only answered the first
+  of three questions: an empty folder is a perfectly valid choice, so a new
+  install landed on an empty board with no template in it. Without the template
+  there is no `.claude/settings.json`, so the marketplace is never registered —
+  and enabling a plugin only writes `enabledPlugins`, so switching `workhub` on
+  at that point bought "plugin not cached" at the next session rather than a
+  plugin. Choosing a folder now opens a setup dialog that names the three steps
+  — apply the template, register the marketplace, enable `workhub` at user
+  scope — and runs them on one press, stopping at the first failure so a key is
+  never written that resolves to nothing. A step already done is skipped, so
+  the dialog is safe to re-open; a failed one offers a retry and the command to
+  run by hand. Only `workhub` is switched on: required means the app breaks
+  without it, which is not a preference, and turning several recommended
+  plugins on across the machine is more than a folder picker was asked to do.
+  The dialog points at the Plugins tab for those.
+- **The Docs sidebar lists shortcuts a root at a time** (T-0294). Shortcuts
+  were one global list shown whatever root was picked, while Recent files was
+  already per-root — the same question answered two ways, and a shortcut into
+  another root only half worked: the tree never opened to it, yet the file
+  still loaded into the preview. The sidebar now lists only the shortcuts the
+  picked root contains, and the stored list stays whole, so a root removed and
+  registered again gets its shortcuts back. Reordering the visible subset deals
+  the rows back into the slots they occupied rather than dropping every
+  shortcut belonging to another root.
+- **The Docs tab reads the documents it is actually pointed at** (T-0294). A
+  folder with nothing in it opened onto "No folders here." — a message where an
+  affordance should be; such a folder is now drawn as a leaf without a chevron.
+  YAML frontmatter was not merely unstyled but mis-read, CommonMark taking the
+  closing `---` for a setext underline and setting an Obsidian note's own keys
+  in heading type; it is split off and shown small and muted. Plain-text files
+  (JSON, YAML, CSV, logs) are shown verbatim in the preview instead of being
+  handed to the OS, so a ten-line file no longer costs a second application.
+  The preview's text can be selected and copied, the root picker is sorted by
+  the name each row shows rather than by registration order, and Recent files
+  keeps five entries instead of ten — in a narrow sidebar every row it holds is
+  a row of tree the reader does not see.
+- **Quick capture defaults Confirm on, like the task editor** (T-0285). A task
+  created from the quick-capture window never carried `confirm`, so it fell
+  back to off while a task written in the editor defaulted on. The two entry
+  points now agree. The window itself gets no toggle — it is the fast path, and
+  the board can turn confirm off afterwards.
+- **A new `team-comms` plugin puts each member's agent in one discussion**
+  (T-0291). It replaces exporting an agent's research to a document and
+  hand-delivering it to a teammate who pastes it into their own agent: one
+  thread per topic over a folder the team already syncs (Drive, OneDrive, a
+  file server), with no server and no database. A cloud-synced folder has no
+  file locking, so write conflicts are made impossible rather than resolved —
+  files are immutable, every filename carries its author's agent id, and thread
+  state is folded from the posts, so there is no shared file anybody wants to
+  rewrite. Notifications are opt-in per working directory: without focusing a
+  thread the session hook emits nothing at all, the one exception being a
+  one-line count when you are named in a post. Eight skills make it usable from
+  a session, and catching up on a thread reads a cached digest plus only the
+  posts that arrived after it.
+- **`claude-tooling` is now optional rather than recommended** (T-0297). It was
+  recommended because its session notice was the only thing reporting outdated
+  plugins; since the Plugins tab answered that for every registered marketplace
+  in one place and without a session, the recommendation rested on nothing.
+  What remains — authoring commands and skills, and stress-testing a plan — is
+  a matter of whether you extend Claude Code at all.
+
 ## 0.114.0 (2026-09-12)
 
 - **The Docs sidebar is built after Obsidian's Notebook Navigator** (T-0276).
