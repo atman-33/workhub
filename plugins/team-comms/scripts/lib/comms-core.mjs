@@ -619,8 +619,13 @@ export function composePost(input) {
   front.push("---", "");
 
   const sections = [`## 要旨`, input.summary.trim(), ""];
-  if (input.body && input.body.trim()) {
-    sections.push("## 本文", input.body.trim(), "");
+  const body = input.body?.trim();
+  if (body) {
+    // A body that already opens with its own heading (a pasted design doc, a
+    // report with its own structure) gets no "## 本文" wrapper - nesting one
+    // heading level under another for no reason is the bug being fixed here.
+    if (/^#{1,6}\s/.test(body)) sections.push(body, "");
+    else sections.push("## 本文", body, "");
   }
   return {
     name,
