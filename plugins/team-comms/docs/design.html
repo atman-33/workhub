@@ -404,6 +404,10 @@ on operational cost.
   by writing the same kind of file.</td></tr>
   <tr><td><b><code>schema</code> is versioned.</b> A reader passes over a version it does
   not know instead of failing.</td></tr>
+  <tr><td><b>No <code>## 本文</code> wrapper when the body brings its own heading.</b>
+  A pasted design doc or report already opens with a <code>#</code> heading; nesting it
+  under <code>## 本文</code> anyway just doubles the heading for no reason. The wrapper is
+  added only when the body has no heading of its own.</td></tr>
 </table>
 </div>
 </div>

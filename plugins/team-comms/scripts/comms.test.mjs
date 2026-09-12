@@ -237,6 +237,39 @@ describe("attachments", () => {
   });
 });
 
+describe("post body", () => {
+  it("wraps a heading-less body in \"## 本文\"", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    const bodyFile = join(alice.root, "body.md");
+    writeFileSync(bodyFile, "plain conclusion, no heading of its own\n", "utf8");
+
+    run(alice, [
+      "post", "--thread", threadId, "--kind", "share",
+      "--summary", "s", "--body-file", bodyFile,
+    ]);
+
+    const post = postFiles(threadId).find((n) => n.includes("-share-"));
+    const content = readFileSync(join(threadDir(threadId), post), "utf8");
+    expect(content).toMatch(/## 本文\nplain conclusion/);
+  });
+
+  it("does not double up a heading the body already brings", () => {
+    const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
+    const bodyFile = join(alice.root, "body.md");
+    writeFileSync(bodyFile, "## 詳細設計\n\npasted design doc content\n", "utf8");
+
+    run(alice, [
+      "post", "--thread", threadId, "--kind", "share",
+      "--summary", "s", "--body-file", bodyFile,
+    ]);
+
+    const post = postFiles(threadId).find((n) => n.includes("-share-"));
+    const content = readFileSync(join(threadDir(threadId), post), "utf8");
+    expect(content).not.toMatch(/## 本文/);
+    expect(content).toMatch(/## 詳細設計\n\npasted design doc content/);
+  });
+});
+
 describe("the SessionStart hook", () => {
   it("says nothing at all when no thread is focused", () => {
     const threadId = threadIdFrom(run(alice, ["open", "--title", "auth", "--summary", "q"]));
