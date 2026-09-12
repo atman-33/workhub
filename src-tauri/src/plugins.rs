@@ -48,6 +48,16 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// carries some 500 entries against the two of them this machine uses.
 pub const MARKETPLACE: &str = "workhub-marketplace";
 
+/// The source `claude plugin marketplace add` is given for [`MARKETPLACE`].
+///
+/// Deliberately a constant rather than a parameter. Claude Code accepts either
+/// the GitHub short form or a git URL, but a name registered under one form in
+/// `settings.json` and the other in `known_marketplaces.json` makes the whole
+/// marketplace be ignored — every plugin it provides silently disappears. The
+/// vault template declares the GitHub form, so this must be the GitHub form,
+/// and nothing may be free to pass the other one (T-0297).
+pub const MARKETPLACE_SOURCE: &str = "atman-33/workhub";
+
 /// One installation of a plugin, as `installed_plugins.json` records it. The
 /// same plugin can legitimately appear twice — once at user scope and once for
 /// a project — so these are kept as a list rather than collapsed.
@@ -824,6 +834,37 @@ fn run_claude(vault_path: &str, args: &[&str]) -> Result<PluginCommandResult, St
         ok: out.status.success(),
         output: output.trim_end().to_string(),
     })
+}
+
+/// True when this machine has already registered `marketplace`.
+///
+/// Read from `known_marketplaces.json` rather than from a settings file: that
+/// is the record Claude Code actually resolves a plugin id against, and it is
+/// what `read_state` reads, so the two can never disagree about whether a
+/// marketplace is there.
+pub fn marketplace_registered(marketplace: &str) -> bool {
+    read_json::<BTreeMap<String, KnownMarketplace>>(&plugins_dir().join("known_marketplaces.json"))
+        .is_some_and(|known| known.contains_key(marketplace))
+}
+
+/// `claude plugin marketplace add atman-33/workhub`, for first-run setup.
+///
+/// Registering is what makes a plugin id resolvable at all: `set_enabled`
+/// writes `enabledPlugins` and nothing else, so switching a plugin on before
+/// this has run produces "plugin not cached" at the next session rather than a
+/// working plugin.
+///
+/// Already registered is a success, not an error, and does not shell out. The
+/// setup flow re-runs whole, so the step has to be idempotent to be repeatable.
+pub fn add_marketplace(vault_path: &str) -> Result<PluginCommandResult, String> {
+    if marketplace_registered(MARKETPLACE) {
+        return Ok(PluginCommandResult {
+            command: format!("claude plugin marketplace add {MARKETPLACE_SOURCE}"),
+            ok: true,
+            output: format!("{MARKETPLACE} is already registered."),
+        });
+    }
+    run_claude(vault_path, &["marketplace", "add", MARKETPLACE_SOURCE])
 }
 
 /// Refresh the marketplace clone, which is where every "latest version" here

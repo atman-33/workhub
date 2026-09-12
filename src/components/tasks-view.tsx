@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Repeat,
   Terminal as TerminalIcon,
+  Wrench,
 } from "lucide-react";
 import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
@@ -19,6 +20,7 @@ import { RecurringDialog } from "@/components/recurring-dialog";
 import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
+import { VaultSetupDialog } from "@/components/vault-setup-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import {
@@ -93,6 +95,15 @@ export function TasksView({
   const [archiveDoneOpen, setArchiveDoneOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
+  /**
+   * First-run setup. Opened right after a vault folder is chosen, and again
+   * from the empty state when that run was postponed — choosing the folder is
+   * only the first of three steps, and the other two are what a new install
+   * used to be left to discover on its own (T-0297).
+   */
+  const [setupOpen, setSetupOpen] = useState(false);
+  /** False once setup has been run or dismissed for this vault this session. */
+  const [setupPending, setSetupPending] = useState(false);
   const [vaultExists, setVaultExists] = useState<boolean | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalMaximized, setTerminalMaximized] = useState(false);
@@ -241,6 +252,11 @@ export function TasksView({
     const picked = await pickFolders({ directory: true, title: "Choose or create a vault folder" });
     if (typeof picked === "string") {
       await saveVaultPath(picked.replaceAll("\\", "/"));
+      // The folder is one of three steps, and the dialog is what tells the
+      // owner so. It re-checks what is already true, so opening it for a vault
+      // that is fully set up costs a glance, not a run.
+      setSetupPending(true);
+      setSetupOpen(true);
     }
   }, [saveVaultPath]);
 
@@ -499,6 +515,20 @@ export function TasksView({
     [knownProjects, projectFolders],
   );
 
+  // Rendered from both branches below: the dialog has to survive the moment
+  // the board replaces the empty state, which is exactly when it opens.
+  const setupDialog = vaultPath ? (
+    <VaultSetupDialog
+      vaultPath={vaultPath}
+      open={setupOpen}
+      onClose={() => setSetupOpen(false)}
+      onDone={() => {
+        setSetupPending(false);
+        refreshTasks(vaultPath);
+      }}
+    />
+  ) : null;
+
   if (!config || vaultExists === null) return null;
 
   if (!vaultPath || !vaultExists) {
@@ -518,12 +548,41 @@ export function TasksView({
         <Button size="sm" className="gap-1.5" onClick={chooseVaultFolder}>
           <FolderOpen className="size-3.5" /> Choose vault folder
         </Button>
+        {setupDialog}
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col">
+      {setupDialog}
+      {/* Only after the setup dialog was postponed — the three steps are not
+          optional, so the way back to them must not be the folder picker. */}
+      {setupPending && !setupOpen && (
+        <div className="flex items-center gap-3 bg-muted px-4 py-2 text-[13px]">
+          <Wrench className="size-4 shrink-0 text-primary" />
+          <span className="truncate">
+            <span className="font-medium">This vault is not set up yet.</span> The template,
+            the marketplace and the workhub plugin are still outstanding.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-6 shrink-0 px-2 text-xs"
+            onClick={() => setSetupOpen(true)}
+          >
+            Resume setup
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 shrink-0 px-2 text-xs text-muted-foreground"
+            onClick={() => setSetupPending(false)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
       {/* toolbar */}
       <div className="flex items-center gap-2 overflow-x-auto border-b px-4 py-2">
         <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => openEditor("create", null)}>

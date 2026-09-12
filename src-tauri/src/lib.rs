@@ -261,6 +261,7 @@ pub fn run() {
             commands::list_inbox_notes,
             commands::read_inbox_note,
             commands::check_vault_path,
+            commands::vault_initialized,
             commands::git_status,
             commands::list_branches,
             commands::git_op,
@@ -397,6 +398,7 @@ pub fn run() {
             commands::plugin_details,
             commands::set_plugin_enabled,
             commands::plugins_update_marketplace,
+            commands::plugins_add_marketplace,
             commands::plugins_update_plugin,
         ])
         .run(tauri::generate_context!())
