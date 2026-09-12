@@ -17,6 +17,7 @@ import {
 import { ClipboardPaste, Inbox, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { matchCapturePatterns, shouldAutoPaste } from "@/lib/capture-patterns";
+import { captureTaskInput } from "@/lib/capture-task-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -97,14 +98,10 @@ export function CaptureApp() {
     setSaving(true);
     setError("");
     try {
-      const task = await api.createTask(vaultPath, {
-        title: trimmed,
-        status: "inbox",
-        assignee: "me",
-        project,
-        tags: matched.map((p) => p.id),
-        body: `\n## Description\n\n${description.trim()}\n\n## Results\n`,
-      });
+      const task = await api.createTask(
+        vaultPath,
+        captureTaskInput({ title: trimmed, description, project, matched }),
+      );
       void notifyCreated(task.id, task.title);
       hide();
     } catch (e) {
