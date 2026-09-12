@@ -128,3 +128,15 @@
 .nav-tabs-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* Passages in the Docs tab that carry a note (T-0299). Painted through the
+   CSS Custom Highlight API — see src/lib/docs/annotation-highlight.ts, which
+   keeps the same rule for the HTML preview's frame, whose document does not
+   load this stylesheet. */
+::highlight(docs-note) {
+  background-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--primary);
+  text-underline-offset: 3px;
+}

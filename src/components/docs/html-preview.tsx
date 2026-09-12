@@ -1,6 +1,8 @@
-import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { type DocNotesPane, useNoteLayer } from "@/components/docs/use-note-layer";
 import { api } from "@/lib/api";
+import { injectHighlightStyle } from "@/lib/docs/annotation-highlight";
 import { prepareHtmlDocument, serializeHtmlDocument } from "@/lib/docs/html";
 
 interface Props {
@@ -8,6 +10,10 @@ interface Props {
   path: string;
   /** The file's text, as read by the backend. */
   content: string;
+  /** Note-taking on the page, when the document sits in a root (T-0299). */
+  notes?: DocNotesPane;
+  /** `contentStamp` of `content`, recorded with each new note. */
+  stamp: string;
 }
 
 /**
@@ -45,12 +51,17 @@ function scrollToFragment(doc: Document, fragment: string) {
  *
  * Forms, popups and top-level navigation stay blocked by the sandbox too.
  */
-export function HtmlPreview({ path, content }: Props) {
+export function HtmlPreview({ path, content, notes, stamp }: Props) {
   const [srcDoc, setSrcDoc] = useState<string | null>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
+  // The frame's document, once it exists. Held in state because the note layer
+  // has to be told the moment it does — and again when a new page replaces it.
+  const [frameDoc, setFrameDoc] = useState<Document | null>(null);
 
   useEffect(() => {
     let live = true;
     setSrcDoc(null);
+    setFrameDoc(null);
     void (async () => {
       const doc = new DOMParser().parseFromString(content, "text/html");
       await prepareHtmlDocument(doc, path, {
@@ -75,6 +86,13 @@ export function HtmlPreview({ path, content }: Props) {
   // turns forever inside the preview.
   const onLoad = useCallback((e: SyntheticEvent<HTMLIFrameElement>) => {
     const doc = e.currentTarget.contentDocument;
+    if (doc) {
+      // The frame's document does not load the app's stylesheet, so the rule
+      // that paints a noted passage has to be put there. Its CSP allows an
+      // inline style; nothing else about the sandbox changes.
+      injectHighlightStyle(doc);
+      setFrameDoc(doc);
+    }
     doc?.addEventListener("click", (event) => {
       const anchor = (event.target as Element | null)?.closest?.("a[href], area[href]");
       if (!anchor) return;
@@ -85,18 +103,40 @@ export function HtmlPreview({ path, content }: Props) {
     });
   }, []);
 
+  // Coordinates inside the frame are the frame's own; the bubble is drawn in
+  // this window, so the frame's position is added to them.
+  const getOffset = useCallback(() => {
+    const rect = frame.current?.getBoundingClientRect();
+    return { x: rect?.left ?? 0, y: rect?.top ?? 0 };
+  }, []);
+  const getRoot = useCallback(() => frameDoc?.body ?? null, [frameDoc]);
+  const getDoc = useCallback(() => frameDoc, [frameDoc]);
+  const noteLayer = useNoteLayer({
+    api: notes,
+    getRoot,
+    getDoc,
+    getOffset,
+    stamp,
+    version: `${path}|${stamp}`,
+  });
+
   if (srcDoc === null) {
     return <p className="px-4 py-3 text-xs text-muted-foreground">Preparing page…</p>;
   }
   return (
-    <iframe
-      title={path}
-      sandbox="allow-same-origin"
-      srcDoc={srcDoc}
-      onLoad={onLoad}
-      // White like a browser tab: an HTML file that sets no background of its
-      // own was written for one, and would be dark-on-dark on this app's theme.
-      className="h-full w-full border-0 bg-white"
-    />
+    <>
+      <iframe
+        ref={frame}
+        title={path}
+        sandbox="allow-same-origin"
+        srcDoc={srcDoc}
+        onLoad={onLoad}
+        // White like a browser tab: an HTML file that sets no background of
+        // its own was written for one, and would be dark-on-dark on this
+        // app's theme.
+        className="h-full w-full border-0 bg-white"
+      />
+      {noteLayer}
+    </>
   );
 }

@@ -217,7 +217,7 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **HTML files preview as a page**, in a sandboxed frame with **scripts switched off**. Relative images and stylesheets are loaded; nothing is fetched from the web. A page that needs its scripts (an interactive report) will look incomplete here — open it in the browser instead.
 - **Everything in the folder is listed**, not just Markdown — names include the extension. Clicking a \`.md\` or \`.html\` file previews it here; clicking anything else (a PDF, a spreadsheet) opens it in whatever app the OS associates with it. Dot-folders like \`.obsidian\` and \`.git\` stay hidden.
 - **Right-click a file or folder** for **Open with default app** (files only — the way to see a previewable file in the browser or your own editor), **Show in Explorer** (selects it in its folder), **Add to shortcuts** and **Copy path** (the absolute path, backslashes and all). The preview header carries the first two as buttons.
-- **Editing is not offered.** The tab exists to stay out of a folder other people are working in.`;
+- **Editing is not offered — notes and a prompt are.** The tab never writes into a document folder, so there is nothing to save here. Instead: select some text in the preview, **right-click**, and write what should change. The note is pinned to that passage, which is underlined from then on; click it again to edit or delete it. The **Notes** section in the sidebar lists every note on the open document, and its copy button puts them all on the clipboard as a request for an AI agent — the file's path, the line and the quote for each note, and two standing instructions: read the file as it is now, and show the change as a diff and get it approved before writing. Paste that into Claude Code or OpenCode and the agent does the editing. The approval step is not conditional on the folder being shared: a document folder has no git in it either way, so an overwrite has no undo. Notes are this PC's own (like Recent files) and are meant to be thrown away once they are in a prompt; if the document changes underneath them, the section says so.`;
 
 const MINDMAP_MD = `## Mapping ideas (Mindmap)
 
@@ -1915,8 +1915,21 @@ export function HelpView() {
                 <span className="font-mono text-xs">.git</span> stay hidden.
               </li>
               <li>
-                <span className="font-medium text-foreground">Editing is not offered.</span> The tab exists to stay
-                out of a folder other people are working in.
+                <span className="font-medium text-foreground">
+                  Editing is not offered — notes and a prompt are.
+                </span>{" "}
+                The tab never writes into a document folder, so there is nothing to save here. Instead: select some
+                text in the preview, <span className="font-medium text-foreground">right-click</span>, and write what
+                should change. The note is pinned to that passage, which is underlined from then on; click it again to
+                edit or delete it. The <span className="font-medium text-foreground">Notes</span> section in the
+                sidebar lists every note on the open document, and its copy button puts them all on the clipboard as a
+                request for an AI agent — the file&apos;s path, the line and the quote for each note, and two standing
+                instructions: read the file as it is now, and show the change as a diff and get it approved before
+                writing. Paste that into Claude Code or OpenCode and the agent does the editing. The approval step is
+                not conditional on the folder being shared: a document folder has no git in it either way, so an
+                overwrite has no undo. Notes are this PC&apos;s own (like Recent files) and
+                are meant to be thrown away once they are in a prompt; if the document changes underneath them, the
+                section says so.
               </li>
             </ul>
           </Section>
