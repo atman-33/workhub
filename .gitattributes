@@ -8,3 +8,7 @@
 *.rs text eol=lf
 Cargo.toml text eol=lf
 Cargo.lock text eol=lf
+
+# Tauri regenerates these on every build and writes LF, so expect LF here too -
+# otherwise every build leaves them permanently "modified" on Windows.
+src-tauri/gen/schemas/*.json text eol=lf
