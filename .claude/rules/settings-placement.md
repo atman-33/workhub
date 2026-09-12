@@ -71,7 +71,8 @@ Two traps:
 ## Settings owned by a feature tab
 
 A feature's settings may live in its own tab instead of the dialog — Voice,
-Ink, Clips and Docs do (T-0277). Such a tab saves each change immediately,
+Ink, Clips and Docs do (T-0277), and Schedule and Mindmap followed behind a ⚙
+button in their toolbars (T-0289). Such a tab saves each change immediately,
 and every writer saves the *whole* `Settings` struct, so a stale copy reverts
 whatever another place changed meanwhile:
 

@@ -193,8 +193,8 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
 - **The trash button moves the note to \`_ai/memory/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
-- **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Schedule**.
-- **⚙ Settings → Vault → Schedule → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
+- **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model under the ⚙ button in the toolbar.
+- **⚙ (toolbar) → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
 
 const DOCS_MD = `## Reading shared Markdown (Docs)
 
@@ -231,7 +231,7 @@ The **Mindmap** tab is for thinking in branches — the shape you would draw on 
 - **mermaid** copies the map as a mermaid \`mindmap\` code block, ready to paste into a document or a README. The copy is one-way — mermaid cannot carry ids, colours or task links, so the note stays the editable form.
 - **HTML** writes a single self-contained page (default: the project's \`attachments/\`) with the diagram and its mermaid source; **PNG** writes an image of the same diagram at 2x.
 - **Delete moves the note to \`_ai/memory/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
-- **Edit with AI**: describe the change in plain language ("group the UI ideas under a new branch") and press Ctrl+Enter. The canvas is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model in **⚙ Settings → Vault → Mindmap**.
+- **Edit with AI**: describe the change in plain language ("group the UI ideas under a new branch") and press Ctrl+Enter. The canvas is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model under the ⚙ button in the toolbar.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.`;
 
 const INBOX_MD = `## Notes waiting in the vault (Inbox)
@@ -1645,14 +1645,11 @@ export function HelpView() {
                 language and press <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd>. The calendar
                 is locked while the agent works, and the undo button restores the
                 note to how it was just before the run. Choose the agent and model
-                in{" "}
-                <span className="font-medium">⚙ Settings → Vault → Schedule</span>
-                .
+                under the <span className="font-medium">⚙</span> button in the
+                toolbar.
               </li>
               <li>
-                <span className="font-medium">
-                  ⚙ Settings → Vault → Schedule → Calendar language
-                </span>{" "}
+                <span className="font-medium">⚙ → Calendar language</span>{" "}
                 switches weekday names, month labels and day counts between
                 English and Japanese — in the calendar and across the whole
                 exported HTML. Menus and buttons stay English. It is display
@@ -1777,8 +1774,8 @@ export function HelpView() {
                 language (&quot;group the UI ideas under a new branch&quot;) and
                 press Ctrl+Enter. The canvas is locked while the agent works,
                 and the ↺ button restores the note to how it was just before the
-                run. Choose the agent and model in{" "}
-                <span className="font-medium text-foreground">⚙ Settings → Vault → Mindmap</span>.
+                run. Choose the agent and model under the{" "}
+                <span className="font-medium text-foreground">⚙</span> button in the toolbar.
               </li>
               <li>
                 Edits save automatically a moment after you stop; the note stays
