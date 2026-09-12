@@ -17,6 +17,7 @@ import {
 import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { RecurringDialog } from "@/components/recurring-dialog";
+import { TerminalSettings } from "@/components/tasks/terminal-settings";
 import { TaskKanban } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
@@ -118,6 +119,7 @@ export function TasksView({
 
   const vaultPath = config?.settings.vault_path ?? null;
   const terminalEnabled = config?.settings.terminal_embed ?? false;
+  const herdrEnabled = config?.settings.use_herdr ?? false;
   const activeRuleCount = (config?.settings.recurring ?? []).filter((r) => r.enabled).length;
 
   const restoreTerminalSize = useCallback(() => {
@@ -235,6 +237,18 @@ export function TasksView({
       void unlisten.then((fn) => fn());
     };
   }, [vaultPath, vaultExists, refreshTasks]);
+
+  // Patched onto a fresh read rather than onto the copy held here: every save
+  // writes the whole struct, so a stale copy would revert what another tab
+  // changed meanwhile (T-0281).
+  const setTerminalEmbed = useCallback(
+    async (embed: boolean) => {
+      const next = await api.patchSettings({ terminal_embed: embed });
+      setConfig(next);
+      onSettingsChange?.(next.settings);
+    },
+    [onSettingsChange],
+  );
 
   const saveVaultPath = useCallback(
     async (path: string) => {
@@ -735,17 +749,27 @@ export function TasksView({
           </Button>
         </Hint>
 
-        {terminalEnabled && (
-          <Hint label="Toggle the embedded terminal (herdr)">
-            <Button
-              size="sm"
-              variant={terminalOpen ? "secondary" : "outline"}
-              className="h-8 gap-1.5 text-xs"
-              onClick={toggleTerminalPanel}
-            >
-              <TerminalIcon className="size-3.5" /> Terminal
-            </Button>
-          </Hint>
+        {/* Only this tab reads `terminal_embed`, so its switch sits beside the
+            toggle it governs rather than in the settings dialog (T-0300). */}
+        {herdrEnabled && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {terminalEnabled && (
+              <Hint label="Toggle the embedded terminal (herdr)">
+                <Button
+                  size="sm"
+                  variant={terminalOpen ? "secondary" : "outline"}
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={toggleTerminalPanel}
+                >
+                  <TerminalIcon className="size-3.5" /> Terminal
+                </Button>
+              </Hint>
+            )}
+            <TerminalSettings
+              embed={terminalEnabled}
+              onEmbedChange={(embed) => void setTerminalEmbed(embed)}
+            />
+          </div>
         )}
 
         <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">

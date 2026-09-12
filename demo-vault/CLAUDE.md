@@ -102,7 +102,7 @@ sending mail or messages, publishing, or spending money. Prefer the reversible
 form (append, copy, new file, draft) when one exists. Approval for one action
 is not approval for the next one.
 
-The workhub app's **Settings → Commands → Custom prompt** is appended verbatim
+The workhub app's **Settings → Agents → Custom prompt** is appended verbatim
 to every task launch prompt; its whitespace collapses to single spaces, so keep
 it to a short personal delta. Anything longer belongs in this file or in
 `profile/about-me.md`, which agents read from the vault itself.

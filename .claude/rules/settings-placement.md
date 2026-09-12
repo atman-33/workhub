@@ -71,10 +71,13 @@ Two traps:
 ## Settings owned by a feature tab
 
 A feature's settings may live in its own tab instead of the dialog — Voice,
-Ink, Clips and Docs do (T-0277), and Schedule and Mindmap followed behind a ⚙
-button in their toolbars (T-0289). Such a tab saves each change immediately,
-and every writer saves the *whole* `Settings` struct, so a stale copy reverts
-whatever another place changed meanwhile:
+Ink, Clips and Docs do (T-0277), Schedule and Mindmap followed behind a ⚙
+button in their toolbars (T-0289), and Inbox (vault tidy) and Tasks (the
+embedded terminal) behind the same ⚙ (T-0300). The test is whether anything
+outside that tab reads the setting; if nothing does, it belongs there. Such a
+tab saves each change immediately, and every writer saves the *whole*
+`Settings` struct, so a stale copy reverts whatever another place changed
+meanwhile:
 
 - Save a tab's settings with `api.patchSettings(patch)`, which merges the
   patch into a fresh `api.getConfig()` — never into the copy the tab loaded
@@ -88,3 +91,19 @@ whatever another place changed meanwhile:
   config before opening it. Keep that re-read when touching `openSettings`.
 - Leave the moved keys in the dialog's `DEFAULTS` with a comment naming the
   tab that owns them — the object still has to satisfy the `Settings` type.
+- `tidy` is one object holding both vault-scoped policy and machine-local run
+  state, so patch it field by field onto the settings the view already holds.
+  Replacing it wholesale drops whatever the tidy runner wrote meanwhile.
+
+## What stays in the dialog
+
+Two tabs, split by what the setting governs (T-0300):
+
+- **General** — the app itself: startup, startup checks, quick capture, the
+  app updater.
+- **Agents** — the AI agents it launches: command templates, worktree root,
+  Claude Desktop mode, prompt and task language, long-term memory, secretary.
+
+The vault folder sits above both, outside the tabs: every feature reads that
+one path, so it should not take a tab to find. A setting that is neither about
+the app nor about an agent is a sign it belongs to a feature tab instead.
