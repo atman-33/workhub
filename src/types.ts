@@ -143,6 +143,24 @@ export interface Settings {
    * source to that server. Vault-scoped with `docs_roots`. Managed from the
    * Docs tab. */
   docs_plantuml_server: string;
+  /** Folders and files starred in the Docs tab's Shortcuts section (T-0276),
+   * in the order they are shown. Vault-scoped with `docs_roots`, whose paths
+   * they point into. Managed from the Docs tab. */
+  docs_shortcuts: DocsShortcut[];
+  /** Whether the Docs tab splits its sidebar into a folder tree and a file
+   * list (T-0276). Off - the default - it is one tree holding both.
+   * Vault-scoped. Managed from the Docs tab. */
+  docs_list_pane: boolean;
+}
+
+/** One entry in the Docs tab's Shortcuts section (T-0276). A shortcut is its
+ * path: there is no id to keep in step. */
+export interface DocsShortcut {
+  /** Absolute path inside a registered root, forward slashes. */
+  path: string;
+  /** Whether it points at a folder; stored so the row draws the right icon
+   * without touching a share that is offline. */
+  is_dir: boolean;
 }
 
 /** One registered document root (T-0259). */

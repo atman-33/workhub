@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 
 /** The public PlantUML server, offered as the example rather than as a default. */
@@ -31,6 +32,7 @@ interface Props {
  */
 export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   const [server, setServer] = useState("");
+  const [listPane, setListPane] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -39,9 +41,11 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return;
     setError("");
-    api
-      .docsPlantumlServer()
-      .then(setServer)
+    Promise.all([api.docsPlantumlServer(), api.docsListPane()])
+      .then(([plantuml, pane]) => {
+        setServer(plantuml);
+        setListPane(pane);
+      })
       .catch((e) => setError(String(e)));
   }, [open]);
 
@@ -49,6 +53,7 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
     setSaving(true);
     try {
       await api.setDocsPlantumlServer(server);
+      await api.setDocsListPane(listPane);
       onSaved();
       onClose();
     } catch (e) {
@@ -67,6 +72,25 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
             Recorded in the vault, like the folder list.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex items-start gap-3 text-xs">
+          <Switch
+            id="docs-list-pane"
+            checked={listPane}
+            onCheckedChange={setListPane}
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <label htmlFor="docs-list-pane" className="font-medium">
+              File list beside the tree
+            </label>
+            <p className="leading-relaxed text-muted-foreground">
+              Splits the sidebar the way Obsidian's Notebook Navigator does: folders on the
+              left, the files of the folder you pick on the right. Off, the sidebar is one
+              tree holding both.
+            </p>
+          </div>
+        </div>
 
         <div className="space-y-1.5 text-xs">
           <label htmlFor="docs-plantuml-server" className="font-medium">

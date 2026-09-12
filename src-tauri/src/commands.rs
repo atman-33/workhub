@@ -2,8 +2,8 @@ use crate::docs::{self, DocsEntry, DocsRootStatus};
 use crate::mindmap;
 use crate::mindmap_edit;
 use crate::models::{
-    BacklogItem, BranchList, CommitFileChange, Config, DocsRoot, GitInfo, GitLog, GraphOp,
-    InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
+    BacklogItem, BranchList, CommitFileChange, Config, DocsRoot, DocsShortcut, GitInfo, GitLog,
+    GraphOp, InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
     VaultProject, Worktree,
 };
 use crate::music::{self, MusicData};
@@ -1137,6 +1137,36 @@ pub async fn docs_read_asset(path: String) -> Result<String, String> {
 
 /// The PlantUML server the Docs tab renders diagrams with; "" when rendering
 /// is off (the default).
+/// The starred folders and files, in the order the Shortcuts section shows
+/// them.
+#[tauri::command]
+pub fn docs_shortcuts() -> Vec<DocsShortcut> {
+    storage::load().settings.docs_shortcuts
+}
+
+/// Replaces the whole shortcut list. Adding, removing and reordering are one
+/// command because the list is the order: a per-entry command would have to
+/// carry a position anyway, and two of them could disagree about it.
+#[tauri::command]
+pub fn set_docs_shortcuts(shortcuts: Vec<DocsShortcut>) -> Result<(), String> {
+    let mut cfg = storage::load();
+    cfg.settings.docs_shortcuts = shortcuts;
+    storage::save(&cfg)
+}
+
+/// Whether the sidebar is split into a folder tree and a file list (T-0276).
+#[tauri::command]
+pub fn docs_list_pane() -> bool {
+    storage::load().settings.docs_list_pane
+}
+
+#[tauri::command]
+pub fn set_docs_list_pane(enabled: bool) -> Result<(), String> {
+    let mut cfg = storage::load();
+    cfg.settings.docs_list_pane = enabled;
+    storage::save(&cfg)
+}
+
 #[tauri::command]
 pub fn docs_plantuml_server() -> String {
     storage::load().settings.docs_plantuml_server

@@ -259,6 +259,24 @@ pub struct Settings {
     /// team's call, not a property of this machine.
     #[serde(default)]
     pub docs_plantuml_server: String,
+    /// Folders and files starred in the Docs tab's Shortcuts section (T-0276),
+    /// in the order they are shown - the list *is* the order, so reordering is
+    /// a whole-list save like adding and removing are.
+    ///
+    /// Vault-scoped with `docs_roots`: every entry is a path inside one of
+    /// those roots, so a list that stayed behind would be useless on the
+    /// second PC that does get the roots back.
+    #[serde(default)]
+    pub docs_shortcuts: Vec<DocsShortcut>,
+    /// Whether the Docs tab splits its sidebar into a folder tree and a file
+    /// list (T-0276), the way Obsidian's Notebook Navigator does. Off - the
+    /// default - the sidebar is one tree holding folders and files together,
+    /// which is what the tab shipped with.
+    ///
+    /// Vault-scoped: it says how these documents are read, not what this
+    /// machine is, the same reasoning as `schedule_locale`.
+    #[serde(default)]
+    pub docs_list_pane: bool,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -453,6 +471,8 @@ impl Default for Settings {
             recurring: Vec::new(),
             docs_roots: Vec::new(),
             docs_plantuml_server: String::new(),
+            docs_shortcuts: Vec::new(),
+            docs_list_pane: false,
         }
     }
 }
@@ -469,6 +489,21 @@ pub struct DocsRoot {
     /// The shared location, as the team knows it. Forward slashes.
     #[serde(default)]
     pub path: String,
+}
+
+/// One entry in the Docs tab's Shortcuts section (T-0276).
+///
+/// There is no id: a shortcut *is* its path. That is what makes "is this row
+/// starred?" a lookup rather than a join, and what lets the star be toggled
+/// from a tree row without the tree knowing anything about the bookkeeping.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct DocsShortcut {
+    /// Absolute path inside a registered root. Forward slashes.
+    pub path: String,
+    /// Whether it points at a folder. Stored rather than probed, so the list
+    /// draws the right icon without touching a share that is offline.
+    #[serde(default)]
+    pub is_dir: bool,
 }
 
 /// One recurring-task rule (T-0110): a task template plus the calendar that

@@ -140,6 +140,8 @@ const DEFAULTS: Settings = {
   // Managed from the Docs tab itself, not from this dialog (T-0259).
   docs_roots: [],
   docs_plantuml_server: "",
+  docs_shortcuts: [],
+  docs_list_pane: false,
 };
 
 interface Props {
