@@ -103,6 +103,93 @@ describe("flattenTree", () => {
     expect(entryRows(rows).map((r) => r.entry.name)).toEqual(["docs", "sub"]);
   });
 
+  it("calls a listed folder with nothing to show a leaf", () => {
+    // `sub` holds only a file, so in folders-only mode there is nothing under
+    // it to draw — and nothing to expand onto.
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: { [`${ROOT}/docs`]: true },
+      filter: "",
+      foldersOnly: true,
+    });
+    const sub = entryRows(rows).find((r) => r.entry.name === "sub");
+    expect(sub?.isLeaf).toBe(true);
+    expect(entryRows(rows).find((r) => r.entry.name === "docs")?.isLeaf).toBeUndefined();
+  });
+
+  it("draws no row under a leaf, and no message either", () => {
+    // `open` can still say the folder is expanded — it was, before its last
+    // sub-folder went away. The leaf wins, and nothing is drawn beneath it.
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: { [`${ROOT}/docs`]: true, [`${ROOT}/docs/sub`]: true },
+      filter: "",
+      foldersOnly: true,
+    });
+    expect(rows.filter((r) => r.kind === "message")).toEqual([]);
+    expect(entryRows(rows).map((r) => r.entry.name)).toEqual(["docs", "sub"]);
+  });
+
+  it("keeps a visible leaf in `needed` so a refresh re-reads it", () => {
+    // Without this the folder could never stop being a leaf: it is closed, so
+    // nothing else would ever ask for its listing again.
+    const { needed } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: { [`${ROOT}/docs`]: true },
+      filter: "",
+      foldersOnly: true,
+    });
+    expect(needed).toEqual([ROOT, `${ROOT}/docs`, `${ROOT}/docs/sub`]);
+  });
+
+  it("never calls a folder a leaf while filtering", () => {
+    // An empty result here is the filter's doing and lasts as long as the
+    // typing does; a chevron lost mid-search would not come back.
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: { [`${ROOT}/docs`]: true, [`${ROOT}/docs/sub`]: true },
+      filter: "zzz",
+      foldersOnly: false,
+    });
+    expect(entryRows(rows).every((r) => r.isLeaf === undefined)).toBe(true);
+    // `sub` stays open and says why it looks empty, rather than turning into
+    // a leaf the search has manufactured.
+    expect(rows.filter((r) => r.kind === "message")).toMatchObject([
+      { text: "Nothing matching here." },
+    ]);
+  });
+
+  it("leaves an unlisted folder alone rather than fetching it to find out", () => {
+    // Being on screen is not a reason to read a folder — that is the
+    // whole-tree walk the lazy tree exists to avoid.
+    const { rows, needed } = flattenTree({
+      rootPath: ROOT,
+      dirs: { [ROOT]: { status: "ready", entries: [dir("docs", ROOT)] } },
+      open: {},
+      filter: "",
+      foldersOnly: false,
+    });
+    expect(entryRows(rows)[0].isLeaf).toBeUndefined();
+    expect(needed).toEqual([ROOT]);
+  });
+
+  it("says so when the root itself is empty", () => {
+    // The root has no chevron to drop, so it is the one folder that can be
+    // drawn open with nothing in it.
+    const { rows } = flattenTree({
+      rootPath: ROOT,
+      dirs: { [ROOT]: { status: "ready", entries: [] } },
+      open: {},
+      filter: "",
+      foldersOnly: false,
+    });
+    expect(rows).toMatchObject([{ kind: "message", text: "This folder is empty." }]);
+  });
+
   it("draws a row for the root when asked, and keeps its children beneath it", () => {
     const { rows } = flattenTree({
       rootPath: ROOT,
@@ -196,6 +283,26 @@ describe("navigate", () => {
 
   it("does nothing on Right over a file", () => {
     expect(navigate("ArrowRight", rows, `${ROOT}/notes.md`, open)).toEqual({ type: "none" });
+  });
+
+  it("treats a leaf folder like a file: Right does nothing, Left goes up", () => {
+    // In folders-only mode `sub` holds no folders, so it is drawn without a
+    // chevron and the keys must agree with what is on screen.
+    const leafOpen = { ...open, [`${ROOT}/docs/sub`]: true };
+    const foldersRows = flattenTree({
+      rootPath: ROOT,
+      dirs,
+      open: leafOpen,
+      filter: "",
+      foldersOnly: true,
+    }).rows;
+    expect(navigate("ArrowRight", foldersRows, `${ROOT}/docs/sub`, leafOpen)).toEqual({
+      type: "none",
+    });
+    expect(navigate("ArrowLeft", foldersRows, `${ROOT}/docs/sub`, leafOpen)).toEqual({
+      type: "move",
+      path: `${ROOT}/docs`,
+    });
   });
 
   it("closes an open folder with Left, and otherwise goes up a level", () => {

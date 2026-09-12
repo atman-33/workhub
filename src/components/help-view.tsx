@@ -207,7 +207,7 @@ The **Docs** tab reads Markdown that lives outside the vault — a Google Drive 
 - **Mermaid diagrams render**, and images embedded by a document are shown — both the Markdown \`![](file.png)\` form and Obsidian's \`![[file.png]]\`. Relative paths resolve against the document.
 - **PlantUML diagrams render once a server is set.** \`\`\`plantuml\` (or \`\`\`puml\`) blocks are drawn by a PlantUML server, which receives each diagram's source. Until you enter one with the **gear button** on the tab, they stay code and nothing is sent. The public \`https://www.plantuml.com/plantuml\` works; a server your team runs is the better home for a team's documents. The setting is stored in the vault, like the folder list.
 - **Shortcuts keep the documents you keep coming back to.** Right-click a file or a folder and choose **Add to shortcuts**: it is listed at the top of the sidebar, and dragging by the grip reorders the list. The list is stored in the vault beside the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
-- **Recent files** lists the last ten documents you opened, per folder. It is this PC's own history — it is not stored in the vault — and the x beside the heading clears it.
+- **Recent files** lists the last five documents you opened, per folder. It is this PC's own history — it is not stored in the vault — and the x beside the heading clears it.
 - **A file list beside the tree, optionally.** The gear button's **File list beside the tree** splits the sidebar the way Obsidian's Notebook Navigator does: folders on the left, the files of the folder you pick on the right. It is off by default, and off the sidebar is one tree holding both. With it on, a folder's name selects it and its chevron expands it.
 - **The keyboard walks the tree.** Click a row, then **↑** / **↓** move between rows, **→** opens a folder (and again steps into it), **←** closes it or goes up a level, and **Home** / **End** jump to the ends. **Enter** is what opens a document — moving the cursor deliberately does not, because reading a file per keypress off a network share is unusable.
 - **Reading a wide document.** The preview header zooms the text (**Ctrl+wheel** too), and its width button drops the reading line length so the document uses the whole pane. Both are remembered. The **window button** opens the whole document in a window of its own, and hovering a diagram or an image shows a button — or double-click it — that opens just that figure in a window where the **wheel zooms around the cursor** and **dragging pans** (any mouse button; a right-drag that moved the figure does not open the context menu). The divider between the tree and the preview remembers where you left it.
@@ -1855,7 +1855,7 @@ export function HelpView() {
                 the folder list, so a second PC gets it back. Clicking a shortcut opens the tree down to it.
               </li>
               <li>
-                <span className="font-medium text-foreground">Recent files</span> lists the last ten documents you
+                <span className="font-medium text-foreground">Recent files</span> lists the last five documents you
                 opened, per folder. It is this PC&apos;s own history — not stored in the vault — and the x beside
                 the heading clears it.
               </li>

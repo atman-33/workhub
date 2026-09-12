@@ -9,6 +9,7 @@ import {
 import { Copy, ExternalLink, File, FileCode, FileText, FolderOpen, Star, StarOff } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import type { EntryActions } from "@/components/docs/docs-tree";
+import { isPreviewable } from "@/lib/docs/preview-kind";
 import { baseName, type DirState } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsEntry } from "@/types";
@@ -63,7 +64,7 @@ export function DocsFileList({
 
   const activate = (entry: DocsEntry) => {
     onCursorChange(entry.path);
-    if (entry.is_markdown || entry.is_html) onSelect(entry);
+    if (isPreviewable(entry)) onSelect(entry);
     else actions.openExternal(entry);
   };
 
@@ -146,7 +147,7 @@ function FileRow({
   onActivate: (entry: DocsEntry) => void;
   actions: EntryActions;
 }) {
-  const previewable = entry.is_markdown || entry.is_html;
+  const previewable = isPreviewable(entry);
   const starred = actions.isShortcut(entry.path);
   return (
     <ContextMenu>
@@ -164,7 +165,7 @@ function FileRow({
           >
             {entry.is_markdown ? (
               <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-            ) : entry.is_html ? (
+            ) : entry.is_html || entry.is_text ? (
               <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
             ) : (
               <File className="size-3.5 shrink-0 text-muted-foreground/60" />

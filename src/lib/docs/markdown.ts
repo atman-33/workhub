@@ -8,6 +8,27 @@
  * pinned down by tests instead of by looking at a preview.
  */
 
+/**
+ * Splits a document's YAML frontmatter off its body (T-0294).
+ *
+ * Left in, the block is not merely unstyled — it is actively *mis*-read.
+ * CommonMark has no frontmatter: the opening `---` is a thematic break, the
+ * keys below it are a paragraph, and the closing `---` underlines that
+ * paragraph into a setext **heading**. An Obsidian note therefore opened with
+ * its own metadata set in headline type, the loudest thing on a page whose
+ * point is the prose underneath.
+ *
+ * The block has to start at byte zero or it is a horizontal rule like any
+ * other. Its content is returned as written rather than parsed: the preview
+ * shows it as reference material, and a YAML parser here could only disagree
+ * with the one in Obsidian.
+ */
+export function splitFrontmatter(text: string): { frontmatter: string; body: string } {
+  const match = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
+  if (!match) return { frontmatter: "", body: text };
+  return { frontmatter: match[1], body: text.slice(match[0].length) };
+}
+
 /** True for a source the preview must hand to the browser untouched. */
 export function isExternalSrc(src: string): boolean {
   return /^(https?:|data:|blob:|mailto:|#)/i.test(src.trim());

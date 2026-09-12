@@ -116,7 +116,13 @@ function FigureFrame({
   if (!onOpen) return <>{children}</>;
   return (
     <span
-      className={cn("group/figure relative", inline ? "inline-block max-w-full" : "block")}
+      // A diagram is not text. Left selectable, dragging across one paints the
+      // whole figure blue or starts an image drag, instead of extending the
+      // selection through the prose either side of it (T-0294).
+      className={cn(
+        "group/figure relative select-none",
+        inline ? "inline-block max-w-full" : "block",
+      )}
       onDoubleClick={onOpen}
     >
       {children}

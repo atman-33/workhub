@@ -6,6 +6,7 @@ import {
   isExternalSrc,
   normalizeSlashPath,
   resolveDocRelative,
+  splitFrontmatter,
   toWindowsPath,
 } from "./markdown";
 
@@ -144,5 +145,38 @@ describe("basename", () => {
 
   it("ignores a trailing slash", () => {
     expect(basename("G:/share/folder/")).toBe("folder");
+  });
+});
+
+describe("splitFrontmatter", () => {
+  it("takes the block off the top and leaves the body alone", () => {
+    const { frontmatter, body } = splitFrontmatter(
+      "---\nid: B-007\ntitle: Mindmap\n---\n\n# Heading\n",
+    );
+    expect(frontmatter).toBe("id: B-007\ntitle: Mindmap");
+    expect(body).toBe("\n# Heading\n");
+  });
+
+  it("survives CRLF, which is what a Windows share hands over", () => {
+    const { frontmatter, body } = splitFrontmatter("---\r\nid: B-007\r\n---\r\nbody\r\n");
+    expect(frontmatter).toBe("id: B-007");
+    expect(body).toBe("body\r\n");
+  });
+
+  it("leaves a document without frontmatter untouched", () => {
+    const text = "# Heading\n\n---\n\nmore\n";
+    expect(splitFrontmatter(text)).toEqual({ frontmatter: "", body: text });
+  });
+
+  it("does not mistake a leading horizontal rule for a block", () => {
+    // A rule and then prose, with no closing delimiter: nothing to take off.
+    const text = "---\n\njust prose\n";
+    expect(splitFrontmatter(text)).toEqual({ frontmatter: "", body: text });
+  });
+
+  it("stops at the first closing delimiter", () => {
+    const { frontmatter, body } = splitFrontmatter("---\na: 1\n---\ntext\n---\nmore\n");
+    expect(frontmatter).toBe("a: 1");
+    expect(body).toBe("text\n---\nmore\n");
   });
 });

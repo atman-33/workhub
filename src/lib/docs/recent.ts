@@ -11,8 +11,15 @@
  * after a root switch.
  */
 
-/** How many files the section holds. The eleventh drops off the end. */
-export const RECENT_LIMIT = 10;
+/**
+ * How many files the section holds; the sixth drops off the end.
+ *
+ * Five rather than ten (T-0294): the list sits above the folder tree in a
+ * narrow sidebar, and every row it keeps is a row of tree the reader does not
+ * see. A list already longer than this is trimmed on the next read, so the
+ * change needs no migration.
+ */
+export const RECENT_LIMIT = 5;
 
 const KEY_PREFIX = "docs.recent.";
 

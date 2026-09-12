@@ -12,7 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/lib/api";
-import { basename, expandWikiEmbeds, resolveDocRelative } from "@/lib/docs/markdown";
+import {
+  basename,
+  expandWikiEmbeds,
+  resolveDocRelative,
+  splitFrontmatter,
+} from "@/lib/docs/markdown";
+import { previewKindForPath } from "@/lib/docs/preview-kind";
 import { PREVIEW_ZOOM, parsePreviewZoom, stepPreviewZoom } from "@/lib/docs/zoom";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
@@ -56,9 +62,26 @@ function remember(key: string, value: string) {
   }
 }
 
-/** True when `path` names an HTML file, which gets a frame instead of Markdown. */
-function isHtmlPath(path: string): boolean {
-  return /\.html?$/i.test(path);
+/**
+ * A document's YAML frontmatter, shown as the reference material it is.
+ *
+ * Small, muted and monospaced on purpose: it is metadata the reader glances
+ * at, not the document. Before T-0294 it was not styled at all — CommonMark
+ * read the closing `---` as a setext underline and set the whole block in
+ * heading type, which made a note's keys the loudest thing on the page.
+ */
+function Frontmatter({ text, fullWidth }: { text: string; fullWidth: boolean }) {
+  return (
+    <pre
+      className={cn(
+        "mb-4 overflow-x-auto rounded-md border border-border/60 bg-muted/20 px-3 py-2",
+        "font-mono text-[11px] leading-relaxed text-muted-foreground",
+        fullWidth ? "max-w-none" : "mx-auto max-w-3xl",
+      )}
+    >
+      {text}
+    </pre>
+  );
 }
 
 /** Opens one figure in a viewer window of its own. */
@@ -125,10 +148,21 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
     };
   }, [path, refreshToken]);
 
-  // Obsidian's `![[file]]` embeds are not CommonMark, so they are rewritten
-  // before the renderer ever sees them.
-  const html = isHtmlPath(path);
-  const markdown = useMemo(() => (html ? "" : expandWikiEmbeds(content)), [html, content]);
+  // Which renderer this file gets is decided by its name, because a viewer
+  // window is launched with a path and never sees the listing it came from.
+  const kind = previewKindForPath(path);
+  const html = kind === "html";
+  const text = kind === "text";
+
+  // Frontmatter is lifted out before the renderer sees it, and Obsidian's
+  // `![[file]]` embeds are rewritten, since neither is CommonMark.
+  // Anything with no kind of its own is read as Markdown, which is what the
+  // pane has always done with a path it was handed and did not recognise.
+  const { frontmatter, markdown } = useMemo(() => {
+    if (html || text) return { frontmatter: "", markdown: "" };
+    const split = splitFrontmatter(content);
+    return { frontmatter: split.frontmatter, markdown: expandWikiEmbeds(split.body) };
+  }, [html, text, content]);
 
   // Keyed by the document *and* the refresh token so a re-read drops the
   // images with the text it belongs to.
@@ -284,23 +318,45 @@ export function DocsPreview({ path, refreshToken, onError, onBusyChange, standal
       {/* The frame scrolls itself, so an HTML page gets the pane edge to edge. */}
       <div
         ref={scroller}
-        className={
+        className={cn(
+          // The app sets `user-select: none` on the body to feel native, and
+          // only inputs opt back in — which left the one pane whose whole
+          // content is prose unselectable (T-0294). Read-only text you cannot
+          // copy out of is a document you have to open somewhere else.
+          "select-text cursor-auto",
           html && !error && content
             ? "min-h-0 flex-1"
-            : "min-h-0 flex-1 overflow-y-auto px-6 py-4"
-        }
+            : "min-h-0 flex-1 overflow-y-auto px-6 py-4",
+        )}
       >
         {error && <p className="text-xs text-destructive">{error}</p>}
         {!error && loading && !content && (
           <p className="text-xs text-muted-foreground">Reading…</p>
         )}
         {!error && content && html && <HtmlPreview path={path} content={content} />}
-        {!error && content && !html && (
+        {!error && content && text && (
+          // Shown exactly as it is on disk (T-0294): no parsing, no
+          // highlighting, no table made out of a CSV. The point is to read a
+          // small file without leaving the tab; anything the raw form cannot
+          // carry is what "Open with default app" is still there for.
+          <div style={{ zoom }}>
+            <pre
+              className={cn(
+                "whitespace-pre-wrap break-words font-mono text-xs leading-relaxed",
+                fullWidth ? "max-w-none" : "mx-auto max-w-3xl",
+              )}
+            >
+              {content}
+            </pre>
+          </div>
+        )}
+        {!error && content && !html && !text && (
           // `zoom` rather than a transform: the text re-flows at the new size,
           // so a zoomed document still fits the pane instead of overflowing it.
           // Keyed by the refresh, so a re-read also redraws the diagrams — a
           // PlantUML server set since the last draw included.
           <div key={refreshToken} style={{ zoom }}>
+            {frontmatter && <Frontmatter text={frontmatter} fullWidth={fullWidth} />}
             <Markdown
               variant="document"
               className={cn(fullWidth && "max-w-none")}

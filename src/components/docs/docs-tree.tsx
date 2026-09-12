@@ -23,6 +23,7 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { toWindowsPath } from "@/lib/docs/markdown";
+import { isPreviewable } from "@/lib/docs/preview-kind";
 import { type DirState, entryRows, flattenTree, navigate, type Row } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
 import type { DocsEntry } from "@/types";
@@ -131,14 +132,17 @@ export function DocsTree({
   );
 
   const activate = useCallback(
-    (entry: DocsEntry) => {
+    (entry: DocsEntry, leaf = false) => {
       onCursorChange(entry.path);
       if (entry.is_dir) {
+        // A leaf still selects in folders-only mode — it is a folder with
+        // documents in it, just none of them folders — but there is nothing
+        // to expand, so the plain tree's row does nothing at all.
         if (foldersOnly) onSelectDir?.(entry.path);
-        else toggle(entry.path);
+        else if (!leaf) toggle(entry.path);
         return;
       }
-      if (entry.is_markdown || entry.is_html) {
+      if (isPreviewable(entry)) {
         onSelect(entry);
         return;
       }
@@ -161,7 +165,7 @@ export function DocsTree({
       const row = entryRows(rows).find((r) => r.entry.path === cursor);
       if (!row) return;
       e.preventDefault();
-      activate(row.entry);
+      activate(row.entry, !!row.isLeaf);
       return;
     }
     if (
@@ -221,8 +225,9 @@ export function DocsTree({
           <TreeRow
             key={row.entry.path}
             row={row}
-            open={row.isRoot || !!open[row.entry.path]}
+            open={row.isRoot || (!row.isLeaf && !!open[row.entry.path])}
             isRoot={!!row.isRoot}
+            isLeaf={!!row.isLeaf}
             selected={
               row.entry.is_dir ? row.entry.path === selectedDir : row.entry.path === selected
             }
@@ -242,6 +247,7 @@ function TreeRow({
   row,
   open,
   isRoot,
+  isLeaf,
   selected,
   cursored,
   foldersOnly,
@@ -252,15 +258,16 @@ function TreeRow({
   row: Extract<Row, { kind: "entry" }>;
   open: boolean;
   isRoot: boolean;
+  isLeaf: boolean;
   selected: boolean;
   cursored: boolean;
   foldersOnly: boolean;
   onToggle: (path: string) => void;
-  onActivate: (entry: DocsEntry) => void;
+  onActivate: (entry: DocsEntry, leaf?: boolean) => void;
   actions: EntryActions;
 }) {
   const { entry, depth } = row;
-  const previewable = entry.is_markdown || entry.is_html;
+  const previewable = isPreviewable(entry);
   const starred = actions.isShortcut(entry.path);
 
   const rowClass = cn(
@@ -283,8 +290,10 @@ function TreeRow({
             {/* The chevron is its own target: in folders-only mode the row
                 selects the folder, so expanding has to be a separate intent. */}
             {/* The root row has no chevron: collapsing it would hide the
-                whole tree and leave nothing to click but itself. */}
-            {isRoot ? (
+                whole tree and leave nothing to click but itself. A leaf has
+                none either — that absence is how the tree says there is
+                nothing inside, instead of opening onto a message (T-0294). */}
+            {isRoot || isLeaf ? (
               <span className="size-3 shrink-0" />
             ) : (
               <button
@@ -302,7 +311,9 @@ function TreeRow({
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-1 text-left"
-              onClick={() => (foldersOnly ? onActivate(entry) : onToggle(entry.path))}
+              onClick={() =>
+                foldersOnly ? onActivate(entry, isLeaf) : !isLeaf && onToggle(entry.path)
+              }
             >
               {open ? (
                 <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
@@ -332,7 +343,7 @@ function TreeRow({
           >
             {entry.is_markdown ? (
               <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-            ) : entry.is_html ? (
+            ) : entry.is_html || entry.is_text ? (
               <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
             ) : (
               <File className="size-3.5 shrink-0 text-muted-foreground/60" />
