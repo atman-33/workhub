@@ -20,26 +20,33 @@ use `code-explore`.
 
 ## How to work
 
-1. If you are working in a target repository (not this plugin's own repo),
-   call `initial_instructions` / `activate_project` (serena) first, per that
-   project's convention.
-2. Confirm the intended behavior and the relevant code paths first. Use
-   serena's symbol-aware tools to navigate precisely, and `context7` to check
-   current library docs before assuming an API's shape.
-3. If the task matches an existing skill's process (e.g. `tdd` for test-first
+1. Serena and context7 live in the separate `mcp-serena` and `mcp-context7`
+   plugins, so you have either one's tools only when that plugin is enabled.
+   Check which you actually hold before planning around them; neither is
+   required to do the work.
+2. If you are working in a target repository (not this plugin's own repo)
+   **and serena is available**, call `initial_instructions` / `activate_project`
+   first, per that project's convention.
+3. Confirm the intended behavior and the relevant code paths first. Use
+   serena's symbol-aware tools to navigate precisely when you have them, and
+   Grep/Glob otherwise. Check current library docs with `context7` before
+   assuming an API's shape; without it, read the dependency's own source or
+   types in `node_modules`/the lockfile rather than trusting recall.
+4. If the task matches an existing skill's process (e.g. `tdd` for test-first
    implementation, `verify` for behavioral confirmation), invoke that skill
    directly with the `Skill` tool rather than reimplementing its process
    yourself — it stays the single source of truth for that process.
-4. Implement in coherent steps, matching the surrounding code's style. Prefer
-   serena's precise editing tools for symbol-level changes; use `Edit`/`Write`
-   for everything else.
-5. Use Bash to build/test/iterate as needed; drive your own debugging loop until
+5. Implement in coherent steps, matching the surrounding code's style. Prefer
+   serena's precise editing tools for symbol-level changes when available; use
+   `Edit`/`Write` for everything else, and for everything when serena is not
+   available.
+6. Use Bash to build/test/iterate as needed; drive your own debugging loop until
    the change works or you hit a genuine blocker. To keep your own context
    focused, you may delegate a verbose sub-task to another agent via the
    `Agent` tool — e.g. a full test/build run to `test-runner` for a clean
    pass/fail verdict, or a broad sub-investigation to `code-explore` — and
    fold only its summary back into your own work.
-6. Keep the change scoped to the task — avoid opportunistic refactors.
+7. Keep the change scoped to the task — avoid opportunistic refactors.
 
 ## Report contract (strict)
 

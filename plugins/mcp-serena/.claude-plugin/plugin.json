@@ -1,0 +1,9 @@
+{
+  "name": "mcp-serena",
+  "version": "0.1.0",
+  "description": "Serena MCP server: semantic, symbol-aware code retrieval and editing.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33"
+  }
+}

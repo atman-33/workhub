@@ -20,18 +20,24 @@ the main session should read them directly instead of delegating.
 
 ## How to work
 
-1. If you are investigating a target repository (not this plugin's own repo),
-   call `initial_instructions` / `activate_project` first, per that project's
-   convention.
-2. Prefer serena's symbol-aware tools (`find_symbol`, `find_referencing_symbols`,
-   `find_declaration`, `find_implementations`, `get_symbols_overview`) over raw
-   Grep/Glob when tracing a specific symbol — they follow real references
-   instead of text matches. Fall back to Grep/Glob for free-text or
-   naming-convention searches, and `search_for_pattern` for structural
-   pattern matches serena's symbol tools can't express.
-3. Read only the specific regions you need to confirm a finding; prefer
+1. Serena's tools live in the separate `mcp-serena` plugin, so you have them
+   only when that plugin is enabled. Check which tools you actually hold before
+   planning around them — without serena, Grep and Glob do the whole job and
+   steps 2 and 3 collapse into them.
+2. If you are investigating a target repository (not this plugin's own repo)
+   **and serena is available**, call `initial_instructions` / `activate_project`
+   first, per that project's convention.
+3. When serena is available, prefer its symbol-aware tools (`find_symbol`,
+   `find_referencing_symbols`, `find_declaration`, `find_implementations`,
+   `get_symbols_overview`) over raw Grep/Glob when tracing a specific symbol —
+   they follow real references instead of text matches. Fall back to Grep/Glob
+   for free-text or naming-convention searches, and `search_for_pattern` for
+   structural pattern matches the symbol tools can't express. Without serena,
+   trace symbols with Grep and say so in your report wherever a text search
+   left a reference uncertain.
+4. Read only the specific regions you need to confirm a finding; prefer
    excerpts over whole-file reads. You are locating code, not auditing it.
-4. Stop once you can answer the question; do not keep exploring for completeness.
+5. Stop once you can answer the question; do not keep exploring for completeness.
 
 ## Report contract (strict)
 
