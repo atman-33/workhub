@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.114.0 (2026-09-12)
+
+- **The Docs sidebar is built after Obsidian's Notebook Navigator** (T-0276).
+  It was one lazy folder tree and nothing else, so on a deep shared drive
+  getting back to the three documents that matter meant re-opening four levels
+  every time. It now carries a **Shortcuts** list you curate — star a file or
+  folder from its right-click menu, drag to reorder, and clicking one opens the
+  tree down to it — above a **Recent files** list of the last ten documents
+  opened in that folder. A setting splits the sidebar further into a folder
+  tree and a list of the selected folder's files, the way the Obsidian plugin
+  lays a vault out; it is off by default, and off the sidebar stays the single
+  tree it was. The shortcuts and the split follow the vault, like the folder
+  list already did; the recent files are this machine's own history and stay
+  here.
+- **The Docs tree answers the arrow keys** (T-0276). Up and Down move a cursor
+  between rows, Right opens a folder and then steps into it, Left closes it or
+  goes up a level, and Enter opens the document. Moving the cursor deliberately
+  does not open anything: on a network share, reading a file on every keypress
+  makes the keys useless. The sidebar also narrows much further than it used
+  to, for when the preview is what you want the width for.
+- **A figure window pans with any mouse button** (T-0276). Reading a large
+  mermaid diagram is mostly dragging it around, and the hand is usually already
+  on the right button. The right and middle buttons now pan as the left one
+  does, and a right-drag that actually moved the figure no longer opens the
+  context menu when you let go.
+- **Schedule and Mindmap keep their settings in their own tabs** (T-0289). The
+  calendar language, the export folder and the agent that edits a note lived in
+  the Settings dialog's Vault tab, so changing any of them meant opening a
+  modal over the note being edited. Voice, Ink, Clips and Docs already owned
+  their settings; these two now do too, behind a gear button in their own
+  toolbars, and each change saves as it is made.
+
 ## 0.113.0 (2026-09-12)
 
 - **The task editor's Project picker shows each project's folder number**
