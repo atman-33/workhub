@@ -263,17 +263,33 @@ export function navigate(
 }
 
 /**
- * The folders between `rootPath` and `path`, so a shortcut can open the tree
- * down to what it points at.
+ * True when `path` is `rootPath` or sits under it.
  *
  * Paths are compared as strings because that is what they are here: the
  * backend hands out absolute, forward-slashed paths, and every child of a root
- * starts with it. A path outside the root yields nothing rather than guessing.
+ * starts with it. The separator in the test is what keeps `G:/share-old` from
+ * counting as inside `G:/share`.
+ *
+ * This is the frontend's own containment question — "is this row worth showing
+ * while that root is picked" — and is not the security boundary. That is
+ * `resolve_within_roots` in `src-tauri/src/docs.rs`, which canonicalizes both
+ * sides and is the only thing a read is ever allowed through.
+ */
+export function isWithinRoot(rootPath: string, path: string): boolean {
+  if (!rootPath || !path) return false;
+  const root = rootPath.replace(/\/+$/, "");
+  return path === root || path.startsWith(`${root}/`);
+}
+
+/**
+ * The folders between `rootPath` and `path`, so a shortcut can open the tree
+ * down to what it points at.
+ *
+ * A path outside the root yields nothing rather than guessing.
  */
 export function ancestorsWithin(rootPath: string, path: string): string[] {
-  if (!rootPath || !path) return [];
+  if (!isWithinRoot(rootPath, path)) return [];
   const root = rootPath.replace(/\/+$/, "");
-  if (path !== root && !path.startsWith(`${root}/`)) return [];
   const rest = path.slice(root.length + 1);
   if (!rest) return [];
   const parts = rest.split("/").filter(Boolean);

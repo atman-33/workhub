@@ -212,13 +212,17 @@ function SortableShortcut({
 
 export function ShortcutsSection({
   shortcuts,
+  elsewhere,
   activePath,
   onOpen,
   onReveal,
   onRemove,
   onReorder,
 }: {
+  /** The picked root's shortcuts only — see `shortcutsInRoot`. */
   shortcuts: DocsShortcut[];
+  /** How many are starred in the *other* roots, for the empty state. */
+  elsewhere: number;
   activePath: string;
   onOpen: (shortcut: DocsShortcut) => void;
   onReveal: (shortcut: DocsShortcut) => void;
@@ -252,7 +256,13 @@ export function ShortcutsSection({
       {!collapsed &&
         (shortcuts.length === 0 ? (
           <p className="px-2 pb-2 text-[11px] leading-relaxed text-muted-foreground">
-            Star a folder or a document from the tree's right-click menu to keep it here.
+            {/* Saying "star something" to someone who has starred plenty —
+                just not in this folder — reads as if the list were lost. */}
+            {elsewhere > 0
+              ? `Nothing starred in this folder. ${elsewhere} ${
+                  elsewhere === 1 ? "shortcut is" : "shortcuts are"
+                } in the other folders.`
+              : "Star a folder or a document from the tree's right-click menu to keep it here."}
           </p>
         ) : (
           <DndContext
