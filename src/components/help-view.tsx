@@ -52,8 +52,8 @@ const SETUP_MD = `## Initial setup
 A few steps to get workhub ready on a new machine. The fastest path is to run the \`vault-setup\` skill in Claude Code from the vault folder — it checks and installs the prerequisites, initializes the vault, wires up the plugins, and syncs OpenCode. To do it by hand:
 
 1. **Install the prerequisite software.** \`git\`, \`Node.js\` (≥ 20), and \`Claude Code\` are required. \`Obsidian\` (edit the vault by hand), \`OpenCode\` (optional second agent), and \`herdr\` (the default launcher — workhub opens each AI task in a fresh herdr workspace) are optional but recommended. The \`vault-setup\` skill probes for these and offers the install commands.
-2. **Create the task vault.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`) and press **Init vault** to expand the bundled template into it. You can change it later in **⚙ Settings → Vault → Tasks vault path**.
-3. **Install the Claude Code plugins.** The vault template registers the marketplace but enables nothing, because a plugin is switched on per machine rather than per vault. The **Plugins** tab is the easiest way in: it lists every plugin with its tier and a toggle. To do it from a terminal instead:
+2. **Create the task vault, and let the app set it up.** On first launch the **Tasks** tab asks you to choose a folder — pick an empty one (e.g. \`C:/obsidian/workhub-vault\`). Choosing it opens the **setup dialog**, which names three steps and runs them together on one press: expand the bundled template into the folder, register the marketplace, and switch on the \`workhub\` plugin at user scope. Each step is skipped when it is already done, so the dialog is safe to re-open; a failed step offers a retry and the command to run by hand. Press **Later** and a banner keeps the way back. You can change the folder later in **⚙ Settings → Vault → Tasks vault path**; **Init vault** stays in the toolbar for re-applying the template.
+3. **Add the plugins you want.** Setup switches on \`workhub\` alone — the one plugin the app itself needs. Everything else is a matter of how you like to work, so it is left to you: the **Plugins** tab lists every plugin with its tier, what it carries, and a toggle. To do it from a terminal instead:
 
 \`\`\`bash
 # one-time: register the marketplace
@@ -615,24 +615,36 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  Create the task vault.
+                  Create the task vault, and let the app set it up.
                 </span>{" "}
                 On first launch the <span className="font-medium">Tasks</span>{" "}
                 tab asks you to choose a folder — pick an empty one (e.g.{" "}
                 <span className="font-mono text-xs">C:/obsidian/workhub-vault</span>
-                ) and press <span className="font-medium">Init vault</span> to
-                expand the bundled template into it. You can change it later in{" "}
-                <span className="font-medium">⚙ Settings → Vault → Tasks vault path</span>.
+                ). Choosing it opens the{" "}
+                <span className="font-medium">setup dialog</span>, which names
+                three steps and runs them together on one press: expand the
+                bundled template into the folder, register the marketplace, and
+                switch on the <span className="font-mono text-xs">workhub</span>{" "}
+                plugin at user scope. A step already done is skipped, so the
+                dialog is safe to re-open; a failed one offers a retry and the
+                command to run by hand. Press{" "}
+                <span className="font-medium">Later</span> and a banner keeps
+                the way back. You can change the folder later in{" "}
+                <span className="font-medium">⚙ Settings → Vault → Tasks vault path</span>;{" "}
+                <span className="font-medium">Init vault</span> stays in the
+                toolbar for re-applying the template.
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  Install the Claude Code plugins.
+                  Add the plugins you want.
                 </span>{" "}
-                The vault template registers the marketplace but enables
-                nothing, because a plugin is switched on per machine rather
-                than per vault. The <span className="font-medium">Plugins</span>{" "}
-                tab is the easiest way in: it lists every plugin with its tier
-                and a toggle. To do it from a terminal instead:
+                Setup switches on{" "}
+                <span className="font-mono text-xs">workhub</span> alone — the
+                one plugin the app itself needs. Everything else is a matter of
+                how you like to work, so it is left to you: the{" "}
+                <span className="font-medium">Plugins</span> tab lists every
+                plugin with its tier, what it carries, and a toggle. To do it
+                from a terminal instead:
                 <pre className="mt-1.5 overflow-x-auto rounded-md border bg-muted/50 p-2 font-mono text-[11px] text-foreground">
                   {"# one-time: register the marketplace\n" +
                     "claude plugin marketplace add atman-33/workhub\n\n" +

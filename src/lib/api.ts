@@ -116,6 +116,10 @@ export const api = {
   // ---- tasks (vault-backed) ----
   checkVaultPath: (vaultPath: string) =>
     invoke<boolean>("check_vault_path", { vaultPath }),
+  /** Whether the vault template has been applied there — `checkVaultPath` only
+   * says the folder exists, and an empty folder is a valid thing to pick. */
+  vaultInitialized: (vaultPath: string) =>
+    invoke<boolean>("vault_initialized", { vaultPath }),
   listTasks: (vaultPath: string) => invoke<Task[]>("list_tasks", { vaultPath }),
   createTask: (vaultPath: string, input: CreateTaskInput) =>
     invoke<Task>("create_task", { vaultPath, input }),
@@ -495,6 +499,11 @@ export const api = {
       scope,
       enabled,
     }),
+  /** `claude plugin marketplace add atman-33/workhub`; already registered is a
+   * success. The source is fixed in the backend — registering the same name in
+   * both source forms makes Claude Code ignore the marketplace wholesale. */
+  pluginsAddMarketplace: (vaultPath: string) =>
+    invoke<PluginCommandResult>("plugins_add_marketplace", { vaultPath }),
   /** Refreshes the marketplace clone every "latest version" is compared against. */
   pluginsUpdateMarketplace: (vaultPath: string, marketplace: string) =>
     invoke<PluginCommandResult>("plugins_update_marketplace", { vaultPath, marketplace }),

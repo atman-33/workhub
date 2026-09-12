@@ -686,6 +686,27 @@ pub fn check_vault_path(vault_path: String) -> bool {
     std::path::PathBuf::from(vault_path).is_dir()
 }
 
+/// Whether `vault_path` has had the vault template applied to it.
+///
+/// Deliberately separate from [`check_vault_path`], which answers only "is
+/// this a folder" — an empty folder passes that and is a perfectly valid thing
+/// to choose, it just has no template in it yet. The two questions have
+/// different answers during first-run setup, and conflating them is what let a
+/// fresh install land on an empty board with no vault behind it (T-0297).
+///
+/// The marker is `_ai/template-manifest.json`, which `init_vault` writes and
+/// which the template updater already treats as the record of what was
+/// applied; nothing else has to be invented to recognise an initialized vault.
+#[tauri::command]
+pub fn vault_initialized(vault_path: String) -> bool {
+    let vault = vault_path.trim();
+    !vault.is_empty()
+        && std::path::PathBuf::from(vault)
+            .join("_ai")
+            .join("template-manifest.json")
+            .is_file()
+}
+
 #[tauri::command]
 pub async fn list_tasks(vault_path: String) -> Result<Vec<Task>, String> {
     tauri::async_runtime::spawn_blocking(move || tasks::scan_and_index(&PathBuf::from(vault_path)))
@@ -1826,6 +1847,19 @@ pub async fn plugins_update_marketplace(
     })
     .await
     .map_err(|e| format!("marketplace update task failed: {e}"))?
+}
+
+/// `claude plugin marketplace add atman-33/workhub` — first-run registration.
+///
+/// Takes no source: see `plugins::MARKETPLACE_SOURCE` for why the form is
+/// fixed. Already registered succeeds without shelling out.
+#[tauri::command]
+pub async fn plugins_add_marketplace(
+    vault_path: String,
+) -> Result<crate::plugins::PluginCommandResult, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::plugins::add_marketplace(&vault_path))
+        .await
+        .map_err(|e| format!("marketplace add task failed: {e}"))?
 }
 
 /// `claude plugin update <name>@<marketplace> --scope <scope>`.
