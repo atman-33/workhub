@@ -4,7 +4,7 @@
 // re-reads the clipboard and re-initializes the form. Only clipboard content
 // matching a known capture pattern (lib/capture-patterns.ts) is auto-pasted;
 // anything else waits behind the paste button.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -18,6 +18,7 @@ import { ClipboardPaste, Inbox, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { matchCapturePatterns, shouldAutoPaste } from "@/lib/capture-patterns";
 import { captureTaskInput } from "@/lib/capture-task-input";
+import { projectOptionDetails } from "@/lib/task-editor-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -37,8 +38,12 @@ export function CaptureApp() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [vaultPath, setVaultPath] = useState<string | null>(null);
-  /** Vault project slugs offered by the Project picker. */
+  /** Vault project slugs offered by the Project picker, in folder-name order. */
   const [projects, setProjects] = useState<string[]>([]);
+  /** Folder name per slug, so the picker can draw each project's `NNNN` sort
+   *  number beside it the way the task editor does (T-0282). Display only —
+   *  the field still commits the bare slug. */
+  const [projectFolders, setProjectFolders] = useState<Record<string, string>>({});
   /** Deliberately not reset by `init()`: a burst of captures usually belongs to
    *  the same project, so the last choice is carried into the next capture.
    *  Everything else in the form is per-capture and is cleared. */
@@ -54,6 +59,8 @@ export function CaptureApp() {
    *  badges and the tags the task is saved with. */
   const matched = matchCapturePatterns(description);
 
+  const projectDetails = useMemo(() => projectOptionDetails(projectFolders), [projectFolders]);
+
   const init = useCallback(async () => {
     setTitle("");
     setSaving(false);
@@ -68,13 +75,18 @@ export function CaptureApp() {
     }
     const path = (await api.getConfig()).settings.vault_path;
     setVaultPath(path);
+    const vaultProjects = path
+      ? await api.listVaultProjects(path, false).catch(() => [])
+      : [];
+    // Ordered by folder name rather than by slug, so the list reads in the
+    // order the owner's file explorer shows — the same basis the task editor
+    // sorts on (tasks-view.tsx).
     setProjects(
-      path
-        ? (await api.listVaultProjects(path, false).catch(() => []))
-            .map((p) => p.slug)
-            .sort()
-        : [],
+      [...vaultProjects]
+        .sort((a, b) => a.folder.localeCompare(b.folder))
+        .map((p) => p.slug),
     );
+    setProjectFolders(Object.fromEntries(vaultProjects.map((p) => [p.slug, p.folder])));
     titleRef.current?.focus();
   }, []);
 
@@ -152,10 +164,15 @@ export function CaptureApp() {
         />
         {/* One row tall on purpose: this window is small, and the description
             below owns the remaining height. */}
+        {/* The `NNNN` number is drawn and searched, never parsed back out of
+            the picked value (T-0219). Unlike the task editor there is no
+            folder-name line under the field: this window is one row per
+            control by design. */}
         <Combobox
           value={project}
           onChange={setProject}
           options={projects}
+          optionDetails={projectDetails}
           noneLabel="No project"
           placeholder="No project"
           emptyText="No vault projects. Create one in the Projects tab."
