@@ -9,6 +9,16 @@
   stays the reader's call. Plain `http:` stays unloaded either way, scripts
   stay switched off everywhere, and a page carrying scripts says so in the
   preview with a pointer to the default app.
+- **Business Japanese gets a home in the `writing` plugin** (T-0330). The new
+  optional plugin opens with `natural-japanese`: a style constitution,
+  doctype guides, and a manual review checklist for minutes, reports, and
+  guides, selectively ported so nothing in it needs Python. Language-quality
+  skills now have somewhere to gather instead of crowding the dev-deliverables
+  `authoring` plugin.
+- **strategy-decompose drops its last Python** (T-0332). The workbook builder
+  and reader are Node scripts now, so the skill runs on the one runtime the
+  plugin ecosystem guarantees. Same commands, same workbook shape, verified
+  against the old output cell for cell.
 
 ## 0.124.0 (2026-09-13)
 
