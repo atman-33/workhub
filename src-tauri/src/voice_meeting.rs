@@ -258,8 +258,8 @@ pub fn read(id: &str) -> Result<String, String> {
     std::fs::read_to_string(meeting_file(id)).map_err(|e| e.to_string())
 }
 
-/// Deletes one meeting file, plus its auto-structured minutes and struct run
-/// log if any.
+/// Deletes one meeting file, plus its auto-structured minutes, struct run
+/// log, and repro prompt if any.
 /// Stopping an active meeting first is the caller's job (`finish`); deleting
 /// the active one just strands its id, which `start`/`status` already
 /// tolerate by reading back from disk.
@@ -272,6 +272,10 @@ pub fn delete(id: &str) -> Result<(), String> {
     let struct_log = crate::voice_struct::struct_log_file(id);
     if struct_log.is_file() {
         std::fs::remove_file(struct_log).map_err(|e| e.to_string())?;
+    }
+    let prompt = crate::voice_struct::prompt_file(id);
+    if prompt.is_file() {
+        std::fs::remove_file(prompt).map_err(|e| e.to_string())?;
     }
     Ok(())
 }

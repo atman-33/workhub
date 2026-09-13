@@ -78,6 +78,70 @@ pub fn launch_agent(template: &str, path: &str) -> Result<(), String> {
     launch(&fill_template(template, path))
 }
 
+/// Launches a struct-repro pipeline in a visible terminal (T-0337): the given
+/// prompt file piped into the agent with the given argv, e.g.
+/// `Get-Content -Raw 'm.prompt.md' | claude --output-format json -p`.
+/// Debug affordance only — nothing is captured back.
+pub fn launch_struct_repro(
+    template: &str,
+    workdir: &std::path::Path,
+    exe: &str,
+    args: &[String],
+    prompt_file: &std::path::Path,
+) -> Result<(), String> {
+    launch(&struct_repro_command_line(
+        template,
+        &workdir.to_string_lossy(),
+        exe,
+        args,
+        &prompt_file.to_string_lossy(),
+    ))
+}
+
+/// Builds the terminal command line for a struct repro: the filled template
+/// up to and including `-Command`, then the `Get-Content … | exe args`
+/// pipeline as one double-quoted token (it must survive `split_command_line`
+/// in `launch` as a single `-Command` argument). Pure so the quoting is
+/// unit-testable.
+fn struct_repro_command_line(
+    template: &str,
+    workdir: &str,
+    exe: &str,
+    args: &[String],
+    prompt_file: &str,
+) -> String {
+    let filled = fill_template(template, workdir);
+    let argv = split_command_line(&filled);
+    let mut inner = format!(
+        "Get-Content -Raw '{}' | {exe}",
+        prompt_file.replace('\'', "''")
+    );
+    for a in args {
+        inner.push(' ');
+        inner.push_str(a);
+    }
+    match argv.iter().position(|t| t.eq_ignore_ascii_case("-command")) {
+        Some(i) => format!("{} \"{inner}\"", join_command_line(&argv[..=i])),
+        // No -Command wrapper (plain exe template): PowerShell directly.
+        None => format!("powershell -NoExit -Command \"{inner}\""),
+    }
+}
+
+/// Rejoins split tokens into a command line, re-quoting tokens with spaces
+/// (e.g. a filled `{path}`) that the split had peeled.
+fn join_command_line(argv: &[String]) -> String {
+    argv.iter()
+        .map(|t| {
+            if t.contains(' ') {
+                format!("\"{t}\"")
+            } else {
+                t.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Parameters for launching an agent for a task.
 pub struct LaunchAgentForTaskParams<'a> {
     pub agent_cmd: &'a str,
@@ -1240,6 +1304,55 @@ mod tests {
         assert_eq!(
             in_pane_command("wt -d C:/vault claude --permission-mode auto"),
             "claude --permission-mode auto"
+        );
+    }
+
+    #[test]
+    fn struct_repro_pipes_prompt_file_into_agent() {
+        let line = struct_repro_command_line(
+            "wt -d {path} powershell -NoExit -Command claude",
+            "C:/work/meetings",
+            "claude",
+            &["--output-format".into(), "json".into(), "-p".into()],
+            "C:/work/meetings/1.struct.prompt.md",
+        );
+        assert_eq!(
+            line,
+            "wt -d C:/work/meetings powershell -NoExit -Command \
+             \"Get-Content -Raw 'C:/work/meetings/1.struct.prompt.md' | claude --output-format json -p\""
+        );
+        // And it splits back into a single -Command argument.
+        let argv = split_command_line(&line);
+        let i = argv.iter().position(|t| t == "-Command").unwrap();
+        assert_eq!(argv[i + 1], "Get-Content -Raw 'C:/work/meetings/1.struct.prompt.md' | claude --output-format json -p");
+    }
+
+    #[test]
+    fn struct_repro_requotes_paths_with_spaces() {
+        let line = struct_repro_command_line(
+            "wt -d {path} powershell -NoExit -Command claude",
+            "C:/my vault/meetings",
+            "claude",
+            &["-p".into()],
+            "C:/my vault/meetings/1.struct.prompt.md",
+        );
+        assert!(line.starts_with("wt -d \"C:/my vault/meetings\" powershell"));
+        assert!(line.contains("Get-Content -Raw 'C:/my vault/meetings/1.struct.prompt.md'"));
+    }
+
+    #[test]
+    fn struct_repro_falls_back_without_command_token() {
+        let line = struct_repro_command_line(
+            "claude",
+            "C:/work/meetings",
+            "claude",
+            &["-p".into()],
+            "C:/work/meetings/1.struct.prompt.md",
+        );
+        assert_eq!(
+            line,
+            "powershell -NoExit -Command \
+             \"Get-Content -Raw 'C:/work/meetings/1.struct.prompt.md' | claude -p\""
         );
     }
 

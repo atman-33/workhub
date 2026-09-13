@@ -1846,6 +1846,13 @@ pub async fn voice_struct_log(id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Debug repro of the active meeting's struct run in a visible terminal
+/// (T-0337). Fire-and-forget; touches no run state and writes no minutes.
+#[tauri::command]
+pub fn voice_struct_repro(app: tauri::AppHandle) -> Result<String, String> {
+    crate::voice_struct::repro_in_terminal(&app)
+}
+
 // ---------------------------------------------------------------------
 // persona plugin: character browser and the persisted default
 // ---------------------------------------------------------------------

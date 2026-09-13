@@ -553,6 +553,18 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
     setNotice("");
   }, [struct?.lastOkAt, struct?.lastError]);
 
+  // Debug repro in a visible terminal (T-0337): fire-and-forget, so the
+  // acknowledgement stays until the next headless run reports back.
+  const handleRepro = useCallback(async () => {
+    setError("");
+    setNotice("");
+    try {
+      setNotice(await api.structRepro());
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
   const structLine = !active
     ? null
     : struct?.running
@@ -661,6 +673,11 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
             <Button size="xs" variant="outline" onClick={() => void handleStructNow()}>
               <Sparkles />
               Structure now
+            </Button>
+          )}
+          {active && (
+            <Button size="xs" variant="ghost" onClick={() => void handleRepro()}>
+              Terminal
             </Button>
           )}
           {shownId && (

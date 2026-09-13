@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.130.0 (2026-09-13)
+
+- **Structuring runs can be replayed in a terminal** (T-0337). **Terminal**
+  next to **Structure now** writes the exact prompt to
+  `<id>.struct.prompt.md` and runs the same agent command in a visible
+  window, so a silent agent handoff stops being a guess. The headless run
+  itself is untouched.
+
 ## 0.129.0 (2026-09-13)
 
 - **Meeting and transcript deletes ask first** (T-0336). Deleting a meeting —
