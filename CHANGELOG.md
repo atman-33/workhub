@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.129.0 (2026-09-13)
+
+- **Meeting and transcript deletes ask first** (T-0336). Deleting a meeting —
+  or a single History transcript — now shows a confirmation dialog naming
+  its date. The files are removed for good (a meeting's minutes and run log
+  go with it), so the extra step is the point.
+
 ## 0.128.0 (2026-09-13)
 
 - **Tasks project filter shows folder numbers** (T-0335). The toolbar filter
