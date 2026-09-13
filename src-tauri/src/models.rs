@@ -231,6 +231,22 @@ pub struct Settings {
     /// change, apply on approval) instead of applying immediately.
     #[serde(default)]
     pub mindmap_confirm: bool,
+    /// How often a running meeting's transcript is sent to a headless agent
+    /// for structuring (T-0318), in seconds. 0 disables the periodic run
+    /// (the manual minutes prompt still works).
+    ///
+    /// Vault-scoped like the schedule/mindmap agent preferences: how often
+    /// this vault's meetings get structured is the team's call, not a
+    /// property of this machine.
+    #[serde(default = "default_meeting_struct_interval_secs")]
+    pub meeting_struct_interval_secs: u64,
+    /// Agent CLI used for meeting structuring: "claude-code" | "opencode".
+    /// Vault-scoped, same reasoning as `schedule_assignee`.
+    #[serde(default = "default_schedule_assignee")]
+    pub meeting_struct_assignee: String,
+    /// Model passed to that agent via `--model`; empty = the agent's default.
+    #[serde(default)]
+    pub meeting_struct_model: String,
     /// Default destination for HTML exports. Empty = the project's own
     /// `attachments/` folder, which is what keeps an export attached to the
     /// project it describes.
@@ -426,6 +442,9 @@ fn default_schedule_assignee() -> String {
 fn default_schedule_locale() -> String {
     "en".into()
 }
+fn default_meeting_struct_interval_secs() -> u64 {
+    120
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -476,6 +495,9 @@ impl Default for Settings {
             mindmap_assignee: default_schedule_assignee(),
             mindmap_model: String::new(),
             mindmap_confirm: false,
+            meeting_struct_interval_secs: default_meeting_struct_interval_secs(),
+            meeting_struct_assignee: default_schedule_assignee(),
+            meeting_struct_model: String::new(),
             schedule_export_dir: String::new(),
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.123.0 (2026-09-13)
+
+- **Meetings structure themselves as they run** (T-0318). While a meeting is
+  active, new transcript sections go to a headless agent about every
+  2 minutes and the returned decisions / action items / open questions land
+  in the panel's **Minutes** view. Only unseen sections are sent (an idle
+  meeting costs nothing), runs never overlap, a failed run is retried next
+  time, and agent / model / interval live behind the panel's ⚙ menu
+  (0 disables). There is no speaker separation: unnamed owners stay
+  "owner: TBD", said so in the file itself.
+
 ## 0.122.0 (2026-09-13)
 
 - **Meeting mode records on its own now** (T-0317). Pressing **Start meeting**

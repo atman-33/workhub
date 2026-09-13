@@ -45,7 +45,7 @@ pub struct MeetingInfo {
     pub path: String,
 }
 
-fn meetings_dir() -> PathBuf {
+pub(crate) fn meetings_dir() -> PathBuf {
     storage::config_dir().join("meetings")
 }
 
@@ -258,11 +258,17 @@ pub fn read(id: &str) -> Result<String, String> {
     std::fs::read_to_string(meeting_file(id)).map_err(|e| e.to_string())
 }
 
-/// Deletes one meeting file. Stopping an active meeting first is the
-/// caller's job (`finish`); deleting the active one just strands its id,
-/// which `start`/`status` already tolerate by reading back from disk.
+/// Deletes one meeting file, plus its auto-structured minutes if any.
+/// Stopping an active meeting first is the caller's job (`finish`); deleting
+/// the active one just strands its id, which `start`/`status` already
+/// tolerate by reading back from disk.
 pub fn delete(id: &str) -> Result<(), String> {
-    std::fs::remove_file(meeting_file(id)).map_err(|e| e.to_string())
+    std::fs::remove_file(meeting_file(id)).map_err(|e| e.to_string())?;
+    let minutes = crate::voice_struct::minutes_file(id);
+    if minutes.is_file() {
+        std::fs::remove_file(minutes).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Builds the copy-paste prompt that turns a meeting transcript into minutes:
