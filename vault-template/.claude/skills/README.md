@@ -28,7 +28,9 @@ the vault copy so there is one source of truth.
 
 ## OpenCode
 
-`.opencode/scripts/sync-claude-skills.mjs` mirrors both the enabled plugins'
-skills and this folder into `.opencode/skills/` (agents into `.opencode/agent/`).
-If a vault-local skill has the same name as a plugin skill, the plugin wins and
-the sync prints a warning — rename yours.
+`.opencode/scripts/sync-claude-skills.mjs` mirrors this folder into
+`.opencode/skills/` (agents from `.claude/agents/` into `.opencode/agent/`).
+Plugin skills reach OpenCode through a different path — the user-scope sync
+(`sync-claude-user-plugins.mjs`) copies the enabled harness-set plugins
+(workhub, engineering, obsidian, persona) into the global OpenCode
+directories — so a vault-local name never collides with a plugin one.

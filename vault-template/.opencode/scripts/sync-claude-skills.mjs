@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-// Synchronize project-scope Claude plugin skills into .opencode/skills/.
+// Mirror the vault's own Claude skills/agents into .opencode/.
 //
-// Sources are the enabled project-scope plugins plus the vault's own
-// .claude/skills (and .claude/agents), which are listed as "(vault-local)".
-// A plugin of the same name wins; the vault copy is skipped with a warning.
-//
-// The template's `.claude/settings.json` `enabledPlugins` is the allowlist:
-// it ships exactly workhub + engineering + obsidian (T-0303), so a fresh
-// vault syncs the default harness set with no per-machine judgment. Anything
-// else stays opt-in via the user-scope sync (sync-claude-user-plugins.mjs),
-// which targets the global OpenCode directories instead of this project.
+// Sources are the vault-local `.claude/skills` (and `.claude/agents`), listed
+// as "(vault-local)". Plugins are user-scope only and never consulted here —
+// plugin skills/agents reach OpenCode through the user-scope sync
+// (sync-claude-user-plugins.mjs), which targets the global OpenCode
+// directories instead of this project.
 //
 // Uses the shared core (lib/claude-plugin-sync-core.mjs) for discovery, hashing,
 // and manifest handling, so the drift reminder plugin and the check script see
@@ -24,16 +20,16 @@
 //     so future drift detection works without an immediate --force.
 //   - The manifest file lives at .opencode/.claude-plugin-sync-manifest.json and
 //     is gitignored (per-machine baseline; do not commit).
-//   - `--prune` deletes manifest-tracked orphans: targets whose source plugin
-//     no longer provides them (e.g. a plugin removed from `enabledPlugins`).
-//     Only manifest entries are eligible — hand-written targets the manifest
-//     never recorded are left alone.
+//   - `--prune` deletes manifest-tracked orphans: targets whose source is gone
+//     (e.g. a vault-local skill that was deleted, or a plugin copy stranded by
+//     the move to user-scope-only plugins). Only manifest entries are
+//     eligible — hand-written targets the manifest never recorded are left alone.
 import fs from "node:fs";
 import path from "node:path";
 
 import {
-  discoverProjectScopeSources,
-  discoverProjectScopeAgentSources,
+  discoverVaultLocalSkillSources,
+  discoverVaultLocalAgentSources,
   copySourceToTarget,
   hashArtifact,
   loadManifest,
@@ -49,17 +45,16 @@ import {
 const FORCE = process.argv.includes("--force");
 const PRUNE = process.argv.includes("--prune");
 const cwd = process.cwd();
-const claudePluginsRoot = process.env.CLAUDE_PLUGINS_ROOT || undefined;
 const manifestPath = defaultProjectManifestPath(cwd);
 const targetSkillsRoot = projectSkillsTargetRoot(cwd);
 const scopeKey = "projectScope-skills";
 const agentsScopeKey = "projectScope-agents";
 
-const { sources, warnings } = discoverProjectScopeSources(cwd, claudePluginsRoot);
+const { sources, warnings } = discoverVaultLocalSkillSources(cwd);
 
 if (sources.length === 0 && warnings.length === 0) {
   console.log(
-    "Nothing to sync: no enabled project-scope Claude plugins in .claude/settings.json, and no vault-local skills in .claude/skills.",
+    "Nothing to sync: no vault-local skills in .claude/skills.",
   );
   process.exit(0);
 }
@@ -118,9 +113,9 @@ function processBucket(bucketKey, bucketSources, targetRoot) {
 
 processBucket(scopeKey, sources, targetSkillsRoot);
 
-// Agents live in the same plugins but land in .opencode/agent/, converted to
-// OpenCode's frontmatter on the way (see claudeAgentToOpenCode).
-const agentDiscovery = discoverProjectScopeAgentSources(cwd, claudePluginsRoot);
+// Vault-local agents land in .opencode/agent/, converted to OpenCode's
+// frontmatter on the way (see claudeAgentToOpenCode).
+const agentDiscovery = discoverVaultLocalAgentSources(cwd);
 if (agentDiscovery.sources.length > 0) {
   fs.mkdirSync(agentDiscovery.targetRoot, { recursive: true });
   processBucket(agentsScopeKey, agentDiscovery.sources, agentDiscovery.targetRoot);
@@ -133,10 +128,10 @@ pruneManifestMissingTargets(manifest, agentsScopeKey, agentDiscovery.targetRoot)
 
 const pruned = [];
 if (PRUNE) {
-  // Remove manifest-tracked orphans: the source plugin no longer provides the
-  // artifact (e.g. removed from `enabledPlugins`), but the copy is still on
-  // disk. Only entries the manifest knows are eligible; hand-written targets
-  // without a manifest entry are never touched.
+  // Remove manifest-tracked orphans: the source is gone (e.g. a deleted
+  // vault-local skill, or a plugin copy stranded by the move to user-scope-only
+  // plugins), but the copy is still on disk. Only entries the manifest knows
+  // are eligible; hand-written targets without a manifest entry are never touched.
   for (const [bucketKey, targetRoot] of [
     [scopeKey, targetSkillsRoot],
     [agentsScopeKey, agentDiscovery.targetRoot],

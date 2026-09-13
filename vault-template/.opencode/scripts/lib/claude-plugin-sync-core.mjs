@@ -6,9 +6,11 @@
 //   - the TypeScript plugins under .opencode/plugins/ (drift reminder hook)
 //
 // Responsibilities:
-//   1. Discovery: enumerate the source artifacts (skills/commands) that should
-//      exist on the OpenCode side, both for project-scope plugins
-//      (.claude/settings.json) and user-scope plugins (claude plugin list).
+//   1. Discovery: enumerate the source artifacts (skills/commands/agents) that
+//      should exist on the OpenCode side, both for the vault-local mirror
+//      (.claude/skills + .claude/agents) and for enabled user-scope plugins
+//      (`claude plugin list` filtered by the user `enabledPlugins`).
+//      Plugins are user-scope only: no project-scope allowlist is consulted.
 //   2. Hashing: a stable, recursive directory hash so we can tell whether a
 //      source or target artifact's contents have changed since the last sync.
 //   3. Manifest: a small JSON file that records, for every artifact copied by a
@@ -160,12 +162,30 @@ export function vaultLocalAgentsRoot(cwd) {
 /** pluginRef used for artifacts that come from the vault rather than a plugin. */
 export const VAULT_LOCAL_REF = "(vault-local)";
 
+/**
+ * The only plugins the user-scope sync carries into OpenCode: the harness set
+ * (required + recommended in `.claude-plugin/catalog.json`). Keep this and the
+ * catalog tiers in agreement by hand — a tier change here means a sync-set
+ * change. Third-party marketplaces never ride along, whatever they are called.
+ */
+export const HARNESS_SYNC_PLUGINS = new Set([
+  "workhub@workhub-marketplace",
+  "engineering@workhub-marketplace",
+  "obsidian@workhub-marketplace",
+  "persona@workhub-marketplace",
+]);
+
 export function userSkillsTargetRoot(openCodeGlobalRoot) {
   return path.join(openCodeGlobalRoot, "skills");
 }
 
 export function userCommandsTargetRoot(openCodeGlobalRoot) {
   return path.join(openCodeGlobalRoot, "command");
+}
+
+/** Global OpenCode agent directory, mirroring the vault-local `.opencode/agent/`. */
+export function userAgentsTargetRoot(openCodeGlobalRoot) {
+  return path.join(openCodeGlobalRoot, "agent");
 }
 
 export function userListCachePath() {
@@ -179,6 +199,10 @@ export function userListCachePath() {
 /**
  * Read the enabled plugin refs from <cwd>/.claude/settings.json.
  * Returns an array of { pluginRef, pluginName, marketplace }.
+ *
+ * No longer used for sync selection (plugins are user-scope only) — kept for
+ * tooling that resolves files inside an enabled plugin (e.g. the secretary
+ * plugin's comms-cli lookup).
  */
 export function readProjectEnabledPlugins(cwd) {
   const settingsPath = path.join(cwd, ".claude", "settings.json");
@@ -222,32 +246,61 @@ export function resolveProjectPluginRoot(plugin, claudePluginsRoot) {
 }
 
 /**
- * Enumerate the source artifacts for project-scope plugins.
- * Only `skills/` are considered (the project-scope sync script only copies skills).
- * Returns ArtifactSource[] plus a warnings list (missing plugin roots etc.).
+ * Path of the user's Claude Code settings file, which carries the user-scope
+ * `enabledPlugins`. Overridable via CLAUDE_USER_SETTINGS (e.g. WSL targeting
+ * a Windows install, mirroring CLAUDE_PLUGINS_ROOT / OPENCODE_GLOBAL_ROOT).
  */
-export function discoverProjectScopeSources(cwd, claudePluginsRoot) {
+export function userClaudeSettingsPath() {
+  return process.env.CLAUDE_USER_SETTINGS ||
+    path.join(os.homedir(), ".claude", "settings.json");
+}
+
+/**
+ * Read the user-scope enabled plugin refs from the user settings file.
+ * Same shape as readProjectEnabledPlugins. A missing or unparseable file
+ * means "nothing enabled" (an opencode-only machine) — never an error, so
+ * callers degrade to syncing nothing instead of failing the session.
+ */
+export function readUserEnabledPlugins() {
+  const settingsPath = userClaudeSettingsPath();
+  if (!existsSync(settingsPath)) {
+    return [];
+  }
+  let settings;
+  try {
+    settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  } catch {
+    return [];
+  }
+  const entries = Object.entries(settings?.enabledPlugins ?? {});
+  const enabled = [];
+  for (const [key, value] of entries) {
+    if (value !== true) continue;
+    const match = key.match(/^([^@]+)@(.+)$/);
+    if (!match) continue;
+    enabled.push({
+      pluginRef: key,
+      pluginName: match[1],
+      marketplace: match[2],
+    });
+  }
+  return enabled;
+}
+
+/**
+ * Enumerate the vault's own `.claude/skills` artifacts for the vault-local
+ * mirror (`.opencode/skills/`). Plugins are user-scope only, so no plugin
+ * allowlist is consulted here — anything beyond the vault's own skills comes
+ * through the user-scope sync instead.
+ *
+ * Manifest bucket key stays "projectScope-skills": existing manifests keep
+ * working, and copies whose plugin source is gone surface as orphans for
+ * `--prune` to collect during migration.
+ */
+export function discoverVaultLocalSkillSources(cwd) {
   const targetRoot = projectSkillsTargetRoot(cwd);
-  const root = claudePluginsRoot || defaultClaudePluginsRoot();
   const sources = [];
   const warnings = [];
-  const enabled = readProjectEnabledPlugins(cwd);
-  for (const plugin of enabled) {
-    const pluginDir = resolveProjectPluginRoot(plugin, root);
-    const skillsDir = path.join(pluginDir, "skills");
-    if (!existsSync(skillsDir)) {
-      warnings.push(`${plugin.pluginRef} -> ${skillsDir} (skills dir missing)`);
-      continue;
-    }
-    for (const name of listChildNames(skillsDir, /*dirsOnly*/ true)) {
-      sources.push({
-        kind: "skill",
-        pluginRef: plugin.pluginRef,
-        name,
-        sourcePath: path.join(skillsDir, name),
-      });
-    }
-  }
   appendVaultLocalSources({
     sources,
     warnings,
@@ -259,9 +312,10 @@ export function discoverProjectScopeSources(cwd, claudePluginsRoot) {
 }
 
 /**
- * Append the vault's own `.claude/skills` / `.claude/agents` artifacts to a
- * discovery result. A plugin of the same name wins: the vault copy is skipped
- * and a warning is emitted, so one name never resolves to two sources.
+ * Collect the vault's own `.claude/skills` / `.claude/agents` artifacts into a
+ * discovery result. `taken` guards against a name resolving to two sources;
+ * the vault-local mirror is the only contributor now, so it stays empty, but
+ * the guard is kept so a future source cannot silently shadow these.
  */
 function appendVaultLocalSources({ sources, warnings, dir, kind, dirsOnly }) {
   if (!existsSync(dir)) return;
@@ -285,29 +339,16 @@ function appendVaultLocalSources({ sources, warnings, dir, kind, dirsOnly }) {
 }
 
 /**
- * Enumerate the agent definitions of project-scope plugins
- * (`<plugin>/agents/*.md`). Claude finds these itself; OpenCode only reads
- * `.opencode/agent/`, so they are synced there the same way skills are.
- * A plugin without an `agents/` directory is simply skipped — most have none.
+ * Enumerate the vault's own `.claude/agents` definitions for the vault-local
+ * mirror (`.opencode/agent/`, converted to OpenCode's frontmatter on the way).
+ * Plugin agents come through the user-scope sync instead (see
+ * discoverUserScopeSources). Manifest bucket key stays "projectScope-agents"
+ * for the same migration reason as the skills bucket above.
  */
-export function discoverProjectScopeAgentSources(cwd, claudePluginsRoot) {
+export function discoverVaultLocalAgentSources(cwd) {
   const targetRoot = projectAgentsTargetRoot(cwd);
-  const root = claudePluginsRoot || defaultClaudePluginsRoot();
   const sources = [];
   const warnings = [];
-  for (const plugin of readProjectEnabledPlugins(cwd)) {
-    const agentsDir = path.join(resolveProjectPluginRoot(plugin, root), "agents");
-    if (!existsSync(agentsDir)) continue;
-    for (const name of listChildNames(agentsDir, /*dirsOnly*/ false)) {
-      if (!name.endsWith(".md")) continue;
-      sources.push({
-        kind: "agent",
-        pluginRef: plugin.pluginRef,
-        name,
-        sourcePath: path.join(agentsDir, name),
-      });
-    }
-  }
   appendVaultLocalSources({
     sources,
     warnings,
@@ -448,21 +489,43 @@ export function discoverUserScopeSources({
   claudePluginsRoot,
   openCodeGlobalRoot,
   listOutput,
+  enabledRefs,
 }) {
   const root = claudePluginsRoot || defaultClaudePluginsRoot();
   const ocRoot = openCodeGlobalRoot || defaultOpenCodeGlobalRoot();
   const skillsTarget = userSkillsTargetRoot(ocRoot);
   const commandsTarget = userCommandsTargetRoot(ocRoot);
+  const agentsTarget = userAgentsTargetRoot(ocRoot);
 
   const { plugins, warnings } = parseUserScopePluginList(listOutput);
   const userScopePlugins = plugins.filter((p) => p.scope === "user");
-
+  // Only plugins the owner actually enabled (user `enabledPlugins`) are
+  // synced — a plugin switched off in Claude Code must disappear from
+  // OpenCode too. Project-scope enables are deliberately ignored: syncing
+  // them globally would leak one vault's choices onto the whole machine.
+  const enabled = enabledRefs ?? new Set(readUserEnabledPlugins().map((p) => p.pluginRef));
+  // …and only the harness set at that: a skill syncs mechanically, but a
+  // plugin's hooks need a hand-written OpenCode port, which exists solely for
+  // these four (required + recommended in `.claude-plugin/catalog.json`).
+  // Anything else stays Claude-only, so opencode sessions never inherit a
+  // half-working plugin or third-party content unasked.
+  const skippedDisabled = [];
+  const skippedOutsideHarness = [];
   const skillsSources = [];
   const commandsSources = [];
+  const agentsSources = [];
   const missing = [];
 
   for (const plugin of userScopePlugins) {
     const pluginRef = `${plugin.pluginName}@${plugin.marketplace}`;
+    if (!HARNESS_SYNC_PLUGINS.has(pluginRef)) {
+      skippedOutsideHarness.push(pluginRef);
+      continue;
+    }
+    if (!enabled.has(pluginRef)) {
+      skippedDisabled.push(pluginRef);
+      continue;
+    }
     const pluginRoot = path.join(root, plugin.marketplace, "plugins", plugin.pluginName);
     if (!existsSync(pluginRoot)) {
       missing.push(`${pluginRef} -> ${pluginRoot}`);
@@ -493,12 +556,33 @@ export function discoverUserScopeSources({
         });
       }
     }
+    // agents (files in agents/ root, converted to OpenCode frontmatter on copy)
+    const agentsDir = path.join(pluginRoot, "agents");
+    if (existsSync(agentsDir)) {
+      for (const name of listChildNames(agentsDir, false)) {
+        if (!name.endsWith(".md")) continue;
+        agentsSources.push({
+          kind: "agent",
+          pluginRef,
+          name,
+          sourcePath: path.join(agentsDir, name),
+        });
+      }
+    }
+  }
+
+  if (skippedDisabled.length > 0) {
+    warnings.push(
+      `Skipped disabled user-scope plugins (not in user enabledPlugins): ${skippedDisabled.sort().join(", ")} — enable in Claude Code to sync them.`,
+    );
   }
 
   return {
     skillsSources,
     commandsSources,
-    targets: { skillsTarget, commandsTarget },
+    agentsSources,
+    targets: { skillsTarget, commandsTarget, agentsTarget },
+    skippedOutsideHarness: skippedOutsideHarness.sort(),
     warnings: warnings.concat(missing.map((m) => `Missing plugin root: ${m}`)),
   };
 }
@@ -780,10 +864,10 @@ if (!existsSync(targetPath)) {
 }
 
 /**
- * Drift for the project scope (skills only, project buckets under .opencode/skills).
+ * Drift for the vault-local skills mirror (`.claude/skills` -> `.opencode/skills/`).
  */
-export function detectProjectScopeDrift({ cwd, claudePluginsRoot, manifestPath }) {
-  const discovery = discoverProjectScopeSources(cwd, claudePluginsRoot);
+export function detectProjectScopeDrift({ cwd, manifestPath }) {
+  const discovery = discoverVaultLocalSkillSources(cwd);
   const manifestFullPath = manifestPath || defaultProjectManifestPath(cwd);
   const manifest = loadManifest(manifestFullPath) || emptyManifest();
   const bucketKey = "projectScope-skills";
@@ -805,11 +889,11 @@ export function detectProjectScopeDrift({ cwd, claudePluginsRoot, manifestPath }
 }
 
 /**
- * Drift for the project-scope agent bucket (`.opencode/agent/`). Separate from
- * the skills bucket because it has its own target directory.
+ * Drift for the vault-local agent mirror (`.claude/agents` -> `.opencode/agent/`).
+ * Separate from the skills bucket because it has its own target directory.
  */
-export function detectProjectScopeAgentDrift({ cwd, claudePluginsRoot, manifestPath }) {
-  const discovery = discoverProjectScopeAgentSources(cwd, claudePluginsRoot);
+export function detectProjectScopeAgentDrift({ cwd, manifestPath }) {
+  const discovery = discoverVaultLocalAgentSources(cwd);
   const manifest = loadManifest(manifestPath || defaultProjectManifestPath(cwd)) || emptyManifest();
 
   return {
@@ -826,13 +910,14 @@ export function detectProjectScopeAgentDrift({ cwd, claudePluginsRoot, manifestP
 }
 
 /**
- * Drift for user scope (skills + commands, targets under ~/.config/opencode).
+ * Drift for user scope (skills + commands + agents, targets under ~/.config/opencode).
  */
 export function detectUserScopeDrift({
   claudePluginsRoot,
   openCodeGlobalRoot,
   manifestPath,
   listOutput,
+  enabledRefs,
 }) {
   const ocRoot = openCodeGlobalRoot || defaultOpenCodeGlobalRoot();
   const manifestFullPath = manifestPath || defaultUserManifestPath(ocRoot);
@@ -842,10 +927,12 @@ export function detectUserScopeDrift({
     claudePluginsRoot,
     openCodeGlobalRoot: ocRoot,
     listOutput,
+    enabledRefs,
   });
 
   const skillsBucket = manifest.buckets?.["userScope-skills"] || {};
   const commandsBucket = manifest.buckets?.["userScope-commands"] || {};
+  const agentsBucket = manifest.buckets?.["userScope-agents"] || {};
 
   const skillsItems = computeBucketDrift({
     sources: discovery.skillsSources,
@@ -857,6 +944,12 @@ export function detectUserScopeDrift({
     sources: discovery.commandsSources,
     targetDir: discovery.targets.commandsTarget,
     manifestBucket: commandsBucket,
+  });
+
+  const agentsItems = computeBucketDrift({
+    sources: discovery.agentsSources,
+    targetDir: discovery.targets.agentsTarget,
+    manifestBucket: agentsBucket,
   });
 
   return [
@@ -872,6 +965,13 @@ export function detectUserScopeDrift({
       bucket: "commands",
       targetRoot: discovery.targets.commandsTarget,
       items: commandsItems,
+      warnings: [],
+    },
+    {
+      scope: "user",
+      bucket: "agents",
+      targetRoot: discovery.targets.agentsTarget,
+      items: agentsItems,
       warnings: [],
     },
     discovery.warnings,
@@ -890,6 +990,7 @@ export async function detectFullDrift({
   projectManifestPath,
   userManifestPath,
   userListOutput,
+  userEnabledRefs,
 } = {}) {
   const warnings = [];
   let userList = userListOutput;
@@ -904,13 +1005,11 @@ export async function detectFullDrift({
 
   const projectScope = detectProjectScopeDrift({
     cwd,
-    claudePluginsRoot,
     manifestPath: projectManifestPath,
   });
 
   const projectAgents = detectProjectScopeAgentDrift({
     cwd,
-    claudePluginsRoot,
     manifestPath: projectManifestPath,
   });
 
@@ -919,9 +1018,10 @@ export async function detectFullDrift({
     openCodeGlobalRoot,
     manifestPath: userManifestPath,
     listOutput: userList ?? "",
+    enabledRefs: userEnabledRefs,
   });
   const userWarnings = userResult[userResult.length - 1];
-  const userScopeBuckets = userResult.slice(0, 2);
+  const userScopeBuckets = userResult.slice(0, 3);
 
   return {
     projectScope,
@@ -969,22 +1069,27 @@ export function buildReminderXml(report) {
   lines.push("");
 
   const projectLines = bucketSection(report.projectScope);
-  lines.push("## Project scope (.claude/settings.json -> .opencode/skills/)");
+  lines.push("## Project scope (.claude/skills -> .opencode/skills/)");
   if (projectLines.length) lines.push(...projectLines);
   else lines.push("(no drift)");
   lines.push("");
 
   if (report.projectAgents) {
-    lines.push("## Project scope (.claude/settings.json -> .opencode/agent/)");
+    lines.push("## Project scope (.claude/agents -> .opencode/agent/)");
     const agentLines = bucketSection(report.projectAgents);
     if (agentLines.length) lines.push(...agentLines);
     else lines.push("(no drift)");
     lines.push("");
   }
 
+  const userTargetDir = {
+    commands: "~/.config/opencode/command",
+    agents: "~/.config/opencode/agent",
+    skills: "~/.config/opencode/skills",
+  };
   for (const bucket of report.userScope) {
-    const dir = bucket.bucket === "commands" ? "~/.config/opencode/command" : "~/.config/opencode/skills";
-    lines.push(`## User scope (claude plugin list -> ${dir})`);
+    const dir = userTargetDir[bucket.bucket] ?? "~/.config/opencode/skills";
+    lines.push(`## User scope (harness set, enabled only -> ${dir})`);
     const bucketLines = bucketSection(bucket);
     if (bucketLines.length) lines.push(...bucketLines);
     else lines.push("(no drift)");
@@ -999,8 +1104,8 @@ export function buildReminderXml(report) {
 
   lines.push("## Recommended action");
   lines.push("Run the harness commands to sync, then re-confirm:");
-  lines.push("  - /sync-claude-skills        (project scope skills)");
-  lines.push("  - /sync-claude-user-plugins  (user scope commands + skills)");
+  lines.push("  - /sync-claude-skills        (vault-local skills + agents)");
+  lines.push("  - /sync-claude-user-plugins  (harness set, enabled only: commands + skills + agents)");
   lines.push("Add --force to overwrite stale/diverged targets. Note: --force will overwrite local hand-edits.");
   lines.push("");
   lines.push("Or run the diagnostic for full detail:");

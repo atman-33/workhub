@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.118.0 (2026-09-13)
+
+- **Project-scope plugins are gone; the OpenCode sync follows user-scope
+  enables** (T-0310). The vault template's `.claude/settings.json` no longer
+  enables `workhub` + `engineering` + `obsidian` at project scope (first-run
+  setup already enables `workhub` at user scope), so what an OpenCode session
+  sees is decided per machine. `/sync-claude-skills` now mirrors only the
+  vault-local `.claude/skills` + `.claude/agents`; `/sync-claude-user-plugins`
+  copies only the harness set (`workhub`, `engineering`, `obsidian`, `persona`)
+  to the extent each is enabled at user scope, and gains agents plus `--prune`.
+  Anything outside the set stays Claude-only: skills sync mechanically, but
+  hooks need a hand-written OpenCode port, which exists solely for these four.
+  Migrating an older
+  vault: enable the wanted plugins at user scope, run the user sync, then
+  clear the old project-scope copies with the vault-local sync's `--prune`.
+
 ## 0.117.1 (2026-09-13)
 
 - **OpenSpec leftovers are gone.** The dormant `setup-openspec` /
