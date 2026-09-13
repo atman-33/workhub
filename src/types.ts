@@ -539,6 +539,18 @@ export interface VoiceHistoryEntry {
   model: string;
 }
 
+/** One voice meeting session: dictation transcripts accumulated into a file. */
+export interface VoiceMeeting {
+  /** Start-time millis; also the Markdown file's basename. */
+  id: string;
+  /** ISO 8601 UTC timestamp of when the meeting started. */
+  started: string;
+  /** Number of transcript sections appended so far. */
+  entries: number;
+  /** Absolute path of the meeting's Markdown file. */
+  path: string;
+}
+
 /** One paste-ready snippet in the clips picker. Array order is the display
  * order — the editor sends the whole list back after any edit or reorder. */
 /** A saved ink capture (annotated screenshot), as the Ink tab lists it. */

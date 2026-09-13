@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.119.1 (2026-09-13)
+## 0.120.1 (2026-09-13)
 
 - **Project plugins load in opencode Desktop again** (T-0314). Desktop's
   sidecar runs plugins under plain Node while the CLI uses Bun, and plain
@@ -14,6 +14,18 @@
   `allowImportingTsExtensions` so `npm run check:opencode` keeps passing.
   Existing vaults pick the fix up through the usual template update
   (nine `Updatable` files, no policy change needed).
+
+## 0.120.0 (2026-09-13)
+
+- **Voice meeting mode accumulates transcripts for near-real-time minutes**
+  (T-0252). Press **Start meeting** in the **Voice** tab and every finalized
+  dictation transcript is appended, timestamped, to the meeting's Markdown
+  file under `~/.workhub/meetings/` — the audio path is untouched, so the
+  hotkey, live preview, paste and history all behave as before. **Minutes
+  prompt** copies the transcript plus instructions for decisions / action
+  items / open questions; paste it into Claude Code or OpenCode to get
+  structured minutes on demand, with no per-chunk agent calls, no cloud and
+  no speaker separation in this version.
 
 ## 0.119.0 (2026-09-13)
 
