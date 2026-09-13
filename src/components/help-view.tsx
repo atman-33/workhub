@@ -138,6 +138,7 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed at the top of the **Voice** tab; each change takes effect as soon as you make it.
 - **Meeting mode** (in the **Voice** tab) accumulates transcripts into a file while a meeting is active: press **Start meeting**, dictate with the hotkey as usual, and each finalized transcript is appended with a timestamp. Press **Stop** when the meeting ends. **Minutes prompt** copies the transcript plus instructions for decisions / action items / open questions — paste it into Claude Code or OpenCode to get structured minutes.
+- **Include system audio** (in the **Voice** tab) also transcribes the other side of an online meeting through loopback capture. It is off by default; turn it on for meetings and wear headphones — with speakers, the remote voice is recorded twice (once from the system, once through the microphone). If loopback fails on a machine, recording continues with the microphone only.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)

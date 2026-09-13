@@ -457,9 +457,10 @@ fn start_recording(app: &AppHandle) {
     // stuck behind a multi-second model load.
     crate::stt::preload(app);
     crate::diag!(
-        "voice: recording started (model={}, indicator={})",
+        "voice: recording started (model={}, indicator={}, system_audio={})",
         settings.voice_model,
-        settings.voice_indicator_placement
+        settings.voice_indicator_placement,
+        settings.voice_system_audio
     );
     set_phase(app, Phase::Recording);
 }
@@ -622,6 +623,30 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     let mut pending_start = 0usize;
     let mut aborted = false;
 
+    // System-audio loopback (T-0316): when enabled, the render endpoint is
+    // captured alongside the microphone and the two feeds are mixed at
+    // 16 kHz before chunking. A failed loopback falls back to
+    // microphone-only rather than failing the session.
+    let mut loopback = if storage::load().settings.voice_system_audio {
+        match crate::voice_loopback::LoopbackCapture::start() {
+            Ok(l) => {
+                crate::diag!("voice: system-audio loopback on ({} Hz)", l.rate());
+                Some(l)
+            }
+            Err(e) => {
+                crate::diag!("voice: loopback unavailable, mic-only: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    // Mixed mode runs its own chunker at the 16 kHz mix rate; the chunks it
+    // cuts are already at transcription rate and skip the resample step.
+    let chunker16 = crate::voice_chunk::Chunker::new(16_000);
+    let mut mix16: Vec<f32> = Vec::new();
+    let mut mix_start = 0usize;
+
     let started = Instant::now();
     loop {
         let stop_requested = match stop_rx.recv_timeout(Duration::from_millis(200)) {
@@ -634,8 +659,31 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
 
         // Cut any chunks whose trailing silence has arrived since the last
         // wakeup and hand them to the worker; clone out of the lock first so
-        // resampling/sending never blocks the cpal capture callback.
-        let ready_chunks: Vec<Vec<f32>> = {
+        // resampling/sending never blocks the cpal capture callback. In mixed
+        // mode both feeds are drained, resampled to 16 kHz, mixed, and cut at
+        // the mix rate instead.
+        let ready_chunks: Vec<Vec<f32>> = if let Some(lb) = loopback.as_ref() {
+            let mic_new = {
+                let buf = buffer.lock().unwrap();
+                let fresh = buf[pending_start..].to_vec();
+                pending_start = buf.len();
+                fresh
+            };
+            let mixed = crate::voice_loopback::mix_16k(
+                &resample_to_16k(&mic_new, native_rate),
+                &resample_to_16k(&lb.drain(), lb.rate()),
+            );
+            mix16.extend_from_slice(&mixed);
+            let mut chunks = Vec::new();
+            while let Some(cut) = chunker16.find_boundary(&mix16[mix_start..]) {
+                let end = mix_start + cut.end;
+                if cut.has_min_speech {
+                    chunks.push(mix16[mix_start..end].to_vec());
+                }
+                mix_start = end;
+            }
+            chunks
+        } else {
             let buf = buffer.lock().unwrap();
             let mut chunks = Vec::new();
             while let Some(cut) = chunker.find_boundary(&buf[pending_start..]) {
@@ -648,8 +696,13 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             chunks
         };
         for chunk in ready_chunks {
-            let resampled = resample_to_16k(&chunk, native_rate);
-            if chunk_tx.send(resampled).is_err() {
+            // Mixed chunks are already 16 kHz; mic chunks still need it.
+            let for_worker = if loopback.is_some() {
+                chunk
+            } else {
+                resample_to_16k(&chunk, native_rate)
+            };
+            if chunk_tx.send(for_worker).is_err() {
                 // Worker exited early (transcription error) and dropped its
                 // receiver — abort the session instead of recording on.
                 aborted = true;
@@ -661,6 +714,14 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         }
     }
     drop(stream);
+    // The loopback thread is stopped before the tail flush; its remainder is
+    // drained first so nothing captured so far is lost.
+    let loopback_tail: Option<(Vec<f32>, u32)> = loopback.take().map(|lb| {
+        let last = lb.drain();
+        let rate = lb.rate();
+        lb.stop();
+        (last, rate)
+    });
 
     // Auto-stop (MAX_RECORDING_SECS) never calls `stop_recording`, so the
     // phase can still be Recording here; make sure it reflects Transcribing
@@ -689,15 +750,32 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
 
     // Flush whatever's left as the final chunk, even without trailing
     // silence — this is the only transcription work left at stop time.
-    let tail: Vec<f32> = {
-        let buf = buffer.lock().unwrap();
-        buf[pending_start..].to_vec()
-    };
     // A cancelled session sends no tail: transcribing it would only delay
     // the worker's exit to produce text that is about to be thrown away.
-    if !is_cancelled(&app) && chunker.has_min_speech(&tail) {
-        let resampled = resample_to_16k(&tail, native_rate);
-        let _ = chunk_tx.send(resampled);
+    if !is_cancelled(&app) {
+        if let Some((lb_last, lb_rate)) = loopback_tail {
+            let mic_tail: Vec<f32> = {
+                let buf = buffer.lock().unwrap();
+                buf[pending_start..].to_vec()
+            };
+            let mixed = crate::voice_loopback::mix_16k(
+                &resample_to_16k(&mic_tail, native_rate),
+                &resample_to_16k(&lb_last, lb_rate),
+            );
+            mix16.extend_from_slice(&mixed);
+            if chunker16.has_min_speech(&mix16[mix_start..]) {
+                let _ = chunk_tx.send(mix16[mix_start..].to_vec());
+            }
+        } else {
+            let tail: Vec<f32> = {
+                let buf = buffer.lock().unwrap();
+                buf[pending_start..].to_vec()
+            };
+            if chunker.has_min_speech(&tail) {
+                let resampled = resample_to_16k(&tail, native_rate);
+                let _ = chunk_tx.send(resampled);
+            }
+        }
     }
     drop(chunk_tx); // closes the channel so the worker's `for` loop ends
 

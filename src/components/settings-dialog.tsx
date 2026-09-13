@@ -86,6 +86,7 @@ const DEFAULTS: Settings = {
   voice_language: "auto",
   voice_indicator_placement: "caret",
   voice_indicator_position: null,
+  voice_system_audio: false,
   clips_enabled: true,
   clips_gesture: "ctrl-double",
   clips_rect: null,

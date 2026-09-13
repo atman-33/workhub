@@ -82,6 +82,10 @@ export interface Settings {
    * doesn't wipe it). */
   voice_indicator_placement: "caret" | "fixed";
   voice_indicator_position: [number, number] | null;
+  /** Voice meeting: also capture system output audio (the other side's
+   * voice) via WASAPI loopback. Machine-local: an audio device capability
+   * of this PC. */
+  voice_system_audio: boolean;
   /** Clips: a clibor-style snippet picker opened by a double-tapped modifier,
    * pasting the picked snippet into the app that had focus. */
   clips_enabled: boolean;
