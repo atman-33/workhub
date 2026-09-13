@@ -9,7 +9,7 @@ import {
   normalizePath,
   type SessionState,
   xmlEscape,
-} from "./lib/project-context-core";
+} from "./lib/project-context-core.ts";
 
 // OpenCode mirror of the engineering plugin's inject-extended-rules.mjs hook.
 //

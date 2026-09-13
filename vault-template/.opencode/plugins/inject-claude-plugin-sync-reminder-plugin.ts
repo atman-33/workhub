@@ -1,9 +1,9 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
+import { makeEarlyPartId, normalizePath } from "./lib/project-context-core.ts";
 import {
   buildReminderXml,
   detectFullDrift,
-} from "../scripts/lib/claude-plugin-sync-core";
+} from "../scripts/lib/claude-plugin-sync-core.mjs";
 
 // Injects a one-shot reminder block at the start of the first chat message of
 // each MAIN session when Claude Code plugin artifacts (skills/commands) are out

@@ -11,7 +11,7 @@
 // Scope: OpenCode-only. The Claude Code side does not need a mirror (per the
 // user's decision) because AGENTS.md already instructs claude code natively.
 import type { Plugin } from "@opencode-ai/plugin";
-import { normalizePath, safeReadText } from "./lib/project-context-core";
+import { normalizePath, safeReadText } from "./lib/project-context-core.ts";
 import { appendFileSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 

@@ -25,13 +25,13 @@
 // default, since consulting a subagent costs tokens. Everything no-ops when the
 // vault has no decision policy to judge from.
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
+import { makeEarlyPartId, normalizePath } from "./lib/project-context-core.ts";
 import {
   defaultClaudePluginsRoot,
   readProjectEnabledPlugins,
   readUserEnabledPlugins,
   resolveProjectPluginRoot,
-} from "../scripts/lib/claude-plugin-sync-core";
+} from "../scripts/lib/claude-plugin-sync-core.mjs";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

@@ -17,7 +17,7 @@
 // whole feature can be turned off for OpenCode via the workhub app setting
 // `memory_opencode` (~/.workhub/config.json).
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath, safeReadText } from "./lib/project-context-core";
+import { makeEarlyPartId, normalizePath, safeReadText } from "./lib/project-context-core.ts";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";

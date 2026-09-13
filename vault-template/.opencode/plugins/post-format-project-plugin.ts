@@ -7,7 +7,7 @@ import {
   normalizePath,
   resolveFormatCommands,
   runFormatCommands,
-} from "./lib/project-context-core";
+} from "./lib/project-context-core.ts";
 
 const postFormatProjectPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
