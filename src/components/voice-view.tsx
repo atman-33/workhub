@@ -8,10 +8,13 @@
 // server-side (oldest dropped first).
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Check, Copy, Download, FileText, Loader2, Mic, Play, Square, Trash2 } from "lucide-react";
+import { Check, Copy, Download, FileText, Loader2, Mic, Play, Settings2, Sparkles, Square, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { ModelCombobox } from "@/components/model-combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import {
   Select,
   SelectContent,
@@ -22,7 +25,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Config, SttModelStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
+import type { Config, MeetingStructStatus, SttModelStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
 
 const MAX_ENTRIES = 50;
 
@@ -375,6 +378,10 @@ function MeetingPanel() {
   const [meetings, setMeetings] = useState<VoiceMeeting[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [minutesView, setMinutesView] = useState(false);
+  const [struct, setStruct] = useState<MeetingStructStatus | null>(null);
+  const [structSettings, setStructSettings] = useState<Config["settings"] | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
 
@@ -382,6 +389,8 @@ function MeetingPanel() {
     try {
       setActive(await api.voiceMeetingStatus());
       setMeetings(await api.voiceMeetingList());
+      setStruct(await api.structStatus());
+      setStructSettings((await api.getConfig()).settings);
     } catch (e) {
       setError(String(e));
     }
@@ -398,18 +407,30 @@ function MeetingPanel() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    const unlisten = listen("voice:struct-updated", () => void refresh());
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [refresh]);
+
   const shownId = openId ?? active?.id ?? null;
 
   useEffect(() => {
     if (!shownId) {
       setTranscript("");
+      setMinutes("");
       return;
     }
     void api
       .voiceMeetingRead(shownId)
       .then(setTranscript)
-      .catch((e) => setError(String(e)));
-  }, [shownId, active?.entries]);
+      .catch((e: unknown) => setError(String(e)));
+    void api
+      .voiceMeetingMinutes(shownId)
+      .then(setMinutes)
+      .catch((e: unknown) => setError(String(e)));
+  }, [shownId, active?.entries, struct?.lastOkAt]);
 
   const handleStart = useCallback(async () => {
     setError("");
@@ -461,6 +482,37 @@ function MeetingPanel() {
     [openId, refresh],
   );
 
+  const patchStructSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
+    setError("");
+    try {
+      setStructSettings((await api.patchSettings(patch)).settings);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  const handleStructNow = useCallback(async () => {
+    setError("");
+    try {
+      await api.runStructNow();
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [refresh]);
+
+  const structLine = !active
+    ? null
+    : struct?.running
+      ? "Structuring…"
+      : struct?.lastError
+        ? `Structure failed: ${struct.lastError}`
+        : struct?.lastOkAt
+          ? `Structured ${new Date(struct.lastOkAt * 1000).toLocaleString()} · every ${struct.intervalSecs}s`
+          : struct && struct.intervalSecs === 0
+            ? "Auto-structure off"
+            : `Auto-structure every ${struct?.intervalSecs ?? 120}s`;
+
   return (
     <div className="flex shrink-0 flex-col gap-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -477,6 +529,64 @@ function MeetingPanel() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="icon-xs" variant="ghost" aria-label="Auto-structure settings">
+                <Settings2 />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 space-y-3">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                Auto-structure
+                <VaultScopedBadge />
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                <Select
+                  value={structSettings?.meeting_struct_assignee ?? "claude-code"}
+                  onValueChange={(v) => void patchStructSettings({ meeting_struct_assignee: v })}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="claude-code">Claude Code</SelectItem>
+                    <SelectItem value="opencode">OpenCode</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Model</label>
+                <ModelCombobox
+                  assignee={structSettings?.meeting_struct_assignee ?? "claude-code"}
+                  value={structSettings?.meeting_struct_model ?? ""}
+                  onChange={(v) => void patchStructSettings({ meeting_struct_model: v })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Every (seconds, 0 = off)
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={structSettings?.meeting_struct_interval_secs ?? 120}
+                  onChange={(e) =>
+                    void patchStructSettings({
+                      meeting_struct_interval_secs: Math.max(
+                        0,
+                        parseInt(e.target.value, 10) || 0,
+                      ),
+                    })
+                  }
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Only new transcript goes to the agent — a run with nothing new costs nothing.
+              </p>
+            </PopoverContent>
+          </Popover>
           {shownId && (
             <Button
               size="xs"
@@ -485,6 +595,12 @@ function MeetingPanel() {
             >
               {copied ? <Check className="text-emerald-500" /> : <Copy />}
               Minutes prompt
+            </Button>
+          )}
+          {active && (
+            <Button size="xs" variant="outline" onClick={() => void handleStructNow()}>
+              <Sparkles />
+              Structure now
             </Button>
           )}
           {active ? (
@@ -501,10 +617,34 @@ function MeetingPanel() {
         </div>
       </div>
 
+      {structLine && (
+        <p className="text-[11px] text-muted-foreground">{structLine}</p>
+      )}
+
       {shownId && (
-        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs">
-          {transcript || "Waiting for the first transcript…"}
-        </pre>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1">
+            <Button
+              size="xs"
+              variant={minutesView ? "ghost" : "outline"}
+              onClick={() => setMinutesView(false)}
+            >
+              Transcript
+            </Button>
+            <Button
+              size="xs"
+              variant={minutesView ? "outline" : "ghost"}
+              onClick={() => setMinutesView(true)}
+            >
+              Minutes
+            </Button>
+          </div>
+          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs">
+            {minutesView
+              ? minutes || "Not structured yet…"
+              : transcript || "Waiting for the first transcript…"}
+          </pre>
+        </div>
       )}
 
       {meetings.length > 0 && (

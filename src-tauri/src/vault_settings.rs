@@ -53,6 +53,9 @@ const VAULT_SCOPED: &[&str] = &[
     "mindmap_assignee",
     "mindmap_model",
     "mindmap_confirm",
+    "meeting_struct_interval_secs",
+    "meeting_struct_assignee",
+    "meeting_struct_model",
     "recurring",
     "tidy",
     // The one path-shaped setting that is portable: a shared drive's location

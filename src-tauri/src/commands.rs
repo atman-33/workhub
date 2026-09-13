@@ -1796,6 +1796,28 @@ pub async fn voice_meeting_prompt(id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Periodic structuring status for the active meeting, if any (T-0318).
+#[tauri::command]
+pub fn voice_struct_status(app: tauri::AppHandle) -> Option<crate::voice_struct::StructStatus> {
+    crate::voice_struct::status(&app)
+}
+
+/// Structures the active meeting's new transcript now, outside the periodic
+/// schedule (T-0318).
+#[tauri::command]
+pub fn voice_struct_run_now(app: tauri::AppHandle) -> Result<String, String> {
+    crate::voice_struct::run_now(app)
+}
+
+/// Full Markdown of one meeting's auto-structured minutes, or empty when no
+/// run has produced any yet (T-0318).
+#[tauri::command]
+pub async fn voice_meeting_minutes(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::voice_struct::read_minutes(&id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ---------------------------------------------------------------------
 // persona plugin: character browser and the persisted default
 // ---------------------------------------------------------------------

@@ -39,6 +39,7 @@ mod voice_chunk;
 mod voice_history;
 mod voice_loopback;
 mod voice_meeting;
+mod voice_struct;
 mod window_place;
 mod wsl;
 
@@ -175,6 +176,7 @@ pub fn run() {
         .manage(terminal::TerminalState::default())
         .manage(voice::VoiceState::default())
         .manage(voice_meeting::MeetingState::default())
+        .manage(voice_struct::StructState::default())
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
         .manage(schedule_edit::ScheduleEditState::default())
@@ -253,6 +255,9 @@ pub fn run() {
             // Background vault-tidy scheduler (T-0050). Cheap mechanical checks;
             // only launches an agent when there is actual housekeeping to do.
             tidy::start_scheduler(app.handle().clone());
+            // Background meeting-transcript structuring (T-0318). Only fires
+            // while a meeting is active and new sections exist.
+            voice_struct::start_scheduler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -399,6 +404,9 @@ pub fn run() {
             commands::voice_meeting_read,
             commands::voice_meeting_delete,
             commands::voice_meeting_prompt,
+            commands::voice_struct_status,
+            commands::voice_struct_run_now,
+            commands::voice_meeting_minutes,
             commands::persona_characters,
             commands::persona_genshijin_installed,
             commands::persona_state,

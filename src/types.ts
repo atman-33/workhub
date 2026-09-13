@@ -129,6 +129,12 @@ export interface Settings {
   /** Default AI mindmap edits to confirm-first instead of applying
    * immediately. */
   mindmap_confirm: boolean;
+  /** Seconds between automatic meeting structurings; 0 = off. Vault-scoped. */
+  meeting_struct_interval_secs: number;
+  /** Agent CLI used for meeting structuring: "claude-code" | "opencode". */
+  meeting_struct_assignee: string;
+  /** Model passed to that agent via --model; empty = the agent's default. */
+  meeting_struct_model: string;
   /** Default HTML export destination; empty = the project's `attachments/`. */
   schedule_export_dir: string;
   /** Calendar display language, on screen and in the HTML export: "en" | "ja".
@@ -553,6 +559,20 @@ export interface VoiceMeeting {
   entries: number;
   /** Absolute path of the meeting's Markdown file. */
   path: string;
+}
+
+/** Periodic meeting-structuring run state (T-0318). Null when no meeting. */
+export interface MeetingStructStatus {
+  /** A structuring run is in flight. */
+  running: boolean;
+  /** Seconds between runs; 0 means the periodic run is off. */
+  intervalSecs: number;
+  /** Transcript entries already covered by the last successful run. */
+  structuredEntries: number;
+  /** Unix seconds of the last successful run, if any. */
+  lastOkAt: number | null;
+  /** The last run's failure, if it failed (retried next tick). */
+  lastError: string | null;
 }
 
 /** One paste-ready snippet in the clips picker. Array order is the display
