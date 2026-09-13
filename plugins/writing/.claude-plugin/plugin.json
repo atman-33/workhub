@@ -1,0 +1,10 @@
+{
+  "name": "writing",
+  "version": "0.1.0",
+  "description": "Write natural Japanese work documents: meeting minutes, reports, guides and notes with a style constitution, doctype guides and a manual review checklist. No scripts, no extra runtime. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33/workhub"
+  },
+  "license": "MIT"
+}
