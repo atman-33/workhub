@@ -137,6 +137,7 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
 - Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed at the top of the **Voice** tab; each change takes effect as soon as you make it.
+- **Meeting mode** (in the **Voice** tab) accumulates transcripts into a file while a meeting is active: press **Start meeting**, dictate with the hotkey as usual, and each finalized transcript is appended with a timestamp. Press **Stop** when the meeting ends. **Minutes prompt** copies the transcript plus instructions for decisions / action items / open questions — paste it into Claude Code or OpenCode to get structured minutes.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)
@@ -1203,6 +1204,19 @@ export function HelpView() {
                 The hotkey, model, and language can be changed at the top of
                 the <span className="font-medium">Voice</span> tab; each change
                 takes effect as soon as you make it.
+              </li>
+              <li>
+                <span className="font-medium">Meeting mode</span> (in the{" "}
+                <span className="font-medium">Voice</span> tab) accumulates
+                transcripts into a file while a meeting is active: press{" "}
+                <span className="font-medium">Start meeting</span>, dictate
+                with the hotkey as usual, and each finalized transcript is
+                appended with a timestamp. Press{" "}
+                <span className="font-medium">Stop</span> when the meeting
+                ends. <span className="font-medium">Minutes prompt</span>{" "}
+                copies the transcript plus instructions for decisions /
+                action items / open questions — paste it into Claude Code or
+                OpenCode to get structured minutes.
               </li>
               <li>
                 workhub has no tray icon: closing its main window quits the

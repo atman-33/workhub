@@ -711,6 +711,8 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             // the safety net for when the paste target lost focus (or the
             // paste otherwise failed) between recording and now.
             record_history_entry(&app, &text);
+            // A running meeting captures the same text, timestamped.
+            crate::voice_meeting::append_transcript(&app, &text);
             if let Err(e) = crate::paste::paste_text(&text) {
                 crate::diag!("voice: paste failed: {e}");
             }

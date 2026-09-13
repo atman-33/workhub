@@ -37,6 +37,7 @@ mod vault_settings;
 mod voice;
 mod voice_chunk;
 mod voice_history;
+mod voice_meeting;
 mod window_place;
 mod wsl;
 
@@ -172,6 +173,7 @@ pub fn run() {
         .manage(ink::InkState::default())
         .manage(terminal::TerminalState::default())
         .manage(voice::VoiceState::default())
+        .manage(voice_meeting::MeetingState::default())
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
         .manage(schedule_edit::ScheduleEditState::default())
@@ -389,6 +391,13 @@ pub fn run() {
             commands::voice_history_list,
             commands::voice_history_delete,
             commands::voice_history_clear,
+            commands::voice_meeting_start,
+            commands::voice_meeting_finish,
+            commands::voice_meeting_status,
+            commands::voice_meeting_list,
+            commands::voice_meeting_read,
+            commands::voice_meeting_delete,
+            commands::voice_meeting_prompt,
             commands::persona_characters,
             commands::persona_genshijin_installed,
             commands::persona_state,

@@ -39,6 +39,7 @@ import type {
   UpdateTaskInput,
   VaultProject,
   VoiceHistoryEntry,
+  VoiceMeeting,
   Worktree,
 } from "@/types";
 
@@ -467,6 +468,15 @@ export const api = {
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),
   voiceHistoryDelete: (id: string) => invoke<void>("voice_history_delete", { id }),
+
+  // ---- voice meeting mode (T-0252): accumulate transcripts into a file ----
+  voiceMeetingStart: () => invoke<VoiceMeeting>("voice_meeting_start"),
+  voiceMeetingFinish: () => invoke<VoiceMeeting | null>("voice_meeting_finish"),
+  voiceMeetingStatus: () => invoke<VoiceMeeting | null>("voice_meeting_status"),
+  voiceMeetingList: () => invoke<VoiceMeeting[]>("voice_meeting_list"),
+  voiceMeetingRead: (id: string) => invoke<string>("voice_meeting_read", { id }),
+  voiceMeetingDelete: (id: string) => invoke<void>("voice_meeting_delete", { id }),
+  voiceMeetingPrompt: (id: string) => invoke<string>("voice_meeting_prompt", { id }),
   // ---- persona plugin (Persona tab) ----
   // An empty character list is how the app decides the plugin is not in use.
   personaCharacters: () => invoke<PersonaCharacter[]>("persona_characters"),
