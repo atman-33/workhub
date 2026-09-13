@@ -358,6 +358,8 @@ pub fn run() {
             commands::set_docs_shortcuts,
             commands::docs_list_pane,
             commands::set_docs_list_pane,
+            commands::docs_allow_remote_images,
+            commands::set_docs_allow_remote_images,
             commands::docs_plantuml_server,
             commands::set_docs_plantuml_server,
             commands::docs_render_plantuml,

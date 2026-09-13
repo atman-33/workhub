@@ -116,6 +116,7 @@ const DEFAULTS: Settings = {
   docs_plantuml_server: "",
   docs_shortcuts: [],
   docs_list_pane: false,
+  docs_allow_remote_images: false,
 };
 
 interface Props {

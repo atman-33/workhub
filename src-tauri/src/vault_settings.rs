@@ -69,6 +69,10 @@ const VAULT_SCOPED: &[&str] = &[
     // (T-0276).
     "docs_shortcuts",
     "docs_list_pane",
+    // Reading an external image announces the read to whoever serves it, so
+    // whether the tab may do that is the team's call, like the sidebar split
+    // above (T-0329).
+    "docs_allow_remote_images",
 ];
 
 /// The `tidy` sub-fields that are policy (portable) rather than run history.

@@ -255,6 +255,10 @@ export const api = {
     invoke<void>("set_docs_shortcuts", { shortcuts }),
   docsListPane: () => invoke<boolean>("docs_list_pane"),
   setDocsListPane: (enabled: boolean) => invoke<void>("set_docs_list_pane", { enabled }),
+  /** Whether the Docs tab loads images from `https:` URLs (T-0329). */
+  docsAllowRemoteImages: () => invoke<boolean>("docs_allow_remote_images"),
+  setDocsAllowRemoteImages: (enabled: boolean) =>
+    invoke<void>("set_docs_allow_remote_images", { enabled }),
   docsPlantumlServer: () => invoke<string>("docs_plantuml_server"),
   setDocsPlantumlServer: (server: string) =>
     invoke<void>("set_docs_plantuml_server", { server }),

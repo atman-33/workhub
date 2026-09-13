@@ -22,6 +22,20 @@ import { isExternalSrc, resolveDocRelative } from "./markdown";
 export const HTML_PREVIEW_CSP =
   "default-src 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'";
 
+/**
+ * The policy when the reader allows remote images (T-0329): `https:` images
+ * join the `data:` ones. Everything else stays where it was — scripts are
+ * still off through the sandbox, and stylesheets, media and fonts still come
+ * from nowhere but the document itself.
+ */
+export const HTML_PREVIEW_CSP_REMOTE_IMAGES =
+  "default-src 'none'; img-src data: https:; media-src data:; font-src data:; style-src 'unsafe-inline'";
+
+/** True for an image source the frame may load itself when remote images are on. */
+export function isRemoteImageSrc(src: string): boolean {
+  return /^https:/i.test(src.trim().replace(/^<|>$/g, ""));
+}
+
 /** How the frame gets at the share: both go through the backend's guard. */
 export interface HtmlAssetLoaders {
   /** A text file (a stylesheet), by absolute path. */
@@ -39,7 +53,9 @@ export interface HtmlAssetLoaders {
  * - Relative `<img src>` becomes a `data:` URI; `srcset` is dropped, since it
  *   would bypass the rewritten `src`. An image that cannot be read keeps its
  *   original `src`, which the CSP then leaves unloaded — a broken image, not a
- *   broken page.
+ *   broken page. With `allowRemoteImages`, an `https:` `src` is kept as it is
+ *   instead — the frame loads it itself — while `srcset` is still dropped and
+ *   plain `http:` stays unloaded.
  * - A relative `<link rel="stylesheet">` becomes a `<style>` with the file's
  *   text. One that cannot be read is dropped.
  * - The CSP meta goes first in `<head>`, ahead of everything it governs.
@@ -51,7 +67,9 @@ export async function prepareHtmlDocument(
   doc: Document,
   docPath: string,
   loaders: HtmlAssetLoaders,
+  options?: { allowRemoteImages?: boolean },
 ): Promise<void> {
+  const allowRemoteImages = options?.allowRemoteImages ?? false;
   for (const el of Array.from(doc.querySelectorAll("meta[http-equiv], base"))) {
     const equiv = el.getAttribute("http-equiv")?.toLowerCase();
     if (el.tagName.toLowerCase() === "base" || equiv === "refresh") el.remove();
@@ -62,6 +80,9 @@ export async function prepareHtmlDocument(
   for (const img of Array.from(doc.querySelectorAll("img"))) {
     img.removeAttribute("srcset");
     const src = img.getAttribute("src") ?? "";
+    // A remote image the reader allowed stays for the frame to load; the CSP
+    // written below is what actually permits it.
+    if (allowRemoteImages && isRemoteImageSrc(src)) continue;
     const target = localTarget(docPath, src);
     if (!target) continue;
     jobs.push(
@@ -93,7 +114,10 @@ export async function prepareHtmlDocument(
 
   const csp = doc.createElement("meta");
   csp.setAttribute("http-equiv", "Content-Security-Policy");
-  csp.setAttribute("content", HTML_PREVIEW_CSP);
+  csp.setAttribute(
+    "content",
+    allowRemoteImages ? HTML_PREVIEW_CSP_REMOTE_IMAGES : HTML_PREVIEW_CSP,
+  );
   doc.head.prepend(csp);
 }
 

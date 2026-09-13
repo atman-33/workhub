@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.125.0 (2026-09-13)
+
+- **Docs tab loads web images on request** (T-0329). An image pointing at an
+  `https:` URL used to read as unreadable — the tab fetched nothing off the
+  web. The gear button's **Load images from https: URLs** now allows them,
+  off by default: fetching one announces the read to whoever serves it, so it
+  stays the reader's call. Plain `http:` stays unloaded either way, scripts
+  stay switched off everywhere, and a page carrying scripts says so in the
+  preview with a pointer to the default app.
+
 ## 0.124.0 (2026-09-13)
 
 - **Backlog items start as folders now** (T-0321). Creating an item makes

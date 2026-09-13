@@ -161,6 +161,11 @@ export interface Settings {
    * list (T-0276). Off - the default - it is one tree holding both.
    * Vault-scoped. Managed from the Docs tab. */
   docs_list_pane: boolean;
+  /** Whether the Docs tab loads images from `https:` URLs (T-0329). Off -
+   * the default - an external image reads as unreadable: fetching one
+   * announces the read to whoever serves it. Vault-scoped. Managed from the
+   * Docs tab. */
+  docs_allow_remote_images: boolean;
 }
 
 /** One entry in the Docs tab's Shortcuts section (T-0276). A shortcut is its

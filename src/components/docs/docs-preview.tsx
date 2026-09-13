@@ -128,6 +128,10 @@ export function DocsPreview({
   const [loading, setLoading] = useState(false);
   const [zoom, setZoom] = useState(() => parsePreviewZoom(recall(ZOOM_KEY)));
   const [fullWidth, setFullWidth] = useState(() => recall(FULL_WIDTH_KEY) === "1");
+  // Whether `https:` images are loaded (T-0329). Re-read with the document —
+  // the settings dialog saves through `refreshToken`, so a toggled switch
+  // applies to the open page without reselecting it.
+  const [remoteImages, setRemoteImages] = useState(false);
 
   useEffect(() => {
     onBusyChange?.(loading);
@@ -159,6 +163,10 @@ export function DocsPreview({
         setError(String(e));
       })
       .finally(() => live && setLoading(false));
+    void api
+      .docsAllowRemoteImages()
+      .then((on) => live && setRemoteImages(on))
+      .catch(() => live && setRemoteImages(false));
     return () => {
       live = false;
     };
@@ -193,6 +201,10 @@ export function DocsPreview({
 
   const resolveAsset = useCallback(
     async (src: string): Promise<string | null> => {
+      // An `https:` image the reader allowed loads in the webview itself —
+      // there is nothing for the backend to resolve (T-0329). Plain `http:`
+      // stays unloaded either way.
+      if (remoteImages && /^https:/i.test(src.trim().replace(/^<|>$/g, ""))) return src;
       let forDoc = cache.get(cacheKey);
       if (!forDoc) {
         cache.clear();
@@ -217,7 +229,7 @@ export function DocsPreview({
         return null;
       }
     },
-    [cache, cacheKey, path],
+    [cache, cacheKey, path, remoteImages],
   );
 
   const onOpenFigure = useCallback((figure: DocsFigure) => openFigure(figure, onError), [onError]);
@@ -380,7 +392,13 @@ export function DocsPreview({
           <p className="text-xs text-muted-foreground">Reading…</p>
         )}
         {!error && content && html && (
-          <HtmlPreview path={path} content={content} notes={notes} stamp={stamp} />
+          <HtmlPreview
+            path={path}
+            content={content}
+            notes={notes}
+            stamp={stamp}
+            allowRemoteImages={remoteImages}
+          />
         )}
         {!error && content && text && (
           // Shown exactly as it is on disk (T-0294): no parsing, no
