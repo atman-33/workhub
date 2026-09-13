@@ -56,6 +56,12 @@
       "summary": "Zenn tech-blog writing: house style and Zenn-flavoured markdown."
     },
     {
+      "name": "writing",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "Natural Japanese business writing: style constitution, doctype guides and a manual review checklist. Script-free; platform-specific writing stays in zenn."
+    },
+    {
       "name": "strategy",
       "tier": "optional",
       "scope": "either",

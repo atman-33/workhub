@@ -15,6 +15,7 @@
     { "name": "agent-ops", "source": "./plugins/agent-ops" },
     { "name": "claude-tooling", "source": "./plugins/claude-tooling" },
     { "name": "zenn", "source": "./plugins/zenn" },
+    { "name": "writing", "source": "./plugins/writing" },
     { "name": "strategy", "source": "./plugins/strategy" },
     { "name": "team-ops", "source": "./plugins/team-ops" },
     { "name": "team-comms", "source": "./plugins/team-comms" },
