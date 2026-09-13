@@ -37,7 +37,9 @@ export interface ParsedBody {
   planRaw: string;
   /** The results header onward, verbatim — never edited by the dialog. */
   resultRaw: string;
-  /** Whether both required headers (Description, Results) were found. */
+  /** Whether the body was recognized as sectioned. True when
+   *  "## Description" was found and either "## Results" follows it or the
+   *  Description-only fallback applies (no "## Results" header at all). */
   hasSections: boolean;
 }
 
@@ -71,8 +73,21 @@ function findHeaderIndices(body: string): {
 
 export function parseBody(body: string): ParsedBody {
   const { description: contentIdx, plan: planIdx, results: resultIdx } = findHeaderIndices(body);
-  if (contentIdx === -1 || resultIdx === -1 || resultIdx < contentIdx) {
+  if (contentIdx === -1 || (resultIdx !== -1 && resultIdx < contentIdx)) {
     return { before: "", content: "", plan: "", planRaw: "", resultRaw: body, hasSections: false };
+  }
+  if (resultIdx === -1) {
+    // Description-only fallback: a freshly filed task with no "## Results"
+    // section yet. Treat everything after "## Description" (up to an optional
+    // "## Plan", else end of file) as the description so the editor shows it
+    // instead of an empty pane. No "## Results" header is invented here.
+    const hasPlan = planIdx !== -1 && planIdx > contentIdx;
+    const contentEnd = hasPlan ? planIdx : body.length;
+    const contentRaw = body.slice(contentIdx + CONTENT_HEADER.length, contentEnd);
+    const planRaw = hasPlan ? body.slice(planIdx) : "";
+    const plan = hasPlan ? planRaw.slice(PLAN_HEADER.length).trim() : "";
+    const before = body.slice(0, contentIdx);
+    return { before, content: contentRaw.trim(), plan, planRaw, resultRaw: "", hasSections: true };
   }
   const hasPlan = planIdx !== -1 && planIdx > contentIdx && planIdx < resultIdx;
   const contentEnd = hasPlan ? planIdx : resultIdx;
@@ -89,6 +104,12 @@ export function buildBody(parsed: ParsedBody, newContent: string): string {
     // No recognizable sections (unexpected external format) — append a
     // content section rather than guessing at a rewrite.
     return `${parsed.resultRaw}\n${CONTENT_HEADER}\n\n${newContent}\n`;
+  }
+  const tail = `${parsed.planRaw}${parsed.resultRaw}`;
+  if (!tail) {
+    // Description-only body: no Plan or Results to carry through, and no
+    // "## Results" header to invent — just the description section.
+    return `${parsed.before}${CONTENT_HEADER}\n\n${newContent}\n`;
   }
   return `${parsed.before}${CONTENT_HEADER}\n\n${newContent}\n\n${parsed.planRaw}${parsed.resultRaw}`;
 }
