@@ -155,8 +155,10 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// Passed to the agent CLI as `--model <model>`; empty = agent default.
     pub model: &'a str,
     /// Confirm/plan-first mode. When true, the initial prompt tells the agent
-    /// to give its own opinion first, then write a plan into the task file and
-    /// wait for the user's approval before executing. The CLI flags are the
+    /// to give its own opinion first, then present the full plan in its chat
+    /// response and wait for the user's approval reply before executing or
+    /// writing any files (showing it only in the task file is not enough —
+    /// the user approves from the chat). The CLI flags are the
     /// same as in autonomous mode (T-0285): the stop is asked for in the
     /// prompt, not enforced by a permission mode, so the agent is free to
     /// investigate and propose an alternative while it thinks.
@@ -325,7 +327,7 @@ fn agent_prompt_clauses(params: &LaunchAgentForTaskParams<'_>, multiline: bool) 
                 .to_string(),
         );
         clauses.push(format!(
-            "Then draft an implementation plan in {language_name} and ask the user to approve it; do not implement anything until they do."
+            "Then draft an implementation plan in {language_name}, present the full plan in your chat response to the user, and ask them to approve it; do not implement anything, nor write to any files, until they reply with approval."
         ));
         clauses.push(
             "Once approved, write the plan into the task file's `## Plan` section before making any code changes."
@@ -970,6 +972,62 @@ mod tests {
         // Each kept char encodes to 9 chars ("%E3%81%82").
         let encoded_len = url.len() - "claude://claude.ai/new?q=".len();
         assert_eq!(encoded_len, CLAUDE_PROMPT_LIMIT * 9);
+    }
+
+    #[test]
+    fn confirm_prompt_requires_chat_presentation_before_any_writes() {
+        let params = LaunchAgentForTaskParams {
+            agent_cmd: "claude",
+            assignee: "claude-code",
+            task_id: "T-1",
+            task_title: "title",
+            task_file: "tasks/T-1.md",
+            project: "",
+            model: "",
+            confirm: true,
+            worktree: false,
+            worktree_root: "",
+            vault_path: "C:/vault",
+            use_herdr: false,
+            herdr_cmd: "",
+            terminal_embed: false,
+            task_language: "ja",
+            custom_prompt: "",
+        };
+        let prompt = build_agent_prompt(&params);
+        assert!(
+            prompt.contains("present the full plan in your chat response"),
+            "confirm prompt must require chat presentation: {prompt}"
+        );
+        assert!(
+            prompt.contains("nor write to any files, until they reply with approval"),
+            "confirm prompt must forbid writes before approval: {prompt}"
+        );
+    }
+
+    #[test]
+    fn autonomous_prompt_has_no_approval_stop() {
+        let params = LaunchAgentForTaskParams {
+            agent_cmd: "claude",
+            assignee: "claude-code",
+            task_id: "T-1",
+            task_title: "title",
+            task_file: "tasks/T-1.md",
+            project: "",
+            model: "",
+            confirm: false,
+            worktree: false,
+            worktree_root: "",
+            vault_path: "C:/vault",
+            use_herdr: false,
+            herdr_cmd: "",
+            terminal_embed: false,
+            task_language: "ja",
+            custom_prompt: "",
+        };
+        let prompt = build_agent_prompt(&params);
+        assert!(!prompt.contains("reply with approval"));
+        assert!(prompt.contains("without asking for confirmation"));
     }
 
     #[test]
