@@ -411,6 +411,7 @@ pub fn run() {
             commands::voice_struct_run_now,
             commands::voice_meeting_minutes,
             commands::voice_struct_log,
+            commands::voice_struct_repro,
             commands::persona_characters,
             commands::persona_genshijin_installed,
             commands::persona_state,

@@ -488,6 +488,7 @@ export const api = {
   structStatus: () => invoke<MeetingStructStatus | null>("voice_struct_status"),
   runStructNow: () => invoke<string>("voice_struct_run_now"),
   structLog: (id: string) => invoke<string>("voice_struct_log", { id }),
+  structRepro: () => invoke<string>("voice_struct_repro"),
   // ---- persona plugin (Persona tab) ----
   // An empty character list is how the app decides the plugin is not in use.
   personaCharacters: () => invoke<PersonaCharacter[]>("persona_characters"),

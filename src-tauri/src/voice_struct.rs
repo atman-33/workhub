@@ -191,6 +191,13 @@ pub fn read_struct_log(id: &str) -> String {
     std::fs::read_to_string(struct_log_file(id)).unwrap_or_default()
 }
 
+/// The exact stdin prompt of a terminal repro (`repro_in_terminal`): kept
+/// byte-identical to what the headless run would receive, so the two stay
+/// comparable. Debug artifact, deleted with the meeting.
+pub(crate) fn prompt_file(id: &str) -> PathBuf {
+    crate::voice_meeting::meetings_dir().join(format!("{id}.struct.prompt.md"))
+}
+
 /// Appends one timestamped line to the meeting's struct run log.
 /// Best-effort: a log that cannot be written must never fail the run it
 /// describes.
@@ -213,26 +220,24 @@ fn append_struct_log(meeting_id: &str, line: &str) {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn spawn_run(
-    app: AppHandle,
+/// Everything a struct run needs before spawning: the stdin prompt, the agent
+/// argv, and how many entries are new. No run-state side effects — shared by
+/// the headless run and the terminal repro (T-0337).
+struct RunPrep {
+    prompt: String,
+    argv: Vec<String>,
+    new_count: usize,
+}
+
+fn prepare_run(
     meeting_id: &str,
-    meeting_started: &str,
     entries: usize,
     covered: usize,
     assignee: &str,
     model: &str,
-) {
-    let transcript = match crate::voice_meeting::read(meeting_id) {
-        Ok(t) => t,
-        Err(e) => {
-            let msg = format!("cannot read transcript: {e}");
-            crate::diag!("voice struct: {msg}");
-            append_struct_log(meeting_id, &format!("fail: {msg}"));
-            fail_run(&app, msg);
-            return;
-        }
-    };
+) -> Result<RunPrep, String> {
+    let transcript = crate::voice_meeting::read(meeting_id)
+        .map_err(|e| format!("cannot read transcript: {e}"))?;
     let new_text = new_sections_since(&transcript, covered);
     let previous = std::fs::read_to_string(minutes_file(meeting_id)).ok();
     let previous_body = previous.as_deref().and_then(strip_minutes_header);
@@ -246,14 +251,95 @@ fn spawn_run(
         "",
     );
     if argv.first().map(|s| s.is_empty()).unwrap_or(true) {
-        let msg = "could not resolve the agent command".to_string();
-        crate::diag!("voice struct: {msg}");
-        append_struct_log(meeting_id, &format!("fail: {msg}"));
-        fail_run(&app, msg);
-        return;
+        return Err("could not resolve the agent command".into());
     }
+    Ok(RunPrep {
+        prompt,
+        argv,
+        new_count: entries.saturating_sub(covered),
+    })
+}
+
+/// Debug repro of the active meeting's struct run in a visible terminal
+/// (T-0337). Writes the exact headless stdin prompt to
+/// `<id>.struct.prompt.md`, then runs the same agent argv against it via
+/// `Get-Content … |` in a new terminal window. Fire-and-forget: touches no
+/// run state, captures nothing, writes no minutes.
+pub fn repro_in_terminal(app: &AppHandle) -> Result<String, String> {
+    let settings = storage::load().settings;
+    let info = crate::voice_meeting::status(app).ok_or("no meeting is active")?;
+    let covered = app
+        .state::<StructState>()
+        .inner
+        .lock()
+        .unwrap()
+        .structured_entries;
+    let prep = prepare_run(
+        &info.id,
+        info.entries,
+        covered,
+        &settings.meeting_struct_assignee,
+        &settings.meeting_struct_model,
+    )
+    .map_err(|msg| {
+        crate::diag!("voice struct repro: {msg}");
+        msg
+    })?;
+    let prompt_path = prompt_file(&info.id);
+    std::fs::write(&prompt_path, &prep.prompt)
+        .map_err(|e| format!("cannot write repro prompt: {e}"))?;
+    let template = if settings.meeting_struct_assignee == "opencode" {
+        settings.opencode_cmd.clone()
+    } else {
+        settings.agent_cmd.clone()
+    };
+    // `prepare_run` guarantees a non-empty argv.
+    let exe = prep.argv[0].clone();
+    let args = prep.argv[1..].to_vec();
+    actions::launch_struct_repro(
+        &template,
+        &crate::voice_meeting::meetings_dir(),
+        &exe,
+        &args,
+        &prompt_path,
+    )
+    .map_err(|e| {
+        crate::diag!("voice struct repro: launch failed: {e}");
+        e
+    })?;
+    crate::diag!(
+        "voice struct repro: launched in a terminal for meeting {}",
+        info.id
+    );
+    append_struct_log(&info.id, "repro: launched in a terminal");
+    Ok("Launched struct repro in a terminal.".into())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn spawn_run(
+    app: AppHandle,
+    meeting_id: &str,
+    meeting_started: &str,
+    entries: usize,
+    covered: usize,
+    assignee: &str,
+    model: &str,
+) {
+    let prep = match prepare_run(meeting_id, entries, covered, assignee, model) {
+        Ok(p) => p,
+        Err(msg) => {
+            crate::diag!("voice struct: {msg}");
+            append_struct_log(meeting_id, &format!("fail: {msg}"));
+            fail_run(&app, msg);
+            return;
+        }
+    };
+    let RunPrep {
+        prompt,
+        argv,
+        new_count,
+    } = prep;
     // Said out loud before spending: what this run is about to consume.
-    let new_count = entries.saturating_sub(covered);
     crate::diag!(
         "voice struct: run for meeting {meeting_id} ({new_count} new entries, model={model})"
     );
