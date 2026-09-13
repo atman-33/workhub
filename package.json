@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.23.0",
     "mermaid": "^11.17.2",
     "radix-ui": "^1.6.1",
