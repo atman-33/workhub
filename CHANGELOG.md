@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.132.0 (2026-09-13)
+
+- **Task editor gives Description room to breathe** (B-025). Priority moved
+  into the title row, the launch row now reads Status / Assignee / Model /
+  Confirm / Worktree at a glance, backlog items are created from a + button,
+  and Due / Tags / Blocked moved into a Details tab with a dot while anything
+  in it is set — so the prompt context agents receive is no longer squeezed
+  to a line or two.
+- **Confirm mode asks for the plan in the chat** (B-025). The launch prompt
+  now tells the agent to present the full plan in its chat response and to
+  write nothing until approval lands, so a plan that only ever reached the
+  task file stops slipping past review.
+
 ## 0.131.0 (2026-09-13)
 
 - **Meeting files move into the vault** (T-0338). Transcripts, minutes and
