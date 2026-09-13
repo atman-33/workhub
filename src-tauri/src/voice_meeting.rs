@@ -8,15 +8,17 @@
 //! fallback. Structuring (decisions / action items / open questions) stays on
 //! demand via `structuring_prompt`, copied into whatever agent the user runs.
 //!
-//! Files live under `~/.workhub/meetings/<millis>.md` (see `storage.rs` for
-//! the config dir); the header is written through a temp file + rename so a
+//! Files live under `<vault>/<voice_meetings_dir>/<millis>.md` (T-0338; e.g.
+//! `<vault>/voice/meetings`), falling back to the legacy
+//! `~/.workhub/meetings` when no vault is configured or the setting is
+//! unsafe; the header is written through a temp file + rename so a
 //! crash mid-write never leaves a truncated file behind (mirrors
 //! `voice_history.rs`), while transcript sections are appended in place —
 //! re-reading and rewriting the whole file per chunk would grow
 //! quadratically over a long meeting.
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -46,7 +48,43 @@ pub struct MeetingInfo {
 }
 
 pub(crate) fn meetings_dir() -> PathBuf {
+    let cfg = storage::load();
+    let vault = crate::tidy::resolve_vault(&cfg);
+    vault_meetings_dir(vault.as_deref(), &cfg.settings.voice_meetings_dir)
+        .unwrap_or_else(legacy_meetings_dir)
+}
+
+/// Pre-T-0338 location, kept only as the fallback when no vault is
+/// configured. No migration: single-user app, old files are removed by hand
+/// (T-0338).
+fn legacy_meetings_dir() -> PathBuf {
     storage::config_dir().join("meetings")
+}
+
+/// Resolves `<vault>/<rel>` for a vault-relative meetings folder, or `None`
+/// when unusable (no vault, empty, absolute, or escaping the vault).
+/// Pure so the validation is unit-testable.
+fn vault_meetings_dir(vault: Option<&Path>, rel: &str) -> Option<PathBuf> {
+    let vault = vault?;
+    let rel = rel.trim().replace('\\', "/");
+    if rel.is_empty() {
+        return None;
+    }
+    let p = PathBuf::from(&rel);
+    if p.is_absolute()
+        || p.components().any(|c| {
+            matches!(
+                c,
+                Component::Prefix(_)
+                    | Component::RootDir
+                    | Component::CurDir
+                    | Component::ParentDir
+            )
+        })
+    {
+        return None;
+    }
+    Some(vault.join(p))
 }
 
 fn meeting_file(id: &str) -> PathBuf {
@@ -341,6 +379,32 @@ mod tests {
     fn meeting_file_lives_under_the_meetings_dir() {
         assert_eq!(meeting_file("123").file_name().unwrap(), "123.md");
         assert!(meeting_file("123").parent().unwrap().ends_with("meetings"));
+    }
+
+    #[test]
+    fn vault_meetings_dir_joins_vault_and_setting() {
+        let vault = Path::new("C:/vault");
+        assert_eq!(
+            vault_meetings_dir(Some(vault), "voice/meetings"),
+            Some(PathBuf::from("C:/vault/voice/meetings"))
+        );
+        assert_eq!(
+            vault_meetings_dir(Some(vault), "meetings"),
+            Some(PathBuf::from("C:/vault/meetings"))
+        );
+    }
+
+    #[test]
+    fn vault_meetings_dir_rejects_empty_absolute_and_escaping() {
+        let vault = Path::new("C:/vault");
+        assert_eq!(vault_meetings_dir(None, "voice/meetings"), None);
+        assert_eq!(vault_meetings_dir(Some(vault), ""), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "   "), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "C:/other/meetings"), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "/abs/meetings"), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "../escape"), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "voice/../../escape"), None);
+        assert_eq!(vault_meetings_dir(Some(vault), "."), None);
     }
 
     #[test]

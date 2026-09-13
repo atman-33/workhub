@@ -247,6 +247,13 @@ pub struct Settings {
     /// Model passed to that agent via `--model`; empty = the agent's default.
     #[serde(default)]
     pub meeting_struct_model: String,
+    /// Vault-relative folder holding meeting files (transcript, minutes, run
+    /// logs) (T-0338). Vault-scoped like `docs_roots`: a location inside the
+    /// vault the team agreed on, portable across machines — never an absolute
+    /// path. Empty or unsafe (absolute, escaping) values fall back to the
+    /// legacy `~/.workhub/meetings`.
+    #[serde(default = "default_voice_meetings_dir")]
+    pub voice_meetings_dir: String,
     /// Default destination for HTML exports. Empty = the project's own
     /// `attachments/` folder, which is what keeps an export attached to the
     /// project it describes.
@@ -454,6 +461,9 @@ fn default_schedule_locale() -> String {
 fn default_meeting_struct_interval_secs() -> u64 {
     120
 }
+fn default_voice_meetings_dir() -> String {
+    "voice/meetings".into()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -507,6 +517,7 @@ impl Default for Settings {
             meeting_struct_interval_secs: default_meeting_struct_interval_secs(),
             meeting_struct_assignee: default_schedule_assignee(),
             meeting_struct_model: String::new(),
+            voice_meetings_dir: default_voice_meetings_dir(),
             schedule_export_dir: String::new(),
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),

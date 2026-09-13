@@ -279,7 +279,7 @@ fn tick(app: &AppHandle) {
 // Manual trigger + run
 // ---------------------------------------------------------------------------
 
-fn resolve_vault(cfg: &Config) -> Option<PathBuf> {
+pub(crate) fn resolve_vault(cfg: &Config) -> Option<PathBuf> {
     let raw = cfg.settings.vault_path.as_deref()?.trim().to_string();
     if raw.is_empty() {
         return None;
