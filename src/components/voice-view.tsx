@@ -25,7 +25,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Config, MeetingStructStatus, SttModelStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
+import type { Config, MeetingStructStatus, SttModelStatus, VoiceCaptureStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
 
 const MAX_ENTRIES = 50;
 
@@ -381,6 +381,10 @@ function MeetingPanel() {
   const [minutes, setMinutes] = useState("");
   const [minutesView, setMinutesView] = useState(false);
   const [struct, setStruct] = useState<MeetingStructStatus | null>(null);
+  const [capture, setCapture] = useState<VoiceCaptureStatus | null>(null);
+  const [notice, setNotice] = useState("");
+  const [showLog, setShowLog] = useState(false);
+  const [structLog, setStructLog] = useState("");
   const [structSettings, setStructSettings] = useState<Config["settings"] | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -390,6 +394,7 @@ function MeetingPanel() {
       setActive(await api.voiceMeetingStatus());
       setMeetings(await api.voiceMeetingList());
       setStruct(await api.structStatus());
+      setCapture(await api.captureStatus());
       setStructSettings((await api.getConfig()).settings);
     } catch (e) {
       setError(String(e));
@@ -414,6 +419,15 @@ function MeetingPanel() {
     };
   }, [refresh]);
 
+  // Capture phase changes (indicator stop/start, auto-restart) emit no
+  // meeting event of their own — mirror them so the badge never lies (T-0333).
+  useEffect(() => {
+    const unlisten = listen("voice:state", () => void refresh());
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [refresh]);
+
   const shownId = openId ?? active?.id ?? null;
 
   useEffect(() => {
@@ -432,8 +446,22 @@ function MeetingPanel() {
       .catch((e: unknown) => setError(String(e)));
   }, [shownId, active?.entries, struct?.lastOkAt]);
 
+  // Struct run log for the debug viewer below (T-0333). Re-read whenever a
+  // run starts or lands, so handoff and progress stay visible.
+  useEffect(() => {
+    if (!showLog || !shownId) {
+      setStructLog("");
+      return;
+    }
+    void api
+      .structLog(shownId)
+      .then(setStructLog)
+      .catch((e: unknown) => setStructLog(String(e)));
+  }, [showLog, shownId, struct?.running, struct?.lastOkAt, struct?.lastError]);
+
   const handleStart = useCallback(async () => {
     setError("");
+    setNotice("");
     try {
       const meeting = await api.voiceMeetingStart();
       setOpenId(null);
@@ -446,6 +474,7 @@ function MeetingPanel() {
 
   const handleStop = useCallback(async () => {
     setError("");
+    setNotice("");
     try {
       await api.voiceMeetingFinish();
       await refresh();
@@ -493,13 +522,21 @@ function MeetingPanel() {
 
   const handleStructNow = useCallback(async () => {
     setError("");
+    setNotice("");
     try {
-      await api.runStructNow();
+      // The backend runs asynchronously — show its acknowledgement ("Started"
+      // vs "Nothing new") until the run reports back (T-0333).
+      setNotice(await api.runStructNow());
       await refresh();
     } catch (e) {
       setError(String(e));
     }
   }, [refresh]);
+
+  // A finished run (or a fresh failure) supersedes the acknowledgement above.
+  useEffect(() => {
+    setNotice("");
+  }, [struct?.lastOkAt, struct?.lastError]);
 
   const structLine = !active
     ? null
@@ -519,10 +556,18 @@ function MeetingPanel() {
         <FileText className="size-4 text-muted-foreground" />
         <h3 className="text-xs font-medium">Meeting mode</h3>
         {active ? (
-          <span className="flex items-center gap-1.5 text-xs text-red-500">
-            <span className="size-2 animate-pulse rounded-full bg-red-500" />
-            Recording · {active.entries} entr{active.entries === 1 ? "y" : "ies"}
-          </span>
+          capture?.recording ? (
+            <span className="flex items-center gap-1.5 text-xs text-red-500">
+              <span className="size-2 animate-pulse rounded-full bg-red-500" />
+              Recording · {active.entries} entr{active.entries === 1 ? "y" : "ies"}
+            </span>
+          ) : capture?.transcribing ? (
+            <span className="text-xs text-muted-foreground">Transcribing…</span>
+          ) : (
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              Paused — auto-capture held (indicator stop or hotkey)
+            </span>
+          )
         ) : (
           <span className="text-xs text-muted-foreground">
             Recording runs on its own during the meeting; each utterance is appended here
@@ -603,10 +648,25 @@ function MeetingPanel() {
               Structure now
             </Button>
           )}
+          {shownId && (
+            <Button
+              size="xs"
+              variant={showLog ? "outline" : "ghost"}
+              onClick={() => setShowLog((v) => !v)}
+            >
+              Run log
+            </Button>
+          )}
+          {active && capture && !capture.recording && !capture.transcribing && (
+            <Button size="xs" variant="outline" onClick={() => void handleStart()}>
+              <Play />
+              Resume
+            </Button>
+          )}
           {active ? (
             <Button size="xs" variant="outline" onClick={() => void handleStop()}>
               <Square />
-              Stop
+              Stop meeting
             </Button>
           ) : (
             <Button size="xs" variant="outline" onClick={() => void handleStart()}>
@@ -619,6 +679,10 @@ function MeetingPanel() {
 
       {structLine && (
         <p className="text-[11px] text-muted-foreground">{structLine}</p>
+      )}
+
+      {notice && (
+        <p className="text-[11px] text-muted-foreground">{notice}</p>
       )}
 
       {shownId && (
@@ -645,6 +709,12 @@ function MeetingPanel() {
               : transcript || "Waiting for the first transcript…"}
           </pre>
         </div>
+      )}
+
+      {showLog && shownId && (
+        <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px]">
+          {structLog || "No structuring runs logged yet…"}
+        </pre>
       )}
 
       {meetings.length > 0 && (
