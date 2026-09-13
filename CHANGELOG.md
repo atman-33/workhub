@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.120.2 (2026-09-13)
+
+- **Description-only task files show up in the editor again** (T-0315). A
+  freshly filed task carrying just `## Description` used to render every pane
+  empty, which looked like lost content and tempted a duplicate paste. The
+  editor now reads the description (and any `## Plan`) straight from the file
+  and saves it back without duplicating a line or inventing a `## Results`
+  section, so a new task is legible from the moment it lands on the board.
+
 ## 0.120.1 (2026-09-13)
 
 - **Project plugins load in opencode Desktop again** (T-0314). Desktop's
