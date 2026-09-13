@@ -1,30 +1,37 @@
 //! Voice meeting mode: accumulates finalized dictation transcripts into a
 //! per-meeting Markdown file while a meeting session is active.
 //!
-//! The audio path is untouched — `voice.rs` keeps cutting chunks and pasting
-//! transcripts exactly as before. The only hook is in `record_history_entry`:
-//! when a meeting is active, the same finalized text is also appended here as
-//! a timestamped section. Structuring (decisions / action items / open
-//! questions) is deliberately not done here: the frontend copies a prompt
-//! built by `structuring_prompt` into whatever agent the user runs (Claude
-//! Code / OpenCode), on demand rather than per chunk.
+//! Since T-0317 the meeting owns its recording session: starting a meeting
+//! auto-starts capture, and every transcribed chunk is appended as it
+//! finishes (utterance granularity from `voice_chunk.rs`), so no hotkey
+//! presses are needed mid-meeting. The hotkey still works as a manual
+//! fallback. Structuring (decisions / action items / open questions) stays on
+//! demand via `structuring_prompt`, copied into whatever agent the user runs.
 //!
 //! Files live under `~/.workhub/meetings/<millis>.md` (see `storage.rs` for
-//! the config dir); writes go through a temp file + rename so a crash
-//! mid-write never leaves a truncated file behind (mirrors
-//! `voice_history.rs`).
+//! the config dir); the header is written through a temp file + rename so a
+//! crash mid-write never leaves a truncated file behind (mirrors
+//! `voice_history.rs`), while transcript sections are appended in place —
+//! re-reading and rewriting the whole file per chunk would grow
+//! quadratically over a long meeting.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::storage;
 
+/// Warns (once per meeting) past this file size, and keeps appending — the
+/// warning is the whole response, never a stop.
+const MAX_MEETING_FILE_BYTES: u64 = 1_048_576;
+
 /// Active meeting session id (start-time millis), if one is running.
 #[derive(Default)]
 pub struct MeetingState {
     active: Mutex<Option<String>>,
+    /// Meeting id already warned for exceeding `MAX_MEETING_FILE_BYTES`.
+    large_warned: Mutex<Option<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -121,11 +128,14 @@ fn write_file(path: &PathBuf, content: &str) -> Result<(), String> {
 }
 
 /// Starts a meeting session. Idempotent: starting twice returns the running
-/// meeting instead of opening a second one.
+/// meeting instead of opening a second one. Either way the meeting's capture
+/// session is (re)started — this is also how recording resumes after an error
+/// halt or a manual stop, without ending the meeting.
 pub fn start(app: &AppHandle) -> Result<MeetingInfo, String> {
     let state = app.state::<MeetingState>();
     if let Some(id) = state.active.lock().unwrap().clone() {
         if let Some(info) = info_for(&id) {
+            crate::voice::ensure_meeting_session(app);
             return Ok(info);
         }
     }
@@ -135,13 +145,18 @@ pub fn start(app: &AppHandle) -> Result<MeetingInfo, String> {
     let path = meeting_file(&id);
     write_file(&path, &header_for(&started))?;
     *state.active.lock().unwrap() = Some(id.clone());
+    *state.large_warned.lock().unwrap() = None;
     crate::diag!("voice meeting started: {id}");
     let _ = app.emit("voice:meeting-updated", ());
+    crate::voice::ensure_meeting_session(app);
     info_for(&id).ok_or_else(|| "failed to read back the new meeting".to_string())
 }
 
-/// Stops the active meeting session, if any. The file stays on disk.
+/// Stops the active meeting session, if any. The file stays on disk. An
+/// in-flight capture session is stopped first (transcribing its tail, not
+/// discarding it) and told not to restart itself.
 pub fn finish(app: &AppHandle) -> Option<MeetingInfo> {
+    crate::voice::stop_for_meeting_end(app);
     let state = app.state::<MeetingState>();
     let id = state.active.lock().unwrap().take()?;
     crate::diag!("voice meeting finished: {id}");
@@ -155,31 +170,64 @@ pub fn status(app: &AppHandle) -> Option<MeetingInfo> {
     info_for(&id)
 }
 
-/// Appends one finalized transcript to the active meeting, if any. Called
-/// from `voice.rs` next to the history record, so a meeting captures exactly
-/// what dictation produced — including sessions whose paste failed.
-pub fn append_transcript(app: &AppHandle, text: &str) {
+/// Appends one finalized transcript chunk to the active meeting, if any.
+/// Called per transcribed chunk from `voice.rs`, so a meeting accumulates
+/// utterances as they finish rather than once per hotkey session. Returns
+/// whether a section was written — the caller skips its end-of-session
+/// whole-text append when chunks already covered it.
+///
+/// Sections are appended in place (`append_section`): re-reading and
+/// rewriting the whole file per chunk would grow quadratically over a long
+/// meeting. Past `MAX_MEETING_FILE_BYTES` a warning goes on the record once
+/// per meeting, and appending continues.
+pub fn append_transcript(app: &AppHandle, text: &str) -> bool {
     let Some(id) = app
         .try_state::<MeetingState>()
         .and_then(|s| s.active.lock().unwrap().clone())
     else {
-        return;
+        return false;
     };
     let path = meeting_file(&id);
-    let Ok(mut content) = std::fs::read_to_string(&path) else {
-        return;
-    };
+    if !path.is_file() {
+        return false;
+    }
     let now = iso8601_utc(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
     );
-    content.push_str(&section_for(&now, text));
-    if write_file(&path, &content).is_err() {
-        return;
+    let Ok(new_len) = append_section(&path, &section_for(&now, text)) else {
+        return false;
+    };
+    if new_len > MAX_MEETING_FILE_BYTES {
+        let state = app.try_state::<MeetingState>();
+        if let Some(state) = state {
+            let mut warned = state.large_warned.lock().unwrap();
+            if warned.as_deref() != Some(id.as_str()) {
+                crate::diag!(
+                    "voice meeting {id} exceeds {MAX_MEETING_FILE_BYTES} bytes, still appending"
+                );
+                *warned = Some(id);
+            }
+        }
     }
     let _ = app.emit("voice:meeting-updated", ());
+    true
+}
+
+/// Appends one section to a meeting file in place, returning the new file
+/// length. Pure file I/O (no app state) so it is unit-testable.
+fn append_section(path: &Path, section: &str) -> Result<u64, String> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    file.write_all(section.as_bytes())
+        .map_err(|e| e.to_string())?;
+    file.metadata().map(|m| m.len()).map_err(|e| e.to_string())
 }
 
 /// All meetings on disk, newest first.
@@ -278,5 +326,33 @@ mod tests {
     fn meeting_file_lives_under_the_meetings_dir() {
         assert_eq!(meeting_file("123").file_name().unwrap(), "123.md");
         assert!(meeting_file("123").parent().unwrap().ends_with("meetings"));
+    }
+
+    #[test]
+    fn append_section_concatenates_and_reports_length() {
+        let dir = std::env::temp_dir().join(format!(
+            "workhub-test-{}-{}",
+            std::process::id(),
+            "append_section"
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("meeting.md");
+        std::fs::write(&path, "header\n").unwrap();
+        let len1 = append_section(&path, "first\n").unwrap();
+        let len2 = append_section(&path, "second\n").unwrap();
+        assert!(len2 > len1);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "header\nfirst\nsecond\n"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn append_section_fails_for_a_missing_file() {
+        let path =
+            std::env::temp_dir().join(format!("workhub-test-{}-missing.md", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        assert!(append_section(&path, "x\n").is_err());
     }
 }

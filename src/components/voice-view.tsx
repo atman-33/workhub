@@ -362,12 +362,14 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
   );
 }
 
-/** Meeting mode (T-0252): while a meeting is active, every finalized
- * dictation transcript is appended to the meeting's Markdown file
- * (`voice_meeting.rs`, via the `voice:meeting-updated` hook). Structuring is
- * on demand: the minutes prompt (transcript + instructions for decisions /
- * action items / open questions) is copied to the clipboard and run in
- * whatever agent is at hand (Claude Code / OpenCode). */
+/** Meeting mode (T-0252, auto-capture since T-0317): starting a meeting also
+ * starts recording, and every transcribed utterance is appended to the
+ * meeting's Markdown file (`voice_meeting.rs`, via the `voice:meeting-updated`
+ * hook) — no hotkey presses needed mid-meeting. The hotkey still works as a
+ * manual fallback. Structuring is on demand: the minutes prompt (transcript +
+ * instructions for decisions / action items / open questions) is copied to
+ * the clipboard and run in whatever agent is at hand (Claude Code /
+ * OpenCode). */
 function MeetingPanel() {
   const [active, setActive] = useState<VoiceMeeting | null>(null);
   const [meetings, setMeetings] = useState<VoiceMeeting[]>([]);
@@ -471,7 +473,7 @@ function MeetingPanel() {
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">
-            Dictate with the hotkey during the meeting; each transcript is appended here
+            Recording runs on its own during the meeting; each utterance is appended here
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
