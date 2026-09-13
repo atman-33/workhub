@@ -29,6 +29,7 @@ import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   readdirSync,
   readFileSync,
   statSync,
@@ -1225,6 +1226,308 @@ export function copySourceToTarget(source, targetDir, force) {
     copyFileSync(source.sourcePath, targetPath);
   }
   return { copied: true };
+}
+
+// ---------------------------------------------------------------------------
+// Persona injection (read-only mirror of plugins/persona/hooks/)
+//
+// The persona Claude plugin styles every turn through two hooks: SessionStart
+// composes the full character + compression + boundaries block
+// (persona-activate.mjs), UserPromptSubmit re-asserts it in one line
+// (persona-mode-tracker.mjs). OpenCode has no hook bridge, so this section
+// reimplements the *read* side of that logic for the opencode persona plugin
+// (vault-template/.opencode/plugins/persona-plugin.ts): state resolution,
+// character discovery, level filtering, and text composition.
+//
+// Deliberately read-only: unlike the Claude hooks, nothing here writes the
+// session flag, the statusline label, or persona.json — opencode must never
+// mutate Claude-side session state. The per-session `.persona-active` flag is
+// also ignored on purpose: opencode has no /persona command path, so flag
+// semantics do not map, and a stale flag would leak one session's temporary
+// switch into every later opencode session. Switch in the Persona tab or a
+// Claude session instead; persona.json is picked up live on the next message.
+
+const PERSONA_PLUGIN_REF = "persona@workhub-marketplace";
+const PERSONA_VALID_LEVELS = ["light", "normal", "heavy"];
+const PERSONA_DEFAULT_CHARACTER = "genshijin";
+const PERSONA_DEFAULT_LEVEL = "normal";
+const PERSONA_CHARACTER_ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const PERSONA_LEVEL_HEADING_RE = /^##[ ]+(?:レベル|Level)[ ]*[:：][ ]*(.+?)[ ]*$/i;
+const PERSONA_MAX_CONFIG_BYTES = 8 * 1024;
+const PERSONA_MAX_CHARACTER_BYTES = 256 * 1024;
+
+export function personaClaudeDir() {
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+}
+
+export function personaPluginRoot(marketplacesRoot) {
+  if (process.env.PERSONA_PLUGIN_ROOT) return process.env.PERSONA_PLUGIN_ROOT;
+  const root = marketplacesRoot || defaultClaudePluginsRoot();
+  return path.join(root, "workhub-marketplace", "plugins", "persona");
+}
+
+export function isPersonaPluginEnabled() {
+  return readUserEnabledPlugins().some((p) => p.pluginRef === PERSONA_PLUGIN_REF);
+}
+
+/** Read a small config/content file; refuse symlinks, non-files, oversize. */
+function readPersonaFile(target, maxBytes) {
+  try {
+    const st = lstatSync(target);
+    if (st.isSymbolicLink() || !st.isFile() || st.size > maxBytes) return null;
+    return readFileSync(target, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function parsePersonaState(raw) {
+  if (typeof raw !== "string" || !raw) return null;
+  const value = raw.trim().toLowerCase();
+  if (value === "off") return { enabled: false, character: null, level: null };
+  const [character, level = PERSONA_DEFAULT_LEVEL] = value.split(":");
+  if (!PERSONA_CHARACTER_ID_RE.test(character)) return null;
+  if (!PERSONA_VALID_LEVELS.includes(level)) return null;
+  return { enabled: true, character, level };
+}
+
+function personaStateFromConfigObject(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.enabled === false) return { enabled: false, character: null, level: null };
+  const character = typeof obj.character === "string" ? obj.character.toLowerCase() : null;
+  const level = typeof obj.level === "string" ? obj.level.toLowerCase() : PERSONA_DEFAULT_LEVEL;
+  if (!PERSONA_CHARACTER_ID_RE.test(character)) return null;
+  if (!PERSONA_VALID_LEVELS.includes(level)) return null;
+  return { enabled: true, character, level };
+}
+
+function readPersonaConfigFile(target) {
+  const raw = readPersonaFile(target, PERSONA_MAX_CONFIG_BYTES);
+  if (raw === null) return null;
+  try {
+    return personaStateFromConfigObject(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** Persisted persona state: PERSONA_DEFAULT env, then persona.json, then default. */
+export function readPersonaState(claudeDir) {
+  const dir = claudeDir || personaClaudeDir();
+  const envRaw = process.env.PERSONA_DEFAULT;
+  if (envRaw) {
+    const parsed = parsePersonaState(envRaw);
+    if (parsed) return { state: parsed, origin: "env" };
+  }
+  const own = readPersonaConfigFile(path.join(dir, "persona.json"));
+  if (own) return { state: own, origin: "config" };
+  return {
+    state: { enabled: true, character: PERSONA_DEFAULT_CHARACTER, level: PERSONA_DEFAULT_LEVEL },
+    origin: "default",
+  };
+}
+
+/** Flat `key: value` frontmatter only, mirroring the Claude hook parser. */
+function parsePersonaFrontmatter(text) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  if (!match) return { meta: {}, body: text };
+  const meta = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const kv = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$/.exec(line);
+    if (!kv) continue;
+    let value = kv[2].trim();
+    if (value.length > 1 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))) {
+      value = value.slice(1, -1);
+    }
+    meta[kv[1]] = value;
+  }
+  return { meta, body: text.slice(match[0].length) };
+}
+
+function loadPersonaCharacterFrom(dir, id, origin) {
+  const raw = readPersonaFile(path.join(dir, id, "character.md"), PERSONA_MAX_CHARACTER_BYTES);
+  if (raw === null) return null;
+  const { meta, body } = parsePersonaFrontmatter(raw);
+  if (!PERSONA_CHARACTER_ID_RE.test(meta.id) || meta.id !== id) return null;
+  return {
+    id,
+    origin,
+    name: meta.name || id,
+    statusline: meta.statusline || meta.name || id,
+    reminder: meta.reminder || "",
+    body,
+    levels: {
+      light: meta.level_light || "light",
+      normal: meta.level_normal || "normal",
+      heavy: meta.level_heavy || "heavy",
+    },
+  };
+}
+
+/** Character discovery across project, user, and bundled layers (first wins). */
+export function discoverPersonaCharacters({ cwd, claudeDir, pluginRoot } = {}) {
+  const dir = claudeDir || personaClaudeDir();
+  const root = pluginRoot || personaPluginRoot();
+  const layers = [
+    path.join(cwd || process.cwd(), ".claude", "personas"),
+    path.join(dir, "personas"),
+    path.join(root, "characters"),
+  ];
+  const found = new Map();
+  for (const layer of layers) {
+    let entries;
+    try {
+      entries = readdirSync(layer, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const id = entry.name;
+      if (id.startsWith("_") || !PERSONA_CHARACTER_ID_RE.test(id)) continue;
+      if (found.has(id)) continue;
+      const character = loadPersonaCharacterFrom(layer, id, layer);
+      if (character) found.set(id, character);
+    }
+  }
+  return found;
+}
+
+/**
+ * Keep the "## レベル: <label>" (or "## Level: <label>") section matching the
+ * active level and drop the other two. Mirrors the Claude hook filter exactly:
+ * an unrecognised level heading is kept, and any other "## " heading resets
+ * the skip, so author content is never silently swallowed.
+ */
+export function filterPersonaLevelSections(body, keepLabel, allLabels) {
+  const lines = String(body).split(/\r?\n/);
+  const out = [];
+  let skipping = false;
+  for (const line of lines) {
+    const heading = PERSONA_LEVEL_HEADING_RE.exec(line);
+    if (heading) {
+      const label = heading[1];
+      if (label === keepLabel) {
+        skipping = false;
+        out.push(line);
+      } else if (allLabels.includes(label)) {
+        skipping = true;
+      } else {
+        skipping = false;
+        out.push(line);
+      }
+      continue;
+    }
+    if (/^##\s+/.test(line)) skipping = false;
+    if (!skipping) out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function readPersonaCoreFile(pluginRoot, name) {
+  try {
+    const raw = readFileSync(path.join(pluginRoot, "core", name), "utf8");
+    const firstSection = raw.indexOf("\n## ");
+    return firstSection === -1 ? raw.trim() : raw.slice(firstSection + 1).trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Resolve what should be in effect; mirrors resolveActive without the session flag. */
+export function resolvePersonaActive({ cwd, claudeDir, pluginRoot } = {}) {
+  const characters = discoverPersonaCharacters({ cwd, claudeDir, pluginRoot });
+  const persisted = readPersonaState(claudeDir);
+  const state = persisted.state;
+  const warnings = [];
+
+  if (!state.enabled) {
+    return { enabled: false, characters, character: null, level: null, warnings };
+  }
+
+  let character = characters.get(state.character);
+  let level = state.level;
+
+  if (!character) {
+    warnings.push(
+      `キャラクター "${state.character}" が見つかりません。Personaタブで一覧を確認してください。` +
+      `暫定的に ${PERSONA_DEFAULT_CHARACTER} を使用します。`,
+    );
+    character = characters.get(PERSONA_DEFAULT_CHARACTER) || null;
+  }
+
+  if (!PERSONA_VALID_LEVELS.includes(level)) level = PERSONA_DEFAULT_LEVEL;
+
+  if (!character) {
+    warnings.push("利用できるキャラクターが1つもありません。プラグインの導入状態を確認してください。");
+    return { enabled: false, characters, character: null, level: null, warnings };
+  }
+
+  return { enabled: true, characters, character, level, warnings };
+}
+
+/** SessionStart-equivalent block. The switch line names the Persona tab, not /persona. */
+export function composePersonaFull(active, pluginRoot) {
+  const { character, level } = active;
+  const levelLabel = character.levels[level] || level;
+  const allLabels = PERSONA_VALID_LEVELS.map((id) => character.levels[id]);
+  const characterBody = filterPersonaLevelSections(character.body, levelLabel, allLabels);
+  const compression = filterPersonaLevelSections(
+    readPersonaCoreFile(pluginRoot, "compression.md"),
+    level,
+    PERSONA_VALID_LEVELS,
+  );
+  const boundaries = readPersonaCoreFile(pluginRoot, "boundaries.md");
+
+  const parts = [];
+  if (active.warnings.length) parts.push(active.warnings.join("\n"));
+  parts.push(
+    `ペルソナ有効 — ${character.name}（${levelLabel}）\n` +
+    "切替・解除はPersonaタブまたはClaude Codeの /persona で行う（このセッションでは次メッセージから反映）",
+  );
+  parts.push(`# キャラクター: ${character.name}\n\n${characterBody}`);
+  if (compression) parts.push(`# 圧縮ルール\n\n${compression}`);
+  if (boundaries) parts.push(`# 境界\n\n${boundaries}`);
+  try {
+    if (existsSync(path.join(personaClaudeDir(), ".genshijin-active"))) {
+      parts.push(
+        "WARNING: genshijin プラグインが同時に有効です。両方が毎ターン別々の口調指示を " +
+        "注入するため、口調が安定しません。どちらか一方を無効にしてください。",
+      );
+    }
+  } catch {
+    // never break the chat over a presence check
+  }
+  return parts.join("\n\n");
+}
+
+/** Per-turn one-liner, mirroring the Claude UserPromptSubmit reminder. */
+export function composePersonaReminder(active) {
+  const levelLabel = active.character.levels[active.level] || active.level;
+  const reminder = active.character.reminder ||
+    `${active.character.name}の口調を維持。コード/コミット/PR/破壊的操作の確認は通常日本語。`;
+  return `ペルソナ有効 (${active.character.name}/${levelLabel})。${reminder}`;
+}
+
+/**
+ * Resolve the persona injection for one opencode message, or null when silent:
+ * plugin not user-enabled, state disabled, or no character available.
+ * Reads live every call so Persona-tab switches apply on the next message.
+ */
+export function resolvePersonaInjection({ cwd, marketplacesRoot } = {}) {
+  if (!isPersonaPluginEnabled()) return null;
+  const claudeDir = personaClaudeDir();
+  const pluginRoot = personaPluginRoot(marketplacesRoot);
+  const active = resolvePersonaActive({ cwd, claudeDir, pluginRoot });
+  if (!active.enabled || !active.character) return null;
+  return {
+    characterName: active.character.name,
+    level: active.level,
+    full: composePersonaFull(active, pluginRoot),
+    reminder: composePersonaReminder(active),
+  };
 }
 
 // ---------------------------------------------------------------------------

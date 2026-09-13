@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.119.0 (2026-09-13)
+
+- **Persona styling reaches OpenCode sessions** (T-0308). The new
+  `persona-plugin.ts` injects the SessionStart block on the first message of
+  each main session and the one-line reminder after that, gated live on the
+  plugin being user-enabled and `persona.json` resolving enabled — switching
+  persona off in Claude Code or the Persona tab takes it out of OpenCode on
+  the next message. `/persona` switching, the session flag, and all writes
+  stay Claude-side; the plugin is strictly read-only.
+
 ## 0.118.0 (2026-09-13)
 
 - **Project-scope plugins are gone; the OpenCode sync follows user-scope

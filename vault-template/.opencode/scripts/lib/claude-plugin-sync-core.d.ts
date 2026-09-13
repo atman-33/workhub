@@ -219,6 +219,59 @@ export function claudeAgentToOpenCode(text: string): string;
 export function logSection(label: string, items: string[]): void;
 export function nowIso(): string;
 
+export interface PersonaCharacter {
+  id: string;
+  name: string;
+  statusline: string;
+  reminder: string;
+  body: string;
+  levels: { light: string; normal: string; heavy: string };
+}
+
+export interface PersonaActive {
+  enabled: boolean;
+  characters: Map<string, PersonaCharacter>;
+  character: PersonaCharacter | null;
+  level: string | null;
+  warnings: string[];
+}
+
+export interface PersonaInjection {
+  characterName: string;
+  level: string;
+  full: string;
+  reminder: string;
+}
+
+export function personaClaudeDir(): string;
+export function personaPluginRoot(marketplacesRoot?: string): string;
+export function isPersonaPluginEnabled(): boolean;
+export function readPersonaState(claudeDir?: string): {
+  state: { enabled: boolean; character: string | null; level: string | null };
+  origin: string;
+};
+export function discoverPersonaCharacters(args?: {
+  cwd?: string;
+  claudeDir?: string;
+  pluginRoot?: string;
+}): Map<string, PersonaCharacter>;
+export function filterPersonaLevelSections(
+  body: string,
+  keepLabel: string,
+  allLabels: string[],
+): string;
+export function resolvePersonaActive(args?: {
+  cwd?: string;
+  claudeDir?: string;
+  pluginRoot?: string;
+}): PersonaActive;
+export function composePersonaFull(active: PersonaActive, pluginRoot: string): string;
+export function composePersonaReminder(active: PersonaActive): string;
+export function resolvePersonaInjection(args?: {
+  cwd?: string;
+  marketplacesRoot?: string;
+}): PersonaInjection | null;
+
 export const MANIFEST_VERSION: number;
 export const MANIFEST_FILENAME: string;
 export const DEFAULT_USER_LIST_CACHE_TTL_MS: number;
