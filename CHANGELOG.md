@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.124.0 (2026-09-13)
+
+- **Backlog items start as folders now** (T-0321). Creating an item makes
+  `B-NNN-<title>/` with its entry note inside it from the beginning, so there
+  is no longer a file-or-folder split to wonder about when looking for an
+  item. The old single-note shape and its promotion step are gone (existing
+  items migrate in place with their links intact), and the picker's list, the
+  Projects tab counts, and the template all speak folders only.
+
 ## 0.123.0 (2026-09-13)
 
 - **Meetings structure themselves as they run** (T-0318). While a meeting is
