@@ -274,12 +274,22 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={settings?.voice_system_audio ?? false}
+            disabled={!config || !enabled}
+            onCheckedChange={(v) => void patchSettings({ voice_system_audio: v })}
+          />
+          <span className="text-xs">Include system audio</span>
+        </div>
       </div>
       <p className="text-[11px] text-muted-foreground">
         Press the hotkey to dictate into the focused app.{" "}
         {settings?.voice_indicator_placement === "fixed"
           ? "The indicator appears where you last dragged it, or bottom-center of the primary screen."
-          : "The indicator appears next to the text cursor of the app you are dictating into, or by the mouse pointer when no text cursor can be found."}
+          : "The indicator appears next to the text cursor of the app you are dictating into, or by the mouse pointer when no text cursor can be found."}{" "}
+        Turn on <b>Include system audio</b> during online meetings to also transcribe the other side's
+        voice (headphones recommended — with speakers, the remote voice is recorded twice).
       </p>
 
       <div className="space-y-1.5">

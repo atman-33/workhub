@@ -162,6 +162,12 @@ pub struct Settings {
     /// "fixed" placement. Unset until the user first drags it.
     #[serde(default)]
     pub voice_indicator_position: Option<(i32, i32)>,
+    /// Voice meeting: also capture the system's output audio (the other
+    /// side's voice) via WASAPI loopback and mix it with the microphone.
+    /// Machine-local: it names an audio device capability of this PC, not a
+    /// property of the vault.
+    #[serde(default)]
+    pub voice_system_audio: bool,
     /// Clips: a clibor-style snippet picker opened by a double-tapped
     /// modifier, pasting the picked snippet into the app that had focus.
     #[serde(default = "default_true")]
@@ -455,6 +461,7 @@ impl Default for Settings {
             voice_language: default_voice_language(),
             voice_indicator_placement: default_voice_indicator_placement(),
             voice_indicator_position: None,
+            voice_system_audio: false,
             clips_enabled: true,
             clips_gesture: default_clips_gesture(),
             clips_rect: None,

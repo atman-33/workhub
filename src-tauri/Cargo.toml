@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.120.2"
+version = "0.121.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -103,6 +103,13 @@ windows = { version = "0.61", features = [
     # GetGUIThreadInfo into screen coordinates; BitBlt and GetDIBits, for the
     # ink capture's screen grab (see src-tauri/src/ink/capture.rs).
     "Win32_Graphics_Gdi",
+    # voice loopback: WASAPI capture of the render endpoint
+    # (AUDCLNT_STREAMFLAGS_LOOPBACK) so meeting dictation hears the other
+    # side's voice too — cpal has no loopback API (see
+    # src-tauri/src/voice_loopback.rs).
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
 ] }
 
 # whisper-rs-sys 0.13.1 passes the MSVC-only /utf-8 flag to g++ on every

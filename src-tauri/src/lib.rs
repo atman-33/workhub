@@ -37,6 +37,7 @@ mod vault_settings;
 mod voice;
 mod voice_chunk;
 mod voice_history;
+mod voice_loopback;
 mod voice_meeting;
 mod window_place;
 mod wsl;

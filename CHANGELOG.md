@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.120.2 (2026-09-13)
+## 0.121.0 (2026-09-13)
+
+- **Meeting dictation hears the other side too** (T-0316). **Include system
+  audio** in the **Voice** tab captures the system's output audio through
+  WASAPI loopback and mixes it with the microphone feed, so an online
+  meeting's remote voice lands in the transcript and the minutes. Off by
+  default; headphones are recommended while it is on (speakers get recorded
+  twice). When loopback is unavailable the session carries on with the
+  microphone only instead of failing.
 
 - **Description-only task files show up in the editor again** (T-0315). A
   freshly filed task carrying just `## Description` used to render every pane
