@@ -29,6 +29,7 @@ import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
 import {
   defaultClaudePluginsRoot,
   readProjectEnabledPlugins,
+  readUserEnabledPlugins,
   resolveProjectPluginRoot,
 } from "../scripts/lib/claude-plugin-sync-core";
 import { execFile } from "node:child_process";
@@ -93,11 +94,17 @@ function resolveVault(workspaceRoot: string): string | null {
 /**
  * Locate `comms-cli.mjs` inside the enabled workhub Claude plugin. Questions
  * are filed by that CLI on both harnesses so id allocation and the file format
- * have exactly one implementation.
+ * have exactly one implementation. Project-scope enables are checked first,
+ * then user-scope ones (plugins are user-scope only, so this is the lookup
+ * that succeeds on a fresh vault).
  */
 function resolveCommsCli(workspaceRoot: string): string | null {
   const root = defaultClaudePluginsRoot();
-  for (const plugin of readProjectEnabledPlugins(workspaceRoot)) {
+  const candidates = [
+    ...readProjectEnabledPlugins(workspaceRoot),
+    ...readUserEnabledPlugins(),
+  ];
+  for (const plugin of candidates) {
     const candidate = join(resolveProjectPluginRoot(plugin, root), "scripts", "comms-cli.mjs");
     if (existsSync(candidate)) return candidate;
   }

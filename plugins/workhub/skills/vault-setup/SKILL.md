@@ -55,14 +55,17 @@ Obsidian, OpenCode, and herdr are optional — offer, don't push.
 
 ## 4. Claude Code harness
 
-1. The vault's `.claude/settings.json` already declares the
-   `workhub-marketplace` and enables the required project-scope plugins
-   (`workhub`, `engineering`). Tell the user: on the first `claude` launch
-   inside the vault, accept the marketplace/plugin trust prompt.
-2. One-time per machine, install the user-scope plugins that apply:
-   `claude plugin install claude-tooling@workhub-marketplace` (plugin-update
-   notices, skill authoring), and `authoring` / `agent-ops` / `zenn` from the
-   same marketplace as needed.
+1. The vault's `.claude/settings.json` declares the `workhub-marketplace`
+   (no plugins are enabled at project scope — plugins are user-scope only).
+   The app's first-run setup enables the `workhub` plugin at user scope; on
+   the first `claude` launch inside the vault, accept the marketplace/plugin
+   trust prompt.
+2. One-time per machine, install the user-scope plugins that apply from the
+   app's Plugins tab (or `claude plugin install <name>@workhub-marketplace`):
+   `engineering` / `obsidian` / `persona` (recommended), plus `claude-tooling`
+   (plugin-update notices, skill authoring), `authoring` / `agent-ops` /
+   `zenn` as needed. The OpenCode side picks up the recommended set that is
+   enabled — nothing else follows along.
 3. Remind the user to register target repositories in
    `.claude/project-context.json` (`projects[]` with `name`/`path`).
 
@@ -72,8 +75,8 @@ Run from the vault root, and report each script's copied/skipped/missing
 output:
 
 ```bash
-node .opencode/scripts/sync-claude-skills.mjs        # project-scope plugin skills -> .opencode/skills/
-node .opencode/scripts/sync-claude-user-plugins.mjs  # user-scope plugins -> global OpenCode command/skills
+node .opencode/scripts/sync-claude-skills.mjs        # vault-local .claude/skills|agents -> .opencode/skills|agent
+node .opencode/scripts/sync-claude-user-plugins.mjs  # enabled user-scope plugins -> global OpenCode command/skills/agent
 node .opencode/scripts/check-claude-plugin-sync.mjs  # verify nothing is stale
 ```
 
@@ -91,7 +94,7 @@ and `OPENCODE_GLOBAL_ROOT` first (see
 
 ## 7. Verify and report
 
-- `claude plugin list` inside the vault shows `workhub` and `engineering`.
+- `claude plugin list` shows `workhub` at user scope (`engineering` too, if the user wants it).
 - `<vault>/_ai/index/tasks.json` exists (open the workhub app once, or run
   the `task-list` skill to trigger a scan).
 - If OpenCode is used, `check-claude-plugin-sync.mjs` reports clean.

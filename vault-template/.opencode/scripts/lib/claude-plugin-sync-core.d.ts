@@ -65,7 +65,9 @@ export interface DiscoverProjectScopeResult {
 export interface DiscoverUserScopeResult {
   skillsSources: ArtifactSource[];
   commandsSources: ArtifactSource[];
-  targets: { skillsTarget: string; commandsTarget: string };
+  agentsSources: ArtifactSource[];
+  targets: { skillsTarget: string; commandsTarget: string; agentsTarget: string };
+  skippedOutsideHarness: string[];
   warnings: string[];
 }
 
@@ -84,9 +86,18 @@ export function projectAgentsTargetRoot(cwd: string): string;
 export function vaultLocalSkillsRoot(cwd: string): string;
 export function vaultLocalAgentsRoot(cwd: string): string;
 export const VAULT_LOCAL_REF: string;
+export const HARNESS_SYNC_PLUGINS: Set<string>;
 export function userSkillsTargetRoot(openCodeGlobalRoot: string): string;
 export function userCommandsTargetRoot(openCodeGlobalRoot: string): string;
+export function userAgentsTargetRoot(openCodeGlobalRoot: string): string;
 export function userListCachePath(): string;
+export function userClaudeSettingsPath(): string;
+
+export function readUserEnabledPlugins(): Array<{
+  pluginRef: string;
+  pluginName: string;
+  marketplace: string;
+}>;
 
 export function readProjectEnabledPlugins(
   cwd: string,
@@ -97,9 +108,12 @@ export function resolveProjectPluginRoot(
   claudePluginsRoot?: string,
 ): string;
 
-export function discoverProjectScopeSources(
+export function discoverVaultLocalSkillSources(
   cwd: string,
-  claudePluginsRoot?: string,
+): DiscoverProjectScopeResult;
+
+export function discoverVaultLocalAgentSources(
+  cwd: string,
 ): DiscoverProjectScopeResult;
 
 export function parseUserScopePluginList(output: string): {
@@ -122,6 +136,7 @@ export function discoverUserScopeSources(args: {
   claudePluginsRoot?: string;
   openCodeGlobalRoot?: string;
   listOutput?: string;
+  enabledRefs?: Set<string>;
 }): DiscoverUserScopeResult;
 
 export function hashFile(filePath: string): string;
@@ -158,13 +173,11 @@ export function computeBucketDrift(args: {
 
 export function detectProjectScopeDrift(args: {
   cwd: string;
-  claudePluginsRoot?: string;
   manifestPath?: string;
 }): DriftReportBucket;
 
 export function detectProjectScopeAgentDrift(args: {
   cwd: string;
-  claudePluginsRoot?: string;
   manifestPath?: string;
 }): DriftReportBucket;
 
@@ -173,7 +186,8 @@ export function detectUserScopeDrift(args: {
   openCodeGlobalRoot?: string;
   manifestPath?: string;
   listOutput?: string;
-}): [DriftReportBucket, DriftReportBucket, string[]];
+  enabledRefs?: Set<string>;
+}): [DriftReportBucket, DriftReportBucket, DriftReportBucket, string[]];
 
 export function detectFullDrift(args?: {
   cwd?: string;
@@ -182,6 +196,7 @@ export function detectFullDrift(args?: {
   projectManifestPath?: string;
   userManifestPath?: string;
   userListOutput?: string;
+  userEnabledRefs?: Set<string>;
 }): Promise<FullDriftReport>;
 
 export function hasActionableDrift(report: FullDriftReport): boolean;

@@ -1,9 +1,9 @@
 ---
 name: check-claude-plugin-sync
-description: Diagnose drift between Claude Code plugin artifacts (skills, commands) and their OpenCode copies.
+description: Diagnose drift between Claude Code plugin artifacts (skills, commands, agents) and their OpenCode copies.
 ---
 
-Diagnose whether Claude Code plugin skills and commands are in sync with their OpenCode copies, both project-scope and user-scope.
+Diagnose whether vault-local skills/agents and the enabled harness-set plugin skills, commands, and agents are in sync with their OpenCode copies.
 
 Run:
 
@@ -18,11 +18,11 @@ Steps:
    - `missing` — Source has it, target doesn't. Run the appropriate sync command below.
    - `stale-source` — Source content changed since the last recorded copy. Re-run the sync with `--force`.
    - `diverged` — Both source and target changed; `--force` will overwrite the local hand-edits. Point this out to the user before running.
-   - `orphan` — Target still exists, but the source plugin no longer provides it. Suggest `rm -rf <targetPath>` only after the user confirms it isn't hand-written.
+   - `orphan` — Target still exists, but the source no longer provides it. Suggest re-running the matching sync with `--prune`, or `rm -rf <targetPath>` for a single entry, only after the user confirms it isn't hand-written.
    - `silent-user-edit` / `seeded` — Informational only; no action needed.
 3. If any actionable drift is present, suggest the corresponding remediation commands:
-   - Project scope: `node .opencode/scripts/sync-claude-skills.mjs [--force]`
-   - User scope: `node .opencode/scripts/sync-claude-user-plugins.mjs [--force]`
+   - Vault-local: `node .opencode/scripts/sync-claude-skills.mjs [--force]`
+   - Harness set, enabled only: `node .opencode/scripts/sync-claude-user-plugins.mjs [--force]`
 
 Notes:
 

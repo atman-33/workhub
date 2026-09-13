@@ -77,9 +77,8 @@ are not among them. Prototyping there is cheaper than shaping a plugin around a
 workflow that has run twice. Promote it once someone else would use it: rewrite
 it in English under `plugins/<plugin>/skills/`, register the plugin here if it
 is new, then delete the vault copy. `.opencode/scripts/sync-claude-skills.mjs`
-mirrors vault-local skills into `.opencode/skills/` alongside the plugin ones,
-listing them as `(vault-local)`; on a name collision the plugin wins and the
-sync warns.
+mirrors vault-local skills into `.opencode/skills/` (agents into
+`.opencode/agent/`), listing them as `(vault-local)`.
 
 Note: the OpenSpec workflow itself is **not** bundled here — it is an
 independent OSS project distributed via its own package/plugin install, not
@@ -227,19 +226,31 @@ To diagnose:
 
 OpenCode cannot consume Claude Code plugins directly. The vault's
 `.opencode/skills/` (and `.opencode/agent/`) is treated as a **generated
-artifact**: a sync script materializes skills from the enabled Claude plugins,
-records hashes in a manifest, and a session-start reminder plugin reports drift
+artifact**: sync scripts materialize skills from the enabled user-scope Claude
+plugins and the vault-local `.claude/skills/` + `.claude/agents/`, record
+hashes in a manifest, and a session-start reminder plugin reports drift
 (missing / stale / diverged / orphan). Never hand-edit synced skills on the
 OpenCode side; edit the plugin source here and re-sync. (The tooling lives in
 `vault-template/.opencode/scripts/`, ported from workhub's predecessor
 repository.)
 
-The template's `.claude/settings.json` `enabledPlugins` is the allowlist: it
-ships exactly `workhub` + `engineering` + `obsidian` (T-0303), so a fresh vault
-gets the default harness set from one `/sync-claude-skills` run with no
-per-machine judgment about what belongs. Anything beyond the default stays
-opt-in via the user-scope sync (`/sync-claude-user-plugins`), which targets
-the global OpenCode directories instead of the project. `node
-.opencode/scripts/sync-claude-skills.mjs --prune` deletes manifest-tracked
-orphans left behind when a plugin leaves the allowlist; hand-written targets
-the manifest never recorded are left alone.
+Plugins are user-scope only, so there is no project allowlist: the template's
+`.claude/settings.json` ships an empty `enabledPlugins`, and what an OpenCode
+session sees is decided per machine. `/sync-claude-skills` mirrors only the
+vault-local skills/agents into the vault's `.opencode/`; everything from
+plugins comes through `/sync-claude-user-plugins`, which copies the harness
+set — `workhub`, `engineering`, `obsidian`, `persona` (required +
+recommended) — to the extent each is enabled in the user
+`~/.claude/settings.json` `enabledPlugins`, into the global OpenCode
+directories (`skills`, `command`, `agent`). The set is deliberately closed: a
+skill syncs mechanically, but a plugin's hooks need a hand-written OpenCode
+port, which exists solely for these four, so anything else stays Claude-only.
+Switching a set member off in Claude Code removes it from OpenCode on the next
+sync — run the user sync with `--prune` to delete its stranded copies. `node
+.opencode/scripts/sync-claude-skills.mjs --prune` likewise deletes
+manifest-tracked orphans on the vault-local side; hand-written targets the
+manifest never recorded are left alone in both cases.
+
+Migrating an older vault: enable the wanted plugins at user scope from the
+app's Plugins tab (or `claude plugin install`), run the user-scope sync, then
+run the vault-local sync with `--prune` to clear the old project-scope copies.
