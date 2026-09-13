@@ -1,12 +1,14 @@
 // Voice tab: the voice-input settings (T-0277 moved them here from the
 // Settings dialog, matching the Ink and Clips tabs), the meeting mode
 // (T-0252: finalized transcripts accumulate into a file while a meeting is
-// active), and the history of past transcripts. The history is recorded as a
-// safety net in `src-tauri/src/voice.rs` regardless of whether the auto-paste
-// succeeded (see the `voice:history-updated` hook), so a lost-focus paste is
-// never lost — the text is still here to copy manually. Capped at 50 entries
-// server-side (oldest dropped first).
-import { useCallback, useEffect, useState } from "react";
+// active), and the history of past transcripts, split into Dictate / Meeting /
+// History sub-tabs (T-0334) so meeting work and dictation history stop sharing
+// one scroll. The history is recorded as a safety net in
+// `src-tauri/src/voice.rs` regardless of whether the auto-paste succeeded (see
+// the `voice:history-updated` hook), so a lost-focus paste is never lost — the
+// text is still here to copy manually. Capped at 50 entries server-side
+// (oldest dropped first).
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Check, Copy, Download, FileText, Loader2, Mic, Play, Settings2, Sparkles, Square, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
@@ -14,6 +16,7 @@ import { ModelCombobox } from "@/components/model-combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import {
   Select,
@@ -373,7 +376,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
  * instructions for decisions / action items / open questions) is copied to
  * the clipboard and run in whatever agent is at hand (Claude Code /
  * OpenCode). */
-function MeetingPanel() {
+function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean) => void }) {
   const [active, setActive] = useState<VoiceMeeting | null>(null);
   const [meetings, setMeetings] = useState<VoiceMeeting[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -427,6 +430,16 @@ function MeetingPanel() {
       void unlisten.then((fn) => fn());
     };
   }, [refresh]);
+
+  // Report meeting start/end to the tab owner once per transition (T-0334).
+  const prevActive = useRef(false);
+  useEffect(() => {
+    const isActive = active !== null;
+    if (isActive !== prevActive.current) {
+      prevActive.current = isActive;
+      onActiveChange?.(isActive);
+    }
+  }, [active, onActiveChange]);
 
   const shownId = openId ?? active?.id ?? null;
 
@@ -751,6 +764,15 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
   const [entries, setEntries] = useState<VoiceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearOpen, setClearOpen] = useState(false);
+  const [tab, setTab] = useState("dictate");
+  const [meetingLive, setMeetingLive] = useState(false);
+
+  // Auto-select the Meeting tab on meeting start only (T-0334) — never yank
+  // the user back once they have chosen elsewhere.
+  const handleMeetingActiveChange = useCallback((isActive: boolean) => {
+    setMeetingLive(isActive);
+    if (isActive) setTab("meeting");
+  }, []);
 
   const refresh = useCallback(async () => {
     const list = await api.voiceHistoryList();
@@ -793,43 +815,63 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
         </span>
       </div>
 
-      <VoiceSettings configVersion={configVersion} />
+      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1">
+        <TabsList className="shrink-0">
+          <TabsTrigger value="dictate">Dictate</TabsTrigger>
+          <TabsTrigger value="meeting">
+            Meeting
+            {meetingLive && <span className="size-1.5 rounded-full bg-red-500" />}
+          </TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      <MeetingPanel />
+        <TabsContent value="dictate" className="min-h-0 flex-1 overflow-y-auto">
+          <VoiceSettings configVersion={configVersion} />
+        </TabsContent>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <h3 className="text-xs font-medium">History</h3>
-        <span className="text-xs text-muted-foreground">
-          {entries.length} entr{entries.length === 1 ? "y" : "ies"} · only the latest{" "}
-          {MAX_ENTRIES} are kept
-        </span>
-        <Button
-          size="xs"
-          variant="outline"
-          className="ml-auto"
-          disabled={entries.length === 0}
-          onClick={() => setClearOpen(true)}
+        <TabsContent value="meeting" className="min-h-0 flex-1 overflow-y-auto">
+          <MeetingPanel onActiveChange={handleMeetingActiveChange} />
+        </TabsContent>
+
+        <TabsContent
+          value="history"
+          className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
         >
-          Clear all
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No voice transcripts yet. Recordings are saved here automatically, even if the
-            paste into another app fails or its target loses focus.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {entries.map((entry) => (
-              <HistoryRow key={entry.id} entry={entry} onDelete={handleDelete} />
-            ))}
+          <div className="flex shrink-0 items-center gap-2">
+            <h3 className="text-xs font-medium">History</h3>
+            <span className="text-xs text-muted-foreground">
+              {entries.length} entr{entries.length === 1 ? "y" : "ies"} · only the latest{" "}
+              {MAX_ENTRIES} are kept
+            </span>
+            <Button
+              size="xs"
+              variant="outline"
+              className="ml-auto"
+              disabled={entries.length === 0}
+              onClick={() => setClearOpen(true)}
+            >
+              Clear all
+            </Button>
           </div>
-        )}
-      </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : entries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No voice transcripts yet. Recordings are saved here automatically, even if the
+                paste into another app fails or its target loses focus.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {entries.map((entry) => (
+                  <HistoryRow key={entry.id} entry={entry} onDelete={handleDelete} />
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={clearOpen}

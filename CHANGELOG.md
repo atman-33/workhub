@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.127.0 (2026-09-13)
+
+- **Voice tab splits into Dictate / Meeting / History** (T-0334). Meeting
+  work and dictation history no longer share one scroll. Starting a meeting
+  selects its tab for you (once — it never yanks you back), and the Meeting
+  tab carries a live dot while a session is active.
+
 ## 0.126.0 (2026-09-13)
 
 - **Meeting auto-capture stays out of the dictation history** (T-0333).
