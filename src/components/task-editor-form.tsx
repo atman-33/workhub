@@ -12,7 +12,7 @@
 // decides how failures are reported.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Gem, X } from "lucide-react";
+import { Gem, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,12 +32,6 @@ import { ModelCombobox } from "@/components/model-combobox";
 import { Switch } from "@/components/ui/switch";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
@@ -55,8 +49,9 @@ import {
 } from "@/lib/task-editor-fields";
 import type { BacklogItem, Task, TaskAssignee, TaskStatus } from "@/types";
 
-/** The three views the shared pane switches between. */
-type PaneTab = "description" | "plan" | "results";
+/** The views the shared pane switches between. Details holds what used to
+ *  be the "Optional details" accordion (due, tags, worktree, blocked). */
+type PaneTab = "description" | "plan" | "results" | "details";
 
 const EMPTY_DRAFT: TaskDraft = {
   title: "",
@@ -353,6 +348,7 @@ export function TaskEditorForm({
 
   const handleProjectChange = useCallback(
     (next: string) => {
+      setShowNewItem(false);
       update(draft.backlog ? { project: next, backlog: "" } : { project: next });
     },
     [update, draft.backlog],
@@ -363,6 +359,9 @@ export function TaskEditorForm({
   // the task's output has nowhere to land (T-0266).
   const [newItemTitle, setNewItemTitle] = useState("");
   const [creatingItem, setCreatingItem] = useState(false);
+  // The `New item` input hides behind a + button in the Backlog label row
+  // (B-025 rework) — a permanent input cost a full row for a rare action.
+  const [showNewItem, setShowNewItem] = useState(false);
   const handleCreateBacklogItem = useCallback(async () => {
     const title = newItemTitle.trim();
     if (!vaultPath || !project || !title || creatingItem) return;
@@ -372,6 +371,7 @@ export function TaskEditorForm({
       setBacklogItems((prev) => [...prev, item].sort((a, b) => a.id.localeCompare(b.id)));
       update({ backlog: item.id });
       setNewItemTitle("");
+      setShowNewItem(false);
     } catch (e) {
       setActionError(String(e));
     } finally {
@@ -401,7 +401,7 @@ export function TaskEditorForm({
     disabled: boolean,
   ) => (
     <div
-      className="flex items-start justify-between gap-2 rounded-md border px-3 py-2"
+      className="flex items-start justify-between gap-2 rounded-md border px-3 py-1.5"
       data-disabled={disabled || undefined}
     >
       <div className="space-y-0.5">
@@ -468,25 +468,17 @@ export function TaskEditorForm({
     </Hint>
   );
 
-  // What "Optional details" holds, and therefore when it opens by itself.
-  // The worktree toggle and the blocked flag live in here because they are
-  // rarely touched — the worktree does nothing at all for a task assigned to
-  // "me", and blocking is normally set from the board, which has its own
-  // dialog for it. Anything already set still opens the section on sight, so
-  // a blocked task never hides why it is blocked behind a click. Confirm mode
-  // used to be here and moved out to the main row (T-0285) — it is set often
-  // enough that hiding it behind a click was the wrong trade.
+  // What the Details tab holds. Due, tags and the blocked flag live there
+  // because they are rarely touched — blocking is normally set from the
+  // board, which has its own dialog for it. Anything set lights the tab's
+  // dot, so a blocked task never hides why it is blocked behind a click.
+  // Confirm mode used to be here and moved out to the main row (T-0285) — it
+  // is set often enough that hiding it behind a click was the wrong trade.
+  // Worktree followed it to the main row (B-025 rework) for the same reason:
+  // it is a launch setting, read at a glance before a launch.
   const hasOptionalDetails = Boolean(
-    draft.due || draft.tags.trim() || draft.worktree || draft.blocked,
+    draft.due || draft.tags.trim() || draft.blocked,
   );
-  const optionalSummary = [
-    draft.due ? `Due: ${draft.due}` : "",
-    draft.tags.trim() ? `Tags: ${draft.tags.trim()}` : "",
-    draft.worktree ? "Worktree" : "",
-    draft.blocked ? `Blocked${draft.blockedNote ? `: ${draft.blockedNote}` : ""}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ") || "None set";
 
   const handleClose = useCallback(() => {
     if (autoSaveTimerRef.current) {
@@ -701,45 +693,44 @@ export function TaskEditorForm({
 
       {/* min-w-0 keeps wide content (e.g. code blocks) from stretching the
           window; the pre's own overflow-x handles horizontal scrolling. */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        {/* The rows group the fields that are read together: what the task is
-            and how much it matters; who and what runs it; where it belongs. */}
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          {field(
-            "Title",
-            <Input
-              autoFocus
-              value={draft.title}
-              onChange={(e) => update({ title: e.target.value })}
-              className="h-8 text-sm"
-              placeholder="Task title"
-            />,
-          )}
-          {field(
-            "Priority",
-            // Click cycles low → medium → high → low; no more dropdown.
-            <div className="flex h-8 items-center">
-              <PriorityBadge
-                priority={draft.priority}
-                onCycle={(next) => update({ priority: next })}
-              />
-            </div>,
-          )}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 shrink space-y-2 overflow-y-auto px-4 pb-2 pt-3">
+        {/* Title carries priority inline on its label row (B-025): a separate
+            Priority column cost a whole label row for one badge and broke the
+            baseline. Click still cycles low → medium → high → low. */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted-foreground">Title</label>
+            <PriorityBadge
+              priority={draft.priority}
+              onCycle={(next) => update({ priority: next })}
+            />
+          </div>
+          <Input
+            autoFocus
+            value={draft.title}
+            onChange={(e) => update({ title: e.target.value })}
+            className="h-8 text-sm"
+            placeholder="Task title"
+          />
         </div>
         {/* Confirm mode sits with Status / Assignee / Model rather than in
-            "Optional details" (T-0285): it is on for most tasks and is read
+            the Details tab (T-0285): it is on for most tasks and is read
             at a glance before a launch, which is the opposite of the rarely
-            touched flags the section was built for. Model keeps the widest
-            column — it holds the longest values — and the switch takes only
-            what it needs. */}
-        <div className="grid grid-cols-[1fr_1fr_1.4fr_auto] gap-3">
+            touched flags the tab was built for. Model takes the wide column —
+            it holds the longest values — while Confirm and Worktree shrink to
+            their content (B-025 rework). A "me" (human) task launches no AI
+            agent, so Model/Confirm/Worktree sit disabled instead; assignee
+            changes already clear draft.model, so nothing stale lingers.
+            Every control is h-8 so the row shares one baseline. */}
+        <div className="grid grid-cols-[1.1fr_1.1fr_1.7fr_auto_auto] gap-2">
           {field(
             "Status",
             <Select
               value={draft.status}
               onValueChange={(v) => update({ status: v as TaskStatus })}
             >
-              <SelectTrigger size="sm">
+              <SelectTrigger size="sm" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -761,7 +752,7 @@ export function TaskEditorForm({
                 update({ assignee: v as TaskAssignee, model: "" })
               }
             >
-              <SelectTrigger size="sm">
+              <SelectTrigger size="sm" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -783,8 +774,7 @@ export function TaskEditorForm({
               // the opencode catalog fetch is already gated by that.
               active
               // A "me" (human) task launches no AI agent, so a model is
-              // meaningless — disable the field. Assignee changes already
-              // clear draft.model, so nothing stale lingers here.
+              // meaningless — disable the field.
               disabled={draft.assignee === "me"}
               placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
             />,
@@ -803,16 +793,35 @@ export function TaskEditorForm({
                   onCheckedChange={(v) => update({ confirm: v })}
                   disabled={draft.assignee === "me"}
                 />
-                <span className="text-[11px] text-muted-foreground">
+                <span className="w-7 text-[11px] text-muted-foreground">
                   {draft.confirm ? "ON" : "OFF"}
+                </span>
+              </div>
+            </Hint>,
+          )}
+          {field(
+            "Worktree",
+            <Hint label="Agent works in a dedicated worktree so parallel tasks don't collide.">
+              <div
+                className="flex h-8 items-center gap-2 rounded-md border px-2.5"
+                data-disabled={draft.assignee === "me" || undefined}
+              >
+                <Switch
+                  checked={draft.worktree}
+                  onCheckedChange={(v) => update({ worktree: v })}
+                  disabled={draft.assignee === "me"}
+                />
+                <span className="w-7 text-[11px] text-muted-foreground">
+                  {draft.worktree ? "ON" : "OFF"}
                 </span>
               </div>
             </Hint>,
           )}
         </div>
         {/* A backlog item belongs to a project, so the picker only appears
-            once one is chosen — it shares the row with the project it hangs
-            off, and the left column stays empty until then. The committed
+            once one is chosen. Creating one hides behind a + button in the
+            Backlog label row (B-025 rework) — a permanent input cost a full
+            row for a rare action. The committed
             value is a bare `B-NNN` on purpose — a decorated label has to be
             un-decorated on the way back out, and a slip there rewrites the
             link (same lesson as T-0219). `optionDetails` keeps that intact
@@ -820,11 +829,42 @@ export function TaskEditorForm({
             letting the search match them: an id-only list can only be used by
             someone who already knows the ids (T-0273). The selected item's
             title stays under the field, where the narrow half-width trigger
-            cannot truncate it. */}
-        <div className="grid grid-cols-2 gap-3">
-          {field(
-            "Project",
-            <>
+            cannot truncate it. Subtitle lines always render (nbsp fallback) so
+            the two columns keep equal height. */}
+        {!project ? (
+          <div className="space-y-1.5">
+            <div className="flex h-5 items-center">
+              <label className="text-xs font-medium text-muted-foreground">
+                Project
+              </label>
+            </div>
+            <Combobox
+              value={draft.project}
+              onChange={handleProjectChange}
+              options={projectOptions}
+              optionDetails={projectDetails}
+              noneLabel="No project"
+              placeholder="vault project"
+              emptyText="No vault projects. Create one in the Projects tab."
+            />
+            {projectUnregistered ? (
+              <p className="truncate text-[11px] text-destructive">
+                {draft.project} is not a vault project
+              </p>
+            ) : (
+              <p className="truncate text-[11px] text-muted-foreground">
+                {" "}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <div className="flex h-5 items-center">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Project
+                </label>
+              </div>
               <Combobox
                 value={draft.project}
                 onChange={handleProjectChange}
@@ -834,95 +874,138 @@ export function TaskEditorForm({
                 placeholder="vault project"
                 emptyText="No vault projects. Create one in the Projects tab."
               />
-              {selectedProjectFolder && (
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {selectedProjectFolder}
-                </p>
-              )}
-              {projectUnregistered && (
-                <p className="text-[11px] text-destructive">
+              {projectUnregistered ? (
+                <p className="truncate text-[11px] text-destructive">
                   {draft.project} is not a vault project
                 </p>
+              ) : (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {selectedProjectFolder || " "}
+                </p>
               )}
-            </>,
-          )}
-          {project &&
-            field(
-              "Backlog item",
-              <>
-                <Combobox
-                  value={draft.backlog}
-                  onChange={(v) => update({ backlog: v })}
-                  options={backlogOptions}
-                  optionDetails={backlogDetails}
-                  noneLabel="No item"
-                  placeholder="backlog item"
-                  loading={backlogLoading}
-                  emptyText={`No backlog items in ${project}.`}
-                />
-                {selectedBacklog && (
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {selectedBacklog.title}
-                    {selectedBacklog.status ? ` · ${selectedBacklog.status}` : ""}
-                  </p>
-                )}
-                {backlogUnknown && (
-                  <p className="text-[11px] text-destructive">
-                    {draft.backlog} is not an item in {project}
-                  </p>
-                )}
-              </>,
-            )}
-        </div>
-        {/* Kept directly under the picker it feeds, in the same column, so the
-            eye runs straight down from "no item here" to creating one. */}
-        {project && (
-          <div className="grid grid-cols-2 gap-3">
-            {field(
-              "New item",
-              <div className="flex gap-2">
-                <Input
-                  value={newItemTitle}
-                  onChange={(e) => setNewItemTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void handleCreateBacklogItem();
-                    }
-                  }}
-                  placeholder="title of a new item"
-                  disabled={creatingItem}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => void handleCreateBacklogItem()}
-                  disabled={creatingItem || newItemTitle.trim().length === 0}
-                >
-                  Create
-                </Button>
-              </div>,
-              "col-start-2",
-            )}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex h-5 items-center justify-between gap-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Backlog item
+                </label>
+                <Hint label="Create a new backlog item in this project">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-5"
+                    aria-label="Create new backlog item"
+                    onClick={() => setShowNewItem((v) => !v)}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </Hint>
+              </div>
+              <Combobox
+                value={draft.backlog}
+                onChange={(v) => update({ backlog: v })}
+                options={backlogOptions}
+                optionDetails={backlogDetails}
+                noneLabel="No item"
+                placeholder="backlog item"
+                loading={backlogLoading}
+                emptyText={`No backlog items in ${project}.`}
+              />
+              {backlogUnknown ? (
+                <p className="truncate text-[11px] text-destructive">
+                  {draft.backlog} is not an item in {project}
+                </p>
+              ) : (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {selectedBacklog
+                    ? `${selectedBacklog.title}${selectedBacklog.status ? ` · ${selectedBacklog.status}` : ""}`
+                    : " "}
+                </p>
+              )}
+              {showNewItem && (
+                <div className="flex gap-2">
+                  <Input
+                    autoFocus
+                    value={newItemTitle}
+                    onChange={(e) => setNewItemTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleCreateBacklogItem();
+                      }
+                    }}
+                    placeholder="title of a new item"
+                    disabled={creatingItem}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleCreateBacklogItem()}
+                    disabled={creatingItem || newItemTitle.trim().length === 0}
+                  >
+                    Create
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         )}
-        <Accordion
-          type="single"
-          collapsible
-          defaultValue={hasOptionalDetails ? "optional" : undefined}
-        >
-          <AccordionItem value="optional">
-            <AccordionTrigger>
-              <span className="flex flex-col items-start">
-                <span>Optional details</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {optionalSummary}
-                </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+        </div>
+        {/* Description, Plan, Results and Details share the fixed lower zone
+            (B-025 rework): Due/Tags/Blocked moved out of the upper
+            stack into a Details tab, so the main view is Title, the five
+            launch fields, and Project/Backlog. Only Description is editable:
+            Plan is the approval record and Results the agent's report, both
+            written outside the app (see task-body.ts). The Details tab carries
+            a dot while anything in it is set, so set values never hide
+            silently behind the tab. */}
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-1">
+          <Tabs
+            value={pane}
+            onValueChange={(v) => setPane(v as PaneTab)}
+            className={cn("gap-1.5", paneShellClass)}
+          >
+            <TabsList>
+              <TabsTrigger value="description">Description</TabsTrigger>
+              {mode === "edit" && (
+                <>
+                  {/* Disabled rather than hidden when empty: the tabs are also
+                      how the user learns these sections exist at all. */}
+                  <TabsTrigger value="plan" disabled={!hasPlan}>
+                    {hasPlan ? "Plan" : "Plan (none)"}
+                  </TabsTrigger>
+                  <TabsTrigger value="results" disabled={!hasResults}>
+                    {hasResults ? "Results" : "Results (none)"}
+                  </TabsTrigger>
+                </>
+              )}
+              <TabsTrigger value="details">
+                Details
+                {hasOptionalDetails && (
+                  <span
+                    className="size-1.5 rounded-full bg-amber-400"
+                    aria-label="details set"
+                  />
+                )}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="description" className="flex min-h-0 flex-1 flex-col">
+              {descriptionPane}
+            </TabsContent>
+            {mode === "edit" && (
+              <>
+                <TabsContent value="plan" className={readerClass}>
+                  <Markdown>{plan}</Markdown>
+                </TabsContent>
+                <TabsContent value="results" className={readerClass}>
+                  <Markdown>{results}</Markdown>
+                </TabsContent>
+              </>
+            )}
+            <TabsContent value="details" className="min-h-0 flex-1 overflow-y-auto">
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2">
                   {field(
                     "Due",
                     <DatePicker
@@ -940,98 +1023,50 @@ export function TaskEditorForm({
                     />,
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {toggle(
-                    "Git worktree",
-                    "Agent works in a dedicated worktree so parallel tasks don't collide.",
-                    draft.worktree,
-                    (v) => update({ worktree: v }),
-                    draft.assignee === "me",
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {toggle(
-                    "Blocked",
-                    "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
-                    draft.blocked,
-                    (v) =>
-                      // Turning it on stamps today so the wait is measured from the
-                      // moment it was noticed; turning it off clears the details so
-                      // no stale note survives into the next block.
-                      update(
-                        v
-                          ? {
-                              blocked: true,
-                              blockedSince: draft.blockedSince || todayString(),
-                            }
-                          : { blocked: false, blockedNote: "", blockedSince: "" },
-                      ),
-                    false,
-                  )}
-                  {draft.blocked && (
-                    <div className="grid grid-cols-2 gap-3">
-                      {field(
-                        "Waiting on",
-                        <Input
-                          value={draft.blockedNote}
-                          onChange={(e) => update({ blockedNote: e.target.value })}
-                          className="h-8 text-xs"
-                          placeholder="e.g. vendor quote, review from Sato"
-                        />,
-                      )}
-                      {field(
-                        "Blocked since",
-                        <DatePicker
-                          value={draft.blockedSince}
-                          onChange={(v) => update({ blockedSince: v })}
-                        />,
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* Blocked stays full-width: Worktree moved up to the launch
+                    row (B-025 rework), so no second card shares this line. */}
+                {toggle(
+                  "Blocked",
+                  "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+                  draft.blocked,
+                  (v) =>
+                    // Turning it on stamps today so the wait is measured from the
+                    // moment it was noticed; turning it off clears the details so
+                    // no stale note survives into the next block.
+                    update(
+                      v
+                        ? {
+                            blocked: true,
+                            blockedSince: draft.blockedSince || todayString(),
+                          }
+                        : { blocked: false, blockedNote: "", blockedSince: "" },
+                    ),
+                  false,
+                )}
+                {draft.blocked && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {field(
+                      "Waiting on",
+                      <Input
+                        value={draft.blockedNote}
+                        onChange={(e) => update({ blockedNote: e.target.value })}
+                        className="h-8 text-xs"
+                        placeholder="e.g. vendor quote, review from Sato"
+                      />,
+                    )}
+                    {field(
+                      "Blocked since",
+                      <DatePicker
+                        value={draft.blockedSince}
+                        onChange={(v) => update({ blockedSince: v })}
+                      />,
+                    )}
+                  </div>
+                )}
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-        {/* Description, Plan and Results share one pane. They are the three
-            long-form sections of the same file and are read one after the
-            other, so giving each its own slide-over meant losing sight of
-            the task while reading about it. Only Description is editable:
-            Plan is the approval record and Results the agent's report, both
-            written outside the app (see task-body.ts).
-
-            Create mode has no file yet, so it shows the description alone
-            rather than two permanently empty tabs. */}
-        {mode === "create" ? (
-          field("Description", descriptionPane, paneShellClass)
-        ) : (
-          <Tabs
-            value={pane}
-            onValueChange={(v) => setPane(v as PaneTab)}
-            className={cn("gap-1.5", paneShellClass)}
-          >
-            <TabsList>
-              <TabsTrigger value="description">Description</TabsTrigger>
-              {/* Disabled rather than hidden when empty: the tabs are also
-                  how the user learns these sections exist at all. */}
-              <TabsTrigger value="plan" disabled={!hasPlan}>
-                {hasPlan ? "Plan" : "Plan (none)"}
-              </TabsTrigger>
-              <TabsTrigger value="results" disabled={!hasResults}>
-                {hasResults ? "Results" : "Results (none)"}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="description" className="flex min-h-0 flex-1 flex-col">
-              {descriptionPane}
-            </TabsContent>
-            <TabsContent value="plan" className={readerClass}>
-              <Markdown>{plan}</Markdown>
-            </TabsContent>
-            <TabsContent value="results" className={readerClass}>
-              <Markdown>{results}</Markdown>
             </TabsContent>
           </Tabs>
-        )}
+        </div>
       </div>
 
       {(problem || mode === "create") && (
