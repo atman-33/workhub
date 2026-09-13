@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.131.0 (2026-09-13)
+
+- **Meeting files move into the vault** (T-0338). Transcripts, minutes and
+  run logs now live under `voice/meetings` in the vault instead of
+  `~/.workhub/meetings`, so past meetings can be reviewed and edited like
+  any other note. The folder is changeable behind the meeting panel's ⚙
+  menu (vault-relative only). No migration: old files are removed by hand.
+
 ## 0.130.0 (2026-09-13)
 
 - **Structuring runs can be replayed in a terminal** (T-0337). **Terminal**

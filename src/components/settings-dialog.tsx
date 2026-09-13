@@ -110,6 +110,8 @@ const DEFAULTS: Settings = {
   meeting_struct_interval_secs: 120,
   meeting_struct_assignee: "claude-code",
   meeting_struct_model: "",
+  // Managed from the Voice tab's meeting panel, not from this dialog (T-0338).
+  voice_meetings_dir: "voice/meetings",
   recurring: [],
   // Managed from the Docs tab itself, not from this dialog (T-0259).
   docs_roots: [],

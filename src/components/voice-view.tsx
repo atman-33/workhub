@@ -654,8 +654,24 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                   className="h-8 font-mono text-xs"
                 />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Meetings folder (in vault)
+                </label>
+                <Input
+                  value={structSettings?.voice_meetings_dir ?? "voice/meetings"}
+                  placeholder="voice/meetings"
+                  onChange={(e) =>
+                    void patchStructSettings({
+                      voice_meetings_dir: e.target.value,
+                    })
+                  }
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
               <p className="text-[11px] text-muted-foreground">
                 Only new transcript goes to the agent — a run with nothing new costs nothing.
+                New meetings go into this folder.
               </p>
             </PopoverContent>
           </Popover>

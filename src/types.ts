@@ -135,6 +135,11 @@ export interface Settings {
   meeting_struct_assignee: string;
   /** Model passed to that agent via --model; empty = the agent's default. */
   meeting_struct_model: string;
+  /** Vault-relative folder for meeting files (transcript, minutes, run logs);
+   * default voice/meetings. Vault-scoped. Empty or unsafe values fall back
+   * to the legacy ~/.workhub/meetings. Managed from the Voice tab's meeting
+   * panel, not from the Settings dialog. */
+  voice_meetings_dir: string;
   /** Default HTML export destination; empty = the project's `attachments/`. */
   schedule_export_dir: string;
   /** Calendar display language, on screen and in the HTML export: "en" | "ja".
