@@ -49,10 +49,10 @@ const CRITICAL_FILES: &[&str] = &["README.md", "_index.md"];
 /// `specs` and `research` went in T-0253 and `deliverables` in T-0266: a
 /// spec, its research and the output of every task that worked on it belong
 /// to one unit of work, so they live inside that unit's `backlog/` item
-/// rather than in folders of their own. An item is a single note at its
-/// smallest, which is exactly what a deliverable note was — so keeping both
-/// only left a judgement call ("is this worth an item?") with no good rule
-/// behind it.
+/// rather than in folders of their own. An item is a folder at its
+/// smallest (folder-first since T-0321), holding the entry note — which is
+/// exactly what a deliverable note was — so keeping both only left a
+/// judgement call ("is this worth an item?") with no good rule behind it.
 const KNOWN_DIRS: &[&str] = &[
     "backlog",
     "dev-notes",
@@ -63,7 +63,7 @@ const KNOWN_DIRS: &[&str] = &[
 ];
 
 /// Where units of work live. Counted differently from every other folder
-/// because an item is a note *or* a folder of notes (T-0253).
+/// because an item is a folder of notes (T-0253, folder-first since T-0321).
 const BACKLOG_DIR: &str = "backlog";
 
 /// Where a project records the team knowledge bases that live outside the
@@ -507,9 +507,9 @@ fn count_files(dir: &Path, ext: Option<&str>) -> usize {
 }
 
 /// Every backlog item in a project, in `B-NNN` order, for the task editor's
-/// item picker (T-0253). Both shapes of item are listed: a bare note and a
-/// folder whose entry note names it. Archived projects are searched too, so a
-/// task on a parked project still resolves its item.
+/// item picker (T-0253, folder-first since T-0321). An item is a folder
+/// holding the entry note that names it. Archived projects are searched too,
+/// so a task on a parked project still resolves its item.
 ///
 /// Only the id and title are read — enough to choose one — so the picker
 /// costs one directory listing plus a frontmatter read per item, not a scan
@@ -539,15 +539,13 @@ pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, 
                 return None;
             }
             let ty = e.file_type().ok()?;
-            // An item is a note, or a folder holding the note that names it.
-            let note = if ty.is_dir() {
-                dir.join(&name).join(format!("{name}.md"))
-            } else if name.ends_with(".md") {
-                dir.join(&name)
-            } else {
+            // An item is a folder holding the entry note that names it
+            // (folder-first since T-0321).
+            if !ty.is_dir() {
                 return None;
-            };
-            let stem = name.trim_end_matches(".md").to_string();
+            }
+            let note = dir.join(&name).join(format!("{name}.md"));
+            let stem = name.clone();
             let front = read_note(&note).map(|n| n.0);
             let id = front
                 .as_ref()
@@ -573,7 +571,7 @@ pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, 
                 id,
                 title,
                 status,
-                folder: ty.is_dir(),
+                folder: true,
             })
         })
         .collect();
@@ -615,12 +613,12 @@ fn id_prefix(stem: &str) -> String {
 }
 
 /// Creates a backlog item in a project and returns it, for the task editor's
-/// "new item" path (T-0266).
+/// "new item" path (T-0266, folder-first since T-0321).
 ///
 /// Naming an item has to be cheaper than skipping it, or a required link is
 /// just friction: the editor collects a title and this does the rest — next
-/// `B-NNN`, the scaffold from `templates/project/backlog/`, the file. The id
-/// is the highest existing one plus one, mirroring how a task's id is
+/// `B-NNN`, the scaffold from `templates/project/backlog/`, the folder. The
+/// id is the highest existing one plus one, mirroring how a task's id is
 /// assigned, so an item filed here is indistinguishable from one written by
 /// hand.
 pub fn create_backlog_item(vault: &Path, slug: &str, title: &str) -> Result<BacklogItem, String> {
@@ -636,10 +634,12 @@ pub fn create_backlog_item(vault: &Path, slug: &str, title: &str) -> Result<Back
 
     let id = next_item_id(&list_backlog_items(vault, slug)?);
     let name = format!("{id}-{}", sanitize_item_name(title));
-    let path = backlog.join(format!("{name}.md"));
-    if path.exists() {
-        return Err(format!("{name}.md already exists"));
+    let folder = backlog.join(&name);
+    if folder.exists() || backlog.join(format!("{name}.md")).exists() {
+        return Err(format!("{name} already exists"));
     }
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let path = folder.join(format!("{name}.md"));
     let today = today();
     // Written with real newlines rather than escapes so the literal looks
     // like the note it produces, and reviewing it does not mean decoding it.
@@ -681,7 +681,7 @@ tags:
         id,
         title: title.to_string(),
         status: "idea".into(),
-        folder: false,
+        folder: true,
     })
 }
 
@@ -716,8 +716,8 @@ fn sanitize_item_name(title: &str) -> String {
     }
 }
 
-/// How many units of work a `backlog/` folder holds. An item is either a
-/// single note or a folder of notes (T-0253), so both shapes count as one.
+/// How many units of work a `backlog/` folder holds. An item is a folder of
+/// notes (folder-first since T-0321), so each folder counts as one.
 fn count_backlog_items(dir: &Path) -> usize {
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
@@ -729,19 +729,15 @@ fn count_backlog_items(dir: &Path) -> usize {
             if name.starts_with('.') || name.starts_with('_') {
                 return false;
             }
-            match e.file_type() {
-                Ok(t) if t.is_dir() => true,
-                Ok(t) if t.is_file() => e.path().extension().and_then(|x| x.to_str()) == Some("md"),
-                _ => false,
-            }
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false)
         })
         .count()
 }
 
-/// Item folders missing the entry note that names them. An item promoted from
-/// a note to a folder keeps the note's filename so existing `[[B-NNN-…]]`
-/// links still resolve; a folder without it has no entry point and no
-/// frontmatter, so `_backlog.base` cannot see the item at all.
+/// Item folders missing the entry note that names them. The entry note keeps
+/// the folder's name so existing `[[B-NNN-…]]` links resolve; a folder
+/// without it has no entry point and no frontmatter, so `_backlog.base`
+/// cannot see the item at all.
 fn backlog_items_without_entry_note(dir: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
@@ -1126,18 +1122,21 @@ mod tests {
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
     }
 
-    /// A backlog item is a note *or* a folder of notes, and both count as one
-    /// item. A folder missing the entry note that names it has no frontmatter
-    /// for `_backlog.base` to read, so it is reported (T-0253).
+    /// A backlog item is a folder of notes (folder-first since T-0321), and
+    /// each folder counts as one item. A folder missing the entry note that
+    /// names it has no frontmatter for `_backlog.base` to read, so it is
+    /// reported (T-0253).
     #[test]
-    fn backlog_counts_notes_and_folders_and_flags_a_missing_entry_note() {
+    fn backlog_counts_folders_and_flags_a_missing_entry_note() {
         let vault = temp_vault("backlog-items");
         let dir = vault.join("projects").join("demo");
         write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
         let backlog = dir.join("backlog");
         write(backlog.join("_backlog.base"), "filters: {}\n");
         write(
-            backlog.join("B-001-a-candidate.md"),
+            backlog
+                .join("B-001-a-candidate")
+                .join("B-001-a-candidate.md"),
             "---\nid: B-001\ntitle: A candidate\ntype: backlog\nstatus: idea\n---\n",
         );
         write(
@@ -1153,8 +1152,8 @@ mod tests {
         let projects = list_projects(&vault, false).unwrap();
         let p = &projects[0];
 
-        // One note and two folders. `_backlog.base` and the notes inside an
-        // item are not items themselves, so the count is three.
+        // Three folders. `_backlog.base` and the notes inside an item are not
+        // items themselves, so the count is three.
         let folder = p.folders.iter().find(|f| f.name == "backlog").unwrap();
         assert_eq!(folder.count, 3);
         assert!(folder.known);
@@ -1172,7 +1171,7 @@ mod tests {
         let items = list_backlog_items(&vault, "demo").unwrap();
         let ids: Vec<&str> = items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, ["B-001", "B-002", "B-003"]);
-        assert!(!items[0].folder);
+        assert!(items[0].folder);
         assert!(items[1].folder);
         assert_eq!(items[1].title, "Grown");
         assert_eq!(items[1].status, "doing");
@@ -1194,7 +1193,9 @@ mod tests {
         write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
         for id in ["B-1000", "B-200", "B-3", "B-40"] {
             write(
-                dir.join("backlog").join(format!("{id}-item.md")),
+                dir.join("backlog")
+                    .join(format!("{id}-item"))
+                    .join(format!("{id}-item.md")),
                 &format!("---\nid: {id}\ntitle: item\ntype: backlog\n---\n"),
             );
         }
@@ -1214,16 +1215,21 @@ mod tests {
         let dir = vault.join("projects").join("demo");
         write(dir.join("README.md"), "---\ntitle: Demo\n---\n");
         write(
-            dir.join("backlog").join("B-002-existing.md"),
+            dir.join("backlog")
+                .join("B-002-existing")
+                .join("B-002-existing.md"),
             "---\nid: B-002\ntitle: Existing\ntype: backlog\n---\n",
         );
 
         let item = create_backlog_item(&vault, "demo", "Search the note list").unwrap();
         assert_eq!(item.id, "B-003");
         assert_eq!(item.status, "idea");
-        assert!(!item.folder);
+        assert!(item.folder);
 
-        let path = dir.join("backlog").join("B-003-Search the note list.md");
+        let path = dir
+            .join("backlog")
+            .join("B-003-Search the note list")
+            .join("B-003-Search the note list.md");
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.contains("id: B-003"), "note: {text}");
         assert!(text.contains("title: Search the note list"), "note: {text}");

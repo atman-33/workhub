@@ -85,9 +85,10 @@ argument-hint: "<task-id>"
      node "C:/Users/gpbjk/.claude/plugins/cache/workhub-marketplace/workhub/0.31.0/scripts/task-cli.mjs" update <task-id> --backlog B-NNN
      ```
 
-     A new item is created from the app's task editor, or by copying
-     `templates/project/backlog/B-000-example.md` to
-     `projects/NNNN-<project>/backlog/B-NNN-<slug>.md` and filling it in.
+     A new item is created from the app's task editor, or by making
+     `projects/NNNN-<project>/backlog/B-NNN-<slug>/` and copying
+     `templates/project/backlog/B-000-example.md` into it as
+     `B-NNN-<slug>.md` and filling it in.
    - Say which item you chose and why, in your first message. If the owner
      disagrees, that is the cheapest moment to correct it.
 
@@ -95,8 +96,8 @@ argument-hint: "<task-id>"
    output goes to `_ai/logs/` or `knowledge/`), and a recurring task, which is
    a habit rather than a unit of work and leaves nothing durable behind.
 
-   **Then read the item's entry note** — `<id>-<slug>.md`, or the note of the
-   same name inside `<id>-<slug>/` once the item has grown into a folder:
+   **Then read the item's entry note** — the note of the same name inside
+   `<id>-<slug>/` (items are folders since T-0321):
 
    - `## Status` is the item's dated log. It says where the work stands and
      which of the numbered notes beside it is current, which a file listing
