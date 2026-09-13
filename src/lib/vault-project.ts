@@ -259,6 +259,29 @@ export function projectNumberOfFolder(folder: string): string {
 }
 
 /**
+ * Display label for the Tasks toolbar project filter.
+ *
+ * Known slugs draw their `NNNN` sort number beside them, like the task
+ * editor and recurring-rule pickers (T-0282/T-0286). Values no project
+ * answers to render raw with an `(unregistered)` marker, so a mis-filed
+ * value can no longer be mistaken for the project it resembles —
+ * `0150-sato-retirement-gift (unregistered)` beside `0150
+ * sato-retirement-gift` reads as a typo to fix, not a duplicate.
+ *
+ * Display only: the filter still compares bare values. Kept here rather
+ * than inline in the view so it is tested directly.
+ */
+export function taskProjectFilterLabel(
+  value: string,
+  folders: Readonly<Record<string, string>>,
+  known: ReadonlySet<string>,
+): string {
+  if (!known.has(value)) return `${value} (unregistered)`;
+  const number = projectNumberOfFolder(folders[value] ?? "");
+  return number ? `${number} ${value}` : value;
+}
+
+/**
  * Owning project slug of a note path (`…/projects/<folder>/<kind>/<name>.md`),
  * or `""` when the path is not under a project.
  *
