@@ -104,4 +104,48 @@ describe("parseBody / buildBody", () => {
       "Just some raw legacy content with no headers.\n\n## Description\n\nNew description text.\n",
     );
   });
+
+  it("parses a Description-only body and round-trips it byte-for-byte", () => {
+    const body = "\n## Description\n\nSome fresh task text.\nLine two.\n";
+    const parsed = parseBody(body);
+    expect(parsed.hasSections).toBe(true);
+    expect(parsed.content).toBe("Some fresh task text.\nLine two.");
+    expect(parsed.plan).toBe("");
+    expect(parsed.planRaw).toBe("");
+    expect(parsed.resultRaw).toBe("");
+
+    // An untouched edit reproduces the original bytes exactly.
+    expect(buildBody(parsed, parsed.content)).toBe(body);
+  });
+
+  it("parses Description + Plan without Results and preserves the plan", () => {
+    const body = "\n## Description\n\nDo the thing.\n\n## Plan\n\nStep 1.\nStep 2.\n";
+    const parsed = parseBody(body);
+    expect(parsed.hasSections).toBe(true);
+    expect(parsed.content).toBe("Do the thing.");
+    expect(parsed.plan).toBe("Step 1.\nStep 2.");
+    expect(parsed.planRaw).toBe("## Plan\n\nStep 1.\nStep 2.\n");
+    expect(parsed.resultRaw).toBe("");
+
+    // An untouched edit round-trips exactly; editing the description keeps
+    // the plan byte-for-byte and invents no Results header.
+    expect(buildBody(parsed, parsed.content)).toBe(body);
+    expect(buildBody(parsed, "Do the updated thing.")).toBe(
+      "\n## Description\n\nDo the updated thing.\n\n## Plan\n\nStep 1.\nStep 2.\n",
+    );
+  });
+
+  it("never duplicates Description-only text on save and invents no Results header", () => {
+    const body = "\n## Description\n\nSome fresh task text.\n";
+    const parsed = parseBody(body);
+    expect(parsed.hasSections).toBe(true);
+
+    const rebuilt = buildBody(parsed, "New description text.");
+    expect(rebuilt).toBe("\n## Description\n\nNew description text.\n");
+    // Exactly one Description header, no leftover original text, no Results.
+    expect(rebuilt.match(/## Description/g)).toHaveLength(1);
+    expect(rebuilt).not.toContain("Some fresh task text.");
+    expect(rebuilt).not.toContain("## Results");
+    expect(rebuilt).not.toContain("## Plan");
+  });
 });
