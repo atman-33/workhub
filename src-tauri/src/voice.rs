@@ -57,6 +57,11 @@ pub struct VoiceState {
     /// Last position (physical pixels) seen via `WindowEvent::Moved` on the
     /// indicator window; persisted to config when the indicator is hidden.
     indicator_pos: Mutex<Option<(i32, i32)>>,
+    /// Raised by a user-initiated stop (hotkey, stop button, discard,
+    /// meeting end) so the session ending from it does not auto-restart
+    /// meeting capture. Lowered again when the next recording starts — a
+    /// fresh start always means recording is wanted now.
+    hold_auto: AtomicBool,
 }
 
 /// What a finished dictation session should do with what it produced. Pulled
@@ -65,8 +70,10 @@ pub struct VoiceState {
 /// about a transcription error nobody is waiting for any more.
 #[derive(Debug, PartialEq)]
 enum Finish {
-    /// Paste the transcript and keep it in the history.
-    Deliver(String),
+    /// Paste the transcript and keep it in the history. Carries how many of
+    /// its chunks a running meeting already appended one by one, so the
+    /// end-of-session whole-text append can be skipped when covered.
+    Deliver((String, usize)),
     /// The user cancelled: drop the transcript, paste nothing, record
     /// nothing, and leave the phase alone (`cancel_recording` already set
     /// it).
@@ -77,12 +84,12 @@ enum Finish {
     Failed(String),
 }
 
-fn finish_for(cancelled: bool, result: Result<String, String>) -> Finish {
+fn finish_for(cancelled: bool, result: Result<(String, usize), String>) -> Finish {
     if cancelled {
         return Finish::Discard;
     }
     match result {
-        Ok(text) if !text.is_empty() => Finish::Deliver(text),
+        Ok((text, chunks)) if !text.is_empty() => Finish::Deliver((text, chunks)),
         Ok(_) => Finish::Nothing,
         Err(e) => Finish::Failed(e),
     }
@@ -406,16 +413,24 @@ fn emit_error(app: &AppHandle, message: impl Into<String>) {
 /// `tauri_plugin_global_shortcut` handler, which on Windows runs inside
 /// WndProc — everything here must be non-blocking; actual microphone and
 /// model I/O happens on a dedicated background thread.
+///
+/// A stop from here is the user's doing, so it holds meeting auto-capture
+/// (see `hold_auto`): the session ends and does not restart itself. Pressing
+/// again starts a manual session, which lowers the hold — ending it resumes
+/// auto-capture while the meeting is still active.
 pub fn toggle(app: &AppHandle) {
     let phase = app.state::<VoiceState>().phase.lock().unwrap().clone();
     match phase {
-        Phase::Idle | Phase::Error(_) => start_recording(app),
-        Phase::Recording => stop_recording(app),
+        Phase::Idle | Phase::Error(_) => start_recording(app, false),
+        Phase::Recording => user_stop(app),
         Phase::Transcribing => {} // busy — ignore extra presses
     }
 }
 
-fn start_recording(app: &AppHandle) {
+/// Starts a recording session; `auto` marks meeting-owned sessions (started
+/// by a meeting start or an auto-restart) in the log. Behaviour is identical
+/// either way — the flag only records provenance.
+fn start_recording(app: &AppHandle, auto: bool) {
     let settings = storage::load().settings;
     if !settings.voice_enabled {
         emit_error(app, "Voice input is off (Settings > Voice)");
@@ -444,8 +459,10 @@ fn start_recording(app: &AppHandle) {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         *recording = Some(RecordingHandle { stop_tx });
         drop(recording);
-        // A new session starts uncancelled, whatever the last one ended as.
+        // A new session starts uncancelled and unheld, whatever the last one
+        // ended as: starting always means recording is wanted now.
         state.cancelled.store(false, Ordering::SeqCst);
+        state.hold_auto.store(false, Ordering::SeqCst);
 
         let app_handle = app.clone();
         std::thread::Builder::new()
@@ -457,10 +474,11 @@ fn start_recording(app: &AppHandle) {
     // stuck behind a multi-second model load.
     crate::stt::preload(app);
     crate::diag!(
-        "voice: recording started (model={}, indicator={}, system_audio={})",
+        "voice: recording started (model={}, indicator={}, system_audio={}, auto={})",
         settings.voice_model,
         settings.voice_indicator_placement,
-        settings.voice_system_audio
+        settings.voice_system_audio,
+        auto
     );
     set_phase(app, Phase::Recording);
 }
@@ -469,6 +487,44 @@ fn start_recording(app: &AppHandle) {
 /// the hotkey toggle when a recording is in progress, a no-op otherwise
 /// (mirrors `toggle`'s `Phase::Recording` arm).
 pub fn stop_recording_command(app: &AppHandle) {
+    let phase = app.state::<VoiceState>().phase.lock().unwrap().clone();
+    if matches!(phase, Phase::Recording) {
+        user_stop(app);
+    }
+}
+
+/// A user-initiated stop: ends the session and holds meeting auto-capture so
+/// it does not restart itself.
+fn user_stop(app: &AppHandle) {
+    app.state::<VoiceState>()
+        .hold_auto
+        .store(true, Ordering::SeqCst);
+    stop_recording(app);
+}
+
+/// Ensures a meeting's capture session is running: starts one when nothing
+/// is in flight. Called on meeting start (fresh and idempotent paths), so
+/// recording also resumes after an error halt or a manual stop without
+/// ending the meeting.
+pub(crate) fn ensure_meeting_session(app: &AppHandle) {
+    let state = app.state::<VoiceState>();
+    if state.recording.lock().unwrap().is_some() {
+        return;
+    }
+    let phase = state.phase.lock().unwrap().clone();
+    if matches!(phase, Phase::Idle | Phase::Error(_)) {
+        start_recording(app, true);
+    }
+}
+
+/// Stops the in-flight recording for a meeting end: the tail is transcribed,
+/// not discarded, and auto-capture does not restart. A no-op when nothing is
+/// recording (a transcribing tail is left to finish — its end finds no active
+/// meeting and stays quiet).
+pub fn stop_for_meeting_end(app: &AppHandle) {
+    app.state::<VoiceState>()
+        .hold_auto
+        .store(true, Ordering::SeqCst);
     let phase = app.state::<VoiceState>().phase.lock().unwrap().clone();
     if matches!(phase, Phase::Recording) {
         stop_recording(app);
@@ -497,6 +553,8 @@ pub fn cancel_recording(app: &AppHandle) {
     crate::diag!("voice: session discarded by the user during {phase:?}");
     let state = app.state::<VoiceState>();
     state.cancelled.store(true, Ordering::SeqCst);
+    // A discard is a stop with intent: meeting auto-capture stays down too.
+    state.hold_auto.store(true, Ordering::SeqCst);
     // Ends the capture loop when there is still one running; already `None`
     // when the cancel arrives during transcription.
     if let Some(handle) = state.recording.lock().unwrap().take() {
@@ -784,25 +842,50 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         Err(_) => Err("voice: transcriber thread panicked".to_string()),
     };
     match finish_for(is_cancelled(&app), transcript) {
-        Finish::Deliver(text) => {
+        Finish::Deliver((text, meeting_chunks)) => {
             // Recorded regardless of paste success below — this history is
             // the safety net for when the paste target lost focus (or the
             // paste otherwise failed) between recording and now.
             record_history_entry(&app, &text);
-            // A running meeting captures the same text, timestamped.
-            crate::voice_meeting::append_transcript(&app, &text);
+            // A running meeting captures the same text, timestamped — unless
+            // its chunks already covered it one by one (T-0317).
+            if meeting_chunks == 0 {
+                let _ = crate::voice_meeting::append_transcript(&app, &text);
+            }
             if let Err(e) = crate::paste::paste_text(&text) {
                 crate::diag!("voice: paste failed: {e}");
             }
             set_phase(&app, Phase::Idle);
+            maybe_restart_auto(&app);
         }
-        Finish::Nothing => set_phase(&app, Phase::Idle),
+        Finish::Nothing => {
+            set_phase(&app, Phase::Idle);
+            maybe_restart_auto(&app);
+        }
         Finish::Failed(e) => emit_error(&app, e),
         // `cancel_recording` already set the phase and hid the indicator.
         // Touching it here would fight a recording the user may have started
         // in the meantime.
         Finish::Discard => {}
     }
+}
+
+/// Restarts meeting capture after a clean session end (timeout or tail
+/// flush), unless the user held it or the meeting is over. Error and cancel
+/// paths never reach here: a failed session must not spin back into a failing
+/// one, and a discarded one was stopped with intent.
+fn maybe_restart_auto(app: &AppHandle) {
+    let hold = app.state::<VoiceState>().hold_auto.load(Ordering::SeqCst);
+    let meeting_active = crate::voice_meeting::status(app).is_some();
+    if should_restart_auto(hold, meeting_active) {
+        start_recording(app, true);
+    }
+}
+
+/// Pure half of `maybe_restart_auto`, so the restart rule is unit-testable
+/// without a running app.
+fn should_restart_auto(hold: bool, meeting_active: bool) -> bool {
+    !hold && meeting_active
 }
 
 /// Appends a completed transcript to the persistent voice history (a safety
@@ -838,9 +921,17 @@ fn push_mono<T: Copy>(
 /// emitting `voice:preview` after each one, until the sender is dropped
 /// (normal stop) or a transcription call fails (session abort — the caller
 /// then emits the error state).
-fn run_transcriber(app: AppHandle, chunk_rx: mpsc::Receiver<Vec<f32>>) -> Result<String, String> {
+///
+/// Returns the accumulated transcript plus how many of its chunks went to a
+/// running meeting one by one: a meeting hears each utterance as it finishes
+/// (T-0317) instead of waiting for the session end.
+fn run_transcriber(
+    app: AppHandle,
+    chunk_rx: mpsc::Receiver<Vec<f32>>,
+) -> Result<(String, usize), String> {
     let stt_state = app.state::<crate::stt::SttState>();
     let mut accumulated = String::new();
+    let mut meeting_chunks = 0usize;
     let mut grown = false;
     for chunk in chunk_rx {
         // The queue may still hold chunks cut before the user gave up on
@@ -855,6 +946,9 @@ fn run_transcriber(app: AppHandle, chunk_rx: mpsc::Receiver<Vec<f32>>) -> Result
             continue;
         }
         append_chunk_text(&mut accumulated, trimmed);
+        if crate::voice_meeting::append_transcript(&app, trimmed) {
+            meeting_chunks += 1;
+        }
         if !grown {
             grow_to_preview_size(&app);
             grown = true;
@@ -866,7 +960,7 @@ fn run_transcriber(app: AppHandle, chunk_rx: mpsc::Receiver<Vec<f32>>) -> Result
             },
         );
     }
-    Ok(accumulated)
+    Ok((accumulated, meeting_chunks))
 }
 
 /// Appends a trimmed chunk's text to the accumulated transcript, joining
@@ -969,7 +1063,10 @@ mod tests {
 
     #[test]
     fn a_cancelled_session_discards_a_successful_transcript() {
-        assert_eq!(finish_for(true, Ok("hello there".into())), Finish::Discard);
+        assert_eq!(
+            finish_for(true, Ok(("hello there".into(), 2))),
+            Finish::Discard
+        );
     }
 
     #[test]
@@ -985,14 +1082,22 @@ mod tests {
     #[test]
     fn a_normal_session_delivers_its_transcript() {
         assert_eq!(
-            finish_for(false, Ok("hello there".into())),
-            Finish::Deliver("hello there".into())
+            finish_for(false, Ok(("hello there".into(), 0))),
+            Finish::Deliver(("hello there".into(), 0))
+        );
+    }
+
+    #[test]
+    fn a_session_whose_chunks_reached_the_meeting_reports_the_count() {
+        assert_eq!(
+            finish_for(false, Ok(("hello there".into(), 3))),
+            Finish::Deliver(("hello there".into(), 3))
         );
     }
 
     #[test]
     fn a_silent_session_delivers_nothing() {
-        assert_eq!(finish_for(false, Ok(String::new())), Finish::Nothing);
+        assert_eq!(finish_for(false, Ok((String::new(), 0))), Finish::Nothing);
     }
 
     #[test]
@@ -1001,6 +1106,14 @@ mod tests {
             finish_for(false, Err("model exploded".into())),
             Finish::Failed("model exploded".into())
         );
+    }
+
+    #[test]
+    fn auto_capture_restarts_only_when_unheld_with_a_live_meeting() {
+        assert!(should_restart_auto(false, true));
+        assert!(!should_restart_auto(true, true));
+        assert!(!should_restart_auto(false, false));
+        assert!(!should_restart_auto(true, false));
     }
 
     #[test]

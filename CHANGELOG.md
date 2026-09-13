@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.122.0 (2026-09-13)
+
+- **Meeting mode records on its own now** (T-0317). Pressing **Start meeting**
+  starts capture with it, and every finished utterance is appended to the
+  meeting file as it is transcribed — no hotkey presses mid-meeting. The
+  hotkey stays as a manual fallback, sessions restart themselves about every
+  2 minutes for long meetings, and transcript sections are appended in place
+  so hour-long files stay cheap to grow. If a session fails, auto-capture
+  halts instead of spinning, and **Start meeting** resumes it.
+
 ## 0.121.0 (2026-09-13)
 
 - **Meeting dictation hears the other side too** (T-0316). **Include system
