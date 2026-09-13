@@ -391,6 +391,8 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
   const [structSettings, setStructSettings] = useState<Config["settings"] | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  /** Meeting waiting for delete confirmation — deletion is permanent (T-0336). */
+  const [deleteTarget, setDeleteTarget] = useState<VoiceMeeting | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -510,19 +512,19 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
     [],
   );
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      setError("");
-      try {
-        await api.voiceMeetingDelete(id);
-        if (openId === id) setOpenId(null);
-        await refresh();
-      } catch (e) {
-        setError(String(e));
-      }
-    },
-    [openId, refresh],
-  );
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    setError("");
+    try {
+      await api.voiceMeetingDelete(id);
+      if (openId === id) setOpenId(null);
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [deleteTarget, openId, refresh]);
 
   const patchStructSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
     setError("");
@@ -745,7 +747,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               <Button
                 size="icon-xs"
                 variant="ghost"
-                onClick={() => void handleDelete(m.id)}
+                onClick={() => setDeleteTarget(m)}
                 aria-label="Delete meeting"
               >
                 <Trash2 />
@@ -756,6 +758,20 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
       )}
 
       {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete meeting"
+        description={
+          deleteTarget
+            ? `Delete the meeting from ${formatCreated(deleteTarget.started)} with ${deleteTarget.entries} entr${deleteTarget.entries === 1 ? "y" : "ies"}? Its transcript, minutes and run log are removed. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -764,6 +780,8 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
   const [entries, setEntries] = useState<VoiceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearOpen, setClearOpen] = useState(false);
+  /** History entry waiting for delete confirmation (T-0336). */
+  const [deleteTarget, setDeleteTarget] = useState<VoiceHistoryEntry | null>(null);
   const [tab, setTab] = useState("dictate");
   const [meetingLive, setMeetingLive] = useState(false);
 
@@ -791,13 +809,13 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
     };
   }, [refresh]);
 
-  const handleDelete = useCallback(
-    (id: string) => {
-      setEntries((prev) => prev.filter((e) => e.id !== id));
-      void api.voiceHistoryDelete(id);
-    },
-    [],
-  );
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    void api.voiceHistoryDelete(id);
+  }, [deleteTarget]);
 
   const confirmClear = useCallback(() => {
     setClearOpen(false);
@@ -865,7 +883,13 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
             ) : (
               <div className="flex flex-col gap-2">
                 {entries.map((entry) => (
-                  <HistoryRow key={entry.id} entry={entry} onDelete={handleDelete} />
+                  <HistoryRow
+                    key={entry.id}
+                    entry={entry}
+                    onDelete={(id) =>
+                      setDeleteTarget(entries.find((e) => e.id === id) ?? null)
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -881,6 +905,20 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
         destructive
         onConfirm={confirmClear}
         onClose={() => setClearOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete transcript"
+        description={
+          deleteTarget
+            ? `Delete the transcript from ${formatCreated(deleteTarget.created)}? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );
