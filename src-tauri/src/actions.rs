@@ -1120,7 +1120,7 @@ mod tests {
         // asking". Single quotes inside the prompt are doubled for PowerShell
         // escaping, so assert on fragments without them.
         assert!(template.contains("tell the user what you make of the request"));
-        assert!(template.contains("ask the user to approve it"));
+        assert!(template.contains("ask them to approve it"));
         assert!(!template.contains("complete it automatically without asking for confirmation"));
     }
 
