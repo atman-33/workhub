@@ -88,11 +88,11 @@ a reason. None left unhandled.
 
 1. Build the workbook
    ```bash
-   python <skill>/scripts/build_xlsx.py <input.json> <output.xlsx>
+   node <skill>/scripts/build_xlsx.mjs <input.json> <output.xlsx>
    ```
    To pull an existing workbook back into JSON (round-tripping an owner's edits):
    ```bash
-   python <skill>/scripts/read_xlsx.py <input.xlsx> <output.json>
+   node <skill>/scripts/read_xlsx.mjs <input.xlsx> <output.json>
    ```
 2. Write to the AI-owned workbook, copying the current file into `.backup/`
    first

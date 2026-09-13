@@ -2,8 +2,8 @@
 
 ## The intermediate JSON
 
-The decomposition is written as JSON first; `scripts/build_xlsx.py` assembles the
-workbook. Improvising openpyxl code each run makes the columns and formatting
+The decomposition is written as JSON first; `scripts/build_xlsx.mjs` assembles the
+workbook. Improvising workbook code each run makes the columns and formatting
 drift.
 
 ```json
@@ -67,7 +67,7 @@ row 3.
 
 **When reading an existing workbook, do not assume those positions.** A file a
 human has edited may carry a note on row 1, a blank row 2 and the header on row 3.
-`scripts/read_xlsx.py` finds the header row first and reads from the row after
+`scripts/read_xlsx.mjs` finds the header row first and reads from the row after
 it; do the same if you parse a sheet yourself.
 
 Parent values are written **only on the row where they change**. Filling every
@@ -81,7 +81,7 @@ row hides where a branch begins.
   **read-only** here
 
 Why: the owner can keep their file open in Excel while the agent updates its own,
-and openpyxl round-trips silently drop conditional formatting and data validation
+and library round-trips silently drop conditional formatting and data validation
 that Excel put there.
 
 ## Saving
