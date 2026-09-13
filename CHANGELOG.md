@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.128.0 (2026-09-13)
+
+- **Tasks project filter shows folder numbers** (T-0335). The toolbar filter
+  now draws each project's `NNNN` sort number beside its slug and keeps
+  folder order, like the task editor and recurring-rule pickers. Values no
+  project answers to stay listed, last and alphabetically.
+
 ## 0.127.0 (2026-09-13)
 
 - **Voice tab splits into Dictate / Meeting / History** (T-0334). Meeting

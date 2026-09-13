@@ -47,6 +47,7 @@ import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
+import { projectNumberOfFolder } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
@@ -327,12 +328,33 @@ export function TasksView({
   // board" — so it also lists values tasks actually carry, including ones no
   // project answers to. Without them a mis-filed task cannot be filtered for,
   // which is when you most want to find it.
-  const filterProjects = useMemo(
-    () =>
-      Array.from(
-        new Set([...knownProjects, ...tasks.map((t) => t.project).filter(Boolean)]),
-      ).sort(),
-    [knownProjects, tasks],
+  //
+  // Ordered like the pickers (T-0335): known projects stay in folder order,
+  // unknown values go last alphabetically. A plain `.sort()` here put the
+  // filter in slug order, matching neither Obsidian nor the Projects tab.
+  const filterProjects = useMemo(() => {
+    const known = new Set(knownProjects);
+    const unknown = Array.from(
+      new Set(
+        tasks
+          .map((t) => t.project)
+          .filter(Boolean)
+          .filter((p) => !known.has(p)),
+      ),
+    ).sort();
+    return [...knownProjects, ...unknown];
+  }, [knownProjects, tasks]);
+
+  // Display label for the filter: the `NNNN` sort number beside the slug, like
+  // the task editor and recurring-rule pickers (T-0282/T-0286). Display only:
+  // the filter still compares bare slugs. Projects without a number (and
+  // unknown values) render undecorated.
+  const projectFilterLabel = useCallback(
+    (slug: string) => {
+      const number = projectNumberOfFolder(projectFolders[slug] ?? "");
+      return number ? `${number} ${slug}` : slug;
+    },
+    [projectFolders],
   );
 
   const knownTags = useMemo(
@@ -670,7 +692,7 @@ export function TasksView({
             <SelectItem value="">All projects</SelectItem>
             {filterProjects.map((p) => (
               <SelectItem key={p} value={p}>
-                {p}
+                {projectFilterLabel(p)}
               </SelectItem>
             ))}
           </SelectContent>
