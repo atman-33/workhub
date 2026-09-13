@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.120.1 (2026-09-13)
+
+- **Project plugins load in opencode Desktop again** (T-0314). Desktop's
+  sidecar runs plugins under plain Node while the CLI uses Bun, and plain
+  Node ESM does not resolve extensionless relative imports — so all nine
+  project plugins failed silently on Desktop. Every relative import in
+  `vault-template/.opencode/plugins/` now carries an explicit extension
+  (`.ts` for `./lib/project-context-core`, `.mjs` for
+  `../scripts/lib/claude-plugin-sync-core`), which loads under both
+  runtimes. The sync-core declarations move alongside as
+  `claude-plugin-sync-core.d.mts`, and the template tsconfig enables
+  `allowImportingTsExtensions` so `npm run check:opencode` keeps passing.
+  Existing vaults pick the fix up through the usual template update
+  (nine `Updatable` files, no policy change needed).
+
 ## 0.120.0 (2026-09-13)
 
 - **Voice meeting mode accumulates transcripts for near-real-time minutes**

@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath } from "./lib/project-context-core";
-import { resolvePersonaInjection } from "../scripts/lib/claude-plugin-sync-core";
+import { makeEarlyPartId, normalizePath } from "./lib/project-context-core.ts";
+import { resolvePersonaInjection } from "../scripts/lib/claude-plugin-sync-core.mjs";
 
 // OpenCode adapter for the persona Claude plugin (T-0308).
 //

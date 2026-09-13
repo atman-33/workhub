@@ -14,7 +14,7 @@ import {
   type SessionState,
   type TargetProject,
   xmlEscape,
-} from "./lib/project-context-core";
+} from "./lib/project-context-core.ts";
 
 // OpenCode mirror of the engineering plugin's inject-target-rules.mjs hook.
 //

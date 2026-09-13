@@ -3,7 +3,7 @@ import {
   buildProjectContext,
   makeEarlyPartId,
   normalizePath,
-} from "./lib/project-context-core";
+} from "./lib/project-context-core.ts";
 
 const injectProjectContextPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
