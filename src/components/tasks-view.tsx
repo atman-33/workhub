@@ -47,7 +47,7 @@ import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
-import { projectNumberOfFolder } from "@/lib/vault-project";
+import { taskProjectFilterLabel } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
@@ -345,16 +345,15 @@ export function TasksView({
     return [...knownProjects, ...unknown];
   }, [knownProjects, tasks]);
 
-  // Display label for the filter: the `NNNN` sort number beside the slug, like
-  // the task editor and recurring-rule pickers (T-0282/T-0286). Display only:
-  // the filter still compares bare slugs. Projects without a number (and
-  // unknown values) render undecorated.
+  // Display label for the filter: the `NNNN` sort number beside a known slug,
+  // like the task editor and recurring-rule pickers (T-0282/T-0286), and an
+  // `(unregistered)` marker on values no project answers to — display only,
+  // the filter still compares bare values. Without the marker a mis-filed
+  // value reads as a duplicate of the project it resembles.
+  const knownProjectSet = useMemo(() => new Set(knownProjects), [knownProjects]);
   const projectFilterLabel = useCallback(
-    (slug: string) => {
-      const number = projectNumberOfFolder(projectFolders[slug] ?? "");
-      return number ? `${number} ${slug}` : slug;
-    },
-    [projectFolders],
+    (value: string) => taskProjectFilterLabel(value, projectFolders, knownProjectSet),
+    [projectFolders, knownProjectSet],
   );
 
   const knownTags = useMemo(

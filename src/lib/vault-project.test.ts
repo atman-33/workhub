@@ -15,6 +15,7 @@ import {
   sortProjects,
   sortProjectsByMode,
   taskCountsByProject,
+  taskProjectFilterLabel,
   unknownProjects,
 } from "./vault-project";
 
@@ -359,6 +360,27 @@ describe("projectNumberOfFolder", () => {
     expect(projectNumberOfFolder("0010workhub")).toBe("");
     expect(projectNumberOfFolder("0010-")).toBe("");
     expect(projectNumberOfFolder("")).toBe("");
+  });
+});
+
+describe("taskProjectFilterLabel", () => {
+  const folders = { "sato-retirement-gift": "0150-sato-retirement-gift", demo: "demo" };
+  const known = new Set(["sato-retirement-gift", "demo"]);
+
+  it("decorates a known slug with its folder number", () => {
+    expect(taskProjectFilterLabel("sato-retirement-gift", folders, known)).toBe(
+      "0150 sato-retirement-gift",
+    );
+  });
+
+  it("leaves a known slug without a number undecorated", () => {
+    expect(taskProjectFilterLabel("demo", folders, known)).toBe("demo");
+  });
+
+  it("marks an unknown value so it cannot pose as a project", () => {
+    expect(taskProjectFilterLabel("0150-sato-retirement-gift", folders, known)).toBe(
+      "0150-sato-retirement-gift (unregistered)",
+    );
   });
 });
 
