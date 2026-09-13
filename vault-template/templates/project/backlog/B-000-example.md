@@ -14,15 +14,14 @@ tags:
 
 # <Backlog item title>
 
-> Copy this file to `B-NNN-<title>.md` for each unit of work — a feature, a
-> bug, a support case. `B-NNN` is a stable id, not a sort order; ordering and
+> Make a folder `B-NNN-<title>/` for each unit of work — a feature, a
+> bug, a support case — and copy this file into it as `B-NNN-<title>.md`.
+> `B-NNN` is a stable id, not a sort order; ordering and
 > status come from frontmatter and are rendered by `_backlog.base`.
 >
-> The moment this item needs a second file, make a folder `B-NNN-<title>/` and
-> move this note into it **under the same filename**. Existing
-> `[[B-NNN-<title>]]` links keep resolving, and the folder becomes the item's
-> whole workspace: numbered notes (`010-`, `020-`, … in tens), task outputs
-> (`NNN-T-XXXX-<title>.md`) and any non-Markdown artefact, all flat.
+> `[[B-NNN-<title>]]` links resolve to the entry note, and the folder is the
+> item's whole workspace: numbered notes (`010-`, `020-`, … in tens), task
+> outputs (`NNN-T-XXXX-<title>.md`) and any non-Markdown artefact, all flat.
 
 ## What
 

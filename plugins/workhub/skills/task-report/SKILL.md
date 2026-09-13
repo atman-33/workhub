@@ -22,10 +22,10 @@ argument-hint: "<task-id>"
      `projects/NNNN-<project>/backlog/`. `task-start` has already settled which
      item that is; if `backlog` is somehow still empty, settle it now the same
      way rather than inventing a home for the note.
-     - If the item is still a single note, promote it to a folder first: make
-       `B-NNN-<slug>/` and move the note into it **under its existing
-       filename**, so every `[[B-NNN-<slug>]]` written so far still resolves.
-     - Write the deliverable as `NNN-<task-id>-<title>.md` in that folder,
+      - Items are folders (folder-first since T-0321): the deliverable goes
+        straight into `B-NNN-<slug>/`, whose entry note is `B-NNN-<slug>.md`,
+        so every `[[B-NNN-<slug>]]` resolves to it.
+      - Write the deliverable as `NNN-<task-id>-<title>.md` in that folder,
        numbering in tens after the highest number already there (`010`,
        `020`, …). Never renumber what is already there: the tens exist so a
        note that belongs in between can be `015`. Non-Markdown output (a test

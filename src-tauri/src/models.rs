@@ -806,7 +806,7 @@ pub struct BacklogItem {
     /// idea | ready | doing | done | dropped. Empty when the item's entry note
     /// is missing or says nothing.
     pub status: String,
-    /// True when the item has grown into a folder of notes.
+    /// True when the item is a folder of notes (always true since T-0321).
     pub folder: bool,
 }
 

@@ -94,9 +94,8 @@ How to handle them:
   where it is unless its contents clearly belong somewhere in the documented
   layout.
 - For a loose-task-note, move the note into the backlog item the task belonged
-  to (backlog/B-NNN-x/, promoting that item to a folder if it is still a single
-  note), rename it to the item's NNN- sequence, and add the note's old basename
-  to its frontmatter as an alias:
+  to (backlog/B-NNN-x/), rename it to the item's NNN- sequence, and add the
+  note's old basename to its frontmatter as an alias:
 
       aliases:
         - <the name it had before the NNN- prefix>

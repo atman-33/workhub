@@ -44,9 +44,9 @@ This is the working checklist when touching `projects/NNNN-<slug>/`.
   it goes on the existing item. A misfiled note is one move to undo; a
   duplicate item splits a subject and nobody can see that it happened. A
   project with no items yet is the one case where you just start one.
-- **An item grows into a folder.** One note until it needs a second file, then
-  a folder of the same name with the entry note's filename unchanged, so
-  existing `[[B-NNN-…]]` links keep resolving. Child notes are `NNN-<title>.md`
+- **An item is a folder from the start.** Create `backlog/B-NNN-<title>/`
+  with the entry note `B-NNN-<title>.md` inside it, so `[[B-NNN-…]]` links
+  resolve to the entry note. Child notes are `NNN-<title>.md`
   numbered in tens; a task's output is `NNN-T-XXXX-<title>.md`.
 - **Name a child note once; never renumber.** The tens exist so a note that
   belongs between `010` and `020` can be `015` without anything else moving.

@@ -244,9 +244,9 @@ once an item holds all of it, a separate `specs/`, `research/` and
 `deliverables/` have nothing left to hold.
 
 `deliverables/` is worth a word, because dropping it looks like it costs
-something. It does not: an item is a **single note** at its smallest, which is
-precisely what a deliverable note was — same one file, but carrying `## What`,
-`## Why` and `## Status` as well. Keeping both folders bought nothing and left
+something. It does not: an item is a **folder** at its smallest, holding the
+entry note — which is precisely what a deliverable note was, but carrying
+`## What`, `## Why` and `## Status` as well. Keeping both folders bought nothing and left
 a judgement call behind ("is this worth an item?") that has no good rule to
 answer it. A rule you have to remember is a rule that stops working.
 
@@ -550,23 +550,24 @@ produces: the candidate write-up, the spec, the investigation, the notes each
 task left behind. `tasks/` at the vault root remains the app's executable task
 list; an item is what a task is *about*, never a duplicate of it.
 
-An item starts as a single note and grows into a folder when it needs one:
+An item is a folder from the start (folder-first since T-0321):
 
 ```text
 backlog/
   _backlog.base
-  B-005-task-editor-project-source.md   <- still just a candidate
-  B-007-mindmap/                        <- grew
-    B-007-mindmap.md                    <- entry note, named after the folder
+  B-005-task-editor-project-source/
+    B-005-task-editor-project-source.md   <- entry note, named after the folder
+  B-007-mindmap/
+    B-007-mindmap.md                      <- entry note, named after the folder
     010-feature-design.md
     020-node-attributes.md
     030-T-0194-sticky-notes.md
     040-T-0194-manual-test.html
 ```
 
-- Promote a note to a folder as soon as it needs a second file. **The entry
-  note keeps its exact filename** — the folder takes that name too — so every
-  `[[B-007-mindmap]]` written before the promotion still resolves.
+- Create the folder and its entry note together. **The entry note keeps the
+  folder's exact name** — so every `[[B-007-mindmap]]` resolves to the entry
+  note.
 - Child notes are `NNN-<title>.md`, numbered in **tens** so a later note can be
   slotted between two existing ones. A task's output is `NNN-T-XXXX-<title>.md`,
   which puts it in sequence and names the task it came from.

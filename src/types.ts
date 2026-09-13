@@ -312,7 +312,7 @@ export interface BacklogItem {
   /** idea | ready | doing | done | dropped, or empty when the item's entry
    * note is missing or says nothing. */
   status: string;
-  /** True once the item has grown into a folder of notes. */
+  /** True when the item is a folder of notes (always true since T-0321). */
   folder: boolean;
 }
 
