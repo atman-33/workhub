@@ -14,6 +14,9 @@ interface Props {
   notes?: DocNotesPane;
   /** `contentStamp` of `content`, recorded with each new note. */
   stamp: string;
+  /** Whether `https:` images are loaded by the frame (T-0329). Off, they stay
+   * unloaded under the strict CSP. */
+  allowRemoteImages?: boolean;
 }
 
 /**
@@ -51,9 +54,11 @@ function scrollToFragment(doc: Document, fragment: string) {
  *
  * Forms, popups and top-level navigation stay blocked by the sandbox too.
  */
-export function HtmlPreview({ path, content, notes, stamp }: Props) {
+export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: Props) {
   const [srcDoc, setSrcDoc] = useState<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  // Whether the page carries scripts the sandbox will not run (T-0329).
+  const hasScripts = /<script[\s>]/i.test(content);
   // The frame's document, once it exists. Held in state because the note layer
   // has to be told the moment it does — and again when a new page replaces it.
   const [frameDoc, setFrameDoc] = useState<Document | null>(null);
@@ -64,16 +69,21 @@ export function HtmlPreview({ path, content, notes, stamp }: Props) {
     setFrameDoc(null);
     void (async () => {
       const doc = new DOMParser().parseFromString(content, "text/html");
-      await prepareHtmlDocument(doc, path, {
-        readText: api.docsReadFile,
-        readImage: api.docsReadAsset,
-      });
+      await prepareHtmlDocument(
+        doc,
+        path,
+        {
+          readText: api.docsReadFile,
+          readImage: api.docsReadAsset,
+        },
+        { allowRemoteImages },
+      );
       if (live) setSrcDoc(serializeHtmlDocument(doc));
     })();
     return () => {
       live = false;
     };
-  }, [path, content]);
+  }, [path, content, allowRemoteImages]);
 
   // No link is ever allowed to navigate the frame. An external one opens in
   // the browser, as in the Markdown preview; an in-page `#anchor` is scrolled
@@ -124,19 +134,27 @@ export function HtmlPreview({ path, content, notes, stamp }: Props) {
     return <p className="px-4 py-3 text-xs text-muted-foreground">Preparing page…</p>;
   }
   return (
-    <>
-      <iframe
-        ref={frame}
-        title={path}
-        sandbox="allow-same-origin"
-        srcDoc={srcDoc}
-        onLoad={onLoad}
-        // White like a browser tab: an HTML file that sets no background of
-        // its own was written for one, and would be dark-on-dark on this
-        // app's theme.
-        className="h-full w-full border-0 bg-white"
-      />
+    <div className="flex h-full flex-col">
+      {hasScripts && (
+        <p className="border-b px-4 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          Scripts in this page are disabled in the preview. To run them, open it with the
+          default app from the toolbar above.
+        </p>
+      )}
+      <div className="min-h-0 flex-1">
+        <iframe
+          ref={frame}
+          title={path}
+          sandbox="allow-same-origin"
+          srcDoc={srcDoc}
+          onLoad={onLoad}
+          // White like a browser tab: an HTML file that sets no background of
+          // its own was written for one, and would be dark-on-dark on this
+          // app's theme.
+          className="h-full w-full border-0 bg-white"
+        />
+      </div>
       {noteLayer}
-    </>
+    </div>
   );
 }

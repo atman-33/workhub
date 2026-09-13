@@ -23,7 +23,8 @@ interface Props {
 }
 
 /**
- * The Docs tab's own settings (T-0279) — today, only the PlantUML server.
+ * The Docs tab's own settings (T-0279) — the sidebar layout, remote images,
+ * and the PlantUML server.
  *
  * It lives on the tab rather than in the Settings dialog, like the folder list:
  * it is a setting of this feature, not of the app. Rendering is off until a
@@ -33,6 +34,7 @@ interface Props {
 export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   const [server, setServer] = useState("");
   const [listPane, setListPane] = useState(false);
+  const [remoteImages, setRemoteImages] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -41,10 +43,11 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return;
     setError("");
-    Promise.all([api.docsPlantumlServer(), api.docsListPane()])
-      .then(([plantuml, pane]) => {
+    Promise.all([api.docsPlantumlServer(), api.docsListPane(), api.docsAllowRemoteImages()])
+      .then(([plantuml, pane, remote]) => {
         setServer(plantuml);
         setListPane(pane);
+        setRemoteImages(remote);
       })
       .catch((e) => setError(String(e)));
   }, [open]);
@@ -54,6 +57,7 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
     try {
       await api.setDocsPlantumlServer(server);
       await api.setDocsListPane(listPane);
+      await api.setDocsAllowRemoteImages(remoteImages);
       onSaved();
       onClose();
     } catch (e) {
@@ -88,6 +92,25 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
               Splits the sidebar the way Obsidian's Notebook Navigator does: folders on the
               left, the files of the folder you pick on the right. Off, the sidebar is one
               tree holding both.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 text-xs">
+          <Switch
+            id="docs-remote-images"
+            checked={remoteImages}
+            onCheckedChange={setRemoteImages}
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <label htmlFor="docs-remote-images" className="font-medium">
+              Load images from https: URLs
+            </label>
+            <p className="leading-relaxed text-muted-foreground">
+              Off, an image pointing at the web reads as unreadable. On, the tab fetches it —
+              which announces the read to whoever serves it, so turn it on only for documents
+              whose sources you trust. Plain http: stays unloaded either way.
             </p>
           </div>
         </div>

@@ -1192,6 +1192,19 @@ pub fn set_docs_list_pane(enabled: bool) -> Result<(), String> {
     storage::save(&cfg)
 }
 
+/// Whether the Docs tab loads images from `https:` URLs (T-0329).
+#[tauri::command]
+pub fn docs_allow_remote_images() -> bool {
+    storage::load().settings.docs_allow_remote_images
+}
+
+#[tauri::command]
+pub fn set_docs_allow_remote_images(enabled: bool) -> Result<(), String> {
+    let mut cfg = storage::load();
+    cfg.settings.docs_allow_remote_images = enabled;
+    storage::save(&cfg)
+}
+
 #[tauri::command]
 pub fn docs_plantuml_server() -> String {
     storage::load().settings.docs_plantuml_server

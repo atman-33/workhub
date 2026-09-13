@@ -302,6 +302,15 @@ pub struct Settings {
     /// machine is, the same reasoning as `schedule_locale`.
     #[serde(default)]
     pub docs_list_pane: bool,
+    /// Whether the Docs tab loads images from `https:` URLs (T-0329). Off —
+    /// the default — an external image reads as unreadable, like any other
+    /// source the backend is not asked about: fetching one announces the read
+    /// to whoever serves it, which is the reader's call, not the tab's.
+    ///
+    /// Vault-scoped: it says how these documents are read, the same
+    /// reasoning as `docs_list_pane`.
+    #[serde(default)]
+    pub docs_allow_remote_images: bool,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -505,6 +514,7 @@ impl Default for Settings {
             docs_plantuml_server: String::new(),
             docs_shortcuts: Vec::new(),
             docs_list_pane: false,
+            docs_allow_remote_images: false,
         }
     }
 }

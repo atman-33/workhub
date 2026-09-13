@@ -321,6 +321,16 @@ function ResolvedImage({
   }, [src, resolveAsset]);
 
   if (failed) {
+    // A web image the reader did not allow (T-0329): say where to turn it on
+    // rather than blaming the share — the file is fine, the tab refused it.
+    if (/^https?:/i.test(src.trim())) {
+      return (
+        <span className="my-1 inline-block rounded border border-dashed px-2 py-1 text-xs text-muted-foreground">
+          {alt || "image"} — an external image ({src}). Turn on “Load images from https:
+          URLs” in the Docs settings to show it.
+        </span>
+      );
+    }
     // Name the file rather than showing a broken-image glyph: on a share,
     // "not synced to this machine yet" is the usual reason and worth saying.
     return (

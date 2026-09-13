@@ -2,7 +2,13 @@
 // happy-dom would otherwise fetch the external stylesheet a test declares.
 // @vitest-environment-options {"settings":{"disableCSSFileLoading":true,"handleDisabledFileLoadingAsSuccess":true}}
 import { describe, expect, it } from "vitest";
-import { HTML_PREVIEW_CSP, prepareHtmlDocument, serializeHtmlDocument } from "./html";
+import {
+  HTML_PREVIEW_CSP,
+  HTML_PREVIEW_CSP_REMOTE_IMAGES,
+  isRemoteImageSrc,
+  prepareHtmlDocument,
+  serializeHtmlDocument,
+} from "./html";
 
 const DOC = "//server/share/reports/run.html";
 
@@ -103,5 +109,75 @@ describe("HTML_PREVIEW_CSP", () => {
   it("allows no scripts and no network source", () => {
     expect(HTML_PREVIEW_CSP).toContain("default-src 'none'");
     expect(HTML_PREVIEW_CSP).not.toMatch(/script-src|https?:|\*/);
+  });
+
+  it("opens img-src to https: and nothing else when remote images are on", () => {
+    expect(HTML_PREVIEW_CSP_REMOTE_IMAGES).toContain("img-src data: https:");
+    expect(HTML_PREVIEW_CSP_REMOTE_IMAGES).not.toMatch(/script-src/);
+  });
+});
+
+describe("isRemoteImageSrc", () => {
+  it("accepts https: only", () => {
+    expect(isRemoteImageSrc("https://example.com/a.png")).toBe(true);
+    expect(isRemoteImageSrc("  HTTPS://example.com/a.png ")).toBe(true);
+    expect(isRemoteImageSrc("http://example.com/a.png")).toBe(false);
+    expect(isRemoteImageSrc("//cdn.example.com/b.png")).toBe(false);
+    expect(isRemoteImageSrc("img/local.png")).toBe(false);
+    expect(isRemoteImageSrc("data:image/png;base64,AA")).toBe(false);
+  });
+});
+
+describe("prepareHtmlDocument with remote images allowed", () => {
+  const OPT = { allowRemoteImages: true };
+
+  it("keeps an https: image for the frame without asking the backend", async () => {
+    const asked: string[] = [];
+    const record = async (path: string) => {
+      asked.push(path);
+      return "data:x";
+    };
+    const doc = parse('<img src="https://example.com/a.png" srcset="https://example.com/a@2x.png 2x">');
+    await prepareHtmlDocument(doc, DOC, { readText: record, readImage: record }, OPT);
+    const img = doc.querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("https://example.com/a.png");
+    expect(img.hasAttribute("srcset")).toBe(false);
+    expect(asked).toEqual([]);
+  });
+
+  it("still inlines a relative image beside the remote one", async () => {
+    const doc = parse('<img src="https://example.com/a.png"><img src="img/local.png">');
+    await prepareHtmlDocument(
+      doc,
+      DOC,
+      loaders({ "//server/share/reports/img/local.png": "data:local" }),
+      OPT,
+    );
+    const [remote, local] = Array.from(doc.querySelectorAll("img"));
+    expect(remote.getAttribute("src")).toBe("https://example.com/a.png");
+    expect(local.getAttribute("src")).toBe("data:local");
+  });
+
+  it("leaves plain http: unloaded under the remote CSP", async () => {
+    const doc = parse('<img src="http://example.com/a.png">');
+    await prepareHtmlDocument(doc, DOC, loaders({}), OPT);
+    expect(doc.querySelector("img")!.getAttribute("src")).toBe("http://example.com/a.png");
+    const csp = doc.querySelector('meta[http-equiv="Content-Security-Policy"]')!;
+    expect(csp.getAttribute("content")).not.toContain("http:");
+  });
+
+  it("writes the remote-images CSP first in <head>", async () => {
+    const doc = parse("<head></head><body></body>");
+    await prepareHtmlDocument(doc, DOC, loaders({}), OPT);
+    const first = doc.head.firstElementChild!;
+    expect(first.getAttribute("http-equiv")).toBe("Content-Security-Policy");
+    expect(first.getAttribute("content")).toBe(HTML_PREVIEW_CSP_REMOTE_IMAGES);
+  });
+
+  it("writes the strict CSP by default", async () => {
+    const doc = parse("<head></head><body></body>");
+    await prepareHtmlDocument(doc, DOC, loaders({}));
+    const first = doc.head.firstElementChild!;
+    expect(first.getAttribute("content")).toBe(HTML_PREVIEW_CSP);
   });
 });
