@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.133.0 (2026-09-14)
+
+- **Unknown projects admit it in the filter.** A task carrying a value no
+  project answers to (a folder name typed where the slug belongs) used to
+  render beside the real project as an apparent duplicate. Such values now
+  carry an `(unregistered)` marker in the Tasks toolbar filter, so the typo
+  reads as a typo instead of a second project. Filtering itself is
+  unchanged, and the value is never rewritten.
+
 ## 0.132.0 (2026-09-13)
 
 - **Task editor gives Description room to breathe** (B-025). Priority moved
