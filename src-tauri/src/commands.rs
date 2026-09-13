@@ -1740,6 +1740,63 @@ pub async fn voice_history_clear() {
 }
 
 // ---------------------------------------------------------------------
+// voice meeting mode: accumulate dictation transcripts into a file
+// ---------------------------------------------------------------------
+
+/// Starts a meeting session (idempotent while one is active).
+#[tauri::command]
+pub fn voice_meeting_start(
+    app: tauri::AppHandle,
+) -> Result<crate::voice_meeting::MeetingInfo, String> {
+    crate::voice_meeting::start(&app)
+}
+
+/// Stops the active meeting session, if any. The file stays on disk.
+#[tauri::command]
+pub fn voice_meeting_finish(app: tauri::AppHandle) -> Option<crate::voice_meeting::MeetingInfo> {
+    crate::voice_meeting::finish(&app)
+}
+
+/// The currently active meeting, if any.
+#[tauri::command]
+pub fn voice_meeting_status(app: tauri::AppHandle) -> Option<crate::voice_meeting::MeetingInfo> {
+    crate::voice_meeting::status(&app)
+}
+
+/// All meetings on disk, newest first.
+#[tauri::command]
+pub async fn voice_meeting_list() -> Vec<crate::voice_meeting::MeetingInfo> {
+    tauri::async_runtime::spawn_blocking(crate::voice_meeting::list)
+        .await
+        .unwrap_or_default()
+}
+
+/// Full Markdown of one meeting.
+#[tauri::command]
+pub async fn voice_meeting_read(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::read(&id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Deletes one meeting file.
+#[tauri::command]
+pub async fn voice_meeting_delete(id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::delete(&id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// The copy-paste prompt that turns a meeting transcript into minutes
+/// (decisions / action items / open questions) in an agent of choice.
+#[tauri::command]
+pub async fn voice_meeting_prompt(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::structuring_prompt(&id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------
 // persona plugin: character browser and the persisted default
 // ---------------------------------------------------------------------
 

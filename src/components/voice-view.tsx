@@ -1,13 +1,14 @@
 // Voice tab: the voice-input settings (T-0277 moved them here from the
-// Settings dialog, matching the Ink and Clips tabs) above the history of past
-// transcripts. The history is recorded as a safety net in
-// `src-tauri/src/voice.rs` regardless of whether the auto-paste succeeded (see
-// the `voice:history-updated` hook), so a lost-focus paste is never lost — the
-// text is still here to copy manually. Capped at 50 entries server-side
-// (oldest dropped first).
+// Settings dialog, matching the Ink and Clips tabs), the meeting mode
+// (T-0252: finalized transcripts accumulate into a file while a meeting is
+// active), and the history of past transcripts. The history is recorded as a
+// safety net in `src-tauri/src/voice.rs` regardless of whether the auto-paste
+// succeeded (see the `voice:history-updated` hook), so a lost-focus paste is
+// never lost — the text is still here to copy manually. Capped at 50 entries
+// server-side (oldest dropped first).
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Check, Copy, Download, Loader2, Mic, Trash2 } from "lucide-react";
+import { Check, Copy, Download, FileText, Loader2, Mic, Play, Square, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Config, SttModelStatus, VoiceHistoryEntry } from "@/types";
+import type { Config, SttModelStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
 
 const MAX_ENTRIES = 50;
 
@@ -351,6 +352,179 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
   );
 }
 
+/** Meeting mode (T-0252): while a meeting is active, every finalized
+ * dictation transcript is appended to the meeting's Markdown file
+ * (`voice_meeting.rs`, via the `voice:meeting-updated` hook). Structuring is
+ * on demand: the minutes prompt (transcript + instructions for decisions /
+ * action items / open questions) is copied to the clipboard and run in
+ * whatever agent is at hand (Claude Code / OpenCode). */
+function MeetingPanel() {
+  const [active, setActive] = useState<VoiceMeeting | null>(null);
+  const [meetings, setMeetings] = useState<VoiceMeeting[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+
+  const refresh = useCallback(async () => {
+    try {
+      setActive(await api.voiceMeetingStatus());
+      setMeetings(await api.voiceMeetingList());
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const unlisten = listen("voice:meeting-updated", () => void refresh());
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [refresh]);
+
+  const shownId = openId ?? active?.id ?? null;
+
+  useEffect(() => {
+    if (!shownId) {
+      setTranscript("");
+      return;
+    }
+    void api
+      .voiceMeetingRead(shownId)
+      .then(setTranscript)
+      .catch((e) => setError(String(e)));
+  }, [shownId, active?.entries]);
+
+  const handleStart = useCallback(async () => {
+    setError("");
+    try {
+      const meeting = await api.voiceMeetingStart();
+      setOpenId(null);
+      setActive(meeting);
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [refresh]);
+
+  const handleStop = useCallback(async () => {
+    setError("");
+    try {
+      await api.voiceMeetingFinish();
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [refresh]);
+
+  const handleCopyPrompt = useCallback(
+    async (id: string) => {
+      setError("");
+      try {
+        await navigator.clipboard.writeText(await api.voiceMeetingPrompt(id));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [],
+  );
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      setError("");
+      try {
+        await api.voiceMeetingDelete(id);
+        if (openId === id) setOpenId(null);
+        await refresh();
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [openId, refresh],
+  );
+
+  return (
+    <div className="flex shrink-0 flex-col gap-2 rounded-md border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <FileText className="size-4 text-muted-foreground" />
+        <h3 className="text-xs font-medium">Meeting mode</h3>
+        {active ? (
+          <span className="flex items-center gap-1.5 text-xs text-red-500">
+            <span className="size-2 animate-pulse rounded-full bg-red-500" />
+            Recording · {active.entries} entr{active.entries === 1 ? "y" : "ies"}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Dictate with the hotkey during the meeting; each transcript is appended here
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {shownId && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void handleCopyPrompt(shownId)}
+            >
+              {copied ? <Check className="text-emerald-500" /> : <Copy />}
+              Minutes prompt
+            </Button>
+          )}
+          {active ? (
+            <Button size="xs" variant="outline" onClick={() => void handleStop()}>
+              <Square />
+              Stop
+            </Button>
+          ) : (
+            <Button size="xs" variant="outline" onClick={() => void handleStart()}>
+              <Play />
+              Start meeting
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {shownId && (
+        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs">
+          {transcript || "Waiting for the first transcript…"}
+        </pre>
+      )}
+
+      {meetings.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {meetings.map((m) => (
+            <div key={m.id} className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setOpenId((o) => (o === m.id ? null : m.id))}
+                className="min-w-0 flex-1 truncate text-left text-muted-foreground hover:text-foreground"
+              >
+                {formatCreated(m.started)} · {m.entries} entr{m.entries === 1 ? "y" : "ies"}
+                {m.id === active?.id && " (live)"}
+              </button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => void handleDelete(m.id)}
+                aria-label="Delete meeting"
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function VoiceView({ configVersion }: { configVersion: number }) {
   const [entries, setEntries] = useState<VoiceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +572,8 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
       </div>
 
       <VoiceSettings configVersion={configVersion} />
+
+      <MeetingPanel />
 
       <div className="flex shrink-0 items-center gap-2">
         <h3 className="text-xs font-medium">History</h3>
