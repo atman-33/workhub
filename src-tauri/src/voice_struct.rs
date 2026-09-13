@@ -177,6 +177,42 @@ pub(crate) fn minutes_file(id: &str) -> PathBuf {
     crate::voice_meeting::meetings_dir().join(format!("{id}.minutes.md"))
 }
 
+/// Per-meeting struct run log (`<meetings>/<id>.struct.log`): one timestamped
+/// line per run start/finish, so a stuck or failing run can be told apart
+/// from a quiet one without digging through the diagnostic log (T-0333).
+/// The agent never touches this file — the app appends to it.
+pub(crate) fn struct_log_file(id: &str) -> PathBuf {
+    crate::voice_meeting::meetings_dir().join(format!("{id}.struct.log"))
+}
+
+/// Full text of one meeting's struct run log, or empty when no run has
+/// logged anything yet.
+pub fn read_struct_log(id: &str) -> String {
+    std::fs::read_to_string(struct_log_file(id)).unwrap_or_default()
+}
+
+/// Appends one timestamped line to the meeting's struct run log.
+/// Best-effort: a log that cannot be written must never fail the run it
+/// describes.
+fn append_struct_log(meeting_id: &str, line: &str) {
+    use std::io::Write;
+    let path = struct_log_file(meeting_id);
+    let mut file = match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        Ok(f) => f,
+        Err(e) => {
+            crate::diag!("voice struct: cannot open run log: {e}");
+            return;
+        }
+    };
+    if let Err(e) = writeln!(file, "[{}] {line}", now()) {
+        crate::diag!("voice struct: cannot write run log: {e}");
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_run(
     app: AppHandle,
@@ -190,7 +226,10 @@ fn spawn_run(
     let transcript = match crate::voice_meeting::read(meeting_id) {
         Ok(t) => t,
         Err(e) => {
-            crate::diag!("voice struct: cannot read transcript: {e}");
+            let msg = format!("cannot read transcript: {e}");
+            crate::diag!("voice struct: {msg}");
+            append_struct_log(meeting_id, &format!("fail: {msg}"));
+            fail_run(&app, msg);
             return;
         }
     };
@@ -207,13 +246,20 @@ fn spawn_run(
         "",
     );
     if argv.first().map(|s| s.is_empty()).unwrap_or(true) {
-        crate::diag!("voice struct: could not resolve the agent command");
+        let msg = "could not resolve the agent command".to_string();
+        crate::diag!("voice struct: {msg}");
+        append_struct_log(meeting_id, &format!("fail: {msg}"));
+        fail_run(&app, msg);
         return;
     }
     // Said out loud before spending: what this run is about to consume.
     let new_count = entries.saturating_sub(covered);
     crate::diag!(
         "voice struct: run for meeting {meeting_id} ({new_count} new entries, model={model})"
+    );
+    append_struct_log(
+        meeting_id,
+        &format!("start: {new_count} new entries, model={model}"),
     );
 
     let mut command = build_command(&argv);
@@ -228,6 +274,7 @@ fn spawn_run(
         Ok(c) => c,
         Err(e) => {
             crate::diag!("voice struct: spawn failed: {e}");
+            append_struct_log(meeting_id, &format!("fail: spawn failed: {e}"));
             fail_run(&app, e.to_string());
             return;
         }
@@ -298,9 +345,11 @@ fn finish_run(
                         header_for_minutes(meeting_started, interval) + body.trim() + "\n";
                     if let Err(e) = std::fs::write(minutes_file(meeting_id), content) {
                         crate::diag!("voice struct: cannot write minutes: {e}");
+                        append_struct_log(meeting_id, &format!("fail: cannot write minutes: {e}"));
                         fail_run(app, e.to_string());
                         return;
                     }
+                    append_struct_log(meeting_id, &format!("ok: covered {entries} entries"));
                     let mut run = state.inner.lock().unwrap();
                     run.running = false;
                     run.structured_entries = entries;
@@ -309,6 +358,7 @@ fn finish_run(
                 }
                 (true, None) => {
                     crate::diag!("voice struct: agent returned no usable output");
+                    append_struct_log(meeting_id, "fail: agent returned no usable output");
                     fail_run(app, "the agent returned no usable output".into());
                     return;
                 }
@@ -320,12 +370,14 @@ fn finish_run(
                     } else {
                         msg
                     };
+                    append_struct_log(meeting_id, &format!("fail: {msg}"));
                     fail_run(app, msg);
                     return;
                 }
             }
         }
         Err(e) => {
+            append_struct_log(meeting_id, &format!("fail: could not wait on agent: {e}"));
             fail_run(app, e.to_string());
             return;
         }

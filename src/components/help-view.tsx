@@ -135,11 +135,11 @@ A global hotkey turns speech into text and pastes it into whatever app has focus
 - By default the indicator appears next to the text cursor of the app you are dictating into, so it is where you are already looking. When no text cursor can be found (some apps don't report one), it appears next to the mouse pointer instead.
 - Prefer it to stay put? Set **Indicator** in the **Voice** tab to **Fixed**: the indicator then opens where you last dragged it, or bottom-center of the primary screen.
 - The transcript is copied to the clipboard, pasted into the focused app via Ctrl+V, and the previous clipboard content is restored afterward.
-- Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions.
+- Every transcript is also saved to the **Voice** tab as a safety net, even if the paste fails or its target app lost focus — the latest 50 transcripts are kept, each with copy and delete actions. Meeting auto-capture sessions skip both the history and the paste; the meeting file is their record.
 - The hotkey, model, and language (auto-detect, Japanese, English) can be changed at the top of the **Voice** tab; each change takes effect as soon as you make it.
-- **Meeting mode** (in the **Voice** tab) records the meeting on its own: press **Start meeting** and recording starts with it — every finished utterance is appended to the meeting file with a timestamp, no hotkey presses needed. The hotkey still works as a manual fallback. Press **Stop** when the meeting ends. Sessions restart themselves roughly every 2 minutes so long meetings stay covered; if a session fails, auto-capture halts and **Start meeting** resumes it. **Minutes prompt** copies the transcript plus instructions for decisions / action items / open questions — paste it into Claude Code or OpenCode to get structured minutes.
+- **Meeting mode** (in the **Voice** tab) records the meeting on its own: press **Start meeting** and recording starts with it — every finished utterance is appended to the meeting file with a timestamp, no hotkey presses needed. The hotkey still works as a manual fallback. Press **Stop meeting** when the meeting ends. Stopping the indicator (or the hotkey) mid-meeting only pauses auto-capture — the panel shows it as paused and **Resume** picks it back up. Sessions restart themselves roughly every 2 minutes so long meetings stay covered; if a session fails, auto-capture halts and **Start meeting** resumes it. **Minutes prompt** copies the transcript plus instructions for decisions / action items / open questions — paste it into Claude Code or OpenCode to get structured minutes.
 - **Include system audio** (in the **Voice** tab) also transcribes the other side of an online meeting through loopback capture. It is off by default; turn it on for meetings and wear headphones — with speakers, the remote voice is recorded twice (once from the system, once through the microphone). If loopback fails on a machine, recording continues with the microphone only.
-- While a meeting runs, new transcript is also structured automatically about every 2 minutes into decisions / action items / open questions — see the **Minutes** view in the meeting panel (agent, model and interval live behind its ⚙ menu; 0 disables). Only new sections go to the agent, a failed run is retried next time, and there is no speaker separation: owners not named in the transcript stay "owner: TBD".
+- While a meeting runs, new transcript is also structured automatically about every 2 minutes into decisions / action items / open questions — see the **Minutes** view in the meeting panel (agent, model and interval live behind its ⚙ menu; 0 disables). Only new sections go to the agent, a failed run is retried next time, and there is no speaker separation: owners not named in the transcript stay "owner: TBD". **Run log** shows each run's handoff and outcome for debugging.
 - workhub has no tray icon: closing its main window quits the app entirely, and the hotkey stops working until you relaunch it.`;
 
 const CLIPS_MD = `## Paste a stored snippet anywhere (Clips)
@@ -1209,13 +1209,17 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium">Meeting mode</span> (in the{" "}
-                <span className="font-medium">Voice</span> tab) accumulates
-                transcripts into a file while a meeting is active: press{" "}
-                <span className="font-medium">Start meeting</span>, dictate
-                with the hotkey as usual, and each finalized transcript is
-                appended with a timestamp. Press{" "}
-                <span className="font-medium">Stop</span> when the meeting
-                ends. <span className="font-medium">Minutes prompt</span>{" "}
+                <span className="font-medium">Voice</span> tab) records the
+                meeting on its own: press{" "}
+                <span className="font-medium">Start meeting</span> and recording
+                starts with it — every finished utterance is appended with a
+                timestamp, no hotkey presses needed. The hotkey still works as
+                a manual fallback. Press{" "}
+                <span className="font-medium">Stop meeting</span> when the
+                meeting ends. Stopping the indicator mid-meeting only pauses
+                auto-capture — the panel shows it as paused and{" "}
+                <span className="font-medium">Resume</span> picks it back up.{" "}
+                <span className="font-medium">Minutes prompt</span>{" "}
                 copies the transcript plus instructions for decisions /
                 action items / open questions — paste it into Claude Code or
                 OpenCode to get structured minutes.

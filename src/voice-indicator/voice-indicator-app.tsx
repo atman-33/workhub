@@ -96,6 +96,7 @@ export function VoiceIndicatorApp() {
         void api.voiceStopRecording();
       }}
       aria-label="Stop recording"
+      title="Stop recording (pauses meeting auto-capture when a meeting is active)"
       className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground"
     >
       <Square className="size-3.5 fill-current" />

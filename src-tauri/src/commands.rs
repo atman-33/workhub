@@ -1721,6 +1721,12 @@ pub fn voice_cancel_recording(app: tauri::AppHandle) {
     crate::voice::cancel_recording(&app);
 }
 
+/// Live capture state (recording / held) for the Meeting panel (T-0333).
+#[tauri::command]
+pub fn voice_capture_status(app: tauri::AppHandle) -> crate::voice::CaptureStatus {
+    crate::voice::capture_status(&app)
+}
+
 // ---------------------------------------------------------------------
 // voice input: transcript history (safety net for lost-focus pastes)
 // ---------------------------------------------------------------------
@@ -1827,6 +1833,15 @@ pub fn voice_struct_run_now(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn voice_meeting_minutes(id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || crate::voice_struct::read_minutes(&id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Full text of one meeting's struct run log, or empty when no run has
+/// logged anything yet (T-0333).
+#[tauri::command]
+pub async fn voice_struct_log(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::voice_struct::read_struct_log(&id))
         .await
         .map_err(|e| e.to_string())
 }

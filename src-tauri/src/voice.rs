@@ -70,9 +70,11 @@ pub struct VoiceState {
 /// about a transcription error nobody is waiting for any more.
 #[derive(Debug, PartialEq)]
 enum Finish {
-    /// Paste the transcript and keep it in the history. Carries how many of
-    /// its chunks a running meeting already appended one by one, so the
-    /// end-of-session whole-text append can be skipped when covered.
+    /// Paste the transcript and keep it in the history — unless the session
+    /// was meeting-owned (auto), which skips both and only feeds the meeting
+    /// file (T-0333). Carries how many of its chunks a running meeting
+    /// already appended one by one, so the end-of-session whole-text append
+    /// can be skipped when covered.
     Deliver((String, usize)),
     /// The user cancelled: drop the transcript, paste nothing, record
     /// nothing, and leave the phase alone (`cancel_recording` already set
@@ -467,7 +469,7 @@ fn start_recording(app: &AppHandle, auto: bool) {
         let app_handle = app.clone();
         std::thread::Builder::new()
             .name("voice-record".into())
-            .spawn(move || record_and_finish(app_handle, stop_rx))
+            .spawn(move || record_and_finish(app_handle, stop_rx, auto))
             .ok();
     }
     // Warm the model up while the user is speaking, so the first chunk isn't
@@ -531,6 +533,28 @@ pub fn stop_for_meeting_end(app: &AppHandle) {
     }
 }
 
+/// Live capture state for the Meeting panel (T-0333). The panel's recording
+/// badge used to mirror the meeting, so a user-stopped session still showed
+/// as recording — now it mirrors this instead.
+#[derive(Clone, serde::Serialize)]
+pub struct CaptureStatus {
+    pub recording: bool,
+    pub transcribing: bool,
+    pub hold_auto: bool,
+    pub meeting_active: bool,
+}
+
+pub fn capture_status(app: &AppHandle) -> CaptureStatus {
+    let state = app.state::<VoiceState>();
+    let phase = state.phase.lock().unwrap().clone();
+    CaptureStatus {
+        recording: matches!(phase, Phase::Recording),
+        transcribing: matches!(phase, Phase::Transcribing),
+        hold_auto: state.hold_auto.load(Ordering::SeqCst),
+        meeting_active: crate::voice_meeting::status(app).is_some(),
+    }
+}
+
 /// Command entry point for the indicator's discard button: abandons the
 /// dictation session without pasting or recording anything.
 ///
@@ -578,7 +602,10 @@ fn stop_recording(app: &AppHandle) {
 /// Runs entirely on the dedicated `voice-record` thread: opens the default
 /// input device, records until told to stop (or `MAX_RECORDING_SECS`
 /// elapses), then hands the buffer off to transcription + paste.
-fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
+///
+/// `auto` marks meeting-owned sessions: their transcript goes to the meeting
+/// file only, never to the dictation history or the paste target (T-0333).
+fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>, auto: bool) {
     let host = cpal::default_host();
     let Some(device) = host.default_input_device() else {
         emit_error(&app, "No microphone found.");
@@ -843,17 +870,24 @@ fn record_and_finish(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     };
     match finish_for(is_cancelled(&app), transcript) {
         Finish::Deliver((text, meeting_chunks)) => {
-            // Recorded regardless of paste success below — this history is
-            // the safety net for when the paste target lost focus (or the
-            // paste otherwise failed) between recording and now.
-            record_history_entry(&app, &text);
             // A running meeting captures the same text, timestamped — unless
             // its chunks already covered it one by one (T-0317).
             if meeting_chunks == 0 {
                 let _ = crate::voice_meeting::append_transcript(&app, &text);
             }
-            if let Err(e) = crate::paste::paste_text(&text) {
-                crate::diag!("voice: paste failed: {e}");
+            // Meeting-owned (auto) sessions stay out of the dictation
+            // history and never paste: the meeting file is their record, and
+            // a paste would land in whatever app has focus mid-meeting
+            // (T-0333). Manual sessions keep the old behavior — the user
+            // pressed the hotkey, so history + paste are what they asked for.
+            if !auto {
+                // Recorded regardless of paste success below — this history
+                // is the safety net for when the paste target lost focus (or
+                // the paste otherwise failed) between recording and now.
+                record_history_entry(&app, &text);
+                if let Err(e) = crate::paste::paste_text(&text) {
+                    crate::diag!("voice: paste failed: {e}");
+                }
             }
             set_phase(&app, Phase::Idle);
             maybe_restart_auto(&app);

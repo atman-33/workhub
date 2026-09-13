@@ -580,6 +580,18 @@ export interface MeetingStructStatus {
   lastError: string | null;
 }
 
+/** Live voice capture state for the Meeting panel (T-0333). */
+export interface VoiceCaptureStatus {
+  /** A recording session is in flight. */
+  recording: boolean;
+  /** A session ended and its tail is being transcribed. */
+  transcribing: boolean;
+  /** A user stop is holding meeting auto-capture down. */
+  holdAuto: boolean;
+  /** A meeting session is active. */
+  meetingActive: boolean;
+}
+
 /** One paste-ready snippet in the clips picker. Array order is the display
  * order — the editor sends the whole list back after any edit or reorder. */
 /** A saved ink capture (annotated screenshot), as the Ink tab lists it. */

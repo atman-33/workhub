@@ -40,6 +40,7 @@ import type {
   VaultProject,
   VoiceHistoryEntry,
   VoiceMeeting,
+  VoiceCaptureStatus,
   MeetingStructStatus,
   Worktree,
 } from "@/types";
@@ -433,6 +434,7 @@ export const api = {
   sttDeleteModel: (model: string) => invoke<void>("stt_delete_model", { model }),
   voiceStopRecording: () => invoke<void>("voice_stop_recording"),
   voiceCancelRecording: () => invoke<void>("voice_cancel_recording"),
+  captureStatus: () => invoke<VoiceCaptureStatus>("voice_capture_status"),
 
   // ---- clips (clibor-style snippet picker) ----
   clipsList: () => invoke<Clip[]>("clips_list"),
@@ -485,6 +487,7 @@ export const api = {
   voiceMeetingMinutes: (id: string) => invoke<string>("voice_meeting_minutes", { id }),
   structStatus: () => invoke<MeetingStructStatus | null>("voice_struct_status"),
   runStructNow: () => invoke<string>("voice_struct_run_now"),
+  structLog: (id: string) => invoke<string>("voice_struct_log", { id }),
   // ---- persona plugin (Persona tab) ----
   // An empty character list is how the app decides the plugin is not in use.
   personaCharacters: () => invoke<PersonaCharacter[]>("persona_characters"),

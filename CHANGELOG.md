@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.126.0 (2026-09-13)
+
+- **Meeting auto-capture stays out of the dictation history** (T-0333).
+  Every auto-restarted session used to add a history entry and paste into
+  whatever app had focus mid-meeting. Those sessions now feed the meeting
+  file only; manual hotkey sessions keep history and paste as before.
+- **The meeting panel shows capture truth, not meeting truth** (T-0333). The
+  red badge used to pulse while a user-stopped session sat idle. It now
+  shows recording, transcribing, or paused — with a **Resume** button that
+  picks auto-capture back up — and the meeting stop reads **Stop meeting**.
+- **Structuring runs leave a trail** (T-0333). Failures that died silently
+  now surface on the panel, **Structure now** answers ("Started" vs "Nothing
+  new"), and every run appends to a per-meeting run log behind the **Run
+  log** viewer, so a stuck agent handoff is visible instead of a guess.
+
 ## 0.125.0 (2026-09-13)
 
 - **Docs tab loads web images on request** (T-0329). An image pointing at an
