@@ -12,7 +12,7 @@
 // decides how failures are reported.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Gem, Plus, X } from "lucide-react";
+import { ChevronDown, Gem, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -49,9 +49,10 @@ import {
 } from "@/lib/task-editor-fields";
 import type { BacklogItem, Task, TaskAssignee, TaskStatus } from "@/types";
 
-/** The views the shared pane switches between. Details holds what used to
- *  be the "Optional details" accordion (due, tags, worktree, blocked). */
-type PaneTab = "description" | "plan" | "results" | "details";
+/** The views the shared pane switches between: the markdown body sections.
+ *  Optional frontmatter (due, tags, blocked) lives in its own collapsible
+ *  section above, not in a tab. */
+type PaneTab = "description" | "plan" | "results";
 
 const EMPTY_DRAFT: TaskDraft = {
   title: "",
@@ -177,6 +178,10 @@ export function TaskEditorForm({
   // Description is editable — Plan is the approval record and Results are the
   // agent's report, both written in Obsidian and only ever displayed here.
   const [pane, setPane] = useState<PaneTab>("description");
+  // The Optional frontmatter section below Project/Backlog. Closed by
+  // default so the Description pane keeps its height; opened automatically
+  // while anything in it is set.
+  const [optionalOpen, setOptionalOpen] = useState(false);
   // Error from the "open in Obsidian" flows (e.g. Obsidian not installed) and
   // from the agent hand-offs; shown inline so the editor can stay open for the
   // user to read it.
@@ -203,10 +208,14 @@ export function TaskEditorForm({
         return;
       }
       draftTaskIdRef.current = task.id;
-      setDraft(draftFromTask(task));
+      const seeded = draftFromTask(task);
+      setDraft(seeded);
+      setOptionalOpen(Boolean(seeded.due || seeded.tags.trim() || seeded.blocked));
     } else {
       draftTaskIdRef.current = null;
-      setDraft(loadCreateDraft() ?? EMPTY_DRAFT);
+      const loaded = loadCreateDraft() ?? EMPTY_DRAFT;
+      setDraft(loaded);
+      setOptionalOpen(Boolean(loaded.due || loaded.tags.trim() || loaded.blocked));
     }
     dirtyFieldsRef.current = new Set();
     setDescEditing(false);
@@ -468,10 +477,11 @@ export function TaskEditorForm({
     </Hint>
   );
 
-  // What the Details tab holds. Due, tags and the blocked flag live there
-  // because they are rarely touched — blocking is normally set from the
-  // board, which has its own dialog for it. Anything set lights the tab's
-  // dot, so a blocked task never hides why it is blocked behind a click.
+  // What the Optional section holds. Due, tags and the blocked flag live
+  // there because they are rarely touched — blocking is normally set from
+  // the board, which has its own dialog for it. Anything set lights the
+  // trigger's dot and auto-opens the section, so a blocked task never hides
+  // why it is blocked behind a closed section.
   // Confirm mode used to be here and moved out to the main row (T-0285) — it
   // is set often enough that hiding it behind a click was the wrong trade.
   // Worktree followed it to the main row (B-025 rework) for the same reason:
@@ -951,15 +961,99 @@ export function TaskEditorForm({
             </div>
           </div>
         )}
+        {/* Optional frontmatter (due, tags, blocked) sits below Project /
+            Backlog as a collapsed section, apart from the markdown body tabs
+            below. Collapsed by default so the Description pane keeps its
+            height; auto-opened while anything in it is set, with a dot on
+            the trigger while set values hide behind a closed section. */}
+        <div className="rounded-md border">
+          <button
+            type="button"
+            onClick={() => setOptionalOpen((v) => !v)}
+            aria-expanded={optionalOpen}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground"
+          >
+            <ChevronDown
+              className={cn("size-3.5 transition-transform", !optionalOpen && "-rotate-90")}
+            />
+            Optional
+            {hasOptionalDetails && (
+              <span
+                className="size-1.5 rounded-full bg-amber-400"
+                aria-label="optional details set"
+              />
+            )}
+          </button>
+          {optionalOpen && (
+            <div className="space-y-2 px-3 pb-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                {field(
+                  "Due",
+                  <DatePicker
+                    value={draft.due}
+                    onChange={(v) => update({ due: v })}
+                  />,
+                )}
+                {field(
+                  "Tags (comma separated)",
+                  <Input
+                    value={draft.tags}
+                    onChange={(e) => update({ tags: e.target.value })}
+                    className="h-8 text-xs"
+                    placeholder="feature, bug"
+                  />,
+                )}
+              </div>
+              {/* Blocked stays full-width: Worktree moved up to the launch
+                  row (B-025 rework), so no second card shares this line. */}
+              {toggle(
+                "Blocked",
+                "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+                draft.blocked,
+                (v) =>
+                  // Turning it on stamps today so the wait is measured from the
+                  // moment it was noticed; turning it off clears the details so
+                  // no stale note survives into the next block.
+                  update(
+                    v
+                      ? {
+                          blocked: true,
+                          blockedSince: draft.blockedSince || todayString(),
+                        }
+                      : { blocked: false, blockedNote: "", blockedSince: "" },
+                  ),
+                false,
+              )}
+              {draft.blocked && (
+                <div className="grid grid-cols-2 gap-2">
+                  {field(
+                    "Waiting on",
+                    <Input
+                      value={draft.blockedNote}
+                      onChange={(e) => update({ blockedNote: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="e.g. vendor quote, review from Sato"
+                    />,
+                  )}
+                  {field(
+                    "Blocked since",
+                    <DatePicker
+                      value={draft.blockedSince}
+                      onChange={(v) => update({ blockedSince: v })}
+                    />,
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        {/* Description, Plan, Results and Details share the fixed lower zone
-            (B-025 rework): Due/Tags/Blocked moved out of the upper
-            stack into a Details tab, so the main view is Title, the five
-            launch fields, and Project/Backlog. Only Description is editable:
-            Plan is the approval record and Results the agent's report, both
-            written outside the app (see task-body.ts). The Details tab carries
-            a dot while anything in it is set, so set values never hide
-            silently behind the tab. */}
+        </div>
+        {/* Description, Plan and Results share the fixed lower zone: the body
+            tabs stay markdown-only, while Due/Tags/Blocked live in the
+            collapsible Optional section above, so the main view is Title, the
+            five launch fields, and Project/Backlog. Only Description is
+            editable: Plan is the approval record and Results the agent's
+            report, both written outside the app (see task-body.ts). */}
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-1">
           <Tabs
             value={pane}
@@ -980,15 +1074,6 @@ export function TaskEditorForm({
                   </TabsTrigger>
                 </>
               )}
-              <TabsTrigger value="details">
-                Details
-                {hasOptionalDetails && (
-                  <span
-                    className="size-1.5 rounded-full bg-amber-400"
-                    aria-label="details set"
-                  />
-                )}
-              </TabsTrigger>
             </TabsList>
             <TabsContent value="description" className="flex min-h-0 flex-1 flex-col">
               {descriptionPane}
@@ -1003,68 +1088,6 @@ export function TaskEditorForm({
                 </TabsContent>
               </>
             )}
-            <TabsContent value="details" className="min-h-0 flex-1 overflow-y-auto">
-              <div className="space-y-2 pt-1">
-                <div className="grid grid-cols-2 gap-2">
-                  {field(
-                    "Due",
-                    <DatePicker
-                      value={draft.due}
-                      onChange={(v) => update({ due: v })}
-                    />,
-                  )}
-                  {field(
-                    "Tags (comma separated)",
-                    <Input
-                      value={draft.tags}
-                      onChange={(e) => update({ tags: e.target.value })}
-                      className="h-8 text-xs"
-                      placeholder="feature, bug"
-                    />,
-                  )}
-                </div>
-                {/* Blocked stays full-width: Worktree moved up to the launch
-                    row (B-025 rework), so no second card shares this line. */}
-                {toggle(
-                  "Blocked",
-                  "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
-                  draft.blocked,
-                  (v) =>
-                    // Turning it on stamps today so the wait is measured from the
-                    // moment it was noticed; turning it off clears the details so
-                    // no stale note survives into the next block.
-                    update(
-                      v
-                        ? {
-                            blocked: true,
-                            blockedSince: draft.blockedSince || todayString(),
-                          }
-                        : { blocked: false, blockedNote: "", blockedSince: "" },
-                    ),
-                  false,
-                )}
-                {draft.blocked && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {field(
-                      "Waiting on",
-                      <Input
-                        value={draft.blockedNote}
-                        onChange={(e) => update({ blockedNote: e.target.value })}
-                        className="h-8 text-xs"
-                        placeholder="e.g. vendor quote, review from Sato"
-                      />,
-                    )}
-                    {field(
-                      "Blocked since",
-                      <DatePicker
-                        value={draft.blockedSince}
-                        onChange={(v) => update({ blockedSince: v })}
-                      />,
-                    )}
-                  </div>
-                )}
-              </div>
-            </TabsContent>
           </Tabs>
         </div>
       </div>
