@@ -5,6 +5,7 @@
   "windows": ["main", "ink-overlay", "ink-preview", "task-editor", "quick-capture", "voice-indicator", "clips-popup", "docs-viewer-*"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-zoom",
     "core:window:allow-start-dragging",
     "dialog:default",
     "clipboard-manager:allow-write-text",

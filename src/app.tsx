@@ -10,14 +10,18 @@ import {
   Inbox,
   ListTodo,
   Mic,
+  Minus,
   Music,
   Network,
   FolderKanban,
   Pencil,
+  Plus,
   Puzzle,
+  RotateCcw,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ClipsView } from "@/components/clips-view";
 import { DocsView } from "@/components/docs/docs-view";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -45,8 +49,16 @@ import { UpdateBanner } from "@/components/update-banner";
 import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import {
+  APP_ZOOM,
+  APP_ZOOM_KEY,
+  isTauri,
+  normalizeAppZoom,
+  parseAppZoom,
+} from "@/lib/app-zoom";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
@@ -108,6 +120,111 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
   { key: "plugins", label: "Plugins", icon: Puzzle },
   { key: "help", label: "Help", icon: CircleHelp },
 ];
+
+/**
+ * App-wide zoom control (T-0346): a compact `%` readout in the nav cluster
+ * whose popover holds −/+ buttons, a slider and a reset. The zoom itself is
+ * the native WebView zoom (`getCurrentWebview().setZoom`), so px-sized
+ * layouts like the schedule bars scale too — unlike CSS-only approaches.
+ * Shortcuts: Ctrl+= / Ctrl+- / Ctrl+0, the way a browser does it.
+ */
+function ZoomControl() {
+  const [zoom, setZoomState] = useState(() => {
+    try {
+      return parseAppZoom(localStorage.getItem(APP_ZOOM_KEY));
+    } catch {
+      return APP_ZOOM.initial;
+    }
+  });
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+
+  const apply = useCallback((next: number) => {
+    const value = normalizeAppZoom(next);
+    setZoomState(value);
+    try {
+      localStorage.setItem(APP_ZOOM_KEY, String(value));
+    } catch {
+      // Persistence is a nicety; never break zooming over storage.
+    }
+    // The native factor resets to 100% on every launch, so the remembered
+    // value is re-applied on startup (see the effect below).
+    if (isTauri()) void getCurrentWebview().setZoom(value).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    apply(zoomRef.current);
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      // "+" needs Shift on most layouts, so Shift must not disqualify it —
+      // browsers treat Ctrl+Shift+= as zoom-in for the same reason.
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        apply(zoomRef.current + APP_ZOOM.step);
+      } else if (!e.shiftKey && (e.key === "-" || e.key === "0")) {
+        e.preventDefault();
+        apply(e.key === "0" ? APP_ZOOM.initial : zoomRef.current - APP_ZOOM.step);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [apply]);
+
+  const percent = Math.round(zoom * 100);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`App zoom ${percent} percent, open zoom controls`}
+          className="hidden rounded px-1.5 py-1 text-[11px] tabular-nums text-muted-foreground hover:text-foreground md:inline"
+        >
+          {percent}%
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-3">
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Zoom out"
+            disabled={zoom <= APP_ZOOM.min}
+            onClick={() => apply(zoom - APP_ZOOM.step)}
+          >
+            <Minus />
+          </Button>
+          <input
+            type="range"
+            min={APP_ZOOM.min * 100}
+            max={APP_ZOOM.max * 100}
+            step={APP_ZOOM.step * 100}
+            value={percent}
+            onChange={(e) => apply(Number(e.target.value) / 100)}
+            className="min-w-0 flex-1 accent-primary"
+            aria-label="App zoom"
+          />
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Zoom in"
+            disabled={zoom >= APP_ZOOM.max}
+            onClick={() => apply(zoom + APP_ZOOM.step)}
+          >
+            <Plus />
+          </Button>
+        </div>
+        <div className="mt-1 flex items-center justify-between">
+          <span className="text-xs tabular-nums text-muted-foreground">{percent}%</span>
+          <Button size="xs" variant="ghost" onClick={() => apply(APP_ZOOM.initial)}>
+            <RotateCcw />
+            Reset
+          </Button>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">Ctrl+= / Ctrl+- / Ctrl+0</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("tasks");
@@ -297,6 +414,7 @@ export default function App() {
                 </span>
               </Hint>
             )}
+            <ZoomControl />
             <span className="hidden text-[11px] text-muted-foreground md:inline">
               v{version}
             </span>
