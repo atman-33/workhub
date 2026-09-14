@@ -179,6 +179,12 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   // mtime is what makes the next write conflict-safe.
   const source = useRef<{ content: string; mtime: number }>({ content: "", mtime: 0 });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while an IME composition is in flight in the item editor's text
+  // fields; the debounced save waits it out (T-0347).
+  const composingRef = useRef(false);
+  // A save held back by an in-flight composition, rescheduled on
+  // `compositionend` (or by the keystroke that follows it).
+  const saveDeferredRef = useRef(false);
   /** The calendar's scroll container — what the Today button scrolls. */
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -280,6 +286,13 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       onGone?.();
       return;
     }
+    // A reload whose bytes match what was last written (or read) changes
+    // nothing — and every `setDoc` below also wipes the undo stacks, so
+    // applying it would discard history for no reason. This is the usual case
+    // for the watcher echo of our own debounced save: reloading it would swap
+    // the item editor's backing values, committing an IME conversion the user
+    // is still choosing candidates for (T-0347).
+    if (read.content === source.current.content) return;
     source.current = { content: read.content, mtime: read.mtime };
     const parsed = parseSchedule(read.content);
     // A reload means the file, not the user, decided the current state — the
@@ -386,13 +399,11 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   }, []);
 
   /**
-   * Writes a model to state and schedules the file write, without touching the
-   * undo stacks — the undo/redo handlers manage those themselves.
+   * Starts (or restarts) the debounced file write for a model that is already
+   * in state.
    */
-  const apply = useCallback(
+  const scheduleSave = useCallback(
     (next: ScheduleDocModel) => {
-      if (aiRunning) return; // the agent holds the file
-      setDoc(next);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         saveTimer.current = null;
@@ -411,7 +422,53 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         })();
       }, SAVE_DEBOUNCE_MS);
     },
-    [aiRunning, path, loadDoc],
+    [path, loadDoc],
+  );
+
+  /**
+   * Writes a model to state and schedules the file write, without touching the
+   * undo stacks — the undo/redo handlers manage those themselves.
+   *
+   * While an IME composition is in flight the write is held back: the save
+   * lands on disk, the file watcher answers with a reload, and that reload
+   * swaps the input's backing value mid-conversion (T-0347). The keystroke
+   * after `compositionend` reschedules through here as usual.
+   */
+  const apply = useCallback(
+    (next: ScheduleDocModel) => {
+      if (aiRunning) return; // the agent holds the file
+      setDoc(next);
+      if (composingRef.current) {
+        saveDeferredRef.current = true;
+        return;
+      }
+      scheduleSave(next);
+    },
+    [aiRunning, scheduleSave],
+  );
+
+  /**
+   * Tracks IME composition from the item editor's text fields. A pending
+   * debounced write is held rather than dropped — the keystrokes are already
+   * in state — and rescheduled once the conversion commits.
+   */
+  const handleComposingChange = useCallback(
+    (composing: boolean) => {
+      composingRef.current = composing;
+      if (composing) {
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+          saveDeferredRef.current = true;
+        }
+        return;
+      }
+      if (saveDeferredRef.current && doc) {
+        saveDeferredRef.current = false;
+        scheduleSave(doc);
+      }
+    },
+    [doc, scheduleSave],
   );
 
   /**
@@ -1241,6 +1298,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 item={selected}
                 tasks={projectTasks}
                 onChange={(next) => patchItem(next.id, () => next)}
+                onComposingChange={handleComposingChange}
                 onDelete={() => {
                   mutate({ ...doc, items: doc.items.filter((i) => i.id !== selected.id) });
                   setSelectedId(null);
