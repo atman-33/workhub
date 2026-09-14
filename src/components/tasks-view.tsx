@@ -47,7 +47,7 @@ import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
-import { taskProjectFilterLabel } from "@/lib/vault-project";
+import { taskProjectFilterLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
@@ -295,24 +295,11 @@ export function TasksView({
   // that the rest of the app then flags as orphans (T-0219).
   //
   // Ordered by folder name rather than by slug, so the list reads in the order
-  // the owner arranged their projects in — the `NNNN-` prefix is zero-padded,
-  // so a plain string compare is already number order, and an unnumbered
-  // folder falls wherever its own name does. Sorting by slug instead put the
-  // picker in an order that matched neither Obsidian nor the Projects tab
-  // (T-0282).
-  const knownProjects = useMemo(
-    () =>
-      [...vaultProjects]
-        .sort((a, b) => a.folder.localeCompare(b.folder))
-        .map((p) => p.slug),
-    [vaultProjects],
-  );
-
-  // Folder name per slug, so the project pickers — the task editor's and the
-  // recurring-rule dialog's (T-0286) — can draw each project's sort number
-  // beside it. Display only: both fields still commit the slug.
-  const projectFolders = useMemo(
-    () => Object.fromEntries(vaultProjects.map((p) => [p.slug, p.folder])),
+  // the owner arranged their projects in (T-0282); drawn with each project's
+  // sort number beside it for the task editor and the recurring-rule dialog
+  // (T-0286). Display only: both fields still commit the slug.
+  const { slugs: knownProjects, folders: projectFolders } = useMemo(
+    () => projectOptionsOf(vaultProjects),
     [vaultProjects],
   );
 
@@ -547,15 +534,32 @@ export function TasksView({
   // the draft, the autosave and the create call from here on. Nothing comes
   // back — the vault watcher's `tasks-changed` refreshes the board when the
   // editor writes (see tasks.rs::start_watcher).
+  //
+  // The project list is re-read here rather than taken from state: another
+  // window, Obsidian or an agent may have created a project since the board
+  // last reloaded, and the payload would otherwise freeze that stale list
+  // into the editor (T-0343). A failed re-read falls back to the board's
+  // copy — opening with a stale list beats not opening at all.
   const openEditor = useCallback(
     (mode: "create" | "edit", task: Task | null) => {
-      void api.openTaskEditor({ mode, task, knownProjects, projectFolders }).catch(
-        (e) => {
-          setStatus(`Could not open the task editor — ${e}`);
-        },
-      );
+      const open = (projects: VaultProject[]) => {
+        const { slugs, folders } = projectOptionsOf(projects);
+        void api
+          .openTaskEditor({ mode, task, knownProjects: slugs, projectFolders: folders })
+          .catch((e) => {
+            setStatus(`Could not open the task editor — ${e}`);
+          });
+      };
+      if (vaultPath) {
+        void api
+          .listVaultProjects(vaultPath, false)
+          .then(open)
+          .catch(() => open(vaultProjects));
+      } else {
+        open([]);
+      }
     },
-    [knownProjects, projectFolders],
+    [vaultPath, vaultProjects],
   );
 
   // Rendered from both branches below: the dialog has to survive the moment

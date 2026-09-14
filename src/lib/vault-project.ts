@@ -281,6 +281,28 @@ export function taskProjectFilterLabel(
   return number ? `${number} ${value}` : value;
 }
 
+/** Project options for the pickers, derived from one vault listing. */
+export interface ProjectOptions {
+  /** Slugs in folder order, deduped — duplicate-slug folders answer to one
+   *  identity, and the picker has one row per identity (T-0344). */
+  slugs: string[];
+  /** Folder name per slug (display only, the picker commits the slug). */
+  folders: Record<string, string>;
+}
+
+/**
+ * Picker-ready options from a `listVaultProjects` report, in the folder order
+ * the owner arranged (T-0282). One place so the board and the task editor
+ * cannot derive different lists from the same scan (T-0343).
+ */
+export function projectOptionsOf(projects: VaultProject[]): ProjectOptions {
+  const ordered = [...projects].sort((a, b) => a.folder.localeCompare(b.folder));
+  return {
+    slugs: Array.from(new Set(ordered.map((p) => p.slug))),
+    folders: Object.fromEntries(ordered.map((p) => [p.slug, p.folder])),
+  };
+}
+
 /**
  * Owning project slug of a note path (`…/projects/<folder>/<kind>/<name>.md`),
  * or `""` when the path is not under a project.

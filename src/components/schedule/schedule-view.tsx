@@ -44,7 +44,7 @@ import {
 import { api } from "@/lib/api";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
-import { readViewState, writeViewState } from "@/lib/view-state";
+import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
 import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
@@ -222,23 +222,46 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
 
   // A listing that fails is almost always a folder that moved while it was
   // being read — archiving a project is a move, and the event that triggers
-  // the reload arrives while the rename is still settling. Falling back to an
-  // empty list lets the effects below reset the picker; throwing here would
-  // only leave an unhandled rejection and a stale list on screen (T-0254).
-  const loadFiles = useCallback(async () => {
-    if (!vaultPath) return;
-    setFiles(await api.listSchedules(vaultPath, project).catch(() => []));
-    setFilesLoaded(true);
-  }, [vaultPath, project]);
+  // the reload arrives while the rename is still settling. One retry lets the
+  // move settle; only a second failure falls back to an empty list and lets
+  // the effects below reset the picker. Acting on the first failure closed
+  // the open note over a transient race (T-0254, T-0343).
+  const loadFiles = useCallback(
+    async (retried = false) => {
+      if (!vaultPath) return;
+      try {
+        setFiles(await api.listSchedules(vaultPath, project));
+        setFilesLoaded(true);
+      } catch {
+        if (!retried) setTimeout(() => void loadFiles(true), 400);
+        else {
+          setFiles([]);
+          setFilesLoaded(true);
+        }
+      }
+    },
+    [vaultPath, project],
+  );
 
-  const loadProjects = useCallback(async () => {
-    if (!vaultPath) return;
-    setProjects(await api.listScheduleProjects(vaultPath).catch(() => []));
-    setProjectsLoaded(true);
-    // `projectsVersion` is not read here — it is a reload trigger, and listing
-    // it as a dependency is what makes the effect below re-run.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vaultPath, projectsVersion]);
+  const loadProjects = useCallback(
+    async (retried = false) => {
+      if (!vaultPath) return;
+      try {
+        setProjects(await api.listScheduleProjects(vaultPath));
+        setProjectsLoaded(true);
+      } catch {
+        if (!retried) setTimeout(() => void loadProjects(true), 400);
+        else {
+          setProjects([]);
+          setProjectsLoaded(true);
+        }
+      }
+      // `projectsVersion` is not read here — it is a reload trigger, and listing
+      // it as a dependency is what makes the effect below re-run.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [vaultPath, projectsVersion],
+  );
 
   // `onGone` closes the note when the file is no longer there to read. The
   // caller owns `path`, and a note whose project was just archived has moved
@@ -270,6 +293,19 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   useEffect(() => {
     void loadFiles();
   }, [loadFiles]);
+
+  // A vault switch must not inherit the old vault's selection: the restored
+  // path is absolute, so it keeps reading (and writing) a note in the vault
+  // just left behind whenever a same-named project exists there (T-0344). A
+  // same-vault restart keeps restoring — only a changed vault clears.
+  useEffect(() => {
+    if (!vaultPath) return;
+    if (readLastVaultPath() !== vaultPath) {
+      setProject("");
+      setPath("");
+    }
+    writeLastVaultPath(vaultPath);
+  }, [vaultPath]);
 
   useEffect(() => {
     if (!vaultPath) return;

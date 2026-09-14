@@ -27,6 +27,7 @@ import {
   sendTaskToClaudeDesktop,
 } from "@/lib/task-actions";
 import { TASK_EDITOR_OPEN_EVENT, type TaskEditorPayload } from "@/lib/task-editor-bridge";
+import { projectOptionsOf } from "@/lib/vault-project";
 import { buildBody, DEFAULT_BODY, parseBody } from "@/lib/task-body";
 import type { Config, Task } from "@/types";
 
@@ -81,6 +82,29 @@ export function EditorApp() {
 
   const task = payload?.task ?? null;
   const taskId = task?.id ?? null;
+
+  // The payload's project list is an open-time snapshot. A project created
+  // while the editor is open (another window, Obsidian, an agent) must reach
+  // the picker too, so follow the vault rather than freezing the snapshot
+  // (T-0343). Only the options move — the draft keeps what the user picked.
+  useEffect(() => {
+    if (!vaultPath) return;
+    const unlisten = listen("projects-changed", () => {
+      void api
+        .listVaultProjects(vaultPath, false)
+        .then((projects) => {
+          const { slugs, folders } = projectOptionsOf(projects);
+          setPayload((p) =>
+            p ? { ...p, knownProjects: slugs, projectFolders: folders } : p,
+          );
+        })
+        // A scan can fail while the vault is busy; the next event re-syncs.
+        .catch(() => {});
+    });
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [vaultPath]);
 
   // While an edit-mode task is open, keep the form in step with the vault:
   // the watcher emits `tasks-changed` for every write (board drag, agent,
