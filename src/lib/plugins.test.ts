@@ -8,6 +8,7 @@ import {
   pluginsOfMarketplace,
   pluginSuggestions,
   pluginViews,
+  workhubPluginAlert,
 } from "@/lib/plugins";
 import type { MarketplaceInfo, PluginRow, PluginsState } from "@/types";
 
@@ -317,6 +318,89 @@ describe("marketplaces without a catalog", () => {
       ),
     );
     expect(view.effective_scope).toBe("user");
+  });
+});
+
+/**
+ * Startup banner input (T-0349): only the states the owner must act on —
+ * the workhub plugin switched off or behind the marketplace clone — become
+ * an alert. Anything without an action stays silent so the banner never nags.
+ */
+describe("workhubPluginAlert", () => {
+  const install = (version: string, scope: "project" | "user" = "project") => [
+    { scope, version, project_path: "C:/v", install_path: "" },
+  ];
+
+  it("flags a switched-off workhub plugin as missing", () => {
+    const alert = workhubPluginAlert(state([row({ tier: "required" })]));
+    expect(alert?.kind).toBe("missing");
+    expect(alert?.marketplace).toBe("workhub-marketplace");
+  });
+
+  it("flags a wholly absent workhub row as missing", () => {
+    const alert = workhubPluginAlert(state([row({ name: "persona", tier: "required" })]));
+    expect(alert?.kind).toBe("missing");
+  });
+
+  it("carries the versions on an outdated install", () => {
+    const alert = workhubPluginAlert(
+      state([
+        row({
+          tier: "required",
+          scope: "user",
+          enabled_user: true,
+          latest_version: "0.25.1",
+          installs: install("0.24.0", "user"),
+        }),
+      ]),
+    );
+    expect(alert).toMatchObject({
+      kind: "outdated",
+      scope: "user",
+      installed_version: "0.24.0",
+      latest_version: "0.25.1",
+    });
+  });
+
+  it("stays silent when current, pending or version-unknown", () => {
+    const current = row({
+      tier: "required",
+      enabled_project: true,
+      latest_version: "1.0.0",
+      installs: install("1.0.0"),
+    });
+    const pending = row({ tier: "required", enabled_user: true, scope: "user" });
+    const unknown = row({
+      tier: "required",
+      enabled_project: true,
+      latest_version: "",
+      installs: install("1.0.0"),
+    });
+    expect(workhubPluginAlert(state([current]))).toBeNull();
+    expect(workhubPluginAlert(state([pending]))).toBeNull();
+    expect(workhubPluginAlert(state([unknown]))).toBeNull();
+  });
+
+  it("reports an unreadable marketplace instead of claiming a version", () => {
+    const noClone = [marketplace({ clone_found: false })];
+    const noCatalog = [marketplace({ catalog_found: false })];
+    const rows = [row({ tier: "required" })];
+    expect(workhubPluginAlert(state(rows, noClone))?.kind).toBe("marketplace");
+    expect(workhubPluginAlert(state(rows, noCatalog))?.kind).toBe("marketplace");
+  });
+
+  it("ignores a workhub row from another marketplace", () => {
+    const rows = [
+      row({
+        marketplace: "claude-plugins-official",
+        in_catalog: false,
+        tier: "",
+        scope: "",
+        latest_version: "",
+        enabled_user: true,
+      }),
+    ];
+    expect(workhubPluginAlert(state(rows))?.kind).toBe("missing");
   });
 });
 

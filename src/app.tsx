@@ -34,6 +34,7 @@ import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
 import { PersonaView } from "@/components/persona-view";
 import { PluginsView } from "@/components/plugins-view";
+import { PluginUpdateBanner } from "@/components/plugin-update-banner";
 import { NavListenerButton } from "@/components/nav-listener-button";
 import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
@@ -68,6 +69,7 @@ import {
   normalizeAppZoom,
   parseAppZoom,
 } from "@/lib/app-zoom";
+import { workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
@@ -243,6 +245,9 @@ export default function App() {
   // note so a template change is never completely invisible.
   const [autoApplied, setAutoApplied] = useState<string[]>([]);
   const [memorySetupNeeded, setMemorySetupNeeded] = useState(false);
+  // Startup alert for the workhub plugin (T-0349): missing or outdated.
+  // Dismissed or resolved states clear it; re-checking recreates it.
+  const [pluginAlert, setPluginAlert] = useState<PluginAlert | null>(null);
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   // Bumped when the Projects view creates, archives or restores a vault
@@ -335,6 +340,17 @@ export default function App() {
     }
   }, []);
 
+  // The plugin check rides on `check_updates` rather than growing its own
+  // toggle (T-0349): one switch for "tell me when something is stale".
+  const checkPlugin = useCallback(async (vaultPath: string) => {
+    try {
+      setPluginAlert(workhubPluginAlert(await api.pluginsState(vaultPath)));
+    } catch {
+      // Never block startup on a plugin-check failure.
+      setPluginAlert(null);
+    }
+  }, []);
+
   useEffect(() => {
     void (async () => {
       const cfg = await api.getConfig();
@@ -342,6 +358,9 @@ export default function App() {
       setVersion(await api.appVersion());
       if (cfg.settings.check_updates) {
         setUpdate(await api.checkUpdate());
+      }
+      if (cfg.settings.check_updates && cfg.settings.vault_path) {
+        await checkPlugin(cfg.settings.vault_path);
       }
       if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
         await checkTemplate(
@@ -416,6 +435,15 @@ export default function App() {
             vaultPath={settings.vault_path}
             onDismiss={() => setTemplateDiff(null)}
             onApplied={() => void checkTemplate(settings.vault_path as string)}
+          />
+        )}
+        {pluginAlert && settings?.vault_path && (
+          <PluginUpdateBanner
+            alert={pluginAlert}
+            vaultPath={settings.vault_path}
+            onOpenPlugins={() => setTab("plugins")}
+            onResolved={() => void checkPlugin(settings.vault_path as string)}
+            onDismiss={() => setPluginAlert(null)}
           />
         )}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
