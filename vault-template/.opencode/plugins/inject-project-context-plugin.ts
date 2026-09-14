@@ -28,7 +28,8 @@ const injectProjectContextPlugin: Plugin = async (ctx, _options) => {
         messageID: output.message.id,
         type: "text",
         text: projectContext,
-        synthetic: false,
+        // LLM-only: hidden from the TUI user bubble, still sent to the model (T-0342).
+        synthetic: true,
       });
     },
   };
