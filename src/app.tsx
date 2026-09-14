@@ -64,6 +64,7 @@ import {
   APP_ZOOM,
   APP_ZOOM_KEY,
   isTauri,
+  matchZoomKey,
   normalizeAppZoom,
   parseAppZoom,
 } from "@/lib/app-zoom";
@@ -164,15 +165,12 @@ function ZoomControl() {
     apply(zoomRef.current);
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      // "+" needs Shift on most layouts, so Shift must not disqualify it —
-      // browsers treat Ctrl+Shift+= as zoom-in for the same reason.
-      if (e.key === "=" || e.key === "+") {
-        e.preventDefault();
-        apply(zoomRef.current + APP_ZOOM.step);
-      } else if (!e.shiftKey && (e.key === "-" || e.key === "0")) {
-        e.preventDefault();
-        apply(e.key === "0" ? APP_ZOOM.initial : zoomRef.current - APP_ZOOM.step);
-      }
+      const action = matchZoomKey(e);
+      if (!action) return;
+      e.preventDefault();
+      if (action === "in") apply(zoomRef.current + APP_ZOOM.step);
+      else if (action === "out") apply(zoomRef.current - APP_ZOOM.step);
+      else apply(APP_ZOOM.initial);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

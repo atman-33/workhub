@@ -40,6 +40,34 @@ export function parseAppZoom(raw: string | null): number {
   return normalizeAppZoom(Number(raw));
 }
 
+/** What a zoom shortcut keystroke means, if anything. */
+export type ZoomKeyAction = "in" | "out" | "reset";
+
+/**
+ * Matches a keydown against the zoom shortcuts (T-0346 fix).
+ *
+ * `Ctrl+=` / `Ctrl+-` / `Ctrl+0` is the browser convention, but on a JIS
+ * keyboard both `+` (Shift+;) and `=` (Shift+-) need Shift — and with a
+ * Japanese IME active the event may arrive as the unshifted `;`, a full-width
+ * variant, or just the physical code instead of `+`. So zoom-in also matches
+ * Shift plus the Semicolon key in any of those guises. (On a US layout that
+ * is Ctrl+Shift+; i.e. Ctrl+:, which nothing else uses.)
+ */
+export function matchZoomKey(e: { key: string; code: string; shiftKey: boolean }): ZoomKeyAction | null {
+  const { key, code, shiftKey } = e;
+  if (
+    key === "=" ||
+    key === "+" ||
+    (shiftKey && (key === ";" || key === "：" || key === "；" || code === "Semicolon"))
+  ) {
+    return "in";
+  }
+  if (!shiftKey && (key === "-" || key === "0")) {
+    return key === "0" ? "reset" : "out";
+  }
+  return null;
+}
+
 /** True inside the Tauri WebView; a plain-browser dev server skips native calls. */
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
