@@ -197,3 +197,71 @@ export function pluginProblems(views: PluginView[]): PluginView[] {
 export function pluginSuggestions(views: PluginView[]): PluginView[] {
   return views.filter((v) => v.status === "advised");
 }
+
+/** The one plugin without which the app itself stops working. */
+export const WORKHUB_PLUGIN = "workhub";
+
+/**
+ * What the startup banner (T-0349) says about the workhub plugin, if anything.
+ *
+ * Only the two states the owner must act on become an alert: the plugin is
+ * switched off (`missing`), or the install is behind the marketplace clone
+ * (`outdated`). Everything else — current, pending its first fetch, or
+ * version-unknown — stays silent, so the banner never nags about something
+ * with no action behind it. A marketplace whose clone (or catalog) is absent
+ * cannot answer either question, so that is the third alert: it points at the
+ * Plugins tab instead of claiming a version.
+ */
+export type PluginAlertKind = "marketplace" | "missing" | "outdated";
+
+export interface PluginAlert {
+  kind: PluginAlertKind;
+  /** Marketplace the alert — and any fix — belongs to. */
+  marketplace: string;
+  /** Scope a fix targets: where enabled, else the catalog default, else user. */
+  scope: Exclude<PluginScope, "either">;
+  installed_version: string;
+  latest_version: string;
+}
+
+function alertBase(
+  state: PluginsState,
+  scope: Exclude<PluginScope, "either">,
+  extra: Partial<PluginAlert> = {},
+): Omit<PluginAlert, "kind"> {
+  return {
+    marketplace: state.marketplace,
+    scope,
+    installed_version: "",
+    latest_version: "",
+    ...extra,
+  };
+}
+
+export function workhubPluginAlert(state: PluginsState): PluginAlert | null {
+  const home = state.marketplaces.find((m) => m.name === state.marketplace);
+  if (!home?.clone_found || !home.catalog_found) {
+    return { kind: "marketplace", ...alertBase(state, "user") };
+  }
+  const row = state.rows.find(
+    (r) => r.name === WORKHUB_PLUGIN && r.marketplace === state.marketplace,
+  );
+  if (!row) {
+    return { kind: "missing", ...alertBase(state, "user") };
+  }
+  const status = pluginStatus(row, true);
+  if (status === "missing") {
+    return { kind: "missing", ...alertBase(state, effectiveScope(row)) };
+  }
+  if (status === "outdated") {
+    const scope = effectiveScope(row);
+    return {
+      kind: "outdated",
+      ...alertBase(state, scope, {
+        installed_version: installedVersion(row, scope),
+        latest_version: row.latest_version,
+      }),
+    };
+  }
+  return null;
+}
