@@ -135,7 +135,9 @@ export const api = {
   checkVaultTemplate: (vaultPath: string) =>
     invoke<TemplateDiff>("check_vault_template", { vaultPath }),
   /** `overwrite` lists conflicting paths the user chose to replace with the
-   * template instead of getting a `<name>.new` file beside the original. */
+   * template. A conflicting path not listed there keeps the vault's file
+   * untouched and only advances its baseline (dismiss-this-version); an
+   * overwritten one first saves the prior content as `<name>.bak`. */
   applyVaultTemplate: (vaultPath: string, paths: string[], overwrite: string[] = []) =>
     invoke<void>("apply_vault_template", { vaultPath, paths, overwrite }),
   /** Applies only the updates that cannot lose user edits (added/updatable),
@@ -147,6 +149,11 @@ export const api = {
    * than more. Resolves to the paths actually removed. */
   removeTemplateOrphans: (vaultPath: string, paths: string[]) =>
     invoke<string[]>("remove_template_orphans", { vaultPath, paths }),
+  /** Keeps the listed template leftovers in place and drops their manifest
+   * entries, so they are never offered for removal again. Resolves to the
+   * paths actually retained. */
+  retainTemplateOrphans: (vaultPath: string, paths: string[]) =>
+    invoke<string[]>("retain_template_orphans", { vaultPath, paths }),
   previewVaultTemplateFile: (vaultPath: string, path: string) =>
     invoke<string>("preview_vault_template_file", { vaultPath, path }),
   // ---- vault projects (projects/<slug>/, T-0190) ----

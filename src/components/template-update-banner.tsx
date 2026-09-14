@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { diffLineClass } from "@/lib/diff-format";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { TemplateDiff, TemplateFileState } from "@/types";
 
@@ -152,6 +153,7 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
   /** Leftovers the user ticked for deletion. Never pre-filled. */
   const [remove, setRemove] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -161,8 +163,8 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
       setSelected(
         new Set(pending.filter((f) => f.state !== "conflict").map((f) => f.path)),
       );
-      // Conflicts default to the non-destructive resolution (.new beside the
-      // original); replacing is always an explicit per-file choice.
+      // Conflicts default to keeping the vault's file; replacing is always
+      // an explicit per-file choice.
       setOverwrite(new Set());
       // Deleting is never pre-selected, whatever the file is.
       setRemove(new Set());
@@ -204,6 +206,8 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
     try {
       if (selected.size > 0) {
         // Only send overwrite choices for files actually being applied.
+        // A checked conflict kept as "Keep mine" advances its baseline, so
+        // it stays quiet until the template changes again.
         await api.applyVaultTemplate(
           vaultPath,
           [...selected],
@@ -218,6 +222,49 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
       setError(String(e));
     } finally {
       setApplying(false);
+    }
+  };
+
+  /** Keeps one leftover in place and never offers it for removal again. */
+  const retainOne = async (path: string) => {
+    setApplying(true);
+    setError("");
+    try {
+      await api.retainTemplateOrphans(vaultPath, [path]);
+      onApplied();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  /** Applies everything pending at once: all added/updatable files, all
+   * conflicts overwritten (prior content saved as `.bak`), and all
+   * leftovers removed. Runs only after the confirmation dialog. */
+  const updateAll = async () => {
+    setApplying(true);
+    setError("");
+    try {
+      if (pending.length > 0) {
+        await api.applyVaultTemplate(
+          vaultPath,
+          pending.map((f) => f.path),
+          pending.filter((f) => f.state === "conflict").map((f) => f.path),
+        );
+      }
+      if (removed.length > 0) {
+        await api.removeTemplateOrphans(
+          vaultPath,
+          removed.map((r) => r.path),
+        );
+      }
+      onApplied();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setApplying(false);
+      setConfirmAllOpen(false);
     }
   };
 
@@ -267,27 +314,46 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
                   The template stopped shipping these and your copies are still
                   byte-identical to what it shipped, so removing them loses nothing you
                   wrote. Anything you edited is not listed here and is never touched.
-                  Folders are left in place.
+                  Folders are left in place. To keep a file and stop being asked
+                  about it, press Keep beside it.
                 </p>
               </div>
               {removed.map((r) => (
-                <label
+                <div
                   key={r.path}
                   className="flex items-center gap-2 rounded-md border p-2 text-sm"
                 >
-                  <Checkbox
-                    checked={remove.has(r.path)}
-                    onCheckedChange={(v) => toggleRemove(r.path, v === true)}
-                  />
-                  <span className="flex-1 truncate font-mono text-xs">{r.path}</span>
-                  <Badge variant="outline">remove</Badge>
-                </label>
+                  <label className="flex flex-1 items-center gap-2">
+                    <Checkbox
+                      checked={remove.has(r.path)}
+                      onCheckedChange={(v) => toggleRemove(r.path, v === true)}
+                    />
+                    <span className="flex-1 truncate font-mono text-xs">{r.path}</span>
+                    <Badge variant="outline">remove</Badge>
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-2 text-[11px] text-muted-foreground"
+                    disabled={applying}
+                    onClick={() => void retainOne(r.path)}
+                  >
+                    Keep
+                  </Button>
+                </div>
               ))}
             </div>
           )}
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmAllOpen(true)}
+            disabled={applying || pending.length + removed.length === 0}
+          >
+            Update all to latest
+          </Button>
           <Button variant="ghost" onClick={onClose} disabled={applying}>
             Cancel
           </Button>
@@ -299,14 +365,23 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
             {applying ? "Updating…" : "Apply selected"}
           </Button>
         </DialogFooter>
+        <ConfirmDialog
+          open={confirmAllOpen}
+          title="すべて最新に更新しますか"
+          description="競合したファイルはすべてテンプレートで上書きされます（変更前の内容は各ファイルの横に .bak として残ります）。削除対象のファイルはすべて削除され、削除したファイルの復元はできません。続ける場合は「すべて更新する」を押してください。"
+          confirmLabel="すべて更新する"
+          destructive
+          onConfirm={() => void updateAll()}
+          onClose={() => setConfirmAllOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   );
 }
 
 const RESOLUTION_LABEL: Record<Resolution, string> = {
-  keep: "Keep mine (write .new)",
-  overwrite: "Replace with template",
+  keep: "Keep mine",
+  overwrite: "Replace with template (backup .bak)",
 };
 
 /** Segmented two-button control choosing how one conflict is resolved. */

@@ -321,6 +321,7 @@ pub fn run() {
             commands::check_vault_template,
             commands::apply_vault_template,
             commands::remove_template_orphans,
+            commands::retain_template_orphans,
             commands::apply_safe_template_updates,
             commands::preview_vault_template_file,
             commands::watch_vault,

@@ -1312,15 +1312,19 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
 }
 
 /// Applies the embedded template content for exactly the given relative
-/// paths. A path currently in `Conflict` is written beside the original as
-/// `<name>.new` instead, leaving the vault's file untouched — unless the
-/// caller listed it in `overwrite`, in which case the user explicitly chose
-/// to discard their local edits and the template content is written in place
-/// like any other path. Every other requested path is overwritten/created in
-/// place. The manifest baseline is then updated for every path that was
-/// actually written in place (a `.new`-resolved Conflict keeps its previous
-/// baseline, since the vault's file did not change). Unknown paths (not part
-/// of the template, or seed-only) are silently skipped.
+/// paths. A path currently in `Conflict` that the caller did NOT list in
+/// `overwrite` keeps the vault's file untouched and only advances that
+/// path's manifest baseline to the new template hash (dismiss-this-version:
+/// the next check reports `UpToDate` until the template changes again, at
+/// which point it reports `Conflict` again). A path listed in `overwrite`
+/// is the user's explicit choice to discard local edits: the current
+/// on-disk content is first saved beside the original as `<name>.bak`
+/// (overwriting any previous `.bak`), then the template content is
+/// written in place like any other path. Every other requested path is
+/// overwritten/created in place with no backup — an `Added` path has no
+/// prior content and an `Updatable` one still matches the baseline, so
+/// neither can lose user edits. Unknown paths (not part of the template,
+/// or seed-only) are silently skipped.
 pub fn apply_vault_template(
     vault: &Path,
     paths: &[String],
@@ -1365,16 +1369,31 @@ fn apply_from(
         }
 
         if state == TemplateFileState::Conflict && !overwrite.iter().any(|p| p == rel) {
-            let side_name = format!(
-                "{}.new",
-                dst_path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("template")
-            );
-            let side_path = dst_path.with_file_name(side_name);
-            fs::write(&side_path, content).map_err(|e| e.to_string())?;
+            // Dismiss-this-version: the vault's file stays exactly as the
+            // owner left it; only the baseline moves to the new template
+            // hash, so this path stays quiet until the template changes
+            // again. No side file is written.
+            manifest.files.insert(rel.clone(), sha256_hex(content));
             continue;
+        }
+
+        if state == TemplateFileState::Conflict {
+            // Explicit overwrite of a hand-edited file: keep a single
+            // recoverable copy of what the owner had before replacing it.
+            if dst_path.exists() {
+                let current = fs::read(&dst_path).map_err(|e| e.to_string())?;
+                if current != *content {
+                    let backup_name = format!(
+                        "{}.bak",
+                        dst_path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("template")
+                    );
+                    fs::write(dst_path.with_file_name(backup_name), &current)
+                        .map_err(|e| e.to_string())?;
+                }
+            }
         }
 
         fs::write(&dst_path, content).map_err(|e| e.to_string())?;
@@ -1565,6 +1584,54 @@ fn remove_orphans_from(
         write_manifest(vault, &manifest)?;
     }
     Ok(removed)
+}
+
+/// Keeps exactly the listed files the template no longer ships, and drops
+/// their manifest entries so they are never offered for removal again.
+///
+/// This is the persistent counterpart to leaving an orphan unchecked in the
+/// update dialog (which only dismisses the banner for the session): the
+/// file stays exactly as it is, and the template relinquishes its claim to
+/// it — the same thing that happens automatically for an orphan the owner
+/// has edited (see `drop_stale_baselines`).
+///
+/// Every path is re-classified here rather than trusted from the caller.
+/// A path that no longer has a manifest entry, or that the template ships
+/// again, is skipped. Returns the paths actually retained. No file is
+/// written or deleted.
+pub fn retain_template_orphans(vault: &Path, paths: &[String]) -> Result<Vec<String>, String> {
+    retain_orphans_from(vault, &VAULT_TEMPLATE, paths)
+}
+
+fn retain_orphans_from(
+    vault: &Path,
+    template: &Dir,
+    paths: &[String],
+) -> Result<Vec<String>, String> {
+    let orphans: HashMap<String, OrphanKind> = orphan_paths(vault, template)?.into_iter().collect();
+
+    let mut manifest = load_manifest(vault);
+    let mut retained = Vec::new();
+    for rel in paths {
+        match orphans.get(rel) {
+            Some(OrphanKind::Untouched)
+            | Some(OrphanKind::Edited)
+            | Some(OrphanKind::GoneAlready) => {
+                manifest.files.remove(rel);
+                retained.push(rel.clone());
+            }
+            None => {
+                crate::diag!("workhub: not retaining '{rel}': it is not a known template leftover");
+            }
+        }
+    }
+
+    if !retained.is_empty() {
+        manifest.schema_version = MANIFEST_SCHEMA_VERSION;
+        manifest.app_version = env!("CARGO_PKG_VERSION").to_string();
+        write_manifest(vault, &manifest)?;
+    }
+    Ok(retained)
 }
 
 /// Writes the seed-only template files the vault is missing, leaving every
@@ -2933,6 +3000,45 @@ mod tests {
     }
 
     #[test]
+    fn retaining_a_leftover_keeps_the_file_and_drops_its_baseline() {
+        let vault = temp_test_vault("orphan-retain");
+        fs::create_dir_all(vault.join("dropped")).unwrap();
+        fs::write(vault.join(GONE), "shipped-content").unwrap();
+        seed_baseline(&vault, GONE, b"shipped-content");
+
+        let retained = retain_orphans_from(&vault, &TEST_TEMPLATE, &[GONE.to_string()]).unwrap();
+
+        assert_eq!(retained, vec![GONE.to_string()]);
+        assert_eq!(
+            fs::read_to_string(vault.join(GONE)).unwrap(),
+            "shipped-content",
+            "retaining must not touch the file"
+        );
+        assert!(!load_manifest(&vault).files.contains_key(GONE));
+        // Never offered again.
+        let diff = diff_against(&vault, &TEST_TEMPLATE).unwrap();
+        assert!(
+            diff.removed.iter().all(|r| r.path != GONE),
+            "a retained leftover must vanish from the removal offer"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn retaining_an_unknown_path_retains_nothing() {
+        let vault = temp_test_vault("orphan-retain-unknown");
+        fs::create_dir_all(&vault).unwrap();
+
+        let retained =
+            retain_orphans_from(&vault, &TEST_TEMPLATE, &["nope.md".to_string()]).unwrap();
+
+        assert!(retained.is_empty());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
     fn a_stale_selection_removes_nothing_once_the_file_has_changed() {
         let vault = temp_test_vault("orphan-stale");
         fs::create_dir_all(vault.join("dropped")).unwrap();
@@ -3312,7 +3418,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_conflict_writes_side_by_side_file_and_preserves_original() {
+    fn apply_conflict_keep_dismisses_this_version_and_preserves_original() {
         let vault = temp_test_vault("apply-conflict");
         fs::create_dir_all(&vault).unwrap();
         fs::write(vault.join("changed.md"), "hand-edited content").unwrap();
@@ -3332,16 +3438,27 @@ mod tests {
             "hand-edited content",
             "the conflicting original must be left untouched"
         );
-        assert_eq!(
-            fs::read_to_string(vault.join("changed.md.new")).unwrap(),
-            "changed-content-v2"
+        assert!(
+            !vault.join("changed.md.new").exists(),
+            "no side file is written for a kept conflict"
         );
-        // Baseline is left as-is for a conflict — the vault file didn't change.
+        assert!(
+            !vault.join("changed.md.bak").exists(),
+            "no backup is written when nothing was overwritten"
+        );
+        // The baseline advances to the new template hash, so the next check
+        // stays quiet until the template changes again.
         let reloaded = load_manifest(&vault);
         assert_eq!(
             reloaded.files.get("changed.md").unwrap(),
-            &sha256_hex(b"changed-content-v1")
+            &sha256_hex(b"changed-content-v2")
         );
+        assert_eq!(
+            diff_state(&diff_against(&vault, &TEST_TEMPLATE).unwrap(), "changed.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+
+        fs::remove_dir_all(&vault).ok();
     }
 
     #[test]
@@ -3365,6 +3482,10 @@ mod tests {
             "changed-content-v2"
         );
         assert!(!vault.join("changed.md.new").exists());
+        assert!(
+            !vault.join("changed.md.bak").exists(),
+            "a safe updatable apply loses nothing, so it leaves no backup"
+        );
         let reloaded = load_manifest(&vault);
         assert_eq!(
             reloaded.files.get("changed.md").unwrap(),
@@ -3398,6 +3519,11 @@ mod tests {
             fs::read_to_string(vault.join("changed.md")).unwrap(),
             "changed-content-v2",
             "an explicitly chosen overwrite must replace the conflicting file"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.join("changed.md.bak")).unwrap(),
+            "hand-edited content",
+            "the prior content must survive beside the overwritten file"
         );
         assert!(
             !vault.join("changed.md.new").exists(),
@@ -3436,7 +3562,17 @@ mod tests {
             fs::read_to_string(vault.join("changed.md")).unwrap(),
             "hand-edited content"
         );
-        assert!(vault.join("changed.md.new").exists());
+        assert!(
+            !vault.join("changed.md.new").exists(),
+            "an unlisted conflict writes no side file"
+        );
+        assert_eq!(
+            diff_state(&diff_against(&vault, &TEST_TEMPLATE).unwrap(), "changed.md"),
+            Some(TemplateFileState::UpToDate),
+            "a kept conflict is dismissed until the template changes again"
+        );
+
+        fs::remove_dir_all(&vault).ok();
     }
 
     #[test]
@@ -3641,7 +3777,8 @@ mod regression_t0065 {
             claude_md.state
         );
 
-        // Applying the conflict must not clobber the user's file.
+        // Applying the conflict without overwrite must not clobber the file
+        // and must write no side file — it only dismisses this version.
         apply_from(&vault, &VAULT_TEMPLATE, &["CLAUDE.md".to_string()], &[]).unwrap();
         assert_eq!(
             fs::read(vault.join("CLAUDE.md")).unwrap(),
@@ -3649,8 +3786,12 @@ mod regression_t0065 {
             "applying a Conflict must leave the original untouched"
         );
         assert!(
-            vault.join("CLAUDE.md.new").exists(),
-            ".new must be written beside it"
+            !vault.join("CLAUDE.md.new").exists(),
+            "no .new side file is written anymore"
+        );
+        assert!(
+            !vault.join("CLAUDE.md.bak").exists(),
+            "no backup is written when nothing was overwritten"
         );
 
         fs::remove_dir_all(&vault).ok();
