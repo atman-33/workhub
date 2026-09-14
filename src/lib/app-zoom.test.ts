@@ -42,14 +42,14 @@ describe("matchZoomKey", () => {
     expect(matchZoomKey({ key: "0", code: "Digit0", shiftKey: false })).toBe("reset");
   });
 
-  it("matches the JIS/IME guises of Shift+semicolon", () => {
+  it("matches the JIS semicolon key bare or shifted (verified log: Ctrl+; arrives unshifted)", () => {
+    expect(matchZoomKey({ key: ";", code: "Semicolon", shiftKey: false })).toBe("in");
     expect(matchZoomKey({ key: ";", code: "Semicolon", shiftKey: true })).toBe("in");
     expect(matchZoomKey({ key: "：", code: "Semicolon", shiftKey: true })).toBe("in");
     expect(matchZoomKey({ key: "；", code: "Semicolon", shiftKey: true })).toBe("in");
   });
 
   it("ignores anything else", () => {
-    expect(matchZoomKey({ key: ";", code: "Semicolon", shiftKey: false })).toBeNull();
     expect(matchZoomKey({ key: "_", code: "Minus", shiftKey: true })).toBeNull();
     expect(matchZoomKey({ key: "0", code: "Digit0", shiftKey: true })).toBeNull();
     expect(matchZoomKey({ key: "a", code: "KeyA", shiftKey: false })).toBeNull();
