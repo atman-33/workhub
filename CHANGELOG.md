@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.135.0 (2026-09-15)
+
+- **The whole app zooms like a browser page** (T-0346). A `%` readout beside the
+  version opens −/+ controls and a slider (50–200%), `Ctrl+=` / `Ctrl+-` /
+  `Ctrl+0` work everywhere including JIS layouts, and the zoom is remembered on
+  each machine — so small text on high-resolution monitors stops being a wall.
+- **Overflowed tabs get a `»` menu** (T-0348). Fourteen tabs never fit a narrow
+  window; whichever scrolled out of the strip is now one click away instead of
+  hiding behind an invisible scrollbar. Single row, nothing else moved.
+- **Project pickers stop going stale across vaults** (T-0343/44/45). Switching
+  vaults clears the selection and collapses duplicate slugs, so a picker never
+  offers a project the current vault does not have.
+- **Schedule holds its fire while you compose** (T-0347). Autosave and watcher
+  reloads pause during IME composition, so converting kana no longer fights the
+  editor mid-word.
+
 ## 0.134.0 (2026-09-14)
 
 - **Task editor drops the Details tab for an Optional section.** Due / Tags /
