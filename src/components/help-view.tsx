@@ -23,6 +23,7 @@ import {
   Rocket,
   Sparkles,
   UserRoundCheck,
+  ZoomIn,
 } from "lucide-react";
 import {
   Accordion,
@@ -80,6 +81,14 @@ Every one of those installs at user scope, which is the default: once per machin
 4. **Register your repositories.** In the **Repos** tab press **Add** and pick the local repository folders you work in. A task's \`project\` field refers to these.
 
 Settings, voice history, and downloaded voice models are stored under \`~/.workhub/\` (your user home directory) rather than \`AppData\`. If Settings ever silently fail to stick after a restart, an antivirus product's folder-shielding blocking writes to \`AppData\\Roaming\` is a known cause of that on Windows — \`~/.workhub/\` was chosen precisely to avoid it, so it's a good first thing to check permissions on.`;
+
+const ZOOM_MD = `## App zoom
+
+The whole app scales like a browser page — handy on high-resolution monitors where the text reads small.
+
+- **Ctrl+=** zooms in, **Ctrl+-** zooms out, **Ctrl+0** resets to 100%. The range is 50–200% in 10% steps.
+- The **% readout** beside the version at the right end of the tab bar opens the same controls: −/+ buttons, a slider and a reset.
+- The zoom is remembered on this machine and re-applied on startup. The Docs preview's own text zoom and the mindmap/schedule gestures are unaffected.`;
 
 const TEMPLATE_MD = `## Vault template updates
 
@@ -349,6 +358,7 @@ workhub keeps its own log of what it did — errors, timings, which fallback a f
 
 const ALL_MD = [
   SETUP_MD,
+  ZOOM_MD,
   TEMPLATE_MD,
   MEMORY_MD,
   SECRETARY_MD,
@@ -421,6 +431,7 @@ function CopyButton({
  */
 const SECTIONS = [
   { value: "setup", title: "Initial setup", icon: Rocket },
+  { value: "zoom", title: "App zoom", icon: ZoomIn },
   { value: "template", title: "Vault template updates", icon: FileDiff },
   { value: "memory", title: "Long-term memory", icon: BrainCircuit },
   { value: "secretary", title: "Secretary agent", icon: UserRoundCheck },
@@ -704,6 +715,37 @@ export function HelpView() {
               chosen precisely to avoid it, so it's a good first thing to
               check permissions on.
             </p>
+          </Section>
+
+          <Section
+            icon={ZoomIn}
+            title="App zoom"
+            value="zoom"
+            markdown={ZOOM_MD}
+            copiedId={copiedId}
+            onCopy={handleCopy}
+          >
+            <p>
+              The whole app scales like a browser page — handy on
+              high-resolution monitors where the text reads small.
+            </p>
+            <ul className="ml-4 list-disc space-y-1.5">
+              <li>
+                <Kbd>Ctrl</Kbd> + <Kbd>=</Kbd> zooms in, <Kbd>Ctrl</Kbd> +{" "}
+                <Kbd>-</Kbd> zooms out, <Kbd>Ctrl</Kbd> + <Kbd>0</Kbd> resets
+                to 100%. The range is 50–200% in 10% steps.
+              </li>
+              <li>
+                The <span className="font-medium">% readout</span> beside the
+                version at the right end of the tab bar opens the same
+                controls: −/+ buttons, a slider and a reset.
+              </li>
+              <li>
+                The zoom is remembered on this machine and re-applied on
+                startup. The Docs preview's own text zoom and the
+                mindmap/schedule gestures are unaffected.
+              </li>
+            </ul>
           </Section>
 
           <Section
