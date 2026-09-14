@@ -11,6 +11,7 @@ import {
   planProjectMove,
   projectOfNotePath,
   projectNumberOfFolder,
+  projectOptionsOf,
   projectSlugOfFolder,
   sortProjects,
   sortProjectsByMode,
@@ -526,5 +527,24 @@ describe("planProjectMove", () => {
       { slug: "c", pinned: false, order: 2 },
       { slug: "b", pinned: false, order: 3 },
     ]);
+  });
+});
+
+describe("projectOptionsOf", () => {
+  it("lists slugs in folder order with their folders", () => {
+    const out = projectOptionsOf([
+      project({ slug: "workhub", folder: "0020-workhub" }),
+      project({ slug: "demo", folder: "0010-demo" }),
+    ]);
+    expect(out.slugs).toEqual(["demo", "workhub"]);
+    expect(out.folders).toEqual({ demo: "0010-demo", workhub: "0020-workhub" });
+  });
+
+  it("collapses duplicate-slug folders to one option", () => {
+    const out = projectOptionsOf([
+      project({ slug: "test", folder: "0010-test" }),
+      project({ slug: "test", folder: "0020-test" }),
+    ]);
+    expect(out.slugs).toEqual(["test"]);
   });
 });

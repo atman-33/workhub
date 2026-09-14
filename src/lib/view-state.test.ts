@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readViewState, writeViewState } from "./view-state";
+import {
+  readLastVaultPath,
+  readViewState,
+  writeLastVaultPath,
+  writeViewState,
+} from "./view-state";
 
 /** Minimal in-memory localStorage — the default vitest env is node, which has none. */
 function stubStorage(initial?: Record<string, string>) {
@@ -74,5 +79,31 @@ describe("writeViewState", () => {
   it("does not throw when storage is unavailable", () => {
     stubBrokenStorage();
     expect(() => writeViewState("schedule", "path", "x.md")).not.toThrow();
+  });
+});
+
+describe("lastVaultPath", () => {
+  it("reads empty on first run", () => {
+    stubStorage();
+    expect(readLastVaultPath()).toBe("");
+  });
+
+  it("round-trips the vault path", () => {
+    const store = stubStorage();
+    writeLastVaultPath("C:/vaults/b");
+    expect(store.get("vault.lastVaultPath")).toBe("C:/vaults/b");
+    expect(readLastVaultPath()).toBe("C:/vaults/b");
+  });
+
+  it("tells a vault switch apart from a same-vault restart", () => {
+    stubStorage({ "vault.lastVaultPath": "C:/vaults/a" });
+    expect(readLastVaultPath() === "C:/vaults/a").toBe(true);
+    expect(readLastVaultPath() === "C:/vaults/b").toBe(false);
+  });
+
+  it("falls back to empty when storage is unavailable", () => {
+    stubBrokenStorage();
+    expect(readLastVaultPath()).toBe("");
+    expect(() => writeLastVaultPath("C:/vaults/a")).not.toThrow();
   });
 });

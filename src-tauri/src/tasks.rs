@@ -1711,6 +1711,13 @@ pub fn start_watcher(
     if projects.is_dir() {
         let _ = watcher.watch(&projects, RecursiveMode::Recursive);
     }
+    // The vault root itself is watched non-recursively so the *creation* of
+    // `projects/` is noticed too: with no `projects/` dir there is nothing to
+    // watch yet, and the first project made elsewhere (another window,
+    // Obsidian, an agent) otherwise leaves every picker empty until the next
+    // vault load (T-0343). One level only — everything deeper is covered by
+    // the watches above.
+    let _ = watcher.watch(&vault, RecursiveMode::NonRecursive);
 
     let vault_for_thread = vault.clone();
     std::thread::spawn(move || loop {
@@ -1722,7 +1729,10 @@ pub fn start_watcher(
         let mut classify = |ev: &Result<Event, notify::Error>| match ev {
             Ok(event) => {
                 for path in &event.paths {
-                    if is_project_dir_path(path, &projects) {
+                    if path == &projects {
+                        // `projects/` itself appeared or was removed.
+                        projects_touched = true;
+                    } else if is_project_dir_path(path, &projects) {
                         projects_touched = true;
                     } else if is_note_path(path, "schedules") {
                         schedules_touched = true;
