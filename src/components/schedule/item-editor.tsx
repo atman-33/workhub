@@ -44,6 +44,9 @@ interface Props {
   /** Tasks of the current project, offered for the `task:` link. */
   tasks: Task[];
   onChange: (next: ScheduleItem) => void;
+  /** Fires on IME composition start/end of the text fields, so the parent
+   * can hold its debounced save until the conversion commits (T-0347). */
+  onComposingChange?: (composing: boolean) => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -59,7 +62,7 @@ function collapseLines(value: string): string {
   return value.split(/\s*[\r\n]+\s*/).join(" ");
 }
 
-export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) {
+export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete, onClose }: Props) {
   const commit = (patch: Partial<ScheduleItem>) => {
     const next = { ...item, ...patch };
     // A range element cannot end before it starts; pushing the far edge along is
@@ -100,6 +103,8 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
         placeholder="Title"
         className="h-8 text-xs"
         onChange={(e) => commit({ title: collapseLines(e.target.value) })}
+        onCompositionStart={() => onComposingChange?.(true)}
+        onCompositionEnd={() => onComposingChange?.(false)}
       />
 
       <Textarea
@@ -108,6 +113,8 @@ export function ItemEditor({ item, tasks, onChange, onDelete, onClose }: Props) 
         rows={item.kind === "note" ? 4 : 2}
         className="resize-none text-xs"
         onChange={(e) => commit({ body: e.target.value })}
+        onCompositionStart={() => onComposingChange?.(true)}
+        onCompositionEnd={() => onComposingChange?.(false)}
       />
 
       <div className="space-y-1.5">
