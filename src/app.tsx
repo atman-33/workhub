@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  ChevronsRight,
   CircleHelp,
   BookOpen,
   ClipboardList,
@@ -48,6 +49,13 @@ import { TimerView } from "@/components/timer/timer-view";
 import { UpdateBanner } from "@/components/update-banner";
 import { VoiceView } from "@/components/voice-view";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Hint } from "@/components/ui/hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -263,6 +271,51 @@ export default function App() {
     activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [tab]);
 
+  // Overflow menu (T-0348): tabs scrolled out of the strip stay where they are —
+  // hiding them would restart the measure/hide loop — and the `»` button lists
+  // whichever are out of view so they stay one click away.
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef(new Map<Tab, HTMLButtonElement>());
+  const [overflowTabs, setOverflowTabs] = useState<Tab[]>([]);
+  const measureOverflow = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const out: Tab[] = [];
+    if (strip.scrollWidth > strip.clientWidth + 1) {
+      const box = strip.getBoundingClientRect();
+      for (const { key } of TABS) {
+        const el = tabRefs.current.get(key);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (r.left < box.left - 1 || r.right > box.right + 1) out.push(key);
+      }
+    }
+    // Same content → same state: measuring on every scroll must not re-render.
+    setOverflowTabs((prev) =>
+      prev.length === out.length && prev.every((t, i) => t === out[i]) ? prev : out,
+    );
+  }, []);
+  const rafRef = useRef(0);
+  const scheduleMeasure = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(measureOverflow);
+  }, [measureOverflow]);
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    measureOverflow();
+    const ro = new ResizeObserver(scheduleMeasure);
+    ro.observe(strip);
+    strip.addEventListener("scroll", scheduleMeasure, { passive: true });
+    window.addEventListener("resize", scheduleMeasure);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+      strip.removeEventListener("scroll", scheduleMeasure);
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [measureOverflow, scheduleMeasure, tab]);
+
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
   // machine booted after a rule's time still gets that occurrence's task.
@@ -372,9 +425,11 @@ export default function App() {
               fourteen tabs plus the status cluster need ~1570px, well past the 720px
               minimum window size. Labels collapse below `xl` (the tooltip then
               names the tab), the active tab keeps its label so the current
-              position stays readable, and this container scrolls as the last
-              resort at the narrowest widths. */}
+              position stays readable, this container scrolls as the last
+              resort at the narrowest widths, and the `»` button (T-0348) lists
+              whichever tabs scrolled out of sight. */}
           <div
+            ref={stripRef}
             className="nav-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
             // The strip's scrollbar is hidden, and a plain wheel only produces a
             // vertical delta — translate it so the wheel still reaches the tabs
@@ -387,7 +442,11 @@ export default function App() {
             {TABS.map(({ key, label, icon: Icon }) => (
               <Hint key={key} label={label}>
                 <button
-                  ref={tab === key ? activeTabRef : undefined}
+                  ref={(el) => {
+                    if (tab === key) activeTabRef.current = el;
+                    if (el) tabRefs.current.set(key, el);
+                    else tabRefs.current.delete(key);
+                  }}
                   onClick={() => setTab(key)}
                   className={cn(
                     "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
@@ -404,6 +463,33 @@ export default function App() {
               </Hint>
             ))}
           </div>
+          {overflowTabs.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="More tabs"
+                  className="shrink-0 text-muted-foreground"
+                >
+                  <ChevronsRight className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>More tabs</DropdownMenuLabel>
+                {overflowTabs.map((key) => {
+                  const entry = TABS.find((t) => t.key === key)!;
+                  const Icon = entry.icon;
+                  return (
+                    <DropdownMenuItem key={key} onClick={() => setTab(key)}>
+                      <Icon className="size-4" />
+                      {entry.label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <div className="flex shrink-0 items-center gap-1">
             <NavMusicControl onOpenMusic={() => setTab("music")} />
             {settings?.vault_path && (
