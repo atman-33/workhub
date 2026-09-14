@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.136.0 (2026-09-15)
+
+- **Startup warns when the workhub plugin is off or outdated** (T-0349). The
+  app cannot work without that plugin, so a missing or behind copy now raises
+  an amber banner with in-place Enable / Update actions instead of failing
+  later in a confusing way. Silent when current; no new setting.
+- **Template conflicts stop littering `.new` files** (T-0351). Keeping your
+  version of a conflicting file now leaves it untouched and stays quiet until
+  the template changes again, instead of nagging every launch. Replacing saves
+  your prior content as `<name>.bak` first, dropped template files can be kept
+  forever with one Keep press, and **Update all to latest** applies everything
+  at once after a single confirmation — so the review dialog is a decision,
+  not a chore.
+
 ## 0.135.0 (2026-09-15)
 
 - **The whole app zooms like a browser page** (T-0346). A `%` readout beside the
