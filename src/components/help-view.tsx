@@ -100,7 +100,9 @@ The vault template (\`CLAUDE.md\`, skill configuration, and other shared files) 
 - A few files — such as \`.claude/project-context.json\`, \`.claude/settings.json\`, and the \`_index.md\` files kept up to date by \`/kb-index\` — are **seed files**: they're created once when missing and never compared or overwritten again, so this check never touches your registered repos or generated indexes.
 - Press **Review** on the banner to see the list and pick which files to update. **added** and **updatable** files are pre-checked; **conflict** files are left unchecked.
 - **Show diff** on any file renders the unified diff between your vault's copy and the incoming template content, so you can see exactly what an update would change before applying it.
-- A **conflict** file offers two resolutions: **Keep mine (write .new)** — the default — writes a \`<name>.new\` file beside the original with the incoming content, leaving your file untouched so you can merge by hand and delete the \`.new\` afterwards; **Replace with template** overwrites your copy with the template's version. Replacing discards your edits to that file for good, so check the diff first.
+- A **conflict** file offers two resolutions: **Keep mine** — the default — leaves your file untouched and stops asking about this template version (it asks again only when the template changes further); **Replace with template (backup .bak)** saves your current content beside the original as \`<name>.bak\` and overwrites your copy with the template's version. Check the diff first.
+- Files the template no longer ships are offered for removal (never pre-checked, folders left in place); **Keep** beside one keeps it and stops asking about it.
+- **Update all to latest** applies everything at once — all added/updatable files, all conflicts overwritten (prior content saved as \`.bak\`), and all leftovers removed — after a single confirmation.
 - Press **Later** to dismiss the banner for this session; it reappears on the next launch if updates are still pending.
 - Can be disabled in **⚙ Settings → General → Check for vault template updates on startup**.`;
 
@@ -813,10 +815,19 @@ export function HelpView() {
               </li>
               <li>
                 Updating a <span className="font-medium text-foreground">conflict</span>{" "}
-                file never overwrites your edits — it writes a{" "}
-                <span className="font-mono text-xs">{"<name>.new"}</span> file beside the
-                original with the incoming template content, so you can compare and merge
-                by hand; delete it once you're done.
+                file never overwrites your edits unless you choose{" "}
+                <span className="font-medium text-foreground">
+                  Replace with template
+                </span>
+                , which first saves your content as{" "}
+                <span className="font-mono text-xs">{"<name>.bak"}</span>.{" "}
+                <span className="font-medium text-foreground">Keep mine</span>{" "}
+                leaves your file untouched and stops asking about this template
+                version.{" "}
+                <span className="font-medium text-foreground">
+                  Update all to latest
+                </span>{" "}
+                applies everything at once after one confirmation.
               </li>
               <li>
                 Press <span className="font-medium">Later</span> to dismiss the banner

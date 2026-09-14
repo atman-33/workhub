@@ -1423,9 +1423,11 @@ pub async fn check_vault_template(vault_path: String) -> Result<tasks::TemplateD
 
 /// Applies the embedded template content for exactly the given relative
 /// `paths` (as returned by `check_vault_template`'s `TemplateDiff`). Paths
-/// currently in `Conflict` are written beside the original as `<name>.new`
-/// rather than overwriting it, unless they are also listed in `overwrite` —
-/// the user's explicit choice to discard local edits for that file. See
+/// currently in `Conflict` keep the vault's file untouched and only advance
+/// that path's baseline to the new template (dismiss-this-version) unless
+/// they are also listed in `overwrite` — the user's explicit choice to
+/// discard local edits for that file, in which case the prior content is
+/// first saved as `<name>.bak` and the template is written in place. See
 /// `tasks::apply_vault_template` for the full policy.
 #[tauri::command]
 pub async fn apply_vault_template(
@@ -1452,6 +1454,22 @@ pub async fn remove_template_orphans(
 ) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         tasks::remove_template_orphans(&PathBuf::from(vault_path), &paths)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the listed files that the template no longer ships and drops their
+/// manifest entries, so they are never offered for removal again. Every
+/// path is re-classified at this moment; unknown paths are skipped.
+/// Returns the paths actually retained. No file is written or deleted.
+#[tauri::command]
+pub async fn retain_template_orphans(
+    vault_path: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tasks::retain_template_orphans(&PathBuf::from(vault_path), &paths)
     })
     .await
     .map_err(|e| e.to_string())?
