@@ -149,7 +149,8 @@ const memoryPlugin: Plugin = async (ctx, _options) => {
         messageID: output.message.id,
         type: "text",
         text: `<workhub-memory>\n${text}\n</workhub-memory>`,
-        synthetic: false,
+        // LLM-only: hidden from the TUI user bubble, still sent to the model (T-0342).
+        synthetic: true,
       });
     },
 
