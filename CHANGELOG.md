@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.134.0 (2026-09-14)
+
+- **Task editor drops the Details tab for an Optional section.** Due / Tags /
+  Blocked now live in a collapsed section below Project / Backlog instead of
+  sharing the tab bar with the markdown body, so Description / Plan / Results
+  read as one kind of content again. The section stays shut to protect the
+  Description height, opens itself while anything in it is set, and carries a
+  dot while set values hide behind it — nothing set ever disappears silently.
+- **opencode stops overwriting your message with its injected prompt.** Persona,
+  project context, memory, secretary, and sync-reminder injections now arrive
+  as LLM-only parts, so the chat bubble shows what you actually typed while the
+  model still reads the full context.
+
 ## 0.133.0 (2026-09-14)
 
 - **Unknown projects admit it in the filter.** A task carrying a value no
