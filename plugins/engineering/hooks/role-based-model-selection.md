@@ -32,8 +32,9 @@ pasted context. The agent reads what it needs in its own context. If you wrote a
 Plan file, annotate each implementation step with its owner
 (`main` / `implementer` / `heavy-implementer`) and pass the step references.
 
-If the task matches an existing skill's process (e.g. `tdd`, `verify`,
-`simplify`), which agent drives it follows the same size criteria above —
+If the task matches an existing skill's process (e.g. `tdd` from the
+`mattpocock-skills` plugin, `verify`, `simplify`), which agent drives it
+follows the same size criteria above —
 `implementer` has no `Skill`/`Bash` tools, so it cannot run a skill's process
 loop itself:
 
