@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.0 (2026-09-15)
+
+- **Meeting transcripts grow up when you need them** (T-0352). The
+  recorded-meeting pane is taller with always-selectable text, and a new
+  expand button opens the transcript or minutes in a large dialog carrying
+  its own copy button — so a long meeting stops being a squint-and-retype
+  exercise.
+
 ## 0.136.0 (2026-09-15)
 
 - **Startup warns when the workhub plugin is off or outdated** (T-0349). The
