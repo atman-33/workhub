@@ -168,7 +168,44 @@ struct MarketplaceFile {
 struct MarketplaceEntry {
     name: String,
     #[serde(default)]
-    source: String,
+    source: MarketplaceSource,
+    /// Version carried by the entry itself. Vendored marketplaces keep it in
+    /// each plugin's `plugin.json` instead; entries pointing at a remote have
+    /// no local manifest, so this is the only version there is.
+    #[serde(default)]
+    version: String,
+    #[serde(default)]
+    description: String,
+}
+
+/// Where a marketplace entry's plugin lives.
+///
+/// Vendored marketplaces point at a local subdirectory (`./plugins/foo`), but
+/// `claude-plugins-official` mixes those with remote references
+/// (`{source: git/url/..., ...}`) in one file. A strict `String` here fails
+/// the whole file on the first remote entry and blanks every "latest version"
+/// of that marketplace (T-0356), so either shape has to be tolerated.
+#[derive(Debug, Default, Deserialize)]
+#[serde(untagged)]
+enum MarketplaceSource {
+    Local(String),
+    // The remote reference itself is never acted on — its only meaning here
+    // is "no local manifest" — but the shape has to be accepted.
+    #[allow(dead_code)]
+    Remote(serde_json::Value),
+    #[default]
+    Missing,
+}
+
+impl MarketplaceSource {
+    /// Local subdirectory the plugin is vendored at, without the leading
+    /// `./`; `None` for remote entries, which have no local manifest.
+    fn local_dir(&self) -> Option<&str> {
+        match self {
+            MarketplaceSource::Local(source) => Some(source.trim_start_matches("./")),
+            MarketplaceSource::Remote(_) | MarketplaceSource::Missing => None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,28 +343,52 @@ fn orphan_ids<'a>(
 /// Collect everything the Plugins tab renders. Missing files are not errors:
 /// a machine that has never installed a plugin reads as "nothing installed",
 /// which is exactly what the tab should say.
-/// `plugin name -> version` from every `plugin.json` in one marketplace clone.
-/// This is what "latest" means: the version a `claude plugin update` would
-/// install, which is only as current as the last `marketplace update`.
-fn latest_versions(clone: &Path) -> BTreeMap<String, String> {
-    let mut latest = BTreeMap::new();
+/// What a marketplace clone says about one plugin: the version a
+/// `claude plugin update` would install, and the entry's own description.
+#[derive(Debug, Default, Clone)]
+struct MarketplaceMeta {
+    version: String,
+    description: String,
+}
+
+/// Collect everything the Plugins tab renders. Missing files are not errors:
+/// a machine that has never installed a plugin reads as "nothing installed",
+/// which is exactly what the tab should say.
+///
+/// `plugin name -> meta` from one marketplace clone. This is what "latest"
+/// means: the version a `claude plugin update` would install, which is only
+/// as current as the last `marketplace update`.
+fn marketplace_meta(clone: &Path) -> BTreeMap<String, MarketplaceMeta> {
+    let mut meta = BTreeMap::new();
     let Some(file) =
         read_json::<MarketplaceFile>(&clone.join(".claude-plugin").join("marketplace.json"))
     else {
-        return latest;
+        return meta;
     };
     for entry in file.plugins {
-        let source = entry.source.trim_start_matches("./");
-        let manifest = clone
-            .join(source)
-            .join(".claude-plugin")
-            .join("plugin.json");
-        let version = read_json::<PluginManifest>(&manifest)
-            .map(|m| m.version)
-            .unwrap_or_default();
-        latest.insert(entry.name, version);
+        // The manifest is authoritative when the plugin is vendored; a remote
+        // entry — or a vendored one without a manifest, like pyright-lsp in
+        // claude-plugins-official — falls back to the entry's own version.
+        let version = entry
+            .source
+            .local_dir()
+            .and_then(|source| {
+                read_json::<PluginManifest>(
+                    &clone.join(source).join(".claude-plugin").join("plugin.json"),
+                )
+                .map(|m| m.version)
+            })
+            .filter(|v| !v.is_empty())
+            .unwrap_or(entry.version);
+        meta.insert(
+            entry.name,
+            MarketplaceMeta {
+                version,
+                description: entry.description,
+            },
+        );
     }
-    latest
+    meta
 }
 
 /// Collect everything the Plugins tab renders. Missing files are not errors:
@@ -370,8 +431,8 @@ pub fn read_state(vault_path: &str) -> PluginsState {
         let entry = &known[name];
         let clone = PathBuf::from(&entry.install_location);
         let clone_found = !entry.install_location.is_empty() && clone.is_dir();
-        let latest = if clone_found {
-            latest_versions(&clone)
+        let meta = if clone_found {
+            marketplace_meta(&clone)
         } else {
             BTreeMap::new()
         };
@@ -421,8 +482,22 @@ pub fn read_state(vault_path: &str) -> PluginsState {
                 in_catalog: cat.is_some(),
                 tier: cat.map(|c| c.tier.clone()).unwrap_or_default(),
                 scope: cat.map(|c| c.scope.clone()).unwrap_or_default(),
-                summary: cat.map(|c| c.summary.clone()).unwrap_or_default(),
-                latest_version: latest.get(&plugin).cloned().unwrap_or_default(),
+                // The catalog summary is workhub's own one-liner; a
+                // marketplace without a catalog (everything but workhub's)
+                // falls back to the marketplace entry's description.
+                summary: cat
+                    .map(|c| c.summary.clone())
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        meta.get(&plugin)
+                            .map(|m| m.description.clone())
+                            .filter(|s| !s.is_empty())
+                    })
+                    .unwrap_or_default(),
+                latest_version: meta
+                    .get(&plugin)
+                    .map(|m| m.version.clone())
+                    .unwrap_or_default(),
                 installs,
                 enabled_project: *enabled_project.get(&id).unwrap_or(&false),
                 enabled_user: *enabled_user.get(&id).unwrap_or(&false),
@@ -591,24 +666,87 @@ fn sorted(mut entries: Vec<PluginEntry>) -> Vec<PluginEntry> {
     entries
 }
 
-/// `skills/<name>/SKILL.md` — a skill is a folder, and the folder name is the
-/// fallback when its frontmatter carries no `name`.
+/// What a plugin ships as skills: the manifest's own `skills` list when it
+/// names one, otherwise every `SKILL.md` under `skills/`.
+///
+/// A skill used to be exactly `skills/<name>/SKILL.md`, but some plugins group
+/// theirs (`skills/<group>/<skill>/SKILL.md`) — mattpocock-skills ships 25
+/// that way and read as empty (T-0356). Its manifest also lists them
+/// explicitly, which is what `claude plugin details` counts.
 fn read_skills(root: &Path) -> Vec<PluginEntry> {
-    let Ok(dir) = fs::read_dir(root.join("skills")) else {
+    let from_manifest = read_manifest_skills(root);
+    let entries = if from_manifest.is_empty() {
+        scan_skills(root)
+    } else {
+        from_manifest
+    };
+    sorted(entries)
+}
+
+/// Skills named by the plugin's own manifest (`skills` in
+/// `.claude-plugin/plugin.json`), resolved relative to the install root. A
+/// directory entry means `<dir>/SKILL.md`, and the directory name stands in
+/// when its frontmatter carries no `name`.
+fn read_manifest_skills(root: &Path) -> Vec<PluginEntry> {
+    let Some(manifest) =
+        read_json::<serde_json::Value>(&root.join(".claude-plugin").join("plugin.json"))
+    else {
         return Vec::new();
     };
-    let entries = dir
-        .flatten()
-        .filter(|e| e.path().is_dir())
-        .filter_map(|e| {
-            let file = e.path().join("SKILL.md");
-            file.is_file().then(|| {
-                let folder = e.file_name().to_string_lossy().into_owned();
-                read_entry(&file, &folder)
-            })
+    let Some(list) = manifest.get("skills").and_then(|s| s.as_array()) else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|s| s.as_str())
+        .map(|s| s.trim_start_matches("./"))
+        .filter_map(|rel| {
+            let path = root.join(rel);
+            if path.is_dir() {
+                let file = path.join("SKILL.md");
+                file.is_file().then(|| {
+                    let folder = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    read_entry(&file, &folder)
+                })
+            } else if path.is_file() {
+                let stem = path
+                    .file_stem()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                Some(read_entry(&path, &stem))
+            } else {
+                None
+            }
         })
-        .collect();
-    sorted(entries)
+        .collect()
+}
+
+/// Every `SKILL.md` under `skills/`, at any depth. A directory holding one
+/// counts as a skill even when it holds more directories beside it — that is
+/// what a grouping level looks like.
+fn scan_skills(root: &Path) -> Vec<PluginEntry> {
+    fn walk(dir: &Path, out: &mut Vec<PluginEntry>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let skill = path.join("SKILL.md");
+            if skill.is_file() {
+                let folder = entry.file_name().to_string_lossy().into_owned();
+                out.push(read_entry(&skill, &folder));
+            }
+            walk(&path, out);
+        }
+    }
+    let mut entries = Vec::new();
+    walk(&root.join("skills"), &mut entries);
+    entries
 }
 
 /// `agents/*.md` and `commands/*.md` — one file each, named by its stem.
@@ -1134,6 +1272,88 @@ mod tests {
         let empty = temp_dir("empty");
         assert!(read_skills(&empty).is_empty());
         assert!(read_markdown_dir(&empty, "agents").is_empty());
+    }
+
+    #[test]
+    fn a_marketplace_mixing_local_and_remote_sources_still_reads() {
+        // claude-plugins-official mixes vendored entries (`"./plugins/..."`)
+        // with remote ones (`{source: url, ...}`) in one marketplace.json. A
+        // strict `source: String` failed the whole file on the first remote
+        // entry and blanked every "latest version" of that marketplace,
+        // including the vendored ones (T-0356).
+        let root = temp_dir("mixed-sources");
+        let root = root.as_path();
+        let write = |rel: &str, body: &str| {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, body).unwrap();
+        };
+        write(
+            ".claude-plugin/marketplace.json",
+            r#"{"plugins":[
+                {"name":"vendored","source":"./plugins/vendored",
+                 "version":"1.0.0","description":"a vendored plugin"},
+                {"name":"bare","source":"./plugins/bare",
+                 "version":"1.0.0","description":"no manifest in the clone"},
+                {"name":"remote","source":{"source":"url","url":"https://example.com/skills.git"},
+                 "version":"1.2.3","description":"lives outside the clone"}
+            ]}"#,
+        );
+        // The manifest wins over the entry when the plugin is vendored.
+        write(
+            "plugins/vendored/.claude-plugin/plugin.json",
+            r#"{"name":"vendored","version":"2.0.0"}"#,
+        );
+        // No manifest under plugins/bare: the entry's own version stands in.
+
+        let meta = marketplace_meta(root);
+        assert_eq!(meta.len(), 3, "one remote entry must not blank the file");
+        assert_eq!(meta["vendored"].version, "2.0.0");
+        assert_eq!(meta["bare"].version, "1.0.0");
+        assert_eq!(meta["remote"].version, "1.2.3");
+        assert_eq!(meta["bare"].description, "no manifest in the clone");
+    }
+
+    #[test]
+    fn reads_grouped_skills_and_a_manifest_skill_list() {
+        // Skills grouped one level deeper (`skills/<group>/<skill>/SKILL.md`)
+        // read as empty before T-0356; the manifest's `skills` list names
+        // them explicitly.
+        let root = temp_dir("nested-skills");
+        let root = root.as_path();
+        let write = |rel: &str, body: &str| {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, body).unwrap();
+        };
+        write(
+            ".claude-plugin/plugin.json",
+            r#"{"name":"demo","version":"1.0.0",
+                "skills":["./skills/engineering/ask-matt",
+                          "./skills/productivity/grill-me"]}"#,
+        );
+        write(
+            "skills/engineering/ask-matt/SKILL.md",
+            "---\nname: ask-matt\ndescription: asks\n---\n",
+        );
+        // No `name` in the frontmatter: the folder name stands in.
+        write(
+            "skills/productivity/grill-me/SKILL.md",
+            "---\ndescription: grills\n---\n",
+        );
+        write("skills/engineering/README.md", "not a skill\n");
+
+        let names = |entries: Vec<PluginEntry>| {
+            entries.iter().map(|e| e.name.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(names(read_manifest_skills(root)), ["ask-matt", "grill-me"]);
+        assert_eq!(names(scan_skills(root)), ["ask-matt", "grill-me"]);
+        assert_eq!(names(read_skills(root)), ["ask-matt", "grill-me"]);
+
+        // Without a manifest list, the recursive scan still finds them.
+        fs::remove_file(root.join(".claude-plugin").join("plugin.json")).unwrap();
+        assert!(read_manifest_skills(root).is_empty());
+        assert_eq!(names(read_skills(root)), ["ask-matt", "grill-me"]);
     }
 
     #[test]
