@@ -374,7 +374,10 @@ fn marketplace_meta(clone: &Path) -> BTreeMap<String, MarketplaceMeta> {
             .local_dir()
             .and_then(|source| {
                 read_json::<PluginManifest>(
-                    &clone.join(source).join(".claude-plugin").join("plugin.json"),
+                    &clone
+                        .join(source)
+                        .join(".claude-plugin")
+                        .join("plugin.json"),
                 )
                 .map(|m| m.version)
             })
@@ -1343,9 +1346,8 @@ mod tests {
         );
         write("skills/engineering/README.md", "not a skill\n");
 
-        let names = |entries: Vec<PluginEntry>| {
-            entries.iter().map(|e| e.name.clone()).collect::<Vec<_>>()
-        };
+        let names =
+            |entries: Vec<PluginEntry>| entries.iter().map(|e| e.name.clone()).collect::<Vec<_>>();
         assert_eq!(names(read_manifest_skills(root)), ["ask-matt", "grill-me"]);
         assert_eq!(names(scan_skills(root)), ["ask-matt", "grill-me"]);
         assert_eq!(names(read_skills(root)), ["ask-matt", "grill-me"]);
