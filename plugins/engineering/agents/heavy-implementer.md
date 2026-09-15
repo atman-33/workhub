@@ -32,7 +32,8 @@ use `code-explore`.
    Grep/Glob otherwise. Check current library docs with `context7` before
    assuming an API's shape; without it, read the dependency's own source or
    types in `node_modules`/the lockfile rather than trusting recall.
-4. If the task matches an existing skill's process (e.g. `tdd` for test-first
+4. If the task matches an existing skill's process (e.g. `tdd` from the
+   `mattpocock-skills` plugin for test-first
    implementation, `verify` for behavioral confirmation), invoke that skill
    directly with the `Skill` tool rather than reimplementing its process
    yourself — it stays the single source of truth for that process.

@@ -92,7 +92,7 @@ _Avoid_: lazy loading, chunking
 
 ### Steps
 
-The ordered actions the agent performs — when a skill has them, the primary tier of its content, and the part that earns its place in SKILL.md. Not every skill has steps: a skill can be all steps (`tdd`), all **reference** (a review), or both, independent of invocation. Every step ends on a **completion criterion**, clear or vague.
+The ordered actions the agent performs — when a skill has them, the primary tier of its content, and the part that earns its place in SKILL.md. Not every skill has steps: a skill can be all steps (`commit-changes`), all **reference** (a review), or both, independent of invocation. Every step ends on a **completion criterion**, clear or vague.
 
 _Avoid_: workflow, instructions, choreography
 

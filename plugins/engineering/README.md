@@ -12,12 +12,18 @@ Engineering utilities and helpers for software development tasks.
 - `create-onboarding-guide` — generate a self-contained HTML onboarding tour of a repository (architecture diagram, directory map, key flow walkthroughs, recommended reading order). Same per-machine `config.json` output-directory pattern as the other guide skills.
 - `create-adr` — record an architecture decision as a numbered ADR in the target repo's `docs/adr/` (context, decision, alternatives, consequences).
 - `investigate-bug-report` — diagnose a reported bug to its root cause with evidence (reproduce/trace, blast radius, fix candidates) without changing code.
-- `develop-small-feature` — implement a small, well-scoped feature/fix end-to-end (branch → TDD → static checks → user verification → commit → PR).
 - `setup-all` — run every project setup step in sequence. Both phases delegate to the `workhub` plugin's `setup-project-context` and `setup-rules-ex` skills, and are skipped with a note when that plugin is not installed.
 
-`develop-small-feature` and `setup-all`
-are explicit-invocation only (`disable-model-invocation: true`) — type the skill
-name to run them.
+`setup-all`
+is explicit-invocation only (`disable-model-invocation: true`) — type the skill
+name to run it.
+
+Test-first development, codebase design, spec/ticket flows and plan grilling
+used to live here as vendored copies of `mattpocock/skills` v1.0.1; they were
+removed in favor of the upstream `mattpocock-skills` plugin
+(`mattpocock-skills@claude-plugins-official`), which ships the current versions
+(`tdd`, `codebase-design`, `to-spec`, `to-tickets`, `grill-with-docs`, …).
+Install that plugin to keep those workflows.
 
 ### Sub-agents
 
