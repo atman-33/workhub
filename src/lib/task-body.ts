@@ -71,6 +71,14 @@ function findHeaderIndices(body: string): {
   return { description, plan, results };
 }
 
+/** Strip only leading/trailing line breaks, preserving trailing spaces.
+ *  In-progress list markers (`- `) and spaces-only lines must survive a
+ *  file → draft round-trip: `trim()` deleted them, so the next vault sync
+ *  rewrote the Textarea value under the user and the cursor jumped (T-0357). */
+function stripEdgeNewlines(text: string): string {
+  return text.replace(/^(\r?\n)+/, "").replace(/(\r?\n)+$/, "");
+}
+
 export function parseBody(body: string): ParsedBody {
   const { description: contentIdx, plan: planIdx, results: resultIdx } = findHeaderIndices(body);
   if (contentIdx === -1 || (resultIdx !== -1 && resultIdx < contentIdx)) {
@@ -87,7 +95,7 @@ export function parseBody(body: string): ParsedBody {
     const planRaw = hasPlan ? body.slice(planIdx) : "";
     const plan = hasPlan ? planRaw.slice(PLAN_HEADER.length).trim() : "";
     const before = body.slice(0, contentIdx);
-    return { before, content: contentRaw.trim(), plan, planRaw, resultRaw: "", hasSections: true };
+    return { before, content: stripEdgeNewlines(contentRaw), plan, planRaw, resultRaw: "", hasSections: true };
   }
   const hasPlan = planIdx !== -1 && planIdx > contentIdx && planIdx < resultIdx;
   const contentEnd = hasPlan ? planIdx : resultIdx;
@@ -96,7 +104,7 @@ export function parseBody(body: string): ParsedBody {
   const plan = hasPlan ? planRaw.slice(PLAN_HEADER.length).trim() : "";
   const resultRaw = body.slice(resultIdx);
   const before = body.slice(0, contentIdx);
-  return { before, content: contentRaw.trim(), plan, planRaw, resultRaw, hasSections: true };
+  return { before, content: stripEdgeNewlines(contentRaw), plan, planRaw, resultRaw, hasSections: true };
 }
 
 export function buildBody(parsed: ParsedBody, newContent: string): string {
