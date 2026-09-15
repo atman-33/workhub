@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.137.2 (2026-09-15)
+
+- **Official marketplace plugins read correctly in the Plugins tab**
+  (T-0356). Rows from `claude-plugins-official` showed "Version unknown" with
+  no summary, and `mattpocock-skills` opened to an empty contents dialog
+  despite shipping 25 skills — remote marketplace entries broke version
+  lookup for the whole marketplace, and grouped skill layouts were never
+  scanned. Both now resolve, so the tab describes what a session actually
+  loads.
+- **The engineering plugin stops shadowing mattpocock-skills** (T-0355). Seven
+  copied skills are removed and `mattpocock-skills@claude-plugins-official`
+  is the canonical source — so a skill name resolves to one maintained copy
+  instead of two.
+- **Trailing spaces survive the task editor round-trip** (T-0357).
+Descriptions with intentional trailing whitespace no longer come back
+altered after editing — so what was written is what stays written.
+
 ## 0.137.1 (2026-09-15)
 
 - **The update-all confirmation speaks the same language** (T-0354). The
