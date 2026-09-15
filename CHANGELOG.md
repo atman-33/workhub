@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.1 (2026-09-15)
+
+- **The update-all confirmation speaks the same language** (T-0354). The
+  "Update all to latest" confirmation modal showed Japanese copy inside an
+  otherwise English dialog; it now reads English throughout — so the warning
+  about overwritten conflicts and unrecoverable deletions parses on first
+  read.
+
 ## 0.137.0 (2026-09-15)
 
 - **Meeting transcripts grow up when you need them** (T-0352). The
