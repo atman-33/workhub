@@ -148,4 +148,27 @@ describe("parseBody / buildBody", () => {
     expect(rebuilt).not.toContain("## Results");
     expect(rebuilt).not.toContain("## Plan");
   });
+
+  it("preserves a trailing space after a list marker so the next sync does not rewrite the editor (T-0357)", () => {
+    const body = "\n## Description\n\n- aaa\n- \n\n## Results\n\n- done\n";
+    const parsed = parseBody(body);
+    expect(parsed.content).toBe("- aaa\n- ");
+
+    // What the editor writes on autosave must read back identically —
+    // otherwise the vault sync replaces the Textarea value mid-typing and
+    // the cursor jumps.
+    const rebuilt = buildBody(parsed, parsed.content);
+    expect(rebuilt).toBe(body);
+    expect(parseBody(rebuilt).content).toBe("- aaa\n- ");
+  });
+
+  it("preserves a spaces-only final line instead of deleting it (T-0357)", () => {
+    const body = "\n## Description\n\n- 月曜\n- \n";
+    const parsed = parseBody(body);
+    expect(parsed.content).toBe("- 月曜\n- ");
+
+    const rebuilt = buildBody(parsed, parsed.content);
+    expect(rebuilt).toBe(body);
+    expect(parseBody(rebuilt).content).toBe("- 月曜\n- ");
+  });
 });
