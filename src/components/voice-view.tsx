@@ -10,8 +10,14 @@
 // (oldest dropped first).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Check, Copy, Download, FileText, Loader2, Mic, Play, Settings2, Sparkles, Square, Trash2 } from "lucide-react";
+import { Check, Copy, Download, FileText, Loader2, Maximize2, Mic, Play, Settings2, Sparkles, Square, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ModelCombobox } from "@/components/model-combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -390,6 +396,8 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
   const [structLog, setStructLog] = useState("");
   const [structSettings, setStructSettings] = useState<Config["settings"] | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState("");
   /** Meeting waiting for delete confirmation — deletion is permanent (T-0336). */
   const [deleteTarget, setDeleteTarget] = useState<VoiceMeeting | null>(null);
@@ -511,6 +519,20 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
     },
     [],
   );
+
+  /** Copy the currently shown transcript/minutes body (T-0352). */
+  const handleCopyBody = useCallback(async () => {
+    setError("");
+    try {
+      const text = minutesView ? minutes : transcript;
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      setCopiedBody(true);
+      setTimeout(() => setCopiedBody(false), 1500);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [minutes, minutesView, transcript]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -750,17 +772,59 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
             >
               Minutes
             </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => void handleCopyBody()}
+                aria-label={minutesView ? "Copy minutes" : "Copy transcript"}
+              >
+                {copiedBody ? <Check className="text-emerald-500" /> : <Copy />}
+              </Button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setExpanded(true)}
+                aria-label={minutesView ? "Expand minutes" : "Expand transcript"}
+              >
+                <Maximize2 />
+              </Button>
+            </div>
           </div>
-          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs">
+          <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs select-text">
             {minutesView
               ? minutes || "Not structured yet…"
               : transcript || "Waiting for the first transcript…"}
           </pre>
+          <Dialog open={expanded} onOpenChange={(o) => !o && setExpanded(false)}>
+            <DialogContent className="sm:max-w-3xl" draggable>
+              <DialogHeader>
+                <DialogTitle>
+                  {minutesView ? "Minutes" : "Transcript"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex justify-end">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => void handleCopyBody()}
+                >
+                  {copiedBody ? <Check className="text-emerald-500" /> : <Copy />}
+                  Copy
+                </Button>
+              </div>
+              <pre className="max-h-[60dvh] overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-3 text-xs select-text">
+                {minutesView
+                  ? minutes || "Not structured yet…"
+                  : transcript || "Waiting for the first transcript…"}
+              </pre>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
       {showLog && shownId && (
-        <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px]">
+        <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px] select-text">
           {structLog || "No structuring runs logged yet…"}
         </pre>
       )}
