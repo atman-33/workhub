@@ -367,9 +367,9 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
         </DialogFooter>
         <ConfirmDialog
           open={confirmAllOpen}
-          title="すべて最新に更新しますか"
-          description="競合したファイルはすべてテンプレートで上書きされます（変更前の内容は各ファイルの横に .bak として残ります）。削除対象のファイルはすべて削除され、削除したファイルの復元はできません。続ける場合は「すべて更新する」を押してください。"
-          confirmLabel="すべて更新する"
+          title="Update all to latest?"
+          description="Conflicting files will be overwritten with the template (previous content is kept as .bak next to each file). Files that are no longer in the template will be deleted and cannot be restored. Press “Update all” to continue."
+          confirmLabel="Update all"
           destructive
           onConfirm={() => void updateAll()}
           onClose={() => setConfirmAllOpen(false)}
