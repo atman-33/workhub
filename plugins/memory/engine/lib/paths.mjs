@@ -17,7 +17,8 @@ import { join, resolve, sep } from "node:path";
 // 3: added lib/capture.mjs (T-0366).
 // 4: added lib/doctor.mjs, lib/note.mjs, lib/schema.mjs (T-0367, T-0368).
 // 5: added lib/store.mjs, lib/brief.mjs, lib/checkpoint.mjs (T-0369).
-export const ENGINE_VERSION = 5;
+// 6: added lib/reflexes.mjs (T-0370).
+export const ENGINE_VERSION = 6;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");

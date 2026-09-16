@@ -10,12 +10,15 @@
 // about itself: if capture has stopped recording, the brief says so. A memory
 // that has quietly stopped working looks exactly like a memory with nothing to
 // say, and telling those two apart is the whole point (T-0366).
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { captureHealthLine } from "./capture.mjs";
 import { daysSinceLast, reminder, timeSummary } from "./format.mjs";
+import { reflexes, WRITING_NOTE } from "./reflexes.mjs";
 import { hasStore, query } from "./store.mjs";
 
 /** How much of the graph one briefing may spend. */
-const LIMITS = { decisions: 5, sessions: 3, chars: 6000 };
+const LIMITS = { decisions: 5, sessions: 3, chars: 9000 };
 
 function titleOf(note) {
   return note.frontmatter?.title || note.slug;
@@ -76,11 +79,21 @@ export function buildBrief(vault, stats) {
   const health = captureHealthLine();
   if (health) blocks.push(health);
 
-  if (hasStore(vault)) {
+  const store = hasStore(vault);
+  if (store) {
     for (const block of [decisionBlock(vault), sessionBlock(vault)]) {
       if (block) blocks.push(block);
     }
   }
+
+  // Last, and only once per session: how to use any of this. It goes after the
+  // content because the content is what the session needs first, and it is
+  // paid for here rather than on every prompt.
+  const how = reflexes({
+    hasStore: store,
+    hasWritingNote: store && existsSync(join(vault, WRITING_NOTE)),
+  });
+  if (how) blocks.push(how);
 
   const text = blocks.join("\n\n");
   return text.length > LIMITS.chars ? `${text.slice(0, LIMITS.chars)}\n…` : text;

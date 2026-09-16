@@ -19,7 +19,7 @@ workhub Obsidian vault.
 | `vault-migrate` | Migrate another Obsidian vault into the workhub vault — copy-only, with scripted delta-zero verification (user-invoked only) |
 | `setup-project-context` | Scaffold or show `.claude/project-context.json` — the file the harness hooks below read (user-invoked only) |
 | `setup-rules-ex` | Scaffold the `rules-ex` extended-rules infrastructure the `inject-extended-rules` hook reads (user-invoked only) |
-| `capture-rule` | Route a durable insight to the rules home where it will auto-inject next time — a repo's `.claude/rules`, the harness's `rules-ex`, the harness's own rules, or auto-memory |
+| `capture-rule` | Route a durable insight by *when it has to arrive*: a repo's `.claude/rules` or the harness's `rules-ex` when it must fire on touching a path, the vault's `memory/notes/` otherwise |
 
 The last three live here rather than in `engineering` because every file they
 write is read by this plugin's harness hooks: a setup step for a required

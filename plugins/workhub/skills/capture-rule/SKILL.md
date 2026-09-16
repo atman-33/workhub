@@ -25,20 +25,37 @@ the files touched this session and confirm with the user.
 
 Pick exactly one:
 
-| Insight is about… | Home |
-|---|---|
-| A specific repo's own code/tooling | that repo's `.claude/rules/<slug>.md` |
-| Target-repo files, but the rule must live in the harness workspace | harness `.claude/rules-ex/<slug>.md` |
-| The harness's own machinery | harness `.claude/rules/<slug>.md` (often grow the internals notes file, e.g. `harness-internals.md` or `vault-harness.md`) |
-| Personal/cross-project preference, feedback, or machine-local fact | auto-memory (`MEMORY.md` + `memory/`) |
+The question is **when the insight has to reach a session**, not what it is
+about. There are three answers, and they are exhaustive:
 
-If the home is auto-memory, do **not** write a rule — tell the user it belongs in
-memory and stop.
+| It has to arrive… | Home |
+|---|---|
+| when a matching **file is touched** — a constraint about particular code | that repo's `.claude/rules/<slug>.md` |
+| the same, but the rule cannot live in that repo | harness `.claude/rules-ex/<slug>.md` |
+| when the **question** makes it relevant — everything else durable | the vault's `memory/notes/`, as a typed note |
+
+A rule fires on a path and costs nothing until that path is opened; a memory
+note is found by searching and costs nothing until someone looks. Anything
+that does not need to arrive *while a specific file is open* belongs in memory,
+where it is typed, searchable, in git and checked by `memory-doctor`.
+
+If the home is `memory/notes/`, do **not** write a rule file. Write the note
+(`cli.mjs new lesson "…"` from the `memory` plugin), or tell the user that is
+where it belongs and stop.
+
+Auto-memory is deliberately not on this list. It is per-project, local,
+invisible and outside git — `memory/notes/` does the same job better on every
+axis, and keeping both would mean choosing between them every time, which is a
+routing decision with no rule behind it.
+
+Knowledge about the harness's own machinery is a memory note too, unless it has
+to fire on a path — the vault's `.claude/rules/vault-harness.md` is still the
+home for the ones that do.
 
 ## Step 3 — Dedup
 
-Search the chosen directory for an existing rule on the same topic. If one exists,
-**update it** instead of creating a new file. One topic = one file.
+Search the chosen home for an existing rule or note on the same topic. If one
+exists, **update it** instead of creating a second. One topic = one file.
 
 ## Step 4 — Write the rule
 
