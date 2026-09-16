@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { INJECT_STATE_PATH } from "./paths.mjs";
 import { ftsSearch, getStats } from "./db.mjs";
 import { timeDecay, searchRecent } from "./retriever.mjs";
+import { captureHealthLine } from "./capture.mjs";
 import { daysSinceLast, formatMemories, reminder, timeSummary } from "./format.mjs";
 
 // Cosine-distance gate for vector hits. FTS hits (distance=null) pass — a
@@ -65,6 +66,10 @@ export async function buildInjection(db, { prompt = "", sessionId = "" } = {}) {
     blocks.push(timeSummary(stats));
     const rem = reminder(daysSinceLast(stats));
     if (rem) blocks.push(rem);
+    // A memory that has quietly stopped recording looks exactly like a memory
+    // with nothing to say. Say it out loud instead (T-0366).
+    const health = captureHealthLine();
+    if (health) blocks.push(health);
   }
 
   if (prompt.length >= MIN_PROMPT_LEN && stats.total_memories > 0) {
