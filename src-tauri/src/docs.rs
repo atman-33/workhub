@@ -548,6 +548,11 @@ mod tests {
             ));
             let _ = fs::remove_dir_all(&dir);
             fs::create_dir_all(&dir).unwrap();
+            // Canonicalize once: TEMP may use 8.3 short names (RUNNER~1 on
+            // CI), while the resolver canonicalizes everything it touches.
+            // Comparing a raw join against a canonicalized result then fails
+            // on the user dir alone (T-0362 CI failure).
+            let dir = fs::canonicalize(&dir).unwrap();
             Self(dir)
         }
         fn path(&self) -> &Path {
