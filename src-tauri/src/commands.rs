@@ -1160,6 +1160,20 @@ pub async fn docs_read_asset(path: String) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Resolves a pasted absolute path against this machine's roots (T-0362).
+///
+/// A teammate's path names a file on *their* machine; the mounts here may
+/// disagree, so the backend answers with a direct hit or longest-tail
+/// candidates rather than the frontend guessing at strings.
+#[tauri::command]
+pub async fn docs_resolve_open_path(pasted: String) -> Result<docs::OpenPathResolution, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_resolve_open_path(&storage::load().settings, &pasted)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// The PlantUML server the Docs tab renders diagrams with; "" when rendering
 /// is off (the default).
 /// The starred folders and files, in the order the Shortcuts section shows

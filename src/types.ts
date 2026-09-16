@@ -243,6 +243,21 @@ export interface DocsEntry {
   modified: number;
 }
 
+/** One candidate when the Docs tab resolves a pasted path (T-0362). */
+export interface DocsOpenPathMatch {
+  /** Absolute path, forward slashes — the id passed back to the backend. */
+  path: string;
+  is_dir: boolean;
+}
+
+/** How a pasted path resolved (T-0362): a direct hit, or tail matches. */
+export interface DocsOpenPathResolution {
+  /** True when the pasted path itself sits inside a registered root. */
+  direct: boolean;
+  /** Candidates, longest tail first. */
+  matches: DocsOpenPathMatch[];
+}
+
 /** When a recurring rule fires. All times are the machine's local wall clock. */
 export interface RecurringSchedule {
   /** "daily" | "weekly" | "monthly" */

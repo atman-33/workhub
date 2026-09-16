@@ -11,6 +11,7 @@ import type {
   DiagEntry,
   DiagLogInfo,
   DocsEntry,
+  DocsOpenPathResolution,
   DocsRootStatus,
   DocsShortcut,
   DocsViewerPayload,
@@ -256,6 +257,11 @@ export const api = {
   docsReadFile: (path: string) => invoke<string>("docs_read_file", { path }),
   /** An embedded image as a `data:` URI. */
   docsReadAsset: (path: string) => invoke<string>("docs_read_asset", { path }),
+  /** Resolves a pasted absolute path against this machine's roots (T-0362):
+   * a direct hit when the mounts agree, longest-tail candidates when they
+   * do not. Rejects when nothing under the registered roots matches. */
+  docsResolveOpenPath: (pasted: string) =>
+    invoke<DocsOpenPathResolution>("docs_resolve_open_path", { pasted }),
   /** The PlantUML server diagrams are rendered on; "" when rendering is off. */
   docsShortcuts: () => invoke<DocsShortcut[]>("docs_shortcuts"),
   /** Replaces the whole list: adding, removing and reordering are one write. */
