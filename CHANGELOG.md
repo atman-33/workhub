@@ -7,6 +7,13 @@
   it here — directly when the mounts agree, otherwise by the longest tail
   that lands under this machine's roots, asking when several files match —
   so a shared file stops being a path to retype into Explorer.
+- **Trailing newlines survive the task editor round-trip** (T-0365).
+  Up to three trailing line breaks at the end of a Description are kept
+  instead of normalized away ? so pressing Enter at the end no longer looks
+  reverted after autosave, and the cursor stays where it was left.
+- **The Persona tab warns only about live plugins** (T-0361). The genshijin
+  warning now checks the actually enabled state instead of firing regardless
+  ? so it stops crying wolf on setups that never had the conflict.
 
 ## 0.137.2 (2026-09-15)
 
