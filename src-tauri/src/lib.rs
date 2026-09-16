@@ -355,6 +355,7 @@ pub fn run() {
             commands::docs_list_dir,
             commands::docs_read_file,
             commands::docs_read_asset,
+            commands::docs_resolve_open_path,
             commands::docs_shortcuts,
             commands::set_docs_shortcuts,
             commands::docs_list_pane,

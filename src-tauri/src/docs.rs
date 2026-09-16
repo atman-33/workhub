@@ -372,6 +372,166 @@ pub fn guarded_read_asset(settings: &Settings, path: &str) -> Result<String, Str
     with_timeout(move || read_asset(&file))
 }
 
+/// One candidate when the Docs tab resolves a pasted path (T-0362): a file or
+/// folder the pasted text could have meant, already inside a registered root.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct OpenPathMatch {
+    /// Absolute path, forward slashes — the id the frontend passes back.
+    pub path: String,
+    pub is_dir: bool,
+}
+
+/// How a pasted path resolved (T-0362).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct OpenPathResolution {
+    /// True when the pasted path itself sits inside a registered root — the
+    /// team's mounts agree, and no guessing happened.
+    pub direct: bool,
+    /// Candidates, longest tail first.
+    pub matches: Vec<OpenPathMatch>,
+}
+
+/// Most filesystem probes one resolution may make. Each tail length is tried
+/// against every root, so a deep path on many roots is bounded here rather
+/// than by the share's patience.
+const MAX_OPEN_PATH_PROBES: usize = 48;
+
+/// A pasted path as the resolver sees it: trimmed, unquoted, forward slashes,
+/// no `file://` scheme, no trailing separator.
+fn clean_pasted_path(raw: &str) -> String {
+    let mut text = raw.trim().to_string();
+    // Chat clients love to wrap a path in quotes; a pasted quote is never part
+    // of a name on this tab's platforms.
+    if text.len() >= 2 {
+        let bytes = text.as_bytes();
+        let (first, last) = (bytes[0], bytes[bytes.len() - 1]);
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            text = text[1..text.len() - 1].to_string();
+        }
+    }
+    let text = text.trim();
+    let without_scheme = text
+        .strip_prefix("file:///")
+        .or_else(|| text.strip_prefix("file://"))
+        .unwrap_or(text);
+    let slashed = without_scheme.replace('\\', "/");
+    let trimmed = slashed.trim_end_matches('/');
+    // A bare drive root ("G:/") keeps its slash - "G:" alone is not a folder.
+    if trimmed.ends_with(':') {
+        format!("{trimmed}/")
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// The trailing segments of a cleaned path that may name a file inside this
+/// machine's roots. Empties and `.` carry nothing, `..` is collapsed the way
+/// the sender's machine would have read it, and a leading drive letter (`G:`)
+/// names the sender's mount rather than the file.
+fn portable_tail(cleaned: &str) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    for segment in cleaned.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            out.pop();
+            continue;
+        }
+        if out.is_empty() && segment.len() == 2 && segment.as_bytes()[1] == b':' {
+            continue;
+        }
+        out.push(segment);
+    }
+    out
+}
+
+/// Resolves a pasted absolute path against this machine's roots (T-0362).
+///
+/// A teammate's `G:\team\docs\a.md` is this machine's `H:\team\docs\a.md`, or
+/// nothing at all — an absolute path only names a file on the machine that
+/// wrote it. So the pasted text is tried directly first (the mounts agree),
+/// then by ever-shorter tails against every root (they do not). Matches come
+/// back longest tail first; same-length matches from several roots all come
+/// back, and the frontend asks rather than guesses.
+pub fn resolve_open_path(pasted: &str, roots: &[String]) -> Result<OpenPathResolution, String> {
+    let cleaned = clean_pasted_path(pasted);
+    if cleaned.is_empty() {
+        return Err("no path given".into());
+    }
+    // The mounts agree: the pasted path names a file on this machine too.
+    if let Ok(real) = resolve_within_roots(&cleaned, roots) {
+        return Ok(OpenPathResolution {
+            direct: true,
+            matches: vec![OpenPathMatch {
+                path: norm(&real),
+                is_dir: real.is_dir(),
+            }],
+        });
+    }
+    // They do not: walk the tail down until something lands inside a root.
+    let tail = portable_tail(&cleaned);
+    if tail.is_empty() {
+        return Err(format!(
+            "{pasted} matches nothing under the registered document roots"
+        ));
+    }
+    let canonical_roots: Vec<PathBuf> = roots
+        .iter()
+        .filter(|r| !r.trim().is_empty())
+        .filter_map(|r| fs::canonicalize(r).ok())
+        .collect();
+    let mut matches: Vec<OpenPathMatch> = Vec::new();
+    let mut probes = 0;
+    'lengths: for len in (1..=tail.len()).rev() {
+        let suffix = tail[tail.len() - len..].join("/");
+        for root in &canonical_roots {
+            probes += 1;
+            if probes > MAX_OPEN_PATH_PROBES {
+                break 'lengths;
+            }
+            let Ok(real) = fs::canonicalize(root.join(&suffix)) else {
+                continue;
+            };
+            // Joined from the root, but a symlink inside it may still point
+            // out — the same escape the main guard exists for.
+            if !real.starts_with(root) {
+                continue;
+            }
+            let path = norm(&real);
+            if !matches.iter().any(|m| m.path == path) {
+                matches.push(OpenPathMatch {
+                    path,
+                    is_dir: real.is_dir(),
+                });
+            }
+        }
+        // The longest tail that lands anywhere wins; shorter ones only add
+        // same-named files from elsewhere.
+        if !matches.is_empty() {
+            break;
+        }
+    }
+    if matches.is_empty() {
+        return Err(format!(
+            "{pasted} matches nothing under the registered document roots"
+        ));
+    }
+    Ok(OpenPathResolution {
+        direct: false,
+        matches,
+    })
+}
+
+pub fn guarded_resolve_open_path(
+    settings: &Settings,
+    pasted: &str,
+) -> Result<OpenPathResolution, String> {
+    let roots = allowed_roots(settings);
+    let pasted = pasted.to_string();
+    with_timeout(move || resolve_open_path(&pasted, &roots))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -588,5 +748,81 @@ mod tests {
         fs::write(&big, vec![b'x'; (MAX_DOC_BYTES + 1) as usize]).unwrap();
         let err = read_doc(&big).unwrap_err();
         assert!(err.contains("too large"), "{err}");
+    }
+
+    fn resolve(pasted: &str, roots: &[String]) -> Result<OpenPathResolution, String> {
+        resolve_open_path(pasted, roots)
+    }
+
+    #[test]
+    fn open_path_hits_directly_when_the_mounts_agree() {
+        let tree = TempTree::new("open-direct");
+        fs::write(tree.path().join("spec.md"), "s").unwrap();
+        let pasted = norm(&tree.path().join("spec.md"));
+        let res = resolve(&pasted, &[tree.norm()]).unwrap();
+        assert!(res.direct);
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.matches[0].path, pasted);
+        assert!(!res.matches[0].is_dir);
+    }
+
+    #[test]
+    fn open_path_falls_back_to_the_longest_tail() {
+        let tree = TempTree::new("open-tail");
+        fs::create_dir_all(tree.path().join("docs")).unwrap();
+        fs::write(tree.path().join("docs").join("spec.md"), "s").unwrap();
+        // A drive letter this machine never had: nothing resolves directly,
+        // and the sender-specific lead ("foreign") drops away with the tail.
+        let res = resolve(r"Q:\foreign\docs\spec.md", &[tree.norm()]).unwrap();
+        assert!(!res.direct);
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.matches[0].path, norm(&tree.path().join("docs/spec.md")));
+    }
+
+    #[test]
+    fn open_path_prefers_a_longer_tail_over_a_shorter_one() {
+        let shallow = TempTree::new("open-shallow");
+        let deep = TempTree::new("open-deep");
+        fs::write(shallow.path().join("spec.md"), "s").unwrap();
+        fs::create_dir_all(deep.path().join("docs")).unwrap();
+        fs::write(deep.path().join("docs").join("spec.md"), "s").unwrap();
+        // `docs/spec.md` lands under the deep root; the bare `spec.md` under
+        // the shallow one must not shadow it.
+        let res = resolve(r"Q:\docs\spec.md", &[shallow.norm(), deep.norm()]).unwrap();
+        assert!(!res.direct);
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.matches[0].path, norm(&deep.path().join("docs/spec.md")));
+    }
+
+    #[test]
+    fn open_path_returns_every_root_at_the_winning_length() {
+        let first = TempTree::new("open-multi-a");
+        let second = TempTree::new("open-multi-b");
+        fs::create_dir_all(first.path().join("docs")).unwrap();
+        fs::create_dir_all(second.path().join("docs")).unwrap();
+        fs::write(first.path().join("docs").join("same.md"), "a").unwrap();
+        fs::write(second.path().join("docs").join("same.md"), "b").unwrap();
+        let res = resolve(r"Q:\docs\same.md", &[first.norm(), second.norm()]).unwrap();
+        assert!(!res.direct);
+        assert_eq!(res.matches.len(), 2);
+    }
+
+    #[test]
+    fn open_path_reports_folders_and_strips_quotes() {
+        let tree = TempTree::new("open-dir");
+        fs::create_dir(tree.path().join("notes")).unwrap();
+        // Backslashes and surrounding quotes are chat formatting, not the name.
+        let pasted = format!("\"{}\\notes\"", tree.norm().replace('/', "\\"));
+        let res = resolve(&pasted, &[tree.norm()]).unwrap();
+        assert!(res.direct);
+        assert!(res.matches[0].is_dir);
+    }
+
+    #[test]
+    fn open_path_fails_openly_when_nothing_matches() {
+        let tree = TempTree::new("open-miss");
+        assert!(resolve("", &[tree.norm()]).is_err());
+        let err = resolve(r"Q:\nowhere\missing.md", &[tree.norm()]).unwrap_err();
+        assert!(err.contains("matches nothing"), "{err}");
     }
 }

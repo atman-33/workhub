@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
-import { ChevronsDownUp, RefreshCw, Search } from "lucide-react";
+import { ChevronsDownUp, Link2, RefreshCw, Search } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { DocsFileList } from "@/components/docs/docs-file-list";
 import { DocsPreview } from "@/components/docs/docs-preview";
@@ -29,11 +29,12 @@ import {
   updateNote,
 } from "@/lib/docs/annotations";
 import { clearRecent, pushRecent, readRecent, removeRecent } from "@/lib/docs/recent";
+import { previewKindForPath } from "@/lib/docs/preview-kind";
 import { reorderWithinRoot, shortcutsInRoot } from "@/lib/docs/shortcuts";
 import { rootLabel } from "@/lib/docs/roots";
-import { ancestorsWithin, baseName, parentPath, relativeWithin } from "@/lib/docs/tree-nav";
+import { ancestorsWithin, baseName, isWithinRoot, parentPath, relativeWithin } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
-import type { DocsEntry, DocsRootStatus, DocsShortcut } from "@/types";
+import type { DocsEntry, DocsOpenPathMatch, DocsRootStatus, DocsShortcut } from "@/types";
 
 /** localStorage keys — machine-local UI state, like the other views' (view-state.ts). */
 const LAST_ROOT = "docs.lastRoot";
@@ -102,6 +103,14 @@ export function DocsView() {
   const [shortcuts, setShortcuts] = useState<DocsShortcut[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [listPane, setListPane] = useState(false);
+  // Opening a path pasted from a teammate's chat message (T-0362): their
+  // absolute path names a file on their machine, so the backend resolves it
+  // against this machine's roots first.
+  const [openPathOpen, setOpenPathOpen] = useState(false);
+  const [openPathText, setOpenPathText] = useState("");
+  const [openPathBusy, setOpenPathBusy] = useState(false);
+  const [openPathNotice, setOpenPathNotice] = useState("");
+  const [openPathCandidates, setOpenPathCandidates] = useState<DocsOpenPathMatch[]>([]);
 
   // The tree / preview split survives a restart (T-0279), like the Repos
   // tab's panels; the sidebar's own split does too (T-0276).
@@ -375,6 +384,76 @@ export function DocsView() {
     [reveal, openDoc],
   );
 
+  /**
+   * Opens one path a pasted absolute path resolved to (T-0362) — the way a
+   * shortcut opens, except the file may sit under another root than the one
+   * picked, in which case the tree moves there instead of staying put.
+   */
+  const openResolvedPath = useCallback(
+    (match: DocsOpenPathMatch, direct: boolean) => {
+      setOpenPathCandidates([]);
+      const target = roots.find((r) => isWithinRoot(r.path, match.path)) ?? selected;
+      if (target && target.id !== rootId) {
+        // Another root: move the tree there without wiping the document being
+        // opened the way selectRoot would.
+        setRootId(target.id);
+        setRecent(readRecent(target.id));
+        remember(LAST_ROOT, target.id);
+        setOpen((prev) => {
+          const next = { ...prev };
+          for (const folder of ancestorsWithin(target.path, match.path)) next[folder] = true;
+          return next;
+        });
+      } else {
+        reveal(match.path);
+      }
+      const notice = direct ? "" : `Opened by tail match: ${match.path}`;
+      if (match.is_dir) {
+        setSelectedDir(match.path);
+        setOpen((prev) => ({ ...prev, [match.path]: true }));
+        setOpenPathNotice(notice);
+        return;
+      }
+      if (previewKindForPath(match.path) === null) {
+        // A PDF or spreadsheet: the tab never previews these, it hands them
+        // to the OS the way the tree does.
+        void api.docsOpenExternal(match.path).catch((e) => setError(String(e)));
+        setOpenPathNotice(notice);
+        return;
+      }
+      setSelectedDir(parentPath(match.path));
+      // openDoc's body with the target root: the closure's rootId is stale
+      // exactly when the tree just moved.
+      setDoc(match.path);
+      setCursor(match.path);
+      remember(LAST_DOC, match.path);
+      const targetId = target?.id ?? rootId;
+      if (targetId) setRecent(pushRecent(targetId, match.path));
+      setOpenPathNotice(notice);
+    },
+    [roots, selected, rootId, reveal],
+  );
+
+  /** Resolves the pasted text and opens the hit, or offers the candidates. */
+  const runOpenPath = useCallback(() => {
+    const pasted = openPathText.trim();
+    if (!pasted || openPathBusy) return;
+    setOpenPathBusy(true);
+    setOpenPathNotice("");
+    setOpenPathCandidates([]);
+    void api
+      .docsResolveOpenPath(pasted)
+      .then((res) => {
+        if (res.matches.length === 1) openResolvedPath(res.matches[0], res.direct);
+        else {
+          setOpenPathCandidates(res.matches);
+          setOpenPathNotice(`${res.matches.length} files match this tail — pick one.`);
+        }
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setOpenPathBusy(false));
+  }, [openPathText, openPathBusy, openResolvedPath]);
+
   const sidebarTree = (
     <DocsTree
       rootPath={selected?.path ?? ""}
@@ -481,7 +560,64 @@ export function DocsView() {
                     <RefreshCw className={cn(refreshing && "animate-spin")} />
                   </Button>
                 </Hint>
+                <Hint label="Open a pasted path">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Open pasted path"
+                    aria-pressed={openPathOpen}
+                    className={cn(openPathOpen && "bg-muted text-foreground")}
+                    onClick={() => setOpenPathOpen((v) => !v)}
+                  >
+                    <Link2 />
+                  </Button>
+                </Hint>
               </div>
+
+              {openPathOpen && (
+                <div className="border-b px-2 py-1.5">
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={openPathText}
+                      onChange={(e) => setOpenPathText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") runOpenPath();
+                      }}
+                      placeholder="Paste a path to open…"
+                      aria-label="Paste a path to open"
+                      className="h-7 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!openPathText.trim() || openPathBusy}
+                      onClick={runOpenPath}
+                    >
+                      Open
+                    </Button>
+                  </div>
+                  {openPathNotice && (
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      {openPathNotice}
+                    </p>
+                  )}
+                  {openPathCandidates.length > 1 && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {openPathCandidates.map((c) => (
+                        <Button
+                          key={c.path}
+                          size="sm"
+                          variant="ghost"
+                          className="h-auto justify-start whitespace-normal break-all px-1 py-0.5 text-left text-[11px] text-primary"
+                          onClick={() => openResolvedPath(c, false)}
+                        >
+                          {c.path}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <ShortcutsSection
                 shortcuts={visibleShortcuts}

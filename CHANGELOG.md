@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.138.0 (2026-09-16)
+
+- **A pasted path opens in the Docs tab** (T-0362). A new "Open pasted path"
+  row takes an absolute path copied from a teammate's chat message and opens
+  it here — directly when the mounts agree, otherwise by the longest tail
+  that lands under this machine's roots, asking when several files match —
+  so a shared file stops being a path to retype into Explorer.
+
 ## 0.137.2 (2026-09-15)
 
 - **Official marketplace plugins read correctly in the Plugins tab**
