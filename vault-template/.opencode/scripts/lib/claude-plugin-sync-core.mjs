@@ -1491,7 +1491,13 @@ export function composePersonaFull(active, pluginRoot) {
   if (compression) parts.push(`# 圧縮ルール\n\n${compression}`);
   if (boundaries) parts.push(`# 境界\n\n${boundaries}`);
   try {
-    if (existsSync(path.join(personaClaudeDir(), ".genshijin-active"))) {
+    // The sentinel alone is not proof: uninstalling/disabling genshijin leaves
+    // the file behind, which used to keep the WARNING firing forever (T-0361).
+    // Warn only while the plugin is live-enabled.
+    const genshijinEnabled = readUserEnabledPlugins().some(
+      (p) => p.pluginName.toLowerCase() === "genshijin",
+    );
+    if (genshijinEnabled && existsSync(path.join(personaClaudeDir(), ".genshijin-active"))) {
       parts.push(
         "WARNING: genshijin プラグインが同時に有効です。両方が毎ターン別々の口調指示を " +
         "注入するため、口調が安定しません。どちらか一方を無効にしてください。",

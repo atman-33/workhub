@@ -82,9 +82,24 @@ function readCoreFile(name) {
   }
 }
 
+function genshijinLiveEnabled() {
+  try {
+    const raw = fs.readFileSync(path.join(claudeDir(), 'settings.json'), 'utf8');
+    const enabled = JSON.parse(raw)?.enabledPlugins ?? {};
+    return Object.entries(enabled).some(
+      ([key, value]) => value === true && key.toLowerCase().startsWith('genshijin@')
+    );
+  } catch {
+    return false;
+  }
+}
+
 function genshijinPluginActive() {
   try {
-    return fs.existsSync(path.join(claudeDir(), '.genshijin-active'));
+    // The sentinel alone is not proof: uninstalling/disabling genshijin leaves
+    // the file behind, which used to keep the WARNING firing forever (T-0361).
+    // Warn only while the plugin is live-enabled.
+    return fs.existsSync(path.join(claudeDir(), '.genshijin-active')) && genshijinLiveEnabled();
   } catch {
     return false;
   }
