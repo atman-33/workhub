@@ -26,7 +26,9 @@ export const DEFAULT_BODY = "\n## Description\n\n## Plan\n\n## Results\n";
 export interface ParsedBody {
   /** Everything before the content header, verbatim (usually a blank line). */
   before: string;
-  /** Trimmed text of the content section, for editing. */
+  /** Text of the content section, for editing: leading line breaks removed,
+   *  trailing line breaks preserved up to MAX_TRAILING_NEWLINES (T-0365).
+   *  Trailing spaces are never touched (T-0357). */
   content: string;
   /** Trimmed text of the Plan section (without its header); "" when the
    *  section is absent. Read-only in the app — surfaced for display only. */
@@ -71,12 +73,49 @@ function findHeaderIndices(body: string): {
   return { description, plan, results };
 }
 
-/** Strip only leading/trailing line breaks, preserving trailing spaces.
+/** Maximum trailing line breaks preserved in the Description draft (T-0365).
+ *  Anything beyond this is capped on parse and on build, so holding Enter
+ *  cannot grow unbounded blank lines in the file. */
+export const MAX_TRAILING_NEWLINES = 3;
+
+/** Remove leading line breaks only, preserving trailing spaces.
  *  In-progress list markers (`- `) and spaces-only lines must survive a
  *  file → draft round-trip: `trim()` deleted them, so the next vault sync
  *  rewrote the Textarea value under the user and the cursor jumped (T-0357). */
-function stripEdgeNewlines(text: string): string {
-  return text.replace(/^(\r?\n)+/, "").replace(/(\r?\n)+$/, "");
+function stripLeadingNewlines(text: string): string {
+  return text.replace(/^(\r?\n)+/, "");
+}
+
+/** Remove up to `max` trailing line breaks (the canonical blank-line
+ *  separator before the next section header, or the EOF newline). Fewer
+ *  available removes fewer — a hand-written file without the blank line
+ *  still parses instead of eating into the text. */
+function stripUpToTrailingNewlines(text: string, max: number): string {
+  const m = text.match(/(\r?\n)+$/);
+  if (!m) return text;
+  const units = m[0].match(/\r?\n/g) ?? [];
+  return text.slice(0, text.length - units.slice(-max).join("").length);
+}
+
+/** Cap trailing line breaks at `max`, preserving their exact CRLF/LF style. */
+export function capTrailingNewlines(text: string, max: number): string {
+  const m = text.match(/(\r?\n)+$/);
+  if (!m) return text;
+  const units = m[0].match(/\r?\n/g) ?? [];
+  if (units.length <= max) return text;
+  return text.slice(0, text.length - m[0].length) + units.slice(-max).join("");
+}
+
+/** Normalize a raw section slice for editing: drop leading line breaks,
+ *  drop the canonical separator (`separatorSize`: 2 before the next header,
+ *  1 for the EOF newline), then cap any remaining user trailing breaks. */
+function normalizeContent(raw: string, separatorSize: number): string {
+  const noLead = stripLeadingNewlines(raw);
+  if (!noLead) return "";
+  return capTrailingNewlines(
+    stripUpToTrailingNewlines(noLead, separatorSize),
+    MAX_TRAILING_NEWLINES,
+  );
 }
 
 export function parseBody(body: string): ParsedBody {
@@ -95,7 +134,7 @@ export function parseBody(body: string): ParsedBody {
     const planRaw = hasPlan ? body.slice(planIdx) : "";
     const plan = hasPlan ? planRaw.slice(PLAN_HEADER.length).trim() : "";
     const before = body.slice(0, contentIdx);
-    return { before, content: stripEdgeNewlines(contentRaw), plan, planRaw, resultRaw: "", hasSections: true };
+    return { before, content: normalizeContent(contentRaw, hasPlan ? 2 : 1), plan, planRaw, resultRaw: "", hasSections: true };
   }
   const hasPlan = planIdx !== -1 && planIdx > contentIdx && planIdx < resultIdx;
   const contentEnd = hasPlan ? planIdx : resultIdx;
@@ -104,20 +143,25 @@ export function parseBody(body: string): ParsedBody {
   const plan = hasPlan ? planRaw.slice(PLAN_HEADER.length).trim() : "";
   const resultRaw = body.slice(resultIdx);
   const before = body.slice(0, contentIdx);
-  return { before, content: stripEdgeNewlines(contentRaw), plan, planRaw, resultRaw, hasSections: true };
+  return { before, content: normalizeContent(contentRaw, 2), plan, planRaw, resultRaw, hasSections: true };
 }
 
 export function buildBody(parsed: ParsedBody, newContent: string): string {
+  // Cap first so a held-down Enter cannot pile unbounded blank lines into
+  // the file; the templates below then re-attach the canonical separator
+  // (blank line before the next header, EOF newline), which parse strips
+  // back off — keeping parse → build → parse identical (T-0365).
+  const capped = capTrailingNewlines(newContent, MAX_TRAILING_NEWLINES);
   if (!parsed.hasSections) {
     // No recognizable sections (unexpected external format) — append a
     // content section rather than guessing at a rewrite.
-    return `${parsed.resultRaw}\n${CONTENT_HEADER}\n\n${newContent}\n`;
+    return `${parsed.resultRaw}\n${CONTENT_HEADER}\n\n${capped}\n`;
   }
   const tail = `${parsed.planRaw}${parsed.resultRaw}`;
   if (!tail) {
     // Description-only body: no Plan or Results to carry through, and no
     // "## Results" header to invent — just the description section.
-    return `${parsed.before}${CONTENT_HEADER}\n\n${newContent}\n`;
+    return `${parsed.before}${CONTENT_HEADER}\n\n${capped}\n`;
   }
-  return `${parsed.before}${CONTENT_HEADER}\n\n${newContent}\n\n${parsed.planRaw}${parsed.resultRaw}`;
+  return `${parsed.before}${CONTENT_HEADER}\n\n${capped}\n\n${parsed.planRaw}${parsed.resultRaw}`;
 }

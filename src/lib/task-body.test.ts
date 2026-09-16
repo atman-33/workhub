@@ -171,4 +171,39 @@ describe("parseBody / buildBody", () => {
     expect(rebuilt).toBe(body);
     expect(parseBody(rebuilt).content).toBe("- 月曜\n- ");
   });
+
+  it("preserves up to 3 trailing newlines so Enter at the end survives autosave (T-0365)", () => {
+    for (const trailing of ["", "\n", "\n\n", "\n\n\n"]) {
+      const content = `Do the thing.${trailing}`;
+      const body = `\n## Description\n\n${content}\n\n## Results\n\n- done\n`;
+      const parsed = parseBody(body);
+      expect(parsed.content).toBe(content);
+
+      // Untouched autosave round-trips byte-for-byte, so the vault sync has
+      // no reason to rewrite the Textarea and the cursor stays put.
+      const rebuilt = buildBody(parsed, parsed.content);
+      expect(rebuilt).toBe(body);
+      expect(parseBody(rebuilt).content).toBe(content);
+    }
+  });
+
+  it("caps trailing newlines at 3 instead of growing blank lines forever (T-0365)", () => {
+    const parsed = parseBody("\n## Description\n\nDo the thing.\n\n## Results\n\n- done\n");
+    const rebuilt = buildBody(parsed, "Do the thing.\n\n\n\n\n");
+    expect(rebuilt).toBe("\n## Description\n\nDo the thing.\n\n\n\n\n## Results\n\n- done\n");
+    // Re-parse folds the capped value back identically — no second rewrite.
+    expect(parseBody(rebuilt).content).toBe("Do the thing.\n\n\n");
+    expect(buildBody(parseBody(rebuilt), parseBody(rebuilt).content)).toBe(rebuilt);
+  });
+
+  it("preserves trailing newlines in a Description-only body (T-0365)", () => {
+    // A Description-only file always ends with the single EOF newline, so the
+    // user trailing is whatever sits above it: file trailing = user + 1.
+    for (const userTrailing of ["", "\n", "\n\n", "\n\n\n"]) {
+      const body = `\n## Description\n\nSome fresh task text.${userTrailing}\n`;
+      const parsed = parseBody(body);
+      expect(parsed.content).toBe(`Some fresh task text.${userTrailing}`);
+      expect(buildBody(parsed, parsed.content)).toBe(body);
+    }
+  });
 });
