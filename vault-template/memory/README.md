@@ -77,6 +77,44 @@ most valuable thing in the whole store.
 
 - *(nothing recorded yet)*
 
+## The three types
+
+`type:` is what makes a note findable later. A session briefing asks for open
+decisions and recent sessions by type — it does not ask for "notes that look
+relevant" — so an untyped note is invisible rather than merely untidy.
+
+| Type | Answers | Carries |
+|---|---|---|
+| `decision` | what was chosen, and what it rules out | `[decision]`, `[rationale]`, `[alternative]`, `[consequence]`, `affects`, `supersedes`, `status:` |
+| `session` | where the work stopped | `[summary]`, `[context]`, `[next_step]`, `[decision]`, `[problem]`, `produced`, `status:` |
+| `lesson` | what not to do again | `[symptom]`, `[cause]`, `[instead]`, `[seen_at]` |
+
+Two of those fields do most of the work and are the ones usually skipped:
+
+- **`[alternative]`** — what was rejected. Without it a later session has no way
+  to know the ground was already covered, and relitigates it.
+- **`[problem]`** on a session — dead ends, including approaches tried and
+  abandoned. This is what stops the next session suggesting the thing that
+  already failed.
+
+Start one with a blank of the right shape:
+
+```bash
+node "<memory plugin>/engine/cli.mjs" new decision "What it is about"
+node "<memory plugin>/engine/cli.mjs" validate memory/knowledge/*.md
+```
+
+**Validation only ever warns.** A type describes a subset, not a straitjacket:
+an observation or link it does not mention is a richer note, not a broken one,
+and nothing here can refuse a write. A memory whose writes can be rejected
+stops being written to, and an empty memory is worse than an untidy one.
+
+- `[category]` is free-form. Consistency inside a folder helps; there is no
+  fixed list.
+- A link may point at a note that does not exist yet.
+- Link both ways for anything paired. One-directional links rot — the other
+  side finds nothing.
+
 ## Note format
 
 One entity per file. The whole grammar is three things: frontmatter, facts,
@@ -104,9 +142,3 @@ and worth more when found. Do not reduce it to bullets.
 - relates_to [[Another Note]]
 - supersedes [[The Older One]]
 ```
-
-- `[category]` is free-form. Consistency inside a folder helps; there is no
-  fixed list.
-- A link may point at a note that does not exist yet.
-- Link both ways for anything paired. One-directional links rot — the other
-  side finds nothing.

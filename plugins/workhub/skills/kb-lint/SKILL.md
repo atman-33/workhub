@@ -8,7 +8,8 @@ argument-hint: "[--fix] [--zone <name>]"
 
 Audit the workhub vault for structural issues, inconsistencies, and
 maintenance opportunities. Covers the note zones (`inbox/`, `projects/`,
-`knowledge/`, `archive/`) plus a size check on `memory/identity/decision-policy.md` —
+`knowledge/`, `archive/`), the memory note types under `memory/notes/`, plus a
+size check on `memory/identity/decision-policy.md` —
 the task board (`tasks/`) is app-managed and only gets link checks.
 
 ## Usage
@@ -104,6 +105,34 @@ or move a case down to `memory/notes/`. Never auto-fix: deciding
 which rule survives is the owner's call.
 
 `memory/notes/` has no size limit and is not checked here.
+
+### 8. Memory note types
+
+Only when the vault has a `memory/` folder. Notes there declare a `type:` and
+are read back structurally — a session briefing asks for open decisions, not
+for notes that look relevant — so a note with no type, or one missing the
+fields its type is read by, is invisible rather than merely untidy.
+
+The check is the `memory` plugin's own validator, so the two cannot disagree:
+
+```bash
+node "<memory plugin>/engine/cli.mjs" validate memory/notes/*.md
+```
+
+Where that plugin is not installed, skip this section and say so — do not
+re-implement the rules here.
+
+| Issue | Condition |
+|-------|-----------|
+| MEMORY_UNTYPED | A note under `memory/` with no `type:` |
+| MEMORY_FIELDS | A typed note missing a field its type is required to carry |
+
+**Report:** list the findings verbatim; the validator already explains each one
+and why it matters. **Never auto-fix, and never treat this as a failure** —
+validation warns by design. A memory whose writes can be rejected stops being
+written to, and an empty memory is worse than an untidy one.
+
+`memory/identity/` is exempt: those notes are read in full, never searched.
 
 ## Output Format
 

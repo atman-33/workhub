@@ -15,7 +15,8 @@ import { join, resolve, sep } from "node:path";
 // never refreshed — and a copy missing a newly added module fails to load for
 // every caller that uses it (the OpenCode plugin, a plain terminal).
 // 3: added lib/capture.mjs (T-0366).
-export const ENGINE_VERSION = 3;
+// 4: added lib/doctor.mjs, lib/note.mjs, lib/schema.mjs (T-0367, T-0368).
+export const ENGINE_VERSION = 4;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");

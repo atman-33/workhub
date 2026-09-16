@@ -4,6 +4,8 @@
 //   node cli.mjs setup [--force]        one-time machine setup
 //   node cli.mjs status                 setup / database state
 //   node cli.mjs doctor                 full health check (exit 1 on failure)
+//   node cli.mjs validate <path...>     check notes against their type (warns only)
+//   node cli.mjs new <type> [title]     print a blank note of that type
 //   node cli.mjs capture <transcript>   store a transcript's Q&A chunks
 //   node cli.mjs capture-json           store chunks from stdin JSON
 //                                       {session_id, project, task_id?,
@@ -119,6 +121,50 @@ async function main() {
       // Non-zero on failure so a script or a hook can act on it; a warning is
       // still a working install and must not fail a caller.
       if (report.worst === "fail") process.exitCode = 1;
+      return;
+    }
+
+    case "validate": {
+      // Warns, never fails: a store whose writes can be rejected stops being
+      // written to, and an empty memory is worse than an untidy one. The exit
+      // code stays 0 even with findings — `--strict` is for a caller that has
+      // decided otherwise for itself.
+      const { readFileSync: read } = await import("node:fs");
+      const { parseNote } = await import("./lib/note.mjs");
+      const { validateNote } = await import("./lib/schema.mjs");
+      const files = args.filter((a) => !a.startsWith("--"));
+      if (!files.length) throw new Error("usage: validate <path> [path...] [--strict]");
+
+      let total = 0;
+      for (const file of files) {
+        let findings;
+        let type;
+        try {
+          ({ type, findings } = validateNote(parseNote(read(file, "utf8"))));
+        } catch (err) {
+          console.log(`${file}: unreadable — ${err.message}`);
+          total += 1;
+          continue;
+        }
+        if (!findings.length) {
+          console.log(`${file}: ok (${type})`);
+          continue;
+        }
+        console.log(`${file}${type ? ` (${type})` : ""}`);
+        for (const f of findings) console.log(`  warn  ${f.field}: ${f.message}`);
+        total += findings.length;
+      }
+      if (total) console.log(`
+${total} finding(s) — none of them block anything.`);
+      if (total && flag("--strict")) process.exitCode = 1;
+      return;
+    }
+
+    case "new": {
+      const { templateFor } = await import("./lib/schema.mjs");
+      const type = positional(0);
+      if (!type) throw new Error("usage: new <decision|session|lesson> [title]");
+      console.log(templateFor(type, positional(1) ?? "<title>"));
       return;
     }
 
