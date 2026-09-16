@@ -1,7 +1,7 @@
 /**
  * The installed engine copy has to be self-contained.
  *
- * `setup` copies `memory-engine/cli.mjs` and `memory-engine/lib/` to
+ * `setup` copies `engine/cli.mjs` and `engine/lib/` to
  * `~/.workhub/memory-engine/engine/`, plus the plugin's own `lib/` one level
  * above it, so that callers outside the Claude plugin cache (the OpenCode
  * plugin, a plain terminal) do not depend on the versioned plugin directory.
@@ -53,6 +53,6 @@ describe("installed engine copy", () => {
   // relative depth is what makes it fragile.
   it("places the shared plugin lib beside the engine, not inside it", () => {
     const installed = installCopy();
-    expect(existsSync(join(installed, "..", "lib", "session-marker.mjs"))).toBe(true);
+    expect(existsSync(join(installed, "..", "lib", "session-marker-read.mjs"))).toBe(true);
   });
 });

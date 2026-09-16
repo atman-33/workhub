@@ -11,7 +11,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes, one backlog item per unit of work |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md` for the axes, `decision-log.md` for the individual calls) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
+| `memory/` | human + AI | what agents know. `identity/` is who the owner is and how they decide — read in full every session, so it is capped; `notes/` is everything durable and searchable, one typed note per thing; `episodes/` is where sessions stopped, and decays; `.index/` is the derived search index and is gitignored |
 | `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
@@ -38,23 +38,33 @@ follow the same convention (e.g. `knowledge/infra/`).
 How agents and the owner work together here. It applies to every session in
 this vault, on top of the task-specific prompt.
 
-**Owner context.** `profile/` is who the owner is and how they decide.
+**Owner context.** `memory/identity/` is who the owner is and how they decide.
 `about-me.md` covers background, current work and where the rest of their
 context lives; `decision-policy.md` covers what you may settle alone, what has
 to come back to them, and — in its `## Preferences` and `## Promoted rules`
 sections — the leanings you build a recommendation from. Read them before work
-that depends on any of that, instead of asking the owner to restate it. It sits
-at the vault root rather than under `knowledge/` because it is operational:
-hooks, skills and the `secretary` agent all read it.
+that depends on any of that, instead of asking the owner to restate it.
 
 The policy is deliberately short — it is read in full on every question, so it
 holds the *axes* of a decision and nothing else. The individual calls the owner
-has settled live in `decision-log.md`, which has no size limit and is never
-read whole: grep it when the policy does not settle a question and a similar
-one may have come up before.
+has settled are typed notes in `memory/notes/` (`type: decision`), found by
+search rather than read whole: look there when the policy does not settle a
+question and a similar one may have come up before.
+
+**Everything durable an agent knows lives in `memory/`, and the split is by how
+it reaches a session, not by what it is about.** `identity/` is read in full
+every time, so it is capped — a note nobody can read in one pass stops being
+read, and the judgement it holds stops applying. `notes/` is reached by search,
+so it has no cap and needs a `type:` to be findable at all. `episodes/` decays
+and is promoted from. `knowledge/` is *not* part of this: it is the owner's own
+reference material, which nothing injects.
+
+One thing deliberately stays outside: a `.claude/rules/` file fires when a
+matching **path** is touched, which is a channel `memory/` does not have. A
+constraint about particular code belongs there, not here.
 
 **Strategic context.** `strategy/` is where the owner is heading, not who
-they are, which is why it sits beside `profile/` rather than inside it:
+they are, which is why it sits beside `memory/` rather than inside it:
 `north-star/` holds the mission, vision, values and the rules they will not
 break; `current/` holds the honest present tense (active work, numbers,
 capacity, and the quarter's roadmap); `bottlenecks/` holds what is stopping
@@ -105,7 +115,7 @@ is not approval for the next one.
 The workhub app's **Settings → Agents → Custom prompt** is appended verbatim
 to every task launch prompt; its whitespace collapses to single spaces, so keep
 it to a short personal delta. Anything longer belongs in this file or in
-`profile/about-me.md`, which agents read from the vault itself.
+`memory/identity/about-me.md`, which agents read from the vault itself.
 
 ## Knowledge workflow
 

@@ -8,7 +8,7 @@ argument-hint: "[--fix] [--zone <name>]"
 
 Audit the workhub vault for structural issues, inconsistencies, and
 maintenance opportunities. Covers the note zones (`inbox/`, `projects/`,
-`knowledge/`, `archive/`) plus a size check on `profile/decision-policy.md` —
+`knowledge/`, `archive/`) plus a size check on `memory/identity/decision-policy.md` —
 the task board (`tasks/`) is app-managed and only gets link checks.
 
 ## Usage
@@ -87,23 +87,23 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 
 ### 7. Decision policy size
 
-`profile/decision-policy.md` is read in full every time an agent is about to
+`memory/identity/decision-policy.md` is read in full every time an agent is about to
 ask the owner something, and by the `secretary` subagent on every question it
 gates. It holds the axes of a decision; the individual calls belong in
-`profile/decision-log.md`, which is only ever grepped.
+`memory/notes/`, which is only ever grepped.
 
 | Issue | Condition |
 |-------|-----------|
 | POLICY_RULES_OVER_LIMIT | `## Promoted rules` holds more than 12 entries, or one entry runs over 3 lines |
-| POLICY_TOO_LONG | `profile/decision-policy.md` exceeds 120 lines |
+| POLICY_TOO_LONG | `memory/identity/decision-policy.md` exceeds 120 lines |
 | POLICY_LOG_ENTRIES | The policy carries entries that read as individual cases (a date + task id + `from:`) outside `## Promoted rules` |
 
 **Report:** name the offending entries and suggest what to do — merge two
 promoted rules into the axis they share, drop one that a later rule subsumes,
-or move a case down to `profile/decision-log.md`. Never auto-fix: deciding
+or move a case down to `memory/notes/`. Never auto-fix: deciding
 which rule survives is the owner's call.
 
-`profile/decision-log.md` has no size limit and is not checked here.
+`memory/notes/` has no size limit and is not checked here.
 
 ## Output Format
 

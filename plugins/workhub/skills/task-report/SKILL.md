@@ -103,10 +103,10 @@ argument-hint: "<task-id>"
    during this task — a question you put to them, a correction to your
    approach, a preference they stated in passing — record the rule it
    establishes:
-   - a one-off call → `<vault>/profile/decision-log.md`, under `## Decisions`
+   - a one-off call → `<vault>/memory/notes/`, under `## Decisions`
      (`- <date> <task-id> <the rule>` with `(from: <the question>)` on the
      next line). This file has no size limit; it is grepped, not read.
-   - a standing leaning → `<vault>/profile/decision-policy.md`'s
+   - a standing leaning → `<vault>/memory/identity/decision-policy.md`'s
      `## Preferences`.
    - an axis the same reasoning has now applied twice → that note's
      `## Promoted rules`, at most 12 entries of 3 lines. A thirteenth arrives

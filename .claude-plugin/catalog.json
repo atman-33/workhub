@@ -5,7 +5,7 @@
       "name": "workhub",
       "tier": "required",
       "scope": "either",
-      "summary": "Task board, vault knowledge base, schedule/mindmap editing, long-term memory, the app's release procedure, and the harness hooks that carry the app's registered projects and their rules into a session. Meaningless outside a vault, and gated on one."
+      "summary": "Task board, vault knowledge base, schedule/mindmap editing, the app's release procedure, and the harness hooks that carry the app's registered projects and their rules into a session. Meaningless outside a vault, and gated on one."
     },
     {
       "name": "engineering",
@@ -72,6 +72,12 @@
       "tier": "optional",
       "scope": "either",
       "summary": "Team operations on a shared folder as SSoT: knowledge base, backlog and sprints, multi-repo tracking. Needs .claude/team-context.json."
+    },
+    {
+      "name": "memory",
+      "tier": "recommended",
+      "scope": "either",
+      "summary": "Long-term memory for agent sessions on a workhub vault: past conversations are captured into a vault-local SQLite database and the relevant ones are injected into later sessions, fully locally. Split out of `workhub` so memory can be switched off on its own; needs one machine setup (`memory-setup`) for its embedding model."
     },
     {
       "name": "team-comms",

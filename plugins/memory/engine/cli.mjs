@@ -3,6 +3,7 @@
 //
 //   node cli.mjs setup [--force]        one-time machine setup
 //   node cli.mjs status                 setup / database state
+//   node cli.mjs doctor                 full health check (exit 1 on failure)
 //   node cli.mjs capture <transcript>   store a transcript's Q&A chunks
 //   node cli.mjs capture-json           store chunks from stdin JSON
 //                                       {session_id, project, task_id?,
@@ -20,7 +21,7 @@
 // plugin (capture-json / inject against the engine copy in
 // ~/.workhub/memory-engine/engine).
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { readMarker as readSessionMarker, sessionKey } from "../lib/session-marker.mjs";
+import { readMarker as readSessionMarker, sessionKey } from "../lib/session-marker-read.mjs";
 import { ENGINE_HOME, LOCK_PATH, dbPathForVault, readMarker, resolveVault } from "./lib/paths.mjs";
 import { loadSqlite } from "./lib/deps.mjs";
 
@@ -96,6 +97,28 @@ async function main() {
       } else {
         console.log("capture     : healthy");
       }
+      return;
+    }
+
+    case "doctor": {
+      const { runDoctor, formatDoctor } = await import("./lib/doctor.mjs");
+      const sqlite = loadSqlite();
+      // The database checks need the modules; everything else has to work
+      // without them, because "the dependencies are missing" is one of the
+      // things doctor exists to report.
+      let dbLib = null;
+      if (sqlite) {
+        try {
+          dbLib = await import("./lib/db.mjs");
+        } catch {
+          dbLib = null;
+        }
+      }
+      const report = runDoctor({ sqlite, dbLib });
+      for (const line of formatDoctor(report)) console.log(line);
+      // Non-zero on failure so a script or a hook can act on it; a warning is
+      // still a working install and must not fail a caller.
+      if (report.worst === "fail") process.exitCode = 1;
       return;
     }
 

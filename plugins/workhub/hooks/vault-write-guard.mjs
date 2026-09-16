@@ -1,5 +1,6 @@
 // PreToolUse (Write) hook: overwriting an EXISTING note in the vault's human
-// zone (tasks/, projects/, knowledge/, profile/, inbox/, journal/, archive/) with a
+// zone (tasks/, projects/, knowledge/, memory/identity/, inbox/, journal/,
+// archive/) with a
 // full-file Write is destructive to hand-written content — ask the user
 // first. New files, edits, and anything under _ai/ pass through untouched.
 import { existsSync } from "node:fs";
@@ -22,7 +23,10 @@ const humanZones = [
   "tasks/",
   "projects/",
   "knowledge/",
-  "profile/",
+  // Only the always-loaded layer of memory: it is capped and owner-authored,
+  // so an overwrite there loses a judgement nobody can reconstruct. The rest
+  // of `memory/` is the agent's to write — that is the point of it.
+  "memory/identity/",
   "inbox/",
   "journal/",
   "archive/",

@@ -51,7 +51,7 @@ Two traps:
   taught the overlay first. `secretary_enabled` and `memory_*` are read
   straight out of `~/.workhub/config.json` by the Claude Code hooks
   (`plugins/workhub/hooks/lib.mjs`), the memory engine
-  (`plugins/workhub/memory-engine/lib/paths.mjs`) and two OpenCode plugins
+  (`plugins/memory/engine/lib/paths.mjs`) and two OpenCode plugins
   (`vault-template/.opencode/plugins/`). Moving them to the vault without
   updating all four makes the app and the agents disagree silently.
 

@@ -7,15 +7,15 @@
 // see memory-engine/lib/capture.mjs. Dropping the session outright is what
 // silently lost 180 of 193 sessions before T-0366.
 import { existsSync } from "node:fs";
-import { readPayload } from "./lib.mjs";
+import { readPayload } from "../lib/hook-input.mjs";
 import {
   readMarker as readSessionMarker,
   sessionKey,
-} from "../lib/session-marker.mjs";
+} from "../lib/session-marker-read.mjs";
 
 try {
   const { readMarker, memoryEnabled, resolveVaultForHook, dbPathForVault } = await import(
-    "../memory-engine/lib/paths.mjs"
+    "../engine/lib/paths.mjs"
   );
   if (!readMarker() || !memoryEnabled("claude_code")) process.exit(0);
 
@@ -26,7 +26,7 @@ try {
   const vault = resolveVaultForHook();
   if (!vault) process.exit(0);
 
-  const { loadSqlite } = await import("../memory-engine/lib/deps.mjs");
+  const { loadSqlite } = await import("../engine/lib/deps.mjs");
   const sqlite = loadSqlite();
   if (!sqlite) process.exit(0);
 
@@ -36,9 +36,9 @@ try {
   // routinely the other one's (T-0243).
   const taskId = readSessionMarker(vault, sessionKey(payload.session_id))?.id ?? "";
 
-  const { loadChunks } = await import("../memory-engine/lib/chunker.mjs");
-  const { openDb, initDb, saveChunksTextOnly } = await import("../memory-engine/lib/db.mjs");
-  const { captureTranscript } = await import("../memory-engine/lib/capture.mjs");
+  const { loadChunks } = await import("../engine/lib/chunker.mjs");
+  const { openDb, initDb, saveChunksTextOnly } = await import("../engine/lib/db.mjs");
+  const { captureTranscript } = await import("../engine/lib/capture.mjs");
 
   // A fresh handle per attempt: capture retries a busy database, and a handle
   // that failed a write is not reused.
@@ -67,7 +67,7 @@ try {
   // has already closed its connection, and a trigger failure must not be
   // reported as a capture failure.
   try {
-    const { maybeTriggerEmbed } = await import("../memory-engine/lib/background.mjs");
+    const { maybeTriggerEmbed } = await import("../engine/lib/background.mjs");
     const db = deps.openDb();
     try {
       const pending = maybeTriggerEmbed(db);

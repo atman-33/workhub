@@ -3,7 +3,7 @@ title: Decision policy
 created: 2026-08-12
 type: reference
 tags:
-  - profile
+  - identity
 ---
 
 # Decision policy
@@ -13,7 +13,7 @@ What an agent may decide on its own, and what has to come back to you.
 This note holds the *axes* of a decision, not a log of decisions. Agents read
 it before putting any question to you, and the `secretary` subagent reads it in
 full on every question it gates, so it has to stay short enough that the axes
-below are not buried. Individual calls you settle go to [[profile/decision-log]]
+below are not buried. Individual calls you settle go to `memory/notes/`
 instead — nobody reads that file front to back; it is grepped when a similar
 question comes up.
 
@@ -71,7 +71,7 @@ like, so write the leanings, not just the rules.
 ## Promoted rules
 
 Axes that came out of decisions you have already made and now apply beyond the
-case that produced them. Promote an entry from [[profile/decision-log]] once
+case that produced them. Promote an entry from `memory/notes/` once
 the same reasoning has decided a second question, and write the axis rather
 than the case. At most 12 entries, 3 lines each.
 

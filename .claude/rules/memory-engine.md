@@ -1,8 +1,7 @@
 ---
-description: Constraints for the workhub memory engine and its tests
+description: Constraints for the memory plugin, its engine and its tests
 paths:
-  - "plugins/workhub/memory-engine/**"
-  - "plugins/workhub/hooks/memory-*.mjs"
+  - "plugins/memory/**"
 ---
 
 # workhub memory engine
