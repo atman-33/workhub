@@ -14,12 +14,16 @@ that wants neither should not have to give up the task board to say so.
 
 | Path | What |
 |---|---|
+| `hooks/brief.mjs` | SessionStart hook — what the session is told before its first prompt |
+| `hooks/checkpoint.mjs` | PreCompact hook — writes this thread's checkpoint before the context goes |
 | `hooks/capture.mjs` | Stop hook — writes the session's chunks |
-| `hooks/inject.mjs` | UserPromptSubmit hook — injects the time summary and relevant memories |
+| `hooks/inject.mjs` | UserPromptSubmit hook — the past conversations relevant to this prompt |
 | `engine/` | The engine itself: CLI, storage, retrieval, embedding, setup, doctor. See `engine/README.md` |
 | `skills/memory-setup` | One-time machine setup |
 | `skills/memory-recall` | Explicit search over past conversations |
 | `skills/memory-doctor` | Is memory actually working? |
+| `skills/memory-reflect` | Promote what a session learned into durable notes |
+| `skills/memory-tidy` | Forgetting, on purpose: caps, merges, archiving |
 | `lib/` | The two small pieces copied from the `workhub` plugin (see below) |
 
 ## Setup
@@ -62,6 +66,30 @@ OpenCode sessions get the same behaviour through the vault's
 `.opencode/plugins/memory-plugin.ts`, which shells out to the version-stable
 engine copy `setup` installs under `~/.workhub/memory-engine/engine/`. It must
 not depend on this plugin's directory, which is why that copy exists.
+
+## How a session uses it
+
+Four moments, each doing one thing:
+
+| When | What |
+|---|---|
+| **SessionStart** | The brief: open decisions and live threads, asked for by `type`/`status` — structurally, not by similarity. Plus a warning when capture has stopped |
+| **every prompt** | The past conversations relevant to *this* prompt, from the verbatim layer |
+| **PreCompact** | A checkpoint for this thread, before the context is lost |
+| **Stop** | The session's chunks into the database |
+
+The brief and the checkpoint read and write `memory/` — Markdown, in git. The
+prompt injection and the capture use the database, which is derived and
+gitignored. That split is the design: what makes the *next* session better is
+a promoted fact, and a promoted fact has to survive a machine.
+
+Promotion itself is deliberate (`memory-reflect`), and so is forgetting
+(`memory-tidy`). The line between what happens on its own and what is proposed
+is reversibility, not importance: writing a new note and archiving an old one
+are both undoable, so they need no permission; rewriting one, merging two, or
+touching `identity/` are not, so they are proposed. **Everything done without
+asking is reported** — something that changes the record silently is
+indistinguishable from something that is broken.
 
 ## Health
 

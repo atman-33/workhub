@@ -69,6 +69,34 @@ Two things deliberately live outside this folder:
 - **`knowledge/`** — the owner's own reference material. Nothing injects it;
   they read it.
 
+## Promotion and forgetting
+
+What a session learns reaches this folder through `memory-reflect`, and what
+stops being worth keeping leaves through `memory-tidy`. Neither is automatic,
+and neither is silent.
+
+The line between what an agent does on its own and what it proposes is
+**reversibility**, not importance:
+
+| Reversible → just do it | Irreversible → propose it |
+|---|---|
+| Write a new note | Rewrite or merge an existing one |
+| Archive a finished one | Change anything in `identity/` |
+| Add a missing link | Delete anything (so: don't — archive) |
+
+Everything done without asking is reported, one line each.
+
+**The caps are the forgetting.** `identity/` is read in full every session, so
+a note nobody can read in one pass stops being read at all — and then the
+judgement it holds stops applying. Reaching a cap is the signal to consolidate,
+never a number to raise.
+
+| Layer | Cap |
+|---|---|
+| `identity/` notes | 8 |
+| One `identity/` note | 120 lines |
+| `episodes/` notes | 60 |
+
 ## Known failure modes
 
 Add to this list whenever the same mistake happens twice. A documented mistake

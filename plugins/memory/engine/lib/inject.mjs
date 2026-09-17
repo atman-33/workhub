@@ -1,15 +1,15 @@
-// Builds the memory-injection context block for a prompt:
-//   - first prompt of a session: time summary + elapsed-days reminder
-//   - every prompt: memories relevant to the prompt (hybrid search over the
-//     last 7 days, relevance-gated so weak matches inject nothing)
+// Builds the memory-injection context block for one prompt: the past
+// conversations relevant to it (hybrid search over the last 7 days,
+// relevance-gated so weak matches inject nothing).
+//
+// The opening summary lives in the SessionStart brief instead — a session is
+// told where things stand before its first prompt, not in the middle of
+// answering it.
 // Shared by the Claude Code UserPromptSubmit hook and the OpenCode plugin
 // (via `cli.mjs inject`).
-import { readFileSync, writeFileSync } from "node:fs";
-import { INJECT_STATE_PATH } from "./paths.mjs";
 import { ftsSearch, getStats } from "./db.mjs";
 import { timeDecay, searchRecent } from "./retriever.mjs";
-import { captureHealthLine } from "./capture.mjs";
-import { daysSinceLast, formatMemories, reminder, timeSummary } from "./format.mjs";
+import { formatMemories } from "./format.mjs";
 
 // Cosine-distance gate for vector hits. FTS hits (distance=null) pass — a
 // literal keyword match is meaningful on its own.
@@ -19,23 +19,6 @@ import { daysSinceLast, formatMemories, reminder, timeSummary } from "./format.m
 const DISTANCE_MAX = 0.2;
 const INJECT_LIMIT = 5;
 const MIN_PROMPT_LEN = 3;
-
-/** True exactly once per session id (state survives across prompts). */
-function isFirstPromptOfSession(sessionId) {
-  let state = {};
-  try {
-    state = JSON.parse(readFileSync(INJECT_STATE_PATH, "utf8"));
-  } catch {
-    // first ever run
-  }
-  if (state.session_id === sessionId) return false;
-  try {
-    writeFileSync(INJECT_STATE_PATH, JSON.stringify({ session_id: sessionId }));
-  } catch {
-    // state not persisted — better to repeat the summary than to fail
-  }
-  return true;
-}
 
 /**
  * Hybrid search over the last 7 days; falls back to FTS-only (with time
@@ -56,22 +39,14 @@ async function searchWithFallback(db, prompt) {
  * Returns the injection text for this prompt, or "" when there is nothing
  * worth injecting. `db` must be an open, initialized database.
  */
-export async function buildInjection(db, { prompt = "", sessionId = "" } = {}) {
+export async function buildInjection(db, { prompt = "" } = {}) {
   const blocks = [];
   const stats = getStats(db);
 
-  // Time summary + reminder only on the session's first prompt — repeating
-  // them every turn wastes context.
-  if (sessionId && isFirstPromptOfSession(sessionId)) {
-    blocks.push(timeSummary(stats));
-    const rem = reminder(daysSinceLast(stats));
-    if (rem) blocks.push(rem);
-    // A memory that has quietly stopped recording looks exactly like a memory
-    // with nothing to say. Say it out loud instead (T-0366).
-    const health = captureHealthLine();
-    if (health) blocks.push(health);
-  }
-
+  // The opening summary, the elapsed-days reminder and the capture health line
+  // moved to the SessionStart brief (T-0369), which is where "what you should
+  // know before you start" belongs. What is left here is the one thing that
+  // genuinely depends on the prompt.
   if (prompt.length >= MIN_PROMPT_LEN && stats.total_memories > 0) {
     const memories = await searchWithFallback(db, prompt);
     const relevant = memories

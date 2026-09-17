@@ -16,7 +16,8 @@ import { join, resolve, sep } from "node:path";
 // every caller that uses it (the OpenCode plugin, a plain terminal).
 // 3: added lib/capture.mjs (T-0366).
 // 4: added lib/doctor.mjs, lib/note.mjs, lib/schema.mjs (T-0367, T-0368).
-export const ENGINE_VERSION = 4;
+// 5: added lib/store.mjs, lib/brief.mjs, lib/checkpoint.mjs (T-0369).
+export const ENGINE_VERSION = 5;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");

@@ -10,6 +10,7 @@
 // crashes on a broken install is no use on precisely the install that needs it.
 import { existsSync, statSync } from "node:fs";
 import { readCaptureState, queuedCount } from "./capture.mjs";
+import { capFindings, hasStore, readLayer } from "./store.mjs";
 import {
   ENGINE_VERSION,
   dbPathForVault,
@@ -202,6 +203,33 @@ function checkCapture() {
   return checks;
 }
 
+/**
+ * The `memory/` folder: is it there, and is it still small enough to be read?
+ *
+ * A cap that is over is not an error — it is the signal to consolidate, which
+ * is a judgement the owner makes. Reporting it is the whole job.
+ */
+function checkStore(vault) {
+  if (!hasStore(vault)) {
+    return [
+      check(
+        "memory store",
+        "warn",
+        `no memory/ folder in ${vault}`,
+        "the vault has not been given one yet — an app template update adds it",
+      ),
+    ];
+  }
+  const counts = ["identity", "notes", "episodes"]
+    .map((layer) => `${layer} ${readLayer(vault, layer).length}`)
+    .join(", ");
+  const checks = [check("memory store", "ok", counts)];
+  for (const finding of capFindings(vault)) {
+    checks.push(check(`cap: ${finding.cap}`, "warn", finding.detail, finding.fix));
+  }
+  return checks;
+}
+
 function checkOpencodeLog(vault) {
   const log = `${vault}/.opencode/plugins/logs/memory.log`;
   if (!existsSync(log)) return [];
@@ -227,7 +255,7 @@ export function runDoctor({ sqlite = null, dbLib = null } = {}) {
   const vault = resolveVault();
   if (vault) {
     if (dbLib) checks.push(...checkDatabase(vault, sqlite, dbLib));
-    checks.push(...checkCapture(), ...checkOpencodeLog(vault));
+    checks.push(...checkCapture(), ...checkStore(vault), ...checkOpencodeLog(vault));
   }
   const worst = checks.some((c) => c.level === "fail")
     ? "fail"
