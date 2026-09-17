@@ -83,6 +83,16 @@ prompt injection and the capture use the database, which is derived and
 gitignored. That split is the design: what makes the *next* session better is
 a promoted fact, and a promoted fact has to survive a machine.
 
+**The reflexes** are what get any of this read. A store nobody queries is the
+same as no store, and whether memory gets consulted otherwise depends on
+whether the agent happens to think of it — which, deep in a session about
+something else, it does not. The full text rides the SessionStart brief and one
+line rides each prompt; `memory/identity/writing.md` in the vault is the owner's own
+standard for how notes are written, and the reflexes defer to it when it
+exists. Not an output style (only one can be active, and it is a global
+choice), not a `.claude/rules/` file (those are path-scoped and about the code,
+not the session) — see `.claude/rules/memory-engine.md` for that boundary.
+
 Promotion itself is deliberate (`memory-reflect`), and so is forgetting
 (`memory-tidy`). The line between what happens on its own and what is proposed
 is reversibility, not importance: writing a new note and archiving an old one

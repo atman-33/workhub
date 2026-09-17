@@ -43,6 +43,31 @@ caller that uses that copy (the OpenCode plugin, a plain terminal). Bump
 `ENGINE_VERSION` in `lib/paths.mjs` whenever the *set of files* changes, not
 only when a dependency or the model does.
 
+## Reflexes are not rules
+
+The plugin injects a block telling a session how to *use* memory (search before
+answering, type a decision, cite rather than paraphrase). That is deliberately
+not a `.claude/rules/` file, and the distinction is worth keeping straight:
+
+| | `.claude/rules/` | the reflex block |
+|---|---|---|
+| Fires | on touching a matching path | unconditionally, per session |
+| Subject | the code being edited | the session's own behaviour |
+| Lives in | this repository | `plugins/memory/engine/lib/reflexes.mjs` |
+
+Memory advice scoped to a path would arrive only while editing that directory —
+which is exactly when it is least relevant. Conversely, a constraint about this
+repository does not belong in the reflex block: it would be paid for in every
+session on the machine, including ones nowhere near this code.
+
+It is also not a Claude Code output style, though the system prompt would be
+the natural home. Only one output style can be active at a time and it is a
+global choice, so taking that slot would put memory in competition with
+whatever the owner wants their sessions to sound like — a bad trade for a
+plugin that is meant to be switchable on its own. The full text goes in the
+SessionStart brief and a single line rides each prompt, which survives
+compaction at a cost of one line per turn.
+
 ## Testing against real SQLite
 
 `node-sqlite3-wasm` **does not initialize under Vite's module runner**: a
