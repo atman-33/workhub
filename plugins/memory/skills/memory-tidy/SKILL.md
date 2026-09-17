@@ -12,7 +12,7 @@ applying.
 
 So the layers have caps, and reaching one is the signal to consolidate. The cap
 is the mechanism — not a tidiness rule, and not a number to raise when it gets
-inconvenient. It already works: `profile/decision-policy.md` has held to "12
+inconvenient. It already works: `memory/identity/decision-policy.md` has held to "12
 promoted rules, 3 lines each, a thirteenth arrives by merging or dropping one"
 and it is the one part of the harness that has never bloated.
 

@@ -537,7 +537,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 </label>
                 <p className="text-xs text-muted-foreground">
                   Agents check your decision policy (
-                  <code>profile/decision-policy.md</code>) through a secretary subagent
+                  <code>memory/identity/decision-policy.md</code>) through a secretary subagent
                   and file what it cannot decide into <code>_ai/comms/</code> instead of
                   interrupting you. Consulting costs tokens, so this is off by default; turn it on
                   to enable it in both Claude Code and OpenCode sessions. With it off, agents

@@ -1,13 +1,13 @@
 ---
 paths:
   - "plugins/workhub/hooks/secretary-*.mjs"
-  - "plugins/workhub/hooks/profile-inject.mjs"
+  - "plugins/workhub/hooks/identity-inject.mjs"
   - "plugins/workhub/agents/**"
   - "plugins/workhub/scripts/comms-cli.mjs"
   - "plugins/workhub/skills/strategist/**"
   - "plugins/persona/scripts/**"
   - "vault-template/strategy/**"
-  - "vault-template/profile/strategist.md"
+  - "vault-template/memory/identity/strategist.md"
   - "vault-template/.opencode/**"
   - "**/agents/*.md"
 ---
@@ -55,11 +55,12 @@ Two consequences worth keeping in mind before changing any of them:
 
 ### Two tiers, gated differently (T-0205)
 
-`profile-inject.mjs` emits two blocks, and only the second is behind the
+`identity-inject.mjs` emits two blocks, and only the second is behind the
 settings flag:
 
-- **owner-profile** — read `profile/decision-policy.md`, never put a bare
-  choice to the owner, write settled answers back into `profile/decision-log.md`
+- **owner-identity** — read `memory/identity/decision-policy.md`, never put a
+  bare choice to the owner, write settled answers back as typed notes under
+  `memory/notes/`
   (or the policy's `## Preferences` / `## Promoted rules` when the answer is a
   standing leaning or an axis that has now decided twice). The policy is read in
   full and capped at 12 promoted rules for that reason; the log is only grepped
@@ -82,9 +83,9 @@ Keep the two harnesses aligned: `secretary-plugin.ts` splits the same way
 `tool.execute.after` handler must bail on `!secretaryOn` — otherwise it keeps
 writing consulted-state for a gate that is not running.
 
-Everything stays silent when the vault has no `profile/decision-policy.md`.
-That note lives at the vault root rather than under `knowledge/` because it is
-operational — hooks, skills and the agent all read it — and deleting it is the
+Everything stays silent when the vault has no
+`memory/identity/decision-policy.md`. That note lives under `memory/` rather
+than under `knowledge/` because it is operational — hooks, skills and the agent all read it — and deleting it is the
 documented way to turn the whole mechanism off by omission.
 
 ## The counsel is not the gate (T-0208)
@@ -113,7 +114,7 @@ come back if someone tries to convert it:
   relayed by whatever character the main session is wearing.
 
 The counsel's character therefore comes from `persona`, not from a copy in the
-vault: `profile/strategist.md` carries a `persona:` key naming a character id,
+vault: `memory/identity/strategist.md` carries a `persona:` key naming a character id,
 and the skill calls `plugins/persona/scripts/persona-switch.mjs` to put it on
 and take it off. That CLI exists because `/persona` is parsed out of the user's
 own prompt by `persona-mode-tracker.mjs`, which a skill cannot reach — and

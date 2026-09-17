@@ -15,7 +15,7 @@ of deciding what mattered is easier once the work is over.
 
 ## What this may do on its own, and what it may not
 
-The line is reversibility, not importance. `profile/decision-policy.md`'s
+The line is reversibility, not importance. `memory/identity/decision-policy.md`'s
 gray-zone rule already draws it: reversible → proceed, irreversible → ask.
 
 | Action | Do it |
