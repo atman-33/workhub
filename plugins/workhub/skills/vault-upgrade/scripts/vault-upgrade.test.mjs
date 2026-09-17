@@ -187,6 +187,36 @@ describe("apply", () => {
   });
 });
 
+describe("verify", () => {
+  it("names the notes whose links the move just broke", () => {
+    // Obsidian resolves a path-style wikilink to nothing and says nothing, so
+    // this is the only chance anyone has to notice.
+    write("knowledge/x.md", "see [[profile/about-me]] for who they are\n");
+    git("add", "-A");
+    git("commit", "-qm", "note");
+    run("apply", "001");
+
+    const lines = migration.verify(vault).join("\n");
+    expect(lines).toContain("still point at profile/");
+    expect(lines).toContain("knowledge/x.md");
+  });
+
+  it("says so when nothing points at the old paths", () => {
+    run("apply", "001");
+    expect(migration.verify(vault).join("\n")).toContain("no note still points at");
+  });
+
+  it("leaves archived notes out of the count", () => {
+    // An archive is a record of what was true then. A link in it is not a bug
+    // to fix, and listing it would only train the reader to ignore the list.
+    write("archive/old.md", "see [[profile/about-me]]\n");
+    git("add", "-A");
+    git("commit", "-qm", "archived");
+    run("apply", "001");
+    expect(migration.verify(vault).join("\n")).toContain("no note still points at");
+  });
+});
+
 describe("status", () => {
   it("reports a current vault as needing nothing", () => {
     run("apply", "001");

@@ -18,7 +18,7 @@
  * entries that was only ever grepped, which is the "reached by search" channel.
  * That is `memory/notes/`, one typed note per call.
  */
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { alreadyMigrated, deriveNotes, sourcePath } from "./lib/decision-log.mjs";
@@ -116,7 +116,15 @@ export default {
     };
   },
 
-  /** What a reader should check before trusting that this worked. */
+  /**
+   * What a reader should check before trusting that this worked.
+   *
+   * The link scan is the part worth having. Moving a note does not move the
+   * links into it, and Obsidian resolves `[[profile/about-me]]` to nothing
+   * without complaining — the owner finds out months later, in a note they
+   * happened to open. Wikilinks by bare basename are fine and are not counted;
+   * only path-style references break.
+   */
   verify(vault) {
     const policy = join(identityDir(vault), "decision-policy.md");
     const notesDir = join(vault, "memory", "notes");
@@ -135,6 +143,62 @@ export default {
       leftover.length
         ? `profile/ still holds: ${leftover.join(", ")}`
         : "profile/ is empty",
+      ...staleReferences(vault),
     ];
   },
 };
+
+/** Folders with nothing worth scanning, or nothing that should be rewritten. */
+const SKIP = new Set([
+  ".git",
+  ".obsidian",
+  "node_modules",
+  "archive", // a historical record; rewriting it would falsify it
+  "memory", // the notes this migration just wrote say where they came from
+  "_ai", // agent logs and indexes — records of what was true, not links anyone follows
+]);
+
+const STALE = /profile\/(about-me|decision-policy|decision-log|strategist)/;
+
+function walk(dir, out, depth = 0) {
+  if (depth > 6) return out;
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
+  for (const name of entries) {
+    if (SKIP.has(name) || name.startsWith(".")) continue;
+    const path = join(dir, name);
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) walk(path, out, depth + 1);
+    else if (name.endsWith(".md")) out.push(path);
+  }
+  return out;
+}
+
+function staleReferences(vault) {
+  const hits = [];
+  for (const path of walk(vault, [])) {
+    let text;
+    try {
+      text = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    if (!STALE.test(text)) continue;
+    hits.push(rel(path.slice(vault.length + 1)));
+  }
+  if (!hits.length) return ["no note still points at the old profile/ paths"];
+  return [
+    `${hits.length} note(s) still point at profile/… — those links now resolve to nothing:`,
+    ...hits.slice(0, 10).map((h) => `  ${h}`),
+    ...(hits.length > 10 ? [`  …and ${hits.length - 10} more`] : []),
+  ];
+}
