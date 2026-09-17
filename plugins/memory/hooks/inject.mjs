@@ -3,22 +3,22 @@
 // memories on every prompt — see memory-engine/lib/inject.mjs).
 // Silent no-op when the memory engine is not set up on this machine or the
 // feature is disabled for Claude Code in the workhub app settings.
-import { readPayload } from "./lib.mjs";
+import { readPayload } from "../lib/hook-input.mjs";
 
 try {
-  const paths = await import("../memory-engine/lib/paths.mjs");
+  const paths = await import("../engine/lib/paths.mjs");
   if (!paths.readMarker() || !paths.memoryEnabled("claude_code")) process.exit(0);
 
   const vault = paths.resolveVaultForHook();
   if (!vault) process.exit(0);
 
-  const { loadSqlite } = await import("../memory-engine/lib/deps.mjs");
+  const { loadSqlite } = await import("../engine/lib/deps.mjs");
   const sqlite = loadSqlite();
   if (!sqlite) process.exit(0);
 
   const payload = readPayload();
-  const dbLib = await import("../memory-engine/lib/db.mjs");
-  const { buildInjection } = await import("../memory-engine/lib/inject.mjs");
+  const dbLib = await import("../engine/lib/db.mjs");
+  const { buildInjection } = await import("../engine/lib/inject.mjs");
   const db = dbLib.openDb(paths.dbPathForVault(vault), sqlite);
   let text = "";
   try {
@@ -27,7 +27,7 @@ try {
       prompt: payload.prompt ?? "",
       sessionId: payload.session_id ?? "",
     });
-    const { maybeTriggerEmbed } = await import("../memory-engine/lib/background.mjs");
+    const { maybeTriggerEmbed } = await import("../engine/lib/background.mjs");
     maybeTriggerEmbed(db);
   } finally {
     db.close();

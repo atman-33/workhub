@@ -52,11 +52,11 @@ argument-hint: "<task-id>"
      `pending` are unanswered — do not ask them again.
 
      **Then feed the answer back.** For each answer, append one entry to
-     `<vault>/profile/decision-log.md` under `## Decisions`:
+     `<vault>/memory/notes/` under `## Decisions`:
      `- <date> <task-id> <the rule this establishes>` with
      `(from: <question-id>)` on the next line. If the answer is a standing
      leaning rather than a one-off call, put it in
-     `<vault>/profile/decision-policy.md`'s `## Preferences` instead; if the
+     `<vault>/memory/identity/decision-policy.md`'s `## Preferences` instead; if the
      same reasoning has now settled a second question, promote it to that
      note's `## Promoted rules` as an axis. Say which you chose. An answer
      that is not written back gets asked again next time, which is the whole

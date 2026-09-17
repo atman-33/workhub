@@ -16,7 +16,7 @@ The hooks stay silently disabled until this one-time machine setup has run.
    already set up):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" setup
+   node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" setup
    ```
 
    This installs npm dependencies (node-sqlite3-wasm,
@@ -36,7 +36,7 @@ The hooks stay silently disabled until this one-time machine setup has run.
 2. **Verify**:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" status
+   node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" status
    ```
 
    Report the summary (setup state, database path, memory counts) to the

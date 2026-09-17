@@ -18,6 +18,7 @@
     { "name": "writing", "source": "./plugins/writing" },
     { "name": "strategy", "source": "./plugins/strategy" },
     { "name": "team-ops", "source": "./plugins/team-ops" },
+    { "name": "memory", "source": "./plugins/memory" },
     { "name": "team-comms", "source": "./plugins/team-comms" },
     { "name": "obsidian", "source": "./plugins/obsidian" },
     { "name": "persona", "source": "./plugins/persona" },

@@ -1,9 +1,9 @@
 ---
 title: About me
 created: 2026-07-10
-type: profile
+type: identity
 tags:
-  - profile
+  - identity
 ---
 
 # About me
@@ -13,7 +13,7 @@ on the owner's background, current context, or preferences — it saves
 re-explaining the same premises in every session.
 
 Fill it in yourself, or ask an agent to draft it: *"Summarize everything you
-currently know about me and save it to `profile/about-me.md`."*
+currently know about me and save it to `memory/identity/about-me.md`."*
 Then correct the draft. Growing it over time is the point; it does not have to
 be complete on day one.
 
@@ -36,7 +36,7 @@ freely.
 
 ## Preferences
 
-How you like an agent to work is recorded in [[profile/decision-policy]], under
+How you like an agent to work is recorded in [[memory/identity/decision-policy]], under
 its `## Preferences` section — that note is what agents consult when they build
 a recommendation, so keeping the two in one place stops them drifting apart.
 

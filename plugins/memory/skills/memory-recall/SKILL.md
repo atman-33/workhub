@@ -19,13 +19,13 @@ embeddings, RRF fusion, time decay) runs fully locally via the engine CLI.
 
    ```bash
    # recent timeline (no query)
-   node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" recent --limit 20
+   node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" recent --limit 20
 
    # search all time
-   node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" recall "<query>" --limit 5
+   node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" recall "<query>" --limit 5
 
    # search the last N days only
-   node "${CLAUDE_PLUGIN_ROOT}/memory-engine/cli.mjs" recall "<query>" --days 30 --limit 5
+   node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" recall "<query>" --days 30 --limit 5
    ```
 
    Add `--full` to print untruncated texts when the clipped output is not

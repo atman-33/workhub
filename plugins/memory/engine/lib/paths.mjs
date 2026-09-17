@@ -35,6 +35,21 @@ export function engineHome() {
   return process.env.WORKHUB_ENGINE_HOME ?? ENGINE_HOME;
 }
 
+/** Where `setup` puts the version-stable engine copy, under {@link engineHome}. */
+export function installedEngineDir() {
+  return join(engineHome(), "engine");
+}
+
+/** The embedding model cache, under {@link engineHome}. */
+export function modelsDir() {
+  return join(engineHome(), "models");
+}
+
+/** The setup marker, under {@link engineHome}. */
+export function markerPath() {
+  return join(engineHome(), ".setup-version");
+}
+
 // Capture health and the retry queue are machine-local: the queue holds
 // transcript paths, which only mean anything on the machine that wrote them.
 export function captureStatePath() {
@@ -119,7 +134,7 @@ export function memoryEnabled(agent) {
  */
 export function readMarker() {
   try {
-    const marker = JSON.parse(readFileSync(MARKER_PATH, "utf8"));
+    const marker = JSON.parse(readFileSync(markerPath(), "utf8"));
     return marker.version === ENGINE_VERSION ? marker : null;
   } catch {
     return null;

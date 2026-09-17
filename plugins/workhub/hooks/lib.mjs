@@ -44,7 +44,7 @@ function isWithin(dir, root) {
  * That cwd gate is what makes this plugin safe to install at user scope. The
  * app config alone resolves a vault from any directory on the machine, so
  * without the gate every session in every repository would get the owner
- * profile injected, its prompts answered out of vault memory, and its
+ * identity injected, its prompts answered out of vault memory, and its
  * transcript captured into the vault memory database. Outside the vault the
  * hooks now no-op exactly as they already do on a machine that has no vault.
  *
@@ -65,27 +65,34 @@ export function resolveVault() {
 }
 
 /**
- * The owner's profile folder: `<vault>/profile/`, holding `about-me.md` and
- * `decision-policy.md`. It sits at the vault root rather than under
- * `knowledge/` because hooks, skills and the secretary agent all read it —
- * it is operational, not reference material.
+ * The always-loaded layer of the vault's memory: `<vault>/memory/identity/`,
+ * holding `about-me.md` and `decision-policy.md`.
+ *
+ * It is read in full on every session, which is the whole reason it is capped
+ * and kept separate from `memory/notes/` — those are reached by search. The
+ * split is by how something gets into a session, not by what it is about.
+ *
+ * This used to be `<vault>/profile/`. The two were the same layer described
+ * twice, and `memory/` does everything the old folder did with types, an
+ * index and a health check on top (T-0374). No fallback: the move happens
+ * once.
  */
-export function resolveProfileDir(vault) {
-  return join(vault, "profile");
+export function resolveIdentityDir(vault) {
+  return join(vault, "memory", "identity");
 }
 
-/** The owner's decision policy note, the file the profile hooks gate on. */
+/** The owner's decision policy note, the file the identity hooks gate on. */
 export function resolveDecisionPolicy(vault) {
-  return join(resolveProfileDir(vault), "decision-policy.md");
+  return join(resolveIdentityDir(vault), "decision-policy.md");
 }
 
 /**
- * The owner's decision log: the individual calls they have settled. It is the
- * long tail of the policy, kept in its own file so the policy stays short
- * enough to be read in full on every question — this one is only ever grepped.
+ * Where the individual calls the owner has settled live: one typed note each
+ * (`type: decision`) under `<vault>/memory/notes/`, found by search rather
+ * than read whole. The policy holds the axes; these are the cases.
  */
-export function resolveDecisionLog(vault) {
-  return join(resolveProfileDir(vault), "decision-log.md");
+export function resolveNotesDir(vault) {
+  return join(vault, "memory", "notes");
 }
 
 /**

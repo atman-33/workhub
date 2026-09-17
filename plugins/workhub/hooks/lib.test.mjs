@@ -122,13 +122,13 @@ describe("profile paths", () => {
     vi.unstubAllEnvs();
   });
 
-  it("resolves the policy and the log to separate notes in profile/", async () => {
-    const { resolveDecisionPolicy, resolveDecisionLog } = await load(fx.vault, fx.home);
+  it("separates the always-loaded policy from the searched notes", async () => {
+    // Two layers of `memory/`, not one folder with two kinds of file in it:
+    // the policy is read in full on every question, the notes are searched.
+    const { resolveDecisionPolicy, resolveNotesDir } = await load(fx.vault, fx.home);
     expect(resolveDecisionPolicy(fx.vault)).toBe(
-      join(fx.vault, "profile", "decision-policy.md")
+      join(fx.vault, "memory", "identity", "decision-policy.md")
     );
-    expect(resolveDecisionLog(fx.vault)).toBe(
-      join(fx.vault, "profile", "decision-log.md")
-    );
+    expect(resolveNotesDir(fx.vault)).toBe(join(fx.vault, "memory", "notes"));
   });
 });

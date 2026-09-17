@@ -23,13 +23,13 @@ var → the current directory when it has `tasks/` and `_ai/` → `vault_path` i
 
 | Path | What it is |
 |---|---|
-| `profile/strategist.md` | this skill's settings: `persona:` and the owner's standing instructions |
+| `memory/identity/strategist.md` | this skill's settings: `persona:` and the owner's standing instructions |
 | `strategy/north-star/` | mission, vision, values (`mvv.md`); rules they will not break (`rules.md`) |
 | `strategy/current/` | present tense (`business.md`); the quarter's intentions (`roadmap.md`) |
 | `strategy/bottlenecks/` | one file per wall, plus a `README.md` describing the convention |
-| `profile/about-me.md` | who the owner is |
-| `profile/decision-policy.md` | what may be settled alone; `## Preferences` and `## Promoted rules` |
-| `profile/decision-log.md` | the individual calls already settled — grep it, never read it whole |
+| `memory/identity/about-me.md` | who the owner is |
+| `memory/identity/decision-policy.md` | what may be settled alone; `## Preferences` and `## Promoted rules` |
+| `memory/notes/` | the individual calls already settled — grep it, never read it whole |
 | `_ai/logs/decisions.md` | where a settled decision is appended |
 
 `strategy/` is not a project. A project's own plan lives in
@@ -40,7 +40,7 @@ re-reading whole project folders.
 
 ### 1. Read the settings
 
-Read `profile/strategist.md`. Two things matter: the `persona:` frontmatter key,
+Read `memory/identity/strategist.md`. Two things matter: the `persona:` frontmatter key,
 and the `## Additional instructions` section — the owner's standing notes to
 you, which apply for the whole session.
 
@@ -82,7 +82,7 @@ reporting — continue unstyled.
 Read, in this order: `strategy/north-star/`, `strategy/current/`,
 `strategy/bottlenecks/` (open files only — `status: resolved` ones are history,
 read them only when they bear on what is being discussed), then
-`profile/about-me.md` and `profile/decision-policy.md`.
+`memory/identity/about-me.md` and `memory/identity/decision-policy.md`.
 
 Note the date on every number in `business.md`. An undated figure is stale
 until the owner says otherwise, and saying so is itself a finding.
@@ -154,8 +154,8 @@ edits, then making the approved ones.
 - Append one line per settled decision to `_ai/logs/decisions.md`:
   `- <date> [strategist] <the decision> (basis: <what it followed from>)`.
 - When the owner reveals a standing preference rather than a one-off call, add
-  it to `profile/decision-policy.md`'s `## Preferences` and say that is where
-  it went. A one-off call goes to `profile/decision-log.md` instead.
+  it to `memory/identity/decision-policy.md`'s `## Preferences` and say that is where
+  it went. A one-off call goes to `memory/notes/` instead.
 
 ### 8. Put the persona back
 
@@ -170,7 +170,7 @@ persona ends with none.
 
 ## Conduct
 
-Fixed. `profile/strategist.md` may add instructions; it may not soften these.
+Fixed. `memory/identity/strategist.md` may add instructions; it may not soften these.
 
 - **Never answer with agreement alone.** If the owner is right, say what makes
   it right and what would have to be true for it to stop being right.

@@ -30,16 +30,14 @@ delegates to the first two.
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `profile-inject` | SessionStart | Point the session at the owner's `profile/` — `decision-policy.md`, `decision-log.md` and `about-me.md` |
+| `profile-inject` | SessionStart | Point the session at the owner's `memory/identity/` — `decision-policy.md`, `decision-log.md` and `about-me.md` |
 | `harness/inject-project-context` | SessionStart | Inject the app's registered projects — see [Harness hooks](#harness-hooks) |
 | `harness/inject-target-rules` | PreToolUse (Read/Edit/Write) | Inject a sibling repository's `CLAUDE.md` and `.claude/rules` |
 | `harness/inject-extended-rules` | PreToolUse (Read/Edit/Write) | Inject the vault's `.claude/rules-ex` rules that target other repositories |
 | `vault-write-guard` | PreToolUse (Write) | Refuse to overwrite an existing note in the vault's human zone |
 | `secretary-gate` | PreToolUse (AskUserQuestion) | Consult the `secretary` agent before a question reaches the owner (off by default) |
 | `secretary-consulted` | PostToolUse (Task) | Record that the secretary was consulted |
-| `memory-inject` | UserPromptSubmit | Inject relevant long-term memory |
 | `task-sync-reminder` | Stop | Remind to run `task-report` if a started task was left unreported |
-| `memory-capture` | Stop | Save the session's chunks into the vault memory database |
 
 ## Vault contract
 
@@ -58,14 +56,13 @@ The vault path is resolved in this order:
 That last condition is what makes this plugin safe to install at user scope.
 Its hooks run in every session on the machine, and the app's config resolves a
 vault from anywhere; without the check, a session in an unrelated repository
-would get the owner's profile injected, its prompts answered out of vault
-memory, and its transcript captured into the vault database. Resolving to
-nothing outside the vault makes every hook here no-op exactly as it does on a
-machine with no vault at all.
+would get the owner's profile injected and its prompts answered against
+someone else's context. Resolving to nothing outside the vault makes every hook
+here no-op exactly as it does on a machine with no vault at all.
 
-The skills and the CLI scripts (`scripts/task-cli.mjs`, `scripts/comms-cli.mjs`,
-`memory-engine/cli.mjs`) deliberately keep the unconditional fallback: an
-explicit command should find the vault from wherever it is run.
+The skills and the CLI scripts (`scripts/task-cli.mjs`, `scripts/comms-cli.mjs`)
+deliberately keep the unconditional fallback: an explicit command should find
+the vault from wherever it is run.
 
 ## Session markers and cross-session messaging
 
@@ -111,11 +108,17 @@ the directory. Send a link to the deliverable note plus the reason it matters,
 never the contents: the vault is the durable channel, and a session that is not
 running has no address at all. `task-start` documents the procedure.
 
-Readers of the marker (`hooks/task-sync-reminder.mjs`, `hooks/memory-capture.mjs`,
-`memory-engine/cli.mjs`, `scripts/task-cli.mjs`) share `lib/session-marker.mjs`
-so the key is derived in exactly one place. A session that exports no id — an
-OpenCode run, a bare terminal — falls into a single `default` marker, which is
-also why it shows as `(not addressable)`.
+Readers of the marker (`hooks/task-sync-reminder.mjs`, `scripts/task-cli.mjs`)
+share `lib/session-marker.mjs` so the key is derived in exactly one place. A
+session that exports no id — an OpenCode run, a bare terminal — falls into a
+single `default` marker, which is also why it shows as `(not addressable)`.
+
+The `memory` plugin also reads markers, to file a session's chunks under the
+task that session is working. It cannot import this module — Claude Code caches
+each plugin by its own version — so it carries the read path as a copy, pinned
+against this file by `plugins/memory/copies.test.mjs`. The marker's location and
+key derivation are a contract between the two plugins, not an implementation
+detail of either.
 
 ## Harness hooks
 

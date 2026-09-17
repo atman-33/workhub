@@ -6,6 +6,10 @@ _ai/memory/memory.db
 _ai/memory/memory.db-wal
 _ai/memory/memory.db-shm
 
+# The memory search index is derived from memory/ and can be rebuilt at any
+# time; the Markdown beside it is the record and stays in git.
+memory/.index/
+
 # OpenCode plugin logs
 .opencode/plugins/logs/*
 !.opencode/plugins/logs/.gitkeep
