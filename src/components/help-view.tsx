@@ -321,9 +321,9 @@ Gives every agent session on the vault — Claude Code and OpenCode — a memory
 
 const SECRETARY_MD = `## Your profile — fewer, better questions
 
-Agents ask you for a decision far more often than they need to, and when they do ask they hand you an open choice, because nothing tells them what you would have said. The vault's \`profile/\` folder is the answer to both halves: \`about-me.md\` is who you are, \`decision-policy.md\` is how you decide.
+Agents ask you for a decision far more often than they need to, and when they do ask they hand you an open choice, because nothing tells them what you would have said. The vault's \`memory/identity/\` folder is the answer to both halves: \`about-me.md\` is who you are, \`decision-policy.md\` is how you decide.
 
-- **Write your policy first**: \`profile/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, how to handle the gray zone, and — under **Preferences** — the leanings a recommendation is built from. It sits at the vault root rather than under \`knowledge/\` because it is operational: hooks, skills and the secretary agent all read it.
+- **Write your policy first**: \`memory/identity/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, how to handle the gray zone, and — under **Preferences** — the leanings a recommendation is built from. It sits under \`memory/\` rather than \`knowledge/\` because it is operational: hooks, skills and the secretary agent all read it.
 - **Always on: questions arrive with a recommendation**. As soon as that note exists, every session is told to read it and to never put a bare choice to you — it works out the answer you would most likely give, offers it as the recommended option with the reason, and writes what you decide back into **Past decisions**. This costs nothing but the instruction itself, so it does not depend on the secretary switch below.
 - **Optional: the secretary answers for you.** Turned on, a small subagent judges each question against the same policy and only forwards what it genuinely cannot decide. Before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
 - **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
@@ -916,7 +916,8 @@ export function HelpView() {
               Agents ask you for a decision far more often than they need to, and when
               they do ask they hand you an open choice, because nothing tells them what
               you would have said. The vault&apos;s{" "}
-              <span className="font-mono text-xs">profile/</span> folder is the answer to
+              <span className="font-mono text-xs">memory/identity/</span> folder is the
+              answer to
               both halves:{" "}
               <span className="font-mono text-xs">about-me.md</span> is who you are,{" "}
               <span className="font-mono text-xs">decision-policy.md</span> is how you
@@ -926,12 +927,13 @@ export function HelpView() {
               <li>
                 <span className="font-medium text-foreground">Write your policy first</span>:{" "}
                 <span className="font-mono text-xs">
-                  profile/decision-policy.md
+                  memory/identity/decision-policy.md
                 </span>{" "}
                 in the vault (seeded by the vault template) lists what an agent may do
                 without asking, what must always come to you, how to handle the gray zone,
                 and — under <span className="font-medium">Preferences</span> — the leanings
-                a recommendation is built from. It sits at the vault root rather than under{" "}
+                a recommendation is built from. It sits under{" "}
+                <span className="font-mono text-xs">memory/</span> rather than{" "}
                 <span className="font-mono text-xs">knowledge/</span> because it is
                 operational: hooks, skills and the secretary agent all read it.
               </li>
