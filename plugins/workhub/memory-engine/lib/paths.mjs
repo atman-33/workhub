@@ -9,15 +9,41 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 
-// Bump when the dependency set or embedding model changes; `setup` re-runs
-// the full install when the marker's version no longer matches.
-export const ENGINE_VERSION = 2;
+// Bump when the dependency set, the embedding model, or the *set of files*
+// under this directory changes. `setup` short-circuits while the marker still
+// matches, so the copy it installed under INSTALLED_ENGINE_DIR is otherwise
+// never refreshed — and a copy missing a newly added module fails to load for
+// every caller that uses it (the OpenCode plugin, a plain terminal).
+// 3: added lib/capture.mjs (T-0366).
+export const ENGINE_VERSION = 3;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
 export const MODELS_DIR = join(ENGINE_HOME, "models");
 export const LOCK_PATH = join(ENGINE_HOME, "embed.lock");
 export const INJECT_STATE_PATH = join(ENGINE_HOME, "inject-state.json");
+
+/**
+ * Engine home for this process.
+ *
+ * `WORKHUB_ENGINE_HOME` overrides it so a test can point capture state at a
+ * temporary directory instead of the real install. Resolved per call rather
+ * than at import time, because a test sets the variable after the module has
+ * already been loaded.
+ */
+export function engineHome() {
+  return process.env.WORKHUB_ENGINE_HOME ?? ENGINE_HOME;
+}
+
+// Capture health and the retry queue are machine-local: the queue holds
+// transcript paths, which only mean anything on the machine that wrote them.
+export function captureStatePath() {
+  return join(engineHome(), "capture-state.json");
+}
+
+export function captureQueuePath() {
+  return join(engineHome(), "capture-queue.jsonl");
+}
 // Setup copies the engine source here so callers outside the Claude plugin
 // (OpenCode plugin, plain terminals) have a version-stable CLI path that
 // doesn't depend on the versioned plugin cache directory.

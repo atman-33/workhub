@@ -6,7 +6,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readSync, writeSync } from 
 import { createRequire } from "node:module";
 import { basename, dirname } from "node:path";
 
-const BUSY_TIMEOUT_MS = 5000;
+const BUSY_TIMEOUT_MS = 15000;
 
 // Offsets 18/19 of the SQLite header are the write/read format versions: 2
 // means the file is in WAL mode, 1 a rollback journal.
@@ -77,7 +77,16 @@ class Statement {
     this.stmt = raw.prepare(sql);
   }
   get(...params) {
-    return this.stmt.get(params);
+    // `all()`, not `get()`: node-sqlite3-wasm stops a single-row `get()` on
+    // the first row and leaves the statement un-reset, so the connection keeps
+    // a SHARED read lock until the statement is finalized. `buildInjection`
+    // reads stats that way and then awaits the embedding model for seconds, so
+    // under parallel sessions the readers starved the Stop hook's writer past
+    // the busy timeout and 93% of captures were dropped (T-0366). Stepping to
+    // completion resets the statement and releases the lock immediately.
+    // Every `get()` here is a single-row query (aggregate or COUNT), so
+    // materializing the result set costs nothing.
+    return this.stmt.all(params)[0] ?? null;
   }
   all(...params) {
     return this.stmt.all(params);
@@ -142,8 +151,10 @@ export function openDb(dbPath, { Database }) {
   const db = new Db(new Database(dbPath));
   // The WASM build cannot use WAL, so concurrent capture (Stop hook) and
   // inject (UserPromptSubmit) serialize on the write lock instead of running
-  // side by side. Both hold it only for a few milliseconds; the busy timeout
-  // makes the loser wait rather than fail.
+  // side by side. With `Statement.get()` fixed above, both hold it only for a
+  // few milliseconds and the busy timeout makes the loser wait rather than
+  // fail; the timeout is generous so a slow disk or an on-access virus scanner
+  // cannot turn a queue into a dropped session.
   db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
   return db;
 }

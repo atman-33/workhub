@@ -19,7 +19,7 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { makeEarlyPartId, normalizePath, safeReadText } from "./lib/project-context-core.ts";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -45,6 +45,25 @@ function engineReady(): boolean {
   return existsSync(ENGINE_CLI) && existsSync(MARKER_PATH) && memoryEnabledForOpencode();
 }
 
+/**
+ * Append a line to `.opencode/plugins/logs/memory.log`.
+ *
+ * The engine's diagnostics used to go to a discarded stderr, so an OpenCode
+ * session that never once managed to record a memory left no trace at all —
+ * which is how the gap found in T-0366 stayed invisible. Best-effort: a log
+ * that cannot be written must not break the chat.
+ */
+function logMemory(cwd: string, line: string): void {
+  try {
+    const dir = join(cwd, ".opencode", "plugins", "logs");
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "memory.log"), `${new Date().toISOString()} ${line}
+`);
+  } catch {
+    // nothing else to fall back to
+  }
+}
+
 /** Run an engine CLI command with a JSON payload on stdin; returns stdout. */
 function runEngine(command: string, payload: unknown, cwd: string): Promise<string> {
   return new Promise((resolve) => {
@@ -58,27 +77,37 @@ function runEngine(command: string, payload: unknown, cwd: string): Promise<stri
     try {
       const child = spawn(process.execPath, [ENGINE_CLI, command], {
         cwd,
-        stdio: ["pipe", "pipe", "ignore"],
+        stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
       });
       const timer = setTimeout(() => {
         child.kill();
+        logMemory(cwd, `${command}: timed out after ${ENGINE_TIMEOUT_MS}ms`);
         finish("");
       }, ENGINE_TIMEOUT_MS);
       let out = "";
+      let err = "";
       child.stdout.on("data", (d: Buffer) => {
         out += d.toString("utf8");
       });
-      child.on("error", () => {
+      child.stderr.on("data", (d: Buffer) => {
+        err += d.toString("utf8");
+      });
+      child.on("error", (e: Error) => {
         clearTimeout(timer);
+        logMemory(cwd, `${command}: spawn failed — ${e.message}`);
         finish("");
       });
-      child.on("close", () => {
+      child.on("close", (code: number | null) => {
         clearTimeout(timer);
+        if (code !== 0 || err.trim()) {
+          logMemory(cwd, `${command}: exit ${code}${err.trim() ? ` — ${err.trim()}` : ""}`);
+        }
         finish(out.trim());
       });
       child.stdin.end(JSON.stringify(payload));
-    } catch {
+    } catch (e) {
+      logMemory(cwd, `${command}: ${(e as Error).message}`);
       finish("");
     }
   });
@@ -170,13 +199,16 @@ const memoryPlugin: Plugin = async (ctx, _options) => {
         const entries = (result as { data?: MessageEntry[] | undefined }).data ?? [];
         const messages = toSimpleMessages(entries);
         if (!messages.length) return;
-        await runEngine(
+        const out = await runEngine(
           "capture-json",
           { session_id: sessionID, project: workspaceRoot, messages },
           workspaceRoot,
         );
-      } catch {
-        // Capture is best-effort; never surface an error into the session.
+        if (out) logMemory(workspaceRoot, `capture-json: ${out}`);
+      } catch (e) {
+        // Capture is best-effort; never surface an error into the session —
+        // but do leave a trace, or a silent failure stays silent forever.
+        logMemory(workspaceRoot, `capture-json: ${(e as Error).message}`);
       }
     },
   };

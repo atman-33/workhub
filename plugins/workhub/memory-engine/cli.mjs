@@ -12,6 +12,8 @@
 //   node cli.mjs embed-pending [--all]  vectorize rows with embedding=NULL
 //   node cli.mjs recall <query> [--days N] [--limit N]   hybrid search
 //   node cli.mjs recent [--limit N]     newest chunks, no query
+//   node cli.mjs capture-retry          re-try transcripts queued by a busy
+//                                       database (capture drains it too)
 //
 // Claude Code hooks import lib/ directly; this CLI serves setup, explicit
 // recall (the memory-recall skill), background embedding, and the OpenCode
@@ -78,6 +80,22 @@ async function main() {
           db.close();
         }
       }
+      // Capture health is reported even when the database cannot be opened —
+      // "is it still recording?" is exactly the question an unopenable
+      // database needs answered (T-0366).
+      const { readCaptureState, queuedCount } = await import("./lib/capture.mjs");
+      const state = readCaptureState();
+      const queued = queuedCount();
+      const stamp = (t) => (t ? new Date(t * 1000).toISOString() : "never");
+      console.log(`last capture: ${stamp(state.lastSuccessAt)}`);
+      if (queued || state.consecutiveFailures) {
+        console.log(
+          `capture     : ${queued} queued, ${state.consecutiveFailures ?? 0} consecutive failure(s)` +
+            (state.lastError ? ` — ${state.lastError}` : ""),
+        );
+      } else {
+        console.log("capture     : healthy");
+      }
       return;
     }
 
@@ -86,14 +104,32 @@ async function main() {
       if (!transcript) throw new Error("usage: capture <transcript.jsonl> [--task <id>]");
       awaitedDb = await import("./lib/db.mjs");
       const { loadChunks } = await import("./lib/chunker.mjs");
-      const chunks = loadChunks(transcript);
-      const db = openVaultDb();
-      try {
-        const inserted = awaitedDb.saveChunksTextOnly(db, chunks, option("--task", ""));
-        console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
-      } finally {
-        db.close();
-      }
+      const { captureTranscript } = await import("./lib/capture.mjs");
+      const result = captureTranscript(
+        { openDb: openVaultDb, loadChunks, saveChunks: awaitedDb.saveChunksTextOnly },
+        transcript,
+        option("--task", ""),
+      );
+      if (result.drained) console.log(`recovered ${result.drained} chunk(s) from the retry queue`);
+      console.log(
+        result.queued
+          ? "database busy — transcript queued for the next capture"
+          : `captured ${result.inserted} new chunk(s)`,
+      );
+      return;
+    }
+
+    case "capture-retry": {
+      awaitedDb = await import("./lib/db.mjs");
+      const { loadChunks } = await import("./lib/chunker.mjs");
+      const { drainQueue, queuedCount } = await import("./lib/capture.mjs");
+      const before = queuedCount();
+      const written = drainQueue({
+        openDb: openVaultDb,
+        loadChunks,
+        saveChunks: awaitedDb.saveChunksTextOnly,
+      });
+      console.log(`queued ${before} -> ${queuedCount()}, wrote ${written} chunk(s)`);
       return;
     }
 
@@ -107,19 +143,24 @@ async function main() {
         sessionId: input.session_id ?? "",
         project: input.project ?? "",
       });
-      const db = openVaultDb();
+      // Falls back to the marker of the session this CLI is running in.
+      // OpenCode exports no session id, so its sessions all share the
+      // `default` marker — the same bucket `task-cli start` wrote to there,
+      // which is why the lookup deliberately ignores `input.session_id`.
+      const taskId = input.task_id || readSessionMarker(resolveVault(), sessionKey())?.id || "";
+      // No transcript file to re-read later, so a busy database can only be
+      // retried here, not queued.
+      const { withRetry } = await import("./lib/capture.mjs");
+      const inserted = withRetry(openVaultDb, (db) =>
+        awaitedDb.saveChunksTextOnly(db, chunks, taskId),
+      );
+      console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
+      const { maybeTriggerEmbed } = await import("./lib/background.mjs");
+      const embedDb = openVaultDb();
       try {
-        // Falls back to the marker of the session this CLI is running in.
-        // OpenCode exports no session id, so its sessions all share the
-        // `default` marker — the same bucket `task-cli start` wrote to there,
-        // which is why the lookup deliberately ignores `input.session_id`.
-        const taskId = input.task_id || readSessionMarker(resolveVault(), sessionKey())?.id || "";
-        const inserted = awaitedDb.saveChunksTextOnly(db, chunks, taskId);
-        console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
-        const { maybeTriggerEmbed } = await import("./lib/background.mjs");
-        maybeTriggerEmbed(db);
+        maybeTriggerEmbed(embedDb);
       } finally {
-        db.close();
+        embedDb.close();
       }
       return;
     }

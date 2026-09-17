@@ -14,6 +14,8 @@ Node for the workhub plugin ecosystem.
 session ends (Stop hook, async)          hooks/memory-capture.mjs
     transcript .jsonl → Q&A chunks (lib/chunker.mjs)
     → text-only insert into SQLite (embedding=NULL, FTS5 updated instantly)
+      retried on a busy database, queued for the next capture if it stays busy
+      (lib/capture.mjs)
     → ≥30 un-embedded rows? spawn detached `cli.mjs embed-pending --all`
       (lock file serializes runs; embedding = Ruri v3-310m ONNX on CPU)
 
@@ -85,8 +87,41 @@ node cli.mjs status                    # setup / DB state
 node cli.mjs recall "<query>" [--days N] [--limit N] [--full]
 node cli.mjs recent [--limit N]        # newest chunks, no query
 node cli.mjs capture <transcript.jsonl> [--task <id>]
+node cli.mjs capture-retry             # re-try transcripts a busy DB deferred
 node cli.mjs embed-pending [--all]     # vectorize rows with embedding=NULL
 ```
 
 Works from any agent (OpenCode included) or a plain terminal; only Node 20+
 is assumed.
+
+## Durability
+
+Capture is best-effort in the sense that it never breaks a session — but not
+in the sense that it may quietly lose one. It used to be both: the Stop hook
+swallowed every exception, so when the database was busy the session's chunks
+were gone and nothing said so. 180 of 193 sessions were lost that way over
+six weeks before anyone looked (T-0366).
+
+Three things keep that from recurring.
+
+**The contention is gone.** The WASM driver stops a single-row `get()` on the
+first row and leaves the statement un-reset, so the connection held a SHARED
+read lock until it was closed. `buildInjection` read stats that way and then
+awaited the embedding model for seconds, so parallel sessions starved the
+writer past the busy timeout. `Statement.get()` now steps to completion, which
+resets the statement and releases the lock immediately.
+
+**A busy database costs a delay, not a session.** `lib/capture.mjs` retries
+with backoff, and a transcript that still cannot be written is appended to
+`~/.workhub/memory-engine/capture-queue.jsonl` and re-tried by the next
+capture (or by `cli.mjs capture-retry`). Entries drop out when their
+transcript is deleted or after 14 days.
+
+**A stalled capture says so.** Every attempt updates
+`~/.workhub/memory-engine/capture-state.json`, which `cli.mjs status` reports
+and which adds a warning line to the first injected block of a session. A
+memory that has quietly stopped recording otherwise looks exactly like a
+memory with nothing to say.
+
+`WORKHUB_ENGINE_HOME` overrides the engine home for both files, so a test
+never shares a queue with the real install.
