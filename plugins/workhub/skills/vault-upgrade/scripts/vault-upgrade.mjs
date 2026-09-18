@@ -15,11 +15,13 @@
  *
  *   - **Nothing is deleted.** Every step is a move, a mkdir or a write.
  *     Removing a source file is always a separate, later decision by the owner.
- *   - **Nothing existing is overwritten.** On a collision the file already in
- *     place is diverted to `<name>.template.<ext>` and both are reported.
- *     There is no way to tell a template seed from the owner's own writing:
- *     `seed_only` paths are excluded from the template manifest
- *     (`src-tauri/src/tasks.rs`), so they carry no baseline hash to compare.
+ *   - **Nothing existing is overwritten, and a collision is never guessed.**
+ *     The one thing decidable about two colliding files is whether either is
+ *     byte-for-byte something the template shipped (`lib/seeds.mjs`). A
+ *     boilerplate source is left where it is; a boilerplate destination is
+ *     moved aside to `<name>.template.<ext>`; two files that are both real
+ *     writing stop the run. Guessing a direction is how T-0380 nearly put the
+ *     template's placeholder where the owner's note was.
  *   - **A dirty git worktree stops everything**, which keeps the whole run one
  *     `git checkout` away from undone.
  *   - **`apply` is idempotent**, because `detect` answers false once the shape
@@ -38,6 +40,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolveVault } from "../../../hooks/lib.mjs";
 import profileToMemory from "./migrations/001-profile-to-memory.mjs";
+import { fingerprint, isTemplate } from "./migrations/lib/seeds.mjs";
 
 /** Every migration, oldest first. Order is the order they are applied in. */
 const MIGRATIONS = [profileToMemory];
@@ -126,6 +129,30 @@ function runStep(vault, step, { dryRun, useGit, report }) {
       return;
     }
     if (existsSync(step.to)) {
+      // Both ends exist. Which one is the owner's cannot be guessed — T-0380
+      // guessed "the destination is the seed", met the reverse, and would have
+      // put template boilerplate where the owner's note was. What *can* be
+      // decided is whether either side is exactly something the template
+      // shipped; everything else stops and asks.
+      if (fingerprint(step.from) === fingerprint(step.to)) {
+        report.kept.push(`${rel(step.from)} (identical to ${rel(step.to)} — nothing to move)`);
+        report.left.push(`${rel(step.from)} — a duplicate of ${rel(step.to)}; safe to delete`);
+        return;
+      }
+      if (isTemplate(step.from, step.seeds)) {
+        report.kept.push(`${rel(step.from)} (template boilerplate, not your writing)`);
+        report.left.push(
+          `${rel(step.from)} — the template's placeholder, put back by an older app; safe to delete`,
+        );
+        return;
+      }
+      if (!isTemplate(step.to, step.seeds)) {
+        throw new Error(
+          `${rel(step.from)} and ${rel(step.to)} both hold writing that is not ` +
+            `template boilerplate, so there is no telling which one is yours. ` +
+            `Compare them, keep the one you want at ${rel(step.to)}, and re-run.`,
+        );
+      }
       const aside = divertedName(step.to);
       if (existsSync(aside)) {
         throw new Error(
@@ -134,7 +161,7 @@ function runStep(vault, step, { dryRun, useGit, report }) {
         );
       }
       if (!dryRun) move(vault, step.to, aside, useGit);
-      report.diverted.push(`${rel(step.to)} → ${rel(aside)} (was in the way)`);
+      report.diverted.push(`${rel(step.to)} → ${rel(aside)} (the template's placeholder)`);
     }
     if (!dryRun) move(vault, step.from, step.to, useGit);
     report.moved.push(`${rel(step.from)} → ${rel(step.to)}`);

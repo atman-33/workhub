@@ -109,3 +109,10 @@ Two things follow from this and are easy to get wrong:
   produced, the way `lib/decision-log.mjs` does.
 - **`left` is not a to-do list for the agent.** It is what the owner is being
   told was deliberately not touched.
+- **Expect the old path to come back.** An app from before your change still
+  carries the old template, and starting it once after the migration seeds the
+  old placeholders straight back — it happened to the first vault migration 001
+  ran against. Give every `move` step the fingerprints of every version the
+  template ever shipped at both ends (`seeds`, see `lib/seeds.mjs`), and have
+  `detect` ignore a source that is only a placeholder. Without them a collision
+  has no answer, and the runner stops rather than guess.

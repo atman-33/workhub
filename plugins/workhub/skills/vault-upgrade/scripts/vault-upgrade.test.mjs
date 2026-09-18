@@ -19,6 +19,10 @@ import migration from "./migrations/001-profile-to-memory.mjs";
 import { MARKER, alreadyMigrated, deriveNotes } from "./migrations/lib/decision-log.mjs";
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), "vault-upgrade.mjs");
+const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
+/** The template's own placeholder for a note — the boilerplate a vault gets seeded with. */
+const seed = (name) =>
+  readFileSync(join(REPO, "vault-template", "memory", "identity", name), "utf8");
 
 const LOG = `# Decision log
 
@@ -161,21 +165,71 @@ describe("apply", () => {
     expect(second.stdout).toContain("nothing to do");
   });
 
-  it("moves an occupying file aside instead of overwriting it", () => {
-    // A template seed and the owner's own writing are indistinguishable — the
-    // seeded paths carry no manifest baseline — so neither one is ever lost.
-    write("memory/identity/about-me.md", "seeded stub\n");
+  it("moves the template's placeholder aside to make room for the owner's note", () => {
+    // The app updated before the migration ran, so the template seeded a blank
+    // note at the destination. That one is recognisably boilerplate.
+    write("memory/identity/about-me.md", seed("about-me.md"));
     git("add", "-A");
-    git("commit", "-qm", "seed stub");
+    git("commit", "-qm", "seed");
 
-    const { stdout } = run("apply", "001");
+    const { stdout, status } = run("apply", "001");
+    expect(status).toBe(0);
     expect(stdout).toContain("moved aside");
     expect(readFileSync(join(vault, "memory/identity/about-me.template.md"), "utf8")).toBe(
-      "seeded stub\n",
+      seed("about-me.md"),
     );
     expect(readFileSync(join(vault, "memory/identity/about-me.md"), "utf8")).toContain(
       "The owner.",
     );
+  });
+
+  it("never puts boilerplate over the owner's note when an older app seeded it back", () => {
+    // T-0380: the migration had run, the owner deleted profile/, then an app
+    // from before the move started, found its seed files missing, and put the
+    // template's placeholders back. The old runner assumed the destination was
+    // the placeholder and would have moved the owner's note aside for it.
+    run("apply", "001");
+    rmSync(join(vault, "profile"), { recursive: true });
+    write("profile/about-me.md", seed("about-me.md"));
+    git("add", "-A");
+    git("commit", "-qm", "an older app seeded profile/ back");
+
+    const { stdout, status } = run("apply", "001");
+    expect(status).toBe(0);
+    expect(stdout).toContain("nothing to do");
+    expect(stdout).toContain("placeholders");
+    expect(readFileSync(join(vault, "memory/identity/about-me.md"), "utf8")).toContain(
+      "The owner.",
+    );
+    expect(existsSync(join(vault, "memory/identity/about-me.template.md"))).toBe(false);
+  });
+
+  it("stops rather than guess when both files are real writing", () => {
+    write("memory/identity/about-me.md", "a different owner's draft\n");
+    git("add", "-A");
+    git("commit", "-qm", "two drafts");
+
+    const { status, stderr } = run("apply", "001");
+    expect(status).not.toBe(0);
+    expect(stderr).toContain("no telling which one is yours");
+    // Nothing moved, nothing diverted.
+    expect(readFileSync(join(vault, "profile/about-me.md"), "utf8")).toContain("The owner.");
+    expect(readFileSync(join(vault, "memory/identity/about-me.md"), "utf8")).toBe(
+      "a different owner's draft\n",
+    );
+  });
+
+  it("leaves an exact duplicate where it is", () => {
+    write("memory/identity/about-me.md", "# About me\n\nThe owner.\n");
+    git("add", "-A");
+    git("commit", "-qm", "copied by hand");
+
+    const { stdout, status } = run("apply", "001");
+    expect(status).toBe(0);
+    expect(stdout).toContain("identical to memory/identity/about-me.md");
+    expect(existsSync(join(vault, "memory/identity/about-me.template.md"))).toBe(false);
+    // Left for the owner rather than deleted — a duplicate is still their file.
+    expect(existsSync(join(vault, "profile/about-me.md"))).toBe(true);
   });
 
   it("refuses a vault with uncommitted changes", () => {

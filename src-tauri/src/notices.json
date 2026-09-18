@@ -7,10 +7,14 @@
     "summary": "profile/ is now memory/identity/. Until it moves, agents are not being told who you are.",
     "body": "`profile/` became `memory/identity/` in 0.139.0, and the decision log became one typed note per call under `memory/notes/`. The two folders were the same thing described twice — what a session is told about you before it starts.\n\n**This vault has not made the move, and nothing will say so again.** The hook that injects your context looks for `memory/identity/decision-policy.md`, finds nothing, and exits without an error. Every session since has been starting without knowing who you are or how you decide.\n\nTwo more things make it worse than it looks:\n\n- The vault template adds files it finds missing, without asking. It will seed a **blank** `memory/identity/about-me.md` beside the one you actually wrote, and from then on the blank one is the one being read.\n- Leftover files are only listed when they still match the template byte for byte, so anything you edited yourself never appears in that list.\n\nThe migration is one skill. It shows you what would move before touching anything, refuses a vault with uncommitted work, never deletes and never overwrites, and tells you which links the move breaks.",
     "when": {
-      "path_exists": ["profile/decision-policy.md"]
+      "path_exists": ["profile/decision-policy.md"],
+      "unless_template": [
+        "bbddfe0764d89caf5cf6ae171a40cb1ccf922d83c9b3feecd14b1789bc15a5ff",
+        "e5403858037e45a2babe37f317788103ad44b83c33f46ee3c485f3db1d6f3298"
+      ]
     },
     "requires": {
-      "plugin": { "workhub": "0.40.0" }
+      "plugin": { "workhub": "0.40.1" }
     },
     "action": {
       "title": "Move profile/ to memory/identity/",
