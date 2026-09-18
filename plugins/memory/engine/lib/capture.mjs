@@ -191,6 +191,25 @@ export function captureTranscript({ openDb, loadChunks, saveChunks }, transcript
 }
 
 /**
+ * Capture chunks that arrive without a transcript file — the OpenCode plugin
+ * hands its messages over as JSON. Retries a busy database like
+ * {@link captureTranscript} and records health the same way, but cannot queue:
+ * there is no file to re-read later, so a write that runs out of retries
+ * throws. Returns the number of rows inserted.
+ */
+export function captureChunks({ openDb, saveChunks }, chunks, taskId = "") {
+  if (!chunks.length) return 0;
+  try {
+    const inserted = withRetry(openDb, (db) => saveChunks(db, chunks, taskId));
+    recordSuccess();
+    return inserted;
+  } catch (err) {
+    recordFailure(err.message);
+    throw err;
+  }
+}
+
+/**
  * Re-try every queued transcript. Entries that succeed — and entries whose
  * transcript is gone or too old to matter — leave the queue; the rest stay for
  * the next run. Returns the number of chunks written.

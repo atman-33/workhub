@@ -18,7 +18,10 @@ import { join, resolve, sep } from "node:path";
 // 4: added lib/doctor.mjs, lib/note.mjs, lib/schema.mjs (T-0367, T-0368).
 // 5: added lib/store.mjs, lib/brief.mjs, lib/checkpoint.mjs (T-0369).
 // 6: added lib/reflexes.mjs (T-0370).
-export const ENGINE_VERSION = 6;
+// 7: capture-json records capture health (T-0371). Not a new file, but the
+//    OpenCode plugin runs the installed copy, so without a bump the fix
+//    never reaches it.
+export const ENGINE_VERSION = 7;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");

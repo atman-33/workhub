@@ -25,7 +25,7 @@
 // default, since consulting a subagent costs tokens. Everything no-ops when the
 // vault has no decision policy to judge from.
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath } from "./lib/project-context-core.ts";
+import { makeEarlyPartId, nodeExecutable, normalizePath } from "./lib/project-context-core.ts";
 import {
   defaultClaudePluginsRoot,
   readProjectEnabledPlugins,
@@ -114,7 +114,7 @@ function resolveCommsCli(workspaceRoot: string): string | null {
 function runCommsCli(cli: string, args: string[], vault: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
-      process.execPath,
+      nodeExecutable(),
       [cli, ...args, "--vault", vault],
       { timeout: COMMS_CLI_TIMEOUT_MS },
       (error, stdout, stderr) => {

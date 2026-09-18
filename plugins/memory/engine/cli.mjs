@@ -218,10 +218,13 @@ ${total} finding(s) — none of them block anything.`);
       // which is why the lookup deliberately ignores `input.session_id`.
       const taskId = input.task_id || readSessionMarker(resolveVault(), sessionKey())?.id || "";
       // No transcript file to re-read later, so a busy database can only be
-      // retried here, not queued.
-      const { withRetry } = await import("./lib/capture.mjs");
-      const inserted = withRetry(openVaultDb, (db) =>
-        awaitedDb.saveChunksTextOnly(db, chunks, taskId),
+      // retried here, not queued — but health is still recorded, or `doctor`
+      // cannot tell a working OpenCode capture from a broken one (T-0371).
+      const { captureChunks } = await import("./lib/capture.mjs");
+      const inserted = captureChunks(
+        { openDb: openVaultDb, saveChunks: awaitedDb.saveChunksTextOnly },
+        chunks,
+        taskId,
       );
       console.log(`captured ${inserted} new chunk(s) (parsed ${chunks.length})`);
       const { maybeTriggerEmbed } = await import("./lib/background.mjs");

@@ -164,6 +164,21 @@ export function xmlEscape(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * The Node binary to run a `.mjs` helper with.
+ *
+ * Not simply `process.execPath`: that is Node only when a plugin runs under
+ * Desktop's sidecar. The opencode CLI is a Bun single-file binary, so there it
+ * is `opencode(.exe)` itself, and spawning it with a script path prints the
+ * CLI's usage and exits 1 — which is why OpenCode never once captured a memory
+ * (T-0371). Fall back to `node` on PATH, which every workhub helper needs anyway.
+ */
+export function nodeExecutable(): string {
+  const exec = process.execPath ?? "";
+  const base = exec.split(/[\\/]/).pop() ?? "";
+  return /^node(\.exe)?$/i.test(base) ? exec : "node";
+}
+
 export function makeEarlyPartId(): string {
   const chars =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
