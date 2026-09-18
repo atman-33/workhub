@@ -84,8 +84,10 @@ node scripts/comms.mjs init --root "G:\\Shared drives\\team-x\\claude-comms" \
   computers. `--person` is what a reader sees, so both machines show as one
   human.
 - `init` creates the space skeleton if it is missing, writes
-  `.claude/team-comms.json` (machine-local, gitignored), and round-trips a
-  read/write to catch a drive that is listed but not actually readable.
+  `.claude/team-comms.json` (machine-local), keeps it out of git through
+  `.git/info/exclude`, and round-trips a read/write to catch a drive that is
+  listed but not actually readable. It never edits `.gitignore` — in a workhub
+  vault that file belongs to the app's template and is rewritten on update.
 - On Google Drive, mark the comms folder **available offline** (or use
   mirroring). In streaming mode a read can block or fail on a file that has not
   been downloaded.

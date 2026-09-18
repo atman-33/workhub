@@ -443,3 +443,78 @@ describe("init", () => {
     expect(() => run(carol, ["init", "--root", space, "--agent-id", "Carol_PC"])).toThrow();
   });
 });
+
+describe("init keeps the machine-local config out of git", () => {
+  // T-0381: the setup skill told the agent to add the config to `.gitignore`.
+  // In a workhub vault that file belongs to the app's template, the next
+  // template update rewrote it, and the vault's auto-backup committed the
+  // config — this machine's Drive path and agent id.
+  const gitIn = (dir, ...args) =>
+    execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+
+  function repoAgent(name, { sub = "" } = {}) {
+    const agent = makeAgent(name);
+    gitIn(agent.root, "init", "-q");
+    gitIn(agent.root, "config", "user.email", "t@example.com");
+    gitIn(agent.root, "config", "user.name", "t");
+    if (!sub) return agent;
+    const nested = join(agent.root, sub);
+    mkdirSync(nested, { recursive: true });
+    return { ...agent, repo: agent.root, root: nested };
+  }
+
+  const exclude = (repo) => readFileSync(join(repo, ".git", "info", "exclude"), "utf8");
+
+  it("ignores it through .git/info/exclude and leaves .gitignore alone", () => {
+    const dave = repoAgent("dave");
+    writeFileSync(join(dave.root, ".gitignore"), "node_modules/\n");
+
+    run(dave, ["init", "--root", space, "--agent-id", "dave-pc", "--person", "dave"]);
+
+    expect(gitIn(dave.root, "check-ignore", ".claude/team-comms.json")).toBe(
+      ".claude/team-comms.json",
+    );
+    // A template-managed file is exactly the one a later update would rewrite.
+    expect(readFileSync(join(dave.root, ".gitignore"), "utf8")).toBe("node_modules/\n");
+  });
+
+  it("does not add the line twice", () => {
+    const dave = repoAgent("dave");
+    run(dave, ["init", "--root", space, "--agent-id", "dave-pc", "--person", "dave"]);
+    run(dave, ["init", "--root", space, "--agent-id", "dave-pc", "--person", "dave"]);
+    const hits = exclude(dave.root)
+      .split("\n")
+      .filter((l) => l.trim() === "/.claude/team-comms.json");
+    expect(hits).toHaveLength(1);
+  });
+
+  it("anchors the pattern to a project that sits inside a larger repository", () => {
+    const erin = repoAgent("erin", { sub: "apps/web" });
+    run(erin, ["init", "--root", space, "--agent-id", "erin-pc", "--person", "erin"]);
+    expect(exclude(erin.repo)).toContain("/apps/web/.claude/team-comms.json");
+    expect(gitIn(erin.root, "check-ignore", ".claude/team-comms.json")).toBe(
+      ".claude/team-comms.json",
+    );
+  });
+
+  it("says how to untrack it when it is already committed", () => {
+    // An exclude does nothing for a tracked file, which is how the config got
+    // into a vault's history. Saying nothing here would look like success.
+    const frank = repoAgent("frank");
+    mkdirSync(join(frank.root, ".claude"), { recursive: true });
+    writeFileSync(join(frank.root, ".claude", "team-comms.json"), "{}\n");
+    gitIn(frank.root, "add", "-A");
+    gitIn(frank.root, "commit", "-qm", "oops");
+
+    const out = run(frank, ["init", "--root", space, "--agent-id", "frank-pc", "--person", "frank"]);
+    expect(out).toContain("is tracked by git");
+    expect(out).toContain("rm --cached .claude/team-comms.json");
+  });
+
+  it("says nothing about git outside a repository", () => {
+    const gina = makeAgent("gina");
+    const out = run(gina, ["init", "--root", space, "--agent-id", "gina-pc", "--person", "gina"]);
+    expect(out).not.toContain("git:");
+    expect(out).not.toContain("tracked by git");
+  });
+});

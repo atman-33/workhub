@@ -12,6 +12,7 @@
  * Prints one JSON object describing what was created/kept.
  */
 
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -19,7 +20,7 @@ import {
   writeFileSync,
   appendFileSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import {
   LOCAL_CONFIG_RELATIVE_PATH,
   DEFAULT_WORKSPACES_ROOT,
@@ -88,19 +89,49 @@ mkdirSync(dirname(configPath), { recursive: true });
 writeFileSync(configPath, `${JSON.stringify(local, null, 2)}\n`, "utf8");
 
 // Keep the local config out of version control (it holds machine-local paths).
-const gitignorePath = join(projectRoot, ".gitignore");
-const ignoreEntry = ".claude/team-context.json";
+//
+// Through `.git/info/exclude`, not `.gitignore`. The project root is wherever
+// the session was opened, which in a workhub setup is usually the vault — and
+// there `.gitignore` belongs to the app's template, which rewrites it on every
+// update. A line appended to it vanishes, and the vault's auto-backup commits
+// the config. That happened to team-comms' identical config (T-0381).
+// `.git/info/exclude` is never tracked, so nothing rewrites it, and it lives
+// exactly as long as the clone this machine set up.
+let ignoreWarning = "";
 try {
-  const current = existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf8") : "";
-  if (!current.split(/\r?\n/).includes(ignoreEntry)) {
-    appendFileSync(
-      gitignorePath,
-      `${current.endsWith("\n") || current === "" ? "" : "\n"}${ignoreEntry}\n`,
-      "utf8",
-    );
+  const git = (/** @type {string[]} */ ...args) =>
+    execFileSync("git", ["-C", projectRoot, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  const found = git("rev-parse", "--git-path", "info/exclude");
+  const excludePath = isAbsolute(found) ? found : join(projectRoot, found);
+  const pattern = `/${git("rev-parse", "--show-prefix")}${LOCAL_CONFIG_RELATIVE_PATH}`;
+
+  let tracked = true;
+  try {
+    git("ls-files", "--error-unmatch", LOCAL_CONFIG_RELATIVE_PATH);
+  } catch {
+    tracked = false;
+  }
+  if (tracked) {
+    // An exclude does nothing for a tracked file.
+    ignoreWarning =
+      `${LOCAL_CONFIG_RELATIVE_PATH} is tracked by git, so ignoring it does nothing. ` +
+      `Stop tracking it (the file stays): git -C "${projectRoot}" rm --cached ${LOCAL_CONFIG_RELATIVE_PATH}`;
+  } else {
+    const current = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : "";
+    if (!current.split(/\r?\n/).includes(pattern)) {
+      mkdirSync(dirname(excludePath), { recursive: true });
+      appendFileSync(
+        excludePath,
+        `${current && !current.endsWith("\n") ? "\n" : ""}# team-ops: machine-local config, never committed\n${pattern}\n`,
+        "utf8",
+      );
+    }
   }
 } catch {
-  // best-effort; not all project roots are git repos
+  // not a git repository: nothing to keep it out of
 }
 
 // ---- 2. shared ai/ skeleton (create-if-missing) ---------------------------
@@ -205,5 +236,6 @@ process.stdout.write(
     project: project || null,
     created,
     kept: kept.length,
+    ...(ignoreWarning ? { warning: ignoreWarning } : {}),
   }),
 );

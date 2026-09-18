@@ -218,7 +218,11 @@
     <div class="card">
       <h3 style="margin-top:0">Local: <code>.claude/team-context.json</code> <span class="pill human">per machine</span></h3>
       <p style="font-size:14px">Created by <code>setup-team-context</code> in each working project /
-      harness workspace. Gitignored (mirrors the <code>project-context.json</code> pattern).</p>
+      harness workspace. Kept out of git through <code>.git/info/exclude</code>, never
+      <code>.gitignore</code>: the harness workspace is usually a workhub vault, whose
+      <code>.gitignore</code> the app's template rewrites on update, so an appended line does not
+      survive (T-0381). When the file is already tracked, setup reports it with the
+      <code>git rm --cached</code> command, since an exclude does nothing for a tracked file.</p>
 <pre>{
   "teamRootPath": "G:\\Shared drives\\team-x",
   "repoWorkspacesRoot": "C:\\repos\\.team-ops-repos",
