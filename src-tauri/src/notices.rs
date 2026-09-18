@@ -53,7 +53,7 @@ const NOTICES_JSON: &str = include_str!("notices.json");
 
 /// The shape a vault has to be in for a notice to apply.
 ///
-/// One flat list, not an expression language. See the module docs for why it
+/// Two flat lists, not an expression language. See the module docs for why it
 /// is only ever about paths that should have gone.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct When {
@@ -61,6 +61,30 @@ pub struct When {
     /// something the migration moves, so their survival is the evidence.
     #[serde(default)]
     pub path_exists: Vec<String>,
+    /// Fingerprints (sha256 of the LF-normalized text) of template
+    /// placeholders. A `path_exists` file whose content is one of these does
+    /// not count as present.
+    ///
+    /// Because an old path can come back without anyone putting it there. An
+    /// app from before the change still carries the old template, and starting
+    /// it once after the migration seeds the old placeholders straight back
+    /// into the vault — which is exactly how the first vault to migrate saw
+    /// this notice for a move it had already made (T-0380). A placeholder is
+    /// not the owner's writing, so there is nothing of theirs left to move.
+    #[serde(default)]
+    pub unless_template: Vec<String>,
+}
+
+/// sha256 of a file's text with CRLF folded to LF — the same fingerprint the
+/// `vault-upgrade` skill computes, so one list serves both. `None` when the
+/// file cannot be read, which callers treat as "not a placeholder": the safe
+/// reading of an unknown is that it might be the owner's.
+fn template_fingerprint(path: &Path) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let text = std::fs::read_to_string(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(text.replace("\r\n", "\n").as_bytes());
+    Some(format!("{:x}", hasher.finalize()))
 }
 
 impl When {
@@ -68,7 +92,16 @@ impl When {
     /// more likely to be an unfinished entry than a deliberate "always", and
     /// the harmless reading of a mistake is the one to take.
     fn matches(&self, vault: &Path) -> bool {
-        !self.path_exists.is_empty() && self.path_exists.iter().all(|p| vault.join(p).exists())
+        !self.path_exists.is_empty()
+            && self.path_exists.iter().all(|p| {
+                let path = vault.join(p);
+                path.exists() && !self.is_placeholder(&path)
+            })
+    }
+
+    fn is_placeholder(&self, path: &Path) -> bool {
+        !self.unless_template.is_empty()
+            && template_fingerprint(path).is_some_and(|f| self.unless_template.contains(&f))
     }
 }
 
@@ -206,6 +239,34 @@ mod tests {
         let ids: Vec<String> = pending(&vault, &[]).iter().map(|n| n.id.clone()).collect();
         assert!(!ids.is_empty());
         assert!(pending(&vault, &ids).is_empty());
+    }
+
+    #[test]
+    fn a_placeholder_seeded_back_by_an_older_app_does_not_count() {
+        // T-0380: an app from before the move started once, found its seed
+        // files missing and put them back. The notice fired for a migration
+        // the vault had already made.
+        let placeholder = "# Decision policy\r\n\r\nFill this in.\r\n";
+        let vault = temp_vault("ghost", &[]);
+        let path = vault.join("profile/decision-policy.md");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, placeholder).unwrap();
+
+        let when = When {
+            path_exists: vec!["profile/decision-policy.md".into()],
+            // Fingerprinted from the LF form: CRLF on disk must still match.
+            unless_template: vec![{
+                use sha2::{Digest, Sha256};
+                let mut h = Sha256::new();
+                h.update(placeholder.replace("\r\n", "\n").as_bytes());
+                format!("{:x}", h.finalize())
+            }],
+        };
+        assert!(!when.matches(&vault));
+
+        // The owner's own writing at the same path still fires.
+        fs::write(&path, "# Decision policy\n\nMy actual rules.\n").unwrap();
+        assert!(when.matches(&vault));
     }
 
     #[test]
