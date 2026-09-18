@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.140.1 (2026-09-19)
+
+- **The vault migration can no longer swap your note for a placeholder**
+  (T-0380). Starting an app from before 0.139.0 after migrating puts the old
+  `profile/` placeholders straight back, and the migration then met two files at
+  one path and assumed the one in `memory/identity/` was the placeholder — the
+  wrong way round, which would have made the template's boilerplate the note
+  every session reads. A collision is now decided only by whether a file is
+  exactly something the template shipped, and two real notes stop the run and
+  ask. The breaking-change notice no longer fires for placeholders that came
+  back this way, and now requires the fixed plugin (workhub 0.40.1) before it
+  offers to run anything.
+
 ## 0.140.0 (2026-09-18)
 
 - **The app says when a release has already broken your vault** (T-0377). A
