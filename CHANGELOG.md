@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.140.2 (2026-09-19)
+
+- **OpenCode sessions are remembered at last** (T-0371). Long-term memory
+  never recorded a single OpenCode session. The vault's memory plugin started
+  the engine with the runtime it was itself running on, which under the
+  opencode CLI is `opencode.exe` rather than Node, so every call printed
+  OpenCode's usage and gave up. It now starts Node explicitly. Capture from
+  OpenCode also reports its health now, so `memory-doctor` can tell a working
+  OpenCode capture from a broken one. Needs the memory plugin 0.4.2 and a
+  re-run of `memory-setup`.
+- **OpenCode follows the owner's decision policy again** (T-0384). Since the
+  move to `memory/identity/`, the OpenCode secretary plugin was still looking
+  in `profile/`, found nothing, and switched itself off, so OpenCode sessions
+  never saw the policy. It now reads the new location and injects the same
+  guidance as Claude Code. A successful capture also no longer leaves a line in
+  the OpenCode memory log, which `memory-doctor` read as a problem.
+- **Team setups no longer leak this machine's config into the vault's git**
+  (T-0381). team-comms and team-ops kept their per-machine config out of git by
+  adding it to `.gitignore`, which the vault template rewrites on update, so
+  the line vanished and the auto-backup committed a Drive path and an agent id.
+  They now use `.git/info/exclude`, which no template touches, and the vault
+  template's `.gitignore` lists both files as well.
+
 ## 0.140.1 (2026-09-19)
 
 - **The vault migration can no longer swap your note for a placeholder**
