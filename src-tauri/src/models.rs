@@ -282,6 +282,14 @@ pub struct Settings {
     /// stored shape does not have to change for that.
     #[serde(default)]
     pub docs_roots: Vec<DocsRoot>,
+    /// Breaking-change notices the owner has marked as dealt with (T-0377).
+    ///
+    /// Vault-scoped, and the reason is the thing being tracked: not "has this
+    /// person read it" but "has **this vault** been dealt with". A second PC
+    /// that clones an already-migrated vault must not be warned about a move
+    /// that happened months ago on the first one.
+    #[serde(default)]
+    pub notices_read: Vec<String>,
     /// PlantUML server the Docs tab renders ```plantuml fences with
     /// (T-0279), e.g. `https://www.plantuml.com/plantuml`. Empty — the
     /// default — leaves the fences as code: rendering sends the diagram's
@@ -522,6 +530,7 @@ impl Default for Settings {
             schedule_locale: default_schedule_locale(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
+            notices_read: Vec::new(),
             docs_plantuml_server: String::new(),
             docs_shortcuts: Vec::new(),
             docs_list_pane: false,

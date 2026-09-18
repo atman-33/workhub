@@ -1,0 +1,21 @@
+[
+  {
+    "id": "profile-to-memory",
+    "since": "0.139.0",
+    "severity": "breaking",
+    "title": "Your profile has not moved into the vault's memory yet",
+    "summary": "profile/ is now memory/identity/. Until it moves, agents are not being told who you are.",
+    "body": "`profile/` became `memory/identity/` in 0.139.0, and the decision log became one typed note per call under `memory/notes/`. The two folders were the same thing described twice — what a session is told about you before it starts.\n\n**This vault has not made the move, and nothing will say so again.** The hook that injects your context looks for `memory/identity/decision-policy.md`, finds nothing, and exits without an error. Every session since has been starting without knowing who you are or how you decide.\n\nTwo more things make it worse than it looks:\n\n- The vault template adds files it finds missing, without asking. It will seed a **blank** `memory/identity/about-me.md` beside the one you actually wrote, and from then on the blank one is the one being read.\n- Leftover files are only listed when they still match the template byte for byte, so anything you edited yourself never appears in that list.\n\nThe migration is one skill. It shows you what would move before touching anything, refuses a vault with uncommitted work, never deletes and never overwrites, and tells you which links the move breaks.",
+    "when": {
+      "path_exists": ["profile/decision-policy.md"]
+    },
+    "requires": {
+      "plugin": { "workhub": "0.40.0" }
+    },
+    "action": {
+      "title": "Move profile/ to memory/identity/",
+      "project": "workhub",
+      "body": "This vault is still on the pre-0.139.0 layout: the owner's context lives in `profile/`, while the agent hooks read `memory/identity/`. The hooks fail silently on the missing path, so every session is starting without the owner's profile or decision policy.\n\nRun the `vault-upgrade` skill from the workhub plugin:\n\n1. `status` — confirm migration `001` reports as NEEDED.\n2. `plan 001` — show the owner exactly what would move, and wait for their approval. It touches nothing.\n3. `apply 001` — only after they agree. It refuses a vault with uncommitted changes; commit or discard first rather than working around it.\n\nWhat the migration does **not** do is as important as what it does. It never deletes and never overwrites: `profile/decision-log.md` is left in place after its contents become notes under `memory/notes/`, and a file already occupying a destination is moved aside rather than replaced. Removing anything is the owner's decision, and only after the new notes have been read and committed.\n\nAfterwards:\n\n- Have the owner review the diff and commit it. An uncommitted migration is one crash away from being lost.\n- Report the links the migration lists as broken. Do not rewrite them — most are records of what was true at the time, not links to repair.\n- Say plainly what moved, what was left alone, and what was not deleted."
+    }
+  }
+]

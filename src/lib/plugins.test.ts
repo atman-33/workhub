@@ -8,6 +8,7 @@ import {
   pluginsOfMarketplace,
   pluginSuggestions,
   pluginViews,
+  installedVersions,
   workhubPluginAlert,
 } from "@/lib/plugins";
 import type { MarketplaceInfo, PluginRow, PluginsState } from "@/types";
@@ -430,5 +431,37 @@ describe("pluginsOfMarketplace", () => {
       "superpowers",
     ]);
     expect(pluginsOfMarketplace(views, "genshijin")).toEqual([]);
+  });
+});
+
+describe("installedVersions", () => {
+  const install = (scope: "user" | "project", version: string) => ({
+    scope,
+    version,
+    project_path: "",
+    install_path: "",
+  });
+
+  it("reports what is on disk regardless of whether it is current", () => {
+    const s = state([
+      row({ name: "workhub", latest_version: "9.9.9", installs: [install("user", "0.40.0")] }),
+    ]);
+    expect(installedVersions(s)).toEqual({ workhub: "0.40.0" });
+  });
+
+  it("leaves out a plugin with nothing installed", () => {
+    expect(installedVersions(state([row({ name: "workhub", installs: [] })]))).toEqual({});
+  });
+
+  it("reports the newer copy when one is installed at both scopes", () => {
+    // A session resolves one of the two; claiming the older one would hold an
+    // action back that would in fact have worked.
+    const s = state([
+      row({
+        name: "workhub",
+        installs: [install("user", "0.35.2"), install("project", "0.40.0")],
+      }),
+    ]);
+    expect(installedVersions(s)).toEqual({ workhub: "0.40.0" });
   });
 });

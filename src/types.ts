@@ -153,6 +153,13 @@ export interface Settings {
    * drive is a value the team agreed on, not a property of this PC. Managed
    * from the Docs tab itself, not from the Settings dialog. */
   docs_roots: DocsRoot[];
+  /**
+   * Breaking-change notice ids this vault has been brought through (T-0377).
+   * Vault-scoped: it records that the *vault* was dealt with, not that a
+   * person read something, so a second machine cloning an already-migrated
+   * vault is not warned about a move that happened months ago.
+   */
+  notices_read: string[];
   /** PlantUML server the Docs tab renders ```plantuml fences with (T-0279);
    * "" (the default) leaves them as code, since rendering sends the diagram
    * source to that server. Vault-scoped with `docs_roots`. Managed from the
@@ -830,6 +837,35 @@ export interface Task {
   updated: string;
   file: string;
   body: string;
+}
+
+/**
+ * A breaking-change notice (T-0377). Bundled with the app; see
+ * `src-tauri/src/notices.rs` for why one fires on the vault's shape rather
+ * than on the version it was introduced in.
+ */
+export interface Notice {
+  id: string;
+  /** The release that introduced the change. Shown, never used to gate. */
+  since: string;
+  /** `breaking` keeps coming back until marked read; anything else dismisses. */
+  severity: "breaking" | "info";
+  title: string;
+  /** One line, for the banner. */
+  summary: string;
+  /** Markdown, for the detail dialog. */
+  body: string;
+  /** Plugin name -> minimum version needed before the action can be carried out. */
+  requires: { plugin: Record<string, string> };
+  action: NoticeAction;
+}
+
+export interface NoticeAction {
+  title: string;
+  /** Markdown, written into the filed task's `## Description`. */
+  body: string;
+  /** Vault project slug the task is filed under; empty for none. */
+  project: string;
 }
 
 export interface CreateTaskInput {

@@ -16,6 +16,7 @@ mod mindmap;
 mod mindmap_edit;
 mod models;
 mod music;
+mod notices;
 mod paste;
 mod persona;
 mod plantuml;
@@ -315,6 +316,7 @@ pub fn run() {
             commands::memory_setup_ok,
             commands::list_tasks,
             commands::create_task,
+            commands::notices,
             commands::update_task,
             commands::delete_task,
             commands::init_vault,

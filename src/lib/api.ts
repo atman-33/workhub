@@ -24,6 +24,7 @@ import type {
   MindmapDoc,
   MindmapEditRun,
   MindmapFile,
+  Notice,
   PersonaCharacter,
   PersonaState,
   PluginCommandResult,
@@ -125,6 +126,7 @@ export const api = {
   vaultInitialized: (vaultPath: string) =>
     invoke<boolean>("vault_initialized", { vaultPath }),
   listTasks: (vaultPath: string) => invoke<Task[]>("list_tasks", { vaultPath }),
+  notices: (vaultPath: string) => invoke<Notice[]>("notices", { vaultPath }),
   createTask: (vaultPath: string, input: CreateTaskInput) =>
     invoke<Task>("create_task", { vaultPath, input }),
   updateTask: (vaultPath: string, input: UpdateTaskInput) =>
