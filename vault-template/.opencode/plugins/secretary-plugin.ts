@@ -4,7 +4,7 @@
 // (plugins/workhub/hooks/secretary-*.mjs) — keep the two sides behaviorally
 // aligned. The pieces map like this:
 //
-//   profile-inject.mjs    -> "chat.message" (rules injected once per session)
+//   identity-inject.mjs   -> "chat.message" (rules injected once per session)
 //   secretary-consulted.mjs -> "tool.execute.after" on the task tool
 //   secretary-gate.mjs    -> the `ask_owner` tool below
 //
@@ -16,8 +16,8 @@
 // stop a model that simply asks in prose. The injected rule is what covers
 // that case, on both harnesses.
 //
-// The injected rules come in two tiers, mirroring profile-inject.mjs. The
-// owner-profile block (read the decision policy, attach a recommendation to
+// The injected rules come in two tiers, mirroring identity-inject.mjs. The
+// owner-identity block (read the decision policy, attach a recommendation to
 // every question, feed answers back) needs only a decision policy in the vault,
 // so it applies whether or not the secretary is on. The secretary block and the
 // `ask_owner` tool additionally require the workhub app setting
@@ -38,6 +38,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const COMMS_CLI_TIMEOUT_MS = 15_000;
+
+const posix = (p: string): string => p.replaceAll("\\", "/");
 
 // Same file format and directory as plugins/workhub/hooks/secretary-state.mjs,
 // so a session that consulted the secretary under one harness is recognized by
@@ -128,16 +130,20 @@ function runCommsCli(cli: string, args: string[], vault: string): Promise<string
 const secretaryPlugin: Plugin = async (ctx, _options) => {
   const workspaceRoot = normalizePath(ctx.directory);
   const vault = resolveVault(workspaceRoot);
-  const policyPath = vault ? join(vault, "profile", "decision-policy.md") : null;
+  // Same layout as plugins/workhub/hooks/lib.mjs (resolveIdentityDir and
+  // friends). No fallback to the pre-migration `profile/`: the vault-upgrade
+  // skill moves it, and a fallback would hide a vault that was never migrated.
+  const identityDir = vault ? join(vault, "memory", "identity") : null;
+  const policyPath = identityDir ? posix(join(identityDir, "decision-policy.md")) : null;
 
   // Tier 1 needs nothing but a decision policy to read; tier 2 additionally
   // needs the app setting, because it spends a subagent per question.
-  if (!vault || !policyPath || !existsSync(policyPath)) return {};
+  if (!vault || !identityDir || !policyPath || !existsSync(policyPath)) return {};
   const secretaryOn = readAppConfig().settings?.secretary_enabled === true;
 
   const injected = new Set<string>();
-  const aboutMePath = join(vault, "profile", "about-me.md");
-  const logPath = join(vault, "profile", "decision-log.md");
+  const aboutMePath = posix(join(identityDir, "about-me.md"));
+  const notesDir = posix(join(vault, "memory", "notes"));
 
   // The `tool` helper (and the zod re-export it carries) is a runtime value, so
   // it is imported dynamically: a host that does not provide it leaves the
@@ -151,18 +157,18 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     }
   }
 
-  const profileRule = [
-    "<owner-profile>",
-    "The owner's profile lives in the vault:",
+  const identityRule = [
+    "<owner-identity>",
+    "Who the owner is, and how they decide, lives in the vault's memory:",
     "",
     `- ${policyPath} — the axes: what you may decide alone, what has to come`,
     "  back to them, a `## Preferences` section describing how they like to work,",
     "  and `## Promoted rules` for the axes that came out of past decisions.",
     "  Short on purpose; read it in full.",
-    `- ${logPath} — the cases: every individual call the owner has settled.`,
-    "  Do **not** read it in full — it grows without limit. Grep it when the",
-    "  policy does not settle a question and a similar one may have come up",
-    "  before.",
+    `- ${notesDir} — the cases: every individual call the owner has settled,`,
+    "  one typed note each (`type: decision`). Do **not** read the folder whole —",
+    "  it grows without limit. Search it when the policy does not settle a",
+    "  question and a similar one may have come up before.",
     `- ${aboutMePath} — who they are and what context they already have.`,
     "",
     "Read the decision policy before putting any question to the owner, and act",
@@ -173,15 +179,16 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     "  as a recommended option, with the reason and the preference it came from.",
     "  Ask without a recommendation only when the profile genuinely does not lean",
     "  either way — and say that is why.",
-    "- **Feed the answer back.** Whenever the owner settles a question, append it",
-    "  to the decision log's `## Decisions`:",
-    "  `- <date> <task-id> <the rule this establishes>`, with",
-    "  `(from: <the question>)` on the next line. When the answer reveals a",
-    "  standing leaning rather than a one-off call, add it to the policy's",
-    "  `## Preferences` instead and say so; when the same reasoning has now",
-    "  settled a second question, promote it to `## Promoted rules` as an axis.",
-    "  This is what stops the same question being asked twice.",
-    "</owner-profile>",
+    "- **Feed the answer back.** Whenever the owner settles a question, write it",
+    "  as a note in that folder with `type: decision`, `status: accepted` and a",
+    "  `[decision]` observation carrying the rule it establishes — plus",
+    "  `[rationale]` and `[alternative]` where the conversation produced them.",
+    "  When the answer reveals a standing leaning rather than a one-off call, add",
+    "  it to the policy's `## Preferences` instead and say so; when the same",
+    "  reasoning has now settled a second question, promote it to the policy's",
+    "  `## Promoted rules` as an axis. This is what stops the same question being",
+    "  asked twice.",
+    "</owner-identity>",
   ].join("\n");
 
   const secretaryRule = [
@@ -205,7 +212,7 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     "</secretary-agent>",
   ].join("\n");
 
-  const rule = secretaryOn ? `${profileRule}\n\n${secretaryRule}` : profileRule;
+  const rule = secretaryOn ? `${identityRule}\n\n${secretaryRule}` : identityRule;
 
   const tools = toolHelper
     ? {
