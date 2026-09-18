@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.140.0 (2026-09-18)
+
+- **The app says when a release has already broken your vault** (T-0377). A
+  change to the vault's layout does not move existing vaults with it, and the
+  failure is silent by design: the agent hooks look for a path, do not find it,
+  and exit without an error — so the only symptom is an agent that has
+  forgotten who you are. A startup notice now names what changed and offers to
+  file the migration as a task, which is how you can tell afterwards whether it
+  actually ran. **If your vault still has a `profile/` folder, this is waiting
+  for you now.**
+
+  The notice watches your vault's shape rather than the version you updated
+  from, which is what makes it still correct weeks later — and on a second PC
+  that cloned the vault and never saw the first one migrate.
+
 ## 0.139.0 (2026-09-18)
 
 - **Your profile moved into the vault's memory** (T-0374). `profile/` is now
