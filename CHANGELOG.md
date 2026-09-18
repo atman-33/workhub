@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.139.0 (2026-09-18)
+
+- **Your profile moved into the vault's memory** (T-0374). `profile/` is now
+  `memory/identity/`, and the decision log is one typed note per call under
+  `memory/notes/`. The two folders were the same thing described twice — what
+  a session is told about you before it starts — and keeping both meant
+  drawing the boundary in prose forever. **An existing vault does not move on
+  its own, and the hooks that read it fail silently when it has not**, so run
+  the migration before opening a session:
+
+  ```bash
+  /vault-upgrade
+  ```
+
+- **`vault-upgrade` carries an existing vault through a structural change**
+  (T-0376). A new skill that shows exactly what would move, refuses a vault
+  with uncommitted work, never deletes and never overwrites, and reports the
+  links the move just broke — so a layout change stops being something you
+  find out about weeks later from an agent that has forgotten who you are.
+  Reusable: future structural changes arrive as further migrations inside it.
+- **Long-term memory stops losing sessions** (T-0366). Capture had been
+  failing on a locked database for 46 days, taking 180 of 193 sessions with
+  it and saying nothing. The cause was a read that held its lock across the
+  embedding step; capture now retries, queues what it still cannot write, and
+  reports its own health in `status`, the session briefing, and a new
+  `memory-doctor` — because a memory that has quietly stopped recording looks
+  exactly like one with nothing to say.
+- **Memory is its own plugin** (T-0367). It was the one part of `workhub` with
+  a per-machine setup step and a database of its own, and a vault that wants
+  neither should not have to give up the task board to say so.
+- **Memory notes carry a type, and the validator only ever warns** (T-0368).
+  `decision`, `session` and `lesson` are what make a note findable by
+  structure rather than by resemblance; an untyped note is invisible to the
+  opening brief rather than merely untidy. Validation never rejects a write —
+  a memory whose writes can fail stops being written to.
+- **A session opens with what is still open, and saves its place before it
+  forgets** (T-0369). The briefing asks for unsettled decisions and live
+  threads by type, not by similarity, and a checkpoint is written before the
+  context is compacted away. Promotion (`memory-reflect`) and forgetting
+  (`memory-tidy`) stay deliberate, split by what can be undone rather than by
+  what matters.
+- **Using memory became a reflex** (T-0370). A store nobody queries is the
+  same as no store, and whether it gets consulted otherwise depends on the
+  agent happening to think of it — which, deep in a session about something
+  else, it does not.
+
 ## 0.138.0 (2026-09-16)
 
 - **A pasted path opens in the Docs tab** (T-0362). A new "Open pasted path"
