@@ -199,12 +199,14 @@ const memoryPlugin: Plugin = async (ctx, _options) => {
         const entries = (result as { data?: MessageEntry[] | undefined }).data ?? [];
         const messages = toSimpleMessages(entries);
         if (!messages.length) return;
-        const out = await runEngine(
+        // Success is not logged: `memory-doctor` reads any entry in memory.log
+        // as a problem, and the engine already records a successful capture in
+        // its capture health (T-0371). runEngine logs the failures.
+        await runEngine(
           "capture-json",
           { session_id: sessionID, project: workspaceRoot, messages },
           workspaceRoot,
         );
-        if (out) logMemory(workspaceRoot, `capture-json: ${out}`);
       } catch (e) {
         // Capture is best-effort; never surface an error into the session —
         // but do leave a trace, or a silent failure stays silent forever.
