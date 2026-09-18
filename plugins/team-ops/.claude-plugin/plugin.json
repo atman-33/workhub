@@ -1,6 +1,6 @@
 {
   "name": "team-ops",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Team operations on a shared folder as the single source of truth: team knowledge base, file-based product backlog, sprint ceremonies, multi-repo progress tracking, and daily burndown/spec reporting.",
   "author": {
     "name": "atman-33",

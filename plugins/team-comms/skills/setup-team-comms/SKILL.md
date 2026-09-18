@@ -47,8 +47,13 @@ asynchronous discussion in it. See `${CLAUDE_PLUGIN_ROOT}/docs/design.html`.
    a thread is focused: `comms list` to see what is live, `team-focus` to opt
    in. This is the part people are surprised by, so state it.
 
-5. **Add `.claude/team-comms.json` to `.gitignore`** if the project tracks
-   `.claude/` — it is machine-local.
+5. **Do not touch `.gitignore`.** `init` already keeps
+   `.claude/team-comms.json` out of git through `.git/info/exclude`. In a
+   workhub vault `.gitignore` is owned by the app's template: a line added to
+   it disappears on the next template update, and the vault's auto-backup then
+   commits this machine's Drive path and agent id (T-0381). If `init` warns
+   that the file is **already tracked**, run the `git rm --cached` command it
+   prints — an exclude does nothing for a tracked file.
 
 ## Rules
 

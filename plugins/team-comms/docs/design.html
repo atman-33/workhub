@@ -539,7 +539,14 @@ every file operation. Nothing is written into a repository's CLAUDE.md.</p>
   <span class="k">"displayName"</span>: <span class="v">"alice (desktop)"</span>,
   <span class="k">"agent"</span>: <span class="v">"claude-code"</span>
 }</pre>
-<p>Gitignored. The only shared setting is <code>_meta/space.json</code>, which is effectively
+<p>Never committed, and <code>init</code> is what guarantees it: it adds the path to the
+repository's <code>.git/info/exclude</code>, and warns — with the command to fix it — when the file
+is already tracked, since an exclude does nothing for a tracked file. It deliberately does not
+touch <code>.gitignore</code>. In a workhub vault that file is owned by the app's template, and a
+line appended to it is gone after the next template update; that is how one of these configs
+reached a vault's history (T-0381). <code>.git/info/exclude</code> is never tracked, so nothing
+can rewrite it, and it lives exactly as long as the clone <code>init</code> ran in. The only
+shared setting is <code>_meta/space.json</code>, which is effectively
 immutable and so cannot conflict. <code>TEAM_COMMS_STATE_DIR</code> relocates the local state
 and exists for tests alone.</p>
 </section>

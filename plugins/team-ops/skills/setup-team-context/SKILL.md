@@ -24,7 +24,10 @@ single source of truth (see `${CLAUDE_PLUGIN_ROOT}/docs/design.html`).
      --team-root "<path>" --me "<name>" [--project "<name>"] [--language ja]
    ```
 
-   It writes/merges `.claude/team-context.json` (and gitignores it),
+   It writes/merges `.claude/team-context.json` and keeps it out of git
+   through `.git/info/exclude` — never `.gitignore`, which in a workhub vault
+   is rewritten by every template update. If the output carries a `warning`
+   that the file is already tracked, run the `git rm --cached` it names. It
    scaffolds `ai/` (`knowledge/`, `_meta/conventions.md`, `_meta/team.json`,
    `_meta/activity-log.md`), and — with `--project` — the project skeleton
    (`config/project.json`, `backlog/`, `sprints/`, `docs/spec/spec.md`,

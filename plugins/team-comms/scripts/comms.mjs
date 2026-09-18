@@ -27,8 +27,9 @@
  * Design document: ../docs/design.html
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import {
   AGENT_ID_RE,
@@ -276,17 +277,80 @@ function cmdInit(flags) {
   const configPath = join(projectRoot, ".claude", "team-comms.json");
   ensureDir(join(projectRoot, ".claude"));
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  const ignore = keepOutOfGit(projectRoot);
 
   console.log(`space:  ${config.commsRoot}`);
   console.log(`agent:  ${config.agentId} (person: ${config.person})`);
   console.log(`config: ${configPath}`);
   console.log("round-trip read/write: ok");
+  if (ignore) console.log(ignore);
   if (warning) console.log(warning);
   console.log(
     "\nNothing is injected into a session until you focus a thread:\n" +
       "  comms list            # see what is going on\n" +
       "  comms focus <thread>  # \"I am working in this thread now\"",
   );
+}
+
+/**
+ * Keep `.claude/team-comms.json` out of git, without touching a tracked file.
+ *
+ * The config names this machine's Drive path and agent id, so it must never be
+ * committed. This used to be a step in the setup skill — "add it to
+ * `.gitignore`" — and in a workhub vault that is exactly the wrong file:
+ * `.gitignore` there is managed by the app's vault template, the next template
+ * update rewrote it, the line vanished, and the vault's auto-backup committed
+ * the config (T-0381).
+ *
+ * `.git/info/exclude` has the right shape instead. It is never tracked, so no
+ * template or teammate can overwrite it, and it is per-clone — which is
+ * precisely the lifetime of a file only `init` on this machine creates.
+ *
+ * Returns a line to show the user, or "" when there is nothing to say. Never
+ * fails `init`: a project that is not a git repository has nothing to protect.
+ */
+function keepOutOfGit(projectRoot) {
+  const git = (...args) =>
+    execFileSync("git", ["-C", projectRoot, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+
+  let excludePath;
+  let pattern;
+  try {
+    // `--git-path` resolves worktrees to the shared `info/exclude`, and the
+    // prefix anchors the pattern to this project inside a larger repository.
+    const found = git("rev-parse", "--git-path", "info/exclude");
+    excludePath = isAbsolute(found) ? found : join(projectRoot, found);
+    pattern = `/${git("rev-parse", "--show-prefix")}.claude/team-comms.json`;
+  } catch {
+    return "";
+  }
+
+  // An exclude has no effect on a file git already tracks. That is how the
+  // config reached a vault's history in the first place, so say so plainly.
+  try {
+    git("ls-files", "--error-unmatch", ".claude/team-comms.json");
+    return (
+      "WARNING: .claude/team-comms.json is tracked by git, so ignoring it does " +
+      "nothing. Stop tracking it (the file stays):\n" +
+      `  git -C "${projectRoot}" rm --cached .claude/team-comms.json`
+    );
+  } catch {
+    // not tracked — the normal case
+  }
+
+  const current = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : "";
+  if (current.split(/\r?\n/).includes(pattern)) return "";
+  ensureDir(dirname(excludePath));
+  const lead = current && !current.endsWith("\n") ? "\n" : "";
+  appendFileSync(
+    excludePath,
+    `${lead}# team-comms: machine-local config, never committed\n${pattern}\n`,
+    "utf8",
+  );
+  return `git:    ignored via ${excludePath}`;
 }
 
 // ---------------------------------------------------------------------
