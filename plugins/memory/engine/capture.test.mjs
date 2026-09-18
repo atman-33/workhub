@@ -22,11 +22,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  captureChunks,
   captureHealthLine,
   captureTranscript,
   drainQueue,
   isBusyError,
   queuedCount,
+  readCaptureState,
   withRetry,
 } from "./lib/capture.mjs";
 import { ENGINE_HOME } from "./lib/paths.mjs";
@@ -207,6 +209,33 @@ describe("captureTranscript", () => {
     expect(() => captureTranscript(broken, transcript(), "")).toThrow(/no such table/);
     expect(queuedCount()).toBe(0);
     expect(captureHealthLine()).toMatch(/連続失敗/);
+  });
+});
+
+// OpenCode has no transcript file: its plugin hands the messages over as JSON.
+// That path wrote rows but never touched capture health, so `doctor` kept
+// saying "no capture has ever succeeded" while OpenCode was recording, and
+// would have said nothing had it been failing (T-0371).
+describe("captureChunks", () => {
+  const chunks = [{ user: "u0" }];
+
+  it("records a successful capture in capture health", () => {
+    expect(readCaptureState().lastSuccessAt).toBeNull();
+    expect(captureChunks(fakeDeps(), chunks, "T-0001")).toBe(1);
+    expect(readCaptureState().lastSuccessAt).toEqual(expect.any(Number));
+    expect(captureHealthLine()).toBe("");
+  });
+
+  it("records a failed capture instead of failing silently", () => {
+    const deps = fakeDeps({ busy: Number.MAX_SAFE_INTEGER });
+    expect(() => captureChunks(deps, chunks, "")).toThrow(/locked/);
+    expect(readCaptureState().consecutiveFailures).toBe(1);
+    expect(captureHealthLine()).toMatch(/連続失敗/);
+  });
+
+  it("leaves capture health alone when there is nothing to write", () => {
+    expect(captureChunks(fakeDeps(), [], "")).toBe(0);
+    expect(readCaptureState().lastSuccessAt).toBeNull();
   });
 });
 

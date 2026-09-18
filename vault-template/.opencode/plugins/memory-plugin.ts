@@ -17,7 +17,7 @@
 // whole feature can be turned off for OpenCode via the workhub app setting
 // `memory_opencode` (~/.workhub/config.json).
 import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath, safeReadText } from "./lib/project-context-core.ts";
+import { makeEarlyPartId, nodeExecutable, normalizePath, safeReadText } from "./lib/project-context-core.ts";
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -75,7 +75,7 @@ function runEngine(command: string, payload: unknown, cwd: string): Promise<stri
       }
     };
     try {
-      const child = spawn(process.execPath, [ENGINE_CLI, command], {
+      const child = spawn(nodeExecutable(), [ENGINE_CLI, command], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
