@@ -34,6 +34,7 @@ import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { MusicView } from "@/components/music/music-view";
 import { PersonaView } from "@/components/persona-view";
 import { PluginsView } from "@/components/plugins-view";
+import { BreakingChangeBanner } from "@/components/breaking-change-banner";
 import { PluginUpdateBanner } from "@/components/plugin-update-banner";
 import { NavListenerButton } from "@/components/nav-listener-button";
 import { NavMusicControl } from "@/components/music/nav-music-control";
@@ -69,11 +70,11 @@ import {
   normalizeAppZoom,
   parseAppZoom,
 } from "@/lib/app-zoom";
-import { workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
+import { installedVersions, workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
-import type { Settings, TemplateDiff, UpdateInfo } from "@/types";
+import type { Notice, Settings, TemplateDiff, UpdateInfo } from "@/types";
 
 /**
  * One tab's slot in the shell.
@@ -248,6 +249,13 @@ export default function App() {
   // Startup alert for the workhub plugin (T-0349): missing or outdated.
   // Dismissed or resolved states clear it; re-checking recreates it.
   const [pluginAlert, setPluginAlert] = useState<PluginAlert | null>(null);
+  // Breaking-change notices that apply to this vault and are unread (T-0377).
+  // Unlike the banners above, these describe damage that has already happened
+  // and that nothing else in the app will ever mention.
+  const [notices, setNotices] = useState<Notice[]>([]);
+  // Installed plugin versions, so a notice can hold its action back when the
+  // skill it names is not on this machine yet.
+  const [pluginVersions, setPluginVersions] = useState<Record<string, string>>({});
   // Bumped after every settings save; views reload their config when it changes.
   const [configVersion, setConfigVersion] = useState(0);
   // Bumped when the Projects view creates, archives or restores a vault
@@ -342,12 +350,30 @@ export default function App() {
 
   // The plugin check rides on `check_updates` rather than growing its own
   // toggle (T-0349): one switch for "tell me when something is stale".
-  const checkPlugin = useCallback(async (vaultPath: string) => {
+  const checkPlugin = useCallback(async (vaultPath: string, alert = true) => {
     try {
-      setPluginAlert(workhubPluginAlert(await api.pluginsState(vaultPath)));
+      const state = await api.pluginsState(vaultPath);
+      // The versions are read either way — a notice needs them to decide
+      // whether its action is possible — but the *alert* stays behind the
+      // user's switch, since that one really is a "tell me when something
+      // newer exists" preference.
+      setPluginVersions(installedVersions(state));
+      if (alert) setPluginAlert(workhubPluginAlert(state));
     } catch {
       // Never block startup on a plugin-check failure.
       setPluginAlert(null);
+    }
+  }, []);
+
+  // Notices are not behind `check_updates`. That switch means "tell me when
+  // something newer exists"; this is "something is already broken", which is
+  // not a preference about notifications (T-0377).
+  const checkNotices = useCallback(async (vaultPath: string) => {
+    try {
+      setNotices(await api.notices(vaultPath));
+    } catch {
+      // A notice that cannot be read must not stop the app opening.
+      setNotices([]);
     }
   }, []);
 
@@ -359,8 +385,9 @@ export default function App() {
       if (cfg.settings.check_updates) {
         setUpdate(await api.checkUpdate());
       }
-      if (cfg.settings.check_updates && cfg.settings.vault_path) {
-        await checkPlugin(cfg.settings.vault_path);
+      if (cfg.settings.vault_path) {
+        await checkPlugin(cfg.settings.vault_path, cfg.settings.check_updates);
+        await checkNotices(cfg.settings.vault_path);
       }
       if (cfg.settings.vault_path && cfg.settings.check_template_updates) {
         await checkTemplate(
@@ -446,6 +473,26 @@ export default function App() {
             onDismiss={() => setPluginAlert(null)}
           />
         )}
+        {/* Last in the stack, and the only one that is about damage rather
+            than availability — so it sits closest to the app it is about. */}
+        {settings?.vault_path &&
+          notices.map((notice) => (
+            <BreakingChangeBanner
+              key={notice.id}
+              notice={notice}
+              vaultPath={settings.vault_path as string}
+              pluginVersions={pluginVersions}
+              onOpenPlugins={() => setTab("plugins")}
+              onFiled={() => setTab("tasks")}
+              onMarkRead={(id) =>
+                saveSettings({
+                  ...(settings as Settings),
+                  notices_read: [...settings.notices_read, id],
+                }).then(() => setNotices((ns) => ns.filter((n) => n.id !== id)))
+              }
+              onDismiss={() => setNotices((ns) => ns.filter((n) => n.id !== notice.id))}
+            />
+          ))}
         <nav className="flex items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
           {/* The tab strip degrades with the window width (T-0207): all
               fourteen tabs plus the status cluster need ~1570px, well past the 720px

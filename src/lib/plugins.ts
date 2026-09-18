@@ -238,6 +238,28 @@ function alertBase(
   };
 }
 
+/**
+ * Installed version of every plugin in this state, keyed by name.
+ *
+ * Separate from `workhubPluginAlert` because the two answer different
+ * questions: the alert is "is something newer available", which is behind the
+ * user's update-check switch, while this is "what is actually on disk", which
+ * a breaking-change notice needs in order to know whether the skill it points
+ * at exists at all (T-0377).
+ */
+export function installedVersions(state: PluginsState): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const row of state.rows) {
+    const version = installedVersion(row, effectiveScope(row));
+    // Keep the highest when the same plugin is installed at both scopes: the
+    // session resolves one of them, and claiming the older is the unsafe lie.
+    if (version && (!out[row.name] || compareVersions(out[row.name], version) < 0)) {
+      out[row.name] = version;
+    }
+  }
+  return out;
+}
+
 export function workhubPluginAlert(state: PluginsState): PluginAlert | null {
   const home = state.marketplaces.find((m) => m.name === state.marketplace);
   if (!home?.clone_found || !home.catalog_found) {

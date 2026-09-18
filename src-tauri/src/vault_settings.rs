@@ -61,6 +61,10 @@ const VAULT_SCOPED: &[&str] = &[
     "voice_meetings_dir",
     "recurring",
     "tidy",
+    // Which breaking-change notices this *vault* has been brought through
+    // (T-0377). Not a per-person read flag: a second machine cloning an
+    // already-migrated vault must not be warned about a move it missed.
+    "notices_read",
     // The one path-shaped setting that is portable: a shared drive's location
     // is what the *team* agreed on, not a property of this machine (T-0259).
     "docs_roots",

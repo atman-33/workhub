@@ -727,6 +727,22 @@ pub async fn create_task(vault_path: String, input: CreateTaskInput) -> Result<T
     .map_err(|e| e.to_string())?
 }
 
+/// Breaking-change notices that apply to this vault and are still unread.
+///
+/// The read list is read here rather than passed in: `notices_read` is
+/// vault-scoped, so the config the frontend holds may belong to a vault the
+/// user has since switched away from, and a notice suppressed by the wrong
+/// vault's list is a notice nobody ever sees.
+#[tauri::command]
+pub async fn notices(vault_path: String) -> Result<Vec<crate::notices::Notice>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let read = storage::load().settings.notices_read;
+        Ok(crate::notices::pending(&PathBuf::from(vault_path), &read))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn update_task(vault_path: String, input: UpdateTaskInput) -> Result<Task, String> {
     tauri::async_runtime::spawn_blocking(move || {
