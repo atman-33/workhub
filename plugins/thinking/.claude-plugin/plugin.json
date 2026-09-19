@@ -1,0 +1,10 @@
+{
+  "name": "thinking",
+  "version": "0.1.0",
+  "description": "Skills that ask instead of answer: one question at a time, so the owner builds the understanding or the structure in their own head. teach-back quizzes you on a document until you can explain it to someone else; ladder decomposes a concept downward or climbs from a symptom up to its purpose, one agreed level at a time. No scripts, no vault dependency. Install at user scope to make it available across all projects.",
+  "author": {
+    "name": "atman-33",
+    "url": "https://github.com/atman-33/workhub"
+  },
+  "license": "MIT"
+}
