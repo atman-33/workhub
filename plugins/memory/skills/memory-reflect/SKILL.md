@@ -99,7 +99,18 @@ Set `status: closed` on a checkpoint whose content now lives in a durable note,
 and archive it if nothing else refers to it. Leave `status: open` on anything
 still in flight — that is what the next session's brief reads.
 
-### 5. Report
+### 5. Record that reflect ran
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" reflect-done
+```
+
+The session brief asks for `memory-reflect` once a week has passed since this
+stamp and a new conversation has been captured after it. Stamp it even when
+nothing was worth writing — the review happened, and the brief should stop
+asking. The stamp is per machine, because the verbatim record it is about is.
+
+### 6. Report
 
 ```
 memory: 2 written, 1 archived

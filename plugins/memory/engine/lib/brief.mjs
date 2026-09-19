@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { captureHealthLine } from "./capture.mjs";
 import { daysSinceLast, reminder, timeSummary } from "./format.mjs";
+import { reflectDueLine, setupTime } from "./reflect.mjs";
 import { reflexes, WRITING_NOTE } from "./reflexes.mjs";
 import { hasStore, query } from "./store.mjs";
 
@@ -78,6 +79,11 @@ export function buildBrief(vault, stats) {
   // who does not know the record stopped will trust what it says.
   const health = captureHealthLine();
   if (health) blocks.push(health);
+
+  // Same place and same reason: the verbatim record is only on this machine
+  // until reflect promotes it (T-0386).
+  const due = reflectDueLine(stats, { since: setupTime() });
+  if (due) blocks.push(due);
 
   const store = hasStore(vault);
   if (store) {

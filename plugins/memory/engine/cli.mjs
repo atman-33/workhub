@@ -21,6 +21,7 @@
 //                                       the verbatim conversation instead)
 //   node cli.mjs capture-retry          re-try transcripts queued by a busy
 //                                       database (capture drains it too)
+//   node cli.mjs reflect-done           record that memory-reflect just ran
 //
 // Claude Code hooks import lib/ directly; this CLI serves setup, explicit
 // recall (the memory-recall skill), background embedding, and the OpenCode
@@ -247,13 +248,21 @@ ${total} finding(s) — none of them block anything.`);
       const input = JSON.parse(readFileSync(0, "utf8"));
       awaitedDb = await import("./lib/db.mjs");
       const { buildInjection } = await import("./lib/inject.mjs");
+      const { firstPromptOf, reflectDueLine, setupTime } = await import("./lib/reflect.mjs");
       const db = openVaultDb();
       try {
+        // OpenCode has no SessionStart brief, so the reflect reminder rides
+        // the first prompt of each session instead (T-0386). Claude Code gets
+        // it from the brief and never calls this command.
+        const due = firstPromptOf(input.session_id ?? "")
+          ? reflectDueLine(awaitedDb.getStats(db), { since: setupTime() })
+          : "";
         const text = await buildInjection(db, {
           prompt: input.prompt ?? "",
           sessionId: input.session_id ?? "",
         });
-        if (text) console.log(text);
+        const out = [due, text].filter(Boolean).join("\n\n");
+        if (out) console.log(out);
         const { maybeTriggerEmbed } = await import("./lib/background.mjs");
         maybeTriggerEmbed(db);
       } finally {
@@ -333,6 +342,15 @@ ${total} finding(s) — none of them block anything.`);
       return;
     }
 
+    case "reflect-done": {
+      // The last step of the memory-reflect skill: stamp when it ran, so the
+      // brief stops asking for it for another week (T-0386).
+      const { markReflected } = await import("./lib/reflect.mjs");
+      const at = markReflected();
+      console.log(`reflect recorded at ${new Date(at * 1000).toISOString()}`);
+      return;
+    }
+
     case "recent": {
       awaitedDb = await import("./lib/db.mjs");
       const { formatMemories } = await import("./lib/format.mjs");
@@ -349,7 +367,7 @@ ${total} finding(s) — none of them block anything.`);
     default:
       console.error(`unknown command: ${command ?? "(none)"}`);
       console.error(
-        "commands: setup | status | capture | capture-json | inject | embed-pending | recall | recent | notes",
+        "commands: setup | status | capture | capture-json | inject | embed-pending | recall | recent | notes | reflect-done",
       );
       process.exitCode = 1;
   }
