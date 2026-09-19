@@ -592,7 +592,8 @@ mechanical authoring):
   cwd-relative — see that folder's README for how to reach the repos from
   here).
 - **Vault `.claude/rules/`** — knowledge about this vault harness's own
-  machinery (grow `vault-harness.md`).
+  machinery (grow `vault-harness-local.md`; `vault-harness.md` is app-managed
+  and replaced on every template update).
 - **Vault `knowledge/`** — reference material humans also read (research
   results, collected information). Rule of thumb: constraints agents must
   *follow* are rules; information humans and agents *consult* is knowledge.

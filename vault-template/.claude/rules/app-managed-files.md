@@ -29,7 +29,9 @@ over yours.
 
 `.claude/skills/` and `.claude/agents/` are **not** managed: they are absent
 from the manifest, so an app update never overwrites or deletes them. Personal
-skills and agents belong there.
+skills and agents belong there. `.claude/rules/vault-harness-local.md` is not
+managed either: the template seeds it once and never updates it, so it is where
+this vault's own harness notes grow (`vault-harness.md` beside it is managed).
 
 **Rules for agents**
 
