@@ -51,10 +51,18 @@ always does.
 | `identity/` | **Always**, in full | Permanent, **capped** — a new entry replaces one |
 | `notes/` | **When searched.** Needs a `type:` to be findable | Permanent, revised in place |
 | `episodes/` | When searched; also the live ones in the opening brief | Decays; what matters is promoted upward |
-| `.index/` | Never directly — it is what makes the search work | Disposable |
+| `.index/` | Never directly — reserved for a search index over `notes/` | Disposable |
 
-**The Markdown is the record. The index is a cache.** Anything in `.index/` can
+**The Markdown is the record. Any index is a cache.** Anything in `.index/` can
 be thrown away and rebuilt; nothing in the folders above it can.
+
+Search goes through one entry point, `cli.mjs notes` (the `memory-recall`
+skill). Today it scans the Markdown directly, and `.index/` stays empty — at a
+few hundred notes a scan is fast, exact, and has nothing to keep in sync. When
+the store outgrows it, `memory-doctor` says so (`notes search`), and the scan is
+replaced by a derived index in `.index/` behind the same command. Nothing that
+searches has to change. This vault is meant to be used for years; that is the
+point of keeping the entry point fixed and the implementation swappable.
 
 `identity/` is capped and `notes/` is not, and that follows from the table
 rather than from taste: something read in full every session has to stay

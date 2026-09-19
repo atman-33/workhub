@@ -71,3 +71,33 @@ export function formatMemories(memories, { header = "## 関連メモリ（直近
   });
   return lines.join("\n").trimEnd();
 }
+
+/**
+ * Search results from `memory/notes/`, one line each: the note to open, what
+ * kind of record it is, and the line that says what it holds. The note is the
+ * thing to cite — this only gets you to it.
+ */
+export function formatNotes(hits, { vault = "", total = hits.length, terms = [], filters = {} } = {}) {
+  const conditions = Object.entries(filters)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${v}`);
+  const what = [terms.length ? `「${terms.join(" ")}」` : "", ...conditions].filter(Boolean).join(" ") || "全件";
+  if (!hits.length) {
+    return `## ノート検索（${what}）\n該当なし。言い換えて探すか、\`recall\` で会話の逐語を探す。`;
+  }
+  const more = total > hits.length ? `（${total}件中${hits.length}件）` : `（${total}件）`;
+  const lines = [`## ノート検索（${what}）${more}`];
+  for (const note of hits) {
+    const fm = note.frontmatter ?? {};
+    const kind = [fm.type, fm.status].filter(Boolean).join("/") || "untyped";
+    const when = fm.decided ? ` ${fm.decided}` : "";
+    const gist =
+      note.observations?.find((o) => o.category === "decision")?.text ??
+      note.body.split(/\r?\n/).find((l) => l.trim() && !l.startsWith("#"))?.trim() ??
+      "";
+    const rel = note.path.startsWith(vault) ? note.path.slice(vault.length + 1) : note.path;
+    lines.push(`- [[${note.slug}]] (${kind}${when}) — ${clip(gist, 120)}`);
+    lines.push(`  ${rel.replaceAll("\\", "/")}`);
+  }
+  return lines.join("\n");
+}

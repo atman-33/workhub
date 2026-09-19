@@ -15,6 +15,10 @@
 //   node cli.mjs embed-pending [--all]  vectorize rows with embedding=NULL
 //   node cli.mjs recall <query> [--days N] [--limit N]   hybrid search
 //   node cli.mjs recent [--limit N]     newest chunks, no query
+//   node cli.mjs notes [terms...] [--type T] [--status S] [--all] [--archive]
+//                      [--limit N]      search memory/notes/ (the durable,
+//                                       distilled record — recall searches
+//                                       the verbatim conversation instead)
 //   node cli.mjs capture-retry          re-try transcripts queued by a busy
 //                                       database (capture drains it too)
 //
@@ -308,6 +312,27 @@ ${total} finding(s) — none of them block anything.`);
       return;
     }
 
+    case "notes": {
+      // Needs no database and no dependencies: notes are Markdown, so this
+      // works on a machine where setup never ran.
+      const vault = resolveVault();
+      if (!vault) throw new Error("vault not found (WORKHUB_VAULT / cwd / ~/.workhub/config.json)");
+      const valued = new Set(["--type", "--status", "--limit"]);
+      const terms = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
+      const { searchNotes } = await import("./lib/store.mjs");
+      const { formatNotes } = await import("./lib/format.mjs");
+      const filters = { type: option("--type", undefined), status: option("--status", undefined) };
+      const hits = searchNotes(vault, {
+        text: terms.join(" "),
+        ...filters,
+        all: flag("--all"),
+        archive: flag("--archive"),
+      });
+      const limit = Number(option("--limit", "10"));
+      console.log(formatNotes(hits.slice(0, limit), { vault, total: hits.length, terms, filters }));
+      return;
+    }
+
     case "recent": {
       awaitedDb = await import("./lib/db.mjs");
       const { formatMemories } = await import("./lib/format.mjs");
@@ -324,7 +349,7 @@ ${total} finding(s) — none of them block anything.`);
     default:
       console.error(`unknown command: ${command ?? "(none)"}`);
       console.error(
-        "commands: setup | status | capture | capture-json | inject | embed-pending | recall | recent",
+        "commands: setup | status | capture | capture-json | inject | embed-pending | recall | recent | notes",
       );
       process.exitCode = 1;
   }
