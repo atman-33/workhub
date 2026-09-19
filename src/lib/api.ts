@@ -603,6 +603,20 @@ export const api = {
       marketplace,
       scope,
     }),
+  /** `claude plugin install` — fetches a plugin that is on disk nowhere and
+   * enables it at `scope`, so its contents are readable right away. */
+  pluginsInstallPlugin: (
+    vaultPath: string,
+    name: string,
+    marketplace: string,
+    scope: "project" | "user",
+  ) =>
+    invoke<PluginCommandResult>("plugins_install_plugin", {
+      vaultPath,
+      name,
+      marketplace,
+      scope,
+    }),
 };
 
 export function timeAgo(unixSecs: number): string {

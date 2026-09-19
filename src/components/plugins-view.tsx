@@ -89,12 +89,14 @@ function PluginCard({
   busy,
   onToggle,
   onUpdate,
+  onInstall,
   onOpenDetails,
 }: {
   view: PluginView;
   busy: boolean;
   onToggle: (enabled: boolean) => void;
   onUpdate: () => void;
+  onInstall: () => void;
   onOpenDetails: () => void;
 }) {
   const scope = view.scope || "unlisted";
@@ -169,11 +171,22 @@ function PluginCard({
             Update
           </Button>
         )}
+        {view.status === "pending" && (
+          <Hint
+            label={`claude plugin install --scope ${view.effective_scope}: fetch it now instead of at the next launch`}
+          >
+            <Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={onInstall}>
+              Install
+            </Button>
+          </Hint>
+        )}
         <Hint
           label={
             view.enabled
               ? `Disable in the ${view.effective_scope} settings.json`
-              : `Enable in the ${view.effective_scope} settings.json`
+              : view.installed_version
+                ? `Enable in the ${view.effective_scope} settings.json`
+                : `Install and enable at ${view.effective_scope} scope`
           }
         >
           <span>
@@ -251,6 +264,10 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
     }
   };
 
+  /** `claude plugin install` at the scope the row's switch writes to. */
+  const install = (view: PluginView) =>
+    api.pluginsInstallPlugin(vaultPath, view.name, view.marketplace, view.effective_scope);
+
   /** One plugin row, wired to the actions. Identical in both tabs. */
   const card = (view: PluginView) => (
     <PluginCard
@@ -259,13 +276,18 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
       busy={busy}
       onToggle={(enabled) =>
         void run(() =>
-          api.setPluginEnabled(
-            vaultPath,
-            view.name,
-            view.marketplace,
-            view.effective_scope,
-            enabled,
-          ),
+          // Switching on a plugin that is on disk nowhere installs it right
+          // away: a settings edit alone left the fetch to the next Claude Code
+          // launch, and the contents unreadable until then (T-0397).
+          enabled && !view.installed_version
+            ? install(view)
+            : api.setPluginEnabled(
+                vaultPath,
+                view.name,
+                view.marketplace,
+                view.effective_scope,
+                enabled,
+              ),
         )
       }
       onUpdate={() =>
@@ -278,6 +300,7 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           ),
         )
       }
+      onInstall={() => void run(() => install(view))}
       onOpenDetails={() => setDetails(view)}
     />
   );

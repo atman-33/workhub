@@ -88,7 +88,7 @@ export function PluginDetailsDialog({
         {details && !details.installed && (
           <p className="rounded border p-3 text-xs leading-relaxed text-muted-foreground">
             {view?.enabled
-              ? "This plugin is switched on but not installed yet — Claude Code fetches it on the next launch, and its contents can only be read once it is on disk."
+              ? "This plugin is switched on but not installed yet, so there are no contents to read. Press Install on its row to fetch it now — otherwise Claude Code fetches it on the next launch. A session that is already running picks it up after /reload-plugins or a restart."
               : "Nothing is installed for this plugin on this machine, so there are no contents to read."}
           </p>
         )}
