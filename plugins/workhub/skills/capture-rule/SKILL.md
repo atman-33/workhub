@@ -49,8 +49,10 @@ axis, and keeping both would mean choosing between them every time, which is a
 routing decision with no rule behind it.
 
 Knowledge about the harness's own machinery is a memory note too, unless it has
-to fire on a path — the vault's `.claude/rules/vault-harness.md` is still the
-home for the ones that do.
+to fire on a path — the vault's `.claude/rules/vault-harness-local.md` is the
+home for the ones that do. Never write to `vault-harness.md` beside it: that
+file is app-managed, so an edit turns into a conflict on the next template
+update and ends up in a `.bak` nobody reads.
 
 ## Step 3 — Dedup
 

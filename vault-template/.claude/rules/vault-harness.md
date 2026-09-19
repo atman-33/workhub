@@ -7,7 +7,10 @@ paths:
 # Vault harness internals (maintainer notes)
 
 These notes load only while editing the vault's own harness machinery (the
-`paths` above). Grow this file as the harness evolves.
+`paths` above). This file is app-managed — the workhub template ships it and
+an app update replaces it — so do not add to it. Harness notes of your own go
+in `vault-harness-local.md` beside it, which the template seeds once and never
+touches again (T-0382).
 
 - Skills, hooks, agents, and MCP launchers come from Claude Code plugins
   (workhub repo `plugins/`, declared in `.claude/settings.json`). Plugins

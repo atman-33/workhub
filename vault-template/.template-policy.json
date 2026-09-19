@@ -17,6 +17,7 @@
     "strategy/bottlenecks/README.md",
     ".claude/project-context.json",
     ".claude/settings.json",
+    ".claude/rules/vault-harness-local.md",
     "projects/_index.md",
     "archive/_index.md"
   ],
