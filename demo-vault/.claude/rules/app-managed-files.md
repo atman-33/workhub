@@ -27,17 +27,25 @@ tidy policy) so a second machine gets them from git. Never hand-edit it to
 change how agents behave — the running app will write its own values back
 over yours.
 
+`.claude/skills/` and `.claude/agents/` are **not** managed: they are absent
+from the manifest, so an app update never overwrites or deletes them. Personal
+skills and agents belong there. `.claude/rules/vault-harness-local.md` is not
+managed either: the template seeds it once and never updates it, so it is where
+this vault's own harness notes grow (`vault-harness.md` beside it is managed).
+
 **Rules for agents**
 
 - Never edit a managed file to record instructions, preferences, or project
   conventions. Write them where they belong instead:
   - `CLAUDE.local.md` — standing instructions for agents in this vault. Never
     managed by the app; it is yours.
-  - `profile/about-me.md` — facts about the owner.
-  - `profile/decision-policy.md` — the axes the owner decides on, and the
-    preferences a recommendation is built from.
-  - `profile/decision-log.md` — the individual calls they have settled.
-  - the target repository's `.claude/rules/` — repo-specific technical rules.
+  - `memory/identity/about-me.md` — facts about the owner.
+  - `memory/identity/decision-policy.md` — the axes the owner decides on, and
+    the preferences a recommendation is built from.
+  - `memory/notes/` — the individual calls they have settled, and anything else
+    durable an agent learned. One typed note per thing.
+  - the target repository's `.claude/rules/` — repo-specific technical rules
+    that must fire when a matching file is touched.
 - If a managed file genuinely needs to change, the fix belongs upstream in the
   workhub repo's `vault-template/`. Say so and ask the owner rather than
   patching the vault's copy.

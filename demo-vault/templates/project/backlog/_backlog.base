@@ -1,7 +1,7 @@
 filters:
   and:
     - 'type == "backlog"'
-    - file.inFolder("backlog")
+    - 'project == "<project-slug>"'
 
 formulas:
   prio_rank: 'if(priority == "high", 1, if(priority == "medium", 2, 3))'

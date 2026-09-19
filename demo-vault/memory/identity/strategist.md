@@ -1,10 +1,10 @@
 ---
 title: Strategist
 created: 2026-08-30
-type: profile
+type: identity
 persona: ignis
 tags:
-  - profile
+  - identity
 ---
 
 # Strategist

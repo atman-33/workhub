@@ -4,10 +4,12 @@
     "home.md",
     "tasks/_index.md",
     "knowledge/_index.md",
-    "profile/about-me.md",
-    "profile/decision-policy.md",
-    "profile/decision-log.md",
-    "profile/strategist.md",
+    "memory/identity/README.md",
+    "memory/identity/strategist.md",
+    "memory/identity/decision-policy.md",
+    "memory/identity/about-me.md",
+    "memory/README.md",
+    "memory/identity/writing.md",
     "strategy/north-star/mvv.md",
     "strategy/north-star/rules.md",
     "strategy/current/business.md",
@@ -15,7 +17,11 @@
     "strategy/bottlenecks/README.md",
     ".claude/project-context.json",
     ".claude/settings.json",
+    ".claude/rules/vault-harness-local.md",
     "projects/_index.md",
     "archive/_index.md"
+  ],
+  "project_sync": [
+    "backlog/_backlog.base"
   ]
 }

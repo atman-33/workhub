@@ -11,6 +11,7 @@ tags:
 
 One line per note: link + one-sentence description of what it answers.
 
-<!-- The owner's own notes live in the vault's `profile/` folder, not here. -->
+<!-- Who the owner is, and what agents have learned, live in `memory/`, not here.
+     This folder is the owner's own reference material. -->
 
 - [`markdown-frontmatter.md`](markdown-frontmatter.md) — how frontmatter is written in this vault

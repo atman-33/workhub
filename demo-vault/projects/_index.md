@@ -11,9 +11,10 @@ tags:
 
 One line per project folder: link + one-sentence description of the project.
 
-Start a new project by copying `templates/project/` into
-`projects/<project-slug>/` and filling in the placeholders. Each project's
+Start a new project from the app's **Projects** tab, which creates
+`projects/NNNN-<project-slug>/` from `templates/project/` and assigns the
+number. Each project's
 `README.md` is its entry point — read it first.
 
-- [`demo-app/`](demo-app/README.md) — a small note-taking client; the main sample project
-- [`demo-site/`](demo-site/README.md) — the marketing site for Demo App
+- [`0010-demo-app/`](0010-demo-app/README.md) — a small note-taking client; the main sample project
+- [`0020-demo-site/`](0020-demo-site/README.md) — the marketing site for Demo App
