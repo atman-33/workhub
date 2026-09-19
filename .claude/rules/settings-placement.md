@@ -106,8 +106,8 @@ Two tabs, split by what the setting governs (T-0300):
 - **General** — the app itself: startup, startup checks, quick capture, the
   app updater.
 - **Agents** — the AI agents it launches: the agent/OpenCode/herdr command
-  templates, worktree root, Claude Desktop mode, prompt and task language,
-  long-term memory, secretary.
+  templates, worktree root, Claude Desktop mode, prompt and reply/task
+  language, long-term memory, secretary.
 
 The vault folder sits above both, outside the tabs: every feature reads that
 one path, so it should not take a tab to find. A setting that is neither about

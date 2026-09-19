@@ -51,6 +51,103 @@ async function load(cwd, home) {
   return import("./lib.mjs");
 }
 
+/** Writes `<vault>/.workhub/settings.json` with the given `settings` object. */
+function writeVaultSettings(vault, settings) {
+  mkdirSync(join(vault, ".workhub"), { recursive: true });
+  writeFileSync(
+    join(vault, ".workhub", "settings.json"),
+    JSON.stringify({ version: 1, settings })
+  );
+}
+
+/**
+ * `resolveResponseLanguage` (T-0388): the response-language reminder's
+ * settings precedence. Deliberately **not** gated on cwd being inside the
+ * vault, unlike `resolveVault` above — every test here runs from `fx.repo`,
+ * an unrelated directory, to prove the reminder still resolves there.
+ */
+describe("resolveResponseLanguage", () => {
+  let fx;
+
+  beforeEach(() => {
+    fx = fixture();
+    vi.stubEnv("WORKHUB_VAULT", undefined);
+    vi.stubEnv("APPDATA", undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("reads language from the vault's settings.json, from any cwd", async () => {
+    writeVaultSettings(fx.vault, { language: "ja" });
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "ja", inject: true });
+  });
+
+  it("falls back to the old task_language key in the vault's settings.json", async () => {
+    writeVaultSettings(fx.vault, { task_language: "ja" });
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "ja", inject: true });
+  });
+
+  it("falls back to the old task_language key in the app config when there is no vault file", async () => {
+    mkdirSync(join(fx.home, ".workhub"), { recursive: true });
+    writeFileSync(
+      join(fx.home, ".workhub", "config.json"),
+      JSON.stringify({ settings: { vault_path: fx.vault, task_language: "ja" } })
+    );
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "ja", inject: true });
+  });
+
+  it("uses the app config's language when no vault is configured", async () => {
+    mkdirSync(join(fx.home, ".workhub"), { recursive: true });
+    writeFileSync(
+      join(fx.home, ".workhub", "config.json"),
+      JSON.stringify({ settings: { language: "ja" } })
+    );
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "ja", inject: true });
+  });
+
+  it("suppresses injection when response_language_inject is false at the level that supplied the language", async () => {
+    writeVaultSettings(fx.vault, { language: "ja", response_language_inject: false });
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "ja", inject: false });
+  });
+
+  it("returns null when nothing is configured", async () => {
+    const emptyHome = join(fx.root, "empty-home");
+    mkdirSync(emptyHome, { recursive: true });
+    const { resolveResponseLanguage } = await load(fx.repo, emptyHome);
+    expect(resolveResponseLanguage()).toBeNull();
+  });
+
+  it("honours WORKHUB_VAULT over the app config's vault_path", async () => {
+    const other = mkdtempSync(join(os.tmpdir(), "workhub-other-vault-"));
+    writeVaultSettings(other, { language: "en" });
+    writeVaultSettings(fx.vault, { language: "ja" });
+    vi.stubEnv("WORKHUB_VAULT", other);
+    const { resolveResponseLanguage } = await load(fx.repo, fx.home);
+    expect(resolveResponseLanguage()).toEqual({ language: "en", inject: true });
+  });
+});
+
+describe("languageName", () => {
+  it("maps known codes to their display name", async () => {
+    const { languageName } = await import("./lib.mjs");
+    expect(languageName("ja")).toBe("Japanese");
+    expect(languageName("en")).toBe("English");
+  });
+
+  it("uses an unrecognized code verbatim rather than skipping it", async () => {
+    const { languageName } = await import("./lib.mjs");
+    expect(languageName("fr")).toBe("fr");
+  });
+});
+
 describe("resolveVault", () => {
   let fx;
 

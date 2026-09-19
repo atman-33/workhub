@@ -114,3 +114,80 @@ export function readPayload() {
     return {};
   }
 }
+
+/**
+ * The vault path for the response-language reminder (T-0388): `WORKHUB_VAULT`,
+ * else the app config's `settings.vault_path`. Deliberately **not** gated on
+ * the cwd being inside the vault, unlike `resolveVault()` above — language is
+ * a property of the person, not of the repository a session happens to be
+ * working in, so the reminder has to reach every Claude Code session, vault
+ * or not.
+ */
+function resolveVaultForLanguage() {
+  if (process.env.WORKHUB_VAULT) return process.env.WORKHUB_VAULT;
+  const cfg = readConfig();
+  return cfg.settings?.vault_path ?? cfg.vault_path ?? null;
+}
+
+/**
+ * Reads `<vault>/.workhub/settings.json`'s `settings` object, or `null` when
+ * there is no vault, no file, or the file cannot be parsed.
+ */
+function readVaultSettings(vaultPath) {
+  try {
+    const doc = JSON.parse(readFileSync(join(vaultPath, ".workhub", "settings.json"), "utf8"));
+    return doc && typeof doc.settings === "object" ? doc.settings : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Language code -> display name, for the injected reminder text. */
+const LANGUAGE_NAMES = { ja: "Japanese", en: "English" };
+
+/**
+ * Maps a `language` setting code to its display name. An unrecognized code
+ * (e.g. a future addition the hook has not learned yet) is used verbatim
+ * rather than skipped, so the reminder still says *something* useful instead
+ * of silently going quiet.
+ */
+export function languageName(code) {
+  return LANGUAGE_NAMES[code] ?? code;
+}
+
+/**
+ * Resolves the response-language reminder for this session: which language to
+ * ask for, and whether the reminder should be injected at all. Both come from
+ * the same source, in order:
+ *
+ * 1. The configured vault's `.workhub/settings.json` (`language` /
+ *    `response_language_inject`), found via `WORKHUB_VAULT` or the app
+ *    config's `vault_path` — ungated on cwd, see `resolveVaultForLanguage`.
+ * 2. `~/.workhub/config.json` -> `settings.language`.
+ * 3. `~/.workhub/config.json` -> `settings.task_language` (pre-T-0388 key, in
+ *    case the app itself has not been updated yet on this machine).
+ * 4. Otherwise `null` — inject nothing.
+ *
+ * `response_language_inject` is read from whichever of these levels supplied
+ * the language, never mixed across levels, and missing means "on" (the
+ * Rust-side default), matching how an optional vault-scoped bool behaves
+ * everywhere else in this app.
+ *
+ * @returns {{ language: string, inject: boolean } | null}
+ */
+export function resolveResponseLanguage() {
+  const vaultPath = resolveVaultForLanguage();
+  if (vaultPath) {
+    const vs = readVaultSettings(vaultPath);
+    const language = vs?.language ?? vs?.task_language;
+    if (language) {
+      return { language, inject: vs.response_language_inject !== false };
+    }
+  }
+  const settings = readConfig().settings ?? {};
+  const language = settings.language ?? settings.task_language;
+  if (language) {
+    return { language, inject: settings.response_language_inject !== false };
+  }
+  return null;
+}

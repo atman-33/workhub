@@ -302,7 +302,7 @@ pub fn copy_task_prompt(
     worktree: bool,
     worktree_root: String,
     vault_path: String,
-    task_language: String,
+    language: String,
     custom_prompt: String,
     multiline: bool,
 ) -> Result<(), String> {
@@ -321,7 +321,7 @@ pub fn copy_task_prompt(
         use_herdr: false,
         herdr_cmd: "",
         terminal_embed: false,
-        task_language: &task_language,
+        language: &language,
         custom_prompt: &custom_prompt,
     };
     let prompt = if multiline {
@@ -351,7 +351,7 @@ pub fn send_task_to_claude_desktop(
     worktree: bool,
     worktree_root: String,
     vault_path: String,
-    task_language: String,
+    language: String,
     custom_prompt: String,
     mode: String,
     description: String,
@@ -371,7 +371,7 @@ pub fn send_task_to_claude_desktop(
         use_herdr: false,
         herdr_cmd: "",
         terminal_embed: false,
-        task_language: &task_language,
+        language: &language,
         custom_prompt: &custom_prompt,
     };
     actions::send_task_to_claude_desktop(&params, &mode, &description)
@@ -1608,7 +1608,7 @@ pub fn launch_agent_for_task(
     use_herdr: bool,
     herdr_cmd: String,
     terminal_embed: bool,
-    task_language: String,
+    language: String,
     custom_prompt: String,
 ) -> Result<String, String> {
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
@@ -1626,7 +1626,7 @@ pub fn launch_agent_for_task(
         use_herdr,
         herdr_cmd: &herdr_cmd,
         terminal_embed,
-        task_language: &task_language,
+        language: &language,
         custom_prompt: &custom_prompt,
     })
 }

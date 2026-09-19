@@ -148,8 +148,8 @@ argument-hint: "<task-id>"
 - Do not overwrite existing human notes; create new ones and link them.
 - Never modify the task's `## Plan` section — it is the approved plan and the
   user's approval record, not a place for results.
-- Write `## Results` in the language given by the workhub **Task language**
+- Write `## Results` in the language given by the workhub **Language**
   setting, stated in the app's launch prompt (default English). That setting
-  governs the task file's `## Plan` and `## Results` only — notes under
-  `knowledge/` and `projects/`, and everything in target repositories, follow
-  their own conventions.
+  also governs the reply language and the task file's `## Plan` — never
+  notes under `knowledge/` and `projects/`, or anything in target
+  repositories, which follow their own conventions.

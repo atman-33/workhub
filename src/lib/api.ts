@@ -341,7 +341,7 @@ export const api = {
     useHerdr: boolean,
     herdrCmd: string,
     terminalEmbed: boolean,
-    taskLanguage: string,
+    language: string,
     customPrompt: string,
   ) =>
     invoke<string>("launch_agent_for_task", {
@@ -359,7 +359,7 @@ export const api = {
       useHerdr,
       herdrCmd,
       terminalEmbed,
-      taskLanguage,
+      language,
       customPrompt,
     }),
 
@@ -374,7 +374,7 @@ export const api = {
     worktree: boolean,
     worktreeRoot: string,
     vaultPath: string,
-    taskLanguage: string,
+    language: string,
     customPrompt: string,
     multiline: boolean,
   ) =>
@@ -389,7 +389,7 @@ export const api = {
       worktree,
       worktreeRoot,
       vaultPath,
-      taskLanguage,
+      language,
       customPrompt,
       multiline,
     }),
@@ -409,7 +409,7 @@ export const api = {
     worktree: boolean,
     worktreeRoot: string,
     vaultPath: string,
-    taskLanguage: string,
+    language: string,
     customPrompt: string,
     mode: string,
     description: string,
@@ -425,7 +425,7 @@ export const api = {
       worktree,
       worktreeRoot,
       vaultPath,
-      taskLanguage,
+      language,
       customPrompt,
       mode,
       description,

@@ -45,7 +45,10 @@ const VAULT_SCOPED: &[&str] = &[
     // How the copied prompt is shaped is a property of how this vault's
     // prompts read, like `custom_prompt` itself — not of one machine (T-0285).
     "prompt_copy_multiline",
-    "task_language",
+    "language",
+    // Whether the language above is reminded to the agent every turn
+    // (T-0388) — same reasoning as `language` itself.
+    "response_language_inject",
     "schedule_locale",
     "schedule_assignee",
     "schedule_model",
@@ -108,6 +111,27 @@ fn settings_file(cfg: &Config) -> Option<PathBuf> {
         .then(|| vault.join(".workhub").join("settings.json"))
 }
 
+/// Old vault-scoped key names that were renamed, mapped old -> new. A vault
+/// file written before the rename still carries the old key; a read
+/// normalizes it to the new one before `scoped_subset` filters by
+/// `VAULT_SCOPED`, and the next `write` only ever emits the new key, so the
+/// old one is dropped on the first save after an upgrade (T-0388).
+const LEGACY_KEY_ALIASES: &[(&str, &str)] = &[("task_language", "language")];
+
+/// Renames any legacy key present in `overlay` to its current name, so an
+/// old-key vault file (or old-key `~/.workhub/config.json` on the read side)
+/// still resolves. A value under the *new* name always wins if both are
+/// somehow present.
+fn normalize_legacy_keys(overlay: &Map<String, Value>) -> Map<String, Value> {
+    let mut out = overlay.clone();
+    for (old, new) in LEGACY_KEY_ALIASES {
+        if let Some(value) = out.remove(*old) {
+            out.entry((*new).to_string()).or_insert(value);
+        }
+    }
+    out
+}
+
 /// Keeps only the vault-scoped keys of a serialized `Settings` object,
 /// trimming `tidy` down to its policy fields.
 fn scoped_subset(settings: &Map<String, Value>) -> Map<String, Value> {
@@ -148,7 +172,7 @@ fn apply(settings: &mut Settings, overlay: &Map<String, Value>) {
     let Ok(Value::Object(mut all)) = serde_json::to_value(&*settings) else {
         return;
     };
-    for (key, value) in scoped_subset(overlay) {
+    for (key, value) in scoped_subset(&normalize_legacy_keys(overlay)) {
         if key == "tidy" {
             let (Some(Value::Object(local)), Value::Object(incoming)) =
                 (all.get_mut("tidy"), &value)
@@ -235,13 +259,13 @@ mod tests {
     #[test]
     fn extract_keeps_only_vault_scoped_fields() {
         let settings = Settings {
-            task_language: "ja".into(),
+            language: "ja".into(),
             worktree_root: "D:/machine-local".into(),
             ..Settings::default()
         };
         let scoped = extract(&settings);
 
-        assert_eq!(scoped.get("task_language"), Some(&Value::from("ja")));
+        assert_eq!(scoped.get("language"), Some(&Value::from("ja")));
         assert!(
             !scoped.contains_key("worktree_root"),
             "machine-local paths must not reach the vault file"
@@ -276,25 +300,67 @@ mod tests {
     #[test]
     fn apply_overrides_scoped_fields_only() {
         let mut settings = Settings {
-            task_language: "en".into(),
+            language: "en".into(),
             worktree_root: "D:/machine-local".into(),
             ..Settings::default()
         };
         apply(
             &mut settings,
             &overlay_of(serde_json::json!({
-                "task_language": "ja",
+                "language": "ja",
                 "worktree_root": "C:/from-another-pc",
                 "vault_path": "C:/someone-elses-vault",
             })),
         );
 
-        assert_eq!(settings.task_language, "ja");
+        assert_eq!(settings.language, "ja");
         assert_eq!(
             settings.worktree_root, "D:/machine-local",
             "a vault file must never move this machine's worktree root"
         );
         assert_eq!(settings.vault_path, None);
+    }
+
+    /// A vault file written before the T-0388 rename still carries the old
+    /// `task_language` key; it must still resolve to `language`.
+    #[test]
+    fn apply_reads_legacy_task_language_key() {
+        let mut settings = Settings {
+            language: "en".into(),
+            ..Settings::default()
+        };
+        apply(
+            &mut settings,
+            &overlay_of(serde_json::json!({ "task_language": "ja" })),
+        );
+        assert_eq!(settings.language, "ja");
+    }
+
+    /// If a vault file somehow carries both the old and the new key, the new
+    /// one wins rather than being silently clobbered by the legacy one.
+    #[test]
+    fn apply_prefers_new_key_over_legacy_when_both_present() {
+        let mut settings = Settings {
+            language: "en".into(),
+            ..Settings::default()
+        };
+        apply(
+            &mut settings,
+            &overlay_of(serde_json::json!({
+                "task_language": "ja",
+                "language": "en",
+            })),
+        );
+        assert_eq!(settings.language, "en");
+    }
+
+    /// `extract` (writing the vault file back) only ever emits the new key,
+    /// so an old-key file is upgraded in place the next time it is saved.
+    #[test]
+    fn extract_never_emits_the_legacy_key() {
+        let scoped = extract(&Settings::default());
+        assert!(!scoped.contains_key("task_language"));
+        assert!(scoped.contains_key("language"));
     }
 
     #[test]
@@ -331,7 +397,7 @@ mod tests {
             &mut settings,
             &overlay_of(serde_json::json!({ "not_a_setting": true })),
         );
-        assert_eq!(settings.task_language, Settings::default().task_language);
+        assert_eq!(settings.language, Settings::default().language);
     }
 
     #[test]
@@ -375,7 +441,7 @@ mod tests {
         let written = config_for(
             &vault,
             Settings {
-                task_language: "ja".into(),
+                language: "ja".into(),
                 custom_prompt: "answer in Japanese".into(),
                 prompt_copy_multiline: false,
                 worktree_root: "D:/machine-local".into(),
@@ -387,7 +453,7 @@ mod tests {
         let mut read_back = config_for(&vault, Settings::default());
         overlay(&mut read_back);
 
-        assert_eq!(read_back.settings.task_language, "ja");
+        assert_eq!(read_back.settings.language, "ja");
         assert_eq!(read_back.settings.custom_prompt, "answer in Japanese");
         assert!(!read_back.settings.prompt_copy_multiline);
         assert_eq!(
@@ -454,7 +520,7 @@ mod tests {
         let cfg = config_for(
             &vault,
             Settings {
-                task_language: "ja".into(),
+                language: "ja".into(),
                 ..Settings::default()
             },
         );
@@ -465,7 +531,7 @@ mod tests {
         let other = config_for(
             &vault,
             Settings {
-                task_language: "en".into(),
+                language: "en".into(),
                 ..Settings::default()
             },
         );
@@ -473,7 +539,7 @@ mod tests {
         let mut restored = config_for(&vault, Settings::default());
         overlay(&mut restored);
         assert_eq!(
-            restored.settings.task_language, "ja",
+            restored.settings.language, "ja",
             "an existing vault file is the vault's, not this machine's to reseed"
         );
         std::fs::remove_dir_all(&vault).ok();
@@ -488,12 +554,12 @@ mod tests {
         let mut cfg = config_for(
             &vault,
             Settings {
-                task_language: "ja".into(),
+                language: "ja".into(),
                 ..Settings::default()
             },
         );
         overlay(&mut cfg);
-        assert_eq!(cfg.settings.task_language, "ja");
+        assert_eq!(cfg.settings.language, "ja");
         std::fs::remove_dir_all(&vault).ok();
     }
 

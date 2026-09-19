@@ -43,7 +43,7 @@ export function EditorApp() {
       setError(null);
       setPayload(event.payload);
       // Re-read on every open: the settings this window acts on (vault path,
-      // agent commands, task language) can have been changed in the main
+      // agent commands, language) can have been changed in the main
       // window since it was last shown.
       void api
         .getConfig()

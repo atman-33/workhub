@@ -33,7 +33,7 @@ export function launchAgentForTask(config: Config, task: Task): Promise<string> 
     config.settings.use_herdr,
     config.settings.herdr_cmd,
     config.settings.terminal_embed,
-    config.settings.task_language,
+    config.settings.language,
     config.settings.custom_prompt,
   );
 }
@@ -53,7 +53,7 @@ export function copyTaskPrompt(config: Config, task: Task): Promise<void> {
     task.worktree,
     config.settings.worktree_root,
     config.settings.vault_path ?? "",
-    config.settings.task_language,
+    config.settings.language,
     config.settings.custom_prompt,
     config.settings.prompt_copy_multiline,
   );
@@ -73,7 +73,7 @@ export function sendTaskToClaudeDesktop(config: Config, task: Task): Promise<str
     task.worktree,
     config.settings.worktree_root,
     config.settings.vault_path ?? "",
-    config.settings.task_language,
+    config.settings.language,
     config.settings.custom_prompt,
     config.settings.claude_desktop_mode,
     // Only chat mode uses the Description; parsing it here keeps the command
