@@ -11,7 +11,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes, one backlog item per unit of work |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `profile/` | human + AI | who the owner is (`about-me.md`), how they decide (`decision-policy.md` for the axes, `decision-log.md` for the individual calls) and which persona counsels them (`strategist.md`) — read by hooks, skills and the secretary agent |
+| `memory/` | human + AI | what agents know. `identity/` is who the owner is and how they decide — read in full every session, so it is capped; `notes/` is everything durable and searchable, one typed note per thing; `episodes/` is where sessions stopped, and decays; `.index/` is reserved for a derived search index over `notes/` — gitignored, rebuildable, not built until the store outgrows a text scan |
 | `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
@@ -22,7 +22,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `.workhub/` | **app only** | `settings.json` — the app settings that belong to this vault (see below) |
 
 `.workhub/settings.json` holds the app settings that describe *this vault*
-rather than one machine — the AI's Language, the custom prompt, the
+rather than one machine — the AI's language, the custom prompt, the
 agent/model choices for schedule and mindmap edits, the recurring-task rules,
 and the vault-tidy policy. It is version-controlled with the vault on purpose:
 cloning the vault on another PC restores them. Machine-specific settings
@@ -38,23 +38,33 @@ follow the same convention (e.g. `knowledge/infra/`).
 How agents and the owner work together here. It applies to every session in
 this vault, on top of the task-specific prompt.
 
-**Owner context.** `profile/` is who the owner is and how they decide.
+**Owner context.** `memory/identity/` is who the owner is and how they decide.
 `about-me.md` covers background, current work and where the rest of their
 context lives; `decision-policy.md` covers what you may settle alone, what has
 to come back to them, and — in its `## Preferences` and `## Promoted rules`
 sections — the leanings you build a recommendation from. Read them before work
-that depends on any of that, instead of asking the owner to restate it. It sits
-at the vault root rather than under `knowledge/` because it is operational:
-hooks, skills and the `secretary` agent all read it.
+that depends on any of that, instead of asking the owner to restate it.
 
 The policy is deliberately short — it is read in full on every question, so it
 holds the *axes* of a decision and nothing else. The individual calls the owner
-has settled live in `decision-log.md`, which has no size limit and is never
-read whole: grep it when the policy does not settle a question and a similar
-one may have come up before.
+has settled are typed notes in `memory/notes/` (`type: decision`), found by
+search rather than read whole: look there when the policy does not settle a
+question and a similar one may have come up before.
+
+**Everything durable an agent knows lives in `memory/`, and the split is by how
+it reaches a session, not by what it is about.** `identity/` is read in full
+every time, so it is capped — a note nobody can read in one pass stops being
+read, and the judgement it holds stops applying. `notes/` is reached by search,
+so it has no cap and needs a `type:` to be findable at all. `episodes/` decays
+and is promoted from. `knowledge/` is *not* part of this: it is the owner's own
+reference material, which nothing injects.
+
+One thing deliberately stays outside: a `.claude/rules/` file fires when a
+matching **path** is touched, which is a channel `memory/` does not have. A
+constraint about particular code belongs there, not here.
 
 **Strategic context.** `strategy/` is where the owner is heading, not who
-they are, which is why it sits beside `profile/` rather than inside it:
+they are, which is why it sits beside `memory/` rather than inside it:
 `north-star/` holds the mission, vision, values and the rules they will not
 break; `current/` holds the honest present tense (active work, numbers,
 capacity, and the quarter's roadmap); `bottlenecks/` holds what is stopping
@@ -66,7 +76,7 @@ when the owner wants to think out loud, and cross-checks the three against
 each other. Read it yourself only when a task turns on the owner's priorities.
 
 Nothing in `strategy/` duplicates a project: a project keeps its own plan in
-`projects/<project>/roadmap.md` and `schedules/`, and
+`projects/NNNN-<project>/roadmap.md` and `schedules/`, and
 `strategy/current/roadmap.md` links to them rather than restating their dates.
 
 **Questions carry a recommendation.** Never put an open choice to the owner.
@@ -105,7 +115,7 @@ is not approval for the next one.
 The workhub app's **Settings → Agents → Custom prompt** is appended verbatim
 to every task launch prompt; its whitespace collapses to single spaces, so keep
 it to a short personal delta. Anything longer belongs in this file or in
-`profile/about-me.md`, which agents read from the vault itself.
+`memory/identity/about-me.md`, which agents read from the vault itself.
 
 ## Knowledge workflow
 
@@ -129,7 +139,7 @@ status: todo        # inbox | todo | doing | review | done
 assignee: me        # me | claude-code | opencode
 project: devdeck    # target project/repo identifier (optional)
 backlog: B-007      # required once `project` is set: the backlog item in
-                    # projects/<project>/backlog/ this task belongs to. The
+                    # projects/*-<project>/backlog/ this task belongs to. The
                     # link runs this way only — the item never lists its
                     # tasks. Left blank it means "not chosen yet", never "no
                     # item": the agent fills it in at task-start
@@ -172,9 +182,9 @@ in Obsidian.
 
 ## Project layout
 
-Each development project gets one folder under `projects/<project-slug>/`
-(English kebab-case). Start a new project by copying `templates/project/` and
-filling in the placeholders. Layout:
+Each development project gets one folder under `projects/NNNN-<project-slug>/`
+(slug in English kebab-case). Create one from the app's **Projects** tab, which
+assigns the number and fills in `templates/project/`'s placeholders. Layout:
 
 | Path | Contents |
 |---|---|
@@ -186,15 +196,54 @@ filling in the placeholders. Layout:
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
 | `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
+| `shared/` | Shared-space notes (`<name>.md`), one per team knowledge base that lives outside the vault — where it is and how it is organised |
 | `attachments/` | Images and binaries for this project |
 | `_index.md` | Machine-readable index, maintained by `/kb-index` |
 
 **AI agents: open `README.md` first.** It states the current status and points
 to everything else — do not scan the whole project folder.
 
+**The project root is a closed set.** The only files directly under
+`projects/NNNN-<slug>/` are the five in the table above — `README.md`, `prd.md`,
+`roadmap.md`, `links.md` and `_index.md`. Every other note lives in a
+subfolder. The table is written for development projects, so an operational
+one will hold documents none of those folders describe — correspondence with a
+support desk, applications, statements. Create a subfolder for that kind of
+document rather than dropping it at the root, and register it in the project's
+`README.md` and `_index.md` so the next reader finds it.
+
 Folder names are English kebab-case; note file names may be Japanese (vault
 convention). `B-NNN` is a stable identifier, not a sort order — ordering and
 status live in frontmatter and are rendered by `_backlog.base`.
+
+**The project folder carries a number; the slug does not.** A project folder
+is `NNNN-<slug>` — four digits, a hyphen, the slug (`projects/0010-workhub/`).
+The slug is everything after the first `NNNN-`, and it is the only thing the
+rest of the vault uses: a task's `project: workhub`, a backlog item's
+`project:`, the `project == "workhub"` filter in `_backlog.base`. To find a
+project's folder from its slug, glob `projects/*-<slug>/` (or
+`archive/projects/*-<slug>/`); never build the path as `projects/<slug>/`.
+
+- The number exists so a file explorer that sorts by name — Obsidian's does —
+  lists projects in an order the owner chose rather than alphabetically. It has
+  no other meaning: no category, no priority.
+- Numbers go in tens, like a backlog item's child notes, so a project can be
+  slotted between two others without renaming either. The app gives a new
+  project the next ten above the highest number in `projects/` and
+  `archive/projects/`.
+- Renumbering is a folder rename and nothing more. That is why the number is
+  not part of the slug: `project:` appears in hundreds of task files, archived
+  ones included, and none of them should change because a folder moved in a
+  list. Only path-style links (`projects/0010-workhub/README.md`) follow the
+  rename; wikilinks resolve by basename and do not care.
+- Four digits, not three: the numbers are never reused, archived projects keep
+  theirs, and three digits in tens run out at 99 projects.
+- A folder with no number reads the same way — its slug is its whole name — so
+  the rule has no second path. The app flags two folders that resolve to the
+  same slug.
+- `B-NNN` stays three digits. It is an identifier, not a sort order, so
+  `B-1000` works as written; widening it would mean renaming ids that are
+  promised never to change.
 
 The layout has two axes, not one. `backlog/` groups by **unit of work** — one
 feature, one bug, one support case — keeping its spec, its research and its
@@ -233,7 +282,36 @@ or a frontend and a backend — which is why this is a list and not a single
 key. The pre-T-0216 single `repo:` key is gone; it is not read as a fallback,
 so a note that still carries it reads as having no repository at all.
 
-A project that is finished or parked moves to `archive/projects/<slug>/` —
+`_index.md` carries two more optional keys, both written by the **Projects**
+tab and both safe to edit by hand:
+
+```yaml
+pinned: true        # optional; absent = false. Held at the top of the list
+order: 2            # optional; manual sort position within its group
+```
+
+`pinned` is how the owner says "this is what I am working on now": pinned
+projects are listed above the rest. `order` is a manual position, and is a
+number rather than an index on purpose — dropping a project between two
+others gives it the value halfway between theirs, so one reordering rewrites
+one note instead of renumbering every project in the vault. It is the same
+mechanism as a task's `order`. A project with no `order` is listed after every
+project that has one, alphabetically; archived projects sort last whatever
+either key says.
+
+The Projects tab can also list by **name** — the folder name, so by number —
+which is the order Obsidian shows. `order` and the folder number are two
+orders on purpose: `order` is the app's list, rearranged by dragging; the
+number is the file explorer's, rearranged by renaming. Pinned projects stay
+on top in both.
+
+Both live in the vault rather than in the app's machine-local config, so a
+second PC that clones the vault gets the pins and the order back. (The Repos
+tab's star is machine-local instead, because a repository path is specific to
+one machine.)
+
+A project that is finished or parked moves to `archive/projects/NNNN-<slug>/`,
+number and all —
 under `archive/projects/`, not `archive/<slug>/`, so the folder's origin
 survives the move. The **Projects** tab archives and restores it; a project
 folder is never deleted, because it holds months of hand-written prose.
@@ -296,17 +374,18 @@ calendar through its own `due` date, or via a `task:` link.
 the note stays editable in Obsidian at the same time.
 
 Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`, and the
-optional `node_width` / `stickies`); the content lives in two managed sections
-— `## Nodes` and the optional `## Stickies` — plus a `## Memo` section neither
-the app nor the AI ever rewrites:
+optional `node_width` / `stickies` / `attr_chips` / `attr_color` /
+`attr_filter`); the content lives in two managed sections — `## Nodes` and the
+optional `## Stickies` — plus a `## Memo` section neither the app nor the AI
+ever rewrites:
 
 ```markdown
 ## Nodes
 
 - N-001 workhub #blue
-  - N-002 tasks #green task:T-0042
+  - N-002 tasks #green task:T-0042 prio:high
     - N-003 kanban ^collapsed
-  - N-004 schedule #amber
+  - N-004 schedule #amber tags:検討中,見積り
     lead times are still guesses
 
 ## Stickies
@@ -314,7 +393,8 @@ the app nor the AI ever rewrites:
 - S-001 node:N-004 @96,24 #amber re-check the dates after the vendor call
 ```
 
-Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^right]`
+Node line:
+`- <id> <title> [#<color>] [task:<task-id>] [<key>:<value> ...] [^collapsed] [^left|^right]`
 
 - Nesting is indentation, two spaces per level — an ordinary nested bullet
   list, which is what makes the file editable by hand.
@@ -325,6 +405,28 @@ Node line: `- <id> <title> [#<color>] [task:<task-id>] [^collapsed] [^left|^righ
   branch inherits the nearest coloured ancestor's colour, so colour the branch
   head rather than every node.
 - `task:<task-id>` links the node to a task in `tasks/`.
+- `<key>:<value>` is a free-form **attribute** — importance, priority, an
+  owner, a grouping label, whatever the map is being sorted by. Any number of
+  them, in any order. The keys are not configured anywhere: the map's
+  vocabulary is whatever its nodes use, and the app offers the keys and values
+  already in the file as suggestions.
+  - A key is either lowercase ASCII (`[a-z][a-z0-9_-]*`) or Japanese
+    (hiragana, katakana or kanji, optionally mixed with that same lowercase
+    ASCII) — so `prio:high` and `優先度:高` are both attributes. Either way it
+    is 24 characters at most, and a value carries no spaces, since the line is
+    split on whitespace. Use `_` where a value needs one.
+  - Anything that does not fit those rules stays part of the title, which is
+    what keeps `15:00`, `https://example.com` and `Q3:目標` safe to write in a
+    node. Only the ASCII colon separates a key from its value, so a title
+    written with the full-width `：` — `目標：達成` — is never read as one.
+  - `tags:` is the one key the app treats as a list: its value is
+    comma-separated (`tags:検討中,要調査`), each tag gets its own chip, and
+    colouring or filtering by `tags` works on individual tags.
+  - The app draws attributes as chips under the node's title, can colour the
+    boxes by one key, and can dim every node that does not carry a given
+    `key=value`. All three are display settings — see the frontmatter keys
+    below. Right-clicking a chip on the map offers those commands, plus
+    removing that attribute from the node.
 - `^collapsed` hides the node's children **in the app**; the subtree itself is
   untouched.
 - `^left` / `^right` pins a branch to one side of the root (only meaningful on
@@ -355,6 +457,31 @@ visible, unlike a node's own continuation lines, which only appear on hover.
   (the Mindmap tab's sticky button). It is a display setting; it hides them in
   the exports too, so a hand-out matches the screen.
 
+Three more frontmatter keys say how the attributes are being looked at. They
+live in the note for the same reason `node_width` does — the right answer
+differs per map, and an export has to look like what was on screen when it was
+made — and each one is written as the absence of the key when it is at its
+default:
+
+- `attr_chips: tags,prio` says **which** chips are drawn and **in what order**;
+  `none` turns them off entirely. Absent means every attribute is shown,
+  alphabetically — which is why a map that uses no attributes looks exactly as
+  it did before they existed. Alphabetical is only the fallback: `tags` sorts
+  last because of how it is spelled, not because it matters least, so a map
+  that cares about the order says so. The Mindmap tab's chip button edits this.
+  Within one key the order is the file's own — the order the tags were typed
+  in, which you can drag into shape in the node panel.
+- `attr_color: prio` colours the boxes by that attribute's value instead of by
+  `#<color>`. A node without the attribute is left uncoloured — "not labelled
+  yet" is usually the thing you are looking for — and branch colour inheritance
+  is off while it is on. The value → colour mapping is derived from the value
+  itself, so it is stable across maps and exports, and arbitrary: the colours
+  separate values, they do not rank them.
+- `attr_filter: prio=high` dims every node that does not carry it. Dims, never
+  hides: a mindmap is read through its shape, so removing the non-matching
+  nodes would re-flow the map out from under you. For `tags`, the match is
+  membership of the list.
+
 Node positions are deliberately **not** stored: the app lays the map out from
 the tree every time it draws it, anchored on the root — so collapsing a branch
 re-flows that branch without moving the centre of the map. The tab's "mermaid"
@@ -373,6 +500,57 @@ on screen when it was made:
 - `depth` gives every node at the same distance from the root a common width,
   which lines the map up in columns at the cost of one long title widening
   every box on its level.
+
+### Shared-space notes
+
+`shared/` records the team knowledge bases that live **outside** the vault — a
+network drive, a Google Drive or SharePoint folder, whatever the team actually
+files things in. One file is one place. The folder is the registry: nothing
+lists these notes in `_index.md`, the app and the `shared-space` skill read the
+folder itself, the same way `schedules/` and `mindmaps/` do.
+
+What is worth recording is the place's **rules** — naming conventions, which
+kind of document goes where, who owns what. A snapshot of the folder tree goes
+stale within weeks, so it is kept only as orientation. A place with no rules to
+record is just a link, and belongs in `links.md` instead.
+
+Frontmatter is flat:
+
+```yaml
+---
+type: shared-space
+title: Design team share
+kind: network-drive    # network-drive | google-drive | onedrive | sharepoint | other
+location: //fileserver/design/projectX
+access: mapped to Z:, needs VPN
+direction: read-only   # read-only | export-ok
+surveyed: 2026-09-05
+---
+```
+
+- `location` is the place's canonical address — a UNC path, a local sync path,
+  or a URL. `access` is the human note on how to reach it from this machine.
+- **`direction` is the safety valve.** `read-only` means never write anything
+  there; `export-ok` means the owner has said material may be filed into it. A
+  note whose `direction` is missing or unreadable is treated as `read-only`.
+- `surveyed` is when the rules below were last checked against reality.
+
+The body has four sections, in document order:
+
+| Section | Contents |
+|---|---|
+| `## Structure` | The parts of the folder tree that matter, as orientation — not an exhaustive listing |
+| `## Rules` | How the place is organised. Mark each rule `(stated)` when a document in the place says so, `(inferred)` when it was read off the existing files |
+| `## Placement` | Which vault notes belong where in that place. Only meaningful for `export-ok` places |
+| `## Memo` | The owner's own notes; neither the app nor an agent rewrites this section |
+
+The `shared-space` skill surveys a place and writes the note; the app's
+**Projects** tab lists what `shared/` holds, and offers a prompt to paste into
+an agent when a project has no shared space registered yet.
+
+Filing vault material into a shared space is always one-way, explicit, and
+per-occasion. There is no sync: mirroring a place the team also edits produces
+conflicts and stale duplicates, and neither is worth the convenience.
 
 ### Backlog items
 
@@ -496,10 +674,12 @@ knowledge, and configuration — never application code.
 
 - Skills, hooks, and agents come from Claude Code plugins.
   `.claude/settings.json` declares the `workhub-marketplace` (the workhub
-  GitHub repo) and enables required project-scope plugins (`workhub`,
-  `engineering`) plus `obsidian`. Toggle optional plugins (`team-ops`,
-  `stack-*`) there or with `/plugin`. See `docs/plugins.md` in the workhub
-  repo for the catalog and scope policy.
+  GitHub repo) but enables nothing: plugins are switched on per machine, at
+  user scope, from the app's **Plugins** tab or with `/plugin`. Only `workhub`
+  is required — it carries the task board, the vault knowledge base, and the
+  harness hooks that read `.claude/project-context.json`. Everything else,
+  `engineering` included, is a recommendation you can switch off. See
+  `docs/plugins.md` in the workhub repo for the catalog and scope policy.
 - **Personal skills may live in this vault** at `.claude/skills/<name>/SKILL.md`
   (agents at `.claude/agents/<name>.md`). The app's template only owns the paths
   listed in `_ai/template-manifest.json`, so these are never overwritten by an

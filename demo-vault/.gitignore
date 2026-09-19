@@ -6,6 +6,17 @@ _ai/memory/memory.db
 _ai/memory/memory.db-wal
 _ai/memory/memory.db-shm
 
+# The memory search index is derived from memory/ and can be rebuilt at any
+# time; the Markdown beside it is the record and stays in git.
+memory/.index/
+
 # OpenCode plugin logs
 .opencode/plugins/logs/*
 !.opencode/plugins/logs/.gitkeep
+
+# team-comms / team-ops machine-local config: this machine's shared-drive paths
+# and agent id. Held here rather than appended by the plugins, because this file
+# is rewritten on every template update and an appended line would not survive
+# one (T-0381).
+.claude/team-comms.json
+.claude/team-context.json

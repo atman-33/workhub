@@ -12,8 +12,8 @@ URL, and name is made up.
 | Path | What it shows |
 |---|---|
 | `tasks/` | Eleven tasks spread across every status, with AI and human assignees, and one each of blocked / worktree / plan-first |
-| `projects/demo-app/` | A full project folder: PRD, roadmap, specs, dev-notes, backlog, a schedule and a mindmap |
-| `projects/demo-site/` | A lighter second project, so the project switcher has something to switch to |
+| `projects/0010-demo-app/` | A full project folder: PRD, roadmap, specs, dev-notes, backlog, a schedule and a mindmap |
+| `projects/0020-demo-site/` | A lighter second project, so the project switcher has something to switch to |
 | `inbox/` | A couple of unfiled notes, plus one in `_wip/` that tidy is meant to ignore |
 | `knowledge/` | One sample reference note |
 | `.demo/` | The config and script used to point the app here — see [`docs/screenshots.md`](../docs/screenshots.md) |
