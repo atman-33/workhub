@@ -44,6 +44,13 @@ export const TYPES = {
         why: "what makes a decision findable later: a session briefing asks for the open ones",
       },
       decided: { where: "frontmatter", why: "when it was settled (YYYY-MM-DD)" },
+      // Absent means the owner decided it themselves, which is the common
+      // case and not worth spelling out on every note. `secretary` marks a
+      // DECIDE the secretary agent made on the owner's behalf (T-0390,
+      // replacing the old `_ai/logs/decisions.md` audit log) — weaker
+      // precedent than a call the owner actually made, so a reader (or a
+      // later secretary run) can tell the two apart at a glance.
+      decided_by: { where: "frontmatter", values: ["owner", "secretary"], why: "who made the call — owner, or the secretary agent on their behalf" },
       decision: { where: "observation", required: true, why: "the choice, stated plainly" },
       // Required only while the decision is still open, and that is not a
       // concession: an open decision without its reasoning cannot be revisited,

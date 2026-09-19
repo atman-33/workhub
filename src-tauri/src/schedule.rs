@@ -23,10 +23,10 @@
 
 use crate::models::{ScheduleDoc, ScheduleFile};
 use crate::vault_note::{
-    ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot,
-    mtime_secs, norm_path, resolve_project_dir, restore_snapshot as note_restore_snapshot,
-    rewrite_frontmatter, save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today,
-    unique_note_path,
+    ai_state_dir, ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot,
+    move_snapshot, mtime_secs, norm_path, resolve_project_dir,
+    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
+    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -37,12 +37,12 @@ const SCHEDULES_DIR: &str = "schedules";
 /// Note kind written into a schedule note's `type:` frontmatter key.
 const KIND: &str = "schedule";
 
-/// Folder under `_ai/memory/` where `run_schedule_edit` parks a copy of the
-/// file before an agent touches it, so the UI can offer a one-generation undo
-/// (design note §9.5).
+/// Folder under `_ai/state/` (see `vault_note::ai_state_dir`) where
+/// `run_schedule_edit` parks a copy of the file before an agent touches it, so
+/// the UI can offer a one-generation undo (design note §9.5).
 const SNAPSHOT_DIR: &str = "schedule-snapshots";
 
-/// Folder under `_ai/memory/` that a deleted note is moved into.
+/// Folder under `_ai/state/` that a deleted note is moved into.
 const TRASH_DIR: &str = "schedule-trash";
 
 /// Lists schedule notes across the vault, optionally narrowed to one project
@@ -218,7 +218,7 @@ pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<Sch
     })
 }
 
-/// Moves a schedule note into `_ai/memory/schedule-trash/` and returns where
+/// Moves a schedule note into `_ai/state/schedule-trash/` and returns where
 /// it went.
 ///
 /// Deliberately not an unlink, for the same reasons as the mindmap's delete:
@@ -231,7 +231,7 @@ pub fn delete_schedule(vault: &Path, path: &Path) -> Result<String, String> {
     if !path.is_file() {
         return Err("this schedule no longer exists".into());
     }
-    let dir = vault.join("_ai").join("memory").join(TRASH_DIR);
+    let dir = ai_state_dir(vault).join(TRASH_DIR);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let name = path
         .file_stem()
@@ -354,7 +354,7 @@ mod tests {
 
         let moved = delete_schedule(&vault, &path).unwrap();
         assert!(!path.exists());
-        assert!(moved.contains("_ai/memory/schedule-trash/"));
+        assert!(moved.contains("_ai/state/schedule-trash/"));
         assert!(PathBuf::from(&moved).is_file());
         assert!(list_schedules(&vault, None).unwrap().is_empty());
 

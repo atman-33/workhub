@@ -29,8 +29,7 @@ var → the current directory when it has `tasks/` and `_ai/` → `vault_path` i
 | `strategy/bottlenecks/` | one file per wall, plus a `README.md` describing the convention |
 | `memory/identity/about-me.md` | who the owner is |
 | `memory/identity/decision-policy.md` | what may be settled alone; `## Preferences` and `## Promoted rules` |
-| `memory/notes/` | the individual calls already settled — grep it, never read it whole |
-| `_ai/logs/decisions.md` | where a settled decision is appended |
+| `memory/notes/` | the individual calls already settled, one typed note each (`type: decision`) — grep it, never read it whole |
 
 `strategy/` is not a project. A project's own plan lives in
 `projects/NNNN-<project>/roadmap.md` and `schedules/`; follow the links rather than
@@ -151,8 +150,10 @@ edits, then making the approved ones.
   deletion.
 - Something that turned into work belongs in `tasks/`, not in `strategy/`.
   Offer it; let the owner create it in the app.
-- Append one line per settled decision to `_ai/logs/decisions.md`:
-  `- <date> [strategist] <the decision> (basis: <what it followed from>)`.
+- Record each settled decision as a typed note under `memory/notes/`
+  (`type: decision`, `status: accepted`, a `[decision]` observation stating it
+  and a `[rationale]` observation with what it followed from). This is the
+  owner's own call, so no `decided_by` field.
 - When the owner reveals a standing preference rather than a one-off call, add
   it to `memory/identity/decision-policy.md`'s `## Preferences` and say that is where
   it went. A one-off call goes to `memory/notes/` instead.

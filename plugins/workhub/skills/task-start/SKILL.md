@@ -25,7 +25,9 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* edit the task file by hand —
    set `status: doing` and `updated: <today>` in the frontmatter (preserve
    the body byte-for-byte; never start `review`/`done`/`archived` tasks),
-   and write `<vault>/_ai/memory/sessions/$CLAUDE_CODE_SESSION_ID.json` with
+   and write `<vault>/_ai/state/sessions/$CLAUDE_CODE_SESSION_ID.json`
+   (`_ai/memory/sessions/` instead, if that folder exists and `_ai/state/`
+   does not — this vault has not run the T-0390 migration yet) with
    `{ "session_id", "host_session_id", "id", "file", "started" }`.
 
    The marker is per session, so two tasks started at once no longer

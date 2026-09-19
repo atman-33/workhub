@@ -17,7 +17,7 @@ vault-template/.opencode/.claude-plugin-sync-manifest.json
 demo-vault/_ai/comms/*
 demo-vault/_ai/index/*
 demo-vault/_ai/logs/*
-demo-vault/_ai/memory/*
+demo-vault/_ai/state/*
 !demo-vault/_ai/*/.gitkeep
 demo-vault/_ai/template-manifest.json
 demo-vault/_ai/music/

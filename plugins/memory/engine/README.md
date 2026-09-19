@@ -52,7 +52,7 @@ OpenCode plugin check them on every run.
 |---|---|
 | this directory | engine source (ESM), shipped with the plugin |
 | `~/.workhub/memory-engine/` | npm deps, model cache, `.setup-version` marker (per machine, survives plugin updates) |
-| `<vault>/_ai/memory/memory.db` | the database — **gitignored**; conversation text is stored verbatim and may contain sensitive material |
+| `<vault>/_ai/state/memory.db` (`_ai/memory/` on a vault not yet migrated, T-0390) | the database — **gitignored**; conversation text is stored verbatim and may contain sensitive material |
 
 ## Setup
 

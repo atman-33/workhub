@@ -752,10 +752,34 @@ pub fn scan_notes(
 // snapshots (undo for AI edits)
 // ---------------------------------------------------------------------
 
+/// Resolve the vault's `_ai/` working-data folder: `_ai/state/` if it exists,
+/// else `_ai/memory/` if it exists (a vault not yet carried through the
+/// T-0390 rename), else `_ai/state/` — the folder every fresh write should
+/// land in.
+///
+/// This is transitional: `_ai/memory/` was renamed to `_ai/state/` in T-0390
+/// because the name collided with the unrelated `memory/` knowledge layer.
+/// Every reader and writer of this folder goes through this one function so
+/// that a vault upgraded to the new plugin/app version before running
+/// `vault-upgrade`'s migration keeps working against its existing `_ai/memory/`
+/// data instead of silently starting a second, empty folder beside it.
+pub fn ai_state_dir(vault: &Path) -> PathBuf {
+    let state = vault.join("_ai").join("state");
+    if state.is_dir() {
+        return state;
+    }
+    let legacy = vault.join("_ai").join("memory");
+    if legacy.is_dir() {
+        return legacy;
+    }
+    state
+}
+
 /// One snapshot per note, keyed by a flattened form of its vault-relative
-/// path, under `_ai/memory/<dir>/`. Only one generation is kept: the undo this
-/// backs is "that AI run was wrong, put it back", and a deeper history would
-/// need a UI to choose from — the vault's git backup covers anything older.
+/// path, under `_ai/state/<dir>/` (see `ai_state_dir`). Only one generation is
+/// kept: the undo this backs is "that AI run was wrong, put it back", and a
+/// deeper history would need a UI to choose from — the vault's git backup
+/// covers anything older.
 pub fn snapshot_path(vault: &Path, dir: &str, target: &Path) -> PathBuf {
     let target_norm = norm_path(target);
     let rel = target_norm
@@ -763,11 +787,7 @@ pub fn snapshot_path(vault: &Path, dir: &str, target: &Path) -> PathBuf {
         .unwrap_or(&target_norm)
         .trim_start_matches('/')
         .replace(['/', ' '], "_");
-    vault
-        .join("_ai")
-        .join("memory")
-        .join(dir)
-        .join(format!("{rel}.bak"))
+    ai_state_dir(vault).join(dir).join(format!("{rel}.bak"))
 }
 
 pub fn save_snapshot(vault: &Path, dir: &str, target: &Path) -> Result<(), String> {
@@ -967,5 +987,41 @@ mod tests {
         fs::create_dir_all(vault.join("archive").join("projects").join("0010-demo")).unwrap();
         let err = create_project(&vault, "demo", "x").unwrap_err();
         assert!(err.contains("already exists"), "error: {err}");
+    }
+
+    // -----------------------------------------------------------------
+    // ai_state_dir (T-0390: `_ai/memory/` renamed to `_ai/state/`)
+    // -----------------------------------------------------------------
+
+    fn temp_ai_dir_vault(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("workhub-aistate-{name}-{nanos}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn ai_state_dir_prefers_the_new_folder_when_it_exists() {
+        let vault = temp_ai_dir_vault("prefers-new");
+        fs::create_dir_all(vault.join("_ai").join("state")).unwrap();
+        fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
+        assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("state"));
+    }
+
+    #[test]
+    fn ai_state_dir_falls_back_to_the_legacy_folder() {
+        let vault = temp_ai_dir_vault("legacy-only");
+        fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
+        assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("memory"));
+    }
+
+    #[test]
+    fn ai_state_dir_defaults_to_the_new_folder_when_neither_exists() {
+        let vault = temp_ai_dir_vault("neither");
+        assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("state"));
     }
 }

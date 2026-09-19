@@ -67,12 +67,12 @@ the vault from wherever it is run.
 ## Session markers and cross-session messaging
 
 `task-start` records which task a session is working in
-`<vault>/_ai/memory/sessions/<session-id>.json`, one file per session, keyed by
+`<vault>/_ai/state/sessions/<session-id>.json` (`_ai/memory/` on a vault not yet migrated, T-0390), one file per session, keyed by
 the `CLAUDE_CODE_SESSION_ID` that Claude Code exports to every subprocess. The
 marker also carries `host_session_id` (`CLAUDE_CODE_HOST_SESSION_ID`) — the
 address the desktop app's `send_message` tool takes.
 
-This replaced a single shared `_ai/memory/active-task.json`. That file could
+This replaced a single shared `_ai/memory/active-task.json` (now `_ai/state/active-task.json`). That file could
 only describe one session, so under two parallel sessions the second
 `task-start` overwrote the first's marker: the Stop-hook reminder named the
 wrong task, and the memory engine filed a transcript under a task the session

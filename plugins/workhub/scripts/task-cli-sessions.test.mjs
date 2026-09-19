@@ -59,7 +59,7 @@ function run(session, args) {
 }
 
 function markerFile(key) {
-  return join(vault, "_ai", "memory", "sessions", `${key}.json`);
+  return join(vault, "_ai", "state", "sessions", `${key}.json`);
 }
 
 function marker(key) {
@@ -104,7 +104,9 @@ describe("start", () => {
     expect(marker("default").id).toBe("T-0001");
   });
 
-  // A leftover file that still looks authoritative is worse than none.
+  // A leftover file that still looks authoritative is worse than none. Also
+  // exercises the T-0390 legacy fallback: with only `_ai/memory/` present
+  // (no `_ai/state/`), the resolver must still find and remove it there.
   it("removes the pre-T-0243 shared marker", () => {
     const legacy = join(vault, "_ai", "memory", "active-task.json");
     mkdirSync(join(vault, "_ai", "memory"), { recursive: true });

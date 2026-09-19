@@ -274,4 +274,18 @@ mod tests {
         let vault = temp_vault("empty", &["anything.md"]);
         assert!(!When::default().matches(&vault));
     }
+
+    #[test]
+    fn ai_memory_to_state_notice_applies_while_the_old_folder_is_still_there() {
+        let vault = temp_vault("ai-state-old", &["_ai/memory/tidy-pending.json"]);
+        let ids: Vec<String> = pending(&vault, &[]).iter().map(|n| n.id.clone()).collect();
+        assert!(ids.contains(&"ai-memory-to-state".to_string()));
+    }
+
+    #[test]
+    fn ai_memory_to_state_notice_stops_once_the_folder_is_gone() {
+        let vault = temp_vault("ai-state-migrated", &["_ai/state/tidy-pending.json"]);
+        let ids: Vec<String> = pending(&vault, &[]).iter().map(|n| n.id.clone()).collect();
+        assert!(!ids.contains(&"ai-memory-to-state".to_string()));
+    }
 }

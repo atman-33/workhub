@@ -125,7 +125,8 @@ pub fn has_work(vault: &Path, s: &TidySettings) -> bool {
 /// The listing (and with it every exclusion rule) comes from `inbox`, so what
 /// tidy considers work is exactly what the Inbox tab shows — there is no second
 /// copy of the rules to drift. A note a previous unattended run deferred into
-/// `_ai/memory/tidy-pending.json` is not work: relaunching the agent would just
+/// `tidy-pending.json` (under the vault's `_ai/state/`, see
+/// `vault_note::ai_state_dir`) is not work: relaunching the agent would just
 /// re-defer it, unless the user edited the note after the deferral.
 fn has_stale_inbox(vault: &Path, stale_days: u32, exclude: &[String]) -> bool {
     let pending = inbox::load_pending(vault);
@@ -599,12 +600,12 @@ mod tests {
     fn has_stale_inbox_ignores_deferred_notes() {
         let vault = std::env::temp_dir().join(format!("tidy-stale-test-{}", now()));
         fs::create_dir_all(vault.join("inbox")).unwrap();
-        fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
+        fs::create_dir_all(vault.join("_ai").join("state")).unwrap();
         fs::write(vault.join("inbox").join("idea.md"), "# idea").unwrap();
         // stale_days 0 → every dated note is old enough to act on.
         assert!(has_stale_inbox(&vault, 0, &[]));
         fs::write(
-            vault.join("_ai").join("memory").join("tidy-pending.json"),
+            vault.join("_ai").join("state").join("tidy-pending.json"),
             r#"{"files":[{"path":"inbox/idea.md","reason":"low confidence"}]}"#,
         )
         .unwrap();

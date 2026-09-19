@@ -4,7 +4,7 @@
 //! Notes a human drops into `inbox/` were invisible to the app: only the tidy
 //! routine (`tidy.rs`) ever looked at them, and when its unattended run could
 //! not decide where a note belonged it parked a proposal in
-//! `_ai/memory/tidy-pending.json` that nothing ever displayed. This module is
+//! `_ai/state/tidy-pending.json` that nothing ever displayed. This module is
 //! the read side of that gap — it enumerates the folder and surfaces those
 //! proposals so the Inbox tab can show both.
 //!
@@ -13,13 +13,15 @@
 //! than walking `inbox/` with a second copy of the rules — a note the user can
 //! see in the tab is exactly a note tidy would consider, by construction.
 
+use crate::vault_note::ai_state_dir;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Where the kb-ingest skill records the notes it declined to file itself.
-const PENDING_FILE: &[&str] = &["_ai", "memory", "tidy-pending.json"];
+/// Name of the file, under `ai_state_dir(vault)`, where the kb-ingest skill
+/// records the notes it declined to file itself.
+const PENDING_FILE_NAME: &str = "tidy-pending.json";
 
 /// A tidy run's deferred filing decision for one inbox note.
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -104,14 +106,12 @@ impl Pending {
     }
 }
 
-/// Reads `_ai/memory/tidy-pending.json`. A missing, unreadable, or malformed
-/// list is an empty one — the inbox listing and the tidy pre-check both have to
-/// work on a vault that has never run a tidy.
+/// Reads `tidy-pending.json` from the vault's `_ai/` working-data folder (see
+/// `vault_note::ai_state_dir`). A missing, unreadable, or malformed list is an
+/// empty one — the inbox listing and the tidy pre-check both have to work on a
+/// vault that has never run a tidy.
 pub fn load_pending(vault: &Path) -> Pending {
-    let mut file = vault.to_path_buf();
-    for part in PENDING_FILE {
-        file.push(part);
-    }
+    let file = ai_state_dir(vault).join(PENDING_FILE_NAME);
     let mut entries = HashMap::new();
     let mut mtime = 0;
     if let Ok(text) = fs::read_to_string(&file) {
@@ -266,7 +266,7 @@ mod tests {
         write(&vault.join("inbox").join("srms.md"), "# srms");
         write(&vault.join("inbox").join("other.md"), "# other");
         write(
-            &vault.join("_ai").join("memory").join("tidy-pending.json"),
+            &vault.join("_ai").join("state").join("tidy-pending.json"),
             r#"{"task":"T-0061","pendingReview":1,"files":[
                 {"path":"inbox/srms.md","reason":"redundant prefix","proposal":"projects/srms/dev-notes/"}
             ]}"#,
@@ -312,7 +312,7 @@ mod tests {
     fn pending_shields_only_unedited_listed_files() {
         let vault = temp_vault("shields");
         write(
-            &vault.join("_ai").join("memory").join("tidy-pending.json"),
+            &vault.join("_ai").join("state").join("tidy-pending.json"),
             r#"{"files":[{"path":"inbox/random idea.md","reason":"low confidence"}]}"#,
         );
         let pending = load_pending(&vault);
@@ -337,6 +337,22 @@ mod tests {
         let pending = load_pending(&vault);
         assert_eq!(pending.len(), 0);
         assert!(!pending.shields(&vault.join("inbox").join("a.md"), 0));
+    }
+
+    /// A vault that has not yet run the T-0390 `_ai/memory/` → `_ai/state/`
+    /// migration still has its pending list read correctly.
+    #[test]
+    fn load_pending_falls_back_to_the_legacy_memory_folder() {
+        let vault = temp_vault("legacy-ai-dir");
+        write(
+            &vault.join("_ai").join("memory").join("tidy-pending.json"),
+            r#"{"files":[{"path":"inbox/old.md","reason":"low confidence"}]}"#,
+        );
+        let pending = load_pending(&vault);
+        assert_eq!(pending.len(), 1);
+        assert!(pending.get(&vault.join("inbox").join("old.md")).is_some());
+
+        let _ = fs::remove_dir_all(&vault);
     }
 
     #[test]

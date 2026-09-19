@@ -50,8 +50,8 @@ the repository and breaks on an installed copy.
 | Contract | Owner | Used for |
 |---|---|---|
 | `~/.workhub/config.json` → `vault_path`, `settings.memory_claude_code`, `settings.memory_opencode` | the workhub app | finding the vault, and the per-agent on/off switches |
-| `<vault>/_ai/memory/sessions/<key>.json` | `workhub`'s `task-cli start` | tagging a session's chunks with the task that session is working |
-| `<vault>/_ai/memory/memory.db` | this plugin | the database itself, gitignored |
+| `<vault>/_ai/state/sessions/<key>.json` (`_ai/memory/` on a vault not yet migrated, T-0390) | `workhub`'s `task-cli start` | tagging a session's chunks with the task that session is working |
+| `<vault>/_ai/state/memory.db` (`_ai/memory/` on a vault not yet migrated, T-0390) | this plugin | the database itself, gitignored |
 
 Two files under `lib/` are deliberate copies of the read paths for the second
 contract (`session-marker-read.mjs`) and of the hook payload reader

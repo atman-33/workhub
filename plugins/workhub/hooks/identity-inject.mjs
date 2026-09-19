@@ -80,8 +80,11 @@ Before asking the owner anything, consult the \`secretary\` subagent (Agent
 tool, subagent_type "secretary"). It answers from the same decision policy and
 returns either:
 
-- DECIDE — act on its answer and append one line to
-  \`_ai/logs/decisions.md\` in the vault: \`- <date> <task-id> [DECIDE] <choice> (basis: <basis>)\`.
+- DECIDE — act on its answer and record it as a note in
+  \`${posix(notes)}\`: \`type: decision\`, \`status: accepted\`,
+  \`decided_by: secretary\`, a \`[decision]\` observation with its choice and a
+  \`[rationale]\` observation with its basis. This is precedent for the next
+  secretary run, marked apart from a call the owner made themselves.
 - ESCALATE — file the question for the owner with
   \`node "${posix(commsCli)}" ask --task <id> --question "..." --context "..."\`,
   set \`blocked: true\` + \`blocked_note\` on the task, and continue with

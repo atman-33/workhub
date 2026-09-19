@@ -11,7 +11,7 @@ Memory has two stores, and they hold the same history at different stages:
 | Store | What is in it | How it is searched |
 |---|---|---|
 | `memory/notes/` + `memory/episodes/` | The **distilled** record: one typed note per decision, lesson or stopped session. In git | `cli.mjs notes` — type/status filters plus terms |
-| `_ai/memory/memory.db` | Every session's **verbatim** Q&A pairs. This machine only | `cli.mjs recall` — keyword + vector search |
+| `_ai/state/memory.db` | Every session's **verbatim** Q&A pairs. This machine only | `cli.mjs recall` — keyword + vector search |
 
 The distilled record answers first. It is what someone decided was worth
 keeping, it carries its reasoning, and it is the thing to cite. The verbatim

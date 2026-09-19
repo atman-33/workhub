@@ -1388,7 +1388,7 @@ pub async fn rename_mindmap(
     .map_err(|e| e.to_string())?
 }
 
-/// Moves a schedule note into `_ai/memory/schedule-trash/`. Returns where it
+/// Moves a schedule note into `_ai/state/schedule-trash/`. Returns where it
 /// went, so the UI can tell the user where to find it.
 #[tauri::command]
 pub async fn delete_schedule(vault_path: String, path: String) -> Result<String, String> {
@@ -1399,7 +1399,7 @@ pub async fn delete_schedule(vault_path: String, path: String) -> Result<String,
     .map_err(|e| e.to_string())?
 }
 
-/// Moves a mindmap note into `_ai/memory/mindmap-trash/`. Returns where it
+/// Moves a mindmap note into `_ai/state/mindmap-trash/`. Returns where it
 /// went, so the UI can tell the user where to find it.
 #[tauri::command]
 pub async fn delete_mindmap(vault_path: String, path: String) -> Result<String, String> {

@@ -21,5 +21,24 @@
       "project": "workhub",
       "body": "This vault is still on the pre-0.139.0 layout: the owner's context lives in `profile/`, while the agent hooks read `memory/identity/`. The hooks fail silently on the missing path, so every session is starting without the owner's profile or decision policy.\n\nRun the `vault-upgrade` skill from the workhub plugin:\n\n1. `status` — confirm migration `001` reports as NEEDED.\n2. `plan 001` — show the owner exactly what would move, and wait for their approval. It touches nothing.\n3. `apply 001` — only after they agree. It refuses a vault with uncommitted changes; commit or discard first rather than working around it.\n\nWhat the migration does **not** do is as important as what it does. It never deletes and never overwrites: `profile/decision-log.md` is left in place after its contents become notes under `memory/notes/`, and a file already occupying a destination is moved aside rather than replaced. Removing anything is the owner's decision, and only after the new notes have been read and committed.\n\nAfterwards:\n\n- Have the owner review the diff and commit it. An uncommitted migration is one crash away from being lost.\n- Report the links the migration lists as broken. Do not rewrite them — most are records of what was true at the time, not links to repair.\n- Say plainly what moved, what was left alone, and what was not deleted."
     }
+  },
+  {
+    "id": "ai-memory-to-state",
+    "since": "0.144.0",
+    "severity": "info",
+    "title": "_ai/memory/ is now _ai/state/",
+    "summary": "_ai/memory/ was renamed to _ai/state/ so it stops being confused with the memory/ knowledge layer. Nothing is broken — every reader still falls back to the old name — but this vault is carrying both folders until it migrates.",
+    "body": "`_ai/memory/` held session markers, the tidy pending list, edit snapshots, soft-delete trash and the memory engine's database — app and agent working data, never knowledge. Its name collided with the unrelated `memory/` knowledge layer at the vault root, so T-0390 renamed it to `_ai/state/`.\n\n**Unlike the profile move, nothing here fails silently.** Every reader and writer resolves the folder as `_ai/state/` if it exists, else `_ai/memory/`, else `_ai/state/` — so this vault keeps working exactly as before. This notice exists only so the rename actually happens instead of leaving both folders around forever.\n\nThe migration is one skill. It shows you what would move before touching anything, refuses a vault with uncommitted work, never deletes and never overwrites — a real collision between the same file in both folders stops the run and asks you to resolve it by hand.",
+    "when": {
+      "path_exists": ["_ai/memory"]
+    },
+    "requires": {
+      "plugin": { "workhub": "0.43.0" }
+    },
+    "action": {
+      "title": "Move _ai/memory/ to _ai/state/",
+      "project": "workhub",
+      "body": "This vault still has files under `_ai/memory/`, renamed to `_ai/state/` in T-0390. Nothing is broken today — every reader falls back to the old name — but the vault should not carry both forever.\n\nRun the `vault-upgrade` skill from the workhub plugin:\n\n1. `status` — confirm migration `002` reports as NEEDED.\n2. `plan 002` — show the owner exactly what would move, and wait for their approval. It touches nothing.\n3. `apply 002` — only after they agree. It refuses a vault with uncommitted changes; commit or discard first rather than working around it.\n\nIt never deletes and never overwrites: a file already at the destination is left alone when identical, and a real collision (different content on both sides) stops the run rather than guessing which one is the owner's. `_ai/memory/memory.db` and its `-wal`/`-shm` siblings are gitignored either way.\n\nAfterwards, have the owner review the diff and commit it, then remove the now-empty `_ai/memory/` folder by hand once they are happy."
+    }
   }
 ]
