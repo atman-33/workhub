@@ -153,7 +153,13 @@ argument-hint: "<task-id>"
    - Do **all** of the task's work inside that worktree path — treat it as the
      repository root for the rest of the task.
    When `worktree` is unset/false, work directly in the resolved repository as
-   before.
+   before — and **never create a worktree on your own**, not even to keep
+   clear of parallel work in the same working tree. Ask the owner first. The
+   workhub plugin's worktree guard puts that question in front of every
+   worktree creation on a task that did not opt in (T-0389).
+   Likewise, do not run two tasks (or two implementing subagents) in parallel
+   in one working tree without asking: parallel work there is what makes a
+   worktree look necessary in the first place.
 6. **Record an approved plan — only for plan-first tasks** (`confirm: true`,
    or whenever the user approves a plan before implementation). Once the plan
    is approved and **before making any code changes**, write it into the task

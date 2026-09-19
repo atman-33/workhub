@@ -566,6 +566,15 @@ this cleanup when the task is finished.
 For a multi-repo task, put each repo's worktree side by side under the same
 `<worktree-root>/<task-id>/` folder.
 
+**Without `worktree: true`, never create a worktree on your own** — not even
+to keep clear of another session or subagent working in the same tree. Ask
+the owner first. An unrequested worktree lands somewhere the owner did not
+choose and is left for them to clean up. The workhub plugin enforces this in
+Claude Code (a worktree guard asks the owner before any worktree is created
+for a task that did not opt in), and `opencode.json` asks before
+`git worktree add` in OpenCode. Do not start parallel work in one working tree
+without asking either; it is what makes a worktree look necessary.
+
 ### Capturing knowledge
 
 When investigation or implementation yields reusable knowledge that is
