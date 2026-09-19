@@ -24,7 +24,9 @@ import { join, resolve, sep } from "node:path";
 // 8: T-0375 rewrote the reflex text and added the `notes` search; the
 //    OpenCode plugin runs the installed copy, so it still showed the old
 //    text. A version mismatch is no longer silent either (T-0385).
-export const ENGINE_VERSION = 8;
+// 9: added lib/reflect.mjs; `inject` asks for memory-reflect on an OpenCode
+//    session's first prompt (T-0386).
+export const ENGINE_VERSION = 9;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
@@ -67,6 +69,18 @@ export function captureStatePath() {
 
 export function captureQueuePath() {
   return join(engineHome(), "capture-queue.jsonl");
+}
+
+// When `memory-reflect` last ran. Machine-local for the same reason: it is
+// about this machine's database (T-0386).
+export function reflectStatePath() {
+  return join(engineHome(), "reflect-state.json");
+}
+
+// Sessions `cli.mjs inject` has already seen, so it can tell a session's first
+// prompt from the rest. Only OpenCode needs it — Claude Code has SessionStart.
+export function injectSeenPath() {
+  return join(engineHome(), "inject-seen.json");
 }
 // Setup copies the engine source here so callers outside the Claude plugin
 // (OpenCode plugin, plain terminals) have a version-stable CLI path that
