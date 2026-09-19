@@ -430,6 +430,7 @@ pub fn run() {
             commands::plugins_update_marketplace,
             commands::plugins_add_marketplace,
             commands::plugins_update_plugin,
+            commands::plugins_install_plugin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

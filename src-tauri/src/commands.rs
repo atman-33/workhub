@@ -2127,3 +2127,18 @@ pub async fn plugins_update_plugin(
     .await
     .map_err(|e| format!("plugin update task failed: {e}"))?
 }
+
+/// `claude plugin install <name>@<marketplace> --scope <scope>`.
+#[tauri::command]
+pub async fn plugins_install_plugin(
+    vault_path: String,
+    name: String,
+    marketplace: String,
+    scope: String,
+) -> Result<crate::plugins::PluginCommandResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::plugins::install_plugin(&vault_path, &name, &marketplace, &scope)
+    })
+    .await
+    .map_err(|e| format!("plugin install task failed: {e}"))?
+}

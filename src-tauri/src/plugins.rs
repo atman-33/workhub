@@ -1034,6 +1034,32 @@ pub fn update_plugin(
     run_claude(vault_path, &["update", &id, "--scope", scope, "--yes"])
 }
 
+/// `claude plugin install <name>@<marketplace> --scope <scope> --yes`.
+///
+/// What switching on a plugin that is not on disk anywhere does instead of
+/// [`set_enabled`]: editing `enabledPlugins` alone leaves the fetch to the
+/// next Claude Code launch, so until then the tab could only say "installs next
+/// launch" and had no contents to show (T-0397). `install` both fetches the
+/// plugin and enables it at `scope`, so no settings edit is needed on top.
+///
+/// Project scope is resolved against the working directory, which
+/// [`run_claude`] sets to the vault. `--yes` for the same reason as
+/// [`update_plugin`]. A Claude Code session that is already running still has
+/// to `/reload-plugins` (or restart) to pick the plugin up.
+pub fn install_plugin(
+    vault_path: &str,
+    name: &str,
+    marketplace: &str,
+    scope: &str,
+) -> Result<PluginCommandResult, String> {
+    // The two scopes the tab switches plugins on at, as `set_enabled` accepts.
+    if !matches!(scope, "user" | "project") {
+        return Err(format!("unknown scope: {scope}"));
+    }
+    let id = qualified(name, marketplace);
+    run_claude(vault_path, &["install", &id, "--scope", scope, "--yes"])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1384,6 +1410,9 @@ mod tests {
     #[test]
     fn rejects_an_unknown_scope() {
         assert!(update_plugin("", "workhub", MARKETPLACE, "nonsense").is_err());
+        assert!(install_plugin("", "workhub", MARKETPLACE, "nonsense").is_err());
+        // `local`/`managed` are update-only: the tab never switches a plugin on there.
+        assert!(install_plugin("", "workhub", MARKETPLACE, "managed").is_err());
         assert!(set_enabled("", "workhub", MARKETPLACE, "nonsense", true).is_err());
     }
 }

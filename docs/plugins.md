@@ -135,8 +135,13 @@ enables the default harness set at project scope — `workhub`, `engineering`
 and `obsidian` (T-0303). A fresh vault therefore carries the marketplace plus
 the default selection; anything beyond that is switched on per machine, not
 per vault. Turn the remaining plugins on from the
-app's **Plugins** tab — the toggle writes `~/.claude/settings.json` — or with
-`/plugin` inside a session. Claude Code installs them on the next launch.
+app's **Plugins** tab or with `/plugin` inside a session. Switching on a
+plugin that is not on disk yet runs `claude plugin install` at once, so its
+contents are readable in the tab straight away; one that is already installed
+only has `~/.claude/settings.json` edited. A plugin switched on some other way
+(a vault template, a hand edit) shows an **Install** button until Claude Code
+fetches it on the next launch. Either way, a session that is already running
+needs `/reload-plugins` or a restart to use it.
 
 The same setup can be done ahead of time from a terminal (no Claude Code
 session needed), using the non-interactive `claude plugin` CLI:
