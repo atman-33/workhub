@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.144.0 (2026-09-19)
+
+- **`_ai/memory/` is now `_ai/state/`** (T-0390). With the `memory/`
+  knowledge layer in place, the vault had two folders called "memory", and
+  the one under `_ai/` never held knowledge at all: session markers, the tidy
+  pending list, edit snapshots, soft-delete trash and the memory engine's
+  database. It is renamed to say what it is. Nothing breaks in the meantime —
+  the app and the plugins read `_ai/state/` and fall back to `_ai/memory/` —
+  and a notice points at the `vault-upgrade` migration that moves the files
+  (it never overwrites or deletes; remove the empty old folder afterwards).
+  Needs the workhub plugin 0.43.0 and memory plugin 0.8.0, then a re-run of
+  `memory-setup`.
+- **One place to look for past decisions** (T-0390). The secretary agent
+  kept its own decisions in `_ai/logs/decisions.md`, a second log beside the
+  decision notes in `memory/notes/`. It now writes each one as a decision
+  note marked `decided_by: secretary`, so precedent is found with one search.
+  The template no longer ships `decisions.md`.
+- **The decisions log no longer points at the old `profile/` folder**
+  (T-0378). A leftover from the move to `memory/` in the template's
+  `_ai/logs/decisions.md`; the demo vault was brought up to the current layout
+  alongside it.
+
 ## 0.143.0 (2026-09-19)
 
 - **An agent asks before creating a git worktree the task did not ask for**
