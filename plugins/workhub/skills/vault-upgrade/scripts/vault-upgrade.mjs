@@ -85,9 +85,22 @@ function divertedName(path) {
   return `${path.slice(0, path.length - ext.length)}.template${ext}`;
 }
 
+/** Is `path` tracked by git? An untracked or gitignored file is not. */
+function isTracked(vault, path) {
+  try {
+    git(vault, ["ls-files", "--error-unmatch", "--", relative(vault, path)]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function move(vault, from, to, useGit) {
   mkdirSync(dirname(to), { recursive: true });
-  if (useGit) {
+  // `git mv` refuses a file git does not track — the memory engine's
+  // gitignored `memory.db` is one (T-0390). Such a file is moved on disk; git
+  // has nothing to record for it either way.
+  if (useGit && isTracked(vault, from)) {
     git(vault, ["mv", relative(vault, from), relative(vault, to)]);
   } else {
     renameSync(from, to);
