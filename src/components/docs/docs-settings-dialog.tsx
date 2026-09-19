@@ -23,8 +23,8 @@ interface Props {
 }
 
 /**
- * The Docs tab's own settings (T-0279) — the sidebar layout, remote images,
- * and the PlantUML server.
+ * The Docs tab's own settings (T-0279) — the sidebar layout, dot-entries,
+ * remote images, and the PlantUML server.
  *
  * It lives on the tab rather than in the Settings dialog, like the folder list:
  * it is a setting of this feature, not of the app. Rendering is off until a
@@ -35,6 +35,7 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   const [server, setServer] = useState("");
   const [listPane, setListPane] = useState(false);
   const [remoteImages, setRemoteImages] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -43,11 +44,17 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return;
     setError("");
-    Promise.all([api.docsPlantumlServer(), api.docsListPane(), api.docsAllowRemoteImages()])
-      .then(([plantuml, pane, remote]) => {
+    Promise.all([
+      api.docsPlantumlServer(),
+      api.docsListPane(),
+      api.docsAllowRemoteImages(),
+      api.docsShowHidden(),
+    ])
+      .then(([plantuml, pane, remote, hidden]) => {
         setServer(plantuml);
         setListPane(pane);
         setRemoteImages(remote);
+        setShowHidden(hidden);
       })
       .catch((e) => setError(String(e)));
   }, [open]);
@@ -58,6 +65,7 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
       await api.setDocsPlantumlServer(server);
       await api.setDocsListPane(listPane);
       await api.setDocsAllowRemoteImages(remoteImages);
+      await api.setDocsShowHidden(showHidden);
       onSaved();
       onClose();
     } catch (e) {
@@ -92,6 +100,24 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
               Splits the sidebar the way Obsidian's Notebook Navigator does: folders on the
               left, the files of the folder you pick on the right. Off, the sidebar is one
               tree holding both.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 text-xs">
+          <Switch
+            id="docs-show-hidden"
+            checked={showHidden}
+            onCheckedChange={setShowHidden}
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <label htmlFor="docs-show-hidden" className="font-medium">
+              Show dot-folders and dot-files
+            </label>
+            <p className="leading-relaxed text-muted-foreground">
+              Lists names starting with a dot, such as .backup — and .git or .obsidian too. Off,
+              they are hidden. desktop.ini stays hidden either way.
             </p>
           </div>
         </div>

@@ -296,6 +296,8 @@ export const api = {
   docsAllowRemoteImages: () => invoke<boolean>("docs_allow_remote_images"),
   setDocsAllowRemoteImages: (enabled: boolean) =>
     invoke<void>("set_docs_allow_remote_images", { enabled }),
+  docsShowHidden: () => invoke<boolean>("docs_show_hidden"),
+  setDocsShowHidden: (enabled: boolean) => invoke<void>("set_docs_show_hidden", { enabled }),
   docsPlantumlServer: () => invoke<string>("docs_plantuml_server"),
   setDocsPlantumlServer: (server: string) =>
     invoke<void>("set_docs_plantuml_server", { server }),

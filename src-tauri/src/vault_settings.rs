@@ -83,6 +83,9 @@ const VAULT_SCOPED: &[&str] = &[
     // whether the tab may do that is the team's call, like the sidebar split
     // above (T-0329).
     "docs_allow_remote_images",
+    // Whether dot-folders are listed is how the team's folders are read, like
+    // the sidebar split (T-0394).
+    "docs_show_hidden",
 ];
 
 /// The `tidy` sub-fields that are policy (portable) rather than run history.

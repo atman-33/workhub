@@ -203,10 +203,12 @@ pub fn allowed_roots(settings: &Settings) -> Vec<String> {
         .collect()
 }
 
-/// True for a name the tree hides: dot-entries (`.obsidian`, `.git`, and the
-/// sync clients' own bookkeeping) and Windows' desktop.ini clutter.
-fn hidden(name: &str) -> bool {
-    name.starts_with('.') || name.eq_ignore_ascii_case("desktop.ini")
+/// True for a name the tree hides: Windows' desktop.ini clutter always, and
+/// dot-entries (`.obsidian`, `.git`, and the sync clients' own bookkeeping)
+/// unless the reader asked to see them (T-0394) - a `.backup` folder is
+/// sometimes exactly what they are looking for.
+fn hidden(name: &str, show_dot_entries: bool) -> bool {
+    name.eq_ignore_ascii_case("desktop.ini") || (!show_dot_entries && name.starts_with('.'))
 }
 
 fn is_markdown(name: &str) -> bool {
@@ -232,10 +234,11 @@ const TEXT_EXTENSIONS: &[&str] = &[
 
 fn is_text(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    // A name that is all extension (`.gitignore`) is hidden from the tree
-    // anyway, so "no stem" needs no special case here.
+    // A name that is all extension (`.gitignore`) has no extension at all,
+    // the way the frontend's `previewKindForPath` reads it too; it is handed
+    // to the OS like any other unknown kind.
     match lower.rsplit_once('.') {
-        Some((_, ext)) => TEXT_EXTENSIONS.contains(&ext),
+        Some((stem, ext)) => !stem.is_empty() && TEXT_EXTENSIONS.contains(&ext),
         None => false,
     }
 }
@@ -249,12 +252,14 @@ fn is_text(name: &str) -> bool {
 /// OS on click. `is_text` joins them for the plain-text kinds (T-0294).
 ///
 /// Never recurses: the tree asks again when a folder is opened.
-pub fn list_dir(dir: &Path) -> Result<Vec<DocsEntry>, String> {
+///
+/// `show_dot_entries` is the `docs_show_hidden` setting (T-0394).
+pub fn list_dir(dir: &Path, show_dot_entries: bool) -> Result<Vec<DocsEntry>, String> {
     let mut out = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
         let Ok(entry) = entry else { continue };
         let name = entry.file_name().to_string_lossy().to_string();
-        if hidden(&name) {
+        if hidden(&name, show_dot_entries) {
             continue;
         }
         // `file_type` avoids a second stat per entry, which matters on a share.
@@ -335,7 +340,8 @@ pub fn read_asset(path: &Path) -> Result<String, String> {
 
 pub fn guarded_list_dir(settings: &Settings, path: &str) -> Result<Vec<DocsEntry>, String> {
     let dir = resolve_within_roots(path, &allowed_roots(settings))?;
-    with_timeout(move || list_dir(&dir))
+    let show_dot_entries = settings.docs_show_hidden;
+    with_timeout(move || list_dir(&dir, show_dot_entries))
 }
 
 pub fn guarded_read_doc(settings: &Settings, path: &str) -> Result<String, String> {
@@ -604,12 +610,39 @@ mod tests {
         fs::write(tree.path().join("sheet.xlsx"), "x").unwrap();
         fs::write(tree.path().join("desktop.ini"), "x").unwrap();
 
-        let entries = list_dir(tree.path()).unwrap();
+        let entries = list_dir(tree.path(), false).unwrap();
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
         // `.obsidian` and desktop.ini stay hidden; the spreadsheet is listed
         // because the folder really contains it. Folders sort ahead of files,
         // and files sort case-insensitively — extensions and all.
         assert_eq!(names, vec!["sub", "A.markdown", "b.md", "sheet.xlsx"]);
+    }
+
+    #[test]
+    fn dot_entries_are_listed_when_asked_for_but_desktop_ini_never_is() {
+        let tree = TempTree::new("list-hidden");
+        fs::create_dir(tree.path().join(".backup")).unwrap();
+        fs::create_dir(tree.path().join("sub")).unwrap();
+        fs::write(tree.path().join(".gitignore"), "x").unwrap();
+        fs::write(tree.path().join("a.md"), "a").unwrap();
+        fs::write(tree.path().join("desktop.ini"), "x").unwrap();
+
+        let names = |show: bool| -> Vec<String> {
+            list_dir(tree.path(), show)
+                .unwrap()
+                .into_iter()
+                .map(|e| e.name)
+                .collect()
+        };
+        assert_eq!(names(true), vec![".backup", "sub", ".gitignore", "a.md"]);
+        assert_eq!(names(false), vec!["sub", "a.md"]);
+    }
+
+    #[test]
+    fn a_dotfile_is_not_mistaken_for_its_extension() {
+        // `.json` is a name, not a JSON file with no stem.
+        assert!(!is_text(".json"));
+        assert!(is_text("a.json"));
     }
 
     #[test]
@@ -626,7 +659,7 @@ mod tests {
         fs::write(tree.path().join("h.csv"), "a,b").unwrap();
         fs::write(tree.path().join("i.xlsx"), "x").unwrap();
 
-        let flags: Vec<(String, bool, bool, bool, bool)> = list_dir(tree.path())
+        let flags: Vec<(String, bool, bool, bool, bool)> = list_dir(tree.path(), false)
             .unwrap()
             .into_iter()
             .map(|e| (e.name, e.is_dir, e.is_markdown, e.is_html, e.is_text))

@@ -1270,6 +1270,19 @@ pub fn set_docs_allow_remote_images(enabled: bool) -> Result<(), String> {
     storage::save(&cfg)
 }
 
+/// Whether the Docs tab lists dot-folders and dot-files (T-0394).
+#[tauri::command]
+pub fn docs_show_hidden() -> bool {
+    storage::load().settings.docs_show_hidden
+}
+
+#[tauri::command]
+pub fn set_docs_show_hidden(enabled: bool) -> Result<(), String> {
+    let mut cfg = storage::load();
+    cfg.settings.docs_show_hidden = enabled;
+    storage::save(&cfg)
+}
+
 #[tauri::command]
 pub fn docs_plantuml_server() -> String {
     storage::load().settings.docs_plantuml_server
