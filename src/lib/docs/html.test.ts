@@ -126,6 +126,27 @@ describe("isRemoteImageSrc", () => {
     expect(isRemoteImageSrc("img/local.png")).toBe(false);
     expect(isRemoteImageSrc("data:image/png;base64,AA")).toBe(false);
   });
+  it("counts the stylesheets and images it could not inline", async () => {
+    const doc = parse(
+      '<head><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="gone.css"></head>' +
+        '<body><img src="a.png"><img src="missing.png"><img src="https://example.com/x.png"></body>',
+    );
+    const result = await prepareHtmlDocument(
+      doc,
+      DOC,
+      loaders({
+        "//server/share/reports/style.css": "p {}",
+        "//server/share/reports/a.png": "data:a",
+      }),
+    );
+    // The web image is never asked for, so it is not a failure either.
+    expect(result).toEqual({ failedStyles: 1, failedImages: 1 });
+  });
+
+  it("reports nothing failed for a page with nothing to inline", async () => {
+    const result = await prepareHtmlDocument(parse("<p>plain</p>"), DOC, loaders({}));
+    expect(result).toEqual({ failedStyles: 0, failedImages: 0 });
+  });
 });
 
 describe("prepareHtmlDocument with remote images allowed", () => {
