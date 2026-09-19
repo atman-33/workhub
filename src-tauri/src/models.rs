@@ -336,6 +336,15 @@ pub struct Settings {
     /// reasoning as `docs_list_pane`.
     #[serde(default)]
     pub docs_allow_remote_images: bool,
+    /// Whether the Docs tab lists dot-entries - `.backup`, `.obsidian`,
+    /// `.git` (T-0394). Off - the default - they are hidden, which is what the
+    /// tab shipped with: most of them are tools' bookkeeping. `desktop.ini`
+    /// stays hidden either way.
+    ///
+    /// Vault-scoped: it says how these documents are read, the same
+    /// reasoning as `docs_list_pane`.
+    #[serde(default)]
+    pub docs_show_hidden: bool,
     /// Display language for the schedule calendar — weekday and month labels
     /// on screen *and* in the HTML export: "en" | "ja". Display only; a
     /// schedule note never stores localized text, so this can never change a
@@ -546,6 +555,7 @@ impl Default for Settings {
             docs_shortcuts: Vec::new(),
             docs_list_pane: false,
             docs_allow_remote_images: false,
+            docs_show_hidden: false,
         }
     }
 }

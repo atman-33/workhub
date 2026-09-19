@@ -183,6 +183,10 @@ export interface Settings {
    * announces the read to whoever serves it. Vault-scoped. Managed from the
    * Docs tab. */
   docs_allow_remote_images: boolean;
+  /** Whether the Docs tab lists dot-folders and dot-files (T-0394). Off -
+   * the default - they are hidden; desktop.ini is hidden either way.
+   * Vault-scoped. Managed from the Docs tab. */
+  docs_show_hidden: boolean;
 }
 
 /** One entry in the Docs tab's Shortcuts section (T-0276). A shortcut is its

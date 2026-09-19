@@ -121,6 +121,7 @@ const DEFAULTS: Settings = {
   docs_shortcuts: [],
   docs_list_pane: false,
   docs_allow_remote_images: false,
+  docs_show_hidden: false,
 };
 
 interface Props {
