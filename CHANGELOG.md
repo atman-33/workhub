@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.141.0 (2026-09-19)
+
+- **Agents can search what memory has distilled, not only the raw
+  conversation** (T-0375). The decisions, lessons and stopped sessions in
+  `memory/` had no search at all: agents were told to look up open decisions
+  with a query no command could run, and the docs described a search index
+  that had never been built. `memory-recall` now searches those notes first
+  and the past conversation second, through one entry point that can later be
+  backed by an index without changing anything that calls it — this vault is
+  meant to last years, and the notes only grow. A decision that has been
+  replaced is left out of the results unless asked for. The decision policy's
+  real limit, twelve promoted rules of three lines each, is now checked by
+  `memory-doctor` instead of living only in `kb-lint`'s instructions. Needs the
+  memory plugin 0.5.0 and workhub plugin 0.40.2.
+
 ## 0.140.2 (2026-09-19)
 
 - **OpenCode sessions are remembered at last** (T-0371). Long-term memory
