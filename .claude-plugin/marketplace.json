@@ -16,6 +16,7 @@
     { "name": "claude-tooling", "source": "./plugins/claude-tooling" },
     { "name": "zenn", "source": "./plugins/zenn" },
     { "name": "writing", "source": "./plugins/writing" },
+    { "name": "thinking", "source": "./plugins/thinking" },
     { "name": "strategy", "source": "./plugins/strategy" },
     { "name": "team-ops", "source": "./plugins/team-ops" },
     { "name": "memory", "source": "./plugins/memory" },

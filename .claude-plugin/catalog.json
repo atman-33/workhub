@@ -62,6 +62,12 @@
       "summary": "Natural Japanese business writing: style constitution, doctype guides and a manual review checklist. Script-free; platform-specific writing stays in zenn."
     },
     {
+      "name": "thinking",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "Skills that ask instead of answer: teach-back quizzes you on a document until you can explain it; ladder structures a concept or a problem one agreed level at a time."
+    },
+    {
       "name": "strategy",
       "tier": "optional",
       "scope": "either",
