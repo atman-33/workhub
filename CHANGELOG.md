@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.142.0 (2026-09-19)
+
+- **One Language setting, and agents are reminded of it every turn**
+  (T-0388). Chat replies kept drifting back into English partway through a
+  session even though the vault's CLAUDE.md and the agent's own memory both
+  said otherwise, so a static instruction is not enough. The old *Task
+  language* setting is now simply **Language** (key `language`): it governs
+  how agents reply to you as well as a task's Plan and Results and the tasks a
+  vault tidy creates. Existing configs keep working — the old `task_language`
+  key is read and rewritten on the next save. Claude Code now gets a one-line
+  reminder on every prompt from the workhub plugin, and the OpenCode plugin
+  that already did this reads the same setting instead of its own
+  `response-language.json`, which the template no longer ships. A new toggle
+  under Language turns the reminder off. Needs the workhub plugin 0.41.0.
+- **Exporting a schedule or mindmap no longer creates a duplicate project
+  folder** (T-0379). The default export location was built from the project's
+  name rather than its folder, so on a vault whose project folders carry a
+  sort number every export quietly created a second, empty project that the
+  Projects tab then flagged as a duplicate. The export now writes into the
+  project's real folder, and refuses rather than invents a project folder that
+  does not exist. A custom export folder behaves as before.
+
 ## 0.141.0 (2026-09-19)
 
 - **Agents can search what memory has distilled, not only the raw
