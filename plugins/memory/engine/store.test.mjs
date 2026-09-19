@@ -220,7 +220,7 @@ describe("searchNotes", () => {
   it("tells doctor when the store has outgrown a text scan", () => {
     for (let i = 0; i <= NOTES_INDEX_THRESHOLD; i += 1) note("notes", `n${i}`, decision(`N${i}`, "accepted"));
     expect(capFindings(vault).map((f) => f.cap)).toEqual(["notes search"]);
-  });
+  }, 30_000); // writing 500+ files overruns the 5s default on the Windows CI runner
 });
 
 describe("the session brief", () => {

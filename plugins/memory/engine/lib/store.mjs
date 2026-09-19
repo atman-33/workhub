@@ -292,11 +292,16 @@ export function capFindings(vault) {
 
   findings.push(...policyFindings(vault));
 
-  const notes = readLayer(vault, "notes");
-  if (notes.length > NOTES_INDEX_THRESHOLD) {
+  // A count, not a read: parsing hundreds of notes just to measure the layer
+  // is the very cost this finding warns about.
+  const notesDir = layerDir(vault, "notes");
+  const noteCount = existsSync(notesDir)
+    ? readdirSync(notesDir).filter((name) => name.endsWith(".md") && name !== "README.md").length
+    : 0;
+  if (noteCount > NOTES_INDEX_THRESHOLD) {
     findings.push({
       cap: "notes search",
-      detail: `${notes.length} notes (threshold ${NOTES_INDEX_THRESHOLD})`,
+      detail: `${noteCount} notes (threshold ${NOTES_INDEX_THRESHOLD})`,
       fix: "time to back `cli.mjs notes` with a derived index under memory/.index/ — callers stay as they are",
     });
   }
