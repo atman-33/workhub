@@ -180,11 +180,21 @@ pub struct Settings {
     /// to the next open. Unset until first moved/closed.
     #[serde(default)]
     pub clips_rect: Option<WindowRect>,
-    /// Language the AI writes the task file's `## Plan` and `## Results`
-    /// sections in: "en" | "ja". Content only — never affects code, comments,
-    /// commit messages, or other repository artifacts.
-    #[serde(default = "default_task_language")]
-    pub task_language: String,
+    /// Language AI agents reply to the owner in, and write a task file's
+    /// `## Plan` and `## Results` sections in: "en" | "ja". Injected into
+    /// every agent turn (see the `response_language_inject` toggle below) —
+    /// never affects code, comments, commit messages, or other repository
+    /// artifacts. Renamed from `task_language` (T-0388); the old key is still
+    /// read via `serde(alias)` so existing on-disk configs keep working.
+    #[serde(alias = "task_language", default = "default_task_language")]
+    pub language: String,
+    /// Whether the language above is reminded to the agent on every turn, in
+    /// both Claude Code and OpenCode (T-0388). On by default — the whole
+    /// point of the setting is that static instructions alone were not
+    /// enough to stop mid-session drift into English. Vault-scoped like
+    /// `language` itself: whether the reminder fires is the team's call.
+    #[serde(default = "default_true")]
+    pub response_language_inject: bool,
     /// Free-form instructions appended to every agent prompt, both when
     /// launching an agent and when copying the prompt (T-0078). Empty by
     /// default. Whitespace is normalized before it is embedded — see
@@ -511,7 +521,8 @@ impl Default for Settings {
             clips_enabled: true,
             clips_gesture: default_clips_gesture(),
             clips_rect: None,
-            task_language: default_task_language(),
+            language: default_task_language(),
+            response_language_inject: true,
             custom_prompt: String::new(),
             prompt_copy_multiline: true,
             claude_desktop_mode: default_claude_desktop_mode(),

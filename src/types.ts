@@ -95,10 +95,15 @@ export interface Settings {
   /** Last clips popup window rect (managed by the backend; round-tripped here
    * so saving settings doesn't wipe it). */
   clips_rect: WindowRect | null;
-  /** Language the AI writes the task file's `## Plan` and `## Results`
-   * sections in: "en" | "ja". Content only — never affects code, comments,
-   * commit messages, or other repository artifacts. */
-  task_language: string;
+  /** Language AI agents reply in, and write the task file's `## Plan` and
+   * `## Results` sections in: "en" | "ja". Injected into every agent turn
+   * when `response_language_inject` is on — never affects code, comments,
+   * commit messages, or other repository artifacts. Renamed from
+   * `task_language` (T-0388). */
+  language: string;
+  /** Whether the language above is reminded to the agent every turn, in both
+   * Claude Code and OpenCode (T-0388). */
+  response_language_inject: boolean;
   /** Free-form instructions appended to every agent prompt (launch and copy
    * alike). Empty = nothing appended; whitespace is normalized by the backend
    * so the prompt survives being quoted into a one-line command — except in a

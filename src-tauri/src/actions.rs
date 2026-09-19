@@ -179,11 +179,11 @@ pub struct LaunchAgentForTaskParams<'a> {
     /// When true, herdr runs in the Tasks view's embedded terminal panel
     /// instead of an external Windows Terminal window (see `herdr::ensure_server`).
     pub terminal_embed: bool,
-    /// Language the agent should write the task file's `## Plan` and
-    /// `## Results` sections in: "en" | "ja". Unrecognized values fall back
-    /// to English. Scoped to those two sections only — never code, comments,
-    /// commit messages, or other repository artifacts.
-    pub task_language: &'a str,
+    /// Language the agent replies in and writes the task file's `## Plan`
+    /// and `## Results` sections in: "en" | "ja". Unrecognized values fall
+    /// back to English. Never affects code, comments, commit messages, or
+    /// other repository artifacts.
+    pub language: &'a str,
     /// User-defined extra instructions appended to every agent prompt
     /// (Settings → Agents → Custom prompt). Empty = nothing appended.
     /// Whitespace is normalized to single spaces before it is embedded,
@@ -308,7 +308,7 @@ fn agent_prompt_clauses(params: &LaunchAgentForTaskParams<'_>, multiline: bool) 
     // Backticks (not double quotes) around section names throughout this
     // function — double quotes would collide with the outer prompt quoting
     // in `agent_command_template` (see `quoted_prompt` there).
-    let language_name = language_name(params.task_language);
+    let language_name = language_name(params.language);
     // In confirm mode the plan-first instructions are their own clauses rather
     // than a tail on the first one, so a multiline copy breaks them apart the
     // same way it breaks apart everything else.
@@ -451,7 +451,7 @@ fn agent_command_template(params: &LaunchAgentForTaskParams<'_>) -> String {
 /// has no memory of any conversation, so this spells out exactly which skills to
 /// run and in which order. `stale_days`/`exclude` are baked in as literal values
 /// so the headless run never has to re-resolve settings.
-pub fn build_tidy_prompt(stale_days: u32, exclude: &[String], task_language: &str) -> String {
+pub fn build_tidy_prompt(stale_days: u32, exclude: &[String], language: &str) -> String {
     let exclude_arg = if exclude.is_empty() {
         String::new()
     } else {
@@ -459,12 +459,12 @@ pub fn build_tidy_prompt(stale_days: u32, exclude: &[String], task_language: &st
     };
     // Language clause (T-0085): an unattended run creates/updates the
     // `#tidy-review` task, and its prose used to be English regardless of the
-    // Task file language setting. Scoped to the human-facing prose only —
+    // Language setting. Scoped to the human-facing prose only —
     // frontmatter values, naming conventions, the pending list and the KB log
     // stay English so they remain greppable and convention-consistent.
     let language_note = format!(
         " Write the title and `## Description` of any task file you create or update in {}. That applies to those parts only — frontmatter values, folder and file naming conventions, `_ai/memory/tidy-pending.json`, and the `_ai/logs/kb-log.md` entries stay in English.",
-        language_name(task_language)
+        language_name(language)
     );
     format!(
         "Perform unattended vault maintenance, non-interactively. \
@@ -476,7 +476,7 @@ Do not ask for confirmation at any point.{language_note}"
     )
 }
 
-/// Maps a task-language setting code to the language name used in prompts.
+/// Maps a `language` setting code to the language name used in prompts.
 /// Unrecognized values fall back to English.
 fn language_name(code: &str) -> &'static str {
     match code {
@@ -991,7 +991,7 @@ mod tests {
             use_herdr: false,
             herdr_cmd: "",
             terminal_embed: false,
-            task_language: "ja",
+            language: "ja",
             custom_prompt: "",
         };
         let prompt = build_agent_prompt(&params);
@@ -1022,7 +1022,7 @@ mod tests {
             use_herdr: false,
             herdr_cmd: "",
             terminal_embed: false,
-            task_language: "ja",
+            language: "ja",
             custom_prompt: "",
         };
         let prompt = build_agent_prompt(&params);
@@ -1082,7 +1082,7 @@ mod tests {
             use_herdr: false,
             herdr_cmd: "herdr",
             terminal_embed: false,
-            task_language: "en",
+            language: "en",
             custom_prompt: "",
         }
     }
@@ -1135,10 +1135,10 @@ mod tests {
     }
 
     #[test]
-    fn confirm_mode_drafts_the_plan_in_the_task_language() {
+    fn confirm_mode_drafts_the_plan_in_the_language() {
         let mut params = test_params("claude-code", "");
         params.confirm = true;
-        params.task_language = "ja";
+        params.language = "ja";
         let prompt = build_agent_prompt(&params);
         assert!(prompt.contains("draft an implementation plan in Japanese"));
     }
@@ -1239,7 +1239,7 @@ mod tests {
     #[test]
     fn prompt_language_clause_says_japanese_when_set() {
         let mut params = test_params("claude-code", "");
-        params.task_language = "ja";
+        params.language = "ja";
         let prompt = build_agent_prompt(&params);
         assert!(prompt
             .contains("Write the task file's `## Plan` and `## Results` sections in Japanese."));
@@ -1279,7 +1279,7 @@ mod tests {
     #[test]
     fn prompt_language_clause_falls_back_to_english_for_unknown_values() {
         let mut params = test_params("claude-code", "");
-        params.task_language = "fr";
+        params.language = "fr";
         let prompt = build_agent_prompt(&params);
         assert!(prompt
             .contains("Write the task file's `## Plan` and `## Results` sections in English."));

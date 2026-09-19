@@ -346,7 +346,7 @@ An AI task carries three buttons on its card, its list row, and its editor: **La
 - **⚙ Settings → Agents → Send to Claude Desktop** picks what the button opens. *Code session* (the default) starts a Claude Code session with the vault as its folder, so the prompt behaves exactly as it does in a terminal: the same instructions, the same skills (\`task-start\`, \`task-report\`), the same working directory. *Chat* opens a plain chat instead, which has no skills and no vault access — it receives the task's Description and is meant for talking a task over, not working it.
 - The first time a session opens with a folder, **Claude Desktop asks you to confirm that folder**. That prompt is part of its own link handling and cannot be skipped.
 - Requires Claude Desktop to be installed — it is what registers the \`claude://\` links the button opens. Without it, the button reports that no handler is available.
-- Like **Copy prompt**, the sent prompt honors the task's confirm and worktree flags, the task file language, and your custom prompt.`;
+- Like **Copy prompt**, the sent prompt honors the task's confirm and worktree flags, the Language setting, and your custom prompt.`;
 
 const DIAG_LOG_MD = `## Reporting a problem (the diagnostic log)
 

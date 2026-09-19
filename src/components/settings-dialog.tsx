@@ -40,7 +40,7 @@ const TIDY_DEFAULTS: Settings["tidy"] = {
   last_session_id: null,
 };
 
-const TASK_LANGUAGES: { id: string; label: string }[] = [
+const LANGUAGES: { id: string; label: string }[] = [
   { id: "en", label: "English" },
   { id: "ja", label: "日本語" },
 ];
@@ -90,7 +90,8 @@ const DEFAULTS: Settings = {
   clips_enabled: true,
   clips_gesture: "ctrl-double",
   clips_rect: null,
-  task_language: "en",
+  language: "en",
+  response_language_inject: true,
   custom_prompt: "",
   prompt_copy_multiline: true,
   claude_desktop_mode: "code",
@@ -443,29 +444,46 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Task file language
+                  Language
                   <VaultScopedBadge />
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
-                  Language an AI agent writes a task's Plan and Results sections in, plus the
-                  title and Description of tasks an automatic vault tidy creates. Never affects
-                  code, comments, or commit messages.
+                  Language AI agents reply to you in, and write a task's Plan and Results and the
+                  tasks an automatic vault tidy creates in. Never affects code, comments, or
+                  commit messages.
                 </p>
                 <Select
-                  value={draft.task_language}
-                  onValueChange={(v) => setDraft({ ...draft, task_language: v })}
+                  value={draft.language}
+                  onValueChange={(v) => setDraft({ ...draft, language: v })}
                 >
                   <SelectTrigger size="sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TASK_LANGUAGES.map((l) => (
+                    {LANGUAGES.map((l) => (
                       <SelectItem key={l.id} value={l.id}>
                         {l.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Remind the agent every turn
+                  <VaultScopedBadge />
+                </label>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] leading-tight text-muted-foreground/70">
+                    Injects a one-line reminder of the Language setting into every prompt, in both
+                    Claude Code and OpenCode — static instructions alone were not enough to stop a
+                    session drifting into English mid-way.
+                  </p>
+                  <Switch
+                    checked={draft.response_language_inject}
+                    onCheckedChange={(v) => setDraft({ ...draft, response_language_inject: v })}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">

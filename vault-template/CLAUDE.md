@@ -22,7 +22,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `.workhub/` | **app only** | `settings.json` — the app settings that belong to this vault (see below) |
 
 `.workhub/settings.json` holds the app settings that describe *this vault*
-rather than one machine — the AI's task language, the custom prompt, the
+rather than one machine — the AI's language, the custom prompt, the
 agent/model choices for schedule and mindmap edits, the recurring-task rules,
 and the vault-tidy policy. It is version-controlled with the vault on purpose:
 cloning the vault on another PC restores them. Machine-specific settings
@@ -690,12 +690,15 @@ knowledge, and configuration — never application code.
 - `.opencode/skills/` (when present) is a generated artifact synced from the
   enabled Claude plugins and from this vault's own `.claude/skills/` — edit the
   source and re-sync, never the copies.
-- Respond to the user in Japanese. Write documents and repository artifacts
-  in English unless the user explicitly requests otherwise.
-- **Exception:** a task file's `## Plan` and `## Results` follow the workhub
-  **Task language** setting (default English), which the app states in its
-  launch prompt. That setting governs those two sections only — never code,
-  comments, commit messages, or repository documentation.
+- Respond in the language set by the workhub **Language** setting (⚙ Settings
+  → Agents) — the app injects a one-line reminder of it into every turn, in
+  both Claude Code and OpenCode, so a session does not drift back to English
+  partway through. Write documents and repository artifacts in English unless
+  the user explicitly requests otherwise.
+- The same **Language** setting also governs a task file's `## Plan` and
+  `## Results` sections, which the app states in its launch prompt. Code,
+  comments, commit messages, and repository documentation always stay in
+  English regardless of the Language setting.
 
 ### herdr workspace integration
 
@@ -803,7 +806,8 @@ app manages.
 - Never set a task's `status` to `done`. Only humans mark tasks done in the app.
 - Never delete a worktree folder directly; always use `git worktree remove`.
 - Personal skills may live in `.claude/skills/`; promote anything shared to a plugin.
-- Respond to the user in Japanese; write repository artifacts in English.
+- Respond in the language set by the workhub **Language** setting; write
+  repository artifacts in English.
 - Never edit app-managed files (`CLAUDE.md`, `AGENTS.md`, `opencode.json`, and
   the `.claude/**` / `.opencode/**` paths listed in `_ai/template-manifest.json`)
   to record instructions — use `CLAUDE.local.md`. Unlisted paths such as
