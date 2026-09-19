@@ -18,7 +18,7 @@ import {
   installedEngineDir,
   memoryEnabled,
   modelsDir,
-  readMarker,
+  markerStatus,
   resolveVault,
 } from "./paths.mjs";
 
@@ -31,8 +31,16 @@ function check(name, level, detail, fix) {
 }
 
 function checkSetup() {
-  const marker = readMarker();
-  if (!marker) {
+  const status = markerStatus();
+  if (status.state === "stale") {
+    return check(
+      "setup",
+      "fail",
+      `set up for engine version ${status.installed ?? "unknown"}, the plugin expects ${ENGINE_VERSION}`,
+      "the memory plugin was updated — run the memory-setup skill again; until then every hook stands down",
+    );
+  }
+  if (status.state !== "ok") {
     return check(
       "setup",
       "fail",
@@ -40,6 +48,7 @@ function checkSetup() {
       "run the memory-setup skill — until it succeeds every hook is a silent no-op",
     );
   }
+  const marker = status.marker;
   return check("setup", "ok", `installed ${marker.installedAt}, model ${marker.model}`);
 }
 
