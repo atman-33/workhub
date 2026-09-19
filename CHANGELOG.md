@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.143.0 (2026-09-19)
+
+- **An agent asks before creating a git worktree the task did not ask for**
+  (T-0389). A task opts into a worktree with `worktree: true`, yet agents
+  twice created one anyway — once as a precaution, once to keep a parallel
+  subagent off the shared working tree — with instructions against it already
+  in place. An unrequested worktree lands somewhere you did not choose and is
+  left for you to clean up. Claude Code now shows a confirmation before any
+  worktree is created for a task that did not opt in (or outside a task), and
+  OpenCode's `opencode.json` asks before `git worktree add`. The vault
+  instructions also say not to start parallel work in one working tree
+  without asking, which is what made a worktree look necessary. Needs the
+  workhub plugin 0.42.0.
+- **The vault has a harness rules file of its own** (T-0382). The vault
+  instructions told agents to add harness notes to
+  `.claude/rules/vault-harness.md`, which the template owns — so every
+  addition became a conflict on the next template update and ended up in a
+  `.bak`. Those notes now go in `.claude/rules/vault-harness-local.md`, which
+  the template creates once and never touches again. Anything already added
+  to `vault-harness.md` is kept in the update's `.bak` and can be moved over.
+
 ## 0.142.0 (2026-09-19)
 
 - **One Language setting, and agents are reminded of it every turn**
