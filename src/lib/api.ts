@@ -202,6 +202,12 @@ export const api = {
    * first schedule impossible to create. */
   listScheduleProjects: (vaultPath: string) =>
     invoke<string[]>("list_schedule_projects", { vaultPath }),
+  /** The project's real folder under `projects/` — which may carry a
+   * `NNNN-` sort prefix the slug itself never includes — or `null` when no
+   * folder answers to the slug. Never build `projects/<slug>/` by string
+   * concatenation for a path used in file I/O; go through this (T-0379). */
+  resolveProjectDir: (vaultPath: string, slug: string) =>
+    invoke<string | null>("resolve_project_dir", { vaultPath, slug }),
   /** Creates `projects/NNNN-<slug>/` from the bundled scaffold, filling its
    * placeholders (`name` falls back to the slug when empty). The `NNNN-`
    * sort number is assigned automatically (T-0178, numbered folders T-0278). */
@@ -231,8 +237,23 @@ export const api = {
    * and returns where it went. */
   deleteSchedule: (vaultPath: string, path: string) =>
     invoke<string>("delete_schedule", { vaultPath, path }),
-  exportScheduleHtml: (outPath: string, html: string) =>
-    invoke<void>("export_schedule_html", { outPath, html }),
+  /** `guard`, when given, must name the vault and project the destination
+   * was resolved into — the vault's own default `attachments/` folder. It is
+   * omitted for a user-configured export directory (`schedule_export_dir`),
+   * which is not under any project and needs no such check. Passing it lets
+   * the backend refuse the write rather than inventing the project folder,
+   * even if the frontend's own resolution were somehow stale (T-0379). */
+  exportScheduleHtml: (
+    outPath: string,
+    html: string,
+    guard?: { vaultPath: string; project: string },
+  ) =>
+    invoke<void>("export_schedule_html", {
+      outPath,
+      html,
+      vaultPath: guard?.vaultPath,
+      project: guard?.project,
+    }),
   runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>
     invoke<string>("run_schedule_edit", { path, instruction, confirm }),
   scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
@@ -304,11 +325,34 @@ export const api = {
    * and returns where it went. */
   deleteMindmap: (vaultPath: string, path: string) =>
     invoke<string>("delete_mindmap", { vaultPath, path }),
-  exportMindmapFile: (outPath: string, content: string) =>
-    invoke<void>("export_mindmap_file", { outPath, content }),
-  /** `base64Data` is the payload of a `data:image/png;base64,...` URL. */
-  exportMindmapPng: (outPath: string, base64Data: string) =>
-    invoke<void>("export_mindmap_png", { outPath, base64Data }),
+  /** `guard` names the vault and project the destination was resolved into
+   * — a mindmap export always lands under the vault's own default
+   * `attachments/` folder, so this is refused rather than inventing the
+   * project folder if the slug does not resolve (T-0379). */
+  exportMindmapFile: (
+    outPath: string,
+    content: string,
+    guard: { vaultPath: string; project: string },
+  ) =>
+    invoke<void>("export_mindmap_file", {
+      outPath,
+      content,
+      vaultPath: guard.vaultPath,
+      project: guard.project,
+    }),
+  /** `base64Data` is the payload of a `data:image/png;base64,...` URL. See
+   * `exportMindmapFile` for `guard` (T-0379). */
+  exportMindmapPng: (
+    outPath: string,
+    base64Data: string,
+    guard: { vaultPath: string; project: string },
+  ) =>
+    invoke<void>("export_mindmap_png", {
+      outPath,
+      base64Data,
+      vaultPath: guard.vaultPath,
+      project: guard.project,
+    }),
   runMindmapEdit: (path: string, instruction: string, confirm: boolean) =>
     invoke<string>("run_mindmap_edit", { path, instruction, confirm }),
   mindmapEditStatus: () => invoke<MindmapEditRun>("mindmap_edit_status"),

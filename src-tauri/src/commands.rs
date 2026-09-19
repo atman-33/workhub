@@ -775,6 +775,26 @@ pub async fn list_schedule_projects(vault_path: String) -> Result<Vec<String>, S
     .map_err(|e| e.to_string())?
 }
 
+/// Resolves a project slug to its real folder under `projects/` — which may
+/// carry a `NNNN-` sort prefix the slug itself never includes — or `None`
+/// when no folder answers to it. The frontend must go through this rather
+/// than string-concatenating `projects/<slug>/`, since that guess is wrong
+/// for every numbered project and silently creates a second, empty one
+/// (T-0379).
+#[tauri::command]
+pub async fn resolve_project_dir(
+    vault_path: String,
+    slug: String,
+) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let vault = PathBuf::from(vault_path);
+        let dir = vault_note::resolve_project_dir(&vault_note::projects_dir(&vault), &slug)?;
+        Ok(dir.map(|p| vault_note::norm_path(&p)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Creates a vault project (`projects/<slug>/`) from the bundled scaffold, so
 /// the schedule picker's project list can grow from inside the app (T-0178).
 #[tauri::command]
@@ -989,10 +1009,25 @@ pub async fn rename_schedule(
 }
 
 /// Writes a frontend-generated, self-contained HTML export to disk (T-0090).
+///
+/// `vault_path`/`project` are set only when `out_path` is the vault's own
+/// default destination (`<vault>/projects/<slug>/attachments/...`) — never a
+/// user-configured export directory — so the write can be refused rather than
+/// inventing the project folder when the slug does not resolve (T-0379).
 #[tauri::command]
-pub async fn export_schedule_html(out_path: String, html: String) -> Result<(), String> {
+pub async fn export_schedule_html(
+    out_path: String,
+    html: String,
+    vault_path: Option<String>,
+    project: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        schedule::export_html(&PathBuf::from(out_path), &html)
+        schedule::export_html(
+            vault_path.as_deref().map(PathBuf::from).as_deref(),
+            project.as_deref(),
+            &PathBuf::from(out_path),
+            &html,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1376,20 +1411,48 @@ pub async fn delete_mindmap(vault_path: String, path: String) -> Result<String, 
 }
 
 /// Writes a frontend-generated, self-contained HTML or SVG export to disk.
+///
+/// `vault_path`/`project` are set only when `out_path` is the vault's own
+/// default destination (`<vault>/projects/<slug>/attachments/...`), so the
+/// write can be refused rather than inventing the project folder when the
+/// slug does not resolve (T-0379).
 #[tauri::command]
-pub async fn export_mindmap_file(out_path: String, content: String) -> Result<(), String> {
+pub async fn export_mindmap_file(
+    out_path: String,
+    content: String,
+    vault_path: Option<String>,
+    project: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        mindmap::export_file(&PathBuf::from(out_path), &content)
+        mindmap::export_file(
+            vault_path.as_deref().map(PathBuf::from).as_deref(),
+            project.as_deref(),
+            &PathBuf::from(out_path),
+            &content,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
 /// Writes a frontend-rendered PNG (base64, as `canvas.toDataURL` produces it).
+///
+/// `vault_path`/`project` are set only when `out_path` is the vault's own
+/// default destination — see [`export_mindmap_file`] (T-0379).
 #[tauri::command]
-pub async fn export_mindmap_png(out_path: String, base64_data: String) -> Result<(), String> {
+pub async fn export_mindmap_png(
+    out_path: String,
+    base64_data: String,
+    vault_path: Option<String>,
+    project: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        mindmap::export_binary(&PathBuf::from(out_path), &base64_data)
+        mindmap::export_binary(
+            vault_path.as_deref().map(PathBuf::from).as_deref(),
+            project.as_deref(),
+            &PathBuf::from(out_path),
+            &base64_data,
+        )
     })
     .await
     .map_err(|e| e.to_string())?

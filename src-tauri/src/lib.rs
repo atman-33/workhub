@@ -328,6 +328,7 @@ pub fn run() {
             commands::preview_vault_template_file,
             commands::watch_vault,
             commands::list_schedule_projects,
+            commands::resolve_project_dir,
             commands::create_vault_project,
             commands::next_project_folder,
             commands::list_vault_projects,

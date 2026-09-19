@@ -1117,17 +1117,28 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     setTimeout(() => setCopied(false), 1200);
   }, [doc]);
 
-  /** Where an export lands: beside the project it documents. */
-  const exportDir = useCallback(
-    () => `${vaultPath}/projects/${targetProject}/attachments`,
-    [vaultPath, targetProject],
-  );
+  /**
+   * Where an export lands: the project's real `attachments/` folder, which
+   * may carry a `NNNN-` sort prefix the slug never includes — resolved
+   * rather than guessed as `projects/<slug>/`, or a second, wrong, empty
+   * project folder gets created in its place (T-0379). `null` when the slug
+   * has no folder.
+   */
+  const exportDir = useCallback(async () => {
+    if (!vaultPath || !targetProject) return null;
+    const projectDir = await api.resolveProjectDir(vaultPath, targetProject);
+    return projectDir ? `${projectDir}/attachments` : null;
+  }, [vaultPath, targetProject]);
 
   const exportHtml = useCallback(async () => {
     if (!doc || !vaultPath) return;
-    const name = `${(doc.title || "mindmap").replace(/[\\/:*?"<>|]/g, "-")}.html`;
-    const out = `${exportDir()}/${name}`;
     try {
+      const dir = await exportDir();
+      if (!dir) {
+        throw new Error(`No project folder found for "${targetProject}"`);
+      }
+      const name = `${(doc.title || "mindmap").replace(/[\\/:*?"<>|]/g, "-")}.html`;
+      const out = `${dir}/${name}`;
       await api.exportMindmapFile(
         out,
         toHtml(doc.roots, {
@@ -1138,13 +1149,14 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           attrView,
           stickies: visibleStickies,
         }),
+        { vaultPath, project: targetProject },
       );
       setStatus(`Exported to ${out}`);
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, vaultPath, exportDir, visibleStickies]);
+  }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
   /**
    * PNG export: rasterize the very SVG the HTML export uses.
@@ -1167,6 +1179,10 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
     try {
+      const dir = await exportDir();
+      if (!dir) {
+        throw new Error(`No project folder found for "${targetProject}"`);
+      }
       const image = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new window.Image();
         img.onload = () => resolve(img);
@@ -1182,14 +1198,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       ctx.drawImage(image, 0, 0);
 
       const name = `${(doc.title || "mindmap").replace(/[\\/:*?"<>|]/g, "-")}.png`;
-      const out = `${exportDir()}/${name}`;
-      await api.exportMindmapPng(out, canvas.toDataURL("image/png").split(",")[1] ?? "");
+      const out = `${dir}/${name}`;
+      await api.exportMindmapPng(out, canvas.toDataURL("image/png").split(",")[1] ?? "", {
+        vaultPath,
+        project: targetProject,
+      });
       setStatus(`Exported to ${out}`);
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
     }
-  }, [doc, vaultPath, exportDir, visibleStickies]);
+  }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
   const runAiEdit = useCallback(
     async (instruction: string, confirm: boolean) => {

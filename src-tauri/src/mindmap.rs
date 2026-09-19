@@ -24,10 +24,10 @@
 
 use crate::models::{MindmapDoc, MindmapFile};
 use crate::vault_note::{
-    frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs, norm_path,
-    projects_dir, resolve_project_dir, restore_snapshot as note_restore_snapshot,
-    rewrite_frontmatter, save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today,
-    unique_note_path,
+    ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot,
+    mtime_secs, norm_path, projects_dir, resolve_project_dir,
+    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
+    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -244,19 +244,33 @@ pub fn delete_mindmap(vault: &Path, path: &Path) -> Result<String, String> {
 /// rather than as a browser download so the default destination can be the
 /// project's `attachments/` folder inside the vault — the export is part of
 /// the project record.
-pub fn export_file(out_path: &Path, content: &str) -> Result<(), String> {
-    if let Some(parent) = out_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
+///
+/// `vault`/`project` are `Some` only when `out_path` is the vault's own
+/// default destination: see [`ensure_export_dir`] for what that guards
+/// against (T-0379).
+pub fn export_file(
+    vault: Option<&Path>,
+    project: Option<&str>,
+    out_path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    ensure_export_dir(vault, project, out_path)?;
     fs::write(out_path, content).map_err(|e| e.to_string())
 }
 
 /// Writes a generated binary export (PNG), given its base64 payload.
-pub fn export_binary(out_path: &Path, base64_data: &str) -> Result<(), String> {
+///
+/// `vault`/`project` are `Some` only when `out_path` is the vault's own
+/// default destination: see [`ensure_export_dir`] for what that guards
+/// against (T-0379).
+pub fn export_binary(
+    vault: Option<&Path>,
+    project: Option<&str>,
+    out_path: &Path,
+    base64_data: &str,
+) -> Result<(), String> {
     let bytes = crate::b64::decode(base64_data)?;
-    if let Some(parent) = out_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
+    ensure_export_dir(vault, project, out_path)?;
     fs::write(out_path, bytes).map_err(|e| e.to_string())
 }
 
@@ -431,6 +445,62 @@ created: 2026-08-26\nupdated: 2026-08-26\n---\n\n## Nodes\n\n- N-001 root\n  - N
         // Consumed: undo is exactly one generation deep.
         assert!(!has_snapshot(&vault, &path));
         assert!(restore_snapshot(&vault, &path).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A numbered project folder (`NNNN-<slug>/`) is the normal case
+    /// (T-0278): the export must resolve it via the slug rather than assume
+    /// the folder name equals the slug, and write into its `attachments/`
+    /// (T-0379).
+    #[test]
+    fn export_file_writes_into_a_numbered_project_folder() {
+        let vault = temp_vault("export-numbered");
+        fs::create_dir_all(vault.join("projects").join("0020-other")).unwrap();
+        let out = vault
+            .join("projects")
+            .join("0020-other")
+            .join("attachments")
+            .join("map.html");
+
+        export_file(Some(&vault), Some("other"), &out, "<html></html>").unwrap();
+
+        assert!(out.is_file());
+        assert_eq!(fs::read_to_string(&out).unwrap(), "<html></html>");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// An unknown slug must not cause `create_dir_all` to invent a second,
+    /// wrong, empty project folder — the export is refused instead (T-0379).
+    #[test]
+    fn export_file_rejects_an_unknown_project_without_creating_a_folder() {
+        let vault = temp_vault("export-unknown");
+        let out = vault
+            .join("projects")
+            .join("nope")
+            .join("attachments")
+            .join("map.html");
+
+        let err = export_file(Some(&vault), Some("nope"), &out, "<html></html>").unwrap_err();
+        assert!(err.contains("nope"));
+        assert!(!vault.join("projects").join("nope").exists());
+        assert!(!out.exists());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// `export_binary` (PNG) applies the same guard as `export_file`.
+    #[test]
+    fn export_binary_rejects_an_unknown_project_without_creating_a_folder() {
+        let vault = temp_vault("export-binary-unknown");
+        let out = vault
+            .join("projects")
+            .join("nope")
+            .join("attachments")
+            .join("map.png");
+        // A minimal valid base64 payload; the guard runs before decoding
+        // would matter.
+        let err = export_binary(Some(&vault), Some("nope"), &out, "AA==").unwrap_err();
+        assert!(err.contains("nope"));
+        assert!(!vault.join("projects").join("nope").exists());
         fs::remove_dir_all(&vault).ok();
     }
 }
