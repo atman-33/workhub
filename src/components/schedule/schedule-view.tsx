@@ -629,16 +629,30 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
 
   const handleExport = useCallback(async () => {
     if (!doc || !window_ || !vaultPath) return;
-    const dir =
-      config?.settings.schedule_export_dir?.trim() ||
-      `${vaultPath}/projects/${targetProject}/attachments`;
-    const name = `${(doc.title || "schedule").replace(/[\\/:*?"<>|]/g, "-")} ${window_.start}.html`;
-    const out = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${name}`;
-    // The export follows what is on screen: an approved plan is approved in
-    // the drawing it was read in.
-    const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale, mode });
     try {
-      await api.exportScheduleHtml(out, html);
+      const customDir = config?.settings.schedule_export_dir?.trim();
+      // The custom directory is not under any project, so it is used as
+      // given; the vault default is the project's real folder, which may
+      // carry a `NNNN-` sort prefix the slug never includes — resolve it
+      // rather than guessing `projects/<slug>/` (T-0379).
+      let dir: string;
+      let guard: { vaultPath: string; project: string } | undefined;
+      if (customDir) {
+        dir = customDir;
+      } else {
+        const projectDir = await api.resolveProjectDir(vaultPath, targetProject);
+        if (!projectDir) {
+          throw new Error(`No project folder found for "${targetProject}"`);
+        }
+        dir = `${projectDir}/attachments`;
+        guard = { vaultPath, project: targetProject };
+      }
+      const name = `${(doc.title || "schedule").replace(/[\\/:*?"<>|]/g, "-")} ${window_.start}.html`;
+      const out = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${name}`;
+      // The export follows what is on screen: an approved plan is approved in
+      // the drawing it was read in.
+      const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale, mode });
+      await api.exportScheduleHtml(out, html, guard);
       setStatus(`Exported to ${out}`);
       await api.openExplorer(out);
     } catch (e) {

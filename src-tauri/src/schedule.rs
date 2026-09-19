@@ -23,9 +23,10 @@
 
 use crate::models::{ScheduleDoc, ScheduleFile};
 use crate::vault_note::{
-    frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs, norm_path,
-    resolve_project_dir, restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
-    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
+    ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot,
+    mtime_secs, norm_path, resolve_project_dir, restore_snapshot as note_restore_snapshot,
+    rewrite_frontmatter, save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today,
+    unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -253,10 +254,17 @@ pub fn delete_schedule(vault: &Path, path: &Path) -> Result<String, String> {
 /// download) so the default destination can be the project's `attachments/`
 /// folder inside the vault — the export is part of the project record, not a
 /// browser download.
-pub fn export_html(out_path: &Path, html: &str) -> Result<(), String> {
-    if let Some(parent) = out_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
+///
+/// `vault`/`project` are `Some` only when `out_path` is the vault's own
+/// default destination (as opposed to a user-configured export directory):
+/// see [`ensure_export_dir`] for what that guards against (T-0379).
+pub fn export_html(
+    vault: Option<&Path>,
+    project: Option<&str>,
+    out_path: &Path,
+    html: &str,
+) -> Result<(), String> {
+    ensure_export_dir(vault, project, out_path)?;
     fs::write(out_path, html).map_err(|e| e.to_string())
 }
 
@@ -626,6 +634,58 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         let listed = list_schedules(&vault, Some("demo")).unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].title, "plan");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A numbered project folder (`NNNN-<slug>/`) is the normal case (T-0278):
+    /// the export must resolve it via the slug rather than assume the folder
+    /// name equals the slug, and write into its `attachments/` (T-0379).
+    #[test]
+    fn export_html_writes_into_a_numbered_project_folder() {
+        let vault = temp_vault("export-numbered");
+        fs::create_dir_all(vault.join("projects").join("0010-demo")).unwrap();
+        let out = vault
+            .join("projects")
+            .join("0010-demo")
+            .join("attachments")
+            .join("plan.html");
+
+        export_html(Some(&vault), Some("demo"), &out, "<html></html>").unwrap();
+
+        assert!(out.is_file());
+        assert_eq!(fs::read_to_string(&out).unwrap(), "<html></html>");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// An unknown slug must not cause `create_dir_all` to invent a second,
+    /// wrong, empty project folder — the export is refused instead (T-0379).
+    #[test]
+    fn export_html_rejects_an_unknown_project_without_creating_a_folder() {
+        let vault = temp_vault("export-unknown");
+        let out = vault
+            .join("projects")
+            .join("nope")
+            .join("attachments")
+            .join("plan.html");
+
+        let err = export_html(Some(&vault), Some("nope"), &out, "<html></html>").unwrap_err();
+        assert!(err.contains("nope"));
+        assert!(!vault.join("projects").join("nope").exists());
+        assert!(!out.exists());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// A user-configured export directory (`settings.schedule_export_dir`) is
+    /// not under any project, so the guard is skipped and the whole path is
+    /// created as before (T-0379).
+    #[test]
+    fn export_html_creates_a_custom_directory_when_no_project_guard_is_given() {
+        let vault = temp_vault("export-custom");
+        let out = vault.join("elsewhere").join("exports").join("plan.html");
+
+        export_html(None, None, &out, "<html></html>").unwrap();
+
+        assert!(out.is_file());
         fs::remove_dir_all(&vault).ok();
     }
 }

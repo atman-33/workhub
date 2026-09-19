@@ -390,6 +390,40 @@ pub fn resolve_project_dir(root: &Path, slug: &str) -> Result<Option<PathBuf>, S
     }
 }
 
+/// Guards a generated-export write against inventing a project folder
+/// (T-0379).
+///
+/// When `vault` and `project` are both given, the destination is the vault's
+/// own default under `<vault>/projects/<slug>/...` — the caller must not
+/// create that project folder itself, only the note-kind subfolder inside an
+/// *existing* one (e.g. `attachments/`). This resolves the slug for real
+/// (`projects/*-<slug>/`, never bare string concatenation) and errors when no
+/// such folder exists, instead of letting `create_dir_all` conjure a second,
+/// wrong, unnumbered project folder.
+///
+/// `None`/`None` means the destination is a user-configured export directory
+/// that has nothing to do with a vault project (`settings.schedule_export_dir`);
+/// there is no project folder to protect, so the whole path is created as
+/// before.
+pub fn ensure_export_dir(
+    vault: Option<&Path>,
+    project: Option<&str>,
+    out_path: &Path,
+) -> Result<(), String> {
+    if let (Some(vault), Some(project)) = (vault, project) {
+        if resolve_project_dir(&projects_dir(vault), project)?.is_none() {
+            return Err(format!(
+                "project '{project}' has no folder under {} — nothing to export into",
+                norm_path(&projects_dir(vault))
+            ));
+        }
+    }
+    if let Some(parent) = out_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// The next project number to allocate: the highest existing number across
 /// both `projects/` and `archive/projects/`, rounded up to the next multiple
 /// of ten, or 10 when the vault has no numbered project yet. Both roots are
