@@ -20,7 +20,7 @@ gray-zone rule already draws it: reversible → proceed, irreversible → ask.
 
 | Action | Do it |
 |---|---|
-| Write a **new** note in `notes/` or `notes/` | Without asking. A new file in a git-tracked folder is undone by deleting it |
+| Write a **new** note in `notes/` or `episodes/` | Without asking. A new file in a git-tracked folder is undone by deleting it |
 | **Archive** a note that is finished | Without asking. A move is reversible, and the note stays in the graph |
 | **Rewrite or merge** an existing note | Propose it. Show what would be lost |
 | Touch anything in **`identity/`** | Propose it. It is capped, so adding means removing |

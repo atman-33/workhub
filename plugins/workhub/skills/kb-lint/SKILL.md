@@ -91,13 +91,20 @@ Task files (`tasks/`) follow the task schema instead — do not flag them here.
 `memory/identity/decision-policy.md` is read in full every time an agent is about to
 ask the owner something, and by the `secretary` subagent on every question it
 gates. It holds the axes of a decision; the individual calls belong in
-`memory/notes/`, which is only ever grepped.
+`memory/notes/`, which is reached by search (`cli.mjs notes`), never read whole.
 
-| Issue | Condition |
-|-------|-----------|
-| POLICY_RULES_OVER_LIMIT | `## Promoted rules` holds more than 12 entries, or one entry runs over 3 lines |
-| POLICY_TOO_LONG | `memory/identity/decision-policy.md` exceeds 120 lines |
-| POLICY_LOG_ENTRIES | The policy carries entries that read as individual cases (a date + task id + `from:`) outside `## Promoted rules` |
+The limits are measured by the `memory` plugin, not here, so the two cannot
+drift apart:
+
+```bash
+node "<memory plugin>/engine/cli.mjs" doctor
+```
+
+Report its `cap:` lines — `promoted rules` (more than 12), `promoted rule N`
+(an entry over 3 lines), `policy cases` (individual cases written into the
+policy), and `identity/decision-policy` (over 120 lines). Where that plugin is
+not installed, skip this section and say so — do not re-implement the limits
+here.
 
 **Report:** name the offending entries and suggest what to do — merge two
 promoted rules into the axis they share, drop one that a later rule subsumes,

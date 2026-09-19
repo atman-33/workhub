@@ -11,7 +11,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
 | `projects/` | human + AI | per-project notes, one backlog item per unit of work |
 | `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `memory/` | human + AI | what agents know. `identity/` is who the owner is and how they decide — read in full every session, so it is capped; `notes/` is everything durable and searchable, one typed note per thing; `episodes/` is where sessions stopped, and decays; `.index/` is the derived search index and is gitignored |
+| `memory/` | human + AI | what agents know. `identity/` is who the owner is and how they decide — read in full every session, so it is capped; `notes/` is everything durable and searchable, one typed note per thing; `episodes/` is where sessions stopped, and decays; `.index/` is reserved for a derived search index over `notes/` — gitignored, rebuildable, not built until the store outgrows a text scan |
 | `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
 | `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |

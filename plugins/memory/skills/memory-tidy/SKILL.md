@@ -50,7 +50,7 @@ A cap is a prompt to consolidate, never a licence to delete.
 |---|---|---|
 | Bloated note | Over 300 lines, several subjects | Split by subject; keep the axes, move the cases out |
 | Duplicates | Two notes on one subject | Merge, then `supersedes` the loser (do not delete it) |
-| Stale | Refers to work that finished, decisions since overturned | Archive, or mark `status: superseded` and link the replacement |
+| Stale | Refers to work that finished, decisions since overturned | Archive, or mark `status: superseded` and give the replacement a `supersedes [[old]]` relation — the link runs one way, from the new note |
 | Orphan | No inbound link, in no index | Link it, or ask whether it is still wanted |
 | Contradiction | Two notes disagree on a fact | **Surface it. Do not pick one silently** — ask which is true |
 | Un-promoted | `episodes/` full of `status: open` checkpoints | Run `memory-reflect` first; this skill is the wrong tool |
