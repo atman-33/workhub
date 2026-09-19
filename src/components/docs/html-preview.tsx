@@ -3,7 +3,12 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { type DocNotesPane, useNoteLayer } from "@/components/docs/use-note-layer";
 import { api } from "@/lib/api";
 import { injectHighlightStyle } from "@/lib/docs/annotation-highlight";
-import { prepareHtmlDocument, serializeHtmlDocument } from "@/lib/docs/html";
+import { Button } from "@/components/ui/button";
+import {
+  type HtmlPrepareResult,
+  prepareHtmlDocument,
+  serializeHtmlDocument,
+} from "@/lib/docs/html";
 
 interface Props {
   /** Absolute path of the HTML file — what its relative references resolve against. */
@@ -17,6 +22,18 @@ interface Props {
   /** Whether `https:` images are loaded by the frame (T-0329). Off, they stay
    * unloaded under the strict CSP. */
   allowRemoteImages?: boolean;
+  /** Bumped whenever the document is read again (a refresh, or its row
+   * clicked while it is open). The stylesheets and images are re-read with
+   * it even when the file's own text came back unchanged (T-0393). */
+  reloadToken?: number;
+}
+
+/** "2 stylesheets and 1 image", for the banner. */
+function describeFailures({ failedStyles, failedImages }: HtmlPrepareResult): string {
+  const parts: string[] = [];
+  if (failedStyles) parts.push(`${failedStyles} stylesheet${failedStyles === 1 ? "" : "s"}`);
+  if (failedImages) parts.push(`${failedImages} image${failedImages === 1 ? "" : "s"}`);
+  return parts.join(" and ");
 }
 
 /**
@@ -54,8 +71,20 @@ function scrollToFragment(doc: Document, fragment: string) {
  *
  * Forms, popups and top-level navigation stay blocked by the sandbox too.
  */
-export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: Props) {
+export function HtmlPreview({
+  path,
+  content,
+  notes,
+  stamp,
+  allowRemoteImages,
+  reloadToken,
+}: Props) {
   const [srcDoc, setSrcDoc] = useState<string | null>(null);
+  // What could not be inlined, so a page that lost its stylesheet on a slow
+  // share says so instead of passing for one that was written unstyled
+  // (T-0393). `retry` re-reads just those files; the page's text is fine.
+  const [failures, setFailures] = useState<HtmlPrepareResult | null>(null);
+  const [retry, setRetry] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
   // Whether the page carries scripts the sandbox will not run (T-0329).
   const hasScripts = /<script[\s>]/i.test(content);
@@ -67,9 +96,10 @@ export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: 
     let live = true;
     setSrcDoc(null);
     setFrameDoc(null);
+    setFailures(null);
     void (async () => {
       const doc = new DOMParser().parseFromString(content, "text/html");
-      await prepareHtmlDocument(
+      const result = await prepareHtmlDocument(
         doc,
         path,
         {
@@ -78,12 +108,16 @@ export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: 
         },
         { allowRemoteImages },
       );
-      if (live) setSrcDoc(serializeHtmlDocument(doc));
+      if (!live) return;
+      setFailures(result);
+      setSrcDoc(serializeHtmlDocument(doc));
     })();
     return () => {
       live = false;
     };
-  }, [path, content, allowRemoteImages]);
+    // `reloadToken` and `retry` are not read here: a change to either is the
+    // request to read the stylesheets and images again.
+  }, [path, content, allowRemoteImages, reloadToken, retry]);
 
   // No link is ever allowed to navigate the frame. An external one opens in
   // the browser, as in the Markdown preview; an in-page `#anchor` is scrolled
@@ -130,6 +164,8 @@ export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: 
     version: `${path}|${stamp}`,
   });
 
+  const failed = failures ? describeFailures(failures) : "";
+
   if (srcDoc === null) {
     return <p className="px-4 py-3 text-xs text-muted-foreground">Preparing page…</p>;
   }
@@ -140,6 +176,21 @@ export function HtmlPreview({ path, content, notes, stamp, allowRemoteImages }: 
           Scripts in this page are disabled in the preview. To run them, open it with the
           default app from the toolbar above.
         </p>
+      )}
+      {failed && (
+        <div className="flex items-center gap-2 border-b px-4 py-1 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="min-w-0 flex-1">
+            Could not read {failed} this page refers to, so it may not look as written.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setRetry((n) => n + 1)}
+          >
+            Retry
+          </Button>
+        </div>
       )}
       <div className="min-h-0 flex-1">
         <iframe

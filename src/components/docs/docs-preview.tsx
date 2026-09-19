@@ -398,6 +398,7 @@ export function DocsPreview({
             notes={notes}
             stamp={stamp}
             allowRemoteImages={remoteImages}
+            reloadToken={refreshToken}
           />
         )}
         {!error && content && text && (

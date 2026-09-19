@@ -86,6 +86,13 @@ export function DocsView() {
   // network share is unreliable and expensive — so this is how a colleague's
   // new document shows up. It re-reads the tree without collapsing it.
   const [refreshToken, setRefreshToken] = useState(0);
+  // Bumped when the open document is picked again (T-0393). A read that came
+  // back incomplete — a stylesheet timed out on a streamed share — left no
+  // error to react to, and clicking the same row did nothing, so the only way
+  // back was to open another file and return. Re-picking it now re-reads it.
+  // Added to `refreshToken` for the preview: both only ever go up, so the sum
+  // changes exactly when either does.
+  const [reopened, setReopened] = useState(0);
   // The refresh button spins from the click until the tree and the open
   // document have both been re-read — on a streamed Drive share that can take
   // seconds, and a button that gives no sign it did anything gets clicked
@@ -295,12 +302,13 @@ export function DocsView() {
   /** Opens a document in the preview and records it as recently read. */
   const openDoc = useCallback(
     (path: string) => {
+      if (path === doc) setReopened((n) => n + 1);
       setDoc(path);
       setCursor(path);
       remember(LAST_DOC, path);
       if (rootId) setRecent(pushRecent(rootId, path));
     },
-    [rootId],
+    [rootId, doc],
   );
 
   const onSelectEntry = useCallback((entry: DocsEntry) => openDoc(entry.path), [openDoc]);
@@ -678,7 +686,7 @@ export function DocsView() {
           <ResizablePanel id="preview" minSize="30%" className="min-h-0 min-w-0">
             <DocsPreview
               path={doc}
-              refreshToken={refreshToken}
+              refreshToken={refreshToken + reopened}
               onError={setError}
               onBusyChange={setDocBusy}
               notes={notesPane}

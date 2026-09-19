@@ -45,6 +45,17 @@ export interface HtmlAssetLoaders {
 }
 
 /**
+ * What `prepareHtmlDocument` could not inline (T-0393). A stylesheet that
+ * fails is dropped and an image keeps a `src` the CSP leaves unloaded, so the
+ * page still renders — unstyled, or with holes — and nothing else would say
+ * that it did not render as written.
+ */
+export interface HtmlPrepareResult {
+  failedStyles: number;
+  failedImages: number;
+}
+
+/**
  * Makes `doc` safe and self-contained for the preview frame, in place.
  *
  * - A `<meta http-equiv="refresh">` is removed (it would navigate the frame
@@ -68,7 +79,7 @@ export async function prepareHtmlDocument(
   docPath: string,
   loaders: HtmlAssetLoaders,
   options?: { allowRemoteImages?: boolean },
-): Promise<void> {
+): Promise<HtmlPrepareResult> {
   const allowRemoteImages = options?.allowRemoteImages ?? false;
   for (const el of Array.from(doc.querySelectorAll("meta[http-equiv], base"))) {
     const equiv = el.getAttribute("http-equiv")?.toLowerCase();
@@ -76,6 +87,7 @@ export async function prepareHtmlDocument(
   }
 
   const jobs: Promise<void>[] = [];
+  const result: HtmlPrepareResult = { failedStyles: 0, failedImages: 0 };
 
   for (const img of Array.from(doc.querySelectorAll("img"))) {
     img.removeAttribute("srcset");
@@ -88,7 +100,9 @@ export async function prepareHtmlDocument(
     jobs.push(
       loaders.readImage(target).then(
         (uri) => img.setAttribute("src", uri),
-        () => undefined,
+        () => {
+          result.failedImages++;
+        },
       ),
     );
   }
@@ -105,7 +119,10 @@ export async function prepareHtmlDocument(
           style.textContent = css;
           link.replaceWith(style);
         },
-        () => link.remove(),
+        () => {
+          result.failedStyles++;
+          link.remove();
+        },
       ),
     );
   }
@@ -119,6 +136,7 @@ export async function prepareHtmlDocument(
     allowRemoteImages ? HTML_PREVIEW_CSP_REMOTE_IMAGES : HTML_PREVIEW_CSP,
   );
   doc.head.prepend(csp);
+  return result;
 }
 
 /** Serializes a prepared document for the frame's `srcdoc`. */
