@@ -191,3 +191,62 @@ export function resolveResponseLanguage() {
   }
   return null;
 }
+
+/**
+ * Does this tool call create a git worktree? (T-0389)
+ *
+ * Three ways in: a Bash `git worktree add` (global options such as
+ * `-C <repo>` before the subcommand included), Claude Code's built-in
+ * `EnterWorktree` tool, and an Agent launched with `isolation: "worktree"`.
+ *
+ * @param {string} toolName
+ * @param {Record<string, unknown>} toolInput
+ */
+export function createsWorktree(toolName, toolInput = {}) {
+  if (toolName === "EnterWorktree") return true;
+  if (toolName === "Agent" || toolName === "Task") return toolInput?.isolation === "worktree";
+  if (toolName !== "Bash") return false;
+  const command = typeof toolInput?.command === "string" ? toolInput.command : "";
+  return WORKTREE_ADD.test(command);
+}
+
+// `git`, any run of global options (`-C <path>`, `-c k=v`, `--long[=v]`), then
+// `worktree add`. A quoted `-C` path may contain spaces.
+const WORKTREE_ADD =
+  /(?:^|[\s;&|(])git(?:\s+(?:-C\s+(?:"[^"]*"|'[^']*'|\S+)|-c\s+\S+|--[\w-]+(?:=\S+)?))*\s+worktree\s+add\b/;
+
+/**
+ * The task this session is working on and its `worktree:` flag, read from the
+ * session's active-task marker (`_ai/memory/sessions/<session_id>.json`, which
+ * `task-start` writes). `null` when the session has no task, or the marker or
+ * the task file cannot be read.
+ *
+ * @param {string} vault
+ * @param {string} sessionId
+ * @returns {{ id: string, worktree: boolean } | null}
+ */
+export function activeTaskWorktree(vault, sessionId) {
+  if (!vault || !sessionId) return null;
+  try {
+    const marker = JSON.parse(
+      readFileSync(join(vault, "_ai", "memory", "sessions", `${sessionId}.json`), "utf8"),
+    );
+    if (!marker?.file) return null;
+    const text = readFileSync(join(vault, marker.file), "utf8");
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
+    const flag = /^worktree:\s*(\S+)/m.exec(fm)?.[1];
+    return { id: marker.id ?? "", worktree: flag === "true" };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The configured vault, whatever the cwd: `WORKHUB_VAULT`, else the app
+ * config's `vault_path`. For hooks whose subject is the owner rather than the
+ * vault — the language reminder, the worktree guard — and which therefore
+ * have to act in target-repository sessions too.
+ */
+export function resolveConfiguredVault() {
+  return resolveVaultForLanguage();
+}
