@@ -1217,9 +1217,16 @@ pub async fn docs_read_asset(path: String) -> Result<String, String> {
 /// disagree, so the backend answers with a direct hit or longest-tail
 /// candidates rather than the frontend guessing at strings.
 #[tauri::command]
-pub async fn docs_resolve_open_path(pasted: String) -> Result<docs::OpenPathResolution, String> {
+pub async fn docs_resolve_open_path(
+    pasted: String,
+    current_root: Option<String>,
+) -> Result<docs::OpenPathResolution, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_resolve_open_path(&storage::load().settings, &pasted)
+        docs::guarded_resolve_open_path(
+            &storage::load().settings,
+            &pasted,
+            current_root.as_deref().unwrap_or(""),
+        )
     })
     .await
     .map_err(|e| e.to_string())?

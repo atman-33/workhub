@@ -283,8 +283,8 @@ export const api = {
   /** Resolves a pasted absolute path against this machine's roots (T-0362):
    * a direct hit when the mounts agree, longest-tail candidates when they
    * do not. Rejects when nothing under the registered roots matches. */
-  docsResolveOpenPath: (pasted: string) =>
-    invoke<DocsOpenPathResolution>("docs_resolve_open_path", { pasted }),
+  docsResolveOpenPath: (pasted: string, currentRoot?: string) =>
+    invoke<DocsOpenPathResolution>("docs_resolve_open_path", { pasted, currentRoot }),
   /** The PlantUML server diagrams are rendered on; "" when rendering is off. */
   docsShortcuts: () => invoke<DocsShortcut[]>("docs_shortcuts"),
   /** Replaces the whole list: adding, removing and reordering are one write. */
