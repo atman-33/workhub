@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.145.0 (2026-09-19)
+
+- **The `_ai/memory/` fallback is gone; a vault that has not migrated is
+  flagged instead** (T-0392). 0.144.0 kept reading the legacy `_ai/memory/`
+  until "every vault has migrated", but workhub has users besides its owner,
+  so that moment could never be confirmed and the fallback would have stayed
+  forever. Every runtime now reads `_ai/state/` only, and migration becomes
+  each vault's own step, prompted by the app. Until migration 002 runs, the
+  memory, the session task markers and the tidy pending list stay stranded in
+  the old folder, so the `ai-memory-to-state` notice is now `breaking` and
+  says so. The memory engine no longer silently creates an empty
+  `_ai/state/memory.db` beside the real one: a detection-only guard stops
+  every hook, CLI command and setup that would open the database, and the
+  session brief, the first injected prompt (OpenCode) and `memory-doctor` all
+  say memory is stranded and to run migration 002. Needs the workhub plugin
+  0.44.0 and memory plugin 0.9.0.
+- **Migration 002 no longer aborts on the memory database** (T-0390). It
+  moves `_ai/memory/memory.db`, which the vault gitignores, and `git mv`
+  refuses an untracked file, so the run stopped at its first step on a real
+  vault. Files git does not track are now renamed on disk; tracked ones still
+  go through `git mv`.
+
 ## 0.144.0 (2026-09-19)
 
 - **`_ai/memory/` is now `_ai/state/`** (T-0390). With the `memory/`
