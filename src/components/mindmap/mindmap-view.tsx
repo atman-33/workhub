@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
@@ -180,6 +181,8 @@ interface LoadDocOptions {
 export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
+  // Folder name per slug, for the `NNNN` number drawn beside it (T-0398).
+  const [projectFolders, setProjectFolders] = useState<Record<string, string>>({});
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   // Restored from the last session, so a restart lands back on the map that was
   // being worked on rather than on whatever the scan happens to list first.
@@ -305,12 +308,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     async (retried = false) => {
       if (!vaultPath) return;
       try {
-        setProjects(await api.listScheduleProjects(vaultPath));
+        // Same listing and folder order as every other project picker
+        // (T-0398), so the dropdown reads in the order the owner arranged.
+        const options = projectOptionsOf(await api.listVaultProjects(vaultPath, false));
+        setProjects(options.slugs);
+        setProjectFolders(options.folders);
         setProjectsLoaded(true);
       } catch {
         if (!retried) setTimeout(() => void loadProjects(true), 400);
         else {
           setProjects([]);
+          setProjectFolders({});
           setProjectsLoaded(true);
         }
       }
@@ -1288,7 +1296,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
             {projects.map((slug) => (
               <SelectItem key={slug} value={slug}>
-                {slug}
+                {projectNumberedLabel(slug, projectFolders)}
               </SelectItem>
             ))}
             <SelectSeparator />

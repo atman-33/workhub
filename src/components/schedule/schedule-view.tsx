@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
@@ -133,6 +134,8 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   // auto-open below must not read it as a reason to drop the restored path.
   const [filesLoaded, setFilesLoaded] = useState(false);
   const [projects, setProjects] = useState<string[]>([]);
+  // Folder name per slug, for the `NNNN` number drawn beside it (T-0398).
+  const [projectFolders, setProjectFolders] = useState<Record<string, string>>({});
   // The "no projects yet" guide must not flash while the first scan is still
   // in flight — an empty array before that means "unknown", not "none".
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -253,12 +256,17 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
     async (retried = false) => {
       if (!vaultPath) return;
       try {
-        setProjects(await api.listScheduleProjects(vaultPath));
+        // Same listing and folder order as every other project picker
+        // (T-0398), so the dropdown reads in the order the owner arranged.
+        const options = projectOptionsOf(await api.listVaultProjects(vaultPath, false));
+        setProjects(options.slugs);
+        setProjectFolders(options.folders);
         setProjectsLoaded(true);
       } catch {
         if (!retried) setTimeout(() => void loadProjects(true), 400);
         else {
           setProjects([]);
+          setProjectFolders({});
           setProjectsLoaded(true);
         }
       }
@@ -838,7 +846,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             <SelectItem value="__all__">All projects</SelectItem>
             {projects.map((slug) => (
               <SelectItem key={slug} value={slug}>
-                {slug}
+                {projectNumberedLabel(slug, projectFolders)}
               </SelectItem>
             ))}
             <SelectSeparator />

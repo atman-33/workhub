@@ -259,6 +259,20 @@ export function projectNumberOfFolder(folder: string): string {
 }
 
 /**
+ * `NNNN slug` for a project whose folder carries a sort number, the bare slug
+ * otherwise — the one wording every project dropdown uses (T-0282/T-0335,
+ * Schedule and Mindmap since T-0398). Display only: the dropdown still
+ * commits the slug, and nothing parses this back.
+ */
+export function projectNumberedLabel(
+  slug: string,
+  folders: Readonly<Record<string, string>>,
+): string {
+  const number = projectNumberOfFolder(folders[slug] ?? "");
+  return number ? `${number} ${slug}` : slug;
+}
+
+/**
  * Display label for the Tasks toolbar project filter.
  *
  * Known slugs draw their `NNNN` sort number beside them, like the task
@@ -277,8 +291,7 @@ export function taskProjectFilterLabel(
   known: ReadonlySet<string>,
 ): string {
   if (!known.has(value)) return `${value} (unregistered)`;
-  const number = projectNumberOfFolder(folders[value] ?? "");
-  return number ? `${number} ${value}` : value;
+  return projectNumberedLabel(value, folders);
 }
 
 /** Project options for the pickers, derived from one vault listing. */
