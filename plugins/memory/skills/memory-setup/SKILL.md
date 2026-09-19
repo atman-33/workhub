@@ -24,7 +24,7 @@ The hooks stay silently disabled until this one-time machine setup has run.
    the embedding model (~320 MB, one time) into
    `~/.workhub/memory-engine/models/`, copies the engine to
    `~/.workhub/memory-engine/engine/` (the stable path the vault's OpenCode
-   memory plugin calls), creates `<vault>/_ai/memory/memory.db`, makes sure
+   memory plugin calls), creates `<vault>/_ai/state/memory.db`, makes sure
    the vault `.gitignore` excludes the database, and writes the
    `.setup-version` marker the hooks and the workhub app check.
 

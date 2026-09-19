@@ -6,7 +6,13 @@
 // agent decided to ask. When the secretary was already consulted (recorded by
 // secretary-consulted.mjs) the question passes straight through.
 import { existsSync } from "node:fs";
-import { readPayload, resolveDecisionPolicy, resolveVault, secretaryEnabled } from "./lib.mjs";
+import {
+  readPayload,
+  resolveDecisionPolicy,
+  resolveNotesDir,
+  resolveVault,
+  secretaryEnabled,
+} from "./lib.mjs";
 import { MAX_BLOCKS, readState, writeState } from "./secretary-state.mjs";
 
 if (!secretaryEnabled()) process.exit(0);
@@ -41,7 +47,8 @@ console.log(
       permissionDecisionReason:
         "workhub secretary: consult the `secretary` subagent before asking the owner " +
         "(Agent tool, subagent_type \"secretary\"; pass the question, the options and the task context). " +
-        "If it answers DECIDE, act on it and log the decision in the vault's `_ai/logs/decisions.md` " +
+        `If it answers DECIDE, act on it and record it as a \`type: decision\` note ` +
+        `(\`decided_by: secretary\`) under \`${resolveNotesDir(vault)}\` ` +
         "instead of asking. If it answers ESCALATE, file the question with " +
         "`scripts/comms-cli.mjs ask` and mark the task blocked — the owner answers it in the workhub app. " +
         "Ask here only when the secretary is unavailable.",

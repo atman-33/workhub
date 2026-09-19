@@ -233,7 +233,7 @@ export const api = {
    * the note at its new path, which the caller must reselect. */
   renameSchedule: (vaultPath: string, path: string, title: string) =>
     invoke<ScheduleFile>("rename_schedule", { vaultPath, path, title }),
-  /** Moves the note into `_ai/memory/schedule-trash/` rather than deleting it,
+  /** Moves the note into `_ai/state/schedule-trash/` rather than deleting it,
    * and returns where it went. */
   deleteSchedule: (vaultPath: string, path: string) =>
     invoke<string>("delete_schedule", { vaultPath, path }),
@@ -321,7 +321,7 @@ export const api = {
    * the note at its new path, which the caller must reselect. */
   renameMindmap: (vaultPath: string, path: string, title: string) =>
     invoke<MindmapFile>("rename_mindmap", { vaultPath, path, title }),
-  /** Moves the note into `_ai/memory/mindmap-trash/` rather than deleting it,
+  /** Moves the note into `_ai/state/mindmap-trash/` rather than deleting it,
    * and returns where it went. */
   deleteMindmap: (vaultPath: string, path: string) =>
     invoke<string>("delete_mindmap", { vaultPath, path }),

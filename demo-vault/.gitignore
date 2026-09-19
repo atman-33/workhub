@@ -2,6 +2,10 @@
 .obsidian/workspace.json
 
 # workhub memory engine database (may contain sensitive conversation text)
+_ai/state/memory.db
+_ai/state/memory.db-wal
+_ai/state/memory.db-shm
+# pre-T-0390 location, kept ignored until a vault runs the vault-upgrade migration
 _ai/memory/memory.db
 _ai/memory/memory.db-wal
 _ai/memory/memory.db-shm

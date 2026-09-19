@@ -206,7 +206,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - Tasks with a **due date** in the same project appear as dashed chips. Dragging a chip changes that task's due date on the board — it is the real task, not a copy.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
-- **The trash button moves the note to \`_ai/memory/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
+- **The trash button moves the note to \`_ai/state/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
 - **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model under the ⚙ button in the toolbar.
 - **⚙ (toolbar) → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
 
@@ -248,7 +248,7 @@ The **Mindmap** tab is for thinking in branches — the shape you would draw on 
 - **Sticky notes** are the always-visible kind of note: pick a node and press **Add** under *Sticky notes* in the side panel. Drag a sticky to place it, double-click it to edit (**Ctrl** + **Enter** commits, **Escape** abandons), and **Delete** removes the selected one. Its position is stored as an offset from its node, so it follows the node through any re-layout and holds still as you pan or zoom. The toolbar's sticky button hides them all at once when the map gets busy — that setting lives in the note (\`stickies\` in its frontmatter) and applies to the exports too. Deleting a node deletes its stickies.
 - **mermaid** copies the map as a mermaid \`mindmap\` code block, ready to paste into a document or a README. The copy is one-way — mermaid cannot carry ids, colours or task links, so the note stays the editable form.
 - **HTML** writes a single self-contained page (default: the project's \`attachments/\`) with the diagram and its mermaid source; **PNG** writes an image of the same diagram at 2x.
-- **Delete moves the note to \`_ai/memory/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
+- **Delete moves the note to \`_ai/state/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
 - **Edit with AI**: describe the change in plain language ("group the UI ideas under a new branch") and press Ctrl+Enter. The canvas is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model under the ⚙ button in the toolbar.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.`;
 
@@ -311,7 +311,7 @@ The **Plugins** tab answers three questions about the \`workhub-marketplace\` pl
 
 const MEMORY_MD = `## Long-term memory for AI agents
 
-Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/memory/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
+Gives every agent session on the vault — Claude Code and OpenCode — a memory of past sessions, fully local, no cloud, no LLM. Each session's Q&A pairs are saved into \`<vault>/_ai/state/memory.db\` (SQLite), and new sessions automatically receive a time summary ("last session was N days ago") plus past conversations relevant to the current prompt, found by hybrid keyword + vector search.
 
 - **One-time setup per machine**: run the \`/memory-setup\` skill in a Claude Code session on the vault. It installs the engine's dependencies and a local Japanese-capable embedding model (~320 MB) under \`~/.workhub/memory-engine/\`. Nothing is compiled from source, so no C/C++ build tools are required — only Node 20+. Until then the memory hooks stay silently disabled, and workhub shows a startup banner as a reminder.
 - **Recall on demand**: the \`/memory-recall <keyword> [days]\` skill searches past conversations explicitly; without arguments it lists the recent timeline.
@@ -325,7 +325,7 @@ Agents ask you for a decision far more often than they need to, and when they do
 
 - **Write your policy first**: \`memory/identity/decision-policy.md\` in the vault (seeded by the vault template) lists what an agent may do without asking, what must always come to you, how to handle the gray zone, and — under **Preferences** — the leanings a recommendation is built from. It sits under \`memory/\` rather than \`knowledge/\` because it is operational: hooks, skills and the secretary agent all read it.
 - **Always on: questions arrive with a recommendation**. As soon as that note exists, every session is told to read it and to never put a bare choice to you — it works out the answer you would most likely give, offers it as the recommended option with the reason, and writes what you decide back into **Past decisions**. This costs nothing but the instruction itself, so it does not depend on the secretary switch below.
-- **Optional: the secretary answers for you.** Turned on, a small subagent judges each question against the same policy and only forwards what it genuinely cannot decide. Before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and logged as one line in \`_ai/logs/decisions.md\`, so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
+- **Optional: the secretary answers for you.** Turned on, a small subagent judges each question against the same policy and only forwards what it genuinely cannot decide. Before interrupting you, the agent consults the secretary. A **DECIDE** answer is acted on and recorded as a typed note under \`memory/notes/\` (marked \`decided_by: secretary\`, so it reads apart from a call you made yourself), so you can audit its judgement later and correct the policy where it got it wrong. An **ESCALATE** answer is filed as a question in \`_ai/comms/\` and the task is marked blocked, so the agent stops waiting on the terminal and moves on.
 - **Answering**: filed questions are ordinary Markdown — open \`_ai/comms/\` in Obsidian, write under \`## Answer\`, and set \`status: answered\`. The next session on that task reads the answer before doing anything else.
 - **Growing it**: the policy's *Past decisions* section is where answered questions turn into standing rules, and *Preferences* is where standing leanings go. Agents are told to append there whenever you settle something, so the note grows on its own. The more it holds, the less you are asked.
 - **Switch**: **⚙ Settings → Agents → Consult the secretary before asking me** (**off by default**) controls the subagent only. Consulting it costs tokens; with the switch off nothing is consulted, but your profile is still read and questions still arrive with a recommendation. Deleting the policy note turns off both.
@@ -856,7 +856,7 @@ export function HelpView() {
               Gives every agent session on the vault — Claude Code and OpenCode — a
               memory of past sessions, fully local, no cloud, no LLM. Each
               session&apos;s Q&amp;A pairs are saved into{" "}
-              <span className="font-mono text-xs">_ai/memory/memory.db</span> in the
+              <span className="font-mono text-xs">_ai/state/memory.db</span> in the
               vault, and new sessions automatically receive a time summary (&quot;last
               session was N days ago&quot;) plus past conversations relevant to the
               current prompt, found by hybrid keyword + vector search.
@@ -956,11 +956,13 @@ export function HelpView() {
                 . Turned on, a small subagent judges each question against the same policy
                 and only forwards what it genuinely cannot decide. Before interrupting you,
                 the agent consults the secretary. A{" "}
-                <span className="font-medium">DECIDE</span> answer is acted on and logged
-                as one line in{" "}
-                <span className="font-mono text-xs">_ai/logs/decisions.md</span>, so you
-                can audit its judgement later and correct the policy where it got it
-                wrong. An <span className="font-medium">ESCALATE</span> answer is filed as
+                <span className="font-medium">DECIDE</span> answer is acted on and
+                recorded as a typed note under{" "}
+                <span className="font-mono text-xs">memory/notes/</span> (marked{" "}
+                <span className="font-mono text-xs">decided_by: secretary</span>, so it
+                reads apart from a call you made yourself), so you can audit its
+                judgement later and correct the policy where it got it wrong. An{" "}
+                <span className="font-medium">ESCALATE</span> answer is filed as
                 a question in <span className="font-mono text-xs">_ai/comms/</span> and the
                 task is marked blocked, so the agent stops waiting on the terminal and
                 moves on.
@@ -1723,7 +1725,7 @@ export function HelpView() {
                 <span className="font-medium text-foreground">
                   The trash button moves the note to{" "}
                   <span className="font-mono text-xs">
-                    _ai/memory/schedule-trash/
+                    _ai/state/schedule-trash/
                   </span>
                 </span>{" "}
                 rather than erasing it, so a mis-click costs a trip to the vault
@@ -1856,7 +1858,7 @@ export function HelpView() {
               </li>
               <li>
                 <span className="font-medium text-foreground">Delete moves the note to{" "}
-                <span className="font-mono text-xs">_ai/memory/mindmap-trash/</span></span> rather than
+                <span className="font-mono text-xs">_ai/state/mindmap-trash/</span></span> rather than
                 erasing it, so a mis-click costs a trip to the vault folder and
                 nothing else.
               </li>

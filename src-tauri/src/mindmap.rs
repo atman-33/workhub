@@ -18,14 +18,14 @@
 //!   file that changed since the caller read it, rather than silently
 //!   discarding an Obsidian or agent edit.
 //!
-//! Deleting is *soft*: the note is moved into `_ai/memory/mindmap-trash/`
+//! Deleting is *soft*: the note is moved into `_ai/state/mindmap-trash/`
 //! instead of being unlinked, because the app is not the only writer of these
 //! files and a mis-click should not destroy prose someone typed in Obsidian.
 
 use crate::models::{MindmapDoc, MindmapFile};
 use crate::vault_note::{
-    ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot,
-    mtime_secs, norm_path, projects_dir, resolve_project_dir,
+    ai_state_dir, ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot,
+    move_snapshot, mtime_secs, norm_path, projects_dir, resolve_project_dir,
     restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
     save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
 };
@@ -38,11 +38,12 @@ const MINDMAPS_DIR: &str = "mindmaps";
 /// Note kind written into a mindmap note's `type:` frontmatter key.
 const KIND: &str = "mindmap";
 
-/// Folder under `_ai/memory/` where the AI edit flow parks a copy of the file
-/// before an agent touches it, so the UI can offer a one-generation undo.
+/// Folder under `_ai/state/` (see `vault_note::ai_state_dir`) where the AI
+/// edit flow parks a copy of the file before an agent touches it, so the UI
+/// can offer a one-generation undo.
 const SNAPSHOT_DIR: &str = "mindmap-snapshots";
 
-/// Folder under `_ai/memory/` that a deleted note is moved into.
+/// Folder under `_ai/state/` that a deleted note is moved into.
 const TRASH_DIR: &str = "mindmap-trash";
 
 /// Lists mindmap notes across the vault, optionally narrowed to one project
@@ -209,7 +210,7 @@ pub fn rename_mindmap(vault: &Path, path: &Path, new_title: &str) -> Result<Mind
     })
 }
 
-/// Moves a mindmap note into `_ai/memory/mindmap-trash/` and returns where it
+/// Moves a mindmap note into `_ai/state/mindmap-trash/` and returns where it
 /// went.
 ///
 /// Deliberately not an unlink. These files are shared with Obsidian and with
@@ -221,7 +222,7 @@ pub fn delete_mindmap(vault: &Path, path: &Path) -> Result<String, String> {
     if !path.is_file() {
         return Err("this mindmap no longer exists".into());
     }
-    let dir = vault.join("_ai").join("memory").join(TRASH_DIR);
+    let dir = ai_state_dir(vault).join(TRASH_DIR);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let name = path
         .file_stem()
@@ -416,7 +417,7 @@ created: 2026-08-26\nupdated: 2026-08-26\n---\n\n## Nodes\n\n- N-001 root\n  - N
 
         let moved = delete_mindmap(&vault, &path).unwrap();
         assert!(!path.exists());
-        assert!(moved.contains("_ai/memory/mindmap-trash/"));
+        assert!(moved.contains("_ai/state/mindmap-trash/"));
         assert!(PathBuf::from(&moved).is_file());
         assert!(list_mindmaps(&vault, None).unwrap().is_empty());
 

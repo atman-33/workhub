@@ -1,6 +1,6 @@
 {
   "name": "memory",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Long-term memory for agent sessions on a workhub vault. Every session's Q&A pairs are stored in a vault-local SQLite database and new sessions receive a time summary plus the past conversations relevant to the current prompt, found by hybrid keyword + vector search. Fully local: a Japanese-capable embedding model runs on the CPU, nothing is sent anywhere, and no LLM is called. Split out of the workhub plugin so memory can be switched off on its own.",
   "author": {
     "name": "atman-33",

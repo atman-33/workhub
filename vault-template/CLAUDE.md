@@ -17,7 +17,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 | `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
 | `archive/` | human + AI | completed or inactive material |
 | `templates/` | human | note templates (`task.md`, `_index.md.template`, `project/` scaffold) |
-| `_ai/` | **AI only** | `index/` indexes, `logs/` agent reports + KB activity log, `memory/` working memory |
+| `_ai/` | **AI only** | app/agent working data — `index/` indexes, `logs/` agent reports + KB activity log, `comms/` secretary async Q&A, `state/` (session markers, pending lists, trash, the memory engine's verbatim database). No knowledge lives here — that is `memory/` |
 | `attachments/` | human + AI | images and other binary assets |
 | `.workhub/` | **app only** | `settings.json` — the app settings that belong to this vault (see below) |
 
@@ -102,7 +102,7 @@ way. Disagree with reasons, then follow the owner's decision.
 rediscover, without being asked: decisions and the reasoning behind them,
 options that were rejected and why, and ideas parked for later. Route it as
 described in *Capturing knowledge* below — working notes for a session go to
-`_ai/memory/`, design decisions to the project's `dev-notes/`, reusable
+`_ai/state/`, design decisions to the project's `dev-notes/`, reusable
 constraints to `.claude/rules/`. When something fails, record the cause and
 what to do differently, so the next session does not repeat it.
 

@@ -230,7 +230,7 @@ Arguments:
      entry; default `inbox/_wip/`) — this is the user's "not ready to file yet"
      holding area
    - files whose mtime is newer than `--stale-days` days ago (still being edited)
-   - files already listed in `_ai/memory/tidy-pending.json` whose mtime is older
+   - files already listed in `_ai/state/tidy-pending.json` whose mtime is older
      than that JSON file's own mtime — they were deferred on a previous run and
      nothing changed since, so re-classifying them would only burn tokens. A
      pending file the user has edited *after* the last deferral is a candidate
@@ -259,9 +259,12 @@ For each candidate, run the normal READ → ANALYZE → PLAN classification, the
 When this run ends with one or more deferred items (and also to clean up after
 previous runs), do both of the following:
 
-**1. Maintain `_ai/memory/tidy-pending.json`** — the machine-readable pending
-list the workhub app's pre-check reads to avoid re-launching the agent for
-files a human still has to look at. Rewrite the whole file each run:
+**1. Maintain `_ai/state/tidy-pending.json`** (renamed from `_ai/memory/` in
+T-0390 — if this vault still has the file at the old path and no `_ai/state/`
+folder exists yet, read and rewrite it there instead until the vault is
+migrated) — the machine-readable pending list the workhub app's pre-check
+reads to avoid re-launching the agent for files a human still has to look at.
+Rewrite the whole file each run:
 
 ```json
 {
@@ -305,7 +308,7 @@ task to an agent — not only in a log nobody reads.
   Unattended vault tidy deferred these inbox files. For each item, edit the
   plan as needed, delete items to leave alone, then assign this task to an
   agent — it will execute the remaining plans (creating approved folders /
-  renames), update the indexes, and clear `_ai/memory/tidy-pending.json`.
+  renames), update the indexes, and clear `_ai/state/tidy-pending.json`.
 
   ### inbox/random idea.md
   - reason deferred: low confidence (2 plausible containers)
@@ -318,7 +321,7 @@ task to an agent — not only in a log nobody reads.
   language the caller's prompt asks for (the workhub app passes its **Task file
   language** setting into the unattended tidy prompt); with no such
   instruction, write them in English. This covers those two parts only:
-  frontmatter values, `_ai/memory/tidy-pending.json`, and the `kb-log.md`
+  frontmatter values, `_ai/state/tidy-pending.json`, and the `kb-log.md`
   entries stay in English, and vault-relative paths are quoted verbatim.
 - An agent later executing this task treats each surviving block as an
   **approved** plan: perform MOVE → FRONTMATTER → WIKILINK → BACKLINK → INDEX

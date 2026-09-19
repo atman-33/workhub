@@ -40,10 +40,11 @@ import { fileURLToPath } from "node:url";
 
 import { resolveVault } from "../../../hooks/lib.mjs";
 import profileToMemory from "./migrations/001-profile-to-memory.mjs";
+import aiMemoryToState from "./migrations/002-ai-memory-to-state.mjs";
 import { fingerprint, isTemplate } from "./migrations/lib/seeds.mjs";
 
 /** Every migration, oldest first. Order is the order they are applied in. */
-const MIGRATIONS = [profileToMemory];
+const MIGRATIONS = [profileToMemory, aiMemoryToState];
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 

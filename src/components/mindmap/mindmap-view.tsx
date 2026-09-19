@@ -1651,7 +1651,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       <ConfirmDialog
         open={deleteOpen}
         title="Move this mindmap to the trash?"
-        description={`"${current?.title ?? ""}" is moved to _ai/memory/mindmap-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
+        description={`"${current?.title ?? ""}" is moved to _ai/state/mindmap-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
         confirmLabel="Move to trash"
         destructive
         onConfirm={() => void deleteFile()}

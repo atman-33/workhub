@@ -65,6 +65,28 @@ export function resolveVault() {
 }
 
 /**
+ * The vault's `_ai/` working-data folder: `_ai/state/` if it exists, else
+ * `_ai/memory/` if it exists (a vault not yet carried through the T-0390
+ * rename), else `_ai/state/` — the folder every fresh write should land in.
+ *
+ * Transitional: `_ai/memory/` was renamed to `_ai/state/` in T-0390 because
+ * the name collided with the unrelated `memory/` knowledge layer. Every
+ * reader and writer of this folder goes through this one function so a vault
+ * whose plugins updated before `vault-upgrade`'s migration ran keeps working
+ * against its existing `_ai/memory/` data instead of silently starting a
+ * second, empty folder beside it.
+ *
+ * @param {string} vault
+ */
+export function resolveAiStateDir(vault) {
+  const state = join(vault, "_ai", "state");
+  if (existsSync(state)) return state;
+  const legacy = join(vault, "_ai", "memory");
+  if (existsSync(legacy)) return legacy;
+  return state;
+}
+
+/**
  * The always-loaded layer of the vault's memory: `<vault>/memory/identity/`,
  * holding `about-me.md` and `decision-policy.md`.
  *
@@ -217,9 +239,9 @@ const WORKTREE_ADD =
 
 /**
  * The task this session is working on and its `worktree:` flag, read from the
- * session's active-task marker (`_ai/memory/sessions/<session_id>.json`, which
- * `task-start` writes). `null` when the session has no task, or the marker or
- * the task file cannot be read.
+ * session's active-task marker (`<ai-state-dir>/sessions/<session_id>.json`,
+ * which `task-start` writes — see {@link resolveAiStateDir}). `null` when the
+ * session has no task, or the marker or the task file cannot be read.
  *
  * @param {string} vault
  * @param {string} sessionId
@@ -229,7 +251,7 @@ export function activeTaskWorktree(vault, sessionId) {
   if (!vault || !sessionId) return null;
   try {
     const marker = JSON.parse(
-      readFileSync(join(vault, "_ai", "memory", "sessions", `${sessionId}.json`), "utf8"),
+      readFileSync(join(resolveAiStateDir(vault), "sessions", `${sessionId}.json`), "utf8"),
     );
     if (!marker?.file) return null;
     const text = readFileSync(join(vault, marker.file), "utf8");

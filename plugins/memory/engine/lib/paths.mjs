@@ -4,7 +4,8 @@
 // dependencies (node-sqlite3-wasm, @huggingface/transformers) and
 // the embedding-model cache are installed once per machine into ENGINE_HOME
 // by `cli.mjs setup`, so plugin updates never wipe them. The SQLite database
-// lives inside the vault (`_ai/memory/memory.db`) and is gitignored there.
+// lives inside the vault's `_ai/` working-data folder (`_ai/state/memory.db`,
+// see {@link dbPathForVault}) and is gitignored there.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
@@ -26,7 +27,11 @@ import { join, resolve, sep } from "node:path";
 //    text. A version mismatch is no longer silent either (T-0385).
 // 9: added lib/reflect.mjs; `inject` asks for memory-reflect on an OpenCode
 //    session's first prompt (T-0386).
-export const ENGINE_VERSION = 9;
+// 10: `dbPathForVault` now resolves the vault's `_ai/` folder as `_ai/state/`
+//     with a fallback to the pre-rename `_ai/memory/` (T-0390). Not a new
+//     file, but an installed copy that predates the rename would otherwise
+//     keep writing `_ai/memory/memory.db` after the app renamed the folder.
+export const ENGINE_VERSION = 10;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
@@ -128,8 +133,24 @@ export function resolveVaultForHook() {
   return cwd === root || cwd.startsWith(root + sep) ? vault : null;
 }
 
+/**
+ * The vault's `_ai/` working-data folder: `_ai/state/` if it exists, else
+ * `_ai/memory/` if it exists (a vault not yet carried through the T-0390
+ * rename), else `_ai/state/`. Self-contained copy of the same resolver in
+ * `plugins/workhub/hooks/lib.mjs` and `plugins/memory/lib/session-marker-read.mjs` —
+ * this engine copy has to keep working once `setup` copies it out to
+ * `ENGINE_HOME`, so it cannot import from either plugin's own directory.
+ */
+function resolveAiStateDir(vault) {
+  const state = join(vault, "_ai", "state");
+  if (existsSync(state)) return state;
+  const legacy = join(vault, "_ai", "memory");
+  if (existsSync(legacy)) return legacy;
+  return state;
+}
+
 export function dbPathForVault(vault) {
-  return join(vault, "_ai", "memory", "memory.db");
+  return join(resolveAiStateDir(vault), "memory.db");
 }
 
 /**

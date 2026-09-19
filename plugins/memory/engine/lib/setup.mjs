@@ -15,7 +15,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ENGINE_HOME,
@@ -35,12 +35,22 @@ const DEPENDENCIES = {
   "@huggingface/transformers": "^3.7.0",
 };
 
-const GITIGNORE_LINES = [
-  "# workhub memory engine database (may contain sensitive conversation text)",
-  "_ai/memory/memory.db",
-  "_ai/memory/memory.db-wal",
-  "_ai/memory/memory.db-shm",
-];
+/**
+ * The `.gitignore` lines for this vault's database, derived from
+ * {@link dbPathForVault} rather than hardcoded — the T-0390 rename means the
+ * db sits at `_ai/state/memory.db` on a migrated vault and `_ai/memory/memory.db`
+ * on one that has not run `vault-upgrade` yet, and the ignored path has to
+ * match whichever one is actually in use.
+ */
+function gitignoreLinesFor(vault) {
+  const rel = relative(vault, dbPathForVault(vault)).split(sep).join("/");
+  return [
+    "# workhub memory engine database (may contain sensitive conversation text)",
+    rel,
+    `${rel}-wal`,
+    `${rel}-shm`,
+  ];
+}
 
 function log(msg) {
   console.log(`[memory-setup] ${msg}`);
@@ -99,8 +109,10 @@ function installEngineCopy() {
 function ensureGitignore(vault) {
   const path = join(vault, ".gitignore");
   const current = existsSync(path) ? readFileSync(path, "utf8") : "";
-  if (current.includes("_ai/memory/memory.db")) return;
-  const block = `${GITIGNORE_LINES.join("\n")}\n`;
+  const lines = gitignoreLinesFor(vault);
+  const dbLine = lines[1];
+  if (current.includes(dbLine)) return;
+  const block = `${lines.join("\n")}\n`;
   appendFileSync(path, current.endsWith("\n") || current === "" ? block : `\n${block}`);
   log(`added memory.db entries to ${path}`);
 }

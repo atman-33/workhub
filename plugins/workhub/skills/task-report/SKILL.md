@@ -124,7 +124,8 @@ argument-hint: "<task-id>"
 
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
-   delete any `<vault>/_ai/memory/sessions/*.json` that refers to this task.
+   delete any `<vault>/_ai/state/sessions/*.json` (or `_ai/memory/sessions/`
+   on a vault not yet migrated by T-0390) that refers to this task.
 8. **Offer to clean up the worktree — only for worktree-mode tasks**
    (`worktree: true`). Once the work is committed/pushed and no longer needed,
    **propose** removing the task's worktree (do not delete it automatically —

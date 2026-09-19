@@ -44,7 +44,7 @@ describe("worktree guard", () => {
 
   beforeEach(() => {
     vault = mkdtempSync(join(os.tmpdir(), "workhub-worktree-guard-"));
-    mkdirSync(join(vault, "_ai", "memory", "sessions"), { recursive: true });
+    mkdirSync(join(vault, "_ai", "state", "sessions"), { recursive: true });
     mkdirSync(join(vault, "tasks"));
   });
 
@@ -59,7 +59,7 @@ describe("worktree guard", () => {
       `---\nid: ${id}\ntitle: demo\nstatus: doing\n${worktreeLine}created: 2026-09-19\n---\n\n## Description\n`,
     );
     writeFileSync(
-      join(vault, "_ai", "memory", "sessions", `${sessionId}.json`),
+      join(vault, "_ai", "state", "sessions", `${sessionId}.json`),
       JSON.stringify({ session_id: sessionId, id, file }),
     );
   }

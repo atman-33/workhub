@@ -197,8 +197,10 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     `tool, agent "secretary"). It answers from the owner's decision policy`,
     `(${policyPath}) and returns either:`,
     "",
-    "- DECIDE — act on its answer and append one line to `_ai/logs/decisions.md`",
-    "  in the vault: `- <date> <task-id> [DECIDE] <choice> (basis: <basis>)`.",
+    "- DECIDE — act on its answer and record it as a note under",
+    `  ${notesDir}: \`type: decision\`, \`status: accepted\`,`,
+    "  `decided_by: secretary`, a `[decision]` observation with its choice and a",
+    "  `[rationale]` observation with its basis.",
     toolHelper
       ? "- ESCALATE — call the `ask_owner` tool with the question, its context and the\n  options. It files the question for the owner and the task carries on."
       : "- ESCALATE — file the question in the vault's `_ai/comms/` and carry on.",
@@ -239,9 +241,9 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
               return (
                 "Not filed. Consult the `secretary` subagent first (task tool, agent " +
                 '"secretary"), passing this question, its options and the task context. ' +
-                "If it answers DECIDE, act on that and log the decision in the vault's " +
-                "`_ai/logs/decisions.md` instead of asking. Call ask_owner again only " +
-                "for what it escalates."
+                "If it answers DECIDE, act on that and record it as a `type: decision` note " +
+                `(\`decided_by: secretary\`) under ${notesDir} instead of asking. Call ` +
+                "ask_owner again only for what it escalates."
               );
             }
 

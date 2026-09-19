@@ -1360,7 +1360,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       <ConfirmDialog
         open={deleteOpen}
         title="Move this schedule to the trash?"
-        description={`"${files.find((f) => f.path === path)?.title ?? ""}" is moved to _ai/memory/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
+        description={`"${files.find((f) => f.path === path)?.title ?? ""}" is moved to _ai/state/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
         confirmLabel="Move to trash"
         destructive
         onConfirm={() => void handleDelete()}

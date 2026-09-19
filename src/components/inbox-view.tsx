@@ -19,7 +19,7 @@ import type { InboxNote, Settings } from "@/types";
  *
  * Read-only on purpose. Two things were invisible before this tab existed: the
  * notes sitting unfiled in the vault's `inbox/`, and the filing proposals the
- * tidy agent parked in `_ai/memory/tidy-pending.json` when it could not decide
+ * tidy agent parked in `_ai/state/tidy-pending.json` when it could not decide
  * where one belonged. Showing both is the whole feature — moving, archiving
  * and ingesting come in phase 2, and until then filing still happens in
  * Obsidian, which is why every row offers a jump there.

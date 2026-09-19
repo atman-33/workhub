@@ -2,9 +2,10 @@
 //
 // A marker records which workhub task a single agent session is working, and
 // how to reach that session from another one. It lives at
-// `<vault>/_ai/memory/sessions/<session-key>.json`.
+// `<ai-state-dir>/sessions/<session-key>.json` — see `resolveAiStateDir` in
+// `../hooks/lib.mjs` for what that base folder resolves to.
 //
-// It used to be one shared `<vault>/_ai/memory/active-task.json`, which broke
+// It used to be one shared `<ai-state-dir>/active-task.json`, which broke
 // as soon as two sessions ran at once: the second `task-start` overwrote the
 // first one's marker, so the Stop-hook reminder pointed at the wrong task and
 // the memory engine filed a session's transcript under someone else's task id.
@@ -60,6 +61,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveAiStateDir } from "../hooks/lib.mjs";
+
 /**
  * Claude Code exports both ids to every subprocess it spawns, so a hook and a
  * CLI run from the same session agree on the key without being told it.
@@ -83,7 +86,7 @@ function sanitizeKey(key) {
 }
 
 export function sessionsDir(vault) {
-  return join(vault, "_ai", "memory", "sessions");
+  return join(resolveAiStateDir(vault), "sessions");
 }
 
 export function markerPath(vault, key) {
@@ -186,7 +189,7 @@ export function sweepMarkers(vault, isDead) {
  * it behind would leave a file that still looks authoritative.
  */
 export function dropLegacyMarker(vault) {
-  const legacy = join(vault, "_ai", "memory", "active-task.json");
+  const legacy = join(resolveAiStateDir(vault), "active-task.json");
   if (!existsSync(legacy)) return false;
   try {
     rmSync(legacy);
