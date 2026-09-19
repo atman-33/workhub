@@ -76,6 +76,10 @@ function recall(key: string): string {
 /** Shortest time the refresh button spins, so a fast re-read is still visible. */
 const MIN_SPIN_MS = 600;
 
+/** How a pasted path found its file: as written, by its tail, or by a search
+ * of the roots (T-0395) — each opens the same way but says so differently. */
+type OpenPathHow = "direct" | "tail" | "search";
+
 export function DocsView() {
   const [roots, setRoots] = useState<DocsRootStatus[]>([]);
   const [rootId, setRootId] = useState("");
@@ -118,6 +122,8 @@ export function DocsView() {
   const [openPathBusy, setOpenPathBusy] = useState(false);
   const [openPathNotice, setOpenPathNotice] = useState("");
   const [openPathCandidates, setOpenPathCandidates] = useState<DocsOpenPathMatch[]>([]);
+  // How the candidates on offer were found, so picking one says the same.
+  const [openPathHow, setOpenPathHow] = useState<OpenPathHow>("tail");
 
   // The tree / preview split survives a restart (T-0279), like the Repos
   // tab's panels; the sidebar's own split does too (T-0276).
@@ -398,7 +404,7 @@ export function DocsView() {
    * picked, in which case the tree moves there instead of staying put.
    */
   const openResolvedPath = useCallback(
-    (match: DocsOpenPathMatch, direct: boolean) => {
+    (match: DocsOpenPathMatch, how: OpenPathHow) => {
       setOpenPathCandidates([]);
       const target = roots.find((r) => isWithinRoot(r.path, match.path)) ?? selected;
       if (target && target.id !== rootId) {
@@ -415,7 +421,12 @@ export function DocsView() {
       } else {
         reveal(match.path);
       }
-      const notice = direct ? "" : `Opened by tail match: ${match.path}`;
+      const notice =
+        how === "direct"
+          ? ""
+          : how === "search"
+            ? `Found by searching the roots — its folders differ from the pasted path: ${match.path}`
+            : `Opened by tail match: ${match.path}`;
       if (match.is_dir) {
         setSelectedDir(match.path);
         setOpen((prev) => ({ ...prev, [match.path]: true }));
@@ -450,17 +461,23 @@ export function DocsView() {
     setOpenPathNotice("");
     setOpenPathCandidates([]);
     void api
-      .docsResolveOpenPath(pasted)
+      .docsResolveOpenPath(pasted, selected?.path)
       .then((res) => {
-        if (res.matches.length === 1) openResolvedPath(res.matches[0], res.direct);
+        const how: OpenPathHow = res.direct ? "direct" : res.searched ? "search" : "tail";
+        if (res.matches.length === 1) openResolvedPath(res.matches[0], how);
         else {
+          setOpenPathHow(how);
           setOpenPathCandidates(res.matches);
-          setOpenPathNotice(`${res.matches.length} files match this tail — pick one.`);
+          setOpenPathNotice(
+            how === "search"
+              ? `${res.matches.length} files with this name were found — pick one.`
+              : `${res.matches.length} files match this tail — pick one.`,
+          );
         }
       })
       .catch((e) => setError(String(e)))
       .finally(() => setOpenPathBusy(false));
-  }, [openPathText, openPathBusy, openResolvedPath]);
+  }, [openPathText, openPathBusy, openResolvedPath, selected?.path]);
 
   const sidebarTree = (
     <DocsTree
@@ -617,7 +634,7 @@ export function DocsView() {
                           size="sm"
                           variant="ghost"
                           className="h-auto justify-start whitespace-normal break-all px-1 py-0.5 text-left text-[11px] text-primary"
-                          onClick={() => openResolvedPath(c, false)}
+                          onClick={() => openResolvedPath(c, openPathHow)}
                         >
                           {c.path}
                         </Button>

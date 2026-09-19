@@ -272,6 +272,9 @@ export interface DocsOpenPathResolution {
   direct: boolean;
   /** Candidates, longest tail first. */
   matches: DocsOpenPathMatch[];
+  /** True when the candidates were found by searching the roots (T-0395):
+   * the folders on the way differ from the pasted path's. */
+  searched: boolean;
 }
 
 /** When a recurring rule fires. All times are the machine's local wall clock. */

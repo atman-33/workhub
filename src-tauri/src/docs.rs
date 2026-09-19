@@ -13,7 +13,10 @@
 //! can go to the network):
 //!
 //! - **Nothing is walked recursively.** A directory is listed only when the
-//!   user opens it. A whole-tree scan of a streamed share is a hang.
+//!   user opens it. A whole-tree scan of a streamed share is a hang. The one
+//!   exception is the pasted-path search (T-0395), which runs only when the
+//!   user asked for one path and nothing cheaper found it, and is bounded by
+//!   an entry count and a time budget - see `search_roots`.
 //! - **Every call is bounded by a timeout.** A stuck placeholder fetch must
 //!   surface as an error in the tree, not as a frozen tab.
 //!
@@ -30,10 +33,11 @@
 
 use crate::b64;
 use crate::models::{DocsRoot, Settings};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long any one filesystem call may take before the tab is told the share
 /// is not answering. Generous, because a cold Drive placeholder is genuinely
@@ -395,12 +399,26 @@ pub struct OpenPathResolution {
     pub direct: bool,
     /// Candidates, longest tail first.
     pub matches: Vec<OpenPathMatch>,
+    /// True when the candidates came from walking the roots (T-0395) rather
+    /// than from joining a tail onto one: the folders on the way differ from
+    /// the pasted path's, and the tab says so.
+    pub searched: bool,
 }
 
 /// Most filesystem probes one resolution may make. Each tail length is tried
 /// against every root, so a deep path on many roots is bounded here rather
 /// than by the share's patience.
 const MAX_OPEN_PATH_PROBES: usize = 48;
+
+/// Most entries the search fallback (T-0395) looks at, across every root. A
+/// team share runs to a few thousand entries; past this the pasted path is
+/// the better tool, and the error says to paste a longer one.
+const MAX_SEARCH_ENTRIES: usize = 20_000;
+
+/// How long the search fallback walks before answering with what it has.
+/// Well inside `TIMEOUT`, so a search cut short still reports what it found
+/// instead of being overtaken by the generic "did not respond".
+const SEARCH_TIME_BUDGET: Duration = Duration::from_secs(12);
 
 /// A pasted path as the resolver sees it: trimmed, unquoted, forward slashes,
 /// no `file://` scheme, no trailing separator.
@@ -460,7 +478,17 @@ fn portable_tail(cleaned: &str) -> Vec<&str> {
 /// then by ever-shorter tails against every root (they do not). Matches come
 /// back longest tail first; same-length matches from several roots all come
 /// back, and the frontend asks rather than guesses.
-pub fn resolve_open_path(pasted: &str, roots: &[String]) -> Result<OpenPathResolution, String> {
+///
+/// When no tail lands, the roots are searched for the pasted name instead
+/// (T-0395): a teammate's share may be laid out differently on the way down
+/// (`docs/a.md` there, `2026/docs/a.md` here), and a tail joined onto a root
+/// can never find that. Roots are searched in the order given, so the caller
+/// puts the one being read first; dot-entries follow `show_dot_entries`.
+pub fn resolve_open_path(
+    pasted: &str,
+    roots: &[String],
+    show_dot_entries: bool,
+) -> Result<OpenPathResolution, String> {
     let cleaned = clean_pasted_path(pasted);
     if cleaned.is_empty() {
         return Err("no path given".into());
@@ -473,6 +501,7 @@ pub fn resolve_open_path(pasted: &str, roots: &[String]) -> Result<OpenPathResol
                 path: norm(&real),
                 is_dir: real.is_dir(),
             }],
+            searched: false,
         });
     }
     // They do not: walk the tail down until something lands inside a root.
@@ -518,24 +547,127 @@ pub fn resolve_open_path(pasted: &str, roots: &[String]) -> Result<OpenPathResol
             break;
         }
     }
+    let searched = matches.is_empty();
+    let mut truncated = false;
+    if searched {
+        (matches, truncated) = search_roots(&tail, &canonical_roots, show_dot_entries);
+    }
     if matches.is_empty() {
-        return Err(format!(
-            "{pasted} matches nothing under the registered document roots"
-        ));
+        return Err(if truncated {
+            format!(
+                "{pasted} was not found - the search of the document roots stopped after \
+                 {MAX_SEARCH_ENTRIES} entries or {}s; paste a longer path",
+                SEARCH_TIME_BUDGET.as_secs()
+            )
+        } else {
+            format!(
+                "{pasted} matches nothing under the registered document roots - \
+                 a file outside them cannot be opened here"
+            )
+        });
     }
     Ok(OpenPathResolution {
         direct: false,
         matches,
+        searched,
     })
 }
 
+/// The search fallback (T-0395): walks `roots` breadth-first for entries named
+/// like the pasted path's last segment, and keeps the ones that share the most
+/// trailing segments with it - so `share/docs/a.md` prefers `2026/docs/a.md`
+/// over an unrelated `old/a.md`. The second value is true when the walk ran
+/// out of budget first, which is worth telling the reader.
+///
+/// Names compare ASCII-case-insensitively, as the Windows filesystems these
+/// shares live on do. Links are not followed: one could lead out of the root
+/// or round in a loop, and the guard would refuse what it found anyway.
+fn search_roots(
+    tail: &[&str],
+    roots: &[PathBuf],
+    show_dot_entries: bool,
+) -> (Vec<OpenPathMatch>, bool) {
+    let Some(name) = tail.last() else {
+        return (Vec::new(), false);
+    };
+    let started = Instant::now();
+    let mut seen = 0usize;
+    let mut best = 0usize;
+    let mut found: Vec<OpenPathMatch> = Vec::new();
+    for root in roots {
+        let mut queue = VecDeque::from([root.clone()]);
+        while let Some(dir) = queue.pop_front() {
+            let Ok(read) = fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in read.flatten() {
+                seen += 1;
+                if seen > MAX_SEARCH_ENTRIES || started.elapsed() > SEARCH_TIME_BUDGET {
+                    return (found, true);
+                }
+                let entry_name = entry.file_name().to_string_lossy().to_string();
+                if hidden(&entry_name, show_dot_entries) {
+                    continue;
+                }
+                let Ok(ft) = entry.file_type() else { continue };
+                if ft.is_symlink() {
+                    continue;
+                }
+                let path = entry.path();
+                if entry_name.eq_ignore_ascii_case(name) {
+                    let score = shared_tail(root, &path, tail);
+                    if score > best {
+                        best = score;
+                        found.clear();
+                    }
+                    if score == best {
+                        found.push(OpenPathMatch {
+                            path: norm(&path),
+                            is_dir: ft.is_dir(),
+                        });
+                    }
+                }
+                if ft.is_dir() {
+                    queue.push_back(path);
+                }
+            }
+        }
+    }
+    (found, false)
+}
+
+/// How many trailing segments `path` (inside `root`) shares with `tail`.
+fn shared_tail(root: &Path, path: &Path, tail: &[&str]) -> usize {
+    let Ok(rel) = path.strip_prefix(root) else {
+        return 0;
+    };
+    let segments: Vec<String> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect();
+    segments
+        .iter()
+        .rev()
+        .zip(tail.iter().rev())
+        .take_while(|(have, want)| have.eq_ignore_ascii_case(want))
+        .count()
+}
+
+/// `current_root` is the root the tab is showing: its folders are searched
+/// first (T-0395), since that is where the reader expects the file to be.
 pub fn guarded_resolve_open_path(
     settings: &Settings,
     pasted: &str,
+    current_root: &str,
 ) -> Result<OpenPathResolution, String> {
-    let roots = allowed_roots(settings);
+    let mut roots = allowed_roots(settings);
+    if let Some(i) = roots.iter().position(|r| r == current_root) {
+        let first = roots.remove(i);
+        roots.insert(0, first);
+    }
     let pasted = pasted.to_string();
-    with_timeout(move || resolve_open_path(&pasted, &roots))
+    let show_dot_entries = settings.docs_show_hidden;
+    with_timeout(move || resolve_open_path(&pasted, &roots, show_dot_entries))
 }
 
 #[cfg(test)]
@@ -789,7 +921,7 @@ mod tests {
     }
 
     fn resolve(pasted: &str, roots: &[String]) -> Result<OpenPathResolution, String> {
-        resolve_open_path(pasted, roots)
+        resolve_open_path(pasted, roots, false)
     }
 
     #[test]
@@ -854,6 +986,65 @@ mod tests {
         let res = resolve(&pasted, &[tree.norm()]).unwrap();
         assert!(res.direct);
         assert!(res.matches[0].is_dir);
+    }
+
+    #[test]
+    fn open_path_finds_a_file_whose_folders_differ_midway() {
+        // The teammate's share is laid out differently from this root: the
+        // file sits a year folder deeper, so no tail joined to the root lands.
+        let tree = TempTree::new("open-search");
+        fs::create_dir_all(tree.path().join("2026/docs")).unwrap();
+        fs::write(tree.path().join("2026/docs/a.md"), "a").unwrap();
+        let res = resolve(r"Q:\share\docs\a.md", &[tree.norm()]).unwrap();
+        assert!(!res.direct);
+        assert!(res.searched);
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(
+            res.matches[0].path,
+            norm(&tree.path().join("2026/docs/a.md"))
+        );
+    }
+
+    #[test]
+    fn open_path_search_prefers_more_shared_folders() {
+        let tree = TempTree::new("open-search-rank");
+        fs::create_dir_all(tree.path().join("2026/docs")).unwrap();
+        fs::create_dir_all(tree.path().join("old")).unwrap();
+        fs::write(tree.path().join("2026/docs/a.md"), "a").unwrap();
+        fs::write(tree.path().join("old/a.md"), "a").unwrap();
+        // Both are named a.md; only one also sits in a `docs` folder.
+        let res = resolve(r"Q:\share\docs\a.md", &[tree.norm()]).unwrap();
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(
+            res.matches[0].path,
+            norm(&tree.path().join("2026/docs/a.md"))
+        );
+    }
+
+    #[test]
+    fn open_path_search_offers_every_equally_good_candidate() {
+        let tree = TempTree::new("open-search-tie");
+        fs::create_dir_all(tree.path().join("x")).unwrap();
+        fs::create_dir_all(tree.path().join("y")).unwrap();
+        fs::write(tree.path().join("x/A.md"), "a").unwrap();
+        fs::write(tree.path().join("y/a.md"), "a").unwrap();
+        let res = resolve(r"Q:\share\a.md", &[tree.norm()]).unwrap();
+        assert!(res.searched);
+        assert_eq!(res.matches.len(), 2);
+    }
+
+    #[test]
+    fn open_path_search_follows_the_dot_entry_setting() {
+        let tree = TempTree::new("open-search-dot");
+        fs::create_dir_all(tree.path().join(".backup/docs")).unwrap();
+        fs::write(tree.path().join(".backup/docs/a.md"), "a").unwrap();
+        let roots = [tree.norm()];
+        assert!(resolve_open_path(r"Q:\share\docs\a.md", &roots, false).is_err());
+        let res = resolve_open_path(r"Q:\share\docs\a.md", &roots, true).unwrap();
+        assert_eq!(
+            res.matches[0].path,
+            norm(&tree.path().join(".backup/docs/a.md"))
+        );
     }
 
     #[test]
