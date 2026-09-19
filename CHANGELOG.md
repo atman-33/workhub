@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.146.0 (2026-09-19)
+
+- **A page that loaded half-way can be reloaded where it is** (T-0393). When
+  an HTML file's stylesheet timed out on a streamed share, the Docs preview
+  showed the page unstyled with no error, and clicking the same file did
+  nothing, so the only way back was to open another file and return.
+  Picking the open document again now re-reads it, stylesheets and images
+  included. The HTML preview also says how many stylesheets and images it
+  could not read, with a Retry button, so a broken page no longer passes for
+  one that was written plain.
+- **Dot-folders can be shown in the Docs tab** (T-0394). Folders such as
+  `.backup` were always hidden, so what a team kept in one could not be
+  browsed at all. A new switch in the Docs settings lists dot-folders and
+  dot-files. It is off by default and saved with the vault, and
+  `desktop.ini` stays hidden either way.
+- **A pasted path opens even when the share is laid out differently**
+  (T-0395). The tab joined the pasted path's tail onto each root, so a file
+  whose folders differ midway (`docs/a.md` for the sender, `2026/docs/a.md`
+  here) was reported as matching nothing even though it was there. When
+  nothing cheaper finds it, the tab now searches the roots for the name,
+  starting with the root on screen. Of the files with that name, it keeps
+  the ones sharing the most folders with the pasted path: one opens
+  directly, and several are offered to pick from. The search stops at
+  20,000 entries or 12 seconds, and dot-folders follow the new setting.
+  Files outside the registered roots still cannot be opened.
+- **New `thinking` plugin** with `teach-back` and `ladder`, two skills that
+  ask questions instead of answering them. `teach-back` quizzes you on a
+  document until you can explain it. `ladder` structures a problem one
+  agreed level at a time. The plugin is optional and user-scope.
+- **The engineering plugin gains `system-design`.** It interviews you until
+  a design is settled, then writes the proposal, the per-capability specs,
+  the design decisions and the Mermaid diagrams into a folder you choose.
+  It stops before implementation.
+
 ## 0.145.0 (2026-09-19)
 
 - **The `_ai/memory/` fallback is gone; a vault that has not migrated is
