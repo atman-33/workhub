@@ -16,6 +16,7 @@ import {
   sortProjects,
   sortProjectsByMode,
   taskCountsByProject,
+  projectNumberedLabel,
   taskProjectFilterLabel,
   unknownProjects,
 } from "./vault-project";
@@ -361,6 +362,22 @@ describe("projectNumberOfFolder", () => {
     expect(projectNumberOfFolder("0010workhub")).toBe("");
     expect(projectNumberOfFolder("0010-")).toBe("");
     expect(projectNumberOfFolder("")).toBe("");
+  });
+});
+
+describe("projectNumberedLabel", () => {
+  const folders = { workhub: "0010-workhub", demo: "demo" };
+
+  it("draws the folder number beside the slug", () => {
+    expect(projectNumberedLabel("workhub", folders)).toBe("0010 workhub");
+  });
+
+  it("leaves a slug whose folder has no number undecorated", () => {
+    expect(projectNumberedLabel("demo", folders)).toBe("demo");
+  });
+
+  it("falls back to the bare slug when the folder is unknown", () => {
+    expect(projectNumberedLabel("missing", folders)).toBe("missing");
   });
 });
 

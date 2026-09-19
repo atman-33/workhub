@@ -197,11 +197,6 @@ export const api = {
     order: number | null,
   ) => invoke<void>("set_vault_project_order", { vaultPath, slug, pinned, order }),
   // ---- schedule notes (projects/<slug>/schedules/*.md) ----
-  /** Project slugs under the vault's `projects/`, including ones with no
-   * schedule note yet — deriving the list from existing notes would make the
-   * first schedule impossible to create. */
-  listScheduleProjects: (vaultPath: string) =>
-    invoke<string[]>("list_schedule_projects", { vaultPath }),
   /** The project's real folder under `projects/` — which may carry a
    * `NNNN-` sort prefix the slug itself never includes — or `null` when no
    * folder answers to the slug. Never build `projects/<slug>/` by string
