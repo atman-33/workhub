@@ -25,10 +25,10 @@ argument-hint: "<task-id>"
    *Fallback (no node, or script missing):* edit the task file by hand —
    set `status: doing` and `updated: <today>` in the frontmatter (preserve
    the body byte-for-byte; never start `review`/`done`/`archived` tasks),
-   and write `<vault>/_ai/state/sessions/$CLAUDE_CODE_SESSION_ID.json`
-   (`_ai/memory/sessions/` instead, if that folder exists and `_ai/state/`
-   does not — this vault has not run the T-0390 migration yet) with
-   `{ "session_id", "host_session_id", "id", "file", "started" }`.
+   and write `<vault>/_ai/state/sessions/$CLAUDE_CODE_SESSION_ID.json` with
+   `{ "session_id", "host_session_id", "id", "file", "started" }`. Always this
+   path — as of T-0392 nothing falls back to `_ai/memory/sessions/` any more,
+   even on a vault that has not run the T-0390 migration yet.
 
    The marker is per session, so two tasks started at once no longer
    overwrite each other's — and the folder doubles as the directory of who

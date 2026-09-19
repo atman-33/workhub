@@ -16,23 +16,17 @@
 // derivation are therefore a *data contract* between the two plugins, and
 // `copies.test.mjs` pins this copy against the original so the contract
 // cannot drift silently. That includes `resolveAiStateDir` below, a second
-// copy of the same T-0390 transitional folder resolver in
-// `plugins/workhub/hooks/lib.mjs`.
-import { existsSync, readFileSync } from "node:fs";
+// copy of the same folder resolver in `plugins/workhub/hooks/lib.mjs`.
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The vault's `_ai/` working-data folder: `_ai/state/` if it exists, else
- * `_ai/memory/` if it exists (a vault not yet carried through the T-0390
- * rename), else `_ai/state/`. See the copy in `plugins/workhub/hooks/lib.mjs`
- * for the full rationale.
+ * The vault's `_ai/` working-data folder: `_ai/state/`. See the copy in
+ * `plugins/workhub/hooks/lib.mjs` for the full rationale (T-0390 renamed
+ * `_ai/memory/`; T-0392 removed the transitional fallback to it).
  */
 function resolveAiStateDir(vault) {
-  const state = join(vault, "_ai", "state");
-  if (existsSync(state)) return state;
-  const legacy = join(vault, "_ai", "memory");
-  if (existsSync(legacy)) return legacy;
-  return state;
+  return join(vault, "_ai", "state");
 }
 
 /**

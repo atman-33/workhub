@@ -7,7 +7,7 @@
  * install, and a failure is visible in the verdict and the exit status instead
  * of being buried in a line of prose.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -100,6 +100,20 @@ describe("runDoctor", () => {
     );
     expect(capture.level).toBe("warn");
     expect(capture.detail).toMatch(/46 days ago/);
+  });
+
+  // T-0392 removed the transitional `_ai/memory/` fallback: a vault that has
+  // not run vault-upgrade's migration 002 now has its database stranded
+  // there, rather than silently readable through the old name.
+  it("reports a stranded legacy database as a failing check, not a missing one", () => {
+    process.env.WORKHUB_VAULT = dir;
+    mkdirSync(join(dir, "_ai", "memory"), { recursive: true });
+    writeFileSync(join(dir, "_ai", "memory", "memory.db"), "sqlite");
+    const report = runDoctor({ sqlite: null, dbLib: null });
+    const database = report.checks.find((c) => c.name === "database");
+    expect(database.level).toBe("fail");
+    expect(database.detail).toMatch(/stranded/);
+    expect(database.fix).toMatch(/migration 002/);
   });
 
   it("reports queued sessions as recoverable, not lost", () => {

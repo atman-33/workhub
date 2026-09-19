@@ -7,13 +7,14 @@
  * unrelated `memory/` knowledge layer at the vault root, which is confusing
  * enough on its own that T-0390 renamed the folder rather than live with it.
  *
- * Every reader and writer in the app and the plugins already resolves this
- * folder through a small fallback helper (`_ai/state/` if it exists, else
- * `_ai/memory/`, else `_ai/state/`), so nothing breaks silently while a vault
- * has not run this migration yet — unlike 001, which the identity-inject hook
- * gated on with no fallback at all. Running it is still worth doing: every
- * fallback check is one more place for the old name to keep meaning something,
- * and a vault that never migrates carries both folders forever.
+ * T-0390 shipped every reader and writer in the app and the plugins with a
+ * transitional fallback (`_ai/state/` if it exists, else `_ai/memory/`, else
+ * `_ai/state/`), so a vault could keep working while it had not yet run this
+ * migration. T-0392 removed that fallback: every reader and writer now
+ * resolves `_ai/state/` only, so a vault that has not run this migration has
+ * its memory, session task markers and tidy pending list stranded under
+ * `_ai/memory/` until it does. This migration is the only way back — it is
+ * the remedy, not a workaround for the folder still existing.
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -59,9 +60,9 @@ export default {
     "snapshots, soft-delete trash and the memory engine's database — app and",
     "agent working data, not knowledge. Its name collided with the unrelated",
     "`memory/` knowledge layer at the vault root, so T-0390 renamed it to",
-    "`_ai/state/`. Every reader already falls back to the old name when the",
-    "new one is missing, so nothing is silently broken by leaving this vault",
-    "as it is — but a vault that never runs this keeps both folders forever.",
+    "`_ai/state/`. As of T-0392, no reader falls back to the old name any",
+    "more — this vault's memory, session task markers and tidy pending list",
+    "are stranded under `_ai/memory/` until this migration runs.",
   ].join("\n"),
 
   detect(vault) {

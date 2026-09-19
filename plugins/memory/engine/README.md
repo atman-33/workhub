@@ -52,7 +52,13 @@ OpenCode plugin check them on every run.
 |---|---|
 | this directory | engine source (ESM), shipped with the plugin |
 | `~/.workhub/memory-engine/` | npm deps, model cache, `.setup-version` marker (per machine, survives plugin updates) |
-| `<vault>/_ai/state/memory.db` (`_ai/memory/` on a vault not yet migrated, T-0390) | the database — **gitignored**; conversation text is stored verbatim and may contain sensitive material |
+| `<vault>/_ai/state/memory.db` | the database — **gitignored**; conversation text is stored verbatim and may contain sensitive material |
+
+A vault that has not run the workhub vault-upgrade skill's migration 002 still
+has its database under the pre-T-0390 `_ai/memory/`. As of T-0392 nothing
+falls back there any more, so `legacyDbStranded()` in `lib/paths.mjs` detects
+that case and every DB-opening hook/CLI command no-ops instead of starting a
+second, empty database at `_ai/state/memory.db`.
 
 ## Setup
 

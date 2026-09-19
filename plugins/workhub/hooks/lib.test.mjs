@@ -233,9 +233,8 @@ describe("profile paths", () => {
 /**
  * `_ai/memory/` was renamed to `_ai/state/` in T-0390 because the name
  * collided with the unrelated `memory/` knowledge layer. `resolveAiStateDir`
- * is the transitional resolver every reader/writer of that folder goes
- * through, so a vault whose plugins updated before `vault-upgrade`'s
- * migration ran keeps working against its existing `_ai/memory/` data.
+ * resolves `_ai/state/` only (T-0392 removed the transitional fallback to
+ * the legacy folder).
  */
 describe("resolveAiStateDir", () => {
   let fx;
@@ -249,20 +248,13 @@ describe("resolveAiStateDir", () => {
     vi.unstubAllEnvs();
   });
 
-  it("prefers _ai/state/ when it exists", async () => {
-    mkdirSync(join(fx.vault, "_ai", "state"), { recursive: true });
+  it("resolves _ai/state/ regardless of a legacy _ai/memory/ folder", async () => {
     mkdirSync(join(fx.vault, "_ai", "memory"), { recursive: true });
     const { resolveAiStateDir } = await load(fx.vault, fx.home);
     expect(resolveAiStateDir(fx.vault)).toBe(join(fx.vault, "_ai", "state"));
   });
 
-  it("falls back to the legacy _ai/memory/ folder", async () => {
-    mkdirSync(join(fx.vault, "_ai", "memory"), { recursive: true });
-    const { resolveAiStateDir } = await load(fx.vault, fx.home);
-    expect(resolveAiStateDir(fx.vault)).toBe(join(fx.vault, "_ai", "memory"));
-  });
-
-  it("defaults to _ai/state/ when neither folder exists", async () => {
+  it("defaults to _ai/state/ when nothing exists", async () => {
     const { resolveAiStateDir } = await load(fx.vault, fx.home);
     expect(resolveAiStateDir(fx.vault)).toBe(join(fx.vault, "_ai", "state"));
   });

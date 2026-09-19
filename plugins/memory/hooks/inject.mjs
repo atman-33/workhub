@@ -13,6 +13,19 @@ try {
   const vault = paths.resolveVaultForHook();
   if (!vault) process.exit(0);
 
+  // A vault that has not run vault-upgrade's migration 002 still has its real
+  // database under `_ai/memory/`. Opening `_ai/state/memory.db` here would
+  // silently create a second, empty one instead of surfacing that (T-0392).
+  // The reflex reminder alone still rides every prompt; the SessionStart
+  // brief is what carries the fuller stranded notice.
+  if (paths.legacyDbStranded(vault)) {
+    const { reflexReminder } = await import("../engine/lib/reflexes.mjs");
+    const { hasStore } = await import("../engine/lib/store.mjs");
+    const reminder = reflexReminder({ hasStore: hasStore(vault) });
+    if (reminder) console.log(reminder);
+    process.exit(0);
+  }
+
   const { loadSqlite } = await import("../engine/lib/deps.mjs");
   const sqlite = loadSqlite();
   if (!sqlite) process.exit(0);

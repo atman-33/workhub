@@ -124,8 +124,10 @@ argument-hint: "<task-id>"
 
    *Fallback (no node, or script missing):* set `status: review` and
    `updated: <today>` in the frontmatter by hand (preserve the rest), and
-   delete any `<vault>/_ai/state/sessions/*.json` (or `_ai/memory/sessions/`
-   on a vault not yet migrated by T-0390) that refers to this task.
+   delete any `<vault>/_ai/state/sessions/*.json` that refers to this task. A
+   vault that has not run the T-0390 vault-upgrade migration still has its
+   markers under `_ai/memory/sessions/` instead — as of T-0392 nothing reads
+   that folder any more, so leave it for the migration rather than editing it.
 8. **Offer to clean up the worktree — only for worktree-mode tasks**
    (`worktree: true`). Once the work is committed/pushed and no longer needed,
    **propose** removing the task's worktree (do not delete it automatically —

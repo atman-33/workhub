@@ -14,9 +14,8 @@ import {
 } from "../lib/session-marker-read.mjs";
 
 try {
-  const { readMarker, memoryEnabled, resolveVaultForHook, dbPathForVault } = await import(
-    "../engine/lib/paths.mjs"
-  );
+  const { readMarker, memoryEnabled, resolveVaultForHook, dbPathForVault, legacyDbStranded } =
+    await import("../engine/lib/paths.mjs");
   if (!readMarker() || !memoryEnabled("claude_code")) process.exit(0);
 
   const payload = readPayload();
@@ -25,6 +24,11 @@ try {
 
   const vault = resolveVaultForHook();
   if (!vault) process.exit(0);
+
+  // A vault that has not run vault-upgrade's migration 002 still has its real
+  // database under `_ai/memory/`. Opening `_ai/state/memory.db` here would
+  // silently create a second, empty one instead of surfacing that (T-0392).
+  if (legacyDbStranded(vault)) process.exit(0);
 
   const { loadSqlite } = await import("../engine/lib/deps.mjs");
   const sqlite = loadSqlite();

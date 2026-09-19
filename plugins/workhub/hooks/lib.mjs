@@ -65,25 +65,19 @@ export function resolveVault() {
 }
 
 /**
- * The vault's `_ai/` working-data folder: `_ai/state/` if it exists, else
- * `_ai/memory/` if it exists (a vault not yet carried through the T-0390
- * rename), else `_ai/state/` — the folder every fresh write should land in.
+ * The vault's `_ai/` working-data folder: `_ai/state/`.
  *
- * Transitional: `_ai/memory/` was renamed to `_ai/state/` in T-0390 because
- * the name collided with the unrelated `memory/` knowledge layer. Every
- * reader and writer of this folder goes through this one function so a vault
- * whose plugins updated before `vault-upgrade`'s migration ran keeps working
- * against its existing `_ai/memory/` data instead of silently starting a
- * second, empty folder beside it.
+ * `_ai/memory/` was renamed to `_ai/state/` in T-0390 because the name
+ * collided with the unrelated `memory/` knowledge layer. T-0392 removed the
+ * transitional fallback to the legacy folder: a vault that has not yet run
+ * `vault-upgrade`'s migration 002 is now the vault's own responsibility (the
+ * app's notice tells the owner to run it), not something every reader here
+ * has to keep working around.
  *
  * @param {string} vault
  */
 export function resolveAiStateDir(vault) {
-  const state = join(vault, "_ai", "state");
-  if (existsSync(state)) return state;
-  const legacy = join(vault, "_ai", "memory");
-  if (existsSync(legacy)) return legacy;
-  return state;
+  return join(vault, "_ai", "state");
 }
 
 /**
