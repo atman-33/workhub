@@ -7,16 +7,27 @@
 // recording, because a memory that has quietly stopped working looks exactly
 // like a memory with nothing to say (T-0366).
 //
-// Silent no-op when the engine is not set up, when memory is switched off for
-// Claude Code, or outside the vault.
+// Silent no-op when the engine was never set up, when memory is switched off
+// for Claude Code, or outside the vault. The one exception is an engine set up
+// by a different plugin version: every memory hook stands down until
+// `memory-setup` runs again, so the brief says that in one line instead of
+// staying silent — a plugin update used to switch memory off without anyone
+// noticing (T-0385).
 import { readPayload } from "../lib/hook-input.mjs";
 
 try {
   const paths = await import("../engine/lib/paths.mjs");
-  if (!paths.readMarker() || !paths.memoryEnabled("claude_code")) process.exit(0);
+  if (!paths.memoryEnabled("claude_code")) process.exit(0);
 
   const vault = paths.resolveVaultForHook();
   if (!vault) process.exit(0);
+
+  const status = paths.markerStatus();
+  if (status.state === "stale") {
+    console.log(paths.staleEngineNotice(status.installed));
+    process.exit(0);
+  }
+  if (status.state !== "ok") process.exit(0);
 
   readPayload();
 

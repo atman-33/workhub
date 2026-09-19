@@ -21,7 +21,10 @@ import { join, resolve, sep } from "node:path";
 // 7: capture-json records capture health (T-0371). Not a new file, but the
 //    OpenCode plugin runs the installed copy, so without a bump the fix
 //    never reaches it.
-export const ENGINE_VERSION = 7;
+// 8: T-0375 rewrote the reflex text and added the `notes` search; the
+//    OpenCode plugin runs the installed copy, so it still showed the old
+//    text. A version mismatch is no longer silent either (T-0385).
+export const ENGINE_VERSION = 8;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
@@ -139,10 +142,49 @@ export function memoryEnabled(agent) {
  * engine matches ENGINE_VERSION, otherwise null (not set up / needs re-setup).
  */
 export function readMarker() {
+  const status = markerStatus();
+  return status.state === "ok" ? status.marker : null;
+}
+
+/**
+ * Why the engine is or is not usable, which {@link readMarker} flattens to
+ * "usable or not".
+ *
+ * - `ok` — set up, and for this engine version.
+ * - `missing` — never set up on this machine (or the marker is unreadable).
+ *   Memory is simply not in use, so this stays quiet.
+ * - `stale` — set up, but by a different plugin version. Every hook then
+ *   stands down until `memory-setup` runs again, and nothing in a session
+ *   says so. This is the state worth reporting (T-0385).
+ *
+ * @returns {{ state: "ok" | "missing" | "stale", marker: object | null, installed: number | null }}
+ */
+export function markerStatus() {
+  let marker;
   try {
-    const marker = JSON.parse(readFileSync(markerPath(), "utf8"));
-    return marker.version === ENGINE_VERSION ? marker : null;
+    marker = JSON.parse(readFileSync(markerPath(), "utf8"));
   } catch {
-    return null;
+    return { state: "missing", marker: null, installed: null };
   }
+  if (!marker || typeof marker !== "object") {
+    return { state: "missing", marker: null, installed: null };
+  }
+  const installed = typeof marker.version === "number" ? marker.version : null;
+  if (installed === ENGINE_VERSION) return { state: "ok", marker, installed };
+  return { state: "stale", marker, installed };
+}
+
+/**
+ * The one line a session gets when the engine is `stale`: memory has stopped,
+ * why, and the one command that restarts it.
+ *
+ * @param {number | null} installed the version the marker records
+ */
+export function staleEngineNotice(installed) {
+  const from = installed === null ? "an unknown version" : `version ${installed}`;
+  return (
+    `[workhub-memory] Memory is paused on this machine: the memory plugin was updated ` +
+    `(engine ${from} installed, ${ENGINE_VERSION} expected), so nothing is being recorded ` +
+    `or recalled. Tell the user to run \`/memory-setup\` once to resume.`
+  );
 }
