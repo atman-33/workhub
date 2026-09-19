@@ -67,8 +67,12 @@ the vault from wherever it is run.
 ## Session markers and cross-session messaging
 
 `task-start` records which task a session is working in
-`<vault>/_ai/state/sessions/<session-id>.json` (`_ai/memory/` on a vault not yet migrated, T-0390), one file per session, keyed by
-the `CLAUDE_CODE_SESSION_ID` that Claude Code exports to every subprocess. The
+`<vault>/_ai/state/sessions/<session-id>.json` (a vault that has not run the
+workhub vault-upgrade skill's migration 002 still has this under the
+pre-T-0390 `_ai/memory/`, and as of T-0392 nothing falls back there any
+more — new markers simply start under `_ai/state/`), one file per session,
+keyed by the `CLAUDE_CODE_SESSION_ID` that Claude Code exports to every
+subprocess. The
 marker also carries `host_session_id` (`CLAUDE_CODE_HOST_SESSION_ID`) — the
 address the desktop app's `send_message` tool takes.
 

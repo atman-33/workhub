@@ -339,22 +339,6 @@ mod tests {
         assert!(!pending.shields(&vault.join("inbox").join("a.md"), 0));
     }
 
-    /// A vault that has not yet run the T-0390 `_ai/memory/` → `_ai/state/`
-    /// migration still has its pending list read correctly.
-    #[test]
-    fn load_pending_falls_back_to_the_legacy_memory_folder() {
-        let vault = temp_vault("legacy-ai-dir");
-        write(
-            &vault.join("_ai").join("memory").join("tidy-pending.json"),
-            r#"{"files":[{"path":"inbox/old.md","reason":"low confidence"}]}"#,
-        );
-        let pending = load_pending(&vault);
-        assert_eq!(pending.len(), 1);
-        assert!(pending.get(&vault.join("inbox").join("old.md")).is_some());
-
-        let _ = fs::remove_dir_all(&vault);
-    }
-
     #[test]
     fn read_note_returns_body_and_reports_missing() {
         let vault = temp_vault("read");

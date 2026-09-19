@@ -1,12 +1,13 @@
 /**
  * Migration 002: `_ai/memory/` → `_ai/state/`.
  *
- * Every reader already falls back to `_ai/memory/` when `_ai/state/` is
- * missing (T-0390), so unlike 001 this migration is not fixing a silent
- * failure — it is retiring the old name so a vault does not carry both
- * folders forever. What matters here is that it moves everything, is safe to
- * run when `_ai/state/` already holds files (merge, or refuse a real
- * collision — never clobber), and reports itself done once nothing is left.
+ * T-0390 renamed `_ai/memory/` to `_ai/state/` with a transitional fallback
+ * so an unmigrated vault kept working; T-0392 removed that fallback, so a
+ * vault that has not run this migration now has its memory, session task
+ * markers and tidy pending list stranded under `_ai/memory/`. What matters
+ * here is that it moves everything, is safe to run when `_ai/state/` already
+ * holds files (merge, or refuse a real collision — never clobber), and
+ * reports itself done once nothing is left.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

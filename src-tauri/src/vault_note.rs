@@ -752,27 +752,16 @@ pub fn scan_notes(
 // snapshots (undo for AI edits)
 // ---------------------------------------------------------------------
 
-/// Resolve the vault's `_ai/` working-data folder: `_ai/state/` if it exists,
-/// else `_ai/memory/` if it exists (a vault not yet carried through the
-/// T-0390 rename), else `_ai/state/` — the folder every fresh write should
-/// land in.
+/// Resolve the vault's `_ai/` working-data folder: `_ai/state/`.
 ///
-/// This is transitional: `_ai/memory/` was renamed to `_ai/state/` in T-0390
-/// because the name collided with the unrelated `memory/` knowledge layer.
-/// Every reader and writer of this folder goes through this one function so
-/// that a vault upgraded to the new plugin/app version before running
-/// `vault-upgrade`'s migration keeps working against its existing `_ai/memory/`
-/// data instead of silently starting a second, empty folder beside it.
+/// `_ai/memory/` was renamed to `_ai/state/` in T-0390 because the name
+/// collided with the unrelated `memory/` knowledge layer. T-0392 removed the
+/// transitional fallback to the legacy folder: a vault that has not yet run
+/// `vault-upgrade`'s migration 002 is now the vault's own responsibility (the
+/// app's notice tells the owner to run it), not something every reader here
+/// has to keep working around.
 pub fn ai_state_dir(vault: &Path) -> PathBuf {
-    let state = vault.join("_ai").join("state");
-    if state.is_dir() {
-        return state;
-    }
-    let legacy = vault.join("_ai").join("memory");
-    if legacy.is_dir() {
-        return legacy;
-    }
-    state
+    vault.join("_ai").join("state")
 }
 
 /// One snapshot per note, keyed by a flattened form of its vault-relative
@@ -1005,22 +994,14 @@ mod tests {
     }
 
     #[test]
-    fn ai_state_dir_prefers_the_new_folder_when_it_exists() {
-        let vault = temp_ai_dir_vault("prefers-new");
-        fs::create_dir_all(vault.join("_ai").join("state")).unwrap();
+    fn ai_state_dir_resolves_to_state_regardless_of_a_legacy_folder() {
+        let vault = temp_ai_dir_vault("legacy-ignored");
         fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
         assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("state"));
     }
 
     #[test]
-    fn ai_state_dir_falls_back_to_the_legacy_folder() {
-        let vault = temp_ai_dir_vault("legacy-only");
-        fs::create_dir_all(vault.join("_ai").join("memory")).unwrap();
-        assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("memory"));
-    }
-
-    #[test]
-    fn ai_state_dir_defaults_to_the_new_folder_when_neither_exists() {
+    fn ai_state_dir_defaults_to_the_new_folder_when_nothing_exists() {
         let vault = temp_ai_dir_vault("neither");
         assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("state"));
     }

@@ -104,12 +104,10 @@ describe("start", () => {
     expect(marker("default").id).toBe("T-0001");
   });
 
-  // A leftover file that still looks authoritative is worse than none. Also
-  // exercises the T-0390 legacy fallback: with only `_ai/memory/` present
-  // (no `_ai/state/`), the resolver must still find and remove it there.
+  // A leftover file that still looks authoritative is worse than none.
   it("removes the pre-T-0243 shared marker", () => {
-    const legacy = join(vault, "_ai", "memory", "active-task.json");
-    mkdirSync(join(vault, "_ai", "memory"), { recursive: true });
+    const legacy = join(vault, "_ai", "state", "active-task.json");
+    mkdirSync(join(vault, "_ai", "state"), { recursive: true });
     writeFileSync(legacy, JSON.stringify({ id: "T-0002" }), "utf-8");
     run(A, ["start", "T-0001"]);
     expect(existsSync(legacy)).toBe(false);

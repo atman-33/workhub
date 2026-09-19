@@ -16,6 +16,7 @@ import {
   dbPathForVault,
   engineHome,
   installedEngineDir,
+  legacyDbStranded,
   memoryEnabled,
   modelsDir,
   markerStatus,
@@ -104,6 +105,21 @@ function checkAgents() {
     return check("agents", "warn", `memory is switched off for ${off[0]}`);
   }
   return check("agents", "ok", "claude_code, opencode");
+}
+
+/**
+ * A vault that has not run vault-upgrade's migration 002 has its real data
+ * stranded under `_ai/memory/` — every reader now resolves `_ai/state/`
+ * only (T-0392), so this is a failing check, not "not created yet".
+ */
+function checkStranded(vault) {
+  if (!legacyDbStranded(vault)) return null;
+  return check(
+    "database",
+    "fail",
+    `memory is stranded under _ai/memory/ — nothing reads it now that _ai/state/ is the only path checked`,
+    "run the workhub vault-upgrade skill's migration 002 (_ai/memory/ → _ai/state/)",
+  );
 }
 
 /** The database file, and whether its contents agree with the schema. */
@@ -263,7 +279,12 @@ export function runDoctor({ sqlite = null, dbLib = null } = {}) {
   const checks = [checkSetup(), checkEngineCopy(), checkModel(), checkVault(), checkAgents()];
   const vault = resolveVault();
   if (vault) {
-    if (dbLib) checks.push(...checkDatabase(vault, sqlite, dbLib));
+    const stranded = checkStranded(vault);
+    if (stranded) {
+      checks.push(stranded);
+    } else if (dbLib) {
+      checks.push(...checkDatabase(vault, sqlite, dbLib));
+    }
     checks.push(...checkCapture(), ...checkStore(vault), ...checkOpencodeLog(vault));
   }
   const worst = checks.some((c) => c.level === "fail")

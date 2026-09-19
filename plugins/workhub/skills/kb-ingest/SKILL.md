@@ -260,10 +260,11 @@ When this run ends with one or more deferred items (and also to clean up after
 previous runs), do both of the following:
 
 **1. Maintain `_ai/state/tidy-pending.json`** (renamed from `_ai/memory/` in
-T-0390 — if this vault still has the file at the old path and no `_ai/state/`
-folder exists yet, read and rewrite it there instead until the vault is
-migrated) — the machine-readable pending list the workhub app's pre-check
-reads to avoid re-launching the agent for files a human still has to look at.
+T-0390; as of T-0392 always write it at the new path — a vault that has not
+run the vault-upgrade migration still has its old list stranded under
+`_ai/memory/tidy-pending.json`, which the app's notice covers) — the
+machine-readable pending list the workhub app's pre-check reads to avoid
+re-launching the agent for files a human still has to look at.
 Rewrite the whole file each run:
 
 ```json

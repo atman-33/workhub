@@ -31,6 +31,12 @@ try {
 
   readPayload();
 
+  // A vault that has not run vault-upgrade's migration 002 still has its real
+  // database under `_ai/memory/`. Opening `_ai/state/memory.db` here would
+  // silently create a second, empty one instead — so skip the database
+  // entirely and tell the session where its memory actually is (T-0392).
+  const stranded = paths.legacyDbStranded(vault);
+
   const { loadSqlite } = await import("../engine/lib/deps.mjs");
   const sqlite = loadSqlite();
   const { buildBrief } = await import("../engine/lib/brief.mjs");
@@ -39,7 +45,7 @@ try {
   // Markdown, so a brief still works on a machine whose index is broken —
   // which is precisely when its health line matters most.
   let stats = null;
-  if (sqlite) {
+  if (sqlite && !stranded) {
     const dbLib = await import("../engine/lib/db.mjs");
     const db = dbLib.openDb(paths.dbPathForVault(vault), sqlite);
     try {
@@ -51,7 +57,8 @@ try {
   }
 
   const text = buildBrief(vault, stats);
-  if (text) console.log(text);
+  const lines = [text, stranded ? paths.strandedDbNotice() : ""].filter(Boolean);
+  if (lines.length) console.log(lines.join("\n\n"));
 } catch (err) {
   // Never fail a session over a memory problem.
   console.error(`[workhub-memory] brief skipped: ${err.message}`);

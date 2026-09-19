@@ -31,7 +31,13 @@ import { join, resolve, sep } from "node:path";
 //     with a fallback to the pre-rename `_ai/memory/` (T-0390). Not a new
 //     file, but an installed copy that predates the rename would otherwise
 //     keep writing `_ai/memory/memory.db` after the app renamed the folder.
-export const ENGINE_VERSION = 10;
+// 11: T-0392 removed that fallback — `dbPathForVault` now resolves
+//     `_ai/state/` only — and added `legacyDbStranded` plus the guard every
+//     DB-opening hook and CLI command now runs against it. Not a new file,
+//     but an installed copy that predates this would silently create a fresh
+//     `_ai/state/memory.db` for a vault whose real data is still stranded
+//     under `_ai/memory/`.
+export const ENGINE_VERSION = 11;
 
 export const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 export const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
@@ -134,23 +140,51 @@ export function resolveVaultForHook() {
 }
 
 /**
- * The vault's `_ai/` working-data folder: `_ai/state/` if it exists, else
- * `_ai/memory/` if it exists (a vault not yet carried through the T-0390
- * rename), else `_ai/state/`. Self-contained copy of the same resolver in
- * `plugins/workhub/hooks/lib.mjs` and `plugins/memory/lib/session-marker-read.mjs` —
- * this engine copy has to keep working once `setup` copies it out to
- * `ENGINE_HOME`, so it cannot import from either plugin's own directory.
+ * The vault's `_ai/` working-data folder: `_ai/state/`. Self-contained copy
+ * of the same resolver in `plugins/workhub/hooks/lib.mjs` and
+ * `plugins/memory/lib/session-marker-read.mjs` — this engine copy has to keep
+ * working once `setup` copies it out to `ENGINE_HOME`, so it cannot import
+ * from either plugin's own directory. T-0392 removed the transitional
+ * fallback to the pre-T-0390 `_ai/memory/` folder; see {@link legacyDbStranded}
+ * for the guard that replaces it.
  */
 function resolveAiStateDir(vault) {
-  const state = join(vault, "_ai", "state");
-  if (existsSync(state)) return state;
-  const legacy = join(vault, "_ai", "memory");
-  if (existsSync(legacy)) return legacy;
-  return state;
+  return join(vault, "_ai", "state");
 }
 
 export function dbPathForVault(vault) {
   return join(resolveAiStateDir(vault), "memory.db");
+}
+
+/**
+ * True when this vault's memory database is stranded under the pre-T-0390
+ * `_ai/memory/` folder: no database at the new `_ai/state/memory.db` path,
+ * but one still sits at the old `_ai/memory/memory.db`.
+ *
+ * Every hook and CLI command that would otherwise open-or-create the
+ * database must check this first (T-0392): since the fallback resolver is
+ * gone, doing nothing here would make a stranded vault silently start a
+ * second, empty database at `_ai/state/memory.db` instead of surfacing that
+ * its real data is waiting on the vault-upgrade migration.
+ */
+export function legacyDbStranded(vault) {
+  const state = join(vault, "_ai", "state", "memory.db");
+  const legacy = join(vault, "_ai", "memory", "memory.db");
+  return !existsSync(state) && existsSync(legacy);
+}
+
+/**
+ * The one line a session gets when memory is stranded under `_ai/memory/`:
+ * what happened and the one fix. Reused verbatim by both the Claude Code
+ * SessionStart brief and `cli.mjs inject`'s first-prompt line (T-0392), so it
+ * is written in the same language as the other brief lines (capture health,
+ * reflect-due) rather than duplicated in English for one caller.
+ */
+export function strandedDbNotice() {
+  return (
+    `⚠️ メモリが _ai/memory/ に取り残されています（_ai/state/ への移行が未実施）。` +
+    `記録も検索もこのままでは動きません。workhub の vault-upgrade スキルの移行 002 を実行するようユーザーに伝えてください。`
+  );
 }
 
 /**

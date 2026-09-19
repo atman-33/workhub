@@ -29,8 +29,20 @@
 // ~/.workhub/memory-engine/engine).
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { readMarker as readSessionMarker, sessionKey } from "../lib/session-marker-read.mjs";
-import { ENGINE_HOME, LOCK_PATH, dbPathForVault, readMarker, resolveVault } from "./lib/paths.mjs";
+import {
+  ENGINE_HOME,
+  LOCK_PATH,
+  dbPathForVault,
+  legacyDbStranded,
+  readMarker,
+  resolveVault,
+  strandedDbNotice,
+} from "./lib/paths.mjs";
 import { loadSqlite } from "./lib/deps.mjs";
+
+/** Thrown by {@link openVaultDb} when the vault's memory is stranded under
+ * the pre-T-0392 `_ai/memory/` folder — a signal to no-op, not a failure. */
+class StrandedDbError extends Error {}
 
 const [, , command, ...args] = process.argv;
 
@@ -51,6 +63,10 @@ function positional(index) {
 function openVaultDb() {
   const vault = resolveVault();
   if (!vault) throw new Error("vault not found (WORKHUB_VAULT / cwd / ~/.workhub/config.json)");
+  // A vault that has not run vault-upgrade's migration 002 still has its real
+  // database under `_ai/memory/`. Opening `_ai/state/memory.db` here would
+  // silently create a second, empty one instead of surfacing that (T-0392).
+  if (legacyDbStranded(vault)) throw new StrandedDbError(strandedDbNotice());
   const sqlite = loadSqlite();
   if (!sqlite) throw new Error("engine dependencies not installed — run: node cli.mjs setup");
   const { openDb, initDb } = awaitedDb;
@@ -76,7 +92,9 @@ async function main() {
       console.log(`engine home : ${ENGINE_HOME}`);
       console.log(`setup       : ${marker ? `ok (installed ${marker.installedAt}, ${marker.model})` : "NOT SET UP — run memory-setup"}`);
       console.log(`vault       : ${vault ?? "not found"}`);
-      if (marker && vault && loadSqlite()) {
+      if (vault && legacyDbStranded(vault)) {
+        console.log(`database    : stranded under _ai/memory/ — run vault-upgrade migration 002`);
+      } else if (marker && vault && loadSqlite()) {
         awaitedDb = await import("./lib/db.mjs");
         const db = openVaultDb();
         try {
@@ -246,9 +264,18 @@ ${total} finding(s) — none of them block anything.`);
       // Prints the injection block for stdin JSON {prompt, session_id};
       // prints nothing when there is nothing worth injecting.
       const input = JSON.parse(readFileSync(0, "utf8"));
+      const { firstPromptOf, reflectDueLine, setupTime } = await import("./lib/reflect.mjs");
+      // A stranded vault has no usable database — do not let openVaultDb()'s
+      // guard swallow this silently: the OpenCode path has no SessionStart
+      // brief, so the first prompt of the session is the only place this can
+      // reach the agent (T-0392).
+      const vault = resolveVault();
+      if (vault && legacyDbStranded(vault)) {
+        if (firstPromptOf(input.session_id ?? "")) console.log(strandedDbNotice());
+        return;
+      }
       awaitedDb = await import("./lib/db.mjs");
       const { buildInjection } = await import("./lib/inject.mjs");
-      const { firstPromptOf, reflectDueLine, setupTime } = await import("./lib/reflect.mjs");
       const db = openVaultDb();
       try {
         // OpenCode has no SessionStart brief, so the reflect reminder rides
@@ -374,6 +401,13 @@ ${total} finding(s) — none of them block anything.`);
 }
 
 main().catch((err) => {
+  if (err instanceof StrandedDbError) {
+    // Detected, not created: memory is waiting on the vault-upgrade
+    // migration, so every DB-creating command no-ops rather than starting a
+    // fresh, empty database (T-0392).
+    console.error(err.message);
+    return;
+  }
   console.error(`[memory-engine] ${err.message}`);
   process.exitCode = 1;
 });

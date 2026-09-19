@@ -50,8 +50,14 @@ the repository and breaks on an installed copy.
 | Contract | Owner | Used for |
 |---|---|---|
 | `~/.workhub/config.json` → `vault_path`, `settings.memory_claude_code`, `settings.memory_opencode` | the workhub app | finding the vault, and the per-agent on/off switches |
-| `<vault>/_ai/state/sessions/<key>.json` (`_ai/memory/` on a vault not yet migrated, T-0390) | `workhub`'s `task-cli start` | tagging a session's chunks with the task that session is working |
-| `<vault>/_ai/state/memory.db` (`_ai/memory/` on a vault not yet migrated, T-0390) | this plugin | the database itself, gitignored |
+| `<vault>/_ai/state/sessions/<key>.json` | `workhub`'s `task-cli start` | tagging a session's chunks with the task that session is working |
+| `<vault>/_ai/state/memory.db` | this plugin | the database itself, gitignored |
+
+A vault that has not run the workhub vault-upgrade skill's migration 002 still
+has both under the pre-T-0390 `_ai/memory/` — as of T-0392 nothing falls back
+there any more, so memory is stranded until that migration runs (`doctor` and
+`legacyDbStranded` in `engine/lib/paths.mjs` detect this and no-op rather than
+starting a second, empty database).
 
 Two files under `lib/` are deliberate copies of the read paths for the second
 contract (`session-marker-read.mjs`) and of the hook payload reader

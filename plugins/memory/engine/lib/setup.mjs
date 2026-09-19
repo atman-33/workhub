@@ -23,6 +23,7 @@ import {
   INSTALLED_ENGINE_DIR,
   MARKER_PATH,
   dbPathForVault,
+  legacyDbStranded,
   readMarker,
   resolveVault,
 } from "./paths.mjs";
@@ -37,10 +38,7 @@ const DEPENDENCIES = {
 
 /**
  * The `.gitignore` lines for this vault's database, derived from
- * {@link dbPathForVault} rather than hardcoded — the T-0390 rename means the
- * db sits at `_ai/state/memory.db` on a migrated vault and `_ai/memory/memory.db`
- * on one that has not run `vault-upgrade` yet, and the ignored path has to
- * match whichever one is actually in use.
+ * {@link dbPathForVault} rather than hardcoded so the two cannot drift.
  */
 function gitignoreLinesFor(vault) {
   const rel = relative(vault, dbPathForVault(vault)).split(sep).join("/");
@@ -127,6 +125,14 @@ export async function runSetup({ force = false } = {}) {
   if (!vault) {
     throw new Error(
       "vault not found — set WORKHUB_VAULT, run from inside a vault, or configure vault_path in ~/.workhub/config.json",
+    );
+  }
+  // Initializing `_ai/state/memory.db` here would create a second, empty
+  // database and strand the real one under `_ai/memory/` for good — run the
+  // migration first (T-0392).
+  if (legacyDbStranded(vault)) {
+    throw new Error(
+      "this vault's memory is stranded under _ai/memory/ — run the workhub vault-upgrade skill's migration 002 (_ai/memory/ → _ai/state/) before memory-setup",
     );
   }
 
