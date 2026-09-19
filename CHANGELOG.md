@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.147.0 (2026-09-19)
+
+- **Switching a plugin on installs it straight away** (T-0397). The Plugins
+  tab's switch only edited `enabledPlugins`, so a plugin that was not on
+  disk stayed "Installs next launch" and its skills could not be listed
+  until Claude Code had been restarted. Switching on a plugin that is
+  installed nowhere now runs `claude plugin install` at the same scope the
+  switch writes to, and its contents are readable the moment it finishes.
+  A plugin that was switched on some other way and is still waiting gets an
+  **Install** button. A Claude Code session that is already running still
+  needs `/reload-plugins` or a restart to use it.
+- **The Schedule and Mindmap project pickers show project numbers**
+  (T-0398). They listed bare slugs in alphabetical order, unlike every other
+  project picker in the app. They now show `NNNN slug` in folder order, the
+  way the task editor does, so a project is found in the same place
+  wherever you pick it.
+
 ## 0.146.0 (2026-09-19)
 
 - **A page that loaded half-way can be reloaded where it is** (T-0393). When
