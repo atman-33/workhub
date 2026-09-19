@@ -96,6 +96,23 @@ describe("apply (via the runner)", () => {
     );
   });
 
+  it("moves a gitignored file too, which git mv would refuse", () => {
+    // The real vault's `memory.db` is gitignored; `git mv` failed on it with
+    // "not under version control" and aborted the run.
+    write(".gitignore", "_ai/memory/memory.db\n");
+    write("_ai/memory/memory.db", "sqlite");
+    write("_ai/memory/sessions/default.json", '{"id":"T-0001"}');
+    git("add", "-A");
+    git("commit", "-qm", "seed");
+
+    const { status, stderr } = run("apply", "002");
+    expect(stderr).not.toContain("not under version control");
+    expect(status).toBe(0);
+    expect(existsSync(join(vault, "_ai", "memory", "memory.db"))).toBe(false);
+    expect(readFileSync(join(vault, "_ai", "state", "memory.db"), "utf8")).toBe("sqlite");
+    expect(existsSync(join(vault, "_ai", "state", "sessions", "default.json"))).toBe(true);
+  });
+
   it("is a no-op the second time", () => {
     write("_ai/memory/tidy-pending.json", '{"files":[]}');
     git("add", "-A");
