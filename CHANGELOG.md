@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.148.0 (2026-09-25)
+
+- **Several files' paths can be copied at once in the Docs tab** (T-0400).
+  Copying paths meant one right-click per file, which is slow when handing a
+  batch of files to an agent or a chat. **Ctrl**+click now picks files one by
+  one and **Shift**+click picks a run, in both the tree and the file list,
+  without opening them. Right-clicking a picked file offers **Copy N paths**,
+  which puts the Windows paths on the clipboard, one per line. A plain click,
+  **Esc**, or changing the root, folder or layout drops the pick.
+- **The Alt double-press drawing layer recovers on its own** (T-0399).
+  The overlay that shows the strokes could stop working while keys still
+  arrived: **Ctrl** double-press worked, **Alt** double-press did nothing, and
+  neither Restart listener nor anything short of restarting the app brought it
+  back. The overlay's page now answers each activation. If it stays silent,
+  workhub replaces the overlay once **Alt** is released, so the next double
+  press works again. Restart listener now replaces the overlay as well, and
+  the diagnostic log records each activation, any missing answer and each
+  rebuild.
+
 ## 0.147.0 (2026-09-19)
 
 - **Switching a plugin on installs it straight away** (T-0397). The Plugins
