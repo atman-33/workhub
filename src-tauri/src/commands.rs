@@ -434,6 +434,19 @@ fn notify_captures_changed(app: &tauri::AppHandle) {
     let _ = app.emit_to("main", "ink://captures-changed", ());
 }
 
+/// Sent by the ink overlay page once its event listeners are registered.
+#[tauri::command]
+pub fn ink_overlay_ready() {
+    crate::ink::overlay_ready();
+}
+
+/// Sent by the ink overlay page for every activation it receives, so a dead
+/// page can be told apart from a live one and rebuilt.
+#[tauri::command]
+pub fn ink_overlay_ack(seq: u64) {
+    crate::ink::overlay_ack(seq);
+}
+
 /// Composes the overlay's strokes (base64 PNG, transparent) onto the screen
 /// grab taken when drawing started, saves it, and copies it to the clipboard.
 #[tauri::command]
@@ -564,8 +577,10 @@ pub fn input_listener_diagnostics() -> InputListenerDiagnostics {
 
 /// Manual recovery for a listener that stopped delivering: re-apply the
 /// gesture features from the current settings (so a consumer that got lost
-/// comes back), then rebuild the listener thread and its raw-input
-/// registration. Returns the fresh diagnostics so the UI can show the result.
+/// comes back), replace the ink overlay window (the keys can be arriving
+/// while the page that draws them is dead), then rebuild the listener thread
+/// and its raw-input registration. Returns the fresh diagnostics so the UI
+/// can show the result.
 #[tauri::command]
 pub fn restart_input_listener(app: tauri::AppHandle) -> Result<InputListenerDiagnostics, String> {
     #[cfg(windows)]
@@ -573,6 +588,7 @@ pub fn restart_input_listener(app: tauri::AppHandle) -> Result<InputListenerDiag
         let settings = storage::load().settings;
         if settings.ink_enabled {
             crate::ink::start(&app);
+            crate::ink::rebuild_overlay(&app);
         }
         crate::clips::apply_gesture(&app);
         crate::rawkey::restart()?;

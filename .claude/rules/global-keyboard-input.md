@@ -120,6 +120,33 @@ feature-level `start`/`apply_gesture` functions must not early-return on their
 own "already running" flag — that flag drifting out of sync with the real state
 is precisely the case that needs recovering.
 
+## Keys arriving is not the gesture working — check the consumer's output too
+
+A healthy listener only proves the keys arrive. The ink gesture ends in a
+webview (`ink-overlay`) that is created once and reused, and its WebView2
+renderer can die or hang while the window itself survives: `show()` still
+succeeds, nothing is drawn, and restarting the listener changes nothing
+(T-0399 — reported as "Ctrl double-press works, Alt double-press does not,
+Restart listener does not help, restarting the app does").
+
+- **The page answers every activation.** `ink://activate` carries a `seq`
+  the page echoes through `ink_overlay_ack`; an activation left unanswered
+  for `ACK_TIMEOUT_MS` marks the page dead (`src-tauri/src/ink/health.rs`).
+- **Activations sent before the page is listening are not judged.** The page
+  reports `ink_overlay_ready` once its listener is registered; right after a
+  (re)build it is still loading, and holding that against it would rebuild
+  in a loop. Automatic rebuilds are also spaced out.
+- **Never tear the window down mid-gesture.** A dead page is replaced when
+  Alt is released, not while it is held.
+- **Rebuild off the main thread.** `destroy()` only takes effect once the
+  event loop runs again, so waiting for the label to be released from inside
+  a main-thread callback (or a sync command, which runs there) deadlocks.
+- **Restart listener rebuilds the overlay too**, unconditionally: the answer
+  check cannot see every way a page can break.
+
+When adding a gesture whose effect is a window, give it the same answer
+check — "recognised but invisible" is otherwise undiagnosable.
+
 ## A modifier double-tap must be a *bare* double tap
 
 A recognizer that arms on any modifier release is wrong, and the symptom is

@@ -121,6 +121,7 @@ Draw temporary strokes anywhere on screen — handy when narrating or reviewing.
 - Each capture in the list can be copied to the clipboard, shown in Explorer, or deleted (deleting sends it to the recycle bin).
 - Captures are written to the vault's \`attachments/ink/\`; the **Ink** tab can point them somewhere else.
 - **If the gesture stops responding**, click the **keyboard** button at the right end of the tab bar, beside ⚙ Settings — it restarts the listener in one click. **⚙ Settings → General → Input listener** offers the same **Restart listener** and also shows whether keystrokes are still reaching workhub. Locking the session, reconnecting over remote desktop, or changing displays can stop Windows from delivering keys to the app. A watchdog recovers from those on its own — it even rebuilds a dead listener automatically, and the panel's **Auto rebuilds** count shows when it did. The button is for the cases it misses, so restarting the whole app is not necessary.
+- The drawing layer can break on its own while keys still arrive — **Ctrl** double-press working while **Alt** double-press does nothing is the sign. workhub notices when the layer stops answering and replaces it once you release **Alt**, so the next double press works again. The restart button replaces it too.
 - Can be turned off in the **Ink** tab.`;
 
 const QUICK_CAPTURE_MD = `## Capture a task from anywhere (quick capture)
@@ -1141,6 +1142,15 @@ export function HelpView() {
                 <span className="font-medium">Auto rebuilds</span> count shows
                 when it did. The button is for the cases it misses, so
                 restarting the whole app is not necessary.
+              </li>
+              <li>
+                The drawing layer can break on its own while keys still arrive
+                — <span className="font-medium">Ctrl</span> double-press
+                working while <span className="font-medium">Alt</span>{" "}
+                double-press does nothing is the sign. workhub notices when the
+                layer stops answering and replaces it once you release{" "}
+                <span className="font-medium">Alt</span>, so the next double
+                press works again. The restart button replaces it too.
               </li>
               <li>
                 Can be disabled in <span className="font-medium">⚙ Settings</span>.
