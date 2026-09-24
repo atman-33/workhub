@@ -28,6 +28,7 @@ import {
   removeNote,
   updateNote,
 } from "@/lib/docs/annotations";
+import { EMPTY_SELECTION, type MultiSelection } from "@/lib/docs/multi-select";
 import { clearRecent, pushRecent, readRecent, removeRecent } from "@/lib/docs/recent";
 import { previewKindForPath } from "@/lib/docs/preview-kind";
 import { reorderWithinRoot, shortcutsInRoot } from "@/lib/docs/shortcuts";
@@ -111,6 +112,7 @@ export function DocsView() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [cursor, setCursor] = useState("");
   const [selectedDir, setSelectedDir] = useState("");
+  const [picked, setPicked] = useState<MultiSelection>(EMPTY_SELECTION);
   const [shortcuts, setShortcuts] = useState<DocsShortcut[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [listPane, setListPane] = useState(false);
@@ -479,6 +481,11 @@ export function DocsView() {
       .finally(() => setOpenPathBusy(false));
   }, [openPathText, openPathBusy, openResolvedPath, selected?.path]);
 
+  // A pick belongs to the list it was made in (T-0400): another root, another
+  // folder or the other layout puts different rows on screen, and a pick that
+  // outlived them would copy files nobody can see any more.
+  useEffect(() => setPicked(EMPTY_SELECTION), [rootId, selectedDir, listPane]);
+
   const sidebarTree = (
     <DocsTree
       rootPath={selected?.path ?? ""}
@@ -494,6 +501,8 @@ export function DocsView() {
       cursor={cursor}
       onCursorChange={setCursor}
       actions={actions}
+      picked={picked}
+      onPickedChange={setPicked}
       onSelect={onSelectEntry}
       onSelectDir={setSelectedDir}
     />
@@ -691,6 +700,8 @@ export function DocsView() {
                       onSelect={onSelectEntry}
                       filter={filter}
                       actions={actions}
+                      picked={picked}
+                      onPickedChange={setPicked}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>

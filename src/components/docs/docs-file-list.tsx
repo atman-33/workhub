@@ -6,9 +6,20 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Copy, ExternalLink, File, FileCode, FileText, FolderOpen, Star, StarOff } from "lucide-react";
+import { ExternalLink, File, FileCode, FileText, FolderOpen, Star, StarOff } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
-import type { EntryActions } from "@/components/docs/docs-tree";
+import {
+  CopyPathItem,
+  type EntryActions,
+  type PickProps,
+  pickedRowClass,
+} from "@/components/docs/docs-tree";
+import {
+  EMPTY_SELECTION,
+  pathsToCopy,
+  rangeSelection,
+  toggleSelection,
+} from "@/lib/docs/multi-select";
 import { isPreviewable } from "@/lib/docs/preview-kind";
 import { baseName, type DirState } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
@@ -24,6 +35,9 @@ import type { DocsEntry } from "@/types";
  *
  * The arrow keys move a cursor and `Enter` opens, exactly as in the tree: on a
  * network share, reading a document on every keypress makes the list unusable.
+ *
+ * Ctrl/Shift+click picks files instead of opening them (T-0400), so "Copy
+ * path" can take several at once; `Esc` or a plain click drops the pick.
  */
 export function DocsFileList({
   dir,
@@ -34,7 +48,9 @@ export function DocsFileList({
   onSelect,
   filter,
   actions,
-}: {
+  picked,
+  onPickedChange,
+}: PickProps & {
   /** The folder being listed; "" before one is picked. */
   dir: string;
   dirs: Record<string, DirState>;
@@ -55,6 +71,7 @@ export function DocsFileList({
       (e) => !e.is_dir && (!needle || e.name.toLowerCase().includes(needle)),
     );
   }, [state, filter]);
+  const order = useMemo(() => files.map((f) => f.path), [files]);
 
   useEffect(() => {
     if (!cursor) return;
@@ -64,11 +81,30 @@ export function DocsFileList({
 
   const activate = (entry: DocsEntry) => {
     onCursorChange(entry.path);
+    if (picked.paths.length > 0) onPickedChange(EMPTY_SELECTION);
     if (isPreviewable(entry)) onSelect(entry);
     else actions.openExternal(entry);
   };
 
+  /** Ctrl/Shift+click: picks instead of opening. Says whether it did. */
+  const pick = (e: React.MouseEvent, entry: DocsEntry): boolean => {
+    if (e.ctrlKey || e.metaKey) {
+      onPickedChange(toggleSelection(picked, entry.path, order, selected));
+    } else if (e.shiftKey) {
+      onPickedChange(rangeSelection(picked, entry.path, order, selected));
+    } else {
+      return false;
+    }
+    onCursorChange(entry.path);
+    return true;
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" && picked.paths.length > 0) {
+      e.preventDefault();
+      onPickedChange(EMPTY_SELECTION);
+      return;
+    }
     if (files.length === 0) return;
     const at = files.findIndex((f) => f.path === cursor);
     if (e.key === "Enter" || e.key === " ") {
@@ -124,7 +160,9 @@ export function DocsFileList({
               entry={entry}
               selected={entry.path === selected}
               cursored={entry.path === cursor}
-              onActivate={activate}
+              picked={picked.paths.includes(entry.path)}
+              copyTargets={pathsToCopy(picked, entry.path, order)}
+              onClick={(e) => pick(e, entry) || activate(entry)}
               actions={actions}
             />
           ))
@@ -138,13 +176,18 @@ function FileRow({
   entry,
   selected,
   cursored,
-  onActivate,
+  picked,
+  copyTargets,
+  onClick,
   actions,
 }: {
   entry: DocsEntry;
   selected: boolean;
   cursored: boolean;
-  onActivate: (entry: DocsEntry) => void;
+  picked: boolean;
+  /** What "Copy path" takes: the whole pick when this row is in it. */
+  copyTargets: string[];
+  onClick: (e: React.MouseEvent) => void;
   actions: EntryActions;
 }) {
   const previewable = isPreviewable(entry);
@@ -156,10 +199,13 @@ function FileRow({
           <button
             type="button"
             data-path={entry.path}
-            onClick={() => onActivate(entry)}
+            onClick={onClick}
+            // Shift+click would otherwise also select the text between rows.
+            onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+            aria-selected={picked}
             className={cn(
               "flex w-full items-center gap-1 px-2 py-1 text-left transition-colors",
-              selected ? "bg-muted font-medium" : "hover:bg-muted/50",
+              pickedRowClass(picked, selected),
               cursored && "ring-1 ring-inset ring-primary/50",
             )}
           >
@@ -191,10 +237,7 @@ function FileRow({
           {starred ? <StarOff /> : <Star />}
           {starred ? "Remove from shortcuts" : "Add to shortcuts"}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => actions.copyPath(entry)}>
-          <Copy />
-          Copy path
-        </ContextMenuItem>
+        <CopyPathItem targets={copyTargets} actions={actions} />
       </ContextMenuContent>
     </ContextMenu>
   );
