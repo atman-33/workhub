@@ -9,15 +9,39 @@
 //! until a real pointer interaction, which made a pen-colored cursor
 //! unreliable no matter how the change was nudged (SetCursorPos and SendInput
 //! jiggles both failed in the pre-first-click state).
+//!
+//! Every activation is answered by the page; one that is not marks the page
+//! dead and the window is rebuilt once the gesture ends (see `health.rs`).
 
+use super::health::{OverlayHealth, ACK_TIMEOUT_MS};
+use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use windows::Win32::System::SystemInformation::GetTickCount64;
 
 pub const OVERLAY_LABEL: &str = "ink-overlay";
+
+/// Whether the overlay page is still answering.
+static HEALTH: Mutex<OverlayHealth> = Mutex::new(OverlayHealth::new());
+
+/// How long a rebuild waits on each step (the main thread running a closure,
+/// the old window's label being released) before giving up.
+const REBUILD_STEP_TIMEOUT_MS: u64 = 2_500;
+const DESTROY_POLL_MS: u64 = 50;
+
+fn health() -> MutexGuard<'static, OverlayHealth> {
+    HEALTH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 pub fn create_overlay(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window(OVERLAY_LABEL).is_some() {
         return Ok(());
     }
+    // A fresh page has not registered its listeners yet; activations sent
+    // before it does are not held against it.
+    health().on_window_created();
     let win = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
         .title("workhub ink overlay")
         .transparent(true)
@@ -43,9 +67,17 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
 /// monitor's (= overlay window's) origin. Lets the webview place the
 /// pen-color chip immediately, before the first pointermove arrives.
 #[derive(serde::Serialize, Clone)]
-struct ActivatePayload {
+struct CursorPos {
     x: f64,
     y: f64,
+}
+
+/// `seq` is echoed back through `ink_overlay_ack`, which is how a dead page
+/// is told apart from a live one.
+#[derive(serde::Serialize, Clone)]
+struct ActivatePayload {
+    seq: u64,
+    cursor: Option<CursorPos>,
 }
 
 /// Show the overlay on the monitor currently under the mouse cursor and start
@@ -72,7 +104,7 @@ pub fn activate(app: &AppHandle) {
     let monitor = cursor
         .and_then(|pos| app.monitor_from_point(pos.x, pos.y).ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten());
-    let mut payload: Option<ActivatePayload> = None;
+    let mut cursor_pos: Option<CursorPos> = None;
     if let Some(monitor) = &monitor {
         let _ = win.set_position(*monitor.position());
         let _ = win.set_size(*monitor.size());
@@ -83,7 +115,7 @@ pub fn activate(app: &AppHandle) {
         let (pos, size) = (monitor.position(), monitor.size());
         super::store::capture_background(pos.x, pos.y, size.width as i32, size.height as i32);
         if let Some(cursor) = cursor {
-            payload = Some(ActivatePayload {
+            cursor_pos = Some(CursorPos {
                 x: cursor.x - f64::from(pos.x),
                 y: cursor.y - f64::from(pos.y),
             });
@@ -98,16 +130,137 @@ pub fn activate(app: &AppHandle) {
         return;
     }
     let _ = win.set_ignore_cursor_events(false);
-    let _ = app.emit_to(OVERLAY_LABEL, "ink://activate", payload);
+    let activation = health().on_activate();
+    crate::diag!(
+        "ink: gesture recognised, overlay activation #{}{}",
+        activation.seq,
+        if activation.checked {
+            ""
+        } else {
+            " (page not ready yet, answer not checked)"
+        }
+    );
+    let payload = ActivatePayload {
+        seq: activation.seq,
+        cursor: cursor_pos,
+    };
+    if let Err(e) = app.emit_to(OVERLAY_LABEL, "ink://activate", payload) {
+        crate::diag!(
+            "ink: failed to send activation #{} to the overlay: {e}",
+            activation.seq
+        );
+    }
+    if activation.checked {
+        watch_for_answer(app, activation.seq);
+    }
 }
 
 /// Clear all strokes, hide the overlay, and restore click-through.
 pub fn deactivate(app: &AppHandle) {
     super::store::clear_background();
-    let Some(win) = window(app) else { return };
-    let _ = app.emit_to(OVERLAY_LABEL, "ink://deactivate", ());
-    let _ = win.set_ignore_cursor_events(true);
-    let _ = win.hide();
+    health().on_deactivate();
+    if let Some(win) = window(app) {
+        let _ = app.emit_to(OVERLAY_LABEL, "ink://deactivate", ());
+        let _ = win.set_ignore_cursor_events(true);
+        let _ = win.hide();
+    }
+    // A page that stopped answering during this gesture is replaced now that
+    // nothing is being drawn on it.
+    rebuild_if_due(app, false, "the overlay page stopped answering");
+}
+
+/// The overlay page has registered its listeners (sent once per page load).
+pub fn on_page_ready() {
+    health().on_ready();
+}
+
+/// The overlay page received activation `seq`.
+pub fn on_page_ack(seq: u64) {
+    health().on_ack(seq);
+}
+
+/// Replace the overlay window with a new one: the manual restart's half of
+/// the recovery. Runs even when nothing looks wrong, because the page can be
+/// broken in ways the answer check does not see.
+pub fn rebuild(app: &AppHandle) {
+    rebuild_if_due(app, true, "a manual restart");
+}
+
+/// Give the page `ACK_TIMEOUT_MS` to answer activation `seq`.
+fn watch_for_answer(app: &AppHandle, seq: u64) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(ACK_TIMEOUT_MS));
+        let (unanswered, active) = {
+            let mut h = health();
+            (h.on_timeout(seq), h.is_active())
+        };
+        if !unanswered {
+            return;
+        }
+        crate::diag!(
+            "ink: overlay page did not answer activation #{seq} within {ACK_TIMEOUT_MS}ms; {}",
+            if active {
+                "rebuilding it once the gesture ends"
+            } else {
+                "rebuilding it"
+            }
+        );
+        if !active {
+            rebuild_if_due(&app, false, "the overlay page stopped answering");
+        }
+    });
+}
+
+fn rebuild_if_due(app: &AppHandle, force: bool, reason: &'static str) {
+    let now = unsafe { GetTickCount64() };
+    if !health().take_rebuild(now, force) {
+        return;
+    }
+    let app = app.clone();
+    // Never on the main thread: `destroy` only takes effect once the event
+    // loop gets back to it, and waiting for that from inside it would hang.
+    std::thread::spawn(move || {
+        crate::diag!("ink: rebuilding the overlay window after {reason}");
+        match replace_window(&app) {
+            Ok(()) => crate::diag!("ink: overlay window rebuilt"),
+            Err(e) => crate::diag!("ink: overlay rebuild failed: {e}"),
+        }
+        health().on_rebuilt();
+    });
+}
+
+/// Run `f` on the main thread and wait for its result.
+fn on_main_thread<T: Send + 'static>(
+    app: &AppHandle,
+    f: impl FnOnce(&AppHandle) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(f(&handle));
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv_timeout(Duration::from_millis(REBUILD_STEP_TIMEOUT_MS))
+        .map_err(|_| "the main thread did not respond".to_string())?
+}
+
+/// Destroy the overlay window, wait for its label to be released, and build
+/// a new one. Blocking; call from a background thread.
+fn replace_window(app: &AppHandle) -> Result<(), String> {
+    on_main_thread(app, |app| match window(app) {
+        Some(win) => win.destroy().map_err(|e| e.to_string()),
+        None => Ok(()),
+    })?;
+    let mut waited = 0;
+    while window(app).is_some() {
+        if waited >= REBUILD_STEP_TIMEOUT_MS {
+            return Err("the old window was not released".into());
+        }
+        std::thread::sleep(Duration::from_millis(DESTROY_POLL_MS));
+        waited += DESTROY_POLL_MS;
+    }
+    on_main_thread(app, |app| create_overlay(app).map_err(|e| e.to_string()))
 }
 
 /// Cycle the pen color for new strokes (red → blue → green).

@@ -205,16 +205,26 @@ void listen("ink://save", () => {
   void save();
 });
 
-void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
+interface ActivatePayload {
+  /** Echoed back so the backend can tell a live page from a dead one. */
+  seq: number;
+  /** Cursor position in physical px, relative to the overlay's monitor. */
+  cursor: Point | null;
+}
+
+const activateListener = listen<ActivatePayload>("ink://activate", (event) => {
+  // Answer first: if anything below throws, the page is still alive and must
+  // not be torn down for it.
+  void invoke("ink_overlay_ack", { seq: event.payload.seq });
   strokes = [];
   active = null;
   snapped = false;
-  // Initial chip position: the backend sends the cursor position (physical
-  // px, relative to the overlay's monitor) so the chip shows immediately,
-  // before the first pointermove.
-  if (event.payload) {
+  // Initial chip position: the backend sends the cursor position so the chip
+  // shows immediately, before the first pointermove.
+  const cursor = event.payload.cursor;
+  if (cursor) {
     const dpr = window.devicePixelRatio || 1;
-    pointerPos = { x: event.payload.x / dpr, y: event.payload.y / dpr };
+    pointerPos = { x: cursor.x / dpr, y: cursor.y / dpr };
   } else {
     pointerPos = null;
   }
@@ -222,6 +232,11 @@ void listen<{ x: number; y: number } | null>("ink://activate", (event) => {
   resize();
   renderChip();
 });
+
+// Tell the backend the page is listening. Activations sent before this are
+// not checked for an answer, so a page that is still loading after a rebuild
+// is not mistaken for a dead one.
+void activateListener.then(() => invoke("ink_overlay_ready"));
 
 void listen("ink://deactivate", () => {
   strokes = [];

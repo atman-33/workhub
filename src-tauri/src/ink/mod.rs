@@ -12,6 +12,8 @@ mod state;
 #[cfg(windows)]
 mod capture;
 #[cfg(windows)]
+mod health;
+#[cfg(windows)]
 mod hook;
 #[cfg(windows)]
 mod overlay;
@@ -74,11 +76,40 @@ fn dispatch(app: &AppHandle, event: state::InkEvent) {
     }
 }
 
+/// Replace the overlay window with a fresh one. Part of the manual "restart
+/// the input listener" action: the keys can be arriving fine while the page
+/// that draws them is dead, and no listener restart reaches that (T-0399).
+#[cfg(windows)]
+pub fn rebuild_overlay(app: &AppHandle) {
+    overlay::rebuild(app);
+}
+
+/// The overlay page has registered its event listeners.
+#[cfg(windows)]
+pub fn overlay_ready() {
+    overlay::on_page_ready();
+}
+
+/// The overlay page received activation `seq`.
+#[cfg(windows)]
+pub fn overlay_ack(seq: u64) {
+    overlay::on_page_ack(seq);
+}
+
 #[cfg(not(windows))]
 pub fn start(_app: &AppHandle) {}
 
 #[cfg(not(windows))]
 pub fn stop(_app: &AppHandle) {}
+
+#[cfg(not(windows))]
+pub fn rebuild_overlay(_app: &AppHandle) {}
+
+#[cfg(not(windows))]
+pub fn overlay_ready() {}
+
+#[cfg(not(windows))]
+pub fn overlay_ack(_seq: u64) {}
 
 /// Stubs for the non-Windows build. The capture store is reachable from the
 /// command layer, which is not compiled per platform — keeping the stubs here

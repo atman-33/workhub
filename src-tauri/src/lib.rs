@@ -292,6 +292,8 @@ pub fn run() {
             commands::open_in_obsidian,
             commands::app_version,
             commands::ink_capture_dir,
+            commands::ink_overlay_ready,
+            commands::ink_overlay_ack,
             commands::save_ink_capture,
             commands::save_ink_crop,
             commands::list_ink_captures,
