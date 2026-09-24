@@ -22,7 +22,14 @@ import {
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
-import { toWindowsPath } from "@/lib/docs/markdown";
+import {
+  EMPTY_SELECTION,
+  formatPaths,
+  type MultiSelection,
+  pathsToCopy,
+  rangeSelection,
+  toggleSelection,
+} from "@/lib/docs/multi-select";
 import { isPreviewable } from "@/lib/docs/preview-kind";
 import { type DirState, entryRows, flattenTree, navigate, type Row } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
@@ -32,14 +39,39 @@ import type { DocsEntry } from "@/types";
 export interface EntryActions {
   openExternal: (entry: DocsEntry) => void;
   reveal: (entry: DocsEntry) => void;
-  copyPath: (entry: DocsEntry) => void;
+  /** Copies one path, or several one per line (T-0400). */
+  copyPaths: (paths: string[]) => void;
   /** Stars or unstars the row — the Shortcuts section above the tree. */
   toggleShortcut: (entry: DocsEntry) => void;
   /** Whether the row is starred right now. */
   isShortcut: (path: string) => boolean;
 }
 
-interface Props {
+/** The Ctrl/Shift+click pick of files (T-0400), lifted so the view can drop it. */
+export interface PickProps {
+  picked: MultiSelection;
+  onPickedChange: (next: MultiSelection) => void;
+}
+
+/** A row's background: the pick shows over the open document's highlight. */
+export function pickedRowClass(picked: boolean, selected: boolean): string {
+  return cn(
+    picked ? "bg-primary/15" : selected ? "bg-muted" : "hover:bg-muted/50",
+    selected && "font-medium",
+  );
+}
+
+/** "Copy path", or "Copy N paths" when the row is part of a pick. */
+export function CopyPathItem({ targets, actions }: { targets: string[]; actions: EntryActions }) {
+  return (
+    <ContextMenuItem onSelect={() => actions.copyPaths(targets)}>
+      <Copy />
+      {targets.length > 1 ? `Copy ${targets.length} paths` : "Copy path"}
+    </ContextMenuItem>
+  );
+}
+
+interface Props extends PickProps {
   /** Path of the root being browsed. */
   rootPath: string;
   /** What to call the root's own row in the split layout. */
@@ -101,6 +133,8 @@ export function DocsTree({
   cursor,
   onCursorChange,
   actions,
+  picked,
+  onPickedChange,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -119,6 +153,13 @@ export function DocsTree({
     [rootPath, rootName, dirs, open, filter, foldersOnly],
   );
 
+  // Only files can be picked, so a Shift+click range runs over the file rows
+  // alone, in the order they are on screen.
+  const fileOrder = useMemo(
+    () => entryRows(rows).flatMap((r) => (r.entry.is_dir ? [] : [r.entry.path])),
+    [rows],
+  );
+
   // The array's identity changes every render; its contents do not. Keying on
   // the joined paths is what stops the effect firing forever.
   const neededKey = needed.join("\n");
@@ -134,6 +175,7 @@ export function DocsTree({
   const activate = useCallback(
     (entry: DocsEntry, leaf = false) => {
       onCursorChange(entry.path);
+      if (!entry.is_dir && picked.paths.length > 0) onPickedChange(EMPTY_SELECTION);
       if (entry.is_dir) {
         // A leaf still selects in folders-only mode — it is a folder with
         // documents in it, just none of them folders — but there is nothing
@@ -150,8 +192,21 @@ export function DocsTree({
       // an image. The tab cannot render it, so the OS gets it.
       actions.openExternal(entry);
     },
-    [onSelect, onSelectDir, onCursorChange, actions, foldersOnly, toggle],
+    [onSelect, onSelectDir, onCursorChange, actions, foldersOnly, toggle, picked, onPickedChange],
   );
+
+  /** Ctrl/Shift+click on a file: picks instead of opening. Says whether it did. */
+  const pick = (e: React.MouseEvent, entry: DocsEntry): boolean => {
+    if (e.ctrlKey || e.metaKey) {
+      onPickedChange(toggleSelection(picked, entry.path, fileOrder, selected));
+    } else if (e.shiftKey) {
+      onPickedChange(rangeSelection(picked, entry.path, fileOrder, selected));
+    } else {
+      return false;
+    }
+    onCursorChange(entry.path);
+    return true;
+  };
 
   // Keep the cursor visible when a key moved it rather than a click.
   useEffect(() => {
@@ -161,6 +216,11 @@ export function DocsTree({
   }, [cursor, rows]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" && picked.paths.length > 0) {
+      e.preventDefault();
+      onPickedChange(EMPTY_SELECTION);
+      return;
+    }
     if (e.key === "Enter" || e.key === " ") {
       const row = entryRows(rows).find((r) => r.entry.path === cursor);
       if (!row) return;
@@ -232,9 +292,12 @@ export function DocsTree({
               row.entry.is_dir ? row.entry.path === selectedDir : row.entry.path === selected
             }
             cursored={row.entry.path === cursor}
+            picked={!row.entry.is_dir && picked.paths.includes(row.entry.path)}
+            copyTargets={pathsToCopy(picked, row.entry.path, fileOrder)}
             foldersOnly={foldersOnly}
             onToggle={toggle}
             onActivate={activate}
+            onPick={pick}
             actions={actions}
           />
         ),
@@ -250,9 +313,12 @@ function TreeRow({
   isLeaf,
   selected,
   cursored,
+  picked,
+  copyTargets,
   foldersOnly,
   onToggle,
   onActivate,
+  onPick,
   actions,
 }: {
   row: Extract<Row, { kind: "entry" }>;
@@ -261,9 +327,13 @@ function TreeRow({
   isLeaf: boolean;
   selected: boolean;
   cursored: boolean;
+  picked: boolean;
+  /** What "Copy path" takes: the whole pick when this row is in it. */
+  copyTargets: string[];
   foldersOnly: boolean;
   onToggle: (path: string) => void;
   onActivate: (entry: DocsEntry, leaf?: boolean) => void;
+  onPick: (e: React.MouseEvent, entry: DocsEntry) => boolean;
   actions: EntryActions;
 }) {
   const { entry, depth } = row;
@@ -272,7 +342,7 @@ function TreeRow({
 
   const rowClass = cn(
     "flex w-full items-center gap-1 py-1 pr-2 text-left transition-colors",
-    selected ? "bg-muted font-medium" : "hover:bg-muted/50",
+    pickedRowClass(picked, selected),
     // The cursor is not the selection: it says where the keys are, which on a
     // freshly focused tree is usually not what the preview has open.
     cursored && "ring-1 ring-inset ring-primary/50",
@@ -325,7 +395,7 @@ function TreeRow({
             </button>
           </div>
         </ContextMenuTrigger>
-        <EntryMenu entry={entry} actions={actions} starred={starred} />
+        <EntryMenu entry={entry} actions={actions} starred={starred} copyTargets={copyTargets} />
       </ContextMenu>
     );
   }
@@ -337,7 +407,10 @@ function TreeRow({
           <button
             type="button"
             data-path={entry.path}
-            onClick={() => onActivate(entry)}
+            onClick={(e) => onPick(e, entry) || onActivate(entry)}
+            // Shift+click would otherwise also select the text between rows.
+            onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+            aria-selected={picked}
             style={{ paddingLeft: `${depth * 12 + 24}px` }}
             className={rowClass}
           >
@@ -355,7 +428,7 @@ function TreeRow({
           </button>
         </ContextMenuTrigger>
       </Hint>
-      <EntryMenu entry={entry} actions={actions} starred={starred} />
+      <EntryMenu entry={entry} actions={actions} starred={starred} copyTargets={copyTargets} />
     </ContextMenu>
   );
 }
@@ -377,10 +450,12 @@ function EntryMenu({
   entry,
   actions,
   starred,
+  copyTargets,
 }: {
   entry: DocsEntry;
   actions: EntryActions;
   starred: boolean;
+  copyTargets: string[];
 }) {
   return (
     <ContextMenuContent>
@@ -399,10 +474,7 @@ function EntryMenu({
         {starred ? <StarOff /> : <Star />}
         {starred ? "Remove from shortcuts" : "Add to shortcuts"}
       </ContextMenuItem>
-      <ContextMenuItem onSelect={() => actions.copyPath(entry)}>
-        <Copy />
-        Copy path
-      </ContextMenuItem>
+      <CopyPathItem targets={copyTargets} actions={actions} />
     </ContextMenuContent>
   );
 }
@@ -418,8 +490,8 @@ export function useEntryActions(
       openExternal: (entry: DocsEntry) =>
         void api.docsOpenExternal(entry.path).catch((e) => onError(String(e))),
       reveal: (entry: DocsEntry) => void api.docsReveal(entry.path).catch((e) => onError(String(e))),
-      copyPath: (entry: DocsEntry) =>
-        void writeText(toWindowsPath(entry.path)).catch((e) => onError(String(e))),
+      copyPaths: (paths: string[]) =>
+        void writeText(formatPaths(paths)).catch((e) => onError(String(e))),
       toggleShortcut,
       isShortcut,
     }),
