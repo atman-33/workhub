@@ -1,4 +1,9 @@
 import type { MessageKey } from "./en";
+import { projectsJa } from "./projects.ja";
+import { reposJa } from "./repos.ja";
+import { inboxJa } from "./inbox.ja";
+import { pluginsJa } from "./plugins.ja";
+import { miscJa } from "./misc.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -361,4 +366,11 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "settings.footer.saveFailed": "保存に失敗しました: {error}",
   "settings.footer.resetToDefaults": "既定値にリセット",
   "settings.footer.saving": "保存中…",
+
+  // Areas kept in their own files (T-0423).
+  ...projectsJa,
+  ...reposJa,
+  ...inboxJa,
+  ...pluginsJa,
+  ...miscJa,
 };

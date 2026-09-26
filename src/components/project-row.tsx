@@ -35,6 +35,7 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, timeAgo } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { GitInfo, Project } from "@/types";
 
@@ -115,6 +116,7 @@ export const ProjectRow = memo(function ProjectRow({
   onActivate,
   onAction,
 }: Props) {
+  const t = useT();
   const [branches, setBranches] = useState<{ local: string[]; remote: string[] }>({
     local: [],
     remote: [],
@@ -160,9 +162,9 @@ export const ProjectRow = memo(function ProjectRow({
         checked={selected}
         onClick={(e) => e.stopPropagation()}
         onCheckedChange={onToggle}
-        aria-label={`select ${project.name}`}
+        aria-label={t("projects.row.selectAria", { name: project.name })}
       />
-      <Hint label="favorite (pinned to top)">
+      <Hint label={t("projects.row.favoriteHint")}>
         <button
           className="text-muted-foreground transition-colors hover:text-amber-400"
           onClick={(e) => {
@@ -185,14 +187,17 @@ export const ProjectRow = memo(function ProjectRow({
         </Badge>
       ))}
       {project.notes.trim() && (
-        <NotebookPen className="size-3.5 shrink-0 text-amber-400/80" aria-label="has notes" />
+        <NotebookPen
+          className="size-3.5 shrink-0 text-amber-400/80"
+          aria-label={t("projects.row.hasNotesAria")}
+        />
       )}
 
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
         <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">
           {project.path}
         </span>
-        <Hint label="copy path">
+        <Hint label={t("projects.row.copyPathHint")}>
           <button
             className="shrink-0 text-muted-foreground opacity-70 transition-colors hover:text-foreground group-hover:opacity-100"
             onClick={(e) => {
@@ -208,46 +213,46 @@ export const ProjectRow = memo(function ProjectRow({
       {busy && <Loader2 className="size-3.5 animate-spin text-primary" />}
 
       {!info ? (
-        <Chip tone="gray" title="reading git status…">
+        <Chip tone="gray" title={t("projects.row.readingGitStatus")}>
           …
         </Chip>
       ) : !info.is_repo ? (
-        <Chip tone="gray" title="this folder is not a git repository">
-          no git
+        <Chip tone="gray" title={t("projects.row.notAGitRepo")}>
+          {t("projects.row.noGit")}
         </Chip>
       ) : (
         <>
           {info.error && (
             <Chip tone="red" title={info.error}>
-              error
+              {t("projects.row.error")}
             </Chip>
           )}
           {safe && (
-            <Chip tone="green" title="clean and up to date — safe to start working">
-              ✓ ready
+            <Chip tone="green" title={t("projects.row.readyTitle")}>
+              {t("projects.row.ready")}
             </Chip>
           )}
           {info.behind > 0 && (
-            <Chip tone="orange" title="remote has commits you don't — pull before starting work">
-              ↓{info.behind} pull
+            <Chip tone="orange" title={t("projects.row.pullTitle")}>
+              {t("projects.row.pull", { count: info.behind })}
             </Chip>
           )}
           {info.changes > 0 && (
-            <Chip tone="amber" title="uncommitted changes — this repo is mid-work">
+            <Chip tone="amber" title={t("projects.row.changesTitle")}>
               ●{info.changes}
             </Chip>
           )}
           {info.ahead > 0 && (
-            <Chip tone="blue" title="local commits not pushed yet">
+            <Chip tone="blue" title={t("projects.row.aheadTitle")}>
               ↑{info.ahead}
             </Chip>
           )}
           {!info.has_upstream && !info.detached && (
-            <Chip tone="gray" title="branch has no remote tracking branch">
-              no upstream
+            <Chip tone="gray" title={t("projects.row.noUpstreamTitle")}>
+              {t("projects.row.noUpstream")}
             </Chip>
           )}
-          <Chip tone="purple" title="current branch">
+          <Chip tone="purple" title={t("projects.row.currentBranchTitle")}>
             <GitBranch className="size-3" />
             <span className="max-w-28 truncate">{info.branch || "?"}</span>
           </Chip>
@@ -272,7 +277,7 @@ export const ProjectRow = memo(function ProjectRow({
             <SquareTerminal className="size-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Open terminal</TooltipContent>
+        <TooltipContent>{t("projects.row.openTerminal")}</TooltipContent>
       </Tooltip>
 
       {info?.is_repo && (
@@ -290,7 +295,7 @@ export const ProjectRow = memo(function ProjectRow({
               <GitCommitHorizontal className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Commit graph</TooltipContent>
+          <TooltipContent>{t("projects.row.commitGraph")}</TooltipContent>
         </Tooltip>
       )}
 
@@ -304,7 +309,7 @@ export const ProjectRow = memo(function ProjectRow({
         }}
       >
         <Code2 className="size-3.5" />
-        Code
+        {t("projects.row.code")}
       </Button>
 
       <DropdownMenu>
@@ -323,36 +328,36 @@ export const ProjectRow = memo(function ProjectRow({
             {project.name}
           </DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onAction({ kind: "terminal" })}>
-            <SquareTerminal className="size-4" /> Open terminal
+            <SquareTerminal className="size-4" /> {t("projects.row.openTerminal")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onAction({ kind: "agent" })}>
-            <Sparkles className="size-4" /> Launch AI agent
+            <Sparkles className="size-4" /> {t("projects.row.launchAiAgent")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onAction({ kind: "explorer" })}>
-            <FolderOpen className="size-4" /> Open in Explorer
+            <FolderOpen className="size-4" /> {t("projects.row.openInExplorer")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onAction({ kind: "copyPath" })}>
-            <Copy className="size-4" /> Copy path
+            <Copy className="size-4" /> {t("projects.row.copyPath")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onAction({ kind: "openRepo" })}>
-            <ExternalLink className="size-4" /> Open on GitHub
+            <ExternalLink className="size-4" /> {t("projects.row.openOnGitHub")}
           </DropdownMenuItem>
           {info?.is_repo && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onAction({ kind: "graph" })}>
-                <GitCommitHorizontal className="size-4" /> Commit graph
+                <GitCommitHorizontal className="size-4" /> {t("projects.row.commitGraph")}
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!!busy} onClick={() => onAction({ kind: "fetch" })}>
-                <RefreshCw className="size-4" /> Fetch
+                <RefreshCw className="size-4" /> {t("projects.row.fetch")}
               </DropdownMenuItem>
               <DropdownMenuItem disabled={!!busy} onClick={() => onAction({ kind: "pull" })}>
-                <Download className="size-4" /> Pull (ff-only)
+                <Download className="size-4" /> {t("projects.row.pullFfOnly")}
               </DropdownMenuItem>
               {!info.detached && (
                 <DropdownMenuSub onOpenChange={onSwitchOpenChange}>
                   <DropdownMenuSubTrigger disabled={!!busy}>
-                    <GitBranch className="mr-2 size-4" /> Switch branch
+                    <GitBranch className="mr-2 size-4" /> {t("projects.row.switchBranch")}
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
                     <DropdownMenuSubContent className="w-60 p-0">
@@ -368,24 +373,24 @@ export const ProjectRow = memo(function ProjectRow({
                             e.stopPropagation();
                           }
                         }}
-                        placeholder="Filter branches…"
+                        placeholder={t("projects.row.filterBranches")}
                         className="w-full border-b bg-transparent px-2 py-1.5 text-xs outline-none placeholder:text-muted-foreground"
                       />
                       <div className="max-h-72 overflow-y-auto p-1">
                         {branchesLoading ? (
                           <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
-                            <Loader2 className="size-3.5 animate-spin" /> Loading…
+                            <Loader2 className="size-3.5 animate-spin" /> {t("projects.row.loading")}
                           </div>
                         ) : filteredLocal.length === 0 && filteredRemote.length === 0 ? (
                           <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                            No branches.
+                            {t("projects.row.noBranches")}
                           </p>
                         ) : (
                           <>
                             {filteredLocal.length > 0 && (
                               <>
                                 <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
-                                  Local
+                                  {t("projects.row.local")}
                                 </DropdownMenuLabel>
                                 {filteredLocal.map((b) => (
                                   <DropdownMenuItem
@@ -409,7 +414,7 @@ export const ProjectRow = memo(function ProjectRow({
                             {filteredRemote.length > 0 && (
                               <>
                                 <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
-                                  Remote
+                                  {t("projects.row.remote")}
                                 </DropdownMenuLabel>
                                 {filteredRemote.map((b) => (
                                   <DropdownMenuItem
@@ -433,11 +438,11 @@ export const ProjectRow = memo(function ProjectRow({
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => onAction({ kind: "notes" })}>
-            <NotebookPen className="size-4" /> Notes & tags…
+            <NotebookPen className="size-4" /> {t("projects.row.notesAndTags")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => onAction({ kind: "remove" })}>
-            <Trash2 className="size-4" /> Remove from Workhub
+            <Trash2 className="size-4" /> {t("projects.row.removeFromWorkhub")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

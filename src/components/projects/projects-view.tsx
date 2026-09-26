@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, timeAgo } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import {
   TASK_STATUSES,
   buildProjectFixPrompt,
@@ -104,6 +105,7 @@ export function ProjectsView({
   onNavigate,
   onProjectsChange,
 }: Props) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<VaultProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -263,7 +265,7 @@ export function ProjectsView({
    *  leave it ambiguous. */
   const saveRepos = (entries: string[]) => {
     if (!vaultPath || !current) return;
-    void run("Linking…", async () => {
+    void run(t("projects.view.statusLinking"), async () => {
       await api.setVaultProjectRepos(vaultPath, current.slug, entries);
     });
   };
@@ -304,7 +306,7 @@ export function ProjectsView({
         return w ? { ...p, pinned: w.pinned, order: w.order } : p;
       }),
     );
-    void run("Reordering…", async () => {
+    void run(t("projects.view.statusReordering"), async () => {
       for (const w of writes) {
         await api.setVaultProjectOrder(vaultPath, w.slug, w.pinned, w.order);
       }
@@ -327,7 +329,7 @@ export function ProjectsView({
     if (!vaultPath || !current || current.archived) return;
     const name = editName.trim();
     if (!name) return;
-    void run("Saving…", async () => {
+    void run(t("projects.view.statusSaving"), async () => {
       await api.setVaultProjectDetails(
         vaultPath,
         current.slug,
@@ -340,7 +342,7 @@ export function ProjectsView({
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-        Set a vault folder in Settings to manage projects.
+        {t("projects.view.noVault")}
       </div>
     );
   }
@@ -350,7 +352,7 @@ export function ProjectsView({
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
         <Input
           value={search}
-          placeholder="Search projects…"
+          placeholder={t("projects.view.searchPlaceholder")}
           className="h-8 max-w-64 text-sm"
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -361,13 +363,13 @@ export function ProjectsView({
           onClick={() => setShowArchived((v) => !v)}
         >
           <Archive className="size-3.5" />
-          Archived
+          {t("projects.view.archivedToggle")}
         </Button>
         <Hint
           label={
             sortMode === "order"
-              ? "Sorted by position — switch to name/number"
-              : "Sorted by folder name/number — switch to position"
+              ? t("projects.view.sortByPosition")
+              : t("projects.view.sortByName")
           }
         >
           <Button
@@ -381,16 +383,16 @@ export function ProjectsView({
             }}
           >
             <ArrowUpDown className="size-3.5" />
-            {sortMode === "order" ? "Order" : "Name"}
+            {sortMode === "order" ? t("projects.view.sortOrder") : t("projects.view.sortName")}
           </Button>
         </Hint>
         <Button size="sm" variant="ghost" className="h-8 gap-1.5" onClick={() => void load()}>
           <RefreshCw className="size-3.5" />
-          Refresh
+          {t("projects.view.refresh")}
         </Button>
         <Button size="sm" className="ml-auto h-8 gap-1.5" onClick={() => setCreateOpen(true)}>
           <FolderPlus className="size-3.5" />
-          New project
+          {t("projects.view.newProject")}
         </Button>
       </div>
 
@@ -410,8 +412,7 @@ export function ProjectsView({
           <div className="h-full overflow-y-auto">
             {visible.length === 0 && (
               <p className="p-4 text-sm text-muted-foreground">
-                No projects yet. “New project” creates projects/&lt;slug&gt;/ from the
-                bundled scaffold.
+                {t("projects.view.emptyList")}
               </p>
             )}
             <ProjectList
@@ -429,13 +430,18 @@ export function ProjectsView({
               <div className="border-b bg-muted/30 px-3 py-2">
                 <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                   <CircleAlert className="size-3" />
-                  Task project values with no folder
+                  {t("projects.view.orphansHeading")}
                 </p>
                 <ul className="mt-1 space-y-0.5">
                   {orphans.map((o) => (
                     <li key={o.project} className="text-[11px] text-muted-foreground">
-                      <span className="font-mono">{o.project}</span> — {o.counts.total} task
-                      {o.counts.total === 1 ? "" : "s"}
+                      <span className="font-mono">{o.project}</span>{" "}
+                      {t(
+                        o.counts.total === 1
+                          ? "projects.view.orphanCountOne"
+                          : "projects.view.orphanCountOther",
+                        { count: o.counts.total },
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -447,7 +453,7 @@ export function ProjectsView({
         <ResizablePanel id="projects-detail" defaultSize="66%" minSize="40%" className="min-h-0">
           {!current ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Select a project.
+              {t("projects.view.selectProject")}
             </div>
           ) : (
             <div className="h-full space-y-4 overflow-y-auto p-4">
@@ -462,7 +468,7 @@ export function ProjectsView({
                 ) : (
                   <>
                     <label className="block space-y-1">
-                      <span className="text-xs text-muted-foreground">Name</span>
+                      <span className="text-xs text-muted-foreground">{t("projects.view.name")}</span>
                       <Input
                         value={editName}
                         className="h-8 text-sm font-semibold"
@@ -474,11 +480,11 @@ export function ProjectsView({
                     </label>
                     <label className="mt-2 block space-y-1">
                       <span className="text-xs text-muted-foreground">
-                        Description
+                        {t("projects.view.description")}
                       </span>
                       <Textarea
                         value={editSummary}
-                        placeholder="A short description of this project"
+                        placeholder={t("projects.view.descriptionPlaceholder")}
                         className="min-h-16 text-sm"
                         onChange={(e) => setEditSummary(e.target.value)}
                       />
@@ -490,7 +496,7 @@ export function ProjectsView({
                         disabled={!detailsDirty || !editName.trim()}
                         onClick={saveDetails}
                       >
-                        Save
+                        {t("projects.view.save")}
                       </Button>
                       {detailsDirty && (
                         <Button
@@ -502,7 +508,7 @@ export function ProjectsView({
                             setEditSummary(current.summary);
                           }}
                         >
-                          Cancel
+                          {t("projects.view.cancel")}
                         </Button>
                       )}
                     </div>
@@ -512,8 +518,14 @@ export function ProjectsView({
                   {current.path}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  {current.status && <span>status: {current.status}</span>}
-                  <span>updated {current.updated ? timeAgo(current.updated) : "—"}</span>
+                  {current.status && (
+                    <span>{t("projects.view.statusLabel", { status: current.status })}</span>
+                  )}
+                  <span>
+                    {t("projects.view.updatedLabel", {
+                      time: current.updated ? timeAgo(current.updated) : "—",
+                    })}
+                  </span>
                 </div>
               </div>
 
@@ -528,7 +540,7 @@ export function ProjectsView({
                   }}
                 >
                   <FolderOpen className="size-3.5" />
-                  {hasReadme ? "Open README" : "Open folder"}
+                  {hasReadme ? t("projects.view.openReadme") : t("projects.view.openFolder")}
                 </Button>
                 <Button
                   size="sm"
@@ -537,7 +549,7 @@ export function ProjectsView({
                   onClick={() => onNavigate("tasks", current.slug)}
                 >
                   <ListTodo className="size-3.5" />
-                  Tasks
+                  {t("projects.view.tasksButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -546,7 +558,7 @@ export function ProjectsView({
                   onClick={() => onNavigate("schedule", current.slug)}
                 >
                   <CalendarRange className="size-3.5" />
-                  Schedule
+                  {t("projects.view.scheduleButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -555,7 +567,7 @@ export function ProjectsView({
                   onClick={() => onNavigate("mindmap", current.slug)}
                 >
                   <Network className="size-3.5" />
-                  Mindmap
+                  {t("projects.view.mindmapButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -565,7 +577,7 @@ export function ProjectsView({
                   onClick={() => defaultRepo && onNavigate("repos", defaultRepo.path)}
                 >
                   <GitBranch className="size-3.5" />
-                  Repo
+                  {t("projects.view.repoButton")}
                 </Button>
                 <Button
                   size="sm"
@@ -576,12 +588,12 @@ export function ProjectsView({
                   {current.archived ? (
                     <>
                       <ArchiveRestore className="size-3.5" />
-                      Restore
+                      {t("projects.view.restore")}
                     </>
                   ) : (
                     <>
                       <Archive className="size-3.5" />
-                      Archive
+                      {t("projects.view.archive")}
                     </>
                   )}
                 </Button>
@@ -589,22 +601,22 @@ export function ProjectsView({
 
               <section className="space-y-1.5">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                  Repositories
+                  {t("projects.view.repositoriesHeading")}
                 </h3>
                 {currentRepos.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No repository.</p>
+                  <p className="text-xs text-muted-foreground">{t("projects.view.noRepository")}</p>
                 ) : (
                   <ul className="space-y-1">
                     {currentRepos.map((link, i) => (
                       <li key={link.entry} className="flex items-center gap-2 text-xs">
                         <span className="w-10 shrink-0 text-[10px] uppercase text-muted-foreground">
-                          {i === 0 ? "default" : ""}
+                          {i === 0 ? t("projects.view.defaultLabel") : ""}
                         </span>
                         {link.repo ? (
                           <span className="truncate">{link.repo.name}</span>
                         ) : (
                           <span className="truncate text-destructive">
-                            {link.entry} is not a registered repository
+                            {t("projects.view.unregisteredRepo", { entry: link.entry })}
                           </span>
                         )}
                         <Button
@@ -613,9 +625,9 @@ export function ProjectsView({
                           className="h-6 px-1.5 text-[11px]"
                           disabled={current.archived || i === 0}
                           onClick={() => promoteRepo(i)}
-                          title="Move up (the first entry is the default)"
+                          title={t("projects.view.moveUpTitle")}
                         >
-                          Up
+                          {t("projects.view.up")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -623,9 +635,9 @@ export function ProjectsView({
                           className="h-6 px-1.5 text-[11px]"
                           disabled={current.archived}
                           onClick={() => removeRepo(i)}
-                          title="Unlink this repository"
+                          title={t("projects.view.unlinkTitle")}
                         >
-                          Remove
+                          {t("projects.view.remove")}
                         </Button>
                       </li>
                     ))}
@@ -638,10 +650,10 @@ export function ProjectsView({
                     disabled={current.archived}
                   >
                     <SelectTrigger className="h-8 max-w-96 text-xs">
-                      <SelectValue placeholder="Add repository…" />
+                      <SelectValue placeholder={t("projects.view.addRepoPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_REPO}>Add repository…</SelectItem>
+                      <SelectItem value={NO_REPO}>{t("projects.view.addRepoPlaceholder")}</SelectItem>
                       {addableRepos.map((r) => (
                         <SelectItem key={r.path} value={r.path}>
                           {r.name}
@@ -651,27 +663,27 @@ export function ProjectsView({
                   </Select>
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  Stored as <span className="font-mono">repos:</span> in the project's{" "}
-                  <span className="font-mono">_index.md</span>, because a project and its
-                  repositories do not share a naming scheme. The first entry is the one an
-                  agent defaults to.
+                  {t("projects.view.reposHelpPrefix")} <span className="font-mono">repos:</span>{" "}
+                  {t("projects.view.reposHelpMid")}{" "}
+                  <span className="font-mono">_index.md</span>
+                  {t("projects.view.reposHelpSuffix")}
                 </p>
               </section>
 
               <section className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                    Shared spaces
+                    {t("projects.view.sharedSpacesHeading")}
                   </h3>
                   <CopyPromptButton
                     showLabel
-                    label="Copy survey prompt"
+                    label={t("projects.view.copySurveyPrompt")}
                     onCopy={() => writeText(buildSharedSpaceSurveyPrompt(current))}
                   />
                 </div>
                 {current.shared.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No team knowledge base registered yet.
+                    {t("projects.view.noSharedSpace")}
                   </p>
                 ) : (
                   <ul className="space-y-1">
@@ -692,8 +704,8 @@ export function ProjectsView({
                           )}
                           title={
                             space.direction === "export-ok"
-                              ? "The owner has said material may be filed into this place"
-                              : "Read only — never write anything into this place"
+                              ? t("projects.view.exportOkTitle")
+                              : t("projects.view.readOnlyTitle")
                           }
                         >
                           {space.direction}
@@ -706,11 +718,11 @@ export function ProjectsView({
                             className="shrink-0 text-[10px] uppercase text-muted-foreground"
                             title={
                               space.surveyed
-                                ? `Rules last checked ${space.surveyed} — worth another look`
-                                : "This note never recorded when its rules were checked"
+                                ? t("projects.view.staleTitleChecked", { date: space.surveyed })
+                                : t("projects.view.staleTitleNever")
                             }
                           >
-                            stale
+                            {t("projects.view.staleLabel")}
                           </span>
                         )}
                         <Button
@@ -718,26 +730,26 @@ export function ProjectsView({
                           size="sm"
                           className="ml-auto h-6 shrink-0 px-1.5 text-[11px]"
                           onClick={() => void api.openInObsidian(space.path)}
-                          title="Open the note"
+                          title={t("projects.view.openNoteTitle")}
                         >
-                          Open
+                          {t("projects.view.open")}
                         </Button>
                       </li>
                     ))}
                   </ul>
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  One note per place in the project's{" "}
-                  <span className="font-mono">shared/</span> folder, recording how the team
-                  organises it. The app only reads them — surveying a place is an agent's
-                  job. <span className="text-foreground">Copy survey prompt</span> when a
-                  team drive is not listed here yet, or its rules have gone stale: fill in
-                  the location it asks for, then paste it into an agent.
+                  {t("projects.view.sharedSpacesHelpPrefix")}{" "}
+                  <span className="font-mono">shared/</span> {t("projects.view.sharedSpacesHelpMid")}{" "}
+                  <span className="text-foreground">{t("projects.view.copySurveyPrompt")}</span>{" "}
+                  {t("projects.view.sharedSpacesHelpSuffix")}
                 </p>
               </section>
 
               <section className="space-y-1.5">
-                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Tasks</h3>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+                  {t("projects.view.tasksHeading")}
+                </h3>
                 {currentCounts ? (
                   <div className="flex flex-wrap gap-3 text-xs">
                     {TASK_STATUSES.map((s) => (
@@ -748,16 +760,21 @@ export function ProjectsView({
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    No task names this project in its <span className="font-mono">project:</span>{" "}
-                    field.
+                    {t("projects.view.noTaskProjectPrefix")}{" "}
+                    <span className="font-mono">project:</span>{" "}
+                    {t("projects.view.noTaskProjectSuffix")}
                   </p>
                 )}
               </section>
 
               <section className="space-y-1.5">
-                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Contents</h3>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+                  {t("projects.view.contentsHeading")}
+                </h3>
                 {current.folders.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">The folder has no subfolders.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("projects.view.noSubfolders")}
+                  </p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {current.folders.map((f) => (
@@ -778,12 +795,12 @@ export function ProjectsView({
               <section className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                    Layout findings
+                    {t("projects.view.layoutFindingsHeading")}
                   </h3>
                   {current.issues.length > 0 && (
                     <CopyPromptButton
                       showLabel
-                      label="Copy fix prompt"
+                      label={t("projects.view.copyFixPrompt")}
                       onCopy={() => writeText(buildProjectFixPrompt(current))}
                     />
                   )}
@@ -791,7 +808,7 @@ export function ProjectsView({
                 {current.issues.length === 0 ? (
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CircleCheck className="size-3.5" />
-                    This project matches the documented layout.
+                    {t("projects.view.layoutMatches")}
                   </p>
                 ) : (
                   <>
@@ -816,11 +833,9 @@ export function ProjectsView({
                       ))}
                     </ul>
                     <p className="text-[11px] text-muted-foreground">
-                      The scan only reports — nothing here is changed for you.{" "}
-                      <span className="text-foreground">Copy fix prompt</span> and paste it
-                      into an agent to have the findings worked through; it needs nothing
-                      filled in first, and tells the agent which of these are real gaps and
-                      which are judgement calls to leave alone.
+                      {t("projects.view.layoutFindingsHelpPrefix")}{" "}
+                      <span className="text-foreground">{t("projects.view.copyFixPrompt")}</span>{" "}
+                      {t("projects.view.layoutFindingsHelpSuffix")}
                     </p>
                   </>
                 )}
@@ -842,18 +857,23 @@ export function ProjectsView({
       {current && (
         <ConfirmDialog
           open={archiveOpen}
-          title={current.archived ? "Restore this project?" : "Archive this project?"}
+          title={
+            current.archived ? t("projects.view.restoreTitle") : t("projects.view.archiveTitle")
+          }
           description={
             current.archived
-              ? `projects/${current.slug}/ is restored from archive/projects/${current.slug}/. Nothing is deleted.`
-              : `The folder moves to archive/projects/${current.slug}/. Nothing is deleted, and Restore brings it back.`
+              ? t("projects.view.restoreDescription", { slug: current.slug })
+              : t("projects.view.archiveDescription", { slug: current.slug })
           }
-          confirmLabel={current.archived ? "Restore" : "Archive"}
+          confirmLabel={current.archived ? t("projects.view.restore") : t("projects.view.archive")}
           onClose={() => setArchiveOpen(false)}
           onConfirm={() => {
             setArchiveOpen(false);
             const target = current;
-            void run(target.archived ? "Restoring…" : "Archiving…", async () => {
+            const label = target.archived
+              ? t("projects.view.statusRestoring")
+              : t("projects.view.statusArchiving");
+            void run(label, async () => {
               if (target.archived) await api.restoreVaultProject(vaultPath, target.slug);
               else await api.archiveVaultProject(vaultPath, target.slug);
             });

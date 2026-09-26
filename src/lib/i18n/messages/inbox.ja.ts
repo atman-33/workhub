@@ -1,0 +1,48 @@
+import type { MessageKey } from "./en";
+
+/** Japanese strings for the Inbox tab (T-0423). */
+export const inboxJa: Partial<Record<MessageKey, string>> = {
+  "inbox.noVault": "受信箱のノートを表示するには設定で vault パスを設定してください。",
+  "inbox.title": "受信箱",
+  "inbox.noteCountOne": "{count}件のノート",
+  "inbox.noteCountOther": "{count}件のノート",
+  "inbox.withProposal": "· 提案あり{count}件",
+  "inbox.reload": "再読み込み",
+  "inbox.empty": "受信箱には何も待機していません。",
+  "inbox.staleHint": "vault-tidy ルーチンが対応するのに十分古くなっています",
+  "inbox.proposalBadge": "提案",
+  "inbox.selectNote": "ノートを選択するとプレビューが表示されます。",
+  "inbox.tidyDeferred": "vault tidy がこのノートの処理を保留しました",
+  "inbox.proposalLabel": "提案:",
+  "inbox.reasonLabel": "理由:",
+  "inbox.filingNote":
+    "ファイリングは引き続き Obsidian で行います — ここから提案を実行する機能は後で追加されます。",
+  "inbox.today": "今日",
+  "inbox.daysAgo": "{days}日前",
+
+  "inbox.settings.hint": "受信箱の設定",
+  "inbox.settings.title": "Vault tidy",
+  "inbox.settings.description":
+    "ヘッドレスエージェントで古い受信箱ノートをファイリングし、アーカイブインデックスを更新します。",
+  "inbox.settings.runningStuck": "実行中 — 停止している可能性があります",
+  "inbox.settings.running": "実行中…",
+  "inbox.settings.failed": "失敗{detail}",
+  "inbox.settings.completed": "完了",
+  "inbox.settings.idle": "アイドル",
+  "inbox.settings.lastRun": "前回の実行: {time}。",
+  "inbox.settings.notRunYet": "まだ実行されていません。",
+  "inbox.settings.nextCheck": "次回チェック: {time}。",
+  "inbox.settings.session": "セッション",
+  "inbox.settings.copySessionId": "セッション ID をコピー",
+  "inbox.settings.sessionIdCopied": "セッション ID をコピーしました。",
+  "inbox.settings.agent": "エージェント",
+  "inbox.settings.model": "モデル",
+  "inbox.settings.firstRunAt": "初回実行日時",
+  "inbox.settings.notScheduled": "未スケジュール",
+  "inbox.settings.runEveryHours": "実行間隔（時間）",
+  "inbox.settings.inboxAgeDays": "受信箱の経過日数",
+  "inbox.settings.excludeFolders": "除外フォルダ",
+  "inbox.settings.intervalHint": "24 = 毎日、168 = 毎週。",
+  "inbox.settings.runNow": "今すぐ実行",
+  "inbox.settings.resumeSession": "セッションを再開",
+};

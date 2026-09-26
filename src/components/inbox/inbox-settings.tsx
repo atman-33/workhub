@@ -19,6 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import { api, timeAgo } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
 import type { Settings, TidyRun } from "@/types";
 
 /**
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export function InboxSettings({ settings, disabled, onPatch }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [tidyRun, setTidyRun] = useState<TidyRun | null>(null);
   const [msg, setMsg] = useState("");
@@ -113,7 +115,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
     if (!sessionId) return;
     try {
       await writeText(sessionId);
-      setMsg("Session id copied.");
+      setMsg(i18nT("inbox.settings.sessionIdCopied"));
     } catch (e) {
       setMsg(String(e));
     }
@@ -121,7 +123,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Hint label="Inbox settings" disabled={disabled || !ready}>
+      <Hint label={t("inbox.settings.hint")} disabled={disabled || !ready}>
         <PopoverTrigger asChild>
           <Button size="icon-xs" variant="ghost" disabled={disabled || !ready}>
             <Settings2 className="size-3.5" />
@@ -134,11 +136,11 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  Vault tidy
+                  {t("inbox.settings.title")}
                   <VaultScopedBadge />
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  File stale inbox notes and refresh the archive index with a headless agent.
+                  {t("inbox.settings.description")}
                 </p>
               </div>
               <Switch checked={tidy.enabled} onCheckedChange={(v) => setTidy({ enabled: v })} />
@@ -149,36 +151,44 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
                 {tidyRun.state === "running" ? (
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="size-3.5 animate-spin" />
-                    {tidyRun.stalled ? "Running — may be stuck" : "Running…"}
+                    {tidyRun.stalled
+                      ? t("inbox.settings.runningStuck")
+                      : t("inbox.settings.running")}
                   </span>
                 ) : tidyRun.state === "failed" ? (
                   <span className="flex items-start gap-1.5 text-destructive">
                     <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                    <span>Failed{tidyRun.error ? `: ${tidyRun.error}` : ""}</span>
+                    <span>
+                      {t("inbox.settings.failed", {
+                        detail: tidyRun.error ? `: ${tidyRun.error}` : "",
+                      })}
+                    </span>
                   </span>
                 ) : tidyRun.state === "completed" ? (
                   <span className="flex items-start gap-1.5">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-green-500" />
-                    <span>{tidyRun.summary ?? "Completed"}</span>
+                    <span>{tidyRun.summary ?? t("inbox.settings.completed")}</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Idle</span>
+                  <span className="text-muted-foreground">{t("inbox.settings.idle")}</span>
                 )}
                 <div className="mt-1 text-[11px] text-muted-foreground">
                   {tidyRun.at
-                    ? `Last run ${timeAgo(tidyRun.at)}. `
+                    ? t("inbox.settings.lastRun", { time: timeAgo(tidyRun.at) })
                     : tidy.last_run
-                      ? `Last run ${timeAgo(tidy.last_run)}. `
-                      : "Not run yet. "}
+                      ? t("inbox.settings.lastRun", { time: timeAgo(tidy.last_run) })
+                      : t("inbox.settings.notRunYet")}
                   {tidy.enabled && nextCheck(tidy)
-                    ? `Next check ${TIMESTAMP.format(new Date((nextCheck(tidy) as number) * 1000))}.`
+                    ? t("inbox.settings.nextCheck", {
+                        time: TIMESTAMP.format(new Date((nextCheck(tidy) as number) * 1000)),
+                      })
                     : ""}
                 </div>
                 {sessionId && (
                   <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="shrink-0">Session</span>
+                    <span className="shrink-0">{t("inbox.settings.session")}</span>
                     <code className="truncate font-mono">{sessionId}</code>
-                    <Hint label="Copy session id">
+                    <Hint label={t("inbox.settings.copySessionId")}>
                       <Button
                         type="button"
                         size="icon"
@@ -196,7 +206,9 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("inbox.settings.agent")}
+                </label>
                 <Select
                   value={tidy.assignee}
                   // Model ids are per-CLI, so clear the model when the agent
@@ -214,7 +226,9 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Model</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("inbox.settings.model")}
+                </label>
                 <ModelCombobox
                   assignee={tidy.assignee}
                   value={tidy.model}
@@ -226,16 +240,18 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">First run at</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("inbox.settings.firstRunAt")}
+                </label>
                 <DateTimePicker
                   value={tidy.anchor}
                   onChange={(anchor) => setTidy({ anchor })}
-                  placeholder="not scheduled"
+                  placeholder={t("inbox.settings.notScheduled")}
                 />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Run every (hours)
+                  {t("inbox.settings.runEveryHours")}
                 </label>
                 <Input
                   type="number"
@@ -252,7 +268,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Inbox age (days)
+                  {t("inbox.settings.inboxAgeDays")}
                 </label>
                 <Input
                   type="number"
@@ -263,7 +279,9 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Exclude folders</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("inbox.settings.excludeFolders")}
+                </label>
                 <Input
                   value={tidy.exclude_dirs.join(", ")}
                   onChange={(e) =>
@@ -279,7 +297,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
                 />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">24 = daily, 168 = weekly.</p>
+            <p className="text-[11px] text-muted-foreground">{t("inbox.settings.intervalHint")}</p>
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -290,7 +308,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
                 disabled={tidyRun?.state === "running"}
               >
                 <Play className="mr-1.5 size-3.5" />
-                Run now
+                {t("inbox.settings.runNow")}
               </Button>
               {/* Any known session id is resumable — a run that was killed
                   mid-way never reports a failure, but is exactly the one
@@ -298,7 +316,7 @@ export function InboxSettings({ settings, disabled, onPatch }: Props) {
               {(sessionId || tidyRun?.state === "failed" || tidyRun?.stalled) && (
                 <Button type="button" size="sm" variant="secondary" onClick={() => void resume()}>
                   <RotateCcw className="mr-1.5 size-3.5" />
-                  Resume session
+                  {t("inbox.settings.resumeSession")}
                 </Button>
               )}
             </div>

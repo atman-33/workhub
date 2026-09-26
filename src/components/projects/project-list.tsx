@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CircleAlert, CircleCheck, GripVertical, Star } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import { timeAgo } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { health, planProjectMove, type ProjectOrderWrite, type TaskCounts } from "@/lib/vault-project";
 import { cn } from "@/lib/utils";
 import type { VaultProject } from "@/types";
@@ -56,6 +57,7 @@ export function ProjectList({
   onTogglePin,
   onMove,
 }: Props) {
+  const t = useT();
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -132,10 +134,14 @@ export function ProjectList({
               <GripVertical className="size-3 shrink-0 text-muted-foreground/50" />
             )}
             {!p.archived && (
-              <Hint label={p.pinned ? "unpin" : "pin to the top"}>
+              <Hint label={p.pinned ? t("projects.list.unpin") : t("projects.list.pinToTop")}>
                 <button
                   className="shrink-0 text-muted-foreground transition-colors hover:text-amber-400"
-                  aria-label={p.pinned ? `unpin ${p.name}` : `pin ${p.name}`}
+                  aria-label={
+                    p.pinned
+                      ? t("projects.list.unpinAria", { name: p.name })
+                      : t("projects.list.pinAria", { name: p.name })
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     onTogglePin(p);
@@ -153,7 +159,7 @@ export function ProjectList({
             <span className="truncate text-sm font-medium">{p.name}</span>
             {p.archived && (
               <span className="rounded bg-muted-foreground/15 px-1 text-[10px] uppercase text-muted-foreground">
-                archived
+                {t("projects.list.archivedBadge")}
               </span>
             )}
             {h.warn > 0 ? (
@@ -164,7 +170,7 @@ export function ProjectList({
             ) : (
               <span className="ml-auto flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
                 <CircleCheck className="size-3" />
-                ok
+                {t("projects.list.ok")}
               </span>
             )}
           </div>
@@ -176,7 +182,9 @@ export function ProjectList({
             )}
             <span className="font-mono">{p.slug}</span>
             <span>·</span>
-            <span>{c ? `${c.total} tasks` : "no tasks"}</span>
+            <span>
+              {c ? t("projects.list.taskCount", { count: c.total }) : t("projects.list.noTasks")}
+            </span>
             <span>·</span>
             <span>{p.updated ? timeAgo(p.updated) : "—"}</span>
           </div>
@@ -218,10 +226,10 @@ export function ProjectList({
         <>
           <p className="flex items-center gap-1.5 border-b bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
             <Star className="size-3 fill-amber-400 text-amber-400" />
-            Pinned
+            {t("projects.list.pinned")}
           </p>
           {pinned.map((p, i) => renderRow(p, "pinned", i))}
-          {tail("pinned", pinned.length, "Drop a project here to pin it.")}
+          {tail("pinned", pinned.length, t("projects.list.dropToPin"))}
         </>
       )}
       {plain.map((p, i) => renderRow(p, "plain", i))}
@@ -229,7 +237,7 @@ export function ProjectList({
       {archived.length > 0 && (
         <>
           <p className="border-b bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-            Archived
+            {t("projects.list.archived")}
           </p>
           {archived.map((p) => renderRow(p, null, 0))}
         </>

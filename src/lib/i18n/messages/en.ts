@@ -5,7 +5,18 @@
  * and anything it leaves out falls back to the English text. Keys are flat and
  * dotted by area (`nav.tasks`, `settings.general.title`) so a string is found
  * by searching for its key. Interpolate with `{name}` placeholders.
+ *
+ * The areas translated after T-0409 keep their strings in their own pair of
+ * files (`<area>.en.ts` / `<area>.ja.ts`) and are spread in below, so one
+ * area can grow without touching another's lines. New areas follow that
+ * pattern; the keys still share one flat namespace.
  */
+import { projectsEn } from "./projects.en";
+import { reposEn } from "./repos.en";
+import { inboxEn } from "./inbox.en";
+import { pluginsEn } from "./plugins.en";
+import { miscEn } from "./misc.en";
+
 export const en = {
   "common.cancel": "Cancel",
   "common.save": "Save",
@@ -366,6 +377,13 @@ export const en = {
   "settings.footer.saveFailed": "Save failed: {error}",
   "settings.footer.resetToDefaults": "Reset to defaults",
   "settings.footer.saving": "Saving…",
+
+  // Areas kept in their own files (T-0423).
+  ...projectsEn,
+  ...reposEn,
+  ...inboxEn,
+  ...pluginsEn,
+  ...miscEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

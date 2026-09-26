@@ -3,6 +3,7 @@ import { CheckIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import {
   Command,
   CommandEmpty,
@@ -59,6 +60,7 @@ export function BranchCombobox({
   align = "start",
   className,
 }: BranchComboboxProps) {
+  const t = useT();
   const [openState, setOpenState] = React.useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openState;
@@ -122,14 +124,21 @@ export function BranchCombobox({
             value.toLowerCase().includes(search.toLowerCase().trim()) ? 1 : 0
           }
         >
-          <CommandInput placeholder="Filter branches…" className="h-8 text-xs" />
+          <CommandInput
+            placeholder={t("misc.branchCombobox.filterPlaceholder")}
+            className="h-8 text-xs"
+          />
           <CommandList>
-            <CommandEmpty>{loading ? "Loading…" : "No branches."}</CommandEmpty>
+            <CommandEmpty>
+              {loading ? t("misc.branchCombobox.loading") : t("misc.branchCombobox.noBranches")}
+            </CommandEmpty>
             {branches.local.length > 0 && (
-              <CommandGroup heading="Local">{branches.local.map(renderItem)}</CommandGroup>
+              <CommandGroup heading={t("misc.branchCombobox.local")}>
+                {branches.local.map(renderItem)}
+              </CommandGroup>
             )}
             {branches.remote.length > 0 && (
-              <CommandGroup heading="Remote">
+              <CommandGroup heading={t("misc.branchCombobox.remote")}>
                 {branches.remote.map(renderItem)}
               </CommandGroup>
             )}
