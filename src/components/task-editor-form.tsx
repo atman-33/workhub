@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ChevronDown, Gem, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
+import { TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -156,6 +158,7 @@ export function TaskEditorForm({
   onSendToClaudeDesktop,
   claudeDesktopMode,
 }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT);
   // Fields the user has touched since the draft was seeded, and have not yet
   // been confirmed written. Autosave (idle and on close) writes only these —
@@ -450,10 +453,10 @@ export function TaskEditorForm({
       // editor window is narrower than that, so clicking to edit would
       // otherwise jump the text from 14px to 16px (T-0247).
       className="min-h-0 flex-1 field-sizing-fixed resize-none text-sm leading-relaxed"
-      placeholder="Task description — this is the prompt context handed to AI agents."
+      placeholder={t("taskEditor.description.placeholder")}
     />
   ) : (
-    <Hint label="Click to edit">
+    <Hint label={t("taskEditor.description.clickToEdit")}>
       <div
         role="button"
         tabIndex={0}
@@ -470,7 +473,7 @@ export function TaskEditorForm({
           <Markdown>{draft.content}</Markdown>
         ) : (
           <span className="text-muted-foreground">
-            Task description — this is the prompt context handed to AI agents.
+            {t("taskEditor.description.placeholder")}
           </span>
         )}
       </div>
@@ -662,7 +665,9 @@ export function TaskEditorForm({
         className="flex shrink-0 cursor-move select-none items-center gap-2 border-b px-3 py-2"
       >
         <span className="min-w-0 truncate text-sm font-medium">
-          {mode === "create" ? "New task" : `${task?.id} — Edit task`}
+          {mode === "create"
+            ? t("task.toolbar.newTask")
+            : t("taskEditor.header.editTask", { id: task?.id ?? "" })}
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {mode === "edit" && (
@@ -686,13 +691,13 @@ export function TaskEditorForm({
             </>
           )}
           {/* Esc deliberately does not close this window — see task_editor.rs. */}
-          <Hint label="Close">
+          <Hint label={t("common.close")}>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className="size-7"
-              aria-label="Close"
+              aria-label={t("common.close")}
               onClick={handleClose}
             >
               <X className="size-3.5" />
@@ -710,7 +715,9 @@ export function TaskEditorForm({
             baseline. Click still cycles low → medium → high → low. */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <label className="text-xs font-medium text-muted-foreground">Title</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("taskEditor.field.title")}
+            </label>
             <PriorityBadge
               priority={draft.priority}
               onCycle={(next) => update({ priority: next })}
@@ -721,7 +728,7 @@ export function TaskEditorForm({
             value={draft.title}
             onChange={(e) => update({ title: e.target.value })}
             className="h-8 text-sm"
-            placeholder="Task title"
+            placeholder={t("taskEditor.field.titlePlaceholder")}
           />
         </div>
         {/* Confirm mode sits with Status / Assignee / Model rather than in
@@ -735,7 +742,7 @@ export function TaskEditorForm({
             Every control is h-8 so the row shares one baseline. */}
         <div className="grid grid-cols-[1.1fr_1.1fr_1.7fr_auto_auto] gap-2">
           {field(
-            "Status",
+            t("taskEditor.field.status"),
             <Select
               value={draft.status}
               onValueChange={(v) => update({ status: v as TaskStatus })}
@@ -746,14 +753,14 @@ export function TaskEditorForm({
               <SelectContent>
                 {STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {s}
+                    {t(TASK_STATUS_LABEL_KEY[s])}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>,
           )}
           {field(
-            "Assignee",
+            t("taskEditor.field.assignee"),
             <Select
               value={draft.assignee}
               onValueChange={(v) =>
@@ -768,14 +775,14 @@ export function TaskEditorForm({
               <SelectContent>
                 {ASSIGNEES.map((a) => (
                   <SelectItem key={a} value={a}>
-                    {a}
+                    {t(TASK_ASSIGNEE_LABEL_KEY[a])}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>,
           )}
           {field(
-            "Model (AI launches)",
+            t("taskEditor.field.model"),
             <ModelCombobox
               assignee={draft.assignee}
               value={draft.model}
@@ -786,14 +793,18 @@ export function TaskEditorForm({
               // A "me" (human) task launches no AI agent, so a model is
               // meaningless — disable the field.
               disabled={draft.assignee === "me"}
-              placeholder={draft.assignee === "me" ? "n/a for me" : "agent default"}
+              placeholder={
+                draft.assignee === "me"
+                  ? t("taskEditor.field.modelPlaceholderMe")
+                  : t("taskEditor.field.modelPlaceholderAgent")
+              }
             />,
           )}
           {field(
-            "Confirm",
+            t("taskEditor.field.confirm"),
             // The wrapper stays hoverable even when the switch inside is
             // disabled, so `Hint` needs no `disabled` of its own here.
-            <Hint label="Agent gives its opinion, drafts a plan, and waits for your approval before executing.">
+            <Hint label={t("taskEditor.field.confirmHint")}>
               <div
                 className="flex h-8 items-center gap-2 rounded-md border px-2.5"
                 data-disabled={draft.assignee === "me" || undefined}
@@ -804,14 +815,14 @@ export function TaskEditorForm({
                   disabled={draft.assignee === "me"}
                 />
                 <span className="w-7 text-[11px] text-muted-foreground">
-                  {draft.confirm ? "ON" : "OFF"}
+                  {draft.confirm ? t("taskEditor.toggle.on") : t("taskEditor.toggle.off")}
                 </span>
               </div>
             </Hint>,
           )}
           {field(
-            "Worktree",
-            <Hint label="Agent works in a dedicated worktree so parallel tasks don't collide.">
+            t("taskEditor.field.worktree"),
+            <Hint label={t("taskEditor.field.worktreeHint")}>
               <div
                 className="flex h-8 items-center gap-2 rounded-md border px-2.5"
                 data-disabled={draft.assignee === "me" || undefined}
@@ -822,7 +833,7 @@ export function TaskEditorForm({
                   disabled={draft.assignee === "me"}
                 />
                 <span className="w-7 text-[11px] text-muted-foreground">
-                  {draft.worktree ? "ON" : "OFF"}
+                  {draft.worktree ? t("taskEditor.toggle.on") : t("taskEditor.toggle.off")}
                 </span>
               </div>
             </Hint>,
@@ -845,7 +856,7 @@ export function TaskEditorForm({
           <div className="space-y-1.5">
             <div className="flex h-5 items-center">
               <label className="text-xs font-medium text-muted-foreground">
-                Project
+                {t("taskEditor.field.project")}
               </label>
             </div>
             <Combobox
@@ -853,13 +864,13 @@ export function TaskEditorForm({
               onChange={handleProjectChange}
               options={projectOptions}
               optionDetails={projectDetails}
-              noneLabel="No project"
-              placeholder="vault project"
-              emptyText="No vault projects. Create one in the Projects tab."
+              noneLabel={t("taskEditor.project.none")}
+              placeholder={t("taskEditor.project.placeholder")}
+              emptyText={t("taskEditor.project.empty")}
             />
             {projectUnregistered ? (
               <p className="truncate text-[11px] text-destructive">
-                {draft.project} is not a vault project
+                {t("taskEditor.project.unregistered", { project: draft.project })}
               </p>
             ) : (
               <p className="truncate text-[11px] text-muted-foreground">
@@ -872,7 +883,7 @@ export function TaskEditorForm({
             <div className="space-y-1.5">
               <div className="flex h-5 items-center">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Project
+                  {t("taskEditor.field.project")}
                 </label>
               </div>
               <Combobox
@@ -880,13 +891,13 @@ export function TaskEditorForm({
                 onChange={handleProjectChange}
                 options={projectOptions}
                 optionDetails={projectDetails}
-                noneLabel="No project"
-                placeholder="vault project"
-                emptyText="No vault projects. Create one in the Projects tab."
+                noneLabel={t("taskEditor.project.none")}
+                placeholder={t("taskEditor.project.placeholder")}
+                emptyText={t("taskEditor.project.empty")}
               />
               {projectUnregistered ? (
                 <p className="truncate text-[11px] text-destructive">
-                  {draft.project} is not a vault project
+                  {t("taskEditor.project.unregistered", { project: draft.project })}
                 </p>
               ) : (
                 <p className="truncate text-[11px] text-muted-foreground">
@@ -897,15 +908,15 @@ export function TaskEditorForm({
             <div className="space-y-1.5">
               <div className="flex h-5 items-center justify-between gap-2">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Backlog item
+                  {t("taskEditor.field.backlogItem")}
                 </label>
-                <Hint label="Create a new backlog item in this project">
+                <Hint label={t("taskEditor.backlog.createHint")}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="size-5"
-                    aria-label="Create new backlog item"
+                    aria-label={t("taskEditor.backlog.createAria")}
                     onClick={() => setShowNewItem((v) => !v)}
                   >
                     <Plus className="size-3.5" />
@@ -917,14 +928,14 @@ export function TaskEditorForm({
                 onChange={(v) => update({ backlog: v })}
                 options={backlogOptions}
                 optionDetails={backlogDetails}
-                noneLabel="No item"
-                placeholder="backlog item"
+                noneLabel={t("taskEditor.backlog.none")}
+                placeholder={t("taskEditor.backlog.placeholder")}
                 loading={backlogLoading}
-                emptyText={`No backlog items in ${project}.`}
+                emptyText={t("taskEditor.backlog.empty", { project })}
               />
               {backlogUnknown ? (
                 <p className="truncate text-[11px] text-destructive">
-                  {draft.backlog} is not an item in {project}
+                  {t("taskEditor.backlog.unknown", { backlog: draft.backlog, project })}
                 </p>
               ) : (
                 <p className="truncate text-[11px] text-muted-foreground">
@@ -945,7 +956,7 @@ export function TaskEditorForm({
                         void handleCreateBacklogItem();
                       }
                     }}
-                    placeholder="title of a new item"
+                    placeholder={t("taskEditor.backlog.newItemPlaceholder")}
                     disabled={creatingItem}
                   />
                   <Button
@@ -954,7 +965,7 @@ export function TaskEditorForm({
                     onClick={() => void handleCreateBacklogItem()}
                     disabled={creatingItem || newItemTitle.trim().length === 0}
                   >
-                    Create
+                    {t("common.create")}
                   </Button>
                 </div>
               )}
@@ -976,11 +987,11 @@ export function TaskEditorForm({
             <ChevronDown
               className={cn("size-3.5 transition-transform", !optionalOpen && "-rotate-90")}
             />
-            Optional
+            {t("taskEditor.optional.label")}
             {hasOptionalDetails && (
               <span
                 className="size-1.5 rounded-full bg-amber-400"
-                aria-label="optional details set"
+                aria-label={t("taskEditor.optional.setAria")}
               />
             )}
           </button>
@@ -988,27 +999,27 @@ export function TaskEditorForm({
             <div className="space-y-2 px-3 pb-2.5">
               <div className="grid grid-cols-2 gap-2">
                 {field(
-                  "Due",
+                  t("taskEditor.field.due"),
                   <DatePicker
                     value={draft.due}
                     onChange={(v) => update({ due: v })}
                   />,
                 )}
                 {field(
-                  "Tags (comma separated)",
+                  t("taskEditor.field.tags"),
                   <Input
                     value={draft.tags}
                     onChange={(e) => update({ tags: e.target.value })}
                     className="h-8 text-xs"
-                    placeholder="feature, bug"
+                    placeholder={t("taskEditor.field.tagsPlaceholder")}
                   />,
                 )}
               </div>
               {/* Blocked stays full-width: Worktree moved up to the launch
                   row (B-025 rework), so no second card shares this line. */}
               {toggle(
-                "Blocked",
-                "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",
+                t("taskEditor.field.blocked"),
+                t("taskEditor.field.blockedDescription"),
                 draft.blocked,
                 (v) =>
                   // Turning it on stamps today so the wait is measured from the
@@ -1027,16 +1038,16 @@ export function TaskEditorForm({
               {draft.blocked && (
                 <div className="grid grid-cols-2 gap-2">
                   {field(
-                    "Waiting on",
+                    t("taskEditor.field.waitingOn"),
                     <Input
                       value={draft.blockedNote}
                       onChange={(e) => update({ blockedNote: e.target.value })}
                       className="h-8 text-xs"
-                      placeholder="e.g. vendor quote, review from Sato"
+                      placeholder={t("task.blockedDialog.placeholder")}
                     />,
                   )}
                   {field(
-                    "Blocked since",
+                    t("taskEditor.field.blockedSince"),
                     <DatePicker
                       value={draft.blockedSince}
                       onChange={(v) => update({ blockedSince: v })}
@@ -1103,7 +1114,7 @@ export function TaskEditorForm({
                 disabled={!draft.title.trim() || creating}
                 onClick={() => void handleCreateAndOpen()}
               >
-                <Gem className="size-3.5" /> Create &amp; edit in Obsidian
+                <Gem className="size-3.5" /> {t("taskEditor.footer.createAndOpen")}
               </Button>
               <Button
                 disabled={!draft.title.trim() || creating}
@@ -1113,7 +1124,7 @@ export function TaskEditorForm({
                   onClose();
                 }}
               >
-                Create
+                {t("common.create")}
               </Button>
             </div>
           )}

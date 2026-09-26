@@ -49,7 +49,9 @@ const VAULT_SCOPED: &[&str] = &[
     // Whether the language above is reminded to the agent every turn
     // (T-0388) — same reasoning as `language` itself.
     "response_language_inject",
-    "schedule_locale",
+    // Which language the app is read in (T-0409); replaced the schedule-only
+    // `schedule_locale`, aliased below.
+    "ui_locale",
     "schedule_assignee",
     "schedule_model",
     "schedule_confirm",
@@ -119,7 +121,12 @@ fn settings_file(cfg: &Config) -> Option<PathBuf> {
 /// normalizes it to the new one before `scoped_subset` filters by
 /// `VAULT_SCOPED`, and the next `write` only ever emits the new key, so the
 /// old one is dropped on the first save after an upgrade (T-0388).
-const LEGACY_KEY_ALIASES: &[(&str, &str)] = &[("task_language", "language")];
+const LEGACY_KEY_ALIASES: &[(&str, &str)] = &[
+    ("task_language", "language"),
+    // The schedule-only calendar language became the app-wide UI language
+    // (T-0409).
+    ("schedule_locale", "ui_locale"),
+];
 
 /// Renames any legacy key present in `overlay` to its current name, so an
 /// old-key vault file (or old-key `~/.workhub/config.json` on the read side)
@@ -364,6 +371,21 @@ mod tests {
         let scoped = extract(&Settings::default());
         assert!(!scoped.contains_key("task_language"));
         assert!(scoped.contains_key("language"));
+    }
+
+    /// A vault file written before T-0409 carries `schedule_locale`; its
+    /// choice carries over to `ui_locale`, and a save drops the old key.
+    #[test]
+    fn schedule_locale_resolves_to_ui_locale() {
+        let mut settings = Settings::default();
+        apply(
+            &mut settings,
+            &overlay_of(serde_json::json!({ "schedule_locale": "ja" })),
+        );
+        assert_eq!(settings.ui_locale, "ja");
+        let scoped = extract(&settings);
+        assert!(!scoped.contains_key("schedule_locale"));
+        assert_eq!(scoped.get("ui_locale"), Some(&serde_json::json!("ja")));
     }
 
     #[test]

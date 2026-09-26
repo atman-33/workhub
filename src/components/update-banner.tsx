@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowUpCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { UpdateInfo } from "@/types";
 
 type Phase = "available" | "downloading" | "ready" | "failed";
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function UpdateBanner({ update, currentVersion, onDismiss }: Props) {
+  const t = useT();
   const [phase, setPhase] = useState<Phase>("available");
   const [error, setError] = useState("");
 
@@ -33,10 +35,10 @@ export function UpdateBanner({ update, currentVersion, onDismiss }: Props) {
       {phase === "available" && (
         <>
           <span className="font-medium">
-            New version {update.tag} is available (current v{currentVersion})
+            {t("banner.update.available", { tag: update.tag, version: currentVersion })}
           </span>
           <Button size="sm" variant="secondary" className="h-6 px-2 text-xs" onClick={start}>
-            Update & restart
+            {t("banner.update.action")}
           </Button>
           <Button
             size="sm"
@@ -44,32 +46,32 @@ export function UpdateBanner({ update, currentVersion, onDismiss }: Props) {
             className="h-6 px-2 text-xs hover:bg-white/10"
             onClick={onDismiss}
           >
-            Later
+            {t("common.later")}
           </Button>
         </>
       )}
       {phase === "downloading" && (
         <>
           <Loader2 className="size-4 animate-spin" />
-          <span>downloading {update.tag}…</span>
+          <span>{t("banner.update.downloading", { tag: update.tag })}</span>
         </>
       )}
       {phase === "ready" && (
         <>
-          <span className="font-medium">✓ Update installed</span>
+          <span className="font-medium">{t("banner.update.installed")}</span>
           <Button
             size="sm"
             variant="secondary"
             className="h-6 px-2 text-xs"
             onClick={() => api.restartApp()}
           >
-            Restart now
+            {t("banner.update.restartNow")}
           </Button>
         </>
       )}
       {phase === "failed" && (
         <>
-          <span className="truncate">update failed: {error}</span>
+          <span className="truncate">{t("banner.update.failed", { error })}</span>
           <Button size="icon" variant="ghost" className="size-6 hover:bg-white/10" onClick={onDismiss}>
             <X className="size-3.5" />
           </Button>

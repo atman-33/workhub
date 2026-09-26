@@ -14,6 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { diffLineClass } from "@/lib/diff-format";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { TemplateDiff, TemplateFileState } from "@/types";
 
@@ -25,11 +26,11 @@ interface Props {
   onApplied: () => void;
 }
 
-const STATE_LABEL: Record<TemplateFileState, string> = {
-  added: "added",
-  updatable: "update",
-  conflict: "conflict",
-  up_to_date: "up to date",
+const STATE_LABEL_KEY: Record<TemplateFileState, MessageKey> = {
+  added: "template.state.added",
+  updatable: "template.state.update",
+  conflict: "template.state.conflict",
+  up_to_date: "template.state.upToDate",
 };
 
 const STATE_VARIANT: Record<TemplateFileState, "secondary" | "outline" | "destructive"> = {
@@ -54,6 +55,7 @@ export function TemplateAutoAppliedBanner({
   paths: string[];
   onDismiss: () => void;
 }) {
+  const t = useT();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   return (
@@ -61,7 +63,9 @@ export function TemplateAutoAppliedBanner({
       <div className="flex h-7 items-center gap-3">
         <Check className="size-4 shrink-0" />
         <span>
-          Updated {paths.length} vault template file{paths.length === 1 ? "" : "s"}
+          {paths.length === 1
+            ? t("template.autoApplied.updatedOne")
+            : t("template.autoApplied.updatedOther", { count: paths.length })}
         </span>
         <Button
           size="sm"
@@ -69,10 +73,10 @@ export function TemplateAutoAppliedBanner({
           className="h-6 px-2 text-xs"
           onClick={() => setDetailsOpen((o) => !o)}
         >
-          {detailsOpen ? "Hide" : "Details"}
+          {detailsOpen ? t("template.autoApplied.hide") : t("template.autoApplied.details")}
         </Button>
         <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onDismiss}>
-          Dismiss
+          {t("common.dismiss")}
         </Button>
       </div>
       {detailsOpen && (
@@ -87,6 +91,7 @@ export function TemplateAutoAppliedBanner({
 }
 
 export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: Props) {
+  const t = useT();
   const pending = diff.files.filter((f) => isPending(f.state));
   const removed = diff.removed ?? [];
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -101,7 +106,9 @@ export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: 
       <div className="flex h-10 items-center gap-3 bg-primary px-4 text-[13px] text-primary-foreground">
         <FileDiff className="size-4 shrink-0" />
         <span className="font-medium">
-          Vault template has {findings} update{findings === 1 ? "" : "s"}
+          {findings === 1
+            ? t("template.update.findingsOne")
+            : t("template.update.findingsOther", { count: findings })}
         </span>
         <Button
           size="sm"
@@ -109,7 +116,7 @@ export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: 
           className="h-6 px-2 text-xs"
           onClick={() => setReviewOpen(true)}
         >
-          Review
+          {t("template.update.review")}
         </Button>
         <Button
           size="sm"
@@ -117,7 +124,7 @@ export function TemplateUpdateBanner({ diff, vaultPath, onDismiss, onApplied }: 
           className="h-6 px-2 text-xs hover:bg-white/10"
           onClick={onDismiss}
         >
-          Later
+          {t("common.later")}
         </Button>
       </div>
       <TemplateReviewDialog
@@ -146,6 +153,7 @@ interface ReviewProps {
 type Resolution = "keep" | "overwrite";
 
 function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: ReviewProps) {
+  const t = useT();
   const pending = diff.files.filter((f) => isPending(f.state));
   const removed = diff.removed ?? [];
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -272,10 +280,8 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex max-h-[80vh] flex-col gap-4 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Vault template updates</DialogTitle>
-          <DialogDescription>
-            Choose which files to update from the bundled vault template.
-          </DialogDescription>
+          <DialogTitle>{t("template.update.title")}</DialogTitle>
+          <DialogDescription>{t("template.update.description")}</DialogDescription>
         </DialogHeader>
         <div className="-mx-6 max-h-[50vh] space-y-2 overflow-y-auto px-6">
           {pending.map((f) => (
@@ -286,15 +292,13 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
                   onCheckedChange={(v) => toggle(f.path, v === true)}
                 />
                 <span className="flex-1 truncate font-mono text-xs">{f.path}</span>
-                <Badge variant={STATE_VARIANT[f.state]}>{STATE_LABEL[f.state]}</Badge>
+                <Badge variant={STATE_VARIANT[f.state]}>{t(STATE_LABEL_KEY[f.state])}</Badge>
               </label>
               {f.state === "conflict" && (
                 <div className="ml-6 space-y-1.5">
                   <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                     <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-                    You edited this file and the template also changed it. Choose how to
-                    resolve it — check the diff first if you are unsure what your copy
-                    contains.
+                    {t("template.update.conflictWarning")}
                   </p>
                   <ResolutionPicker
                     path={f.path}
@@ -309,13 +313,9 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
           {removed.length > 0 && (
             <div className="space-y-2 pt-1">
               <div className="space-y-1">
-                <p className="text-xs font-medium">No longer in the template</p>
+                <p className="text-xs font-medium">{t("template.update.removedTitle")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  The template stopped shipping these and your copies are still
-                  byte-identical to what it shipped, so removing them loses nothing you
-                  wrote. Anything you edited is not listed here and is never touched.
-                  Folders are left in place. To keep a file and stop being asked
-                  about it, press Keep beside it.
+                  {t("template.update.removedDescription")}
                 </p>
               </div>
               {removed.map((r) => (
@@ -329,7 +329,7 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
                       onCheckedChange={(v) => toggleRemove(r.path, v === true)}
                     />
                     <span className="flex-1 truncate font-mono text-xs">{r.path}</span>
-                    <Badge variant="outline">remove</Badge>
+                    <Badge variant="outline">{t("template.update.removeBadge")}</Badge>
                   </label>
                   <Button
                     size="sm"
@@ -338,7 +338,7 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
                     disabled={applying}
                     onClick={() => void retainOne(r.path)}
                   >
-                    Keep
+                    {t("template.update.keep")}
                   </Button>
                 </div>
               ))}
@@ -352,24 +352,24 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
             onClick={() => setConfirmAllOpen(true)}
             disabled={applying || pending.length + removed.length === 0}
           >
-            Update all to latest
+            {t("template.update.updateAll")}
           </Button>
           <Button variant="ghost" onClick={onClose} disabled={applying}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={() => void apply()}
             disabled={applying || selected.size + remove.size === 0}
           >
             {applying && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-            {applying ? "Updating…" : "Apply selected"}
+            {applying ? t("template.update.updating") : t("template.update.apply")}
           </Button>
         </DialogFooter>
         <ConfirmDialog
           open={confirmAllOpen}
-          title="Update all to latest?"
-          description="Conflicting files will be overwritten with the template (previous content is kept as .bak next to each file). Files that are no longer in the template will be deleted and cannot be restored. Press “Update all” to continue."
-          confirmLabel="Update all"
+          title={t("template.update.confirmTitle")}
+          description={t("template.update.confirmDescription")}
+          confirmLabel={t("template.update.confirmLabel")}
           destructive
           onConfirm={() => void updateAll()}
           onClose={() => setConfirmAllOpen(false)}
@@ -379,9 +379,9 @@ function TemplateReviewDialog({ open, diff, vaultPath, onClose, onApplied }: Rev
   );
 }
 
-const RESOLUTION_LABEL: Record<Resolution, string> = {
-  keep: "Keep mine",
-  overwrite: "Replace with template (backup .bak)",
+const RESOLUTION_LABEL_KEY: Record<Resolution, MessageKey> = {
+  keep: "template.update.resolutionKeep",
+  overwrite: "template.update.resolutionOverwrite",
 };
 
 /** Segmented two-button control choosing how one conflict is resolved. */
@@ -394,8 +394,13 @@ function ResolutionPicker({
   value: Resolution;
   onChange: (resolution: Resolution) => void;
 }) {
+  const t = useT();
   return (
-    <div className="flex gap-1" role="radiogroup" aria-label={`Resolution for ${path}`}>
+    <div
+      className="flex gap-1"
+      role="radiogroup"
+      aria-label={t("template.update.resolutionAria", { path })}
+    >
       {(["keep", "overwrite"] as const).map((r) => (
         <Button
           key={r}
@@ -409,7 +414,7 @@ function ResolutionPicker({
           )}
           onClick={() => onChange(r)}
         >
-          {RESOLUTION_LABEL[r]}
+          {t(RESOLUTION_LABEL_KEY[r])}
         </Button>
       ))}
     </div>
@@ -420,6 +425,7 @@ function ResolutionPicker({
  * unified diff for one path — the context a user needs before deciding to
  * discard their own edits. */
 function DiffPreview({ vaultPath, path }: { vaultPath: string; path: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [diff, setDiff] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -434,7 +440,7 @@ function DiffPreview({ vaultPath, path }: { vaultPath: string; path: string }) {
         if (!cancelled) setDiff(text);
       })
       .catch((e) => {
-        if (!cancelled) setDiff(`diff failed — ${e}`);
+        if (!cancelled) setDiff(t("template.update.diffFailed", { error: String(e) }));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -452,7 +458,7 @@ function DiffPreview({ vaultPath, path }: { vaultPath: string; path: string }) {
         className="h-6 px-2 text-[11px] text-muted-foreground"
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? "Hide diff" : "Show diff"}
+        {open ? t("template.update.hideDiff") : t("template.update.showDiff")}
       </Button>
       {open && (
         <div className="mt-1 max-h-56 overflow-auto rounded-md border bg-muted/30 p-2">

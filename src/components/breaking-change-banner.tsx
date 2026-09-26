@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { unmetRequirements } from "@/lib/notices";
 import type { Notice } from "@/types";
 
@@ -64,6 +65,7 @@ export function BreakingChangeBanner({
   onMarkRead,
   onDismiss,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -119,11 +121,11 @@ export function BreakingChangeBanner({
         <AlertTriangle className="size-4 shrink-0 text-red-600" />
         <span className="font-medium">{notice.title}</span>
         <span className="hidden truncate text-xs text-muted-foreground lg:inline">
-          {filed ? `Filed ${filed} — open it from the board` : notice.summary}
+          {filed ? t("banner.breaking.filedNotice", { id: filed }) : notice.summary}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button size="sm" className="h-6 px-2 text-xs" onClick={() => setOpen(true)}>
-            What changed
+            {t("banner.breaking.whatChanged")}
           </Button>
           <Button
             size="sm"
@@ -132,7 +134,7 @@ export function BreakingChangeBanner({
             disabled={busy}
             onClick={dismiss}
           >
-            {permanent ? "Dismiss" : "Later"}
+            {permanent ? t("common.dismiss") : t("common.later")}
           </Button>
         </span>
       </div>
@@ -141,7 +143,9 @@ export function BreakingChangeBanner({
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{notice.title}</DialogTitle>
-            <DialogDescription>Introduced in workhub {notice.since}</DialogDescription>
+            <DialogDescription>
+              {t("banner.breaking.introducedIn", { version: notice.since })}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="max-h-[50vh] overflow-y-auto pr-1 text-sm">
@@ -150,16 +154,13 @@ export function BreakingChangeBanner({
 
           {blocked && (
             <p className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-              The migration lives in a plugin this machine does not have yet:{" "}
-              <span className="font-medium">{blockers.join(", ")}</span>. Update it first —
-              filing the task now would point an agent at a skill that is not there.
+              {t("banner.breaking.blockedPlugin", { blockers: blockers.join(", ") })}
             </p>
           )}
 
           {filed && (
             <p className="rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs">
-              Filed <span className="font-medium">{filed}</span>. Launch it from the task board;
-              it asks for your approval before it moves anything.
+              {t("banner.breaking.filedDialog", { id: filed })}
             </p>
           )}
 
@@ -171,25 +172,25 @@ export function BreakingChangeBanner({
               size="sm"
               disabled={busy}
               onClick={markRead}
-              title="Stop showing this for this vault"
+              title={t("banner.breaking.stopShowing")}
             >
-              Mark as done
+              {t("banner.breaking.markAsDone")}
             </Button>
             <span className="flex items-center gap-2">
               <CopyPromptButton
                 showLabel
                 size="sm"
                 variant="outline"
-                label="Copy prompt"
+                label={t("banner.breaking.copyPrompt")}
                 disabled={blocked}
                 onCopy={() => writeText(notice.action.body)}
               />
               <Button size="sm" disabled={busy || blocked || Boolean(filed)} onClick={fileTask}>
-                {busy ? "Filing…" : "Create task"}
+                {busy ? t("banner.breaking.filing") : t("banner.breaking.createTask")}
               </Button>
               {blocked && (
                 <Button size="sm" variant="outline" onClick={onOpenPlugins}>
-                  Plugins
+                  {t("nav.plugins")}
                 </Button>
               )}
             </span>

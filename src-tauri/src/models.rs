@@ -324,7 +324,7 @@ pub struct Settings {
     /// which is what the tab shipped with.
     ///
     /// Vault-scoped: it says how these documents are read, not what this
-    /// machine is, the same reasoning as `schedule_locale`.
+    /// machine is, the same reasoning as `ui_locale`.
     #[serde(default)]
     pub docs_list_pane: bool,
     /// Whether the Docs tab loads images from `https:` URLs (T-0329). Off —
@@ -345,13 +345,16 @@ pub struct Settings {
     /// reasoning as `docs_list_pane`.
     #[serde(default)]
     pub docs_show_hidden: bool,
-    /// Display language for the schedule calendar — weekday and month labels
-    /// on screen *and* in the HTML export: "en" | "ja". Display only; a
-    /// schedule note never stores localized text, so this can never change a
-    /// file. The export follows it too because the exported file is a hand-out
-    /// for other people, not a dump of the authoring machine's locale.
-    #[serde(default = "default_schedule_locale")]
-    pub schedule_locale: String,
+    /// Display language of the app UI: "en" | "ja" (T-0409). Display only -
+    /// nothing written to a file is ever localized. The schedule calendar and
+    /// its HTML export follow it too; it replaces the schedule-only
+    /// `schedule_locale`, whose old key is still read via `serde(alias)` so
+    /// existing on-disk configs keep their choice.
+    ///
+    /// Vault-scoped: which language the owner reads the app in travels with
+    /// the vault, like the agents' reply `language`.
+    #[serde(alias = "schedule_locale", default = "default_ui_locale")]
+    pub ui_locale: String,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -482,7 +485,7 @@ fn default_claude_desktop_mode() -> String {
 fn default_schedule_assignee() -> String {
     "claude-code".into()
 }
-fn default_schedule_locale() -> String {
+fn default_ui_locale() -> String {
     "en".into()
 }
 fn default_meeting_struct_interval_secs() -> u64 {
@@ -547,7 +550,7 @@ impl Default for Settings {
             meeting_struct_model: String::new(),
             voice_meetings_dir: default_voice_meetings_dir(),
             schedule_export_dir: String::new(),
-            schedule_locale: default_schedule_locale(),
+            ui_locale: default_ui_locale(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
             notices_read: Vec::new(),

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 import type { Task } from "@/types";
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
  * made in the task editor.
  */
 export function BlockedDialog({ task, onSave, onClose }: Props) {
+  const t = useT();
   const [note, setNote] = useState("");
   const wasBlocked = task?.blocked ?? false;
 
@@ -46,11 +48,13 @@ export function BlockedDialog({ task, onSave, onClose }: Props) {
     <Dialog open={task !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{wasBlocked ? "Edit blocked reason" : "Mark as blocked"}</DialogTitle>
+          <DialogTitle>
+            {wasBlocked ? t("task.blockedDialog.editTitle") : t("task.blockedDialog.markTitle")}
+          </DialogTitle>
           <DialogDescription>
             {wasBlocked
-              ? "What is this task waiting on?"
-              : "What is this task waiting on? The wait is counted from today."}
+              ? t("task.blockedDialog.editDescription")
+              : t("task.blockedDialog.markDescription")}
           </DialogDescription>
         </DialogHeader>
         <Input
@@ -63,13 +67,15 @@ export function BlockedDialog({ task, onSave, onClose }: Props) {
               save();
             }
           }}
-          placeholder="e.g. vendor quote, review from Sato"
+          placeholder={t("task.blockedDialog.placeholder")}
         />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
-          <Button onClick={save}>{wasBlocked ? "Save" : "Mark as blocked"}</Button>
+          <Button onClick={save}>
+            {wasBlocked ? t("common.save") : t("task.blockedDialog.markTitle")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

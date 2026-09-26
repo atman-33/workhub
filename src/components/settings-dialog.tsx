@@ -26,6 +26,7 @@ import { DiagnosticLogPanel } from "@/components/diagnostic-log-panel";
 import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
+import { LOCALES, useT, type MessageKey } from "@/lib/i18n";
 import type { Settings, UpdateInfo } from "@/types";
 
 const TIDY_DEFAULTS: Settings["tidy"] = {
@@ -46,9 +47,9 @@ const LANGUAGES: { id: string; label: string }[] = [
 ];
 
 /** What "send to Claude Desktop" opens for a task. */
-const CLAUDE_DESKTOP_MODES: { id: string; label: string }[] = [
-  { id: "code", label: "Code session (vault as folder)" },
-  { id: "chat", label: "Chat (consultation only)" },
+const CLAUDE_DESKTOP_MODES: { id: string; labelKey: MessageKey }[] = [
+  { id: "code", labelKey: "settings.agents.claudeDesktop.modeCode" },
+  { id: "chat", labelKey: "settings.agents.claudeDesktop.modeChat" },
 ];
 
 const DEFAULTS: Settings = {
@@ -91,6 +92,7 @@ const DEFAULTS: Settings = {
   clips_gesture: "ctrl-double",
   clips_rect: null,
   language: "en",
+  ui_locale: "en",
   response_language_inject: true,
   custom_prompt: "",
   prompt_copy_multiline: true,
@@ -102,7 +104,6 @@ const DEFAULTS: Settings = {
   schedule_model: "",
   schedule_confirm: false,
   schedule_export_dir: "",
-  schedule_locale: "en",
   // Managed from the Mindmap tab itself, not from this dialog (T-0289).
   mindmap_assignee: "claude-code",
   mindmap_model: "",
@@ -135,6 +136,7 @@ interface Props {
 }
 
 export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState<Settings>(settings);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -212,22 +214,21 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent draggable className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>
-            The vault this app works in, how the app behaves, and how it launches AI agents.
-            Settings a single tab owns live in that tab.
-          </DialogDescription>
+          <DialogTitle>{t("settings.title")}</DialogTitle>
+          <DialogDescription>{t("settings.description")}</DialogDescription>
         </DialogHeader>
         {/* Above the tabs, not inside one: every feature in the app reads this
             one path, and a setting that important should not need a tab to be
             found (T-0300). */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Vault folder</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            {t("settings.vaultFolder.label")}
+          </label>
           <div className="flex gap-1.5">
             <Input
               value={draft.vault_path ?? ""}
               onChange={(e) => setDraft({ ...draft, vault_path: e.target.value || null })}
-              placeholder="C:/obsidian/workhub-vault"
+              placeholder={t("settings.vaultFolder.placeholder")}
               className="h-8 font-mono text-xs"
             />
             <Button
@@ -235,7 +236,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               size="icon-sm"
               variant="outline"
               onClick={async () => {
-                const picked = await pickFolders({ directory: true, title: "Choose vault folder" });
+                const picked = await pickFolders({
+                  directory: true,
+                  title: t("settings.vaultFolder.chooseDialogTitle"),
+                });
                 if (typeof picked === "string") {
                   setDraft({ ...draft, vault_path: picked.replaceAll("\\", "/") });
                 }
@@ -247,8 +251,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
         </div>
         <Tabs defaultValue="general" className="flex flex-col gap-3">
           <TabsList>
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="general">{t("settings.tab.general")}</TabsTrigger>
+            <TabsTrigger value="agents">{t("settings.tab.agents")}</TabsTrigger>
           </TabsList>
           {/* Fixed-height scroll area so the tab bar stays put when switching
               tabs, regardless of how much content each tab holds. The bottom
@@ -259,28 +263,50 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               {/* Every group on this tab is a titled bordered section, so no
                   checkbox sits loose next to a framed one. */}
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Startup</p>
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  {t("settings.general.language.title")}
+                  <VaultScopedBadge />
+                </p>
+                <Select
+                  value={draft.ui_locale}
+                  onValueChange={(v) => setDraft({ ...draft, ui_locale: v })}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCALES.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.general.language.description")}
+                </p>
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">{t("settings.general.startup.title")}</p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.autostart}
                     onCheckedChange={(v) => setDraft({ ...draft, autostart: v === true })}
                   />
-                  Start workhub when I sign in to Windows
+                  {t("settings.general.startup.autostart")}
                 </label>
                 <p className="pl-6 text-xs text-muted-foreground">
-                  Starts minimized, so global hotkeys, the vault watcher and the tidy
-                  routine are running without a window in your way. Open it from the
-                  taskbar when you need it.
+                  {t("settings.general.startup.autostartDescription")}
                 </p>
               </div>
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Startup checks</p>
+                <p className="text-sm font-medium">{t("settings.general.startupChecks.title")}</p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.check_updates}
                     onCheckedChange={(v) => setDraft({ ...draft, check_updates: v === true })}
                   />
-                  Check for app updates
+                  {t("settings.general.startupChecks.checkUpdates")}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -289,7 +315,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       setDraft({ ...draft, check_template_updates: v === true })
                     }
                   />
-                  Check for vault template updates
+                  {t("settings.general.startupChecks.checkTemplate")}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -299,18 +325,18 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       setDraft({ ...draft, auto_apply_template_updates: v === true })
                     }
                   />
-                  Apply safe template updates without asking
+                  {t("settings.general.startupChecks.autoApply")}
                 </label>
                 <p className="pl-6 text-xs text-muted-foreground">
-                  New files and files you have not edited are updated silently. Files you
-                  edited yourself still ask before anything is changed.
+                  {t("settings.general.startupChecks.autoApplyDescription")}
                 </p>
               </div>
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Features</p>
+                <p className="text-sm font-medium">{t("settings.general.features.title")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Screen annotation (double-press and hold Alt to draw) is configured in the
-                  <span className="font-medium"> Ink</span> tab, next to the captures it saves.
+                  {t("settings.general.features.inkNotePrefix")}
+                  <span className="font-medium"> {t("nav.ink")} </span>
+                  {t("settings.general.features.inkNoteSuffix")}
                 </p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -319,12 +345,12 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       setDraft({ ...draft, quick_capture_enabled: v === true })
                     }
                   />
-                  Quick capture (hotkey turns the clipboard into an inbox task)
+                  {t("settings.general.features.quickCapture")}
                 </label>
                 {draft.quick_capture_enabled && (
                   <div className="space-y-1.5 pt-1">
                     <label className="text-xs font-medium text-muted-foreground">
-                      Quick capture hotkey
+                      {t("settings.general.features.quickCaptureHotkeyLabel")}
                     </label>
                     <Input
                       value={draft.quick_capture_shortcut}
@@ -342,8 +368,10 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium">App update</p>
-                    <p className="text-xs text-muted-foreground">Current version: v{version}</p>
+                    <p className="text-sm font-medium">{t("settings.general.appUpdate.title")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.general.appUpdate.currentVersion", { version })}
+                    </p>
                   </div>
                   <Button
                     type="button"
@@ -353,14 +381,16 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     disabled={phase === "checking" || phase === "downloading"}
                   >
                     {phase === "checking" && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-                    {phase === "checking" ? "Checking…" : "Check for updates"}
+                    {phase === "checking"
+                      ? t("settings.general.appUpdate.checking")
+                      : t("settings.general.appUpdate.check")}
                   </Button>
                 </div>
                 {phase === "ready" && (
                   <div className="flex items-center justify-between gap-3 rounded-md bg-muted p-2">
                     <span className="flex items-center gap-1.5 text-xs">
                       <Check className="size-3.5 text-green-500" />
-                      Update installed
+                      {t("settings.general.appUpdate.installed")}
                     </span>
                     <Button
                       type="button"
@@ -368,14 +398,14 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       variant="secondary"
                       onClick={() => api.restartApp()}
                     >
-                      Restart now
+                      {t("banner.update.restartNow")}
                     </Button>
                   </div>
                 )}
                 {update && phase !== "ready" && (
                   <div className="flex items-center justify-between gap-3 rounded-md bg-muted p-2">
                     <span className="text-xs">
-                      New version <span className="font-medium">{update.tag}</span> is available
+                      {t("settings.general.appUpdate.newVersion", { tag: update.tag })}
                     </span>
                     <Button
                       type="button"
@@ -386,46 +416,46 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                       {phase === "downloading" && (
                         <Loader2 className="mr-1.5 size-3.5 animate-spin" />
                       )}
-                      {phase === "downloading" ? "Downloading…" : "Download & install"}
+                      {phase === "downloading"
+                        ? t("settings.general.appUpdate.downloading")
+                        : t("settings.general.appUpdate.downloadInstall")}
                     </Button>
                   </div>
                 )}
                 {phase === "uptodate" && (
-                  <p className="text-xs text-muted-foreground">You are up to date.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("settings.general.appUpdate.upToDate")}
+                  </p>
                 )}
                 {phase === "failed" && (
-                  <p className="text-xs text-destructive">Update failed: {error}</p>
+                  <p className="text-xs text-destructive">
+                    {t("settings.general.appUpdate.failed", { error })}
+                  </p>
                 )}
               </div>
             </TabsContent>
             <TabsContent value="agents" className="mt-0 space-y-3">
               <p className="text-xs text-muted-foreground">
-                How workhub launches an agent for a task, and what it hands one. Command
-                templates take <code className="text-xs">{"{path}"}</code> in place of the
-                project path. The commands that open a repository in VS Code or a terminal
-                belong to the Repos tab and are set there.
+                {t("settings.agents.introPrefix")} <code className="text-xs">{"{path}"}</code>{" "}
+                {t("settings.agents.introSuffix")}
               </p>
-              {field("Claude Code command", "agent_cmd")}
-              {field("OpenCode command", "opencode_cmd")}
+              {field(t("settings.agents.claudeCodeCommand"), "agent_cmd")}
+              {field(t("settings.agents.opencodeCommand"), "opencode_cmd")}
               <label className="flex items-center gap-2 pt-1 text-sm">
                 <Checkbox
                   checked={draft.use_herdr}
                   onCheckedChange={(v) => setDraft({ ...draft, use_herdr: v === true })}
                 />
-                Open AI tasks in a fresh herdr workspace
+                {t("settings.agents.herdrCheckbox")}
               </label>
-              {draft.use_herdr && field("herdr command", "herdr_cmd")}
-              {field("Worktree root", "worktree_root")}
+              {draft.use_herdr && field(t("settings.agents.herdrCommand"), "herdr_cmd")}
+              {field(t("settings.agents.worktreeRoot"), "worktree_root")}
               <div className="space-y-1.5 pt-1">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Send to Claude Desktop
+                  {t("settings.agents.claudeDesktop.label")}
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
-                  What the Claude Desktop button on a task opens. A code session runs in the
-                  vault and carries the same prompt a terminal launch does, so skills like
-                  task-start and task-report work. A chat has no skills or vault access and
-                  receives the task's Description instead — for consulting, not for working the
-                  task. Claude Desktop asks you to confirm the folder the first time.
+                  {t("settings.agents.claudeDesktop.description")}
                 </p>
                 <Select
                   value={draft.claude_desktop_mode}
@@ -437,7 +467,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                   <SelectContent>
                     {CLAUDE_DESKTOP_MODES.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.label}
+                        {t(m.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -445,13 +475,11 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Language
+                  {t("settings.agents.language.label")}
                   <VaultScopedBadge />
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
-                  Language AI agents reply to you in, and write a task's Plan and Results and the
-                  tasks an automatic vault tidy creates in. Never affects code, comments, or
-                  commit messages.
+                  {t("settings.agents.language.description")}
                 </p>
                 <Select
                   value={draft.language}
@@ -471,14 +499,12 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Remind the agent every turn
+                  {t("settings.agents.remindEveryTurn.label")}
                   <VaultScopedBadge />
                 </label>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[10px] leading-tight text-muted-foreground/70">
-                    Injects a one-line reminder of the Language setting into every prompt, in both
-                    Claude Code and OpenCode — static instructions alone were not enough to stop a
-                    session drifting into English mid-way.
+                    {t("settings.agents.remindEveryTurn.description")}
                   </p>
                   <Switch
                     checked={draft.response_language_inject}
@@ -488,30 +514,27 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Custom prompt
+                  {t("settings.agents.customPrompt.label")}
                   <VaultScopedBadge />
                 </label>
                 <p className="text-[10px] leading-tight text-muted-foreground/70">
-                  Appended to the end of every task prompt, both when launching an agent and when
-                  copying the prompt. Line breaks are collapsed into spaces unless the copy below
-                  keeps them.
+                  {t("settings.agents.customPrompt.description")}
                 </p>
                 <Textarea
                   value={draft.custom_prompt}
                   onChange={(e) => setDraft({ ...draft, custom_prompt: e.target.value })}
-                  placeholder="e.g. Respond to me in Japanese."
+                  placeholder={t("settings.agents.customPrompt.placeholder")}
                   className="min-h-20 text-xs"
                 />
               </div>
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  Line breaks in copied prompt
+                  {t("settings.agents.lineBreaks.label")}
                   <VaultScopedBadge />
                 </label>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[10px] leading-tight text-muted-foreground/70">
-                    Copy prompt puts each instruction on its own line. Off copies it as one line.
-                    Launching an agent always uses one line — a command line cannot carry a break.
+                    {t("settings.agents.lineBreaks.description")}
                   </p>
                   <Switch
                     checked={draft.prompt_copy_multiline}
@@ -520,20 +543,20 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 </div>
               </div>
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Long-term memory</p>
+                <p className="text-sm font-medium">{t("settings.agents.memory.title")}</p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.memory_claude_code}
                     onCheckedChange={(v) => setDraft({ ...draft, memory_claude_code: v === true })}
                   />
-                  Enabled in Claude Code sessions
+                  {t("settings.agents.memory.claudeCode")}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.memory_opencode}
                     onCheckedChange={(v) => setDraft({ ...draft, memory_opencode: v === true })}
                   />
-                  Enabled in OpenCode sessions
+                  {t("settings.agents.memory.opencode")}
                 </label>
                 {/* Grouped with the two switches above rather than with the
                     other startup checks: it is about long-term memory, and a
@@ -543,44 +566,43 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                     checked={draft.check_memory_setup}
                     onCheckedChange={(v) => setDraft({ ...draft, check_memory_setup: v === true })}
                   />
-                  Notify at startup when it is not set up on this machine
+                  {t("settings.agents.memory.notifyStartup")}
                 </label>
               </div>
               <div className="space-y-2 rounded-md border p-3">
-                <p className="text-sm font-medium">Secretary agent</p>
+                <p className="text-sm font-medium">{t("settings.agents.secretary.title")}</p>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={draft.secretary_enabled}
                     onCheckedChange={(v) => setDraft({ ...draft, secretary_enabled: v === true })}
                   />
-                  Consult the secretary before asking me
+                  {t("settings.agents.secretary.checkbox")}
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  Agents check your decision policy (
-                  <code>memory/identity/decision-policy.md</code>) through a secretary subagent
-                  and file what it cannot decide into <code>_ai/comms/</code> instead of
-                  interrupting you. Consulting costs tokens, so this is off by default; turn it on
-                  to enable it in both Claude Code and OpenCode sessions. With it off, agents
-                  still read the policy and still bring you a recommended answer — they just
-                  ask you directly.
+                  {t("settings.agents.secretary.descriptionPrefix")}
+                  <code>memory/identity/decision-policy.md</code>
+                  {t("settings.agents.secretary.descriptionMid")}{" "}
+                  <code>_ai/comms/</code> {t("settings.agents.secretary.descriptionSuffix")}
                 </p>
               </div>
             </TabsContent>
           </div>
         </Tabs>
         {saveError && (
-          <p className="text-xs text-destructive">Save failed: {saveError}</p>
+          <p className="text-xs text-destructive">
+            {t("settings.footer.saveFailed", { error: saveError })}
+          </p>
         )}
         <DialogFooter>
           {/* Recurring rules are content the user authored (edited from the
               Tasks tab, not here), not a knob with a sensible default — a reset
               of the command templates must not delete them. */}
           <Button variant="ghost" onClick={() => setDraft({ ...DEFAULTS, recurring: draft.recurring })}>
-            Reset to defaults
+            {t("settings.footer.resetToDefaults")}
           </Button>
           <Button onClick={() => void save()} disabled={saving}>
             {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("settings.footer.saving") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

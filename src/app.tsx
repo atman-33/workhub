@@ -72,6 +72,7 @@ import {
 } from "@/lib/app-zoom";
 import { installedVersions, workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
+import { applyLocale, useT, type MessageKey } from "@/lib/i18n";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Notice, Settings, TemplateDiff, UpdateInfo } from "@/types";
@@ -115,22 +116,22 @@ type Tab =
 // `persona` is always shown. When the plugin ships no characters the tab
 // explains what is missing and hands over the prompt that installs it — a tab
 // that vanishes teaches the owner nothing about why (T-0215).
-const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
-  { key: "tasks", label: "Tasks", icon: ListTodo },
-  { key: "projects", label: "Projects", icon: FolderKanban },
-  { key: "repos", label: "Repos", icon: GitBranch },
-  { key: "schedule", label: "Schedule", icon: CalendarRange },
-  { key: "mindmap", label: "Mindmap", icon: Network },
-  { key: "docs", label: "Docs", icon: BookOpen },
-  { key: "inbox", label: "Inbox", icon: Inbox },
-  { key: "music", label: "Music", icon: Music },
-  { key: "timer", label: "Timer", icon: Timer },
-  { key: "voice", label: "Voice", icon: Mic },
-  { key: "clips", label: "Clips", icon: ClipboardList },
-  { key: "ink", label: "Ink", icon: Pencil },
-  { key: "persona", label: "Persona", icon: Drama },
-  { key: "plugins", label: "Plugins", icon: Puzzle },
-  { key: "help", label: "Help", icon: CircleHelp },
+const TABS: { key: Tab; labelKey: MessageKey; icon: typeof ListTodo }[] = [
+  { key: "tasks", labelKey: "nav.tasks", icon: ListTodo },
+  { key: "projects", labelKey: "nav.projects", icon: FolderKanban },
+  { key: "repos", labelKey: "nav.repos", icon: GitBranch },
+  { key: "schedule", labelKey: "nav.schedule", icon: CalendarRange },
+  { key: "mindmap", labelKey: "nav.mindmap", icon: Network },
+  { key: "docs", labelKey: "nav.docs", icon: BookOpen },
+  { key: "inbox", labelKey: "nav.inbox", icon: Inbox },
+  { key: "music", labelKey: "nav.music", icon: Music },
+  { key: "timer", labelKey: "nav.timer", icon: Timer },
+  { key: "voice", labelKey: "nav.voice", icon: Mic },
+  { key: "clips", labelKey: "nav.clips", icon: ClipboardList },
+  { key: "ink", labelKey: "nav.ink", icon: Pencil },
+  { key: "persona", labelKey: "nav.persona", icon: Drama },
+  { key: "plugins", labelKey: "nav.plugins", icon: Puzzle },
+  { key: "help", labelKey: "nav.help", icon: CircleHelp },
 ];
 
 /**
@@ -141,6 +142,7 @@ const TABS: { key: Tab; label: string; icon: typeof ListTodo }[] = [
  * Shortcuts: Ctrl+= / Ctrl+- / Ctrl+0, the way a browser does it.
  */
 function ZoomControl() {
+  const t = useT();
   const [zoom, setZoomState] = useState(() => {
     try {
       return parseAppZoom(localStorage.getItem(APP_ZOOM_KEY));
@@ -185,7 +187,7 @@ function ZoomControl() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`App zoom ${percent} percent, open zoom controls`}
+          aria-label={t("nav.zoomAria", { percent })}
           className="hidden rounded px-1.5 py-1 text-[11px] tabular-nums text-muted-foreground hover:text-foreground md:inline"
         >
           {percent}%
@@ -196,7 +198,7 @@ function ZoomControl() {
           <Button
             size="icon-xs"
             variant="ghost"
-            aria-label="Zoom out"
+            aria-label={t("nav.zoomOut")}
             disabled={zoom <= APP_ZOOM.min}
             onClick={() => apply(zoom - APP_ZOOM.step)}
           >
@@ -210,12 +212,12 @@ function ZoomControl() {
             value={percent}
             onChange={(e) => apply(Number(e.target.value) / 100)}
             className="min-w-0 flex-1 accent-primary"
-            aria-label="App zoom"
+            aria-label={t("nav.zoomSliderAria")}
           />
           <Button
             size="icon-xs"
             variant="ghost"
-            aria-label="Zoom in"
+            aria-label={t("nav.zoomIn")}
             disabled={zoom >= APP_ZOOM.max}
             onClick={() => apply(zoom + APP_ZOOM.step)}
           >
@@ -226,7 +228,7 @@ function ZoomControl() {
           <span className="text-xs tabular-nums text-muted-foreground">{percent}%</span>
           <Button size="xs" variant="ghost" onClick={() => apply(APP_ZOOM.initial)}>
             <RotateCcw />
-            Reset
+            {t("nav.zoomReset")}
           </Button>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">Ctrl+= / Ctrl+- / Ctrl+0</p>
@@ -236,9 +238,16 @@ function ZoomControl() {
 }
 
 export default function App() {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("tasks");
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // Every path that changes `settings` (startup, the dialog, a vault switch)
+  // lands here, so the UI language follows without each one remembering to.
+  const uiLocale = settings?.ui_locale;
+  useEffect(() => {
+    if (uiLocale !== undefined) applyLocale(uiLocale);
+  }, [uiLocale]);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [templateDiff, setTemplateDiff] = useState<TemplateDiff | null>(null);
@@ -512,8 +521,8 @@ export default function App() {
               e.currentTarget.scrollLeft += e.deltaY;
             }}
           >
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <Hint key={key} label={label}>
+            {TABS.map(({ key, labelKey, icon: Icon }) => (
+              <Hint key={key} label={t(labelKey)}>
                 <button
                   ref={(el) => {
                     if (tab === key) activeTabRef.current = el;
@@ -530,7 +539,7 @@ export default function App() {
                 >
                   <Icon className="size-3.5" />
                   <span className={cn(tab === key ? "inline" : "hidden xl:inline")}>
-                    {label}
+                    {t(labelKey)}
                   </span>
                 </button>
               </Hint>
@@ -542,21 +551,21 @@ export default function App() {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  aria-label="More tabs"
+                  aria-label={t("nav.moreTabs")}
                   className="shrink-0 text-muted-foreground"
                 >
                   <ChevronsRight className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>More tabs</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("nav.moreTabs")}</DropdownMenuLabel>
                 {overflowTabs.map((key) => {
-                  const entry = TABS.find((t) => t.key === key)!;
+                  const entry = TABS.find((tb) => tb.key === key)!;
                   const Icon = entry.icon;
                   return (
                     <DropdownMenuItem key={key} onClick={() => setTab(key)}>
                       <Icon className="size-4" />
-                      {entry.label}
+                      {t(entry.labelKey)}
                     </DropdownMenuItem>
                   );
                 })}
@@ -582,6 +591,7 @@ export default function App() {
               size="icon"
               variant="ghost"
               className="size-7"
+              aria-label={t("nav.settingsAria")}
               onClick={() => void openSettings()}
             >
               <SettingsIcon className="size-4" />

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Hint } from "@/components/ui/hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 
 /**
  * The Tasks tab's terminal setting (T-0300).
@@ -25,11 +26,12 @@ interface Props {
 }
 
 export function TerminalSettings({ embed, onEmbedChange }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Hint label="Terminal settings">
+      <Hint label={t("task.terminal.settingsHint")}>
         <PopoverTrigger asChild>
           <Button size="icon-sm" variant="ghost" className="h-8">
             <Settings2 className="size-3.5" />
@@ -39,11 +41,10 @@ export function TerminalSettings({ embed, onEmbedChange }: Props) {
       <PopoverContent className="w-72 space-y-2 p-3 text-xs" align="end">
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={embed} onCheckedChange={(v) => onEmbedChange(v === true)} />
-          Embed terminal
+          {t("task.terminal.embedLabel")}
         </label>
         <p className="pl-6 text-[11px] text-muted-foreground">
-          Show herdr inside the app instead of launching an external window. Off hides the
-          Terminal toggle beside this button.
+          {t("task.terminal.embedDescription")}
         </p>
       </PopoverContent>
     </Popover>
