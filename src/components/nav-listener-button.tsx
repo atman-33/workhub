@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, Keyboard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { useRestartInputListener } from "@/lib/use-restart-input-listener";
 
 /** The Input listener panel's restart, one click away in the nav bar (T-0280):
@@ -10,13 +11,14 @@ import { useRestartInputListener } from "@/lib/use-restart-input-listener";
  * shell can be stale, and a button that hides on a stale flag is worse than
  * one that is always there. Diagnostics stay in Settings → General. */
 export function NavListenerButton() {
+  const t = useT();
   const { restart, restarting, restarted, error } = useRestartInputListener();
 
   const label = error
-    ? `Restart failed: ${error}`
+    ? t("misc.navListenerButton.restartFailed", { error })
     : restarted
-      ? "Input listener restarted"
-      : "Restart input listener\nUse when the double-press Alt annotation or the clips popup stops responding";
+      ? t("misc.navListenerButton.restarted")
+      : t("misc.navListenerButton.hint");
 
   return (
     <Hint label={label} disabled={restarting}>
@@ -24,7 +26,7 @@ export function NavListenerButton() {
         size="icon"
         variant="ghost"
         className="size-7"
-        aria-label="Restart input listener"
+        aria-label={t("misc.navListenerButton.ariaLabel")}
         onClick={() => void restart()}
         disabled={restarting}
       >

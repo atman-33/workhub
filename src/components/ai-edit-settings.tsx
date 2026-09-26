@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
+import { useT } from "@/lib/i18n";
 
 /**
  * Which agent runs a natural-language edit, on which model, and whether the
@@ -44,19 +45,22 @@ export function AiEditSettings({
   onModelChange,
   onConfirmChange,
 }: Props) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <div>
         <p className="flex items-center gap-2 text-sm font-medium">
-          Edit with AI
+          {t("misc.aiEditSettings.title")}
           <VaultScopedBadge />
         </p>
         <p className="text-xs text-muted-foreground">
-          Agent used when you edit this {subject} with a natural-language instruction.
+          {t("misc.aiEditSettings.description", { subject })}
         </p>
       </div>
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Agent</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          {t("misc.aiEditSettings.agent")}
+        </label>
         <Select value={assignee} onValueChange={onAssigneeChange} disabled={disabled}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -68,7 +72,9 @@ export function AiEditSettings({
         </Select>
       </div>
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Model</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          {t("misc.aiEditSettings.model")}
+        </label>
         <ModelCombobox
           assignee={assignee}
           value={model}
@@ -79,7 +85,7 @@ export function AiEditSettings({
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Show what would change and wait for approval instead of applying immediately.
+          {t("misc.aiEditSettings.confirmDescription")}
         </p>
         <Switch checked={confirm} onCheckedChange={onConfirmChange} disabled={disabled} />
       </div>

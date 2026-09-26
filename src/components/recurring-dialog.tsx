@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/i18n";
 import type { RecurringRule } from "@/types";
 
 interface Props {
@@ -44,6 +45,7 @@ export function RecurringDialog({
   knownProjects,
   projectFolders,
 }: Props) {
+  const t = useT();
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,12 +61,12 @@ export function RecurringDialog({
         const cfg = await api.getConfig();
         setRules(cfg.settings.recurring ?? []);
       } catch (e) {
-        setMessage(`Could not load the rules — ${e}`);
+        setMessage(t("misc.recurringDialog.loadError", { error: String(e) }));
       } finally {
         setLoading(false);
       }
     })();
-  }, [open]);
+  }, [open, t]);
 
   /** Writes the draft rules, leaving the rest of the config as found on disk. */
   const persist = async (next: RecurringRule[]) => {
@@ -80,7 +82,7 @@ export function RecurringDialog({
       await persist(rules);
       onClose();
     } catch (e) {
-      setMessage(`Save failed — ${e}`);
+      setMessage(t("misc.recurringDialog.saveError", { error: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -101,11 +103,13 @@ export function RecurringDialog({
       const cfg = await api.getConfig();
       setRules(cfg.settings.recurring ?? []);
       const parts: string[] = [];
-      if (result.created.length) parts.push(`created ${result.created.length}`);
-      if (result.skipped.length) parts.push(`skipped ${result.skipped.length} (still open)`);
-      setMessage(parts.length ? parts.join(", ") : "Nothing due right now.");
+      if (result.created.length)
+        parts.push(t("misc.recurringDialog.createdCount", { count: result.created.length }));
+      if (result.skipped.length)
+        parts.push(t("misc.recurringDialog.skippedCount", { count: result.skipped.length }));
+      setMessage(parts.length ? parts.join(", ") : t("misc.recurringDialog.nothingDue"));
     } catch (e) {
-      setMessage(`Run failed — ${e}`);
+      setMessage(t("misc.recurringDialog.runError", { error: String(e) }));
     } finally {
       setRunning(false);
     }
@@ -116,16 +120,16 @@ export function RecurringDialog({
       <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Recurring tasks
+            {t("misc.recurringDialog.title")}
             <VaultScopedBadge />
           </DialogTitle>
-          <DialogDescription>
-            Rules that put a task on the board on their own schedule.
-          </DialogDescription>
+          <DialogDescription>{t("misc.recurringDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="-mx-6 h-[min(70vh,560px)] overflow-y-auto px-6 pb-4">
           {loading ? (
-            <p className="py-6 text-center text-xs text-muted-foreground">Loading…</p>
+            <p className="py-6 text-center text-xs text-muted-foreground">
+              {t("common.loading")}
+            </p>
           ) : (
             <RecurringSettings
               rules={rules}
@@ -139,7 +143,7 @@ export function RecurringDialog({
         {message && <p className="text-xs text-muted-foreground">{message}</p>}
         <DialogFooter className="sm:justify-between">
           <Hint
-            label="Save the rules, then create whatever is due right now"
+            label={t("misc.recurringDialog.runNowHint")}
             disabled={running || saving || rules.length === 0}
           >
             <Button
@@ -153,16 +157,16 @@ export function RecurringDialog({
               ) : (
                 <Play className="mr-1.5 size-3.5" />
               )}
-              Run now
+              {t("misc.recurringDialog.runNow")}
             </Button>
           </Hint>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button disabled={saving || loading} onClick={() => void save()}>
               {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              {saving ? "Saving…" : "Save"}
+              {saving ? t("misc.recurringDialog.saving") : t("common.save")}
             </Button>
           </div>
         </DialogFooter>

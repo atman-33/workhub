@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import type { DiagEntry, DiagLogInfo } from "@/types";
 
 /** A packaged build has no console (`windows_subsystem = "windows"`), so
@@ -22,6 +23,7 @@ function sizeLabel(bytes: number): string {
 }
 
 export function DiagnosticLogPanel() {
+  const t = useT();
   const [entries, setEntries] = useState<DiagEntry[]>([]);
   const [info, setInfo] = useState<DiagLogInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,11 +72,11 @@ export function DiagnosticLogPanel() {
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">Diagnostic log</p>
+        <p className="text-sm font-medium">{t("misc.diagnosticLog.title")}</p>
         <div className="flex items-center gap-1.5">
           <Button size="sm" variant="outline" onClick={() => void refresh()}>
             <RotateCcw className="mr-1 size-3.5" />
-            Refresh
+            {t("common.refresh")}
           </Button>
           <Button
             size="sm"
@@ -87,7 +89,7 @@ export function DiagnosticLogPanel() {
             ) : (
               <Copy className="mr-1 size-3.5" />
             )}
-            Copy
+            {t("common.copy")}
           </Button>
           <Button
             size="sm"
@@ -96,22 +98,17 @@ export function DiagnosticLogPanel() {
             disabled={!info}
           >
             <FolderOpen className="mr-1 size-3.5" />
-            Open folder
+            {t("misc.diagnosticLog.openFolder")}
           </Button>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        What the app recorded while it ran. The packaged build has no console
-        window, so this — and the log file behind it — is where a problem you
-        want to report leaves a trace. It holds what the app did (errors,
-        timings, window placement), never what you typed, dictated, or copied.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("misc.diagnosticLog.description")}</p>
       <div
         ref={listRef}
         className="max-h-56 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px] leading-relaxed"
       >
         {entries.length === 0 ? (
-          <p className="text-muted-foreground">Nothing recorded yet.</p>
+          <p className="text-muted-foreground">{t("misc.diagnosticLog.empty")}</p>
         ) : (
           entries.map((e, i) => (
             <div key={`${e.time}-${i}`} className="whitespace-pre-wrap break-all">
@@ -128,7 +125,7 @@ export function DiagnosticLogPanel() {
         </Hint>
         <label className="flex shrink-0 items-center gap-1.5">
           <Checkbox checked={live} onCheckedChange={(v) => setLive(v === true)} />
-          Auto-refresh
+          {t("misc.diagnosticLog.autoRefresh")}
         </label>
       </div>
       {error && (

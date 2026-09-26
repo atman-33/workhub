@@ -16,6 +16,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 
 interface ComboboxProps {
   value: string;
@@ -81,21 +82,25 @@ export function Combobox({
   value,
   onChange,
   options,
-  placeholder = "Select…",
+  placeholder,
   allowCustom = false,
-  emptyText = "No results.",
+  emptyText,
   disabled = false,
   className,
   modal = false,
   leadingOptions = [],
-  leadingHeading = "Recent",
+  leadingHeading,
   noneLabel,
   mainHeading,
   loading = false,
   optionDetails,
 }: ComboboxProps) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const resolvedPlaceholder = placeholder ?? t("misc.combobox.selectPlaceholder");
+  const resolvedEmptyText = emptyText ?? t("misc.combobox.noResults");
+  const resolvedLeadingHeading = leadingHeading ?? t("misc.combobox.recent");
 
   const commit = (next: string) => {
     onChange(next);
@@ -158,7 +163,7 @@ export function Combobox({
             className,
           )}
         >
-          <span className="truncate">{value || placeholder}</span>
+          <span className="truncate">{value || resolvedPlaceholder}</span>
           <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -169,7 +174,7 @@ export function Combobox({
           }
         >
           <CommandInput
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             className="h-8 text-xs"
             value={query}
             onValueChange={setQuery}
@@ -181,7 +186,7 @@ export function Combobox({
                   {loading && (
                     <Loader2 className="size-3.5 animate-spin opacity-70" />
                   )}
-                  {loading ? "Loading…" : emptyText}
+                  {loading ? t("misc.combobox.loading") : resolvedEmptyText}
                 </span>
               </CommandEmpty>
             )}
@@ -194,7 +199,7 @@ export function Combobox({
               </CommandItem>
             )}
             {leadingOptions.length > 0 && (
-              <CommandGroup heading={leadingHeading}>
+              <CommandGroup heading={resolvedLeadingHeading}>
                 {leadingOptions.map((option) => (
                   <CommandItem
                     key={option}
@@ -231,7 +236,7 @@ export function Combobox({
               {showCustom && (
                 <CommandItem value={trimmed} onSelect={() => commit(trimmed)}>
                   <CheckIcon className="size-3.5 opacity-0" />
-                  Use “{trimmed}”
+                  {t("misc.combobox.useCustom", { value: trimmed })}
                 </CommandItem>
               )}
             </CommandGroup>

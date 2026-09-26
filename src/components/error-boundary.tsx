@@ -3,6 +3,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { CircleAlert, Copy, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 
 /**
  * Catches a render-time exception and shows it, instead of letting React
@@ -81,13 +82,9 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-6">
         <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
           <CircleAlert className="size-4 shrink-0" />
-          The {this.props.label} view stopped with an error.
+          {t("misc.errorBoundary.title", { label: this.props.label })}
         </div>
-        <p className="text-xs text-muted-foreground">
-          The rest of the app is still running. This was written to the
-          diagnostic log (Settings → Diagnostics), so it is still readable
-          after a restart.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("misc.errorBoundary.description")}</p>
         <p className="font-mono text-xs text-destructive">
           {error.message || String(error)}
         </p>
@@ -99,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="h-7 gap-1.5" onClick={this.retry}>
             <RotateCcw className="size-3.5" />
-            Try again
+            {t("misc.errorBoundary.tryAgain")}
           </Button>
           <Button
             size="sm"
@@ -108,7 +105,7 @@ export class ErrorBoundary extends Component<Props, State> {
             onClick={() => void writeText(this.report())}
           >
             <Copy className="size-3.5" />
-            Copy details
+            {t("misc.errorBoundary.copyDetails")}
           </Button>
         </div>
       </div>

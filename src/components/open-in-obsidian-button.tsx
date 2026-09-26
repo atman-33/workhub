@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Gem } from "lucide-react";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 
@@ -25,6 +26,7 @@ export function OpenInObsidianButton({
   className,
   disabled,
 }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -52,7 +54,7 @@ export function OpenInObsidianButton({
       size={size}
       variant={variant}
       disabled={disabled || busy}
-      aria-label="Edit in Obsidian"
+      aria-label={t("misc.openInObsidianButton.label")}
       aria-busy={busy}
       className={cn(busy && "opacity-100 disabled:opacity-100", className)}
       onClick={(e) => {
@@ -67,7 +69,7 @@ export function OpenInObsidianButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>Edit in Obsidian</TooltipContent>
+      <TooltipContent>{t("misc.openInObsidianButton.label")}</TooltipContent>
     </Tooltip>
   );
 }

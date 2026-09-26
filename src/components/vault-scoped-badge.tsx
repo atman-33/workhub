@@ -1,6 +1,7 @@
 import { FolderGit2 } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/lib/i18n";
 
 /**
  * Marks a setting that is stored in the vault (`<vault>/.workhub/settings.json`)
@@ -9,18 +10,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * other PC and the other does not.
  */
 export function VaultScopedBadge() {
+  const t = useT();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           <FolderGit2 className="size-3" />
-          Vault
+          {t("misc.vaultScopedBadge.label")}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
-        Stored in the vault (.workhub/settings.json), so it follows the vault to your other
-        machines. Machine-specific settings stay in ~/.workhub/config.json.
-      </TooltipContent>
+      <TooltipContent>{t("misc.vaultScopedBadge.tooltip")}</TooltipContent>
     </Tooltip>
   );
 }

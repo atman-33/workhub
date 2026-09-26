@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { buildFileTree, type TreeNode } from "@/lib/file-tree";
 import { statusTone } from "@/lib/diff-format";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CommitFileChange } from "@/types";
 
@@ -41,11 +42,13 @@ export function ChangeFileList({
   files,
   loading,
   error,
-  emptyLabel = "No changes.",
+  emptyLabel,
   selectedPath,
   onSelect,
   resetKey,
 }: Props) {
+  const t = useT();
+  const resolvedEmptyLabel = emptyLabel ?? t("misc.changeFileList.noChanges");
   const [view, setView] = useState<ViewMode>(() =>
     localStorage.getItem(VIEW_KEY) === "flat" ? "flat" : "tree",
   );
@@ -118,10 +121,10 @@ export function ChangeFileList({
       {/* view toggle */}
       <div className="flex shrink-0 items-center gap-0.5 border-b px-1 py-0.5">
         <span className="px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-          Files
+          {t("misc.changeFileList.filesHeading")}
         </span>
         <div className="ml-auto flex items-center">
-          <Hint label="Tree view">
+          <Hint label={t("misc.changeFileList.treeView")}>
             <Button
               size="icon"
               variant="ghost"
@@ -132,7 +135,7 @@ export function ChangeFileList({
               <ListTree className="size-3.5" />
             </Button>
           </Hint>
-          <Hint label="Flat view">
+          <Hint label={t("misc.changeFileList.flatView")}>
             <Button
               size="icon"
               variant="ghost"
@@ -155,7 +158,7 @@ export function ChangeFileList({
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
           </div>
         ) : files && files.length === 0 ? (
-          <p className="px-3 py-2 text-[11px] text-muted-foreground">{emptyLabel}</p>
+          <p className="px-3 py-2 text-[11px] text-muted-foreground">{resolvedEmptyLabel}</p>
         ) : view === "tree" ? (
           renderNodes(tree, 0)
         ) : (

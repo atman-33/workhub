@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
 import type { Project } from "@/types";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function NotesDialog({ project, onClose, onSave }: Props) {
+  const t = useT();
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
 
@@ -32,27 +34,31 @@ export function NotesDialog({ project, onClose, onSave }: Props) {
     <Dialog open={!!project} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="truncate">{project?.name} — Notes & tags</DialogTitle>
+          <DialogTitle className="truncate">
+            {t("misc.notesDialog.title", { name: project?.name ?? "" })}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Notes</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("misc.notesDialog.notes")}
+            </label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={6}
-              placeholder="working context, TODOs, reminders…"
+              placeholder={t("misc.notesDialog.notesPlaceholder")}
             />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              Tags (comma separated)
+              {t("misc.notesDialog.tags")}
             </label>
             <Input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               className="h-8"
-              placeholder="rust, work, oss"
+              placeholder={t("misc.notesDialog.tagsPlaceholder")}
             />
           </div>
         </div>
@@ -63,7 +69,7 @@ export function NotesDialog({ project, onClose, onSave }: Props) {
               onClose();
             }}
           >
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

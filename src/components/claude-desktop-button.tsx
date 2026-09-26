@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, MonitorUp } from "lucide-react";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 
 type SendState = "idle" | "sending" | "success";
 
-const LABELS: Record<SendState, string> = {
-  idle: "Send to Claude Desktop",
-  sending: "Sending…",
-  success: "Sent",
+const LABEL_KEYS: Record<SendState, MessageKey> = {
+  idle: "misc.claudeDesktopButton.idle",
+  sending: "misc.claudeDesktopButton.sending",
+  success: "misc.claudeDesktopButton.sent",
 };
 
 interface Props {
@@ -41,6 +42,7 @@ export function ClaudeDesktopButton({
   className,
   disabled,
 }: Props) {
+  const t = useT();
   const [state, setState] = useState<SendState>("idle");
   const mounted = useRef(true);
   useEffect(() => {
@@ -83,7 +85,7 @@ export function ClaudeDesktopButton({
       size={resolvedSize}
       variant={variant}
       disabled={disabled || busy}
-      aria-label="Send to Claude Desktop"
+      aria-label={t("misc.claudeDesktopButton.idle")}
       aria-busy={state === "sending"}
       className={cn(
         busy && "opacity-100 disabled:opacity-100",
@@ -96,12 +98,15 @@ export function ClaudeDesktopButton({
       }}
     >
       {icon}
-      {showLabel && <span>{LABELS[state]}</span>}
+      {showLabel && <span>{t(LABEL_KEYS[state])}</span>}
     </Button>
   );
 
   if (showLabel) return button;
-  const tooltip = state === "idle" && mode ? `${LABELS.idle} (${mode})` : LABELS[state];
+  const tooltip =
+    state === "idle" && mode
+      ? t("misc.claudeDesktopButton.idleWithMode", { idle: t("misc.claudeDesktopButton.idle"), mode })
+      : t(LABEL_KEYS[state]);
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
