@@ -10,18 +10,17 @@
  * Scope: **date presentation** — weekday and month labels, and the day-count
  * readouts that accompany them — plus the exported document, which is a
  * hand-out and should not depend on the locale of the machine that produced
- * it. Commands and labels (menu items, buttons, tooltips) stay English like
- * the rest of the app.
+ * it. The locale is the app-wide UI language (`ui_locale`, T-0409), which
+ * replaced the schedule-only calendar language; commands and labels are
+ * translated through `@/lib/i18n` like the rest of the app.
  *
  * This is display only. The schedule note itself never stores localized text,
  * so switching locale can never change a file.
  */
 
-export type ScheduleLocale = "en" | "ja";
+import type { Locale } from "@/lib/i18n";
 
-export function isScheduleLocale(value: string): value is ScheduleLocale {
-  return value === "en" || value === "ja";
-}
+export type ScheduleLocale = Locale;
 
 interface Strings {
   /** Weekday headers, Sunday first (matching `Date#getDay()` order). */

@@ -47,7 +47,7 @@ import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
-import { isScheduleLocale, type ScheduleLocale } from "@/lib/schedule/i18n";
+import { useLocale } from "@/lib/i18n";
 import {
   calendarDays,
   formatRange,
@@ -193,8 +193,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
 
   const vaultPath = config?.settings.vault_path ?? null;
   const aiRunning = aiRun?.state === "running";
-  const rawLocale = config?.settings.schedule_locale ?? "en";
-  const locale: ScheduleLocale = isScheduleLocale(rawLocale) ? rawLocale : "en";
+  const locale = useLocale();
 
   // A project handed over by the Projects tab. Keyed on the request counter
   // rather than the object, so a parent re-render never re-applies it over a

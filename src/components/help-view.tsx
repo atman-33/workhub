@@ -209,7 +209,7 @@ The **Schedule** tab is a workspace for *deciding* dates — the digital version
 - **HTML output** writes a single self-contained file (default: the project's \`attachments/\`) that opens anywhere and prints to A4 landscape — use the browser's "Save as PDF" to hand it around. Note text is listed in the footer, since a printed page has no hover.
 - **The trash button moves the note to \`_ai/state/schedule-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else. It is unavailable while an AI edit is running.
 - **Edit with AI**: press the ✨ button to open the box, describe the change in plain language ("push implementation back a week and shorten the integration test by the same amount") and press Ctrl+Enter. The calendar is locked while the agent works, and the ↺ button restores the note to how it was just before the run. Choose the agent and model under the ⚙ button in the toolbar.
-- **⚙ (toolbar) → Calendar language** switches weekday names, month labels and day counts between English and Japanese — in the calendar and across the whole exported HTML. Menus and buttons stay English. It is display only: a schedule note never stores localized text.`;
+- **Weekday names, month labels and day counts follow ⚙ Settings → General → Display language** (English or Japanese) — in the calendar and across the whole exported HTML. It is display only: a schedule note never stores localized text.`;
 
 const DOCS_MD = `## Reading shared Markdown (Docs)
 
@@ -1753,11 +1753,13 @@ export function HelpView() {
                 toolbar.
               </li>
               <li>
-                <span className="font-medium">⚙ → Calendar language</span>{" "}
-                switches weekday names, month labels and day counts between
-                English and Japanese — in the calendar and across the whole
-                exported HTML. Menus and buttons stay English. It is display
-                only: a schedule note never stores localized text.
+                Weekday names, month labels and day counts follow{" "}
+                <span className="font-medium">
+                  ⚙ Settings → General → Display language
+                </span>{" "}
+                (English or Japanese) — in the calendar and across the whole
+                exported HTML. It is display only: a schedule note never stores
+                localized text.
               </li>
             </ul>
           </Section>

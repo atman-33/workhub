@@ -147,9 +147,10 @@ export interface Settings {
   voice_meetings_dir: string;
   /** Default HTML export destination; empty = the project's `attachments/`. */
   schedule_export_dir: string;
-  /** Calendar display language, on screen and in the HTML export: "en" | "ja".
-   * Display only — a schedule note never stores localized text. */
-  schedule_locale: string;
+  /** App UI display language: "en" | "ja" (T-0409). Also drives the schedule
+   * calendar and its HTML export (it replaced `schedule_locale`). Display
+   * only — nothing written to a file is localized. Vault-scoped. */
+  ui_locale: string;
   /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
    * local-time calendar arithmetic; the backend only persists them. */
   recurring: RecurringRule[];

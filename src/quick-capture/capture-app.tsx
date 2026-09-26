@@ -16,6 +16,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { ClipboardPaste, Inbox, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
 import { matchCapturePatterns, shouldAutoPaste } from "@/lib/capture-patterns";
 import { captureTaskInput } from "@/lib/capture-task-input";
 import { projectOptionDetails } from "@/lib/task-editor-fields";
@@ -31,10 +32,11 @@ async function notifyCreated(id: string, title: string) {
     granted = (await requestPermission()) === "granted";
   }
   if (!granted) return;
-  sendNotification({ title: `Task created: ${id}`, body: title });
+  sendNotification({ title: i18nT("quickCapture.notify.title", { id }), body: title });
 }
 
 export function CaptureApp() {
+  const t = useT();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [vaultPath, setVaultPath] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export function CaptureApp() {
     const trimmed = title.trim();
     if (!trimmed || saving) return;
     if (!vaultPath) {
-      setError("Tasks vault is not configured — set it in workhub Settings.");
+      setError(t("quickCapture.msg.noVault"));
       return;
     }
     setSaving(true);
@@ -143,14 +145,14 @@ export function CaptureApp() {
       >
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Inbox className="size-3.5" />
-          Quick capture
+          {t("quickCapture.header.title")}
           {matched.map((p) => (
             <Badge key={p.id} variant="secondary">
               {p.id}
             </Badge>
           ))}
         </span>
-        <Button size="icon-sm" variant="ghost" onClick={hide} aria-label="Close">
+        <Button size="icon-sm" variant="ghost" onClick={hide} aria-label={t("common.close")}>
           <X className="size-3.5" />
         </Button>
       </header>
@@ -159,7 +161,7 @@ export function CaptureApp() {
           ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Task title"
+          placeholder={t("quickCapture.field.titlePlaceholder")}
           className="h-8"
         />
         {/* One row tall on purpose: this window is small, and the description
@@ -173,9 +175,9 @@ export function CaptureApp() {
           onChange={setProject}
           options={projects}
           optionDetails={projectDetails}
-          noneLabel="No project"
-          placeholder="No project"
-          emptyText="No vault projects. Create one in the Projects tab."
+          noneLabel={t("quickCapture.project.none")}
+          placeholder={t("quickCapture.project.none")}
+          emptyText={t("taskEditor.project.empty")}
         />
         {/* min-h-0 on both the wrapper and the textarea, plus
             field-sizing-fixed: without them the shared Textarea's
@@ -186,7 +188,7 @@ export function CaptureApp() {
             ref={descriptionRef}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (a copied Slack / PR / monday link is pasted here)"
+            placeholder={t("quickCapture.description.placeholder")}
             className="h-full min-h-0 field-sizing-fixed resize-none overflow-auto pr-8 font-mono text-xs"
           />
           {description && (
@@ -194,7 +196,7 @@ export function CaptureApp() {
               size="icon-sm"
               variant="ghost"
               className="absolute right-1 top-1"
-              aria-label="Clear description"
+              aria-label={t("quickCapture.clearDescriptionAria")}
               onClick={() => {
                 setDescription("");
                 descriptionRef.current?.focus();
@@ -215,16 +217,18 @@ export function CaptureApp() {
             }}
           >
             <ClipboardPaste className="mr-1.5 size-3.5" />
-            Paste clipboard ({pendingClipboard.length.toLocaleString()} chars)
+            {t("quickCapture.pasteClipboard", {
+              count: pendingClipboard.length.toLocaleString(),
+            })}
           </Button>
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground">
-            Ctrl+Enter to save · Esc to close
+            {t("quickCapture.footer.hint")}
           </span>
           <Button size="sm" onClick={() => void save()} disabled={!title.trim() || saving}>
-            {saving ? "Saving…" : "Save to inbox"}
+            {saving ? t("quickCapture.saving") : t("quickCapture.saveToInbox")}
           </Button>
         </div>
       </div>

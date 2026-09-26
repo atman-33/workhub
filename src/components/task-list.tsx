@@ -14,6 +14,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useT } from "@/lib/i18n";
+import { TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
 import { priorityTintClass } from "@/lib/task-priority";
@@ -39,10 +41,11 @@ interface Props {
 }
 
 export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
+  const t = useT();
   if (tasks.length === 0) {
     return (
       <p className="mt-16 text-center text-sm text-muted-foreground">
-        No tasks match the current filter.
+        {t("task.list.empty")}
       </p>
     );
   }
@@ -65,12 +68,12 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
               <span className="w-16 shrink-0 font-mono text-[11px] text-muted-foreground">
                 {task.id}
               </span>
-              <Badge variant="outline" className="shrink-0 capitalize">
-                {task.status}
+              <Badge variant="outline" className="shrink-0">
+                {t(TASK_STATUS_LABEL_KEY[task.status])}
               </Badge>
               {task.archived && (
                 <Badge variant="outline" className="shrink-0">
-                  archived
+                  {t("task.list.archivedBadge")}
                 </Badge>
               )}
               <span className="min-w-0 flex-1 truncate text-sm">
@@ -87,11 +90,11 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                 />
               )}
               {parseBody(task.body).plan && (
-                <Hint label="Plan recorded">
+                <Hint label={t("task.list.planRecorded")}>
                   <span className="flex shrink-0">
                     <ClipboardList
                       className="size-3"
-                      aria-label="Plan recorded"
+                      aria-label={t("task.list.planRecorded")}
                     />
                   </span>
                 </Hint>
@@ -147,18 +150,20 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem onSelect={() => onEditBlocked(task)}>
-              {task.blocked ? "Edit blocked reason…" : "Mark as blocked…"}
+              {task.blocked ? t("task.list.editBlockedReason") : t("task.list.markBlocked")}
             </ContextMenuItem>
             {task.blocked && (
-              <ContextMenuItem onSelect={() => onUnblock(task)}>Unblock</ContextMenuItem>
+              <ContextMenuItem onSelect={() => onUnblock(task)}>
+                {t("task.list.unblock")}
+              </ContextMenuItem>
             )}
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
-              {task.archived ? "Unarchive" : "Archive"}
+              {task.archived ? t("task.list.unarchive") : t("task.list.archive")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem variant="destructive" onSelect={() => onDelete(task)}>
-              Delete…
+              {t("task.list.deleteEllipsis")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>

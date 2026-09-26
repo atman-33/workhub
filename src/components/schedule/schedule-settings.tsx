@@ -6,21 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import type { Settings } from "@/types";
 
 /**
  * The Schedule tab's own settings (T-0289).
  *
  * They used to live in ⚙ Settings → Vault, which meant opening a modal over
- * the calendar to change the language the calendar is drawn in. The Voice,
+ * the calendar to change them. (The calendar's language is no longer one of
+ * them: it follows the app-wide display language since T-0409.) The Voice,
  * Ink, Clips and Docs tabs already own their settings; this is the same move
  * for Schedule (`.claude/rules/settings-placement.md`).
  *
@@ -28,12 +21,6 @@ import type { Settings } from "@/types";
  * onto a fresh read of the config so a value another tab changed meanwhile is
  * not reverted (T-0281).
  */
-
-/** Calendar display language for the Schedule tab and its HTML export. */
-const SCHEDULE_LOCALES: { id: string; label: string }[] = [
-  { id: "en", label: "English" },
-  { id: "ja", label: "日本語" },
-];
 
 interface Props {
   settings: Settings | null;
@@ -92,33 +79,6 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
             />
 
             <div className="space-y-1.5 border-t pt-3">
-              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                Calendar language
-                <VaultScopedBadge />
-              </label>
-              <Select
-                value={settings.schedule_locale}
-                onValueChange={(v) => onPatch({ schedule_locale: v })}
-              >
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCHEDULE_LOCALES.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Weekday names, month labels and day counts in the calendar, and the whole
-                exported HTML. Menus and buttons stay English. Display only — schedule notes
-                never store localized text.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 HTML export folder
               </label>

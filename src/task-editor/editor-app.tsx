@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
+import { t as i18nT } from "@/lib/i18n";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TaskEditorForm } from "@/components/task-editor-form";
 import { fieldsFromDraft, type DraftField, type TaskDraft } from "@/lib/task-editor-fields";
@@ -48,7 +49,7 @@ export function EditorApp() {
       void api
         .getConfig()
         .then(setConfig)
-        .catch((e) => setError(`Could not load settings — ${e}`));
+        .catch((e) => setError(i18nT("taskEditor.msg.loadSettingsFailed", { error: String(e) })));
     });
     return () => {
       void unlisten.then((f) => f());
@@ -73,7 +74,7 @@ export function EditorApp() {
             : undefined,
         });
       } catch (e) {
-        setError(`Create failed — ${e}`);
+        setError(i18nT("taskEditor.msg.createFailed", { error: String(e) }));
         return null;
       }
     },
@@ -149,7 +150,7 @@ export function EditorApp() {
         setError(null);
         return true;
       } catch (e) {
-        setError(`Auto-save failed — ${e}`);
+        setError(i18nT("taskEditor.msg.autoSaveFailed", { error: String(e) }));
         return false;
       }
     },

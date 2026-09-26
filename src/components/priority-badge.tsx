@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { TaskPriority } from "@/types";
 
@@ -36,23 +37,30 @@ interface Props {
   className?: string;
 }
 
+const PRIORITY_LABEL_KEY: Record<TaskPriority, MessageKey> = {
+  low: "task.priority.low",
+  medium: "task.priority.medium",
+  high: "task.priority.high",
+};
+
 export function PriorityBadge({ priority, onCycle, className }: Props) {
+  const t = useT();
   const style = priorityStyle[priority];
   const content = (
     <>
       <span className={cn("size-1.5 rounded-full", style.dot)} />
-      {priority}
+      {t(PRIORITY_LABEL_KEY[priority])}
     </>
   );
 
   if (!onCycle) {
     return (
-      <Badge className={cn("gap-1.5 capitalize", style.badge, className)}>{content}</Badge>
+      <Badge className={cn("gap-1.5", style.badge, className)}>{content}</Badge>
     );
   }
 
   return (
-    <Hint label="Click to change priority">
+    <Hint label={t("task.priority.cycleHint")}>
       <Badge
         asChild
         className={cn(

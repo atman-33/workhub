@@ -1,4 +1,5 @@
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { blockedAge } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
 
@@ -9,10 +10,11 @@ import { cn } from "@/lib/utils";
  * different question, so it gets a glyph of its own instead of a hue.
  */
 export function BlockedMark({ className }: { className?: string }) {
+  const t = useT();
   return (
     <span
       role="img"
-      aria-label="Blocked"
+      aria-label={t("task.blocked.label")}
       // Emoji come from a fallback font with taller metrics than the UI face,
       // which would leave blocked titles standing a row apart from the rest.
       // Pinning the size and collapsing the line box holds the line height.
@@ -44,9 +46,10 @@ interface Props {
  * where it is one signal for the whole board rather than noise on every card.
  */
 export function BlockedBadge({ note, since, onEdit, className }: Props) {
+  const t = useT();
   const age = blockedAge(since);
-  const hint = onEdit ? "Click to edit the reason" : "";
-  const title = [note || "Blocked", hint].filter(Boolean).join(" — ");
+  const hint = onEdit ? t("task.blocked.clickToEdit") : "";
+  const title = [note || t("task.blocked.label"), hint].filter(Boolean).join(" — ");
 
   const content = (
     <>
@@ -61,7 +64,7 @@ export function BlockedBadge({ note, since, onEdit, className }: Props) {
       ) : (
         // Neither a date nor a reason: without a fallback the badge would be an
         // empty box that still has to be clickable to fix that.
-        !age && <span className="truncate">Blocked</span>
+        !age && <span className="truncate">{t("task.blocked.label")}</span>
       )}
     </>
   );

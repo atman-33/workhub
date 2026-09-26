@@ -15,18 +15,19 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
 import { priorityTintClass } from "@/lib/task-priority";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
 
-const COLUMNS: { key: TaskStatus; label: string }[] = [
-  { key: "inbox", label: "Inbox" },
-  { key: "todo", label: "Todo" },
-  { key: "doing", label: "Doing" },
-  { key: "review", label: "Review" },
-  { key: "done", label: "Done" },
+const COLUMNS: { key: TaskStatus; labelKey: MessageKey }[] = [
+  { key: "inbox", labelKey: "task.status.inbox" },
+  { key: "todo", labelKey: "task.status.todo" },
+  { key: "doing", labelKey: "task.status.doing" },
+  { key: "review", labelKey: "task.status.review" },
+  { key: "done", labelKey: "task.status.done" },
 ];
 
 /** Sorted column items plus effective numeric orders for midpoint math.
@@ -77,6 +78,7 @@ interface Props {
 }
 
 export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+  const t = useT();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
@@ -164,10 +166,10 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
           }}
         >
           <div className="flex items-center justify-between border-b px-2.5 py-2">
-            <span className="text-xs font-semibold">{col.label}</span>
+            <span className="text-xs font-semibold">{t(col.labelKey)}</span>
             <div className="flex items-center gap-1.5">
               {col.key === "done" && col.items.some((t) => !t.archived) && (
-                <Hint label="Archive all Done tasks">
+                <Hint label={t("task.kanban.archiveAllDone")}>
                   <button
                     className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                     onClick={onArchiveDone}
@@ -226,7 +228,9 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                       {task.title}
                     </span>
                     <div className="flex shrink-0 items-center gap-1">
-                      {task.archived && <Badge variant="outline">archived</Badge>}
+                      {task.archived && (
+                        <Badge variant="outline">{t("task.list.archivedBadge")}</Badge>
+                      )}
                       <PriorityBadge
                         priority={task.priority}
                         onCycle={(next) => onCyclePriority(task, next)}
@@ -244,9 +248,12 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                     <span>{task.id}</span>
                     {parseBody(task.body).plan && (
-                      <Hint label="Plan recorded">
+                      <Hint label={t("task.list.planRecorded")}>
                         <span className="flex shrink-0">
-                          <ClipboardList className="size-3" aria-label="Plan recorded" />
+                          <ClipboardList
+                            className="size-3"
+                            aria-label={t("task.list.planRecorded")}
+                          />
                         </span>
                       </Hint>
                     )}
@@ -295,18 +302,22 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem onSelect={() => onEditBlocked(task)}>
-                      {task.blocked ? "Edit blocked reason…" : "Mark as blocked…"}
+                      {task.blocked
+                        ? t("task.list.editBlockedReason")
+                        : t("task.list.markBlocked")}
                     </ContextMenuItem>
                     {task.blocked && (
-                      <ContextMenuItem onSelect={() => onUnblock(task)}>Unblock</ContextMenuItem>
+                      <ContextMenuItem onSelect={() => onUnblock(task)}>
+                        {t("task.list.unblock")}
+                      </ContextMenuItem>
                     )}
                     <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => onArchive(task, !task.archived)}>
-                      {task.archived ? "Unarchive" : "Archive"}
+                      {task.archived ? t("task.list.unarchive") : t("task.list.archive")}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem variant="destructive" onSelect={() => onDelete(task)}>
-                      Delete…
+                      {t("task.list.deleteEllipsis")}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>

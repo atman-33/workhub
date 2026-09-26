@@ -38,6 +38,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
+import { TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import {
   copyTaskPrompt as copyPromptForTask,
   launchAgentForTask,
@@ -76,6 +78,7 @@ export function TasksView({
   onSettingsChange,
   focus,
 }: Props) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   /** Vault projects (`projects/<slug>/`), the only thing a task's `project:`
@@ -168,7 +171,7 @@ export function TasksView({
     void api
       .listTasks(path)
       .then(setTasks)
-      .catch((e) => setStatus(`Failed to load tasks — ${e}`));
+      .catch((e) => setStatus(i18nT("task.msg.loadFailed", { error: String(e) })));
   }, []);
 
   // ---- startup + after app-level settings saves: load config ----
@@ -194,7 +197,7 @@ export function TasksView({
           setVaultExists(false);
         }
       } catch (e) {
-        setStatus(`Vault check failed — ${e}`);
+        setStatus(i18nT("task.msg.vaultCheckFailed", { error: String(e) }));
         setVaultExists(false);
       }
     })();
@@ -264,7 +267,10 @@ export function TasksView({
   );
 
   const chooseVaultFolder = useCallback(async () => {
-    const picked = await pickFolders({ directory: true, title: "Choose or create a vault folder" });
+    const picked = await pickFolders({
+      directory: true,
+      title: i18nT("task.empty.chooseFolderDialogTitle"),
+    });
     if (typeof picked === "string") {
       await saveVaultPath(picked.replaceAll("\\", "/"));
       // The folder is one of three steps, and the dialog is what tells the
@@ -280,10 +286,10 @@ export function TasksView({
     setInitializing(true);
     try {
       await api.initVault(vaultPath);
-      setStatus("Vault initialized");
+      setStatus(i18nT("task.msg.vaultInitialized"));
       refreshTasks(vaultPath);
     } catch (e) {
-      setStatus(`Vault initialization failed — ${e}`);
+      setStatus(i18nT("task.msg.vaultInitFailed", { error: String(e) }));
     } finally {
       setInitializing(false);
     }
@@ -401,7 +407,7 @@ export function TasksView({
       try {
         setStatus(await launchAgentForTask(config, task));
       } catch (e) {
-        setStatus(`Agent launch failed — ${e}`);
+        setStatus(i18nT("task.msg.launchFailed", { error: String(e) }));
         throw e;
       }
     },
@@ -413,9 +419,9 @@ export function TasksView({
       if (!config) return;
       try {
         await copyPromptForTask(config, task);
-        setStatus(`Copied prompt for ${task.id}`);
+        setStatus(i18nT("task.msg.copiedPrompt", { id: task.id }));
       } catch (e) {
-        setStatus(`Copy prompt failed — ${e}`);
+        setStatus(i18nT("task.msg.copyFailed", { error: String(e) }));
         throw e;
       }
     },
@@ -428,7 +434,7 @@ export function TasksView({
       try {
         setStatus(await sendToClaudeDesktop(config, task));
       } catch (e) {
-        setStatus(`Send to Claude Desktop failed — ${e}`);
+        setStatus(i18nT("task.msg.sendFailed", { error: String(e) }));
         throw e;
       }
     },
@@ -451,7 +457,7 @@ export function TasksView({
     try {
       await api.openInObsidian(task.file);
     } catch (e) {
-      setStatus(`Open in Obsidian failed — ${e}`);
+      setStatus(i18nT("task.msg.openObsidianFailed", { error: String(e) }));
       throw e;
     }
   }, []);
@@ -465,7 +471,7 @@ export function TasksView({
         }
         refreshTasks(vaultPath);
       } catch (e) {
-        setStatus(`Update failed — ${e}`);
+        setStatus(i18nT("task.msg.updateFailed", { error: String(e) }));
       }
     },
     [vaultPath, refreshTasks],
@@ -523,10 +529,10 @@ export function TasksView({
     setDeleteTarget(null);
     try {
       await api.deleteTask(vaultPath, target.id);
-      setStatus(`Deleted ${target.id} (moved to recycle bin)`);
+      setStatus(i18nT("task.msg.deleted", { id: target.id }));
       refreshTasks(vaultPath);
     } catch (e) {
-      setStatus(`Delete failed — ${e}`);
+      setStatus(i18nT("task.msg.deleteFailed", { error: String(e) }));
     }
   }, [vaultPath, deleteTarget, refreshTasks]);
 
@@ -547,7 +553,7 @@ export function TasksView({
         void api
           .openTaskEditor({ mode, task, knownProjects: slugs, projectFolders: folders })
           .catch((e) => {
-            setStatus(`Could not open the task editor — ${e}`);
+            setStatus(i18nT("task.msg.openEditorFailed", { error: String(e) }));
           });
       };
       if (vaultPath) {
@@ -584,16 +590,16 @@ export function TasksView({
         <FolderOpen className="size-10 text-muted-foreground/40" />
         <div>
           <p className="font-semibold">
-            {!vaultPath ? "No task vault configured" : "Configured vault not found"}
+            {!vaultPath ? t("task.empty.noVaultTitle") : t("task.empty.vaultNotFoundTitle")}
           </p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
             {!vaultPath
-              ? "Tasks are stored as Markdown files in a dedicated Obsidian vault. Choose an existing vault folder or an empty one to initialize."
-              : `The configured vault folder no longer exists: ${vaultPath}`}
+              ? t("task.empty.noVaultDescription")
+              : t("task.empty.vaultNotFoundDescription", { path: vaultPath })}
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={chooseVaultFolder}>
-          <FolderOpen className="size-3.5" /> Choose vault folder
+          <FolderOpen className="size-3.5" /> {t("task.empty.chooseFolder")}
         </Button>
         {setupDialog}
       </div>
@@ -609,8 +615,8 @@ export function TasksView({
         <div className="flex items-center gap-3 bg-muted px-4 py-2 text-[13px]">
           <Wrench className="size-4 shrink-0 text-primary" />
           <span className="truncate">
-            <span className="font-medium">This vault is not set up yet.</span> The template,
-            the marketplace and the workhub plugin are still outstanding.
+            <span className="font-medium">{t("task.setupPending.text")}</span>{" "}
+            {t("task.setupPending.detail")}
           </span>
           <Button
             size="sm"
@@ -618,7 +624,7 @@ export function TasksView({
             className="ml-auto h-6 shrink-0 px-2 text-xs"
             onClick={() => setSetupOpen(true)}
           >
-            Resume setup
+            {t("task.setupPending.resume")}
           </Button>
           <Button
             size="sm"
@@ -626,14 +632,14 @@ export function TasksView({
             className="h-6 shrink-0 px-2 text-xs text-muted-foreground"
             onClick={() => setSetupPending(false)}
           >
-            Dismiss
+            {t("common.dismiss")}
           </Button>
         </div>
       )}
       {/* toolbar */}
       <div className="flex items-center gap-2 overflow-x-auto border-b px-4 py-2">
         <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => openEditor("create", null)}>
-          <Plus className="size-3.5" /> New task
+          <Plus className="size-3.5" /> {t("task.toolbar.newTask")}
         </Button>
         <Button
           size="sm"
@@ -641,18 +647,15 @@ export function TasksView({
           className="h-8 gap-1.5 text-xs"
           onClick={() => refreshTasks(vaultPath)}
         >
-          <RefreshCw className="size-3.5" /> Refresh
+          <RefreshCw className="size-3.5" /> {t("common.refresh")}
         </Button>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
-              {initializing ? "Initializing…" : "Init vault"}
+              {initializing ? t("task.toolbar.initializing") : t("task.toolbar.initVault")}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            Copy the default vault template into the configured vault folder. Existing files are never
-            overwritten.
-          </TooltipContent>
+          <TooltipContent>{t("task.toolbar.initVaultTooltip")}</TooltipContent>
         </Tooltip>
 
         {/* List view only. On the kanban board the columns *are* the statuses,
@@ -662,13 +665,13 @@ export function TasksView({
         {viewMode === "list" && (
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger size="sm" className="min-w-[7rem]">
-              <SelectValue placeholder="All statuses" />
+              <SelectValue placeholder={t("task.toolbar.allStatuses")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="">{t("task.toolbar.allStatuses")}</SelectItem>
               {(["inbox", "todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {t(TASK_STATUS_LABEL_KEY[s])}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -676,23 +679,23 @@ export function TasksView({
         )}
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
           <SelectTrigger size="sm" className="min-w-[7.5rem]">
-            <SelectValue placeholder="All assignees" />
+            <SelectValue placeholder={t("task.toolbar.allAssignees")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All assignees</SelectItem>
+            <SelectItem value="">{t("task.toolbar.allAssignees")}</SelectItem>
             {(["me", "claude-code", "opencode"] as TaskAssignee[]).map((a) => (
               <SelectItem key={a} value={a}>
-                {a}
+                {t(TASK_ASSIGNEE_LABEL_KEY[a])}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger size="sm" className="min-w-[7rem]">
-            <SelectValue placeholder="All projects" />
+            <SelectValue placeholder={t("task.toolbar.allProjects")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All projects</SelectItem>
+            <SelectItem value="">{t("task.toolbar.allProjects")}</SelectItem>
             {filterProjects.map((p) => (
               <SelectItem key={p} value={p}>
                 {projectFilterLabel(p)}
@@ -702,13 +705,13 @@ export function TasksView({
         </Select>
         <Select value={tagFilter} onValueChange={setTagFilter}>
           <SelectTrigger size="sm" className="min-w-[6.5rem]">
-            <SelectValue placeholder="All tags" />
+            <SelectValue placeholder={t("task.toolbar.allTags")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All tags</SelectItem>
-            {knownTags.map((t) => (
-              <SelectItem key={t} value={t}>
-                #{t}
+            <SelectItem value="">{t("task.toolbar.allTags")}</SelectItem>
+            {knownTags.map((tag) => (
+              <SelectItem key={tag} value={tag}>
+                #{tag}
               </SelectItem>
             ))}
           </SelectContent>
@@ -716,12 +719,12 @@ export function TasksView({
         <div className="flex shrink-0 items-center gap-1.5">
           <Select value={blockedFilter} onValueChange={setBlockedFilter}>
             <SelectTrigger size="sm" className="min-w-[7.5rem]">
-              <SelectValue placeholder="Blocked: any" />
+              <SelectValue placeholder={t("task.toolbar.blockedAny")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Blocked: any</SelectItem>
-              <SelectItem value="blocked">Blocked only</SelectItem>
-              <SelectItem value="unblocked">Not blocked</SelectItem>
+              <SelectItem value="">{t("task.toolbar.blockedAny")}</SelectItem>
+              <SelectItem value="blocked">{t("task.toolbar.blockedOnly")}</SelectItem>
+              <SelectItem value="unblocked">{t("task.toolbar.notBlocked")}</SelectItem>
             </SelectContent>
           </Select>
           {/* The cards say nothing about a block going stale — this does, once
@@ -730,8 +733,11 @@ export function TasksView({
             <Hint
               label={
                 staleBlockedCount > 0
-                  ? `${blockedCount} blocked · ${staleBlockedCount} waiting a week or more`
-                  : `${blockedCount} blocked`
+                  ? t("task.toolbar.blockedHintStale", {
+                      count: blockedCount,
+                      stale: staleBlockedCount,
+                    })
+                  : t("task.toolbar.blockedHint", { count: blockedCount })
               }
             >
               <button
@@ -748,7 +754,7 @@ export function TasksView({
           )}
         </div>
 
-        <Hint label={showArchived ? "Hide archived tasks" : "Show archived tasks"}>
+        <Hint label={showArchived ? t("task.toolbar.hideArchived") : t("task.toolbar.showArchived")}>
           <button
             className={cn(
               "flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
@@ -756,18 +762,18 @@ export function TasksView({
             )}
             onClick={() => setShowArchived((v) => !v)}
           >
-            <Archive className="size-3.5" /> Archived
+            <Archive className="size-3.5" /> {t("task.toolbar.archivedLabel")}
           </button>
         </Hint>
 
-        <Hint label="Rules that put a task on the board on their own schedule">
+        <Hint label={t("task.toolbar.recurringHint")}>
           <Button
             size="sm"
             variant="outline"
             className="h-8 gap-1.5 text-xs"
             onClick={() => setRecurringOpen(true)}
           >
-            <Repeat className="size-3.5" /> Recurring
+            <Repeat className="size-3.5" /> {t("task.toolbar.recurring")}
             {activeRuleCount > 0 && (
               <span className="text-[11px] text-muted-foreground">{activeRuleCount}</span>
             )}
@@ -779,14 +785,14 @@ export function TasksView({
         {herdrEnabled && (
           <div className="flex shrink-0 items-center gap-0.5">
             {terminalEnabled && (
-              <Hint label="Toggle the embedded terminal (herdr)">
+              <Hint label={t("task.toolbar.terminalHint")}>
                 <Button
                   size="sm"
                   variant={terminalOpen ? "secondary" : "outline"}
                   className="h-8 gap-1.5 text-xs"
                   onClick={toggleTerminalPanel}
                 >
-                  <TerminalIcon className="size-3.5" /> Terminal
+                  <TerminalIcon className="size-3.5" /> {t("task.toolbar.terminal")}
                 </Button>
               </Hint>
             )}
@@ -805,7 +811,7 @@ export function TasksView({
             )}
             onClick={() => setViewMode("list")}
           >
-            <List className="size-3.5" /> List
+            <List className="size-3.5" /> {t("task.toolbar.list")}
           </button>
           <button
             className={cn(
@@ -814,7 +820,7 @@ export function TasksView({
             )}
             onClick={() => showKanban()}
           >
-            <LayoutGrid className="size-3.5" /> Kanban
+            <LayoutGrid className="size-3.5" /> {t("task.toolbar.kanban")}
           </button>
         </div>
       </div>
@@ -907,7 +913,7 @@ export function TasksView({
       <footer className="flex items-center border-t px-4 py-1.5 text-[11px] text-muted-foreground">
         <span className="truncate">{status}</span>
         <span className="ml-auto shrink-0">
-          {tasks.length} tasks · {visible.length} shown
+          {t("task.footer.summary", { total: tasks.length, shown: visible.length })}
         </span>
       </footer>
 
@@ -919,13 +925,16 @@ export function TasksView({
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete task"
+        title={t("task.confirm.deleteTitle")}
         description={
           deleteTarget
-            ? `Move "${deleteTarget.id} ${deleteTarget.title}" to the recycle bin?`
+            ? t("task.confirm.deleteDescription", {
+                id: deleteTarget.id,
+                title: deleteTarget.title,
+              })
             : ""
         }
-        confirmLabel="Delete"
+        confirmLabel={t("common.delete")}
         destructive
         onConfirm={() => void confirmDelete()}
         onClose={() => setDeleteTarget(null)}
@@ -933,13 +942,13 @@ export function TasksView({
 
       <ConfirmDialog
         open={archiveDoneOpen}
-        title="Archive all Done tasks"
+        title={t("task.kanban.archiveAllDone")}
         description={
           doneToArchive.length === 1
-            ? "Archive the 1 task in the Done column?"
-            : `Archive all ${doneToArchive.length} tasks in the Done column?`
+            ? t("task.confirm.archiveDoneDescriptionOne")
+            : t("task.confirm.archiveDoneDescriptionOther", { count: doneToArchive.length })
         }
-        confirmLabel="Archive"
+        confirmLabel={t("task.list.archive")}
         onConfirm={confirmArchiveDone}
         onClose={() => setArchiveDoneOpen(false)}
       />

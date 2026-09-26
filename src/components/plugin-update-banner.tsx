@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { WORKHUB_PLUGIN, type PluginAlert } from "@/lib/plugins";
 
 interface Props {
@@ -32,6 +33,7 @@ export function PluginUpdateBanner({
   onResolved,
   onDismiss,
 }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -58,36 +60,35 @@ export function PluginUpdateBanner({
     <div className="flex min-h-10 items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-1.5 text-[13px]">
       <AlertTriangle className="size-4 shrink-0 text-amber-600" />
       {alert.kind === "marketplace" && (
-        <span className="font-medium">
-          The workhub marketplace is not ready, so the plugin version cannot be checked
-        </span>
+        <span className="font-medium">{t("banner.plugin.marketplaceNotReady")}</span>
       )}
       {alert.kind === "missing" && (
-        <span className="font-medium">
-          The workhub plugin is switched off — task launches and AI edits need it
-        </span>
+        <span className="font-medium">{t("banner.plugin.missing")}</span>
       )}
       {alert.kind === "outdated" && (
         <span className="font-medium">
-          workhub plugin {alert.installed_version} → {alert.latest_version} is available
+          {t("banner.plugin.outdated", {
+            installed: alert.installed_version,
+            latest: alert.latest_version,
+          })}
         </span>
       )}
       {error ? (
         <span className="truncate text-xs text-destructive">{error}</span>
       ) : (
         <span className="hidden text-xs text-muted-foreground xl:inline">
-          Takes effect in the next Claude Code session
+          {t("banner.plugin.takesEffect")}
         </span>
       )}
       <span className="ml-auto flex shrink-0 items-center gap-1.5">
         {alert.kind === "missing" && (
           <Button size="sm" className="h-6 px-2 text-xs" disabled={busy} onClick={enable}>
-            {busy ? "Enabling…" : "Enable"}
+            {busy ? t("banner.plugin.enabling") : t("banner.plugin.enable")}
           </Button>
         )}
         {alert.kind === "outdated" && (
           <Button size="sm" className="h-6 px-2 text-xs" disabled={busy} onClick={update}>
-            {busy ? "Updating…" : "Update"}
+            {busy ? t("banner.plugin.updating") : t("banner.plugin.update")}
           </Button>
         )}
         <Button
@@ -97,7 +98,7 @@ export function PluginUpdateBanner({
           disabled={busy}
           onClick={onOpenPlugins}
         >
-          Plugins
+          {t("nav.plugins")}
         </Button>
         <Button
           size="sm"
@@ -106,7 +107,7 @@ export function PluginUpdateBanner({
           disabled={busy}
           onClick={onDismiss}
         >
-          Later
+          {t("common.later")}
         </Button>
       </span>
     </div>
