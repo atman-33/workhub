@@ -74,7 +74,7 @@ export const musicEn = {
   "music.transfer.imported": "Imported {added} playlist(s)",
   "music.transfer.importFailed": "Import failed — {error}",
   "music.transfer.clipboardEmpty": "The clipboard is empty.",
-  "music.transfer.notWorkhubExport": "Not a workhub playlist export.",
+  "music.transfer.notPlaylistExport": "Not a playlist export.",
   "music.transfer.noPlaylists": "The file contains no playlists.",
-  "music.transfer.newerVersion": "This export was made by a newer version of workhub (format v{version}).",
+  "music.transfer.newerVersion": "This export uses a newer format version (v{version}). Update workhub to import it.",
 } as const;

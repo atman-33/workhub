@@ -169,7 +169,7 @@ mod tests {
     fn export_then_import_round_trips() {
         let dir = temp_vault();
         let file = dir.join("exported").join("playlists.json");
-        let payload = r#"{"format":"workhub-music-playlist","version":1,"playlists":[]}"#;
+        let payload = r#"{"format":"youtube-playlist","version":1,"playlists":[]}"#;
         export_playlists(&file, payload).unwrap();
         assert_eq!(import_playlists(&file).unwrap(), payload);
         std::fs::remove_dir_all(&dir).ok();

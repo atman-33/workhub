@@ -1,8 +1,19 @@
 import { generatePlaylistId, MAX_PLAYLIST_COUNT } from "./playlist-helpers";
 import type { Playlist, PlaylistItem } from "./types";
 
-/** Marker identifying a file/clipboard payload as a workhub playlist export. */
-export const PLAYLIST_TRANSFER_FORMAT = "workhub-music-playlist";
+/**
+ * Marker identifying a file/clipboard payload as a playlist export. This is a
+ * generic format shared with other tools that write the same structure, so
+ * playlists can move between them and workhub in both directions.
+ */
+export const PLAYLIST_TRANSFER_FORMAT = "youtube-playlist";
+/** Marker written by earlier workhub versions; still accepted on import. */
+export const LEGACY_PLAYLIST_TRANSFER_FORMAT = "workhub-music-playlist";
+
+const ACCEPTED_FORMATS: readonly unknown[] = [
+  PLAYLIST_TRANSFER_FORMAT,
+  LEGACY_PLAYLIST_TRANSFER_FORMAT,
+];
 export const PLAYLIST_TRANSFER_VERSION = 1;
 
 /**
@@ -62,12 +73,12 @@ export const parsePlaylistTransfer = (text: string): Playlist[] => {
     return failInvalid();
   }
 
-  if (!isRecord(parsed) || parsed.format !== PLAYLIST_TRANSFER_FORMAT) {
+  if (!isRecord(parsed) || !ACCEPTED_FORMATS.includes(parsed.format)) {
     return failInvalid();
   }
   if (typeof parsed.version !== "number" || parsed.version > PLAYLIST_TRANSFER_VERSION) {
     throw new Error(
-      `This export was made by a newer version of workhub (format v${String(parsed.version)}).`,
+      `This export uses a newer format version (v${String(parsed.version)}).`,
     );
   }
   if (!Array.isArray(parsed.playlists)) {
@@ -88,7 +99,7 @@ export const parsePlaylistTransfer = (text: string): Playlist[] => {
 };
 
 const failInvalid = (): never => {
-  throw new Error("Not a workhub playlist export.");
+  throw new Error("Not a playlist export.");
 };
 
 /** Makes `name` unique against `taken` by appending " (2)", " (3)", ... */

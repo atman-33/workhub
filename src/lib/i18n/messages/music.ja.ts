@@ -76,7 +76,7 @@ export const musicJa: Partial<Record<MessageKey, string>> = {
   "music.transfer.imported": "{added} 件のプレイリストをインポートしました",
   "music.transfer.importFailed": "インポートに失敗しました — {error}",
   "music.transfer.clipboardEmpty": "クリップボードが空です。",
-  "music.transfer.notWorkhubExport": "workhub のプレイリストエクスポートではありません。",
+  "music.transfer.notPlaylistExport": "プレイリストのエクスポートではありません。",
   "music.transfer.noPlaylists": "ファイルにプレイリストが含まれていません。",
-  "music.transfer.newerVersion": "このエクスポートは workhub の新しいバージョン（形式 v{version}）で作成されています。",
+  "music.transfer.newerVersion": "このエクスポートは新しい形式（v{version}）で作成されています。workhub を更新してから読み込んでください。",
 };
