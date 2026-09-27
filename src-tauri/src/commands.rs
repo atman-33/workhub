@@ -175,12 +175,41 @@ pub async fn git_op(path: String, op: String, branch: Option<String>) -> Result<
     .map_err(|e| e.to_string())?
 }
 
-/// Read a page of commit history for the graph view.
+/// Read a page of commit history for the graph view. `extra_branches` and
+/// `show_all` restrict which refs are walked (T-0408); `request_id` names
+/// this load so it can be cancelled via `git_log_cancel`.
 #[tauri::command]
-pub async fn git_log(path: String, limit: u32, skip: u32) -> Result<GitLog, String> {
-    tauri::async_runtime::spawn_blocking(move || git::read_log(&path, limit, skip))
+pub async fn git_log(
+    path: String,
+    limit: u32,
+    skip: u32,
+    extra_branches: Vec<String>,
+    show_all: bool,
+    request_id: String,
+) -> Result<GitLog, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git::read_log(&path, limit, skip, &extra_branches, show_all, &request_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Kill the `git log` child process started under `request_id`, if it is
+/// still running (e.g. the user narrowed the branch filter, closed the
+/// graph, or a newer load superseded it).
+#[tauri::command]
+pub fn git_log_cancel(request_id: String) {
+    git::cancel_log(&request_id);
+}
+
+/// The default refs `git_log` would use with no extra branches selected
+/// (HEAD, the default branch, and their upstreams), for the branch-filter
+/// popover to mark as always shown.
+#[tauri::command]
+pub async fn git_default_log_refs(path: String) -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(move || git::default_log_refs(&path))
         .await
-        .map_err(|e| e.to_string())?
+        .unwrap_or_default()
 }
 
 /// Run a graph-view git operation (checkout, branch/tag create-delete, merge,

@@ -80,8 +80,16 @@ export const api = {
     invoke<string>("remove_worktree", { repoPath, worktreePath, force }),
   deleteWorktreeBranch: (repoPath: string, branch: string, force: boolean) =>
     invoke<string>("delete_worktree_branch", { repoPath, branch, force }),
-  gitLog: (path: string, limit: number, skip: number) =>
-    invoke<GitLog>("git_log", { path, limit, skip }),
+  gitLog: (
+    path: string,
+    limit: number,
+    skip: number,
+    extraBranches: string[],
+    showAll: boolean,
+    requestId: string,
+  ) => invoke<GitLog>("git_log", { path, limit, skip, extraBranches, showAll, requestId }),
+  gitLogCancel: (requestId: string) => invoke<void>("git_log_cancel", { requestId }),
+  gitDefaultLogRefs: (path: string) => invoke<string[]>("git_default_log_refs", { path }),
   gitGraphOp: (path: string, op: GraphOp) =>
     invoke<string>("git_graph_op", { path, op }),
   gitCommitFiles: (path: string, hash: string) =>

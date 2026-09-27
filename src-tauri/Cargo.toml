@@ -1,6 +1,6 @@
 [package]
 name = "workhub"
-version = "0.149.0"
+version = "0.150.0"
 edition = "2021"
 description = "Developer Workspace Manager — a fast hub for AI-driven, multi-repo development"
 license = "MIT"
@@ -110,6 +110,10 @@ windows = { version = "0.61", features = [
     "Win32_Media_Audio",
     "Win32_Media_KernelStreaming",
     "Win32_Media_Multimedia",
+    # git graph: GetDriveTypeW + DRIVE_REMOTE, to skip auto commit-graph
+    # writes on mapped network drives (see src-tauri/src/git.rs, T-0408).
+    "Win32_Storage_FileSystem",
+    "Win32_System_WindowsProgramming",
 ] }
 
 # whisper-rs-sys 0.13.1 passes the MSVC-only /utf-8 flag to g++ on every

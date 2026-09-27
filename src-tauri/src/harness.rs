@@ -167,6 +167,8 @@ mod tests {
             favorite: false,
             notes: String::new(),
             last_opened: None,
+            graph_branches: Vec::new(),
+            graph_show_all: false,
         }
     }
 

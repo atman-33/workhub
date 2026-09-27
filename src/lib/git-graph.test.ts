@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeGraphLayout, PALETTE } from "./git-graph";
+import { cappedLaneWidth, computeGraphLayout, PALETTE, splitRefBadges } from "./git-graph";
 
 describe("computeGraphLayout", () => {
   it("keeps a linear history in a single column with straight edges", () => {
@@ -175,5 +175,41 @@ describe("computeGraphLayout", () => {
         { fromCol: 0, toCol: 1, color: PALETTE[1] },
       ]),
     );
+  });
+});
+
+describe("cappedLaneWidth", () => {
+  it("sizes to the touched column when under the cap", () => {
+    expect(cappedLaneWidth(0)).toBe(14); // (0 + 1) * COL_W
+    expect(cappedLaneWidth(5)).toBe(6 * 14);
+  });
+
+  it("clips at the configured max instead of growing further", () => {
+    expect(cappedLaneWidth(11)).toBe(12 * 14); // exactly at the cap
+    expect(cappedLaneWidth(500)).toBe(12 * 14); // a repo with hundreds of lanes
+  });
+
+  it("honors an explicit column width and cap", () => {
+    expect(cappedLaneWidth(20, 10, 5)).toBe(5 * 10);
+  });
+});
+
+describe("splitRefBadges", () => {
+  it("returns everything as visible when at or under the cap", () => {
+    const refs = ["a", "b", "c"];
+    expect(splitRefBadges(refs)).toEqual({ visible: ["a", "b", "c"], overflow: [] });
+  });
+
+  it("collapses everything past the cap into overflow", () => {
+    const refs = ["a", "b", "c", "d", "e"];
+    expect(splitRefBadges(refs, 3)).toEqual({
+      visible: ["a", "b", "c"],
+      overflow: ["d", "e"],
+    });
+  });
+
+  it("defaults the cap to 3", () => {
+    const refs = ["a", "b", "c", "d"];
+    expect(splitRefBadges(refs)).toEqual({ visible: ["a", "b", "c"], overflow: ["d"] });
   });
 });

@@ -1,7 +1,10 @@
 use crate::models::{
     BranchList, CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp,
 };
-use std::process::Command;
+use std::collections::{HashMap, HashSet};
+use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -120,22 +123,49 @@ fn run_with_abort(
 }
 
 /// Read a page of commit history for the graph view.
-pub fn read_log(path: &str, limit: u32, skip: u32) -> Result<GitLog, String> {
+///
+/// `--all` alone makes `git log` walk every ref's full history before
+/// emitting a single commit, which is why the graph never finished loading on
+/// a repo with many branches (T-0408). Unless `show_all` is set, the walk is
+/// restricted to `extra_branches` plus the dynamically-computed default refs
+/// (HEAD, the default branch, and their upstreams — see
+/// `default_log_ref_candidates`). `request_id` identifies this load so a slow
+/// one can be killed from the frontend via `cancel_log`.
+pub fn read_log(
+    path: &str,
+    limit: u32,
+    skip: u32,
+    extra_branches: &[String],
+    show_all: bool,
+    request_id: &str,
+) -> Result<GitLog, String> {
     let max_count_arg = format!("--max-count={}", limit.saturating_add(1));
     let skip_arg = format!("--skip={skip}");
-    let raw = git(
-        path,
-        &[
-            "log",
-            "--exclude=refs/stash",
-            "--all",
-            "--topo-order",
-            "--decorate=full",
-            &max_count_arg,
-            &skip_arg,
-            "--pretty=format:%H%x1f%P%x1f%an%x1f%at%x1f%D%x1f%s%x1e",
-        ],
-    )?;
+
+    let resolved_refs = if show_all {
+        Vec::new()
+    } else {
+        let candidates = default_log_ref_candidates(path);
+        build_log_ref_args(&candidates, extra_branches, |r| {
+            git(path, &["rev-parse", "--verify", "--quiet", r]).is_ok()
+        })
+    };
+    let ref_args = log_ref_positional_args(show_all, &resolved_refs);
+
+    let mut args: Vec<&str> = vec!["log", "--exclude=refs/stash"];
+    args.extend(ref_args.iter().map(String::as_str));
+    args.push("--topo-order");
+    args.push("--decorate=full");
+    args.push(&max_count_arg);
+    args.push(&skip_arg);
+    args.push("--pretty=format:%H%x1f%P%x1f%an%x1f%at%x1f%D%x1f%s%x1e");
+
+    let started = Instant::now();
+    let raw = git_log_tracked(path, &args, request_id);
+    let elapsed = started.elapsed();
+    // A load the user cancelled for being too slow is the case the index
+    // helps most, so the slow-load trigger must fire on failure too.
+    let raw = raw.inspect_err(|_| maybe_write_commit_graph(path, elapsed))?;
 
     let mut commits = parse_log_records(&raw);
     let has_more = commits.len() > limit as usize;
@@ -149,6 +179,8 @@ pub fn read_log(path: &str, limit: u32, skip: u32) -> Result<GitLog, String> {
         .unwrap_or_default(); // detached HEAD (or unborn branch with no ref yet)
     let uncommitted = worktree_change_count(path);
 
+    maybe_write_commit_graph(path, elapsed);
+
     Ok(GitLog {
         commits,
         head,
@@ -156,6 +188,331 @@ pub fn read_log(path: &str, limit: u32, skip: u32) -> Result<GitLog, String> {
         uncommitted,
         has_more,
     })
+}
+
+/// The default refs `read_log` would use with no extra branches selected —
+/// exposed so the branch-filter popover can show them as always-on rather
+/// than making the user re-discover which branches those are.
+pub fn default_log_refs(path: &str) -> Vec<String> {
+    let candidates = default_log_ref_candidates(path);
+    build_log_ref_args(&candidates, &[], |r| {
+        git(path, &["rev-parse", "--verify", "--quiet", r]).is_ok()
+    })
+}
+
+/// Default refs shown in the graph when not showing everything: HEAD, the
+/// repo's default branch, and the upstreams of HEAD's branch and of the
+/// default branch, when they exist. Resolved fresh on every call — never
+/// persisted, since the right answer can change as branches/remotes do.
+///
+/// The default branch resolves in order: `origin/HEAD` (kept as the
+/// remote-tracking name, e.g. `origin/main`, since that is guaranteed to
+/// exist) → else the local `main` → else the local `master`.
+fn default_log_ref_candidates(path: &str) -> Vec<String> {
+    let mut out = vec!["HEAD".to_string()];
+
+    let default_branch = git(
+        path,
+        &["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"],
+    )
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .or_else(|| {
+        if git(
+            path,
+            &["rev-parse", "--verify", "--quiet", "refs/heads/main"],
+        )
+        .is_ok()
+        {
+            Some("main".to_string())
+        } else if git(
+            path,
+            &["rev-parse", "--verify", "--quiet", "refs/heads/master"],
+        )
+        .is_ok()
+        {
+            Some("master".to_string())
+        } else {
+            None
+        }
+    });
+
+    if let Some(db) = &default_branch {
+        out.push(db.clone());
+    }
+
+    if let Ok(cur) = git(path, &["symbolic-ref", "--short", "-q", "HEAD"]) {
+        let cur = cur.trim();
+        if !cur.is_empty() {
+            if let Some(up) = upstream_of(path, cur) {
+                out.push(up);
+            }
+        }
+    }
+    if let Some(db) = &default_branch {
+        if let Some(up) = upstream_of(path, db) {
+            out.push(up);
+        }
+    }
+
+    out
+}
+
+/// The upstream ref of a local branch (e.g. `origin/main`), or `None` when it
+/// has no upstream configured (or `branch` is itself a remote-tracking ref,
+/// which has no `@{u}` of its own).
+fn upstream_of(path: &str, branch: &str) -> Option<String> {
+    git(
+        path,
+        &["rev-parse", "--abbrev-ref", &format!("{branch}@{{u}}")],
+    )
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+/// Build the ordered, de-duplicated ref list to pass to `git log`, from the
+/// resolved default-ref candidates plus the user's extra branches. `exists`
+/// checks each candidate against the repo (`git rev-parse --verify`); a
+/// candidate that fails it is dropped from *this* `git log` call only — it is
+/// never removed from settings, since the branch may simply not exist yet
+/// (or any more) on this checkout. Falls back to `["HEAD"]` when nothing in
+/// the combined list survives.
+fn build_log_ref_args<F: Fn(&str) -> bool>(
+    default_candidates: &[String],
+    extra_branches: &[String],
+    exists: F,
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for r in default_candidates.iter().chain(extra_branches.iter()) {
+        let r = r.trim();
+        if r.is_empty() || !seen.insert(r.to_string()) {
+            continue;
+        }
+        if exists(r) {
+            out.push(r.to_string());
+        }
+    }
+    if out.is_empty() {
+        out.push("HEAD".to_string());
+    }
+    out
+}
+
+/// The positional ref arguments `git log` receives: `--all` (every ref) when
+/// showing everything, or the explicit resolved list otherwise.
+fn log_ref_positional_args(show_all: bool, resolved_refs: &[String]) -> Vec<String> {
+    if show_all {
+        vec!["--all".to_string()]
+    } else {
+        resolved_refs.to_vec()
+    }
+}
+
+/// Registry of in-flight `git log` child processes, keyed by the frontend's
+/// `request_id`, so `cancel_log` can find and kill one.
+fn log_process_registry() -> &'static Mutex<HashMap<String, u32>> {
+    static REG: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+    REG.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Request ids killed via `cancel_log`, so the process that was waiting on
+/// them can tell "killed on purpose" apart from an ordinary git failure.
+fn log_cancelled_registry() -> &'static Mutex<HashSet<String>> {
+    static REG: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    REG.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Kill the `git log` started under `request_id`, if one is still running.
+/// Best-effort: on Windows this terminates the process tree via `taskkill`,
+/// but a `git log` routed through `wsl.exe` (see `git_command`, for WSL share
+/// paths) may leave the in-distro git process running — killing the Windows
+/// wrapper is the best that can be done without a matching in-distro kill.
+pub fn cancel_log(request_id: &str) {
+    let pid = log_process_registry()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(request_id);
+    if let Some(pid) = pid {
+        log_cancelled_registry()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(request_id.to_string());
+        kill_pid(pid);
+    }
+}
+
+#[cfg(windows)]
+fn kill_pid(pid: u32) {
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.output();
+}
+
+#[cfg(not(windows))]
+fn kill_pid(pid: u32) {
+    let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
+}
+
+/// Run a `git log` invocation as a tracked, killable child process (see
+/// `cancel_log`), returning its stdout on success. A process killed via
+/// `cancel_log` returns `Err("cancelled")`, which the frontend recognizes and
+/// does not surface as a load failure.
+fn git_log_tracked(path: &str, args: &[&str], request_id: &str) -> Result<String, String> {
+    let mut cmd = git_command(path, args);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => return Err(format!("failed to run git: {e}")),
+    };
+    let pid = child.id();
+    log_process_registry()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(request_id.to_string(), pid);
+
+    let out = child.wait_with_output();
+
+    log_process_registry()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(request_id);
+
+    match out {
+        Ok(out) if out.status.success() => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
+        Ok(out) => {
+            let was_cancelled = log_cancelled_registry()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(request_id);
+            if was_cancelled {
+                Err("cancelled".to_string())
+            } else {
+                let err = String::from_utf8_lossy(&out.stderr).into_owned();
+                let err = err.trim();
+                Err(if err.is_empty() {
+                    "git log failed".to_string()
+                } else {
+                    err.to_string()
+                })
+            }
+        }
+        Err(e) => Err(format!("failed to run git: {e}")),
+    }
+}
+
+/// Repository paths a `commit-graph write` has already been attempted for
+/// during this app run (see `maybe_write_commit_graph`).
+fn commit_graph_attempted() -> &'static Mutex<HashSet<String>> {
+    static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    DONE.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Whether a `commit-graph write` is worth doing after a log load just
+/// finished: either the repo has no commit-graph file yet, or the load was
+/// slow enough that one would clearly have helped.
+fn should_write_commit_graph(has_commit_graph: bool, load_duration: Duration) -> bool {
+    const SLOW_THRESHOLD: Duration = Duration::from_secs(3);
+    !has_commit_graph || load_duration > SLOW_THRESHOLD
+}
+
+/// UNC paths (`\\server\share`, `\\wsl.localhost\...`) and mapped network
+/// drives are excluded from the automatic `commit-graph write`: a write over
+/// a slow or unreliable share can itself become the thing making the repo
+/// slow, and the win is smallest exactly where the read is already routed
+/// through `wsl.exe` or a share.
+fn is_network_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/");
+    normalized.starts_with("//") || is_mapped_network_drive(&normalized)
+}
+
+#[cfg(windows)]
+fn is_mapped_network_drive(normalized_path: &str) -> bool {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    use windows::Win32::System::WindowsProgramming::DRIVE_REMOTE;
+
+    let mut chars = normalized_path.chars();
+    let Some(drive_letter) = chars.next() else {
+        return false;
+    };
+    if !drive_letter.is_ascii_alphabetic() || chars.next() != Some(':') {
+        return false;
+    }
+    let root = format!("{drive_letter}:\\");
+    let wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
+    let drive_type = unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) };
+    drive_type == DRIVE_REMOTE
+}
+
+#[cfg(not(windows))]
+fn is_mapped_network_drive(_normalized_path: &str) -> bool {
+    false
+}
+
+/// Whether the repo already has a commit-graph file, resolved via
+/// `git rev-parse --git-common-dir` so a linked worktree checks the main
+/// repository's shared `objects/info/` rather than its own per-worktree dir.
+fn commit_graph_file_present(path: &str) -> bool {
+    let Ok(common_dir) = git(path, &["rev-parse", "--git-common-dir"]) else {
+        return false;
+    };
+    let common_dir = common_dir.trim();
+    if common_dir.is_empty() {
+        return false;
+    }
+    let common_dir = std::path::Path::new(common_dir);
+    let common_dir = if common_dir.is_absolute() {
+        common_dir.to_path_buf()
+    } else {
+        std::path::Path::new(path).join(common_dir)
+    };
+    common_dir.join("objects/info/commit-graph").exists()
+        || common_dir.join("objects/info/commit-graphs").is_dir()
+}
+
+/// After a log load, write a `commit-graph` in the background when warranted
+/// (see `should_write_commit_graph`), at most once per repository path per
+/// app run — this is the "at most once" reservation, made before the file
+/// check so two loads racing on the same repo don't both spawn a write.
+/// Never blocks the caller; failures go only to the diagnostic log, never
+/// the UI (per `.claude/rules/diagnostic-logging.md`).
+fn maybe_write_commit_graph(path: &str, load_duration: Duration) {
+    if is_network_path(path) {
+        return;
+    }
+    if commit_graph_attempted()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .contains(path)
+    {
+        return;
+    }
+
+    // Decide before reserving the slot: a fast first load must not use up
+    // the one write, or a later slow "show all" load could never trigger it.
+    let has_commit_graph = commit_graph_file_present(path);
+    if !should_write_commit_graph(has_commit_graph, load_duration) {
+        return;
+    }
+    if !commit_graph_attempted()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(path.to_string())
+    {
+        return;
+    }
+
+    let path = path.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = git(&path, &["commit-graph", "write", "--reachable", "--split"]) {
+            crate::diag!("commit-graph write failed for {path}: {e}");
+        }
+    });
 }
 
 /// Parse `%H%x1f%P%x1f%an%x1f%at%x1f%D%x1f%s%x1e`-formatted `git log` output.
@@ -1141,5 +1498,123 @@ aaa2\x1fbbb2 ccc2\x1fBob\x1f2000\x1f\x1fMerge branch 'feature'\x1e
         assert!(ws[2].branch.is_empty());
         assert!(ws[2].detached);
         assert!(ws[2].locked);
+    }
+
+    // ---- T-0408: branch filter + commit-graph auto-write ----
+
+    #[test]
+    fn build_log_ref_args_includes_default_and_extra_branches() {
+        let defaults = vec!["HEAD".to_string(), "main".to_string()];
+        let extras = vec!["feature/x".to_string()];
+        let refs = build_log_ref_args(&defaults, &extras, |_| true);
+        assert_eq!(refs, vec!["HEAD", "main", "feature/x"]);
+    }
+
+    #[test]
+    fn build_log_ref_args_dedupes_overlapping_extra_branch() {
+        let defaults = vec!["HEAD".to_string(), "main".to_string()];
+        // The user picked "main" as an extra branch too — it must not repeat.
+        let extras = vec!["main".to_string(), "feature/x".to_string()];
+        let refs = build_log_ref_args(&defaults, &extras, |_| true);
+        assert_eq!(refs, vec!["HEAD", "main", "feature/x"]);
+    }
+
+    #[test]
+    fn build_log_ref_args_drops_refs_that_do_not_exist() {
+        let defaults = vec!["HEAD".to_string(), "main".to_string()];
+        let extras = vec!["deleted-branch".to_string()];
+        let refs = build_log_ref_args(&defaults, &extras, |r| r != "deleted-branch");
+        assert_eq!(refs, vec!["HEAD", "main"]);
+    }
+
+    #[test]
+    fn build_log_ref_args_falls_back_to_head_when_nothing_survives() {
+        let defaults = vec!["main".to_string()];
+        let extras = vec!["gone".to_string()];
+        let refs = build_log_ref_args(&defaults, &extras, |_| false);
+        assert_eq!(refs, vec!["HEAD"]);
+    }
+
+    #[test]
+    fn log_ref_positional_args_uses_all_flag_when_showing_everything() {
+        let resolved = vec!["HEAD".to_string(), "main".to_string()];
+        assert_eq!(log_ref_positional_args(true, &resolved), vec!["--all"]);
+        assert_eq!(log_ref_positional_args(false, &resolved), resolved);
+    }
+
+    #[test]
+    fn should_write_commit_graph_when_file_missing() {
+        assert!(should_write_commit_graph(false, Duration::from_millis(50)));
+    }
+
+    #[test]
+    fn should_write_commit_graph_when_load_was_slow() {
+        assert!(should_write_commit_graph(true, Duration::from_secs(4)));
+    }
+
+    #[test]
+    fn should_not_write_commit_graph_when_present_and_fast() {
+        assert!(!should_write_commit_graph(true, Duration::from_millis(200)));
+    }
+
+    #[test]
+    fn unc_paths_are_excluded_from_commit_graph_auto_write() {
+        assert!(is_network_path(r"\\wsl.localhost\Ubuntu\home\user\repo"));
+        assert!(is_network_path("//server/share/repo"));
+        assert!(!is_network_path("C:/repos/workhub"));
+    }
+
+    #[test]
+    fn commit_graph_attempted_registry_reserves_a_repo_path_once() {
+        let path = format!(
+            "test-repo-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let mut attempted = commit_graph_attempted().lock().unwrap();
+        assert!(attempted.insert(path.clone()), "first reservation succeeds");
+        assert!(
+            !attempted.insert(path.clone()),
+            "second reservation is refused"
+        );
+    }
+
+    #[test]
+    fn commit_graph_file_present_reflects_a_real_repo() {
+        let dir = std::env::temp_dir().join(format!(
+            "workhub-git-commit-graph-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().to_string();
+
+        for args in [
+            vec!["init", "-q", "."],
+            vec!["config", "user.email", "test@example.com"],
+            vec!["config", "user.name", "test"],
+        ] {
+            git(&path, &args).unwrap();
+        }
+        std::fs::write(dir.join("f.txt"), "a\n").unwrap();
+        git(&path, &["add", "-A"]).unwrap();
+        git(&path, &["commit", "-qm", "init"]).unwrap();
+
+        assert!(!commit_graph_file_present(&path));
+        git(&path, &["commit-graph", "write", "--reachable"]).unwrap();
+        assert!(commit_graph_file_present(&path));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn cancel_log_of_an_unknown_request_id_is_a_no_op() {
+        // No process was ever registered under this id — cancelling it must
+        // not panic (e.g. on a poisoned/missing registry entry).
+        cancel_log("no-such-request-id");
     }
 }

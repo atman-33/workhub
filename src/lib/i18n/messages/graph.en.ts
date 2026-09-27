@@ -91,4 +91,16 @@ export const graphEn = {
     "{branch} is {count} commit(s) behind its upstream. Pull now?",
 
   "graph.nameDialog.checkoutAfterCreate": "Check out after create",
+
+  // T-0408: branch filter, so a repo with many branches can still load.
+  "graph.branchFilter.allBranches": "All branches",
+  "graph.branchFilter.branchCount": "{count} extra branch(es)",
+  "graph.branchFilter.showAll": "Show all branches",
+  "graph.branchFilter.defaultBadge": "default",
+
+  // T-0408: shown once a load has been running long enough to suspect the
+  // branch set is the reason.
+  "graph.slowLoad.message": "This is taking a while. Narrow the branches shown?",
+  "graph.slowLoad.cancel": "Cancel",
+  "graph.slowLoad.chooseBranches": "Choose branches",
 } as const;

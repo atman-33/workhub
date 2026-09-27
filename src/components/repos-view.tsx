@@ -311,6 +311,8 @@ export function ReposView({ configVersion, active, focus }: Props) {
           favorite: false,
           notes: "",
           last_opened: null,
+          graph_branches: [],
+          graph_show_all: false,
         }));
       added.forEach((p) => refreshStatus(p.path));
       return { ...cfg, projects: [...cfg.projects, ...added] };
@@ -692,6 +694,18 @@ export function ReposView({ configVersion, active, focus }: Props) {
             <GitGraphView
               path={graphPath}
               name={config.projects.find((p) => p.path === graphPath)?.name ?? graphPath}
+              graphBranches={config.projects.find((p) => p.path === graphPath)?.graph_branches ?? []}
+              graphShowAll={config.projects.find((p) => p.path === graphPath)?.graph_show_all ?? false}
+              onGraphFilterChange={(next) =>
+                mutateConfig((cfg) => ({
+                  ...cfg,
+                  projects: cfg.projects.map((p) =>
+                    p.path === graphPath
+                      ? { ...p, graph_branches: next.extraBranches, graph_show_all: next.showAll }
+                      : p,
+                  ),
+                }))
+              }
               onClose={() => setGraphPath(null)}
               onRepoChanged={refreshStatus}
               maximized={graphMaximized}
