@@ -14,6 +14,7 @@ import { voiceJa } from "./voice.ja";
 import { clipsJa } from "./clips.ja";
 import { inkJa } from "./ink.ja";
 import { personaJa } from "./persona.ja";
+import { helpJa } from "./help.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -397,4 +398,5 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...clipsJa,
   ...inkJa,
   ...personaJa,
+  ...helpJa,
 };

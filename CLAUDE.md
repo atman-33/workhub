@@ -95,7 +95,8 @@ before adding or moving a skill.
 - Keep the in-app **Help** tab (`src/components/help-view.tsx`) in sync: when
   you change a user-facing operation or setup step that isn't discoverable from
   the UI (ink shortcuts, quick capture, first-run setup), update its section
-  there too. See `.claude/rules/help-screen.md`.
+  too — the text is Markdown in `src/lib/i18n/help/`, in English and Japanese.
+  See `.claude/rules/help-screen.md`.
 
 <important>
 - Config compatibility: `~/.workhub/config.json` (migrated on first run of

@@ -17,10 +17,14 @@ those two files (T-0423); a new area gets a new pair rather than growing
   and `ja.ts` together, rendered with `const t = useT();`. Keys are flat and
   dotted by area (`taskEditor.field.priority`); reuse `common.*` for recurring
   words. Interpolate with `{name}`, never by concatenating translated pieces.
-- **Every screen is translated except the Help tab** (`help-view.tsx`, a
-  follow-up task). A missing `ja` key falls back to English, so a half-done
-  area never renders a blank — which is also why a forgotten key goes
-  unnoticed: give every new key its Japanese text in the same change.
+- **Every screen is translated.** A missing `ja` key falls back to English,
+  so a half-done area never renders a blank — which is also why a forgotten
+  key goes unnoticed: give every new key its Japanese text in the same change.
+- **The Help tab's guide is the one exception to keys** (T-0428): its prose is
+  Markdown in `src/lib/i18n/help/help.en.ts` / `help.ja.ts`, a whole text per
+  language, because splitting a user guide into sentence keys makes it
+  unreadable to maintain. Only the tab's own controls are dictionary keys
+  (`messages/help.*.ts`). See `help-screen.md`.
 - **Display only.** Values written to files or sent to the backend stay
   English — frontmatter (`todo`, `high`, `claude-code`), setting ids, and the
   `## Description` / `## Plan` / `## Results` headings. Translate their labels

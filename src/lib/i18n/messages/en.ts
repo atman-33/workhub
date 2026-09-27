@@ -26,6 +26,7 @@ import { voiceEn } from "./voice.en";
 import { clipsEn } from "./clips.en";
 import { inkEn } from "./ink.en";
 import { personaEn } from "./persona.en";
+import { helpEn } from "./help.en";
 
 export const en = {
   "app.windowTitle": "workhub — All-in-one Dev Hub",
@@ -408,6 +409,7 @@ export const en = {
   ...clipsEn,
   ...inkEn,
   ...personaEn,
+  ...helpEn,
 } as const;
 
 export type MessageKey = keyof typeof en;
