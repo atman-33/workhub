@@ -95,7 +95,9 @@ argument-hint: "<task-id>"
    ```
 
    Write the Description to a file and pass `--body-file`; it is prose, and
-   prose does not survive a shell argument intact. Leave `status` at `todo`
+   prose does not survive a shell argument intact. The file holds the
+   Description's text only — no `## Description` heading (the CLI adds it)
+   and no `## Plan` or `## Results`, which the CLI refuses. Leave `status` at `todo`
    (or `inbox` when it is only an idea) — never start a follow-up yourself as
    part of closing this task. List what you filed in the report and in the
    final message, so the owner can drop any of them.

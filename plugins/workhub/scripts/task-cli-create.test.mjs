@@ -134,6 +134,34 @@ describe("the file", () => {
     );
   });
 
+  // Writing the file with its own heading is the natural mistake, and it used
+  // to leave the task with two Description headings (T-0426).
+  it("drops a leading Description heading from --body-file", () => {
+    const body = join(vault, "body.md");
+    writeFileSync(body, "\n## Description\n\nwhy this task exists\n", "utf-8");
+    const text = readFileSync(created("--title", "headed", "--body-file", body).file, "utf-8");
+    expect(text).toContain("\n## Description\n\nwhy this task exists\n\n## Plan\n\n## Results\n");
+    expect(text.match(/^## Description$/gm)).toHaveLength(1);
+  });
+
+  it("reads a CRLF --body-file with a heading the same way", () => {
+    const body = join(vault, "body.md");
+    writeFileSync(body, "## Description\r\n\r\nline one\r\nline two\r\n", "utf-8");
+    const task = created("--title", "crlf", "--body-file", body);
+    expect(readFileSync(task.file, "utf-8")).toContain(
+      "\n## Description\n\nline one\nline two\n\n## Plan\n",
+    );
+  });
+
+  it("leaves a heading inside a code fence alone", () => {
+    const body = join(vault, "body.md");
+    writeFileSync(body, "the template reads:\n\n```md\n## Plan\n```\n", "utf-8");
+    const task = created("--title", "fenced", "--body-file", body);
+    expect(readFileSync(task.file, "utf-8")).toContain(
+      "\n## Description\n\nthe template reads:\n\n```md\n## Plan\n```\n\n## Plan\n\n## Results\n",
+    );
+  });
+
   // `confirm` and `worktree` are not in KNOWN_KEYS, so they ride the `extra`
   // lines — which is exactly where the documented schema puts them.
   it("writes confirm and worktree between archived and created", () => {
@@ -202,6 +230,21 @@ describe("refusals", () => {
       /cannot read --body-file/,
     );
   });
+});
+
+describe("--body-file with other sections", () => {
+  // A Plan is the owner's approval record and Results the agent's report;
+  // neither exists yet on a task being filed, so the file is refused rather
+  // than silently trimmed.
+  it.each(["## Plan", "## Results", "## Description"])(
+    "refuses a file that carries %s after its text",
+    (heading) => {
+      const body = join(vault, "body.md");
+      writeFileSync(body, `## Description\n\ntext\n\n${heading}\n\nmore\n`, "utf-8");
+      expect(createFails("--title", "x", "--body-file", body)).toMatch(/pass only the Description/);
+      expect(readdirSync(join(vault, "tasks"))).toEqual(["archive"]);
+    },
+  );
 });
 
 describe("backlog", () => {
