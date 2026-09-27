@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.151.0 (2026-09-27)
+
+- **Music playlists can be exchanged with other tools** (T-0435). Export used
+  a workhub-only marker, so a file written by another tool with the same
+  playlist structure was rejected as "Not a workhub playlist export." Export
+  now writes the generic `youtube-playlist` format, and import accepts both it
+  and the old `workhub-music-playlist` marker, so every file exported by an
+  earlier version still loads. The import error messages no longer assume the
+  file came from workhub.
+
 ## 0.150.0 (2026-09-27)
 
 - **The Repos tab's commit graph no longer stalls on a repo with many
