@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
 
 /** Where the bubble points, in viewport coordinates. */
 export interface PopoverAnchor {
@@ -38,6 +39,7 @@ const MARGIN = 8;
  * focus out of it.
  */
 export function AnnotationPopover({ at, quote, value, onSave, onCancel, onDelete }: Props) {
+  const t = useT();
   const [comment, setComment] = useState(value);
   const box = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState({ left: at.x, top: at.y });
@@ -95,23 +97,28 @@ export function AnnotationPopover({ at, quote, value, onSave, onCancel, onDelete
             onSave(comment);
           }
         }}
-        placeholder="What should change here?"
+        placeholder={t("docs.annotation.placeholder")}
         className="max-h-40 resize-none overflow-y-auto text-xs"
       />
       <div className="mt-1.5 flex items-center gap-1">
         {onDelete && (
-          <Hint label="Delete this note">
-            <Button size="icon-sm" variant="ghost" aria-label="Delete this note" onClick={onDelete}>
+          <Hint label={t("docs.sidebar.deleteThisNote")}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={t("docs.sidebar.deleteThisNote")}
+              onClick={onDelete}
+            >
               <Trash2 />
             </Button>
           </Hint>
         )}
         <span className="flex-1 text-[10px] text-muted-foreground">Ctrl+Enter</span>
         <Button size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button size="sm" disabled={!comment.trim()} onClick={() => onSave(comment)}>
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </div>

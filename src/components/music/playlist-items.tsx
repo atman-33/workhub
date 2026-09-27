@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { PlaylistItem } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
@@ -40,6 +41,7 @@ function SortableItem({
   isCurrent: boolean;
   onMoveFailed: (message: string | null) => void;
 }) {
+  const t = useT();
   const { play, removeFromPlaylist, playlists, activePlaylistId, moveItemBetweenPlaylists } =
     useMusicStore();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -66,9 +68,7 @@ function SortableItem({
 
   const handleMove = (targetPlaylistId: string) => {
     const moved = moveItemBetweenPlaylists(index, activePlaylistId, targetPlaylistId);
-    onMoveFailed(
-      moved ? null : "Could not move the item — it already exists in the target playlist.",
-    );
+    onMoveFailed(moved ? null : tStatic("music.items.moveFailed"));
   };
 
   const style = {
@@ -100,7 +100,7 @@ function SortableItem({
             {...listeners}
           >
             <GripVertical className="size-4" />
-            <span className="sr-only">Drag to reorder</span>
+            <span className="sr-only">{t("music.items.dragToReorder")}</span>
           </button>
           <Hint label={item.title}>
             <button
@@ -126,7 +126,7 @@ function SortableItem({
             onClick={() => removeFromPlaylist(index)}
           >
             <Trash2 className="size-3.5" />
-            <span className="sr-only">Remove</span>
+            <span className="sr-only">{t("music.items.remove")}</span>
           </Button>
         </li>
       </ContextMenuTrigger>
@@ -134,11 +134,11 @@ function SortableItem({
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <ListMusic className="size-4" />
-            Move to playlist
+            {t("music.items.moveToPlaylist")}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-48">
             {targetPlaylists.length === 0 ? (
-              <ContextMenuItem disabled>No other playlists</ContextMenuItem>
+              <ContextMenuItem disabled>{t("music.items.noOtherPlaylists")}</ContextMenuItem>
             ) : (
               targetPlaylists.map((playlist) => (
                 <ContextMenuItem key={playlist.id} onSelect={() => handleMove(playlist.id)}>
@@ -151,7 +151,7 @@ function SortableItem({
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onSelect={() => removeFromPlaylist(index)}>
           <Trash2 className="size-4" />
-          Remove from playlist
+          {t("music.items.removeFromPlaylist")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -159,6 +159,7 @@ function SortableItem({
 }
 
 export function PlaylistItems() {
+  const t = useT();
   const { currentIndex, reorderPlaylist, getActivePlaylist } = useMusicStore();
   const [moveError, setMoveError] = useState<string | null>(null);
   const sensors = useSensors(
@@ -180,7 +181,7 @@ export function PlaylistItems() {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">
-        The playlist is empty. Add YouTube URLs above.
+        {t("music.items.emptyPlaylist")}
       </div>
     );
   }

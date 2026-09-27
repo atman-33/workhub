@@ -19,6 +19,9 @@ import { miscEn } from "./misc.en";
 import { scheduleEn } from "./schedule.en";
 import { mindmapEn } from "./mindmap.en";
 import { graphEn } from "./graph.en";
+import { docsEn } from "./docs.en";
+import { musicEn } from "./music.en";
+import { timerEn } from "./timer.en";
 
 export const en = {
   "common.cancel": "Cancel",
@@ -390,6 +393,9 @@ export const en = {
   ...scheduleEn,
   ...mindmapEn,
   ...graphEn,
+  ...docsEn,
+  ...musicEn,
+  ...timerEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

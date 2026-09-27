@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/context-menu";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import type { DocNote } from "@/lib/docs/annotations";
 import { baseName } from "@/lib/docs/tree-nav";
 import { cn } from "@/lib/utils";
@@ -164,6 +165,7 @@ function SortableShortcut({
   onRemove: () => void;
   onReveal: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: shortcut.path,
   });
@@ -193,18 +195,18 @@ function SortableShortcut({
             {...listeners}
           >
             <GripVertical className="size-3" />
-            <span className="sr-only">Drag to reorder</span>
+            <span className="sr-only">{t("docs.sidebar.dragToReorder")}</span>
           </button>
         }
         menu={
           <ContextMenuContent>
             <ContextMenuItem onSelect={onReveal}>
               <Folder />
-              Reveal in tree
+              {t("docs.sidebar.revealInTree")}
             </ContextMenuItem>
             <ContextMenuItem onSelect={onRemove}>
               <StarOff />
-              Remove from shortcuts
+              {t("docs.sidebar.removeFromShortcuts")}
             </ContextMenuItem>
           </ContextMenuContent>
         }
@@ -232,6 +234,7 @@ export function ShortcutsSection({
   onRemove: (path: string) => void;
   onReorder: (next: DocsShortcut[]) => void;
 }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useCollapsed("docs.shortcuts.collapsed");
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -251,7 +254,7 @@ export function ShortcutsSection({
     <div className="border-b">
       <SectionHeader
         icon={<Star className="size-3" />}
-        label="Shortcuts"
+        label={t("docs.sidebar.shortcuts")}
         count={shortcuts.length}
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
@@ -262,10 +265,8 @@ export function ShortcutsSection({
             {/* Saying "star something" to someone who has starred plenty —
                 just not in this folder — reads as if the list were lost. */}
             {elsewhere > 0
-              ? `Nothing starred in this folder. ${elsewhere} ${
-                  elsewhere === 1 ? "shortcut is" : "shortcuts are"
-                } in the other folders.`
-              : "Star a folder or a document from the tree's right-click menu to keep it here."}
+              ? t("docs.sidebar.shortcutsEmptyElsewhere", { count: elsewhere })
+              : t("docs.sidebar.shortcutsEmpty")}
           </p>
         ) : (
           <DndContext
@@ -310,6 +311,7 @@ export function RecentSection({
   onForget: (path: string) => void;
   onClear: () => void;
 }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useCollapsed("docs.recent.collapsed");
 
   return (
@@ -317,16 +319,16 @@ export function RecentSection({
       <div className="flex items-center">
         <SectionHeader
           icon={<Clock className="size-3" />}
-          label="Recent files"
+          label={t("docs.sidebar.recentFiles")}
           count={paths.length}
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
         />
         {paths.length > 0 && (
-          <Hint label="Clear the list">
+          <Hint label={t("docs.sidebar.clearListHint")}>
             <button
               type="button"
-              aria-label="Clear recent files"
+              aria-label={t("docs.sidebar.clearRecentFiles")}
               onClick={onClear}
               className="mr-1 shrink-0 text-muted-foreground hover:text-foreground"
             >
@@ -338,7 +340,7 @@ export function RecentSection({
       {!collapsed &&
         (paths.length === 0 ? (
           <p className="px-2 pb-2 text-[11px] leading-relaxed text-muted-foreground">
-            Documents you open here are listed as you go.
+            {t("docs.sidebar.recentEmpty")}
           </p>
         ) : (
           <ul className="pb-1 text-xs">
@@ -353,7 +355,7 @@ export function RecentSection({
                     <ContextMenuContent>
                       <ContextMenuItem onSelect={() => onForget(path)}>
                         <X />
-                        Remove from the list
+                        {t("docs.sidebar.removeFromList")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   }
@@ -391,6 +393,7 @@ export function NotesSection({
   onClear: () => void;
   onCopyPrompt: () => Promise<unknown>;
 }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useCollapsed("docs.notes.collapsed");
 
   return (
@@ -398,7 +401,7 @@ export function NotesSection({
       <div className="flex items-center">
         <SectionHeader
           icon={<MessageSquareText className="size-3" />}
-          label="Notes"
+          label={t("docs.sidebar.notes")}
           count={notes.length}
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
@@ -406,15 +409,15 @@ export function NotesSection({
         {notes.length > 0 && (
           <>
             <CopyPromptButton
-              label="Copy the notes as a prompt"
+              label={t("docs.sidebar.copyNotesPrompt")}
               size="icon-sm"
               variant="ghost"
               onCopy={onCopyPrompt}
             />
-            <Hint label="Delete every note on this document">
+            <Hint label={t("docs.sidebar.deleteAllNotesHint")}>
               <button
                 type="button"
-                aria-label="Clear notes"
+                aria-label={t("docs.sidebar.clearNotesAria")}
                 onClick={onClear}
                 className="mr-1 shrink-0 text-muted-foreground hover:text-foreground"
               >
@@ -427,13 +430,13 @@ export function NotesSection({
       {!collapsed &&
         (notes.length === 0 ? (
           <p className="px-2 pb-2 text-[11px] leading-relaxed text-muted-foreground">
-            Select text in the document and right-click to note what should change.
+            {t("docs.sidebar.notesEmpty")}
           </p>
         ) : (
           <>
             {stale && (
               <p className="px-2 pb-1 text-[11px] leading-relaxed text-amber-500">
-                This document has changed since some of these notes were taken.
+                {t("docs.sidebar.notesStale")}
               </p>
             )}
             <ul className="pb-1 text-xs">
@@ -456,7 +459,7 @@ export function NotesSection({
                     <ContextMenuContent>
                       <ContextMenuItem onSelect={() => onRemove(note.id)}>
                         <X />
-                        Delete this note
+                        {t("docs.sidebar.deleteThisNote")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Playlist } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
@@ -73,6 +74,7 @@ function SortablePlaylistTab({
   onClear: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: playlist.id,
   });
@@ -107,11 +109,11 @@ function SortablePlaylistTab({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={onStartRename}>Rename</ContextMenuItem>
-        <ContextMenuItem onSelect={onClear}>Clear items</ContextMenuItem>
+        <ContextMenuItem onSelect={onStartRename}>{t("music.tabs.rename")}</ContextMenuItem>
+        <ContextMenuItem onSelect={onClear}>{t("music.tabs.clearItems")}</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
-          Delete playlist
+          {t("music.tabs.deletePlaylist")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -119,6 +121,7 @@ function SortablePlaylistTab({
 }
 
 export function PlaylistTabs() {
+  const t = useT();
   const {
     playlists,
     activePlaylistId,
@@ -185,7 +188,7 @@ export function PlaylistTabs() {
           )}
         </SortableContext>
       </DndContext>
-      <Hint label="New playlist" disabled={!canCreatePlaylist}>
+      <Hint label={t("music.tabs.newPlaylist")} disabled={!canCreatePlaylist}>
         <Button
           variant="ghost"
           size="icon"

@@ -2,6 +2,7 @@ import { type PointerEvent, useCallback, useEffect, useLayoutEffect, useRef, use
 import { Maximize, Scan, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { type View, actualSizeView, fitView, zoomAround } from "@/lib/docs/zoom";
 import type { DocsFigure } from "@/types";
 
@@ -29,6 +30,7 @@ const DRAG_SLOP = 4;
  * PlantUML diagram from a server — is an `<img>`, which runs nothing.
  */
 export function FigureViewer({ figure }: { figure: DocsFigure }) {
+  const t = useT();
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [view, setView] = useState<View>({ scale: 1, x: 0, y: 0 });
@@ -153,26 +155,41 @@ export function FigureViewer({ figure }: { figure: DocsFigure }) {
         <span className="mr-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {figure.title}
         </span>
-        <Hint label="Zoom out (wheel)">
-          <Button size="icon-sm" variant="ghost" aria-label="Zoom out" onClick={() => zoomBy(1 / STEP)}>
+        <Hint label={t("docs.figure.zoomOutHint")}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("docs.preview.zoomOut")}
+            onClick={() => zoomBy(1 / STEP)}
+          >
             <ZoomOut />
           </Button>
         </Hint>
         <span className="w-12 text-center text-[11px] tabular-nums text-muted-foreground">
           {Math.round(view.scale * 100)}%
         </span>
-        <Hint label="Zoom in (wheel)">
-          <Button size="icon-sm" variant="ghost" aria-label="Zoom in" onClick={() => zoomBy(STEP)}>
+        <Hint label={t("docs.figure.zoomInHint")}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("docs.preview.zoomIn")}
+            onClick={() => zoomBy(STEP)}
+          >
             <ZoomIn />
           </Button>
         </Hint>
-        <Hint label="Fit to window">
-          <Button size="icon-sm" variant="ghost" aria-label="Fit to window" onClick={fit}>
+        <Hint label={t("docs.figure.fitHint")}>
+          <Button size="icon-sm" variant="ghost" aria-label={t("docs.figure.fit")} onClick={fit}>
             <Maximize />
           </Button>
         </Hint>
-        <Hint label="Actual size (100%)">
-          <Button size="icon-sm" variant="ghost" aria-label="Actual size" onClick={actualSize}>
+        <Hint label={t("docs.figure.actualSizeHint")}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("docs.figure.actualSize")}
+            onClick={actualSize}
+          >
             <Scan />
           </Button>
         </Hint>

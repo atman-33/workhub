@@ -3,6 +3,7 @@ import { ListPlus, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { extractVideoId } from "@/lib/music/playlist-helpers";
 import { extractPlaylistId, hasPlaylistParam } from "@/lib/music/playlist-import";
 import { useMusicStore } from "@/stores/music";
@@ -11,6 +12,7 @@ import { usePlaylistImport } from "./use-playlist-import";
 const NOTICE_TIMEOUT_MS = 4000;
 
 export function AddUrlForm() {
+  const t = useT();
   const [inputUrl, setInputUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export function AddUrlForm() {
     confirmImport,
     reset: resetImport,
   } = usePlaylistImport((added) => {
-    setNotice(added === 1 ? "Added 1 video." : `Added ${added} videos.`);
+    setNotice(tStatic("music.addUrl.added", { count: added }));
     clearInput();
   });
 
@@ -68,7 +70,7 @@ export function AddUrlForm() {
     if (addToPlaylist({ id, title })) {
       clearInput();
     } else {
-      setError("This video is already in the playlist.");
+      setError(t("music.addUrl.alreadyInPlaylist"));
     }
   };
 
@@ -82,7 +84,7 @@ export function AddUrlForm() {
     resetMessages();
     if (!inputUrl.trim() || isBusy) {
       if (!inputUrl.trim()) {
-        setError("Please enter a YouTube URL.");
+        setError(t("music.addUrl.enterUrl"));
       }
       return;
     }
@@ -103,8 +105,8 @@ export function AddUrlForm() {
     }
     setError(
       hasPlaylistParam(inputUrl)
-        ? "This playlist cannot be imported. Mixes, liked videos and watch later are not available."
-        : "Please enter a valid YouTube URL.",
+        ? t("music.addUrl.playlistUnsupported")
+        : t("music.addUrl.invalidUrl"),
     );
   };
 
@@ -120,7 +122,7 @@ export function AddUrlForm() {
               setIsChoosing(false);
               resetMessages();
             }}
-            placeholder="Enter a YouTube video or playlist URL"
+            placeholder={t("music.addUrl.placeholder")}
             className="h-8 pr-8 text-xs"
             disabled={isBusy}
             aria-invalid={error || importState.phase === "error" ? "true" : "false"}
@@ -134,7 +136,7 @@ export function AddUrlForm() {
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               disabled={isBusy}
-              aria-label="Clear input"
+              aria-label={t("music.addUrl.clearInput")}
             >
               <X className="size-3.5" />
             </button>
@@ -148,29 +150,29 @@ export function AddUrlForm() {
           ) : (
             <Plus className="size-4" />
           )}
-          {playlistId && !videoId ? "Import" : "Add"}
+          {playlistId && !videoId ? t("music.addUrl.import") : t("music.addUrl.add")}
         </Button>
       </div>
 
       {isChoosing && videoId && playlistId && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-muted-foreground">This URL has a video and a playlist:</span>
+          <span className="text-muted-foreground">{t("music.addUrl.hasBoth")}</span>
           <Button type="button" size="sm" variant="secondary" onClick={() => void addSingleVideo(videoId)}>
-            Add this video
+            {t("music.addUrl.addThisVideo")}
           </Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => startImport(playlistId)}>
-            Import the playlist
+            {t("music.addUrl.importPlaylist")}
           </Button>
         </div>
       )}
 
       {importState.phase === "reading" && (
-        <p className="text-xs text-muted-foreground">Reading the playlist…</p>
+        <p className="text-xs text-muted-foreground">{t("music.addUrl.reading")}</p>
       )}
 
       {importState.phase === "adding" && (
         <p className="text-xs text-muted-foreground">
-          Fetching titles… {importState.done}/{importState.total}
+          {t("music.addUrl.fetchingTitles", { done: importState.done, total: importState.total })}
         </p>
       )}
 
@@ -178,26 +180,27 @@ export function AddUrlForm() {
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {importState.newIds.length === 0 ? (
             <>
-              <span className="text-muted-foreground">
-                Every video in this playlist is already here.
-              </span>
+              <span className="text-muted-foreground">{t("music.addUrl.allDuplicates")}</span>
               <Button type="button" size="sm" variant="secondary" onClick={resetImport}>
-                OK
+                {t("music.addUrl.ok")}
               </Button>
             </>
           ) : (
             <>
               <span className="text-muted-foreground">
-                {importState.newIds.length} new{" "}
-                {importState.newIds.length === 1 ? "video" : "videos"}
-                {importState.duplicates > 0 && `, ${importState.duplicates} already here`}.
-                {importState.truncated && " Only the first 200 entries of a playlist are readable."}
+                {importState.duplicates > 0
+                  ? t("music.addUrl.newVideosWithDuplicates", {
+                      count: importState.newIds.length,
+                      duplicates: importState.duplicates,
+                    })
+                  : t("music.addUrl.newVideos", { count: importState.newIds.length })}
+                {importState.truncated && ` ${t("music.addUrl.truncatedNotice")}`}
               </span>
               <Button type="button" size="sm" onClick={() => void confirmImport()}>
-                Add them
+                {t("music.addUrl.addThem")}
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={resetImport}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             </>
           )}

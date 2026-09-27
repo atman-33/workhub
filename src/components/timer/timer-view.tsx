@@ -8,6 +8,7 @@ import { Bell, BellOff, Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { formatRemaining } from "@/lib/timer/format";
 import {
   clampDuration,
@@ -30,12 +31,13 @@ async function notifyTimesUp(minutes: number) {
   }
   if (!granted) return;
   sendNotification({
-    title: "Time's up",
-    body: `Your ${minutes}-minute timer has finished.`,
+    title: tStatic("timer.notification.title"),
+    body: tStatic("timer.notification.body", { minutes }),
   });
 }
 
 export function TimerView() {
+  const t = useT();
   const [settings, setSettings] = useState<TimerSettings>(loadTimerSettings);
   const [minutesInput, setMinutesInput] = useState(() =>
     String(Math.round(loadTimerSettings().durationSec / 60)),
@@ -123,28 +125,30 @@ export function TimerView() {
             {formatRemaining(displaySec)}
           </span>
           {finished && (
-            <span className="mt-1 text-xs font-medium text-destructive">Time's up</span>
+            <span className="mt-1 text-xs font-medium text-destructive">
+              {t("timer.finished")}
+            </span>
           )}
         </div>
       </div>
 
       {finished ? (
-        <Button onClick={dismiss}>Dismiss</Button>
+        <Button onClick={dismiss}>{t("common.dismiss")}</Button>
       ) : (
         <div className="flex items-center gap-2">
           <Button onClick={isRunning ? pause : handleStart} className="w-24">
             {isRunning ? (
               <>
-                <Pause className="size-4" /> Pause
+                <Pause className="size-4" /> {t("timer.pause")}
               </>
             ) : (
               <>
-                <Play className="size-4" /> {remainingMs > 0 ? "Resume" : "Start"}
+                <Play className="size-4" /> {remainingMs > 0 ? t("timer.resume") : t("timer.start")}
               </>
             )}
           </Button>
           <Button variant="outline" onClick={handleReset} disabled={isIdle}>
-            <RotateCcw className="size-4" /> Reset
+            <RotateCcw className="size-4" /> {t("timer.reset")}
           </Button>
         </div>
       )}
@@ -157,7 +161,7 @@ export function TimerView() {
             variant={settings.durationSec === m * 60 ? "secondary" : "outline"}
             onClick={() => selectDuration(m * 60)}
           >
-            {m} min
+            {m} {t("timer.minutesSuffix")}
           </Button>
         ))}
         <div className="ml-2 flex items-center gap-1.5">
@@ -174,7 +178,7 @@ export function TimerView() {
             }}
             className="h-8 w-20"
           />
-          <span className="text-xs text-muted-foreground">min</span>
+          <span className="text-xs text-muted-foreground">{t("timer.minutesSuffix")}</span>
         </div>
       </div>
 
@@ -185,7 +189,7 @@ export function TimerView() {
           ) : (
             <VolumeX className="size-4 text-muted-foreground" />
           )}
-          <span className="w-20">Alarm sound</span>
+          <span className="w-20">{t("timer.alarmSound")}</span>
           <Switch
             checked={settings.soundEnabled}
             onCheckedChange={(v) => patch({ soundEnabled: v })}
@@ -200,7 +204,7 @@ export function TimerView() {
             onChange={(e) => patch({ volume: Number(e.target.value) })}
             onMouseUp={() => settings.soundEnabled && play(settings.volume)}
             className="w-28 accent-primary disabled:opacity-40"
-            aria-label="Alarm volume"
+            aria-label={t("timer.volumeAria")}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -209,12 +213,12 @@ export function TimerView() {
           ) : (
             <BellOff className="size-4 text-muted-foreground" />
           )}
-          <span className="w-20">Notification</span>
+          <span className="w-20">{t("timer.notification")}</span>
           <Switch
             checked={settings.notifyEnabled}
             onCheckedChange={(v) => patch({ notifyEnabled: v })}
           />
-          <span className="text-muted-foreground">Desktop notification when time is up</span>
+          <span className="text-muted-foreground">{t("timer.notificationHint")}</span>
         </div>
       </div>
     </div>

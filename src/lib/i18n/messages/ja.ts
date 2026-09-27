@@ -7,6 +7,9 @@ import { miscJa } from "./misc.ja";
 import { scheduleJa } from "./schedule.ja";
 import { mindmapJa } from "./mindmap.ja";
 import { graphJa } from "./graph.ja";
+import { docsJa } from "./docs.ja";
+import { musicJa } from "./music.ja";
+import { timerJa } from "./timer.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -379,4 +382,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...scheduleJa,
   ...mindmapJa,
   ...graphJa,
+  ...docsJa,
+  ...musicJa,
+  ...timerJa,
 };

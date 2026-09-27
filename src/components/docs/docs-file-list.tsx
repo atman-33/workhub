@@ -14,6 +14,7 @@ import {
   type PickProps,
   pickedRowClass,
 } from "@/components/docs/docs-tree";
+import { useT } from "@/lib/i18n";
 import {
   EMPTY_SELECTION,
   pathsToCopy,
@@ -61,6 +62,7 @@ export function DocsFileList({
   filter: string;
   actions: EntryActions;
 }) {
+  const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const state = dir ? dirs[dir] : undefined;
 
@@ -131,27 +133,27 @@ export function DocsFileList({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="truncate border-b px-2 py-1.5 text-[11px] text-muted-foreground">
-        {dir ? baseName(dir) : "No folder selected"}
+        {dir ? baseName(dir) : t("docs.fileList.noFolderSelected")}
       </div>
       <div
         ref={scroller}
         tabIndex={0}
         role="listbox"
-        aria-label="Files in the selected folder"
+        aria-label={t("docs.fileList.filesAria")}
         onKeyDown={onKeyDown}
         className="min-h-0 flex-1 overflow-auto py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
       >
         {!dir ? (
           <p className="px-2 py-1 leading-relaxed text-muted-foreground">
-            Pick a folder in the tree to list what is in it.
+            {t("docs.fileList.pickFolderPrompt")}
           </p>
         ) : !state || state.status === "loading" ? (
-          <div className="px-2 py-1 text-muted-foreground">Loading…</div>
+          <div className="px-2 py-1 text-muted-foreground">{t("docs.tree.loading")}</div>
         ) : state.status === "error" ? (
           <div className="px-2 py-1 text-destructive">{state.message}</div>
         ) : files.length === 0 ? (
           <div className="px-2 py-1 text-muted-foreground">
-            {filter.trim() ? "Nothing matching here." : "No files in this folder."}
+            {filter.trim() ? t("docs.tree.noMatches") : t("docs.fileList.noFiles")}
           </div>
         ) : (
           files.map((entry) => (
@@ -190,11 +192,18 @@ function FileRow({
   onClick: (e: React.MouseEvent) => void;
   actions: EntryActions;
 }) {
+  const t = useT();
   const previewable = isPreviewable(entry);
   const starred = actions.isShortcut(entry.path);
   return (
     <ContextMenu>
-      <Hint label={previewable ? entry.name : `${entry.name} — opens outside workhub`}>
+      <Hint
+        label={
+          previewable
+            ? entry.name
+            : t("docs.entry.opensOutsideHint", { name: entry.name })
+        }
+      >
         <ContextMenuTrigger asChild>
           <button
             type="button"
@@ -226,16 +235,16 @@ function FileRow({
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => actions.openExternal(entry)}>
           <ExternalLink />
-          Open with default app
+          {t("docs.entry.openWithDefaultApp")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.reveal(entry)}>
           <FolderOpen />
-          Show in Explorer
+          {t("docs.entry.showInExplorer")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.toggleShortcut(entry)}>
           {starred ? <StarOff /> : <Star />}
-          {starred ? "Remove from shortcuts" : "Add to shortcuts"}
+          {starred ? t("docs.sidebar.removeFromShortcuts") : t("docs.entry.addToShortcuts")}
         </ContextMenuItem>
         <CopyPathItem targets={copyTargets} actions={actions} />
       </ContextMenuContent>

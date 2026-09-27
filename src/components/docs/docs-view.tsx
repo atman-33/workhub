@@ -18,6 +18,7 @@ import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import {
   addNote,
   buildPrompt,
@@ -82,6 +83,7 @@ const MIN_SPIN_MS = 600;
 type OpenPathHow = "direct" | "tail" | "search";
 
 export function DocsView() {
+  const t = useT();
   const [roots, setRoots] = useState<DocsRootStatus[]>([]);
   const [rootId, setRootId] = useState("");
   const [doc, setDoc] = useState("");
@@ -427,8 +429,8 @@ export function DocsView() {
         how === "direct"
           ? ""
           : how === "search"
-            ? `Found by searching the roots — its folders differ from the pasted path: ${match.path}`
-            : `Opened by tail match: ${match.path}`;
+            ? tStatic("docs.view.foundBySearch", { path: match.path })
+            : tStatic("docs.view.openedByTail", { path: match.path });
       if (match.is_dir) {
         setSelectedDir(match.path);
         setOpen((prev) => ({ ...prev, [match.path]: true }));
@@ -472,8 +474,8 @@ export function DocsView() {
           setOpenPathCandidates(res.matches);
           setOpenPathNotice(
             how === "search"
-              ? `${res.matches.length} files with this name were found — pick one.`
-              : `${res.matches.length} files match this tail — pick one.`,
+              ? tStatic("docs.view.matchesFoundByName", { count: res.matches.length })
+              : tStatic("docs.view.matchesFoundByTail", { count: res.matches.length }),
           );
         }
       })
@@ -539,18 +541,14 @@ export function DocsView() {
       {roots.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-xs leading-relaxed text-muted-foreground">
-            No folders registered yet. Add the shared folder your team keeps its Markdown in —
-            a Google Drive network drive, for instance — and its documents can be read here
-            without opening it as an Obsidian vault. Nothing is ever written into the folder.
+            {t("docs.view.noRootsMessage")}
           </p>
         </div>
       ) : !selected?.available ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <div className="flex max-w-md flex-col items-center gap-3">
             <p className="text-center text-xs leading-relaxed text-muted-foreground">
-              <span className="font-medium">{selected?.path}</span> is not reachable on this PC.
-              Check that the drive is mounted and, if it lives somewhere else now, correct the
-              path with the pencil button above.
+              {t("docs.view.rootUnreachable", { path: selected?.path ?? "" })}
             </p>
             <Button
               size="sm"
@@ -561,7 +559,7 @@ export function DocsView() {
               }}
             >
               <RefreshCw />
-              Try again
+              {t("docs.view.tryAgain")}
             </Button>
           </div>
         </div>
@@ -576,29 +574,34 @@ export function DocsView() {
                 <Input
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  placeholder="Filter by name"
+                  placeholder={t("docs.view.filterPlaceholder")}
                   className="h-7 border-0 px-1 text-xs shadow-none focus-visible:ring-0"
                 />
-                <Hint label="Collapse every folder">
+                <Hint label={t("docs.view.collapseAllHint")}>
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    aria-label="Collapse all"
+                    aria-label={t("docs.view.collapseAll")}
                     onClick={() => setOpen({})}
                   >
                     <ChevronsDownUp />
                   </Button>
                 </Hint>
-                <Hint label="Re-read the folder (keeps the tree open)">
-                  <Button size="icon-sm" variant="ghost" aria-label="Refresh" onClick={refresh}>
-                    <RefreshCw className={cn(refreshing && "animate-spin")} />
-                  </Button>
-                </Hint>
-                <Hint label="Open a pasted path">
+                <Hint label={t("docs.view.refreshHint")}>
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    aria-label="Open pasted path"
+                    aria-label={t("docs.view.refresh")}
+                    onClick={refresh}
+                  >
+                    <RefreshCw className={cn(refreshing && "animate-spin")} />
+                  </Button>
+                </Hint>
+                <Hint label={t("docs.view.openPathHint")}>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t("docs.view.openPathAria")}
                     aria-pressed={openPathOpen}
                     className={cn(openPathOpen && "bg-muted text-foreground")}
                     onClick={() => setOpenPathOpen((v) => !v)}
@@ -617,8 +620,8 @@ export function DocsView() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") runOpenPath();
                       }}
-                      placeholder="Paste a path to open…"
-                      aria-label="Paste a path to open"
+                      placeholder={t("docs.view.openPathPlaceholder")}
+                      aria-label={t("docs.view.openPathAriaLabel")}
                       className="h-7 text-xs"
                     />
                     <Button
@@ -627,7 +630,7 @@ export function DocsView() {
                       disabled={!openPathText.trim() || openPathBusy}
                       onClick={runOpenPath}
                     >
-                      Open
+                      {t("common.open")}
                     </Button>
                   </div>
                   {openPathNotice && (

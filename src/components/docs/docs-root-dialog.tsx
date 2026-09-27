@@ -13,6 +13,7 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import type { DocsRootStatus } from "@/types";
 
 interface Props {
@@ -29,6 +30,7 @@ interface Props {
  * unrelated operations — rename here, re-point there.
  */
 export function DocsRootDialog({ root, onSaved, onClose }: Props) {
+  const t = useT();
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [error, setError] = useState("");
@@ -48,7 +50,7 @@ export function DocsRootDialog({ root, onSaved, onClose }: Props) {
     const picked = await pickFolder({
       directory: true,
       multiple: false,
-      title: "Pick the folder",
+      title: tStatic("docs.rootDialog.pickFolderDialogTitle"),
     });
     if (typeof picked === "string") setPath(picked.replaceAll("\\", "/"));
   };
@@ -70,46 +72,42 @@ export function DocsRootDialog({ root, onSaved, onClose }: Props) {
     <Dialog open={root !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit folder</DialogTitle>
-          <DialogDescription>
-            The folder is recorded in the vault, so another PC that clones it gets this folder too.
-          </DialogDescription>
+          <DialogTitle>{t("docs.rootDialog.title")}</DialogTitle>
+          <DialogDescription>{t("docs.rootDialog.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 text-xs">
           <div className="space-y-1.5">
             <label htmlFor="docs-root-name" className="font-medium">
-              Name
+              {t("docs.rootDialog.name")}
             </label>
             <Input
               id="docs-root-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Team share"
+              placeholder={t("docs.rootDialog.namePlaceholder")}
               className="h-8"
             />
-            <p className="text-muted-foreground">
-              A label for the picker. Leave it empty to show the path instead.
-            </p>
+            <p className="text-muted-foreground">{t("docs.rootDialog.nameHint")}</p>
           </div>
 
           <div className="space-y-1.5">
             <label htmlFor="docs-root-path" className="font-medium">
-              Folder
+              {t("docs.rootDialog.folder")}
             </label>
             <div className="flex gap-1.5">
               <Input
                 id="docs-root-path"
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
-                placeholder="G:/shared drives/team/docs"
+                placeholder={t("docs.rootDialog.folderPlaceholder")}
                 className="h-8 font-mono"
               />
-              <Hint label="Pick a folder">
+              <Hint label={t("docs.rootDialog.pickFolderHint")}>
                 <Button
                   size="icon-sm"
                   variant="outline"
-                  aria-label="Browse for the folder"
+                  aria-label={t("docs.rootDialog.browseAria")}
                   onClick={() => void browse()}
                 >
                   <FolderOpen />
@@ -123,10 +121,10 @@ export function DocsRootDialog({ root, onSaved, onClose }: Props) {
 
         <DialogFooter>
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button size="sm" disabled={saving || !path.trim()} onClick={() => void save()}>
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

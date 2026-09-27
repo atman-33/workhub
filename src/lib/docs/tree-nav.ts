@@ -9,6 +9,7 @@
  * be got wrong (what Down means on the last child, what Left means on a file)
  * in one testable place.
  */
+import { t as tStatic } from "@/lib/i18n";
 import type { DocsEntry } from "@/types";
 
 /** What one directory's listing is doing, keyed by that directory's path. */
@@ -128,7 +129,13 @@ export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: str
     needed.push(path);
     const state = dirs[path];
     if (!state || state.status === "loading") {
-      rows.push({ kind: "message", key: `${path}:loading`, depth, text: "Loading…", tone: "muted" });
+      rows.push({
+        kind: "message",
+        key: `${path}:loading`,
+        depth,
+        text: tStatic("docs.tree.loading"),
+        tone: "muted",
+      });
       return;
     }
     if (state.status === "error") {
@@ -153,7 +160,7 @@ export function flattenTree(options: FlattenOptions): { rows: Row[]; needed: str
           kind: "message",
           key: `${path}:empty`,
           depth,
-          text: filter ? "Nothing matching here." : "This folder is empty.",
+          text: filter ? tStatic("docs.tree.noMatches") : tStatic("docs.tree.folderEmpty"),
           tone: "muted",
         });
       }

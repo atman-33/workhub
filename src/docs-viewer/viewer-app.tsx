@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DocsPreview } from "@/components/docs/docs-preview";
 import { FigureViewer } from "@/components/docs/figure-viewer";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { DocsViewerPayload } from "@/types";
 
 /**
@@ -13,6 +14,7 @@ import type { DocsViewerPayload } from "@/types";
  * closing is the window's ✕.
  */
 export function ViewerApp() {
+  const t = useT();
   const [payload, setPayload] = useState<DocsViewerPayload | null | undefined>(undefined);
   const [loadError, setLoadError] = useState("");
   // What the document's own buttons report (open with default app, …).
@@ -28,7 +30,7 @@ export function ViewerApp() {
   if (loadError || payload === null) {
     return (
       <div className="flex h-full items-center justify-center bg-background p-6 text-xs text-destructive">
-        {loadError || "Nothing to show — this window lost what it was opened for."}
+        {loadError || t("docs.viewer.nothingToShow")}
       </div>
     );
   }

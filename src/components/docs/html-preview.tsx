@@ -4,6 +4,7 @@ import { type DocNotesPane, useNoteLayer } from "@/components/docs/use-note-laye
 import { api } from "@/lib/api";
 import { injectHighlightStyle } from "@/lib/docs/annotation-highlight";
 import { Button } from "@/components/ui/button";
+import { t as tStatic, useT } from "@/lib/i18n";
 import {
   type HtmlPrepareResult,
   prepareHtmlDocument,
@@ -28,12 +29,14 @@ interface Props {
   reloadToken?: number;
 }
 
-/** "2 stylesheets and 1 image", for the banner. */
+/** The banner text for what could not be inlined, as one full sentence. */
 function describeFailures({ failedStyles, failedImages }: HtmlPrepareResult): string {
-  const parts: string[] = [];
-  if (failedStyles) parts.push(`${failedStyles} stylesheet${failedStyles === 1 ? "" : "s"}`);
-  if (failedImages) parts.push(`${failedImages} image${failedImages === 1 ? "" : "s"}`);
-  return parts.join(" and ");
+  if (failedStyles && failedImages) {
+    return tStatic("docs.html.failedBoth", { styles: failedStyles, images: failedImages });
+  }
+  if (failedStyles) return tStatic("docs.html.failedStyles", { count: failedStyles });
+  if (failedImages) return tStatic("docs.html.failedImages", { count: failedImages });
+  return "";
 }
 
 /**
@@ -79,6 +82,7 @@ export function HtmlPreview({
   allowRemoteImages,
   reloadToken,
 }: Props) {
+  const t = useT();
   const [srcDoc, setSrcDoc] = useState<string | null>(null);
   // What could not be inlined, so a page that lost its stylesheet on a slow
   // share says so instead of passing for one that was written unstyled
@@ -167,28 +171,25 @@ export function HtmlPreview({
   const failed = failures ? describeFailures(failures) : "";
 
   if (srcDoc === null) {
-    return <p className="px-4 py-3 text-xs text-muted-foreground">Preparing page…</p>;
+    return <p className="px-4 py-3 text-xs text-muted-foreground">{t("docs.html.preparingPage")}</p>;
   }
   return (
     <div className="flex h-full flex-col">
       {hasScripts && (
         <p className="border-b px-4 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
-          Scripts in this page are disabled in the preview. To run them, open it with the
-          default app from the toolbar above.
+          {t("docs.html.scriptsDisabled")}
         </p>
       )}
       {failed && (
         <div className="flex items-center gap-2 border-b px-4 py-1 text-[11px] leading-relaxed text-muted-foreground">
-          <p className="min-w-0 flex-1">
-            Could not read {failed} this page refers to, so it may not look as written.
-          </p>
+          <p className="min-w-0 flex-1">{failed}</p>
           <Button
             size="sm"
             variant="outline"
             className="h-6 px-2 text-[11px]"
             onClick={() => setRetry((n) => n + 1)}
           >
-            Retry
+            {t("common.retry")}
           </Button>
         </div>
       )}

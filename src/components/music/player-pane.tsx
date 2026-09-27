@@ -1,5 +1,6 @@
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 import { currentTrackTitle } from "@/lib/music/track-title";
 import { cn } from "@/lib/utils";
 import { useMusicStore } from "@/stores/music";
@@ -8,6 +9,7 @@ import { useYouTubePlayer } from "./use-youtube-player";
 const PLAYER_ELEMENT_ID = "workhub-youtube-player";
 
 export function PlayerPane() {
+  const t = useT();
   const {
     isPlaying,
     currentVideoId,
@@ -36,13 +38,13 @@ export function PlayerPane() {
         {currentVideoTitle ? (
           <span className="truncate">{currentVideoTitle}</span>
         ) : (
-          <span className="text-muted-foreground">Select a video to start playing</span>
+          <span className="text-muted-foreground">{t("music.player.selectPrompt")}</span>
         )}
       </div>
       <div className="flex items-center justify-center gap-2">
         <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentVideoId}>
           <SkipBack className="size-4" />
-          <span className="sr-only">Previous</span>
+          <span className="sr-only">{t("music.player.previous")}</span>
         </Button>
         <Button
           onClick={() => (isPlaying ? pause() : resume())}
@@ -50,17 +52,17 @@ export function PlayerPane() {
           className="px-6"
         >
           {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
-          {isPlaying ? "Pause" : "Play"}
+          {isPlaying ? t("music.player.pause") : t("music.player.play")}
         </Button>
         <Button variant="ghost" size="icon" onClick={playNext} disabled={!currentVideoId}>
           <SkipForward className="size-4" />
-          <span className="sr-only">Next</span>
+          <span className="sr-only">{t("music.player.next")}</span>
         </Button>
       </div>
       <div className="flex items-center justify-center gap-2">
         <Button variant="outline" size="sm" onClick={toggleLoop} className="gap-1.5">
           {loopMode === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
-          {loopMode === "all" ? "Loop ALL" : "Loop ONE"}
+          {loopMode === "all" ? t("music.player.loopAll") : t("music.player.loopOne")}
         </Button>
         <Button
           variant="outline"
@@ -69,7 +71,7 @@ export function PlayerPane() {
           className={cn("gap-1.5", isShuffle && "bg-accent text-accent-foreground")}
         >
           <Shuffle className="size-4" />
-          Shuffle {isShuffle ? "ON" : "OFF"}
+          {isShuffle ? t("music.player.shuffleOn") : t("music.player.shuffleOff")}
         </Button>
       </div>
     </div>

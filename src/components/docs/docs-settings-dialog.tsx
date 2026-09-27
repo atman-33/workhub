@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 /** The public PlantUML server, offered as the example rather than as a default. */
 const PUBLIC_SERVER = "https://www.plantuml.com/plantuml";
@@ -32,6 +33,7 @@ interface Props {
  * that server, and the documents here are a team's.
  */
 export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
+  const t = useT();
   const [server, setServer] = useState("");
   const [listPane, setListPane] = useState(false);
   const [remoteImages, setRemoteImages] = useState(false);
@@ -79,10 +81,8 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Docs settings</DialogTitle>
-          <DialogDescription>
-            Recorded in the vault, like the folder list.
-          </DialogDescription>
+          <DialogTitle>{t("docs.settings.title")}</DialogTitle>
+          <DialogDescription>{t("docs.settings.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex items-start gap-3 text-xs">
@@ -94,12 +94,10 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
           />
           <div className="space-y-1">
             <label htmlFor="docs-list-pane" className="font-medium">
-              File list beside the tree
+              {t("docs.settings.listPaneLabel")}
             </label>
             <p className="leading-relaxed text-muted-foreground">
-              Splits the sidebar the way Obsidian's Notebook Navigator does: folders on the
-              left, the files of the folder you pick on the right. Off, the sidebar is one
-              tree holding both.
+              {t("docs.settings.listPaneDescription")}
             </p>
           </div>
         </div>
@@ -113,11 +111,10 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
           />
           <div className="space-y-1">
             <label htmlFor="docs-show-hidden" className="font-medium">
-              Show dot-folders and dot-files
+              {t("docs.settings.showHiddenLabel")}
             </label>
             <p className="leading-relaxed text-muted-foreground">
-              Lists names starting with a dot, such as .backup — and .git or .obsidian too. Off,
-              they are hidden. desktop.ini stays hidden either way.
+              {t("docs.settings.showHiddenDescription")}
             </p>
           </div>
         </div>
@@ -131,19 +128,17 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
           />
           <div className="space-y-1">
             <label htmlFor="docs-remote-images" className="font-medium">
-              Load images from https: URLs
+              {t("docs.settings.remoteImagesLabel")}
             </label>
             <p className="leading-relaxed text-muted-foreground">
-              Off, an image pointing at the web reads as unreadable. On, the tab fetches it —
-              which announces the read to whoever serves it, so turn it on only for documents
-              whose sources you trust. Plain http: stays unloaded either way.
+              {t("docs.settings.remoteImagesDescription")}
             </p>
           </div>
         </div>
 
         <div className="space-y-1.5 text-xs">
           <label htmlFor="docs-plantuml-server" className="font-medium">
-            PlantUML server
+            {t("docs.settings.plantumlLabel")}
           </label>
           <Input
             id="docs-plantuml-server"
@@ -153,20 +148,18 @@ export function DocsSettingsDialog({ open, onClose, onSaved }: Props) {
             className="h-8 font-mono"
           />
           <p className="leading-relaxed text-muted-foreground">
-            <span className="font-mono">```plantuml</span> blocks are drawn by this server: each
-            diagram's source is sent to it and an image comes back. Leave it empty to keep them as
-            code and send nothing. The public server ({PUBLIC_SERVER}) works, but it is a third
-            party — for a team's documents, prefer a server your team runs.
+            <span className="font-mono">```plantuml</span>{" "}
+            {t("docs.settings.plantumlDescription", { server: PUBLIC_SERVER })}
           </p>
           {error && <p className="text-destructive">{error}</p>}
         </div>
 
         <DialogFooter>
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button size="sm" disabled={saving} onClick={() => void save()}>
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

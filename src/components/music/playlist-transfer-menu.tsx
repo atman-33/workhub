@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { parsePlaylistTransfer, serializePlaylists } from "@/lib/music/playlist-transfer";
 import type { Playlist } from "@/lib/music/types";
 import { useMusicStore } from "@/stores/music";
@@ -26,13 +27,32 @@ const toFileStem = (name: string) =>
     .trim()
     .slice(0, 60) || "playlists";
 
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+// The lib throws these constant English messages verbatim (kept English so
+// its own tests can match them by regex); translate them for display only.
+const NEWER_VERSION_RE =
+  /^This export was made by a newer version of workhub \(format v(.+)\)\.$/;
+
+const errorText = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === "Not a workhub playlist export.") {
+    return tStatic("music.transfer.notWorkhubExport");
+  }
+  if (message === "The file contains no playlists.") {
+    return tStatic("music.transfer.noPlaylists");
+  }
+  const versionMatch = NEWER_VERSION_RE.exec(message);
+  if (versionMatch) {
+    return tStatic("music.transfer.newerVersion", { version: versionMatch[1] });
+  }
+  return message;
+};
 
 /**
  * Export/import of playlists so a library can be reproduced on another workhub
  * install — via a JSON file, or via the clipboard for quick sharing.
  */
 export function PlaylistTransferMenu() {
+  const t = useT();
   const playlists = useMusicStore((state) => state.playlists);
   const activePlaylistId = useMusicStore((state) => state.activePlaylistId);
   const importPlaylists = useMusicStore((state) => state.importPlaylists);
@@ -51,18 +71,30 @@ export function PlaylistTransferMenu() {
       const path = await saveFile({ defaultPath: `${stem}.json`, filters: JSON_FILTER });
       if (!path) return;
       await api.exportPlaylistFile(path, serializePlaylists(selection));
-      setStatus({ text: `Exported ${selection.length} playlist(s)`, isError: false });
+      setStatus({
+        text: tStatic("music.transfer.exported", { count: selection.length }),
+        isError: false,
+      });
     } catch (error) {
-      setStatus({ text: `Export failed — ${errorText(error)}`, isError: true });
+      setStatus({
+        text: tStatic("music.transfer.exportFailed", { error: errorText(error) }),
+        isError: true,
+      });
     }
   };
 
   const copyToClipboard = async (selection: Playlist[]) => {
     try {
       await writeText(serializePlaylists(selection));
-      setStatus({ text: `Copied ${selection.length} playlist(s) as JSON`, isError: false });
+      setStatus({
+        text: tStatic("music.transfer.copied", { count: selection.length }),
+        isError: false,
+      });
     } catch (error) {
-      setStatus({ text: `Copy failed — ${errorText(error)}`, isError: true });
+      setStatus({
+        text: tStatic("music.transfer.copyFailed", { error: errorText(error) }),
+        isError: true,
+      });
     }
   };
 
@@ -71,15 +103,15 @@ export function PlaylistTransferMenu() {
     const { added, skipped } = importPlaylists(imported);
     if (added === 0) {
       setStatus({
-        text: "Nothing imported — the playlist limit is already reached",
+        text: tStatic("music.transfer.nothingImported"),
         isError: true,
       });
       return;
     }
     setStatus({
       text: skipped
-        ? `Imported ${added} playlist(s); skipped ${skipped} (playlist limit reached)`
-        : `Imported ${added} playlist(s)`,
+        ? tStatic("music.transfer.importedWithSkipped", { added, skipped })
+        : tStatic("music.transfer.imported", { added }),
       isError: false,
     });
   };
@@ -90,7 +122,10 @@ export function PlaylistTransferMenu() {
       if (typeof path !== "string") return;
       applyImport(await api.importPlaylistFile(path));
     } catch (error) {
-      setStatus({ text: `Import failed — ${errorText(error)}`, isError: true });
+      setStatus({
+        text: tStatic("music.transfer.importFailed", { error: errorText(error) }),
+        isError: true,
+      });
     }
   };
 
@@ -98,12 +133,15 @@ export function PlaylistTransferMenu() {
     try {
       const text = await readText();
       if (!text?.trim()) {
-        setStatus({ text: "The clipboard is empty.", isError: true });
+        setStatus({ text: tStatic("music.transfer.clipboardEmpty"), isError: true });
         return;
       }
       applyImport(text);
     } catch (error) {
-      setStatus({ text: `Import failed — ${errorText(error)}`, isError: true });
+      setStatus({
+        text: tStatic("music.transfer.importFailed", { error: errorText(error) }),
+        isError: true,
+      });
     }
   };
 
@@ -112,7 +150,7 @@ export function PlaylistTransferMenu() {
   return (
     <div className="flex items-center gap-1">
       <DropdownMenu>
-        <Hint label="Export playlists">
+        <Hint label={t("music.transfer.export")}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-6">
               <Download className="size-3.5" />
@@ -123,29 +161,29 @@ export function PlaylistTransferMenu() {
           <DropdownMenuItem
             onSelect={() => void exportToFile(playlists, `workhub-playlists-${dateStem}`)}
           >
-            Export all playlists…
+            {t("music.transfer.exportAll")}
           </DropdownMenuItem>
           {activePlaylist && (
             <DropdownMenuItem
               onSelect={() => void exportToFile([activePlaylist], toFileStem(activePlaylist.name))}
             >
-              Export "{activePlaylist.name}"…
+              {t("music.transfer.exportOne", { name: activePlaylist.name })}
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void copyToClipboard(playlists)}>
-            Copy all as JSON
+            {t("music.transfer.copyAll")}
           </DropdownMenuItem>
           {activePlaylist && (
             <DropdownMenuItem onSelect={() => void copyToClipboard([activePlaylist])}>
-              Copy "{activePlaylist.name}" as JSON
+              {t("music.transfer.copyOne", { name: activePlaylist.name })}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
 
       <DropdownMenu>
-        <Hint label="Import playlists">
+        <Hint label={t("music.transfer.import")}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-6">
               <Upload className="size-3.5" />
@@ -154,10 +192,10 @@ export function PlaylistTransferMenu() {
         </Hint>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => void importFromFile()}>
-            Import from file…
+            {t("music.transfer.importFromFile")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void importFromClipboard()}>
-            Paste JSON from clipboard
+            {t("music.transfer.pasteClipboard")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

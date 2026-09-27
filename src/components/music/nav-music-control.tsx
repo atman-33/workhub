@@ -1,5 +1,6 @@
 import { Pause, Play } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { currentTrackTitle } from "@/lib/music/track-title";
 import { useMusicStore } from "@/stores/music";
 
@@ -17,6 +18,7 @@ interface Props {
  * is untouched for anyone not using the player.
  */
 export function NavMusicControl({ onOpenMusic }: Props) {
+  const t = useT();
   const isPlaying = useMusicStore((state) => state.isPlaying);
   const currentVideoId = useMusicStore((state) => state.currentVideoId);
   const pause = useMusicStore((state) => state.pause);
@@ -30,16 +32,16 @@ export function NavMusicControl({ onOpenMusic }: Props) {
 
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <Hint label={isPlaying ? "Pause music" : "Resume music"}>
+      <Hint label={isPlaying ? t("music.nav.pause") : t("music.nav.resume")}>
         <button
           onClick={() => (isPlaying ? pause() : resume())}
           className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
         >
           {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-          <span className="sr-only">{isPlaying ? "Pause music" : "Resume music"}</span>
+          <span className="sr-only">{isPlaying ? t("music.nav.pause") : t("music.nav.resume")}</span>
         </button>
       </Hint>
-      <Hint label={`${title} — open the Music tab`}>
+      <Hint label={t("music.nav.openHint", { title })}>
         <button
           onClick={onOpenMusic}
           className="max-w-40 truncate text-[11px] text-muted-foreground transition-colors hover:text-foreground"
