@@ -64,6 +64,10 @@ the index, so never hand-write a task file to get around it.
 - Write the Description to a file and pass `--body-file` rather than trying to
   fit prose into a shell argument. Say what the task is *for* — the goal, the
   target repository, what to read first — not a list of edits.
+- The file holds the Description's **text only** — no `## Description`
+  heading (the CLI adds it, and drops a leading one if you wrote it anyway),
+  and no `## Plan` or `## Results`: a new task starts with both empty, and a
+  file that carries either is refused.
 - Report the id and the file path back, and stop there. Creating a task is not
   permission to start it; `task-start` is a separate decision.
 

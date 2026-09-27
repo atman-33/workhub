@@ -460,6 +460,41 @@ function applyBlocked(task, flags) {
 const STATUSES = ["inbox", "todo", "doing", "review", "done"];
 
 /**
+ * The Description text a `--body-file` carries, whichever way it was written.
+ *
+ * The file is documented as the Description's text, but writing it with its
+ * own `## Description` heading is the obvious mistake to make — and the CLI
+ * adds that heading itself, so the task came out with two (T-0426). A leading
+ * heading is therefore dropped. A `## Plan` or `## Results` heading is refused
+ * instead: a non-empty Plan means an approved plan and Results is the agent's
+ * report, so neither can be filled in by creating a task. Headings inside a
+ * fenced code block are prose, not structure, and are left alone.
+ */
+function descriptionFromBodyFile(text) {
+  const lines = text.replace(/^﻿/, "").split(/\r?\n/);
+  const first = lines.findIndex((line) => line.trim() !== "");
+  if (first !== -1 && /^##\s+Description$/i.test(lines[first].trim())) {
+    lines.splice(0, first + 1);
+  }
+  let fence = null;
+  for (const line of lines) {
+    const marker = line.match(/^\s*(`{3,}|~{3,})/);
+    if (marker) {
+      if (fence === null) fence = marker[1][0];
+      else if (marker[1][0] === fence) fence = null;
+      continue;
+    }
+    if (fence === null && /^##\s+(Description|Plan|Results)$/i.test(line.trim())) {
+      fail(
+        `--body-file has its own '${line.trim()}' section — pass only the Description's ` +
+          "text; Plan and Results start empty on a new task",
+      );
+    }
+  }
+  return lines.join("\n").replace(/^\s*\n/, "").replace(/\s+$/, "");
+}
+
+/**
  * Create a task file the way the app's `create_task` does — same id, same
  * `order`, same filename — so a task filed from a session is indistinguishable
  * from one filed on the board. The numbering has to match: if the two drifted
@@ -485,7 +520,7 @@ function cmdCreate(vault, flags) {
     } catch (e) {
       fail(`cannot read --body-file ${flags["body-file"]}: ${e.message}`);
     }
-    body = `\n## Description\n\n${text.replace(/\s+$/, "")}\n\n## Plan\n\n## Results\n`;
+    body = `\n## Description\n\n${descriptionFromBodyFile(text)}\n\n## Plan\n\n## Results\n`;
   }
 
   const existing = scanTasks(vault);
