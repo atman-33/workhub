@@ -29,13 +29,12 @@ const toFileStem = (name: string) =>
 
 // The lib throws these constant English messages verbatim (kept English so
 // its own tests can match them by regex); translate them for display only.
-const NEWER_VERSION_RE =
-  /^This export was made by a newer version of workhub \(format v(.+)\)\.$/;
+const NEWER_VERSION_RE = /^This export uses a newer format version \(v(.+)\)\.$/;
 
 const errorText = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  if (message === "Not a workhub playlist export.") {
-    return tStatic("music.transfer.notWorkhubExport");
+  if (message === "Not a playlist export.") {
+    return tStatic("music.transfer.notPlaylistExport");
   }
   if (message === "The file contains no playlists.") {
     return tStatic("music.transfer.noPlaylists");

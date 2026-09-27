@@ -26,21 +26,55 @@ describe("serializePlaylists / parsePlaylistTransfer", () => {
     expect(parsed).not.toHaveProperty("active_playlist_id");
   });
 
+  it("writes the generic format marker", () => {
+    const parsed: unknown = JSON.parse(serializePlaylists([playlist("p1", "Focus")]));
+    expect(parsed).toMatchObject({ format: "youtube-playlist", version: 1 });
+  });
+
+  it("reads the generic format written by other tools", () => {
+    const text = JSON.stringify({
+      format: "youtube-playlist",
+      version: 1,
+      exported_at: "2026-09-27T00:00:00.000Z",
+      playlists: [{ id: "p1", name: "Focus", items: [{ id: "aaa", title: "Song" }, { id: "bbb" }] }],
+    });
+    expect(parsePlaylistTransfer(text)).toEqual([
+      { id: "p1", name: "Focus", items: [{ id: "aaa", title: "Song" }, { id: "bbb" }] },
+    ]);
+  });
+
+  it("still reads exports made with the legacy workhub marker", () => {
+    const text = JSON.stringify({
+      format: "workhub-music-playlist",
+      version: 1,
+      exported_at: "2026-01-01T00:00:00.000Z",
+      playlists: [{ id: "p1", name: "Old", items: [{ id: "aaa", title: "Song" }] }],
+    });
+    expect(parsePlaylistTransfer(text)).toEqual([
+      { id: "p1", name: "Old", items: [{ id: "aaa", title: "Song" }] },
+    ]);
+  });
+
+  it("rejects an unknown format marker", () => {
+    const text = JSON.stringify({ format: "something-else", version: 1, playlists: [] });
+    expect(() => parsePlaylistTransfer(text)).toThrow(/not a playlist export/i);
+  });
+
   it("rejects text that is not JSON", () => {
-    expect(() => parsePlaylistTransfer("not json at all")).toThrow(/not a workhub playlist/i);
+    expect(() => parsePlaylistTransfer("not json at all")).toThrow(/not a playlist export/i);
   });
 
   it("rejects JSON without the format marker", () => {
-    expect(() => parsePlaylistTransfer('{"playlists":[]}')).toThrow(/not a workhub playlist/i);
+    expect(() => parsePlaylistTransfer('{"playlists":[]}')).toThrow(/not a playlist export/i);
   });
 
   it("rejects an export from a newer format version", () => {
     const text = JSON.stringify({
-      format: "workhub-music-playlist",
+      format: "youtube-playlist",
       version: 99,
       playlists: [],
     });
-    expect(() => parsePlaylistTransfer(text)).toThrow(/newer version/i);
+    expect(() => parsePlaylistTransfer(text)).toThrow(/newer format version/i);
   });
 
   it("rejects an export with no playlists", () => {
@@ -49,7 +83,7 @@ describe("serializePlaylists / parsePlaylistTransfer", () => {
 
   it("drops malformed items and de-duplicates by video id", () => {
     const text = JSON.stringify({
-      format: "workhub-music-playlist",
+      format: "youtube-playlist",
       version: 1,
       playlists: [{ id: "p1", name: "Mixed", items: [{ id: "aaa" }, { id: "aaa" }, {}, "junk"] }],
     });
@@ -58,7 +92,7 @@ describe("serializePlaylists / parsePlaylistTransfer", () => {
 
   it("falls back to a generated name when the name is missing", () => {
     const text = JSON.stringify({
-      format: "workhub-music-playlist",
+      format: "youtube-playlist",
       version: 1,
       playlists: [{ id: "p1", items: [] }],
     });
