@@ -4,6 +4,7 @@ import { reposJa } from "./repos.ja";
 import { inboxJa } from "./inbox.ja";
 import { pluginsJa } from "./plugins.ja";
 import { miscJa } from "./misc.ja";
+import { scheduleJa } from "./schedule.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -373,4 +374,5 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...inboxJa,
   ...pluginsJa,
   ...miscJa,
+  ...scheduleJa,
 };

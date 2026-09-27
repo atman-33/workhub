@@ -5,6 +5,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 import type { SprintConfig } from "@/lib/schedule/parse";
 import { defaultSprintStart } from "@/lib/schedule/sprint";
 
@@ -40,18 +41,23 @@ interface Props {
 const LENGTHS = [1, 2, 3, 4];
 
 export function SprintSettings({ sprint, windowStart, disabled, onChange }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Hint
-        label={sprint ? `Sprints: ${sprint.weeks} week(s) from ${sprint.start}` : "Number the timeline by sprint"}
+        label={
+          sprint
+            ? t("schedule.sprint.hintActive", { weeks: sprint.weeks, start: sprint.start })
+            : t("schedule.sprint.hintInactive")
+        }
         disabled={disabled}
       >
         <PopoverTrigger asChild>
           <Button size="sm" variant={sprint ? "secondary" : "ghost"} className="h-7 text-xs" disabled={disabled}>
             <Repeat className="mr-1 size-3" />
-            {sprint ? `${sprint.weeks}w sprints` : "Sprints"}
+            {sprint ? t("schedule.sprint.buttonActive", { weeks: sprint.weeks }) : t("schedule.sprint.button")}
           </Button>
         </PopoverTrigger>
       </Hint>
@@ -59,14 +65,14 @@ export function SprintSettings({ sprint, windowStart, disabled, onChange }: Prop
         {sprint ? (
           <>
             <div className="space-y-1">
-              <div className="text-muted-foreground">Sprint 1 starts</div>
+              <div className="text-muted-foreground">{t("schedule.sprint.startLabel")}</div>
               <DatePicker
                 value={sprint.start}
                 onChange={(v) => v && onChange({ ...sprint, start: v })}
               />
             </div>
             <div className="space-y-1">
-              <div className="text-muted-foreground">Length</div>
+              <div className="text-muted-foreground">{t("schedule.sprint.lengthLabel")}</div>
               <div className="flex items-center gap-1">
                 {LENGTHS.map((weeks) => (
                   <Button
@@ -106,21 +112,18 @@ export function SprintSettings({ sprint, windowStart, disabled, onChange }: Prop
                 setOpen(false);
               }}
             >
-              Turn sprints off
+              {t("schedule.sprint.turnOff")}
             </Button>
           </>
         ) : (
           <>
-            <p className="text-muted-foreground">
-              Number the timeline by sprint. The cadence is stored in this note, so two plans can
-              compare different ones.
-            </p>
+            <p className="text-muted-foreground">{t("schedule.sprint.description")}</p>
             <Button
               size="sm"
               className="h-7 w-full text-xs"
               onClick={() => onChange({ start: defaultSprintStart(windowStart), weeks: 2 })}
             >
-              Use two-week sprints
+              {t("schedule.sprint.useTwoWeek")}
             </Button>
           </>
         )}

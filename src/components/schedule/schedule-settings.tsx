@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 import type { Settings } from "@/types";
 
 /**
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // The export folder is free text, so it is edited locally and committed on
   // blur — saving per keystroke would write the config on every character.
@@ -47,7 +49,7 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
         if (!v) setExportDir(null);
       }}
     >
-      <Hint label="Schedule settings" disabled={disabled || !ready}>
+      <Hint label={t("schedule.settings.hint")} disabled={disabled || !ready}>
         <PopoverTrigger asChild>
           <Button
             size="sm"
@@ -63,7 +65,7 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
         {settings && (
           <>
             <AiEditSettings
-              subject="schedule"
+              subject={t("nav.schedule")}
               assignee={settings.schedule_assignee}
               model={settings.schedule_model}
               confirm={settings.schedule_confirm}
@@ -80,7 +82,7 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
 
             <div className="space-y-1.5 border-t pt-3">
               <label className="text-xs font-medium text-muted-foreground">
-                HTML export folder
+                {t("schedule.settings.exportFolderLabel")}
               </label>
               <Input
                 value={currentExportDir}
@@ -90,7 +92,7 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
                     onPatch({ schedule_export_dir: exportDir });
                   }
                 }}
-                placeholder="blank = the project's attachments/"
+                placeholder={t("schedule.settings.exportFolderPlaceholder")}
                 className="h-8 font-mono text-xs"
               />
             </div>

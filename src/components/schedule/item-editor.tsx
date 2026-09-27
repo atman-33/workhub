@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/i18n";
+import { SCHEDULE_COLOR_LABEL_KEY, SCHEDULE_KIND_LABEL_KEY } from "@/lib/i18n/labels";
 import { COLOR_HEX, COLORS, isRangeKind, type Color, type ScheduleItem } from "@/lib/schedule/parse";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
@@ -63,6 +65,7 @@ function collapseLines(value: string): string {
 }
 
 export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete, onClose }: Props) {
+  const t = useT();
   const commit = (patch: Partial<ScheduleItem>) => {
     const next = { ...item, ...patch };
     // A range element cannot end before it starts; pushing the far edge along is
@@ -90,17 +93,17 @@ export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete,
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="bar">Bar</SelectItem>
-            <SelectItem value="arrow">Arrow</SelectItem>
-            <SelectItem value="milestone">Milestone</SelectItem>
-            <SelectItem value="note">Note</SelectItem>
+            <SelectItem value="bar">{t(SCHEDULE_KIND_LABEL_KEY.bar)}</SelectItem>
+            <SelectItem value="arrow">{t(SCHEDULE_KIND_LABEL_KEY.arrow)}</SelectItem>
+            <SelectItem value="milestone">{t(SCHEDULE_KIND_LABEL_KEY.milestone)}</SelectItem>
+            <SelectItem value="note">{t(SCHEDULE_KIND_LABEL_KEY.note)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <Input
         value={item.title}
-        placeholder="Title"
+        placeholder={t("schedule.itemEditor.titlePlaceholder")}
         className="h-8 text-xs"
         onChange={(e) => commit({ title: collapseLines(e.target.value) })}
         onCompositionStart={() => onComposingChange?.(true)}
@@ -109,7 +112,11 @@ export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete,
 
       <Textarea
         value={item.body ?? ""}
-        placeholder={item.kind === "note" ? "Note text (shown on hover)" : "Details"}
+        placeholder={
+          item.kind === "note"
+            ? t("schedule.itemEditor.notePlaceholder")
+            : t("schedule.itemEditor.detailsPlaceholder")
+        }
         rows={item.kind === "note" ? 4 : 2}
         className="resize-none text-xs"
         onChange={(e) => commit({ body: e.target.value })}
@@ -126,7 +133,7 @@ export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete,
 
       <div className="flex flex-wrap gap-1.5">
         {COLORS.map((color) => (
-          <Hint key={color} label={color}>
+          <Hint key={color} label={t(SCHEDULE_COLOR_LABEL_KEY[color as Color])}>
             <button
               type="button"
               onClick={() => commit({ color })}
@@ -145,10 +152,10 @@ export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete,
         onValueChange={(v) => commit({ task: v === NONE ? undefined : v })}
       >
         <SelectTrigger className="h-7 text-xs">
-          <SelectValue placeholder="No linked task" />
+          <SelectValue placeholder={t("schedule.itemEditor.noLinkedTask")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>No linked task</SelectItem>
+          <SelectItem value={NONE}>{t("schedule.itemEditor.noLinkedTask")}</SelectItem>
           {tasks.map((task) => (
             <SelectItem key={task.id} value={task.id}>
               {task.id} {task.title}
@@ -160,10 +167,10 @@ export function ItemEditor({ item, tasks, onChange, onComposingChange, onDelete,
       <div className="flex justify-between pt-1">
         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onDelete}>
           <Trash2 className="mr-1 size-3" />
-          Delete
+          {t("common.delete")}
         </Button>
         <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={onClose}>
-          Close
+          {t("common.close")}
         </Button>
       </div>
     </div>

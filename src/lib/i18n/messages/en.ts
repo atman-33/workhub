@@ -16,6 +16,7 @@ import { reposEn } from "./repos.en";
 import { inboxEn } from "./inbox.en";
 import { pluginsEn } from "./plugins.en";
 import { miscEn } from "./misc.en";
+import { scheduleEn } from "./schedule.en";
 
 export const en = {
   "common.cancel": "Cancel",
@@ -384,6 +385,7 @@ export const en = {
   ...inboxEn,
   ...pluginsEn,
   ...miscEn,
+  ...scheduleEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -11,6 +11,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Hint } from "@/components/ui/hint";
 import { usePanDrag } from "@/components/schedule/use-pan-drag";
+import { useT } from "@/lib/i18n";
+import { TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import { monthLabel, strings, type ScheduleLocale } from "@/lib/schedule/i18n";
 import {
   buildLayout,
@@ -24,7 +26,7 @@ import {
 import { COLOR_HEX, type ItemKind, type ScheduleDocModel, type ScheduleItem } from "@/lib/schedule/parse";
 import { canMoveItem, type MoveDirection } from "@/lib/schedule/reorder";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/types";
+import type { Task, TaskStatus } from "@/types";
 
 /**
  * The continuous week grid (design note §3.1 / §6).
@@ -124,6 +126,7 @@ export function ScheduleGrid({
   onPanWindow,
   onZoomWindow,
 }: Props) {
+  const t = useT();
   const [drag, setDrag] = useState<Drag>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   // Kept in a ref as well so the window-level pointer handlers below (which are
@@ -131,7 +134,7 @@ export function ScheduleGrid({
   const dragRef = useRef<Drag>(null);
   dragRef.current = drag;
 
-  const t = strings(locale);
+  const ds = strings(locale);
   // Lay out the document *with the pending drag applied*, so the preview and
   // the eventual save can never disagree.
   const layout = buildLayout(previewDoc(doc, drag), start, end, today);
@@ -293,7 +296,7 @@ export function ScheduleGrid({
       <div className="sticky top-0 z-10 flex border-b bg-background">
         <div className="w-11 shrink-0" />
         <div className="grid flex-1 grid-cols-7">
-          {t.weekdays.map((label, i) => (
+          {ds.weekdays.map((label, i) => (
             <div
               key={label}
               className={cn(
@@ -351,7 +354,13 @@ export function ScheduleGrid({
                         )}
                       >
                         <div className="flex items-start justify-between gap-1">
-                          <Hint label={day.isToday ? `Today · ${day.date}` : undefined}>
+                          <Hint
+                            label={
+                              day.isToday
+                                ? t("schedule.grid.todayHint", { date: day.date })
+                                : undefined
+                            }
+                          >
                             <span
                               className={cn(
                                 "flex items-center gap-0.5 text-[11px] tabular-nums",
@@ -442,12 +451,12 @@ export function ScheduleGrid({
                     selected={selectedId === bar.item.id}
                     readOnly={readOnly}
                     status={linkedStatus(bar.item)}
-                    tooltip={rangeTooltip(bar, t)}
+                    tooltip={rangeTooltip(bar, ds)}
                     onDrag={beginItemDrag}
                     onPress={endItemPress}
                   />
                 ) : (
-                  <Hint label={rangeTooltip(bar, t)}>
+                  <Hint label={rangeTooltip(bar, ds)}>
                     <div
                       style={{
                         left: `${(bar.startCol / 7) * 100}%`,
@@ -477,7 +486,7 @@ export function ScheduleGrid({
                         <span className="ml-1 opacity-80">{bar.workingDays}d</span>
                         {linkedStatus(bar.item) && (
                           <span className="ml-1 rounded bg-black/25 px-1 text-[9px] uppercase">
-                            {linkedStatus(bar.item)}
+                            {t(TASK_STATUS_LABEL_KEY[linkedStatus(bar.item) as TaskStatus])}
                           </span>
                         )}
                       </span>
@@ -538,7 +547,7 @@ export function ScheduleGrid({
                         <span className="truncate">{point.title}</span>
                         {linkedStatus(point) && (
                           <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase text-muted-foreground">
-                            {linkedStatus(point)}
+                            {t(TASK_STATUS_LABEL_KEY[linkedStatus(point) as TaskStatus])}
                           </span>
                         )}
                         </div>
@@ -546,7 +555,10 @@ export function ScheduleGrid({
                       </ReorderMenu>
                     ))}
                   {(tasksByDate.get(day.date) ?? []).map((task) => (
-                    <Hint key={task.id} label={`${task.id} ${task.title} · ${task.status}`}>
+                    <Hint
+                      key={task.id}
+                      label={`${task.id} ${task.title} · ${t(TASK_STATUS_LABEL_KEY[task.status])}`}
+                    >
                       <div
                         onPointerDown={(e) => {
                           if (readOnly || e.button !== 0) return;
@@ -590,17 +602,17 @@ export function ScheduleGrid({
       {selection && !readOnly && (
         <div className="flex items-center gap-3 border-t bg-muted/40 px-3 py-1.5 text-[11px]">
           <span>
-            Selected {t.range(selection.start, selection.end)} ·{" "}
-            {t.calendarDays(calendarDays(selection.start, selection.end))} ·{" "}
-            {t.workingDays(countWorkingDays(selection.start, selection.end, doc.nonWorking))}
+            {t("schedule.grid.selectedPrefix")} {ds.range(selection.start, selection.end)} ·{" "}
+            {ds.calendarDays(calendarDays(selection.start, selection.end))} ·{" "}
+            {ds.workingDays(countWorkingDays(selection.start, selection.end, doc.nonWorking))}
           </span>
-          <span className="text-muted-foreground">Right-click to add an element</span>
+          <span className="text-muted-foreground">{t("schedule.grid.rightClickHint")}</span>
           <button
             type="button"
             onClick={() => setDrag(null)}
             className="ml-auto text-muted-foreground hover:text-foreground"
           >
-            Clear selection
+            {t("schedule.grid.clearSelection")}
           </button>
         </div>
       )}
@@ -650,6 +662,7 @@ function ReorderMenu({
   onReorder: (id: string, dir: MoveDirection) => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   if (readOnly) return <>{children}</>;
   return (
     <ContextMenu>
@@ -662,11 +675,11 @@ function ReorderMenu({
           onSelect={() => onReorder(id, -1)}
         >
           <ChevronUp />
-          Move up
+          {t("schedule.grid.moveUp")}
         </ContextMenuItem>
         <ContextMenuItem disabled={!canMoveItem(items, id, 1)} onSelect={() => onReorder(id, 1)}>
           <ChevronDown />
-          Move down
+          {t("schedule.grid.moveDown")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -878,6 +891,7 @@ function DayMenuItems({
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onToggleNonWorking: (date: string) => void;
 }) {
+  const t = useT();
   // A sweep that covers this day is what the menu acts on; otherwise the menu
   // acts on the single day that was right-clicked.
   const range =
@@ -895,13 +909,13 @@ function DayMenuItems({
         disabled={readOnly}
         onSelect={() => onCreateItem("bar", range.start, range.end)}
       >
-        Add bar
+        {t("schedule.menu.addBar")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
         onSelect={() => onCreateItem("arrow", range.start, range.end)}
       >
-        Add arrow
+        {t("schedule.menu.addArrow")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
@@ -910,13 +924,13 @@ function DayMenuItems({
         // different thing than the user asked for.
         onSelect={() => onCreateItem("milestone", range.start, range.start)}
       >
-        Add milestone
+        {t("schedule.menu.addMilestone")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
         onSelect={() => onCreateItem("note", range.start, range.start)}
       >
-        Add note
+        {t("schedule.menu.addNote")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
@@ -924,10 +938,10 @@ function DayMenuItems({
         onSelect={() => onToggleNonWorking(day)}
       >
         {weekly
-          ? "Weekend (set by the weekly: line)"
+          ? t("schedule.menu.weekendSet")
           : isNonWorking
-            ? "Clear non-working day"
-            : "Mark non-working"}
+            ? t("schedule.menu.clearNonWorking")
+            : t("schedule.menu.markNonWorking")}
       </ContextMenuItem>
     </>
   );

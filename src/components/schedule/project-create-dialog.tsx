@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 /**
  * Derives a folder slug from a display name — the vault's folder convention
@@ -39,6 +40,7 @@ interface Props {
  * existed, that empty state was a dead end.
  */
 export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }: Props) {
+  const t = useT();
   const [name, setName] = useState("");
   // The slug starts as a derivation of the name; once the user edits it by
   // hand it stays put, or every further keystroke in the name would fight the
@@ -104,21 +106,18 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
-          <DialogDescription>
-            A schedule lives inside a project — a folder under the vault at
-            projects/NNNN-&lt;slug&gt;/. This creates the folder from the bundled
-            scaffold (README, prd, roadmap, …); the NNNN sort number is
-            assigned automatically.
-          </DialogDescription>
+          <DialogTitle>{t("schedule.projectCreate.title")}</DialogTitle>
+          <DialogDescription>{t("schedule.projectCreate.description")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <label className="block space-y-1">
-            <span className="text-xs text-muted-foreground">Project name</span>
+            <span className="text-xs text-muted-foreground">
+              {t("schedule.projectCreate.nameLabel")}
+            </span>
             <Input
               value={name}
               autoFocus
-              placeholder="e.g. My web app"
+              placeholder={t("schedule.projectCreate.namePlaceholder")}
               className="h-8 text-sm"
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
@@ -128,7 +127,7 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
           </label>
           <label className="block space-y-1">
             <span className="text-xs text-muted-foreground">
-              Slug — projects/{folderLabel}/ (lowercase, kebab-case)
+              {t("schedule.projectCreate.slugLabel", { folder: folderLabel })}
             </span>
             <Input
               value={effectiveSlug}
@@ -147,7 +146,7 @@ export function ProjectCreateDialog({ vaultPath, open, onOpenChange, onCreated }
         </div>
         <DialogFooter>
           <Button size="sm" disabled={!effectiveSlug || busy} onClick={() => void create()}>
-            Create project
+            {t("schedule.projectCreate.create")}
           </Button>
         </DialogFooter>
       </DialogContent>
