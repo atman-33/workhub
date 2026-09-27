@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function NameDialog({ open, title, placeholder, withCheckout, onSubmit, onClose }: Props) {
+  const t = useT();
   const [name, setName] = useState("");
   const [checkout, setCheckout] = useState(true);
 
@@ -58,13 +60,13 @@ export function NameDialog({ open, title, placeholder, withCheckout, onSubmit, o
                 checked={checkout}
                 onCheckedChange={(c) => setCheckout(c === true)}
               />
-              Check out after create
+              {t("graph.nameDialog.checkoutAfterCreate")}
             </label>
           )}
         </div>
         <DialogFooter>
           <Button disabled={!name.trim()} onClick={submit}>
-            Create
+            {t("common.create")}
           </Button>
         </DialogFooter>
       </DialogContent>

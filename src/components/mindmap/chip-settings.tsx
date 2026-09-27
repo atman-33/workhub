@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Hint } from "@/components/ui/hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 import { normalizeChips } from "@/lib/mindmap/attrs";
 
 /**
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // A key listed in the note but no longer used anywhere in the map is dropped
@@ -62,8 +64,8 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
       <Hint
         label={
           showing
-            ? `Attribute chips: ${visible.join(", ")}`
-            : "Attribute chips are hidden on this map"
+            ? t("mindmap.chipSettings.chipsHint", { list: visible.join(", ") })
+            : t("mindmap.chipSettings.hiddenHint")
         }
         disabled={disabled}
       >
@@ -79,7 +81,9 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
         </PopoverTrigger>
       </Hint>
       <PopoverContent className="w-60 space-y-2 p-3 text-xs" align="start">
-        <div className="text-[11px] text-muted-foreground">Chips, in drawing order</div>
+        <div className="text-[11px] text-muted-foreground">
+          {t("mindmap.chipSettings.orderLabel")}
+        </div>
 
         {visible.map((key, i) => (
           <div key={key} className="flex items-center gap-1.5">
@@ -90,7 +94,7 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
               variant="ghost"
               className="size-6 p-0"
               disabled={disabled || i === 0}
-              aria-label={`Move ${key} up`}
+              aria-label={t("mindmap.chipSettings.moveUpAria", { key })}
               onClick={() => move(key, -1)}
             >
               <ChevronUp className="size-3" />
@@ -100,7 +104,7 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
               variant="ghost"
               className="size-6 p-0"
               disabled={disabled || i === visible.length - 1}
-              aria-label={`Move ${key} down`}
+              aria-label={t("mindmap.chipSettings.moveDownAria", { key })}
               onClick={() => move(key, 1)}
             >
               <ChevronDown className="size-3" />
@@ -110,7 +114,9 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
 
         {hidden.length > 0 && (
           <>
-            <div className="border-t pt-2 text-[11px] text-muted-foreground">Hidden</div>
+            <div className="border-t pt-2 text-[11px] text-muted-foreground">
+              {t("mindmap.chipSettings.hidden")}
+            </div>
             {hidden.map((key) => (
               <div key={key} className="flex items-center gap-1.5">
                 <Checkbox
@@ -134,7 +140,7 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
             disabled={disabled || chips === "all"}
             onClick={() => onChange("all")}
           >
-            Show all
+            {t("mindmap.chipSettings.showAll")}
           </Button>
           <Button
             size="sm"
@@ -143,7 +149,7 @@ export function ChipSettings({ keys, chips, disabled, onChange }: Props) {
             disabled={disabled || !showing}
             onClick={() => onChange([])}
           >
-            Hide all
+            {t("mindmap.chipSettings.hideAll")}
           </Button>
         </div>
       </PopoverContent>

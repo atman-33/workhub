@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: Props) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
@@ -36,7 +38,7 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant={destructive ? "destructive" : "default"} onClick={onConfirm}>
             {confirmLabel}

@@ -31,6 +31,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, GitLog, GraphOp } from "@/types";
 
@@ -64,6 +65,7 @@ export function GitGraphView({
   maximized,
   onToggleMaximize,
 }: Props) {
+  const t = useT();
   const [log, setLog] = useState<GitLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [opBusy, setOpBusy] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function GitGraphView({
             : next,
         );
       } catch (e) {
-        setStatus(`git log failed — ${e}`);
+        setStatus(tStatic("graph.status.gitLogFailed", { error: String(e) }));
       } finally {
         setLoading(false);
       }
@@ -136,7 +138,7 @@ export function GitGraphView({
       setOpBusy(label);
       try {
         const msg = await api.gitGraphOp(path, op);
-        setStatus(`${label} ok — ${msg}`);
+        setStatus(tStatic("graph.status.ok", { label, msg }));
         // A manual fetch/pull refreshes the remote refs just as well, so it
         // starts the auto-fetch cooldown too.
         if (op.kind === "fetch" || op.kind === "pull") {
@@ -150,15 +152,18 @@ export function GitGraphView({
             const n = info.behind;
             setDialog({
               kind: "confirm",
-              title: "Pull changes",
-              description: `${info.branch} is ${n} commit${n > 1 ? "s" : ""} behind its upstream. Pull now?`,
-              confirmLabel: "Pull",
-              onConfirm: () => void runOp("Pull", { kind: "pull" }),
+              title: tStatic("graph.view.pullChangesTitle"),
+              description: tStatic("graph.view.pullChangesDescription", {
+                branch: info.branch,
+                count: n,
+              }),
+              confirmLabel: tStatic("graph.view.pull"),
+              onConfirm: () => void runOp(tStatic("graph.view.pull"), { kind: "pull" }),
             });
           }
         }
       } catch (e) {
-        setStatus(`${label} failed — ${e}`);
+        setStatus(tStatic("graph.status.failed", { label, error: String(e) }));
       } finally {
         setOpBusy(null);
         await reload();
@@ -171,36 +176,46 @@ export function GitGraphView({
   const deleteBranch = useCallback(
     async (branch: string) => {
       setDialog(null);
-      setOpBusy("Delete branch");
+      setOpBusy(tStatic("graph.op.deleteBranchTitle"));
       try {
         const msg = await api.gitGraphOp(path, {
           kind: "delete_branch",
           name: branch,
           force: false,
         });
-        setStatus(`Delete branch ok — ${msg}`);
+        setStatus(tStatic("graph.status.ok", { label: tStatic("graph.op.deleteBranchTitle"), msg }));
         setOpBusy(null);
         await reload();
         onRepoChanged(path);
       } catch (e) {
         setOpBusy(null);
         if (String(e).includes("not fully merged")) {
-          setStatus(`Delete branch failed — ${e}`);
+          setStatus(
+            tStatic("graph.status.failed", {
+              label: tStatic("graph.op.deleteBranchTitle"),
+              error: String(e),
+            }),
+          );
           setDialog({
             kind: "confirm",
-            title: "Force delete branch",
-            description: `Branch "${branch}" is not fully merged. Delete it anyway? Unmerged commits may be lost.`,
-            confirmLabel: "Force delete",
+            title: tStatic("graph.op.forceDeleteBranchTitle"),
+            description: tStatic("graph.op.forceDeleteBranchDescription", { branch }),
+            confirmLabel: tStatic("graph.op.forceDelete"),
             destructive: true,
             onConfirm: () =>
-              void runOp("Force delete branch", {
+              void runOp(tStatic("graph.op.forceDeleteBranch"), {
                 kind: "delete_branch",
                 name: branch,
                 force: true,
               }),
           });
         } else {
-          setStatus(`Delete branch failed — ${e}`);
+          setStatus(
+            tStatic("graph.status.failed", {
+              label: tStatic("graph.op.deleteBranchTitle"),
+              error: String(e),
+            }),
+          );
           await reload();
         }
       }
@@ -237,11 +252,11 @@ export function GitGraphView({
         if (cancelled) return;
         await reloadRef.current();
         onRepoChangedRef.current(path);
-        setStatus("Fetched from remote");
+        setStatus(tStatic("graph.status.fetchedFromRemote"));
       } catch (e) {
         // No remote configured, offline, or credentials needed. A fetch the
         // user did not ask for must not nag — one quiet line in the status bar.
-        if (!cancelled) setStatus(`Auto fetch skipped — ${e}`);
+        if (!cancelled) setStatus(tStatic("graph.status.autoFetchSkipped", { error: String(e) }));
       } finally {
         if (!cancelled) setAutoFetching(false);
       }
@@ -253,7 +268,7 @@ export function GitGraphView({
   }, [path]);
 
   const copy = useCallback((text: string, what: string) => {
-    void writeText(text).then(() => setStatus(`Copied ${what}`));
+    void writeText(text).then(() => setStatus(tStatic("graph.status.copied", { what })));
   }, []);
 
   const onScroll = useCallback(() => {
@@ -277,7 +292,7 @@ export function GitGraphView({
       author: "",
       date: 0,
       refs: [],
-      subject: `${log.uncommitted} uncommitted change${log.uncommitted > 1 ? "s" : ""}`,
+      subject: tStatic("graph.view.uncommittedChanges", { count: log.uncommitted }),
     };
     return [worktree, ...log.commits];
   }, [log]);
@@ -303,7 +318,9 @@ export function GitGraphView({
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : rows.length === 0 ? (
-        <p className="mt-16 text-center text-sm text-muted-foreground">No commits yet.</p>
+        <p className="mt-16 text-center text-sm text-muted-foreground">
+          {t("graph.view.noCommitsYet")}
+        </p>
       ) : (
         <>
           <div style={{ height: start * ROW_H }} />
@@ -337,7 +354,7 @@ export function GitGraphView({
                 disabled={loading}
                 onClick={() => void load(PAGE, log.commits.length, true)}
               >
-                {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Load more"}
+                {loading ? <Loader2 className="size-3.5 animate-spin" /> : t("graph.view.loadMore")}
               </Button>
             </div>
           )}
@@ -371,12 +388,12 @@ export function GitGraphView({
               >
                 <GitBranch className="size-3 shrink-0" />
                 <span className="max-w-40 truncate">
-                  {detached ? "detached HEAD" : log?.current_branch}
+                  {detached ? t("graph.view.detachedHead") : log?.current_branch}
                 </span>
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              {detached ? "detached HEAD" : log?.current_branch || "(no branch)"}
+              {detached ? t("graph.view.detachedHead") : log?.current_branch || t("graph.view.noBranch")}
             </TooltipContent>
           </Tooltip>
           {/* Switch to any local or remote branch, filterable by typing — handy
@@ -386,7 +403,7 @@ export function GitGraphView({
           <BranchCombobox
             path={path}
             current={detached ? "" : (log?.current_branch ?? "")}
-            onSwitch={(branch) => void runOp("Checkout", { kind: "checkout", branch })}
+            onSwitch={(branch) => void runOp(t("graph.op.checkout"), { kind: "checkout", branch })}
             disabled={!!opBusy}
             modal
             trigger={
@@ -396,7 +413,7 @@ export function GitGraphView({
                 size="sm"
                 className="h-7 w-52 justify-between px-2 text-xs font-normal"
               >
-                <span className="truncate">Switch branch…</span>
+                <span className="truncate">{t("graph.view.switchBranch")}</span>
                 <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
               </Button>
             }
@@ -408,7 +425,9 @@ export function GitGraphView({
             <span className="truncate text-[11px] text-muted-foreground">{opBusy}…</span>
           ) : (
             autoFetching && (
-              <span className="truncate text-[11px] text-muted-foreground">Fetching…</span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {t("graph.view.fetching")}
+              </span>
             )
           )}
         </div>
@@ -419,27 +438,27 @@ export function GitGraphView({
             variant="outline"
             className="h-8 gap-1.5 text-xs"
             disabled={!!opBusy}
-            onClick={() => void runOp("Fetch", { kind: "fetch" })}
+            onClick={() => void runOp(t("graph.view.fetch"), { kind: "fetch" })}
           >
-            <RefreshCw className="size-3.5" /> Fetch
+            <RefreshCw className="size-3.5" /> {t("graph.view.fetch")}
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="h-8 gap-1.5 text-xs"
             disabled={!!opBusy || detached}
-            onClick={() => void runOp("Pull", { kind: "pull" })}
+            onClick={() => void runOp(t("graph.view.pull"), { kind: "pull" })}
           >
-            <Download className="size-3.5" /> Pull
+            <Download className="size-3.5" /> {t("graph.view.pull")}
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="h-8 gap-1.5 text-xs"
             disabled={!!opBusy || detached}
-            onClick={() => void runOp("Push", { kind: "push" })}
+            onClick={() => void runOp(t("graph.view.push"), { kind: "push" })}
           >
-            <Upload className="size-3.5" /> Push
+            <Upload className="size-3.5" /> {t("graph.view.push")}
           </Button>
           <Button
             size="sm"
@@ -448,7 +467,7 @@ export function GitGraphView({
             disabled={loading || !!opBusy}
             onClick={() => void reload()}
           >
-            <RefreshCw className="size-3.5" /> Refresh
+            <RefreshCw className="size-3.5" /> {t("graph.view.refresh")}
           </Button>
           {/* Widens the sheet to the full window without remounting this view,
               so the loaded commits and the selection survive the toggle. */}
@@ -467,7 +486,9 @@ export function GitGraphView({
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{maximized ? "Restore size" : "Maximize"}</TooltipContent>
+            <TooltipContent>
+              {maximized ? t("graph.view.restoreSize") : t("graph.view.maximize")}
+            </TooltipContent>
           </Tooltip>
         </div>
       </header>
@@ -499,7 +520,11 @@ export function GitGraphView({
       <footer className="flex items-center border-t px-4 py-1.5 text-[11px] text-muted-foreground">
         <span className="truncate">{status}</span>
         <span className="ml-auto shrink-0">
-          {log ? `${log.commits.length}${log.has_more ? "+" : ""} commits` : ""}
+          {log
+            ? t("graph.view.commitCount", {
+                count: `${log.commits.length}${log.has_more ? "+" : ""}`,
+              })
+            : ""}
         </span>
       </footer>
 

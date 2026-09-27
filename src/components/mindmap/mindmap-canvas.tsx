@@ -39,6 +39,7 @@ import {
   type Sticky,
 } from "@/lib/mindmap/parse";
 import type { AttrChip, ChipAction, QuickAttrGroup } from "@/lib/mindmap/attrs";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -697,6 +698,7 @@ function NodeBox({
   quickAttrs,
   onQuickAttr,
 }: NodeProps) {
+  const t = useT();
   const color = node.color ?? node.branchColor;
   const stroke = color ? COLOR_HEX[color] : undefined;
   const isRoot = node.depth === 0;
@@ -834,17 +836,17 @@ function NodeBox({
                   <ContextMenuItem
                     onSelect={() => onChipAction(filtered ? "clearFilter" : "filter", node, chip)}
                   >
-                    {filtered ? "Clear the filter" : "Filter by this"}
+                    {filtered ? t("mindmap.canvas.clearFilter") : t("mindmap.canvas.filterByThis")}
                   </ContextMenuItem>
                   <ContextMenuItem onSelect={() => onChipAction("colorBy", node, chip)}>
-                    Colour the map by {chip.key}
+                    {t("mindmap.canvas.colorByKey", { key: chip.key })}
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem onSelect={() => onChipAction("remove", node, chip)}>
-                    Remove from this node
+                    {t("mindmap.canvas.removeFromNode")}
                   </ContextMenuItem>
                   <ContextMenuItem onSelect={() => onChipAction("hideKey", node, chip)}>
-                    Hide the {chip.key} chips
+                    {t("mindmap.canvas.hideKeyChips", { key: chip.key })}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -909,42 +911,42 @@ function NodeBox({
         <ContextMenuLabel className="truncate text-[11px]">{node.title}</ContextMenuLabel>
         <ContextMenuSeparator />
         <MenuAction
-          label="Move up"
+          label={t("schedule.grid.moveUp")}
           hint="Alt+Up"
           disabled={!abilities.moveUp}
           onSelect={() => onNodeAction("moveUp", node)}
         />
         <MenuAction
-          label="Move down"
+          label={t("schedule.grid.moveDown")}
           hint="Alt+Down"
           disabled={!abilities.moveDown}
           onSelect={() => onNodeAction("moveDown", node)}
         />
         <MenuAction
-          label="Indent"
+          label={t("mindmap.canvas.indent")}
           hint="Alt+Right"
           disabled={!abilities.indent}
           onSelect={() => onNodeAction("indent", node)}
         />
         <MenuAction
-          label="Outdent"
+          label={t("mindmap.canvas.outdent")}
           hint="Alt+Left"
           disabled={!abilities.outdent}
           onSelect={() => onNodeAction("outdent", node)}
         />
         <ContextMenuSeparator />
         <MenuAction
-          label="Rename"
+          label={t("mindmap.canvas.rename")}
           hint="F2"
           onSelect={() => onNodeAction("rename", node)}
         />
         <MenuAction
-          label="Add a child"
+          label={t("mindmap.canvas.addChild")}
           hint="Tab"
           onSelect={() => onNodeAction("addChild", node)}
         />
         <MenuAction
-          label="Add a sibling"
+          label={t("mindmap.canvas.addSibling")}
           hint="Enter"
           onSelect={() => onNodeAction("addSibling", node)}
         />
@@ -952,7 +954,7 @@ function NodeBox({
           <>
             <ContextMenuSeparator />
             <ContextMenuSub>
-              <ContextMenuSubTrigger>Attributes</ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>{t("mindmap.attrEditor.title")}</ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-52">
                 {quickAttrs.map((group, i) => (
                   <div key={group.key}>
@@ -970,7 +972,7 @@ function NodeBox({
                     ))}
                     {group.overflow > 0 && (
                       <ContextMenuLabel className="pl-6 text-[10px] font-normal text-muted-foreground">
-                        {group.overflow} more in the panel
+                        {t("mindmap.canvas.moreInPanel", { count: group.overflow })}
                       </ContextMenuLabel>
                     )}
                   </div>
@@ -983,14 +985,14 @@ function NodeBox({
           <>
             <ContextMenuSeparator />
             <MenuAction
-              label={node.collapsed ? "Expand" : "Collapse"}
+              label={node.collapsed ? t("mindmap.canvas.expand") : t("mindmap.canvas.collapse")}
               onSelect={() => onNodeAction("toggleCollapse", node)}
             />
           </>
         )}
         <ContextMenuSeparator />
         <MenuAction
-          label="Delete"
+          label={t("common.delete")}
           hint="Del"
           variant="destructive"
           onSelect={() => onNodeAction("delete", node)}

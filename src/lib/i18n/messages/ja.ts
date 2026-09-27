@@ -5,6 +5,8 @@ import { inboxJa } from "./inbox.ja";
 import { pluginsJa } from "./plugins.ja";
 import { miscJa } from "./misc.ja";
 import { scheduleJa } from "./schedule.ja";
+import { mindmapJa } from "./mindmap.ja";
+import { graphJa } from "./graph.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -375,4 +377,6 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...pluginsJa,
   ...miscJa,
   ...scheduleJa,
+  ...mindmapJa,
+  ...graphJa,
 };
