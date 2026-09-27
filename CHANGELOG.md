@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.149.0 (2026-09-27)
+
+- **The app can be shown in Japanese** (T-0409, T-0423, T-0428). workhub was
+  English-only. **Settings → General → Display language** now switches the
+  whole UI between English and Japanese — every tab, the task editor,
+  quick capture, the pop-out windows and their titles, and the Help guide.
+  The setting is kept in the vault, like the agents' reply language, and
+  defaults to English, so nothing changes until you switch. Frontmatter
+  values, the Description/Plan/Results headings and agent prompts stay in
+  English, because the vault and the agents read them. The Schedule tab's
+  separate calendar language is folded into this setting; an existing choice
+  carries over. The Help guide now also shows its Inbox section, which was
+  never displayed, lists "Sending a task to Claude Desktop" in its contents
+  row, and **Copy all** copies every section instead of about half.
+- **Filing a task from an agent no longer doubles its Description heading**
+  (T-0426). `task-cli create --body-file` put the file under its own
+  `## Description` heading, so a file written with that heading came out with
+  two. A leading heading is now dropped, and a file that also carries
+  `## Plan` or `## Results` is refused, since a new task starts with both
+  empty. The task-list and task-report skills now say the file holds the
+  Description's text only.
+
 ## 0.148.0 (2026-09-25)
 
 - **Several files' paths can be copied at once in the Docs tab** (T-0400).
