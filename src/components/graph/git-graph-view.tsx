@@ -12,6 +12,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { BranchFilterPopover, type BranchFilter } from "@/components/graph/branch-filter-popover";
 import { CommitDiffPanel } from "@/components/graph/commit-diff-panel";
 import {
   CommitRow,
@@ -39,6 +40,11 @@ const PAGE = 500;
 const WORKTREE_HASH = "WORKTREE";
 /** Minimum gap between two automatic fetches of the same repository. */
 const AUTO_FETCH_COOLDOWN_MS = 60_000;
+/** How long a `git log` may run before the "taking a while" notice appears. */
+const SLOW_LOAD_MS = 5_000;
+/** The error `git_log` returns for a load killed via `cancel_log` — never
+ * surfaced as a failure. */
+const CANCELLED_ERROR = "cancelled";
 
 /**
  * When the graph was last auto-fetched, per repository path. Module scope on
@@ -50,6 +56,11 @@ const lastAutoFetchAt = new Map<string, number>();
 interface Props {
   path: string;
   name: string;
+  /** Extra branches always shown on top of the dynamically-computed
+   * defaults; persisted per repo alongside `favorite` (T-0408). */
+  graphBranches: string[];
+  graphShowAll: boolean;
+  onGraphFilterChange: (next: BranchFilter) => void;
   onClose: () => void;
   onRepoChanged: (path: string) => void;
   /** Whether the containing sheet is expanded to the full window width. */
@@ -60,6 +71,9 @@ interface Props {
 export function GitGraphView({
   path,
   name,
+  graphBranches,
+  graphShowAll,
+  onGraphFilterChange,
   onClose,
   onRepoChanged,
   maximized,
@@ -68,6 +82,8 @@ export function GitGraphView({
   const t = useT();
   const [log, setLog] = useState<GitLog | null>(null);
   const [loading, setLoading] = useState(true);
+  const [slowLoad, setSlowLoad] = useState(false);
+  const [branchFilterOpen, setBranchFilterOpen] = useState(false);
   const [opBusy, setOpBusy] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
@@ -80,6 +96,10 @@ export function GitGraphView({
   const roRef = useRef<ResizeObserver | null>(null);
   const scrollTopRef = useRef(0);
   const rafRef = useRef(0);
+  /** `request_id` of the `git_log` currently in flight, if any — lets a
+   * newer load supersede (and cancel) an older one, and lets the repo-path
+   * change / unmount effect below cancel whatever is still running. */
+  const requestIdRef = useRef<string | null>(null);
 
   // Persist the commit-list / diff-panel split across restarts, the same way
   // the repos list persists its own vertical split.
@@ -90,26 +110,68 @@ export function GitGraphView({
 
   const load = useCallback(
     async (limit: number, skip: number, append: boolean) => {
+      // A load already in flight for this view is superseded by this one —
+      // cancel it rather than let two `git log` processes run at once.
+      if (requestIdRef.current) {
+        void api.gitLogCancel(requestIdRef.current);
+      }
+      const requestId = crypto.randomUUID();
+      requestIdRef.current = requestId;
+
       setLoading(true);
+      setSlowLoad(false);
+      const slowTimer = window.setTimeout(() => setSlowLoad(true), SLOW_LOAD_MS);
       try {
-        const next = await api.gitLog(path, limit, skip);
+        const next = await api.gitLog(path, limit, skip, graphBranches, graphShowAll, requestId);
+        // Superseded by a newer load while this one was in flight — its
+        // result is stale, and the newer load owns `loading`/`slowLoad` now.
+        if (requestIdRef.current !== requestId) return;
         setLog((prev) =>
           append && prev
             ? { ...next, commits: [...prev.commits, ...next.commits] }
             : next,
         );
       } catch (e) {
-        setStatus(tStatic("graph.status.gitLogFailed", { error: String(e) }));
+        if (requestIdRef.current !== requestId) return;
+        if (String(e) !== CANCELLED_ERROR) {
+          setStatus(tStatic("graph.status.gitLogFailed", { error: String(e) }));
+        }
       } finally {
-        setLoading(false);
+        window.clearTimeout(slowTimer);
+        if (requestIdRef.current === requestId) {
+          requestIdRef.current = null;
+          setLoading(false);
+          setSlowLoad(false);
+        }
       }
     },
-    [path],
+    [path, graphBranches, graphShowAll],
   );
 
   useEffect(() => {
     void load(PAGE, 0, false);
   }, [load]);
+
+  // Cancel whatever `git log` is still running when the repo changes or this
+  // view unmounts — a load for a repo the user has already left behind is
+  // pure waste, and on a huge repo it can otherwise run for a long time.
+  useEffect(() => {
+    return () => {
+      if (requestIdRef.current) {
+        void api.gitLogCancel(requestIdRef.current);
+        requestIdRef.current = null;
+      }
+    };
+  }, [path]);
+
+  const cancelCurrentLoad = useCallback(() => {
+    if (requestIdRef.current) {
+      void api.gitLogCancel(requestIdRef.current);
+      requestIdRef.current = null;
+    }
+    setLoading(false);
+    setSlowLoad(false);
+  }, []);
 
   // Opening/closing the diff panel moves the commit list into (and out of) a
   // resizable panel, which remounts it. Attach via a callback ref so the size
@@ -418,6 +480,18 @@ export function GitGraphView({
               </Button>
             }
           />
+          {/* Restrict which branches the graph walks (T-0408) — the default
+              way a repo with many branches gets its commit history to load
+              at all. */}
+          <BranchFilterPopover
+            path={path}
+            extraBranches={graphBranches}
+            showAll={graphShowAll}
+            onChange={onGraphFilterChange}
+            disabled={!!opBusy}
+            open={branchFilterOpen}
+            onOpenChange={setBranchFilterOpen}
+          />
           {(loading || opBusy || autoFetching) && (
             <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
           )}
@@ -492,6 +566,34 @@ export function GitGraphView({
           </Tooltip>
         </div>
       </header>
+
+      {/* Shown once a load has been running long enough that narrowing the
+          branch filter is a plausible fix — see SLOW_LOAD_MS. Never shown
+          for a load already restricted to a small ref set, since narrowing
+          further would not be the fix at that point... but the timer alone
+          can't tell that, so both actions stay offered regardless. */}
+      {slowLoad && loading && (
+        <div className="flex items-center gap-3 border-b bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200">
+          <Loader2 className="size-3.5 shrink-0 animate-spin" />
+          <span className="flex-1">{t("graph.slowLoad.message")}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[11px]"
+            onClick={cancelCurrentLoad}
+          >
+            {t("graph.slowLoad.cancel")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setBranchFilterOpen(true)}
+          >
+            {t("graph.slowLoad.chooseBranches")}
+          </Button>
+        </div>
+      )}
 
       {/* commit list, optionally split with the commit diff panel */}
       {selectedEntry ? (

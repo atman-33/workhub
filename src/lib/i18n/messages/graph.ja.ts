@@ -93,4 +93,15 @@ export const graphJa: Partial<Record<MessageKey, string>> = {
     "{branch} はアップストリームより {count} コミット遅れています。Pull しますか？",
 
   "graph.nameDialog.checkoutAfterCreate": "作成後にチェックアウトする",
+
+  // T-0408: ブランチが多いリポジトリでもグラフが表示できるようにする絞り込み
+  "graph.branchFilter.allBranches": "すべてのブランチ",
+  "graph.branchFilter.branchCount": "追加ブランチ {count} 件",
+  "graph.branchFilter.showAll": "すべてのブランチを表示",
+  "graph.branchFilter.defaultBadge": "既定",
+
+  // T-0408: 読み込みに時間がかかっている場合の案内
+  "graph.slowLoad.message": "時間がかかっています。表示ブランチを絞りますか？",
+  "graph.slowLoad.cancel": "中止",
+  "graph.slowLoad.chooseBranches": "ブランチを選ぶ",
 };

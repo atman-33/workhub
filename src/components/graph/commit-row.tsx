@@ -23,7 +23,14 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/git-graph";
+import {
+  cappedLaneWidth,
+  COL_W,
+  ROW_H,
+  splitRefBadges,
+  type Edge,
+  type RowLayout,
+} from "@/lib/git-graph";
 import { formatCommitDate, formatCommitDateFull } from "@/lib/commit-format";
 import { timeAgo } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -104,7 +111,7 @@ function LaneGraphic({ layout, isHead, isWorktree }: { layout: RowLayout; isHead
   const cx = layout.column * COL_W + COL_W / 2;
   const cy = ROW_H / 2;
   return (
-    <svg width={(layout.maxCol + 1) * COL_W} height={ROW_H} className="shrink-0">
+    <svg width={cappedLaneWidth(layout.maxCol)} height={ROW_H} className="shrink-0">
       {layout.edgesTop.map((edge, i) => (
         <EdgePath key={`t${i}`} edge={edge} half="top" />
       ))}
@@ -327,6 +334,7 @@ export const CommitRow = memo(function CommitRow({
   onSelect,
 }: Props) {
   const t = useT();
+  const refBadges = splitRefBadges(entry.refs);
   const rowContent = (
     <div
       className={cn(
@@ -342,7 +350,7 @@ export const CommitRow = memo(function CommitRow({
       onClick={onSelect}
     >
       <LaneGraphic layout={layout} isHead={isHead} isWorktree={isWorktree} />
-      {entry.refs.map((r) => (
+      {refBadges.visible.map((r) => (
         <RefBadge
           key={`${r.kind}:${r.name}`}
           commitRef={r}
@@ -355,7 +363,19 @@ export const CommitRow = memo(function CommitRow({
           onDeleteBranch={onDeleteBranch}
         />
       ))}
-      <span className="truncate text-[13px]">{entry.subject}</span>
+      {refBadges.overflow.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="h-5 shrink-0 gap-1 px-1.5 text-[11px] font-medium">
+              +{refBadges.overflow.length}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {refBadges.overflow.map((r) => r.name).join(", ")}
+          </TooltipContent>
+        </Tooltip>
+      )}
+      <span className="min-w-24 flex-1 truncate text-[13px]">{entry.subject}</span>
       {!isWorktree && (
         // The row shows an absolute date — "12h ago" alone never answers *when*.
         // The relative form still reads faster when skimming, so it moves into

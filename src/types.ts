@@ -5,6 +5,13 @@ export interface Project {
   favorite: boolean;
   notes: string;
   last_opened: number | null;
+  /** Extra branches always shown in this repo's git graph, beyond the
+   * dynamically-computed defaults (HEAD, the default branch, and their
+   * upstreams). Machine-local, alongside `favorite` (T-0408). */
+  graph_branches: string[];
+  /** Show every ref in the git graph (`git log --all`) instead of the
+   * default/extra ref set. */
+  graph_show_all: boolean;
 }
 
 export interface Preset {

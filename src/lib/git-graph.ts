@@ -46,6 +46,38 @@ export interface RowLayout {
 export const ROW_H = 28;
 export const COL_W = 14;
 
+/** Widest a single row's lane graphic is ever drawn, in columns. A repo with
+ * hundreds of open branches can touch far more columns than that in a single
+ * row; capping the rendered width keeps the row (and the message text next
+ * to it) usable instead of forcing a horizontal scrollbar per row. The SVG's
+ * own default clipping (no `viewBox`, `overflow: hidden` by UA default) does
+ * the actual cropping — this only decides how wide to draw it. */
+export const MAX_LANE_COLS = 12;
+
+/** Pixel width to draw a row's lane-graphic `<svg>` at, given the highest
+ * column it touches. Columns beyond `maxCols` are clipped rather than
+ * widening the row. */
+export function cappedLaneWidth(
+  maxCol: number,
+  colW: number = COL_W,
+  maxCols: number = MAX_LANE_COLS,
+): number {
+  return (Math.min(maxCol, maxCols - 1) + 1) * colW;
+}
+
+/** Split a commit's ref badges into the ones shown inline and the rest,
+ * collapsed into a single "+N" badge (whose tooltip lists them all) so a
+ * commit decorated with dozens of branches doesn't blow out the row. */
+export function splitRefBadges<T>(
+  refs: readonly T[],
+  max = 3,
+): { visible: T[]; overflow: T[] } {
+  if (refs.length <= max) {
+    return { visible: [...refs], overflow: [] };
+  }
+  return { visible: refs.slice(0, max), overflow: refs.slice(max) };
+}
+
 /** 10 hex colors chosen to read clearly on both dark and light zinc UIs. */
 export const PALETTE: readonly string[] = [
   "#f43f5e", // rose

@@ -15,6 +15,16 @@ pub struct Project {
     /// Unix seconds of the last time this project was opened from Workhub.
     #[serde(default)]
     pub last_opened: Option<u64>,
+    /// Extra branches (beyond the dynamically-computed defaults: HEAD, the
+    /// default branch, and their upstreams) always shown in this repo's git
+    /// graph. Machine-local, alongside `favorite` — a repo path is specific
+    /// to one machine (T-0408).
+    #[serde(default)]
+    pub graph_branches: Vec<String>,
+    /// Show every ref in the git graph (`git log --all`) instead of the
+    /// default/extra ref set. Machine-local, same reasoning as `favorite`.
+    #[serde(default)]
+    pub graph_show_all: bool,
 }
 
 /// A named set of projects that can be selected in one click.

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.150.0 (2026-09-27)
+
+- **The Repos tab's commit graph no longer stalls on a repo with many
+  branches** (T-0408). `git log --all` walked every ref's full history before
+  showing a single commit, so a repo with hundreds or thousands of branches
+  never finished loading. The graph now defaults to HEAD, the repo's default
+  branch, and their upstreams — a toolbar branch picker lets you add more or
+  switch back to "Show all branches", and the choice is saved per repo. A
+  load stuck past 5 seconds now shows an inline notice with **Cancel** and
+  **Choose branches**, and switching repos or closing the graph cancels
+  whatever load was still running. The graph also writes a `commit-graph` in
+  the background the first time a repo needs one (or after a slow load), which
+  speeds up every future `git log` on that repo. A row's lane graphic is
+  capped at 12 columns and its ref badges at 3 (with a `+N` for the rest), so
+  a heavily-branched commit no longer forces the row list into a horizontal
+  scrollbar.
+
 ## 0.149.0 (2026-09-27)
 
 - **The app can be shown in Japanese** (T-0409, T-0423, T-0428). workhub was
