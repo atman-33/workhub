@@ -35,13 +35,14 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Clip, Config } from "@/types";
 
-const GESTURES = [
-  { value: "ctrl-double", label: "Double-tap Ctrl" },
-  { value: "shift-double", label: "Double-tap Shift" },
-  { value: "off", label: "Off" },
+const GESTURES: { value: string; labelKey: MessageKey }[] = [
+  { value: "ctrl-double", labelKey: "clips.settings.gesture.ctrlDouble" },
+  { value: "shift-double", labelKey: "clips.settings.gesture.shiftDouble" },
+  { value: "off", labelKey: "clips.settings.gesture.off" },
 ];
 
 function newClip(): Clip {
@@ -59,6 +60,7 @@ function SortableClip({
   onPatch: (id: string, patch: Partial<Clip>) => void;
   onDelete: (id: string) => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: clip.id });
 
@@ -86,7 +88,7 @@ function SortableClip({
         {...listeners}
       >
         <GripVertical className="size-4" />
-        <span className="sr-only">Drag to reorder</span>
+        <span className="sr-only">{t("clips.item.dragToReorder")}</span>
       </button>
       <span className="mt-1.5 w-4 shrink-0 text-[11px] text-muted-foreground">
         {index + 1}
@@ -95,13 +97,13 @@ function SortableClip({
         <Input
           value={clip.label}
           onChange={(e) => onPatch(clip.id, { label: e.target.value })}
-          placeholder="Label (optional — the first line is used when empty)"
+          placeholder={t("clips.item.labelPlaceholder")}
           className="h-8 text-xs"
         />
         <Textarea
           value={clip.text}
           onChange={(e) => onPatch(clip.id, { text: e.target.value })}
-          placeholder="Text to paste"
+          placeholder={t("clips.item.textPlaceholder")}
           className="min-h-16 text-xs"
         />
       </div>
@@ -110,7 +112,7 @@ function SortableClip({
         size="icon-sm"
         variant="ghost"
         onClick={() => onDelete(clip.id)}
-        aria-label="Delete snippet"
+        aria-label={t("clips.item.deleteAria")}
       >
         <Trash2 className="size-3.5 text-destructive" />
       </Button>
@@ -119,6 +121,7 @@ function SortableClip({
 }
 
 export function ClipsView({ configVersion }: { configVersion: number }) {
+  const t = useT();
   const [clips, setClips] = useState<Clip[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
@@ -196,10 +199,8 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       <div className="flex shrink-0 items-center gap-2">
         <ClipboardList className="size-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">Clips</h2>
-        <span className="text-xs text-muted-foreground">
-          Snippets you can paste into any app without leaving the keyboard
-        </span>
+        <h2 className="text-sm font-medium">{t("clips.header.title")}</h2>
+        <span className="text-xs text-muted-foreground">{t("clips.header.subtitle")}</span>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-md border p-3">
@@ -208,9 +209,9 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
           disabled={!config}
           onCheckedChange={(v) => void patchSettings({ clips_enabled: v })}
         />
-        <span className="text-xs">Enable the picker</span>
+        <span className="text-xs">{t("clips.settings.enable")}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Gesture</span>
+          <span className="text-xs text-muted-foreground">{t("clips.settings.gesture")}</span>
           <Select
             value={config?.settings.clips_gesture ?? "ctrl-double"}
             disabled={!config || !enabled}
@@ -222,17 +223,13 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
             <SelectContent>
               {GESTURES.map((g) => (
                 <SelectItem key={g.value} value={g.value}>
-                  {g.label}
+                  {t(g.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Tap the modifier twice on its own — a tap that is part of a shortcut
-          (Ctrl+C and friends) never opens the picker. Alt is reserved for the
-          ink overlay.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t("clips.settings.hint")}</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -245,14 +242,14 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
           }}
         >
           <Plus className="size-3.5" />
-          Add snippet
+          {t("clips.list.addSnippet")}
         </Button>
         <Button size="xs" disabled={!dirty || saving} onClick={() => void save()}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("clips.list.saving") : t("common.save")}
         </Button>
         {dirty && (
           <span className="text-[11px] text-muted-foreground">
-            Unsaved changes
+            {t("clips.list.unsavedChanges")}
           </span>
         )}
         {error && <span className="text-[11px] text-destructive">{error}</span>}
@@ -260,13 +257,9 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t("clips.list.loading")}</p>
         ) : clips.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No snippets yet. Add the phrases you retype the most — addresses,
-            boilerplate replies, commands — then double-tap Ctrl anywhere to
-            paste one.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("clips.list.empty")}</p>
         ) : (
           <DndContext
             sensors={sensors}

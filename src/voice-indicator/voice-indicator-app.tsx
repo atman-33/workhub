@@ -12,6 +12,7 @@ import { AlertCircle, Loader2, Mic, Square, X } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type VoiceState = "idle" | "recording" | "transcribing" | "error";
@@ -26,6 +27,7 @@ interface PreviewPayload {
 }
 
 export function VoiceIndicatorApp() {
+  const t = useT();
   const [state, setState] = useState<VoiceState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -95,8 +97,8 @@ export function VoiceIndicatorApp() {
         e.stopPropagation();
         void api.voiceStopRecording();
       }}
-      aria-label="Stop recording"
-      title="Stop recording (pauses meeting auto-capture when a meeting is active)"
+      aria-label={t("voice.indicator.stopRecordingAria")}
+      title={t("voice.indicator.stopRecordingTitle")}
       className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground"
     >
       <Square className="size-3.5 fill-current" />
@@ -114,8 +116,8 @@ export function VoiceIndicatorApp() {
         e.stopPropagation();
         void api.voiceCancelRecording();
       }}
-      aria-label="Discard recording"
-      title="Discard"
+      aria-label={t("voice.indicator.discardAria")}
+      title={t("voice.indicator.discardTitle")}
       className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
     >
       <X className="size-3.5" />
@@ -140,7 +142,7 @@ export function VoiceIndicatorApp() {
       {state === "transcribing" && (
         <>
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-          <span className="text-xs">Transcribing…</span>
+          <span className="text-xs">{t("voice.indicator.transcribing")}</span>
         </>
       )}
       {state === "error" && (
@@ -148,7 +150,7 @@ export function VoiceIndicatorApp() {
           <AlertCircle className="size-3.5 shrink-0 text-destructive" />
           <Hint label={message ?? undefined}>
             <span className={cn("min-w-0 flex-1 truncate text-xs text-destructive")}>
-              {message ?? "Voice input error"}
+              {message ?? t("voice.indicator.error")}
             </span>
           </Hint>
         </>
@@ -185,7 +187,7 @@ export function VoiceIndicatorApp() {
             ref={previewRef}
             className="voice-preview-scroll mt-1 min-h-0 flex-1 overflow-y-auto rounded-md bg-background/40 px-2 py-1.5 text-xs text-muted-foreground"
           >
-            {preview || <span className="italic opacity-60">Listening…</span>}
+            {preview || <span className="italic opacity-60">{t("voice.indicator.listening")}</span>}
           </div>
         </div>
         </div>

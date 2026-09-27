@@ -185,4 +185,19 @@ export const miscEn = {
   "misc.vaultScopedBadge.label": "Vault",
   "misc.vaultScopedBadge.tooltip":
     "Stored in the vault (.workhub/settings.json), so it follows the vault to your other machines. Machine-specific settings stay in ~/.workhub/config.json.",
+
+  "misc.backlogStatus.idea": "Idea",
+  "misc.backlogStatus.ready": "Ready",
+  "misc.backlogStatus.doing": "Doing",
+  "misc.backlogStatus.done": "Done",
+  "misc.backlogStatus.dropped": "Dropped",
+
+  "misc.claudeDesktopButton.modeChat": "chat",
+  "misc.claudeDesktopButton.modeCode": "code session",
+
+  "misc.markdown.copyCode": "Copy code",
+  "misc.markdown.openFigure": "Open in a window",
+  "misc.markdown.openFigureHint": "Open in a window (or double-click)",
+  "misc.dateTimePicker.placeholder": "Pick a date and time",
+  "misc.dateTimePicker.time": "Time",
 } as const;

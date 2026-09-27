@@ -185,4 +185,19 @@ export const miscJa: Partial<Record<MessageKey, string>> = {
   "misc.vaultScopedBadge.label": "Vault",
   "misc.vaultScopedBadge.tooltip":
     "vault 内(.workhub/settings.json)に保存されるため、他の端末にも vault と一緒に引き継がれます。端末固有の設定は ~/.workhub/config.json に保存されます。",
+
+  "misc.backlogStatus.idea": "アイデア",
+  "misc.backlogStatus.ready": "対応可能",
+  "misc.backlogStatus.doing": "進行中",
+  "misc.backlogStatus.done": "完了",
+  "misc.backlogStatus.dropped": "取り止め",
+
+  "misc.claudeDesktopButton.modeChat": "チャット",
+  "misc.claudeDesktopButton.modeCode": "コードセッション",
+
+  "misc.markdown.copyCode": "コードをコピー",
+  "misc.markdown.openFigure": "ウィンドウで開く",
+  "misc.markdown.openFigureHint": "ウィンドウで開く（ダブルクリックでも可）",
+  "misc.dateTimePicker.placeholder": "日時を選択",
+  "misc.dateTimePicker.time": "時刻",
 };

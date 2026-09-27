@@ -10,6 +10,10 @@ import { graphJa } from "./graph.ja";
 import { docsJa } from "./docs.ja";
 import { musicJa } from "./music.ja";
 import { timerJa } from "./timer.ja";
+import { voiceJa } from "./voice.ja";
+import { clipsJa } from "./clips.ja";
+import { inkJa } from "./ink.ja";
+import { personaJa } from "./persona.ja";
 
 /**
  * Japanese UI strings (T-0409). Typed against the English keys, so a key that
@@ -17,6 +21,8 @@ import { timerJa } from "./timer.ja";
  * English, which is what lets the UI be translated one area at a time.
  */
 export const ja: Partial<Record<MessageKey, string>> = {
+  "app.windowTitle": "workhub — オールインワン開発ハブ",
+
   "common.cancel": "キャンセル",
   "common.save": "保存",
   "common.delete": "削除",
@@ -232,6 +238,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "taskEditor.msg.createFailed": "作成に失敗しました — {error}",
   "taskEditor.msg.autoSaveFailed": "自動保存に失敗しました — {error}",
 
+  "taskEditor.windowTitle": "workhub — タスクエディタ",
   "taskEditor.header.editTask": "{id} — タスクを編集",
   "taskEditor.field.title": "タイトル",
   "taskEditor.field.titlePlaceholder": "タスクのタイトル",
@@ -276,6 +283,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "taskEditor.description.clickToEdit": "クリックして編集",
   "taskEditor.footer.createAndOpen": "作成して Obsidian で編集",
 
+  "quickCapture.windowTitle": "workhub — クイックキャプチャ",
   "quickCapture.header.title": "クイックキャプチャ",
   "quickCapture.field.titlePlaceholder": "タスクのタイトル",
   "quickCapture.project.none": "プロジェクトなし",
@@ -385,4 +393,8 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...docsJa,
   ...musicJa,
   ...timerJa,
+  ...voiceJa,
+  ...clipsJa,
+  ...inkJa,
+  ...personaJa,
 };

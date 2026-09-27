@@ -15,6 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelCombobox } from "@/components/model-combobox";
 import { useT, type MessageKey } from "@/lib/i18n";
+import {
+  TASK_ASSIGNEE_LABEL_KEY,
+  TASK_PRIORITY_LABEL_KEY,
+  TASK_STATUS_LABEL_KEY,
+} from "@/lib/i18n/labels";
 import { projectOptionDetails } from "@/lib/task-editor-fields";
 import { cn } from "@/lib/utils";
 import type { RecurringRule, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
@@ -321,7 +326,7 @@ export function RecurringSettings({
                       <SelectContent>
                         {STATUSES.map((s) => (
                           <SelectItem key={s} value={s}>
-                            {s}
+                            {t(TASK_STATUS_LABEL_KEY[s])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -343,7 +348,7 @@ export function RecurringSettings({
                       <SelectContent>
                         {ASSIGNEES.map((a) => (
                           <SelectItem key={a} value={a}>
-                            {a}
+                            {t(TASK_ASSIGNEE_LABEL_KEY[a])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -363,7 +368,7 @@ export function RecurringSettings({
                       <SelectContent>
                         {PRIORITIES.map((p) => (
                           <SelectItem key={p} value={p}>
-                            {p}
+                            {t(TASK_PRIORITY_LABEL_KEY[p])}
                           </SelectItem>
                         ))}
                       </SelectContent>

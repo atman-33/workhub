@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { Config, InkCapture } from "@/types";
 
 /** Explicit locale: the Windows display language must not decide this. */
@@ -45,13 +46,14 @@ function CaptureCard({
   onReveal: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <div className="group relative overflow-hidden rounded-md border bg-card">
       <button
         type="button"
         onClick={onOpen}
         className="block w-full cursor-zoom-in bg-muted/40"
-        aria-label={`Open ${capture.name}`}
+        aria-label={t("ink.card.openAria", { name: capture.name })}
       >
         <img
           src={capture.thumbnail}
@@ -68,13 +70,13 @@ function CaptureCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Button size="icon-xs" variant="ghost" onClick={onCopy} aria-label="Copy to clipboard">
+          <Button size="icon-xs" variant="ghost" onClick={onCopy} aria-label={t("ink.card.copyAria")}>
             <Copy />
           </Button>
-          <Button size="icon-xs" variant="ghost" onClick={onReveal} aria-label="Show in Explorer">
+          <Button size="icon-xs" variant="ghost" onClick={onReveal} aria-label={t("ink.card.revealAria")}>
             <FolderOpen />
           </Button>
-          <Button size="icon-xs" variant="ghost" onClick={onDelete} aria-label="Delete">
+          <Button size="icon-xs" variant="ghost" onClick={onDelete} aria-label={t("ink.card.deleteAria")}>
             <Trash2 className="text-destructive" />
           </Button>
         </div>
@@ -84,6 +86,7 @@ function CaptureCard({
 }
 
 export function InkView({ configVersion }: { configVersion: number }) {
+  const t = useT();
   const [captures, setCaptures] = useState<InkCapture[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const [dir, setDir] = useState("");
@@ -178,9 +181,9 @@ export function InkView({ configVersion }: { configVersion: number }) {
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       <div className="flex shrink-0 items-center gap-2">
         <Pencil className="size-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">Ink</h2>
+        <h2 className="text-sm font-medium">{t("ink.header.title")}</h2>
         <span className="truncate text-xs text-muted-foreground">
-          Draw on screen with a double-press of Alt; Alt+C saves the shot and copies it
+          {t("ink.header.subtitle")}
         </span>
         <Button
           size="sm"
@@ -189,7 +192,7 @@ export function InkView({ configVersion }: { configVersion: number }) {
           onClick={() => void refresh()}
         >
           <RefreshCw />
-          Refresh
+          {t("ink.header.refresh")}
         </Button>
       </div>
 
@@ -199,16 +202,16 @@ export function InkView({ configVersion }: { configVersion: number }) {
           disabled={!config}
           onCheckedChange={(v) => void patchSettings({ ink_enabled: v })}
         />
-        <span className="text-xs">Enable screen annotation</span>
+        <span className="text-xs">{t("ink.settings.enable")}</span>
         <div className="flex min-w-[18rem] flex-1 items-center gap-2">
-          <span className="shrink-0 text-xs text-muted-foreground">Save to</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{t("ink.settings.saveTo")}</span>
           <Input
             value={dir}
             onChange={(e) => setDir(e.target.value)}
             onBlur={() => {
               if (config && dir !== config.settings.ink_dir) void patchSettings({ ink_dir: dir });
             }}
-            placeholder="blank = the vault's attachments/ink/"
+            placeholder={t("ink.settings.dirPlaceholder")}
             className="h-8 font-mono text-xs"
           />
           <Button
@@ -219,7 +222,7 @@ export function InkView({ configVersion }: { configVersion: number }) {
             onClick={() => void api.openExplorer(resolvedDir)}
           >
             <FolderOpen />
-            Open folder
+            {t("ink.settings.openFolder")}
           </Button>
         </div>
       </div>
@@ -228,15 +231,12 @@ export function InkView({ configVersion }: { configVersion: number }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="text-xs text-muted-foreground">Loading…</p>
+          <p className="text-xs text-muted-foreground">{t("ink.view.loading")}</p>
         ) : captures.length === 0 ? (
           <div className="rounded-md border border-dashed p-6 text-xs text-muted-foreground">
-            <p>No captures yet.</p>
+            <p>{t("ink.view.emptyTitle")}</p>
             <p className="mt-1">
-              Double-press <span className="font-mono">Alt</span> and hold the second press to draw,
-              then press <span className="font-mono">Alt</span> + <span className="font-mono">C</span>{" "}
-              to save what is on screen. Captures land in{" "}
-              <span className="font-mono">{resolvedDir}</span>.
+              {t("ink.view.emptyBody", { alt: "Alt", c: "C", dir: resolvedDir })}
             </p>
           </div>
         ) : (
@@ -257,9 +257,9 @@ export function InkView({ configVersion }: { configVersion: number }) {
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Delete capture?"
-        description={`"${pendingDelete?.name ?? ""}" goes to the recycle bin, so it can be restored from there.`}
-        confirmLabel="Delete"
+        title={t("ink.delete.title")}
+        description={t("ink.delete.description", { name: pendingDelete?.name ?? "" })}
+        confirmLabel={t("ink.delete.confirm")}
         destructive
         onConfirm={() => void remove()}
         onClose={() => setPendingDelete(null)}

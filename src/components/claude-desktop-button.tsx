@@ -14,14 +14,21 @@ const LABEL_KEYS: Record<SendState, MessageKey> = {
   success: "misc.claudeDesktopButton.sent",
 };
 
+/** Display labels for the `mode` prop (T-0423) — kept as a lookup so no
+ *  English word is interpolated into the translated tooltip sentence. */
+const MODE_LABEL_KEYS: Record<"chat" | "code", MessageKey> = {
+  chat: "misc.claudeDesktopButton.modeChat",
+  code: "misc.claudeDesktopButton.modeCode",
+};
+
 interface Props {
   /** Opens Claude Desktop with the task prompt; the button animates feedback. */
   onSend: () => Promise<unknown>;
   /** Render the state label next to the icon instead of an icon-only button. */
   showLabel?: boolean;
-  /** Appended to the idle tooltip, e.g. "code session" / "chat", so the user
-   * can tell which kind of session the current setting will open. */
-  mode?: string;
+  /** Appended to the idle tooltip so the user can tell which kind of session
+   * the current setting will open. */
+  mode?: "chat" | "code";
   size?: VariantProps<typeof buttonVariants>["size"];
   variant?: VariantProps<typeof buttonVariants>["variant"];
   className?: string;
@@ -105,7 +112,10 @@ export function ClaudeDesktopButton({
   if (showLabel) return button;
   const tooltip =
     state === "idle" && mode
-      ? t("misc.claudeDesktopButton.idleWithMode", { idle: t("misc.claudeDesktopButton.idle"), mode })
+      ? t("misc.claudeDesktopButton.idleWithMode", {
+          idle: t("misc.claudeDesktopButton.idle"),
+          mode: t(MODE_LABEL_KEYS[mode]),
+        })
       : t(LABEL_KEYS[state]);
   return (
     <Tooltip>

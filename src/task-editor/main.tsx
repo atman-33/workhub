@@ -4,7 +4,7 @@ import { EditorApp } from "./editor-app";
 import { initWindowLocale } from "@/lib/i18n";
 import "../index.css";
 
-initWindowLocale();
+initWindowLocale("taskEditor.windowTitle");
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

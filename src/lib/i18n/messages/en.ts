@@ -22,8 +22,14 @@ import { graphEn } from "./graph.en";
 import { docsEn } from "./docs.en";
 import { musicEn } from "./music.en";
 import { timerEn } from "./timer.en";
+import { voiceEn } from "./voice.en";
+import { clipsEn } from "./clips.en";
+import { inkEn } from "./ink.en";
+import { personaEn } from "./persona.en";
 
 export const en = {
+  "app.windowTitle": "workhub — All-in-one Dev Hub",
+
   "common.cancel": "Cancel",
   "common.save": "Save",
   "common.delete": "Delete",
@@ -243,6 +249,7 @@ export const en = {
   "taskEditor.msg.createFailed": "Create failed — {error}",
   "taskEditor.msg.autoSaveFailed": "Auto-save failed — {error}",
 
+  "taskEditor.windowTitle": "workhub — task editor",
   "taskEditor.header.editTask": "{id} — Edit task",
   "taskEditor.field.title": "Title",
   "taskEditor.field.titlePlaceholder": "Task title",
@@ -287,6 +294,7 @@ export const en = {
   "taskEditor.description.clickToEdit": "Click to edit",
   "taskEditor.footer.createAndOpen": "Create & edit in Obsidian",
 
+  "quickCapture.windowTitle": "workhub — quick capture",
   "quickCapture.header.title": "Quick capture",
   "quickCapture.field.titlePlaceholder": "Task title",
   "quickCapture.project.none": "No project",
@@ -396,6 +404,10 @@ export const en = {
   ...docsEn,
   ...musicEn,
   ...timerEn,
+  ...voiceEn,
+  ...clipsEn,
+  ...inkEn,
+  ...personaEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

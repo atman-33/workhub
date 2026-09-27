@@ -140,4 +140,5 @@ export const docsJa: Partial<Record<MessageKey, string>> = {
   "docs.annotation.placeholder": "ここをどう変更しますか？",
 
   "docs.viewer.nothingToShow": "表示するものがありません — このウィンドウは開かれた対象を失いました。",
+  "docs.viewer.windowTitleFallback": "workhub — ドキュメント",
 };

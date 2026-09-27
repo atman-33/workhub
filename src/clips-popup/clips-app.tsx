@@ -10,6 +10,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ClipboardList, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Clip } from "@/types";
@@ -21,7 +22,7 @@ function displayLabel(clip: Clip): string {
   const label = clip.label.trim();
   if (label) return label;
   const firstLine = clip.text.split("\n", 1)[0]?.trim() ?? "";
-  return firstLine || "(empty)";
+  return firstLine || tStatic("clips.popup.emptyLabel");
 }
 
 function matches(clip: Clip, query: string): boolean {
@@ -33,6 +34,7 @@ function matches(clip: Clip, query: string): boolean {
 }
 
 export function ClipsApp() {
+  const t = useT();
   const [clips, setClips] = useState<Clip[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -144,15 +146,13 @@ export function ClipsApp() {
         className="flex cursor-move select-none items-center gap-1.5 border-b py-1 pl-3 pr-1 text-xs font-medium text-muted-foreground"
       >
         <ClipboardList className="size-3.5" />
-        Clips
-        <span className="ml-auto truncate font-normal">
-          ↑↓ select · Enter paste · Ctrl+1-9 quick · Esc close
-        </span>
+        {t("clips.popup.title")}
+        <span className="ml-auto truncate font-normal">{t("clips.popup.hint")}</span>
         <Button
           size="icon-sm"
           variant="ghost"
           onClick={hide}
-          aria-label="Close"
+          aria-label={t("clips.popup.closeAria")}
         >
           <X className="size-3.5" />
         </Button>
@@ -166,7 +166,7 @@ export function ClipsApp() {
             setQuery(e.target.value);
             setSelected(0);
           }}
-          placeholder="Filter…"
+          placeholder={t("clips.popup.filterPlaceholder")}
           className="h-8 w-full rounded-md border bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring"
         />
       </div>
@@ -175,8 +175,8 @@ export function ClipsApp() {
         {visible.length === 0 ? (
           <p className="p-2 text-sm text-muted-foreground">
             {clips.length === 0
-              ? "No snippets yet — add them in the workhub Clips tab."
-              : "No snippet matches the filter."}
+              ? t("clips.popup.emptyNone")
+              : t("clips.popup.emptyFiltered")}
           </p>
         ) : (
           <div className="flex flex-col gap-1">

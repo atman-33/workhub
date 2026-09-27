@@ -171,6 +171,10 @@ export function projectOptionDetails(
 
 export function backlogOptionDetails(
   items: readonly BacklogItem[],
+  /** Display label for a status value (T-0423) — the picker shows this
+   *  instead of the raw value written to the entry note. Defaults to the raw
+   *  value, which is what every existing caller (and this file's tests) see. */
+  statusLabel: (status: string) => string = (status) => status,
 ): ComboboxOptionDetails {
   const details: ComboboxOptionDetails = {};
   for (const item of items) {
@@ -179,7 +183,7 @@ export function backlogOptionDetails(
     if (!label && !meta) continue;
     details[item.id] = {
       ...(label ? { label } : {}),
-      ...(meta ? { meta } : {}),
+      ...(meta ? { meta: statusLabel(meta) } : {}),
     };
   }
   return details;

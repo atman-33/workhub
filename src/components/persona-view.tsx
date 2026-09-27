@@ -16,6 +16,7 @@ import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { PersonaCharacter, PersonaState } from "@/types";
 
@@ -70,6 +71,7 @@ Report what you changed and what was already in place. Then tell me to press
 the re-scan button in the workhub Persona tab.`;
 
 function OriginBadge({ origin }: { origin: PersonaCharacter["origin"] }) {
+  const t = useT();
   const custom = origin === "user";
   return (
     <span
@@ -78,7 +80,7 @@ function OriginBadge({ origin }: { origin: PersonaCharacter["origin"] }) {
         custom ? "border-primary/40 text-primary" : "text-muted-foreground",
       )}
     >
-      {custom ? "Custom" : "Built-in"}
+      {custom ? t("persona.badge.custom") : t("persona.badge.builtIn")}
     </span>
   );
 }
@@ -104,6 +106,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export function PersonaView({ active }: { active: boolean }) {
+  const t = useT();
   const [characters, setCharacters] = useState<PersonaCharacter[]>([]);
   const [state, setState] = useState<PersonaState | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -190,7 +193,7 @@ export function PersonaView({ active }: { active: boolean }) {
   };
 
   if (!loaded) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("persona.loading")}</div>;
   }
 
   // No characters at all: the plugin is missing or disabled. Say so, and hand
@@ -203,40 +206,31 @@ export function PersonaView({ active }: { active: boolean }) {
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
             <div className="space-y-1">
-              <h2 className="text-sm font-medium">No persona characters found</h2>
+              <h2 className="text-sm font-medium">{t("persona.setup.title")}</h2>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                This tab reads the characters shipped by the{" "}
-                <code>persona@workhub-marketplace</code> plugin, plus any you wrote
-                yourself under <code>~/.claude/personas/</code>. Neither turned up, so
-                the plugin is not installed or not enabled.
+                {t("persona.setup.description")}
               </p>
             </div>
           </div>
 
           <div className="space-y-2 rounded border p-3">
-            <p className="text-xs font-medium">Set it up from a Claude Code session</p>
+            <p className="text-xs font-medium">{t("persona.setup.stepTitle")}</p>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Copy this prompt, paste it into a Claude Code session, and let it do the
-              install. It registers the marketplace, installs <code>persona</code>, and
-              retires the older <code>genshijin</code> plugin if that one is still
-              around.
+              {t("persona.setup.stepDescription")}
             </p>
-            <CopyButton text={SETUP_PROMPT} label="Copy setup prompt" />
+            <CopyButton text={SETUP_PROMPT} label={t("persona.setup.copyPrompt")} />
           </div>
 
           {genshijin && (
             <div className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-              <span className="leading-relaxed">
-                The standalone <code>genshijin</code> plugin is installed. It is what{" "}
-                <code>persona</code> replaced — the setup prompt above removes it.
-              </span>
+              <span className="leading-relaxed">{t("persona.setup.genshijinWarning")}</span>
             </div>
           )}
 
           <div className="space-y-2">
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Already installed it? Press re-scan.
+              {t("persona.setup.alreadyInstalled")}
             </p>
             <Button
               size="sm"
@@ -246,7 +240,7 @@ export function PersonaView({ active }: { active: boolean }) {
               onClick={() => void load().catch((e) => setError(String(e)))}
             >
               <RefreshCw className="size-3.5" />
-              Re-scan
+              {t("persona.setup.rescan")}
             </Button>
           </div>
 
@@ -267,25 +261,22 @@ export function PersonaView({ active }: { active: boolean }) {
             onCheckedChange={(v) => void setEnabled(v)}
           />
           <label htmlFor="persona-enabled" className="text-sm font-medium">
-            Persona enabled
+            {t("persona.header.enabledLabel")}
           </label>
         </div>
-        <span className="text-xs text-muted-foreground">
-          Applies from the next Claude Code session. Sessions already open keep their
-          current character.
-        </span>
+        <span className="text-xs text-muted-foreground">{t("persona.header.appliesHint")}</span>
         <div className="ml-auto flex items-center gap-2">
           <Hint label={state?.config_path ?? ""}>
             <span className="hidden text-[11px] text-muted-foreground lg:inline">
               persona.json
             </span>
           </Hint>
-          <Hint label="Re-scan for characters">
+          <Hint label={t("persona.header.rescanHint")}>
             <Button
               size="icon"
               variant="ghost"
               className="size-7"
-              aria-label="Re-scan for characters"
+              aria-label={t("persona.header.rescanAria")}
               disabled={busy}
               onClick={() => void load().catch((e) => setError(String(e)))}
             >
@@ -298,24 +289,14 @@ export function PersonaView({ active }: { active: boolean }) {
       {genshijin && (
         <div className="flex shrink-0 items-start gap-2 border-b bg-amber-500/10 px-4 py-2 text-xs">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-          <span>
-            The standalone <code>genshijin</code> plugin is also installed.{" "}
-            <code>persona</code> is its successor and both inject per-turn style
-            instructions, so leaving the two enabled together styles every response
-            twice — uninstall <code>genshijin</code>, or disable it in{" "}
-            <code>enabledPlugins</code>.
-          </span>
+          <span>{t("persona.genshijinBanner")}</span>
         </div>
       )}
 
       {state?.env_override && (
         <div className="flex shrink-0 items-start gap-2 border-b bg-amber-500/10 px-4 py-2 text-xs">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-          <span>
-            <code>PERSONA_DEFAULT</code> is set in the environment. It wins over
-            <code> persona.json</code> on read, so changes made here have no effect until
-            it is unset.
-          </span>
+          <span>{t("persona.envOverrideBanner")}</span>
         </div>
       )}
 
@@ -362,16 +343,17 @@ export function PersonaView({ active }: { active: boolean }) {
           })}
           <div className="mt-3 space-y-2 border-t px-3 pt-3">
             <p className="text-[11px] font-medium text-muted-foreground">
-              Add your own character
+              {t("persona.sidebar.addOwn")}
             </p>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Run this in Claude Code, then answer its questions:
+              {t("persona.sidebar.runInClaudeCode")}
             </p>
-            <CopyButton text="/persona-new my-character" label="/persona-new …" />
+            <CopyButton
+              text="/persona-new my-character"
+              label={t("persona.sidebar.newCommandLabel")}
+            />
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              It writes <code>~/.claude/personas/&lt;id&gt;/character.md</code>. Keep custom
-              characters there — anything placed inside the plugin folder is lost on the
-              next plugin update.
+              {t("persona.sidebar.newCommandHint")}
             </p>
           </div>
         </div>
@@ -387,7 +369,7 @@ export function PersonaView({ active }: { active: boolean }) {
               {isActive && (
                 <span className="inline-flex items-center gap-1 text-xs text-primary">
                   <CheckCircle2 className="size-3.5" />
-                  active
+                  {t("persona.detail.active")}
                 </span>
               )}
             </div>
@@ -397,7 +379,7 @@ export function PersonaView({ active }: { active: boolean }) {
 
             <div className="mt-4">
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Level — how much the character compresses its answers
+                {t("persona.detail.levelTitle")}
               </p>
               <div className="grid gap-2 lg:grid-cols-3">
                 {selected.levels.map((l) => (
@@ -422,7 +404,7 @@ export function PersonaView({ active }: { active: boolean }) {
                       {l.body ? (
                         <Markdown>{l.body}</Markdown>
                       ) : (
-                        <span className="italic">No section for this level.</span>
+                        <span className="italic">{t("persona.detail.noSectionForLevel")}</span>
                       )}
                     </div>
                   </button>
@@ -432,12 +414,12 @@ export function PersonaView({ active }: { active: boolean }) {
 
             <div className="mt-4 flex items-center gap-3">
               <Button size="sm" disabled={busy || isApplied} onClick={() => void apply()}>
-                {isApplied ? "Applied" : "Use this character"}
+                {isApplied ? t("persona.detail.applied") : t("persona.detail.useThisCharacter")}
               </Button>
               <span className="text-xs text-muted-foreground">
                 {isApplied
-                  ? "Active from the next session."
-                  : "Takes effect the next time a session starts."}
+                  ? t("persona.detail.activeFromNextSession")
+                  : t("persona.detail.takesEffectNextSession")}
               </span>
               {selected.origin === "user" && (
                 <Button
@@ -448,7 +430,7 @@ export function PersonaView({ active }: { active: boolean }) {
                   onClick={() => setConfirmDelete(selected)}
                 >
                   <Trash2 className="size-3.5" />
-                  Delete
+                  {t("persona.detail.delete")}
                 </Button>
               )}
             </div>
@@ -464,23 +446,23 @@ export function PersonaView({ active }: { active: boolean }) {
           </div>
         ) : (
           <div className="flex-1 p-6 text-sm text-muted-foreground">
-            No character selected.
+            {t("persona.detail.noneSelected")}
           </div>
         )}
       </div>
 
       <ConfirmDialog
         open={confirmDelete !== null}
-        title={`Delete ${confirmDelete?.name ?? ""}?`}
+        title={t("persona.deleteDialog.title", { name: confirmDelete?.name ?? "" })}
         description={
           confirmDelete
-            ? `${confirmDelete.file} goes to the recycle bin, so it can be restored from there. ` +
+            ? `${t("persona.deleteDialog.trashNote", { file: confirmDelete.file })} ` +
               (state?.character === confirmDelete.id
-                ? "It is the character new sessions start with, so persona is switched off as well."
-                : "Sessions already open keep the character they are running.")
+                ? t("persona.deleteDialog.wasDefault")
+                : t("persona.deleteDialog.notDefault"))
             : ""
         }
-        confirmLabel="Delete"
+        confirmLabel={t("persona.deleteDialog.confirm")}
         destructive
         onConfirm={() => {
           if (confirmDelete) void remove(confirmDelete);

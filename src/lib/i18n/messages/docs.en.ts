@@ -138,4 +138,5 @@ export const docsEn = {
   "docs.annotation.placeholder": "What should change here?",
 
   "docs.viewer.nothingToShow": "Nothing to show — this window lost what it was opened for.",
+  "docs.viewer.windowTitleFallback": "workhub — docs",
 } as const;

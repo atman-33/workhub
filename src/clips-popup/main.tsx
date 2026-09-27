@@ -4,7 +4,7 @@ import { ClipsApp } from "./clips-app";
 import { initWindowLocale } from "@/lib/i18n";
 import "../index.css";
 
-initWindowLocale();
+initWindowLocale("clips.popup.windowTitle");
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
