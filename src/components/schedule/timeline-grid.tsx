@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Hint } from "@/components/ui/hint";
+import { useT } from "@/lib/i18n";
 import { monthLabel, strings, type ScheduleLocale } from "@/lib/schedule/i18n";
 import { dayDelta, isWeeklyNonWorking, shiftDate } from "@/lib/schedule/layout";
 import {
@@ -119,6 +120,7 @@ export function TimelineGrid({
   onPanWindowDays,
   onZoomWindow,
 }: Props) {
+  const tr = useT();
   const [drag, setDrag] = useState<Drag>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   /** The axis itself — what a client x position is measured against. */
@@ -503,7 +505,7 @@ export function TimelineGrid({
         </span>
         {selection && (
           <span className="text-foreground">
-            {t.range(selection.start, selection.end)} · Right-click to add an element
+            {t.range(selection.start, selection.end)} · {tr("schedule.grid.rightClickHint")}
           </span>
         )}
         {selection && (
@@ -512,13 +514,11 @@ export function TimelineGrid({
             onClick={() => setDrag(null)}
             className="ml-auto hover:text-foreground"
           >
-            Clear selection
+            {tr("schedule.grid.clearSelection")}
           </button>
         )}
         {!selection && (
-          <span className="ml-auto">
-            Drag to move · Shift+drag snaps to weeks · Shift/Ctrl + wheel pans and zooms
-          </span>
+          <span className="ml-auto">{tr("schedule.timeline.footerHint")}</span>
         )}
       </div>
     </div>
@@ -688,10 +688,11 @@ function TimelineMenuItems({
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onToggleNonWorking: (date: string) => void;
 }) {
+  const t = useT();
   if (!selection) {
     return (
       <ContextMenuLabel className="text-[11px] font-normal text-muted-foreground">
-        Drag across the chart to pick a period first
+        {t("schedule.timeline.selectFirst")}
       </ContextMenuLabel>
     );
   }
@@ -705,29 +706,31 @@ function TimelineMenuItems({
         disabled={readOnly}
         onSelect={() => onCreateItem("bar", selection.start, selection.end)}
       >
-        Add bar
+        {t("schedule.menu.addBar")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
         onSelect={() => onCreateItem("arrow", selection.start, selection.end)}
       >
-        Add arrow
+        {t("schedule.menu.addArrow")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
         onSelect={() => onCreateItem("milestone", selection.start, selection.start)}
       >
-        Add milestone
+        {t("schedule.menu.addMilestone")}
       </ContextMenuItem>
       <ContextMenuItem
         disabled={readOnly}
         onSelect={() => onCreateItem("note", selection.start, selection.start)}
       >
-        Add note
+        {t("schedule.menu.addNote")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem disabled={readOnly || weekly} onSelect={() => onToggleNonWorking(selection.start)}>
-        {weekly ? "Weekend (set by the weekly: line)" : `Toggle non-working ${selection.start}`}
+        {weekly
+          ? t("schedule.menu.weekendSet")
+          : t("schedule.menu.toggleNonWorking", { date: selection.start })}
       </ContextMenuItem>
     </>
   );

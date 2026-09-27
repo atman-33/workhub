@@ -2,17 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 
 type CopyState = "idle" | "copying" | "success";
 
-const BUSY_LABELS: Record<Exclude<CopyState, "idle">, string> = {
-  copying: "Copying…",
-  success: "Copied",
+const BUSY_LABEL_KEYS: Record<Exclude<CopyState, "idle">, MessageKey> = {
+  copying: "misc.copyPromptButton.copying",
+  success: "common.copied",
 };
-
-const DEFAULT_LABEL = "Copy prompt";
 
 interface Props {
   /** Copies the task prompt to the clipboard; the button animates feedback. */
@@ -41,13 +40,15 @@ interface Props {
  */
 export function CopyPromptButton({
   onCopy,
-  label = DEFAULT_LABEL,
+  label,
   showLabel = false,
   size,
   variant = "outline",
   className,
   disabled,
 }: Props) {
+  const t = useT();
+  const resolvedLabel = label ?? t("misc.copyPromptButton.default");
   const [state, setState] = useState<CopyState>("idle");
   const mounted = useRef(true);
   useEffect(() => {
@@ -76,7 +77,7 @@ export function CopyPromptButton({
   const resolvedSize = size ?? (showLabel ? "xs" : "icon-xs");
   // The resting label is the caller's; the two busy states are the button's own
   // feedback and read the same whatever it copies.
-  const currentLabel = state === "idle" ? label : BUSY_LABELS[state];
+  const currentLabel = state === "idle" ? resolvedLabel : t(BUSY_LABEL_KEYS[state]);
 
   const icon =
     state === "copying" ? (
@@ -93,7 +94,7 @@ export function CopyPromptButton({
       size={resolvedSize}
       variant={variant}
       disabled={disabled || busy}
-      aria-label={label}
+      aria-label={resolvedLabel}
       aria-busy={state === "copying"}
       className={cn(
         busy && "opacity-100 disabled:opacity-100",

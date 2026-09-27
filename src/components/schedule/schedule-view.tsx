@@ -47,7 +47,7 @@ import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
-import { useLocale } from "@/lib/i18n";
+import { t as tStatic, useLocale, useT } from "@/lib/i18n";
 import {
   calendarDays,
   formatRange,
@@ -194,6 +194,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   const vaultPath = config?.settings.vault_path ?? null;
   const aiRunning = aiRun?.state === "running";
   const locale = useLocale();
+  const t = useT();
 
   // A project handed over by the Projects tab. Keyed on the request counter
   // rather than the object, so a parent re-render never re-applies it over a
@@ -628,7 +629,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       setPath("");
       setSelectedId(null);
       await loadFiles();
-      setStatus(`Moved to ${moved}`);
+      setStatus(tStatic("schedule.view.movedTo", { path: moved }));
     } catch (e) {
       setStatus(String(e));
     }
@@ -649,7 +650,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       } else {
         const projectDir = await api.resolveProjectDir(vaultPath, targetProject);
         if (!projectDir) {
-          throw new Error(`No project folder found for "${targetProject}"`);
+          throw new Error(tStatic("schedule.view.noProjectFolderError", { project: targetProject }));
         }
         dir = `${projectDir}/attachments`;
         guard = { vaultPath, project: targetProject };
@@ -660,7 +661,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
       // the drawing it was read in.
       const html = exportScheduleHtml(doc, { ...window_, today: toISO(new Date()), locale, mode });
       await api.exportScheduleHtml(out, html, guard);
-      setStatus(`Exported to ${out}`);
+      setStatus(tStatic("schedule.view.exportedTo", { path: out }));
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
@@ -815,7 +816,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-        Set a vault path in Settings to use schedules.
+        {t("schedule.view.noVault")}
       </div>
     );
   }
@@ -839,10 +840,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           }}
         >
           <SelectTrigger className="h-7 w-40 text-xs">
-            <SelectValue placeholder="Project" />
+            <SelectValue placeholder={t("schedule.view.projectPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All projects</SelectItem>
+            <SelectItem value="__all__">{t("schedule.view.allProjects")}</SelectItem>
             {projects.map((slug) => (
               <SelectItem key={slug} value={slug}>
                 {projectNumberedLabel(slug, projectFolders)}
@@ -852,7 +853,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             <SelectItem value="__new__">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <FolderPlus className="size-3" />
-                New project…
+                {t("schedule.view.newProject")}
               </span>
             </SelectItem>
           </SelectContent>
@@ -860,7 +861,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
 
         <Select value={path} onValueChange={setPath}>
           <SelectTrigger className="h-7 w-56 text-xs">
-            <SelectValue placeholder="Select a schedule" />
+            <SelectValue placeholder={t("schedule.view.selectSchedule")} />
           </SelectTrigger>
           <SelectContent>
             {files.map((f) => (
@@ -877,8 +878,8 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           <Hint
             label={
               targetProject
-                ? `Create a schedule in ${targetProject}`
-                : "Pick a project, or open a schedule, first"
+                ? t("schedule.view.createHint", { project: targetProject })
+                : t("schedule.view.createHintNone")
             }
             disabled={!targetProject}
           >
@@ -898,11 +899,11 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           </Hint>
           <PopoverContent className="w-64 space-y-2 p-3 text-xs">
             <div className="text-muted-foreground">
-              New schedule in <span className="text-foreground">{targetProject}</span>
+              {t("schedule.view.newScheduleIn", { project: targetProject })}
             </div>
             <Input
               value={newTitle}
-              placeholder="Schedule name"
+              placeholder={t("schedule.view.scheduleNamePlaceholder")}
               className="h-8 text-xs"
               onChange={(e) => setNewTitle(e.target.value)}
             />
@@ -926,7 +927,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 })();
               }}
             >
-              Create
+              {t("common.create")}
             </Button>
           </PopoverContent>
         </Popover>
@@ -942,7 +943,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
           }}
         >
           <Hint
-            label={aiRunning ? "An AI edit is running" : "Rename this schedule"}
+            label={aiRunning ? t("schedule.view.aiRunningHint") : t("schedule.view.renameHint")}
             disabled={!path || aiRunning}
           >
             <PopoverTrigger asChild>
@@ -954,12 +955,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             </PopoverTrigger>
           </Hint>
           <PopoverContent className="w-64 space-y-2 p-3 text-xs">
-            <div className="text-muted-foreground">
-              Renames the note and its file in the vault
-            </div>
+            <div className="text-muted-foreground">{t("schedule.view.renameDescription")}</div>
             <Input
               value={renameTitle}
-              placeholder="Schedule name"
+              placeholder={t("schedule.view.scheduleNamePlaceholder")}
               className="h-8 text-xs"
               onChange={(e) => setRenameTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -972,7 +971,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               disabled={!renameTitle.trim()}
               onClick={() => void handleRename()}
             >
-              Rename
+              {t("schedule.view.rename")}
             </Button>
           </PopoverContent>
         </Popover>
@@ -986,8 +985,8 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               key={value}
               label={
                 value === "calendar"
-                  ? "Week grid — day-level planning"
-                  : "Long-range timeline — months, phases and sprints"
+                  ? t("schedule.view.calendarModeHint")
+                  : t("schedule.view.timelineModeHint")
               }
               disabled={!path}
             >
@@ -1003,7 +1002,9 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 ) : (
                   <GanttChart className="mr-1 size-3" />
                 )}
-                {value}
+                {value === "calendar"
+                  ? t("schedule.view.modeCalendar")
+                  : t("schedule.view.modeTimeline")}
               </Button>
             </Hint>
           ))}
@@ -1015,7 +1016,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 for the form fields it was built for, which in a flex row means
                 "the whole toolbar". Without this the row overflows and the
                 controls after it are drawn on top of each other. */}
-            <Hint label="Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it">
+            <Hint label={t("schedule.view.windowHint")}>
               <div className="flex shrink-0 items-center gap-1">
                 <DatePicker
                   value={window_.start}
@@ -1025,7 +1026,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                   clearable={false}
                   onChange={(v) => v && setWindow({ ...window_, start: v })}
                 />
-                <span className="text-muted-foreground">to</span>
+                <span className="text-muted-foreground">{t("schedule.view.to")}</span>
                 <DatePicker
                   value={window_.end}
                   className="w-32"
@@ -1034,7 +1035,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 />
               </div>
             </Hint>
-            <Hint label="Show today" disabled={!doc}>
+            <Hint label={t("schedule.view.showTodayHint")} disabled={!doc}>
               <Button
                 size="sm"
                 variant="ghost"
@@ -1043,7 +1044,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                 disabled={!doc}
               >
                 <CalendarCheck className="mr-1 size-3" />
-                Today
+                {t("common.today")}
               </Button>
             </Hint>
           </>
@@ -1065,7 +1066,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               ].map((preset) => (
                 <Hint
                   key={preset.label}
-                  label={`Show ${preset.weeks} weeks from the window start`}
+                  label={t("schedule.view.presetHint", { weeks: preset.weeks })}
                   disabled={!doc}
                 >
                   <Button
@@ -1092,7 +1093,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <Hint label="Reload this schedule from disk" disabled={!path}>
+          <Hint label={t("schedule.view.reloadHint")} disabled={!path}>
             <Button
               size="sm"
               variant="outline"
@@ -1103,7 +1104,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               <RefreshCw className="size-3.5" />
             </Button>
           </Hint>
-          <Hint label="Export a single-file HTML page" disabled={!doc}>
+          <Hint label={t("schedule.view.exportHint")} disabled={!doc}>
             <Button
               size="sm"
               variant="outline"
@@ -1118,7 +1119,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             settings={config?.settings ?? null}
             onPatch={(patch) => void patchSettings(patch)}
           />
-          <Hint label="Edit with AI" disabled={!doc}>
+          <Hint label={t("misc.aiEditSettings.title")} disabled={!doc}>
             <Button
               size="sm"
               variant={aiOpen ? "secondary" : "outline"}
@@ -1130,7 +1131,9 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             </Button>
           </Hint>
           <Hint
-            label={sidebarCollapsed ? "Show the side panel" : "Hide the side panel"}
+            label={
+              sidebarCollapsed ? t("schedule.view.showSidebarHint") : t("schedule.view.hideSidebarHint")
+            }
             disabled={!path}
           >
             <Button
@@ -1151,9 +1154,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             </Button>
           </Hint>
           <Hint
-            label={
-              aiRunning ? "An AI edit is running" : "Move this schedule to the trash"
-            }
+            label={aiRunning ? t("schedule.view.aiRunningHint") : t("schedule.view.deleteHint")}
             disabled={!path || aiRunning}
           >
             <Button
@@ -1264,22 +1265,19 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
                 <FolderPlus className="size-8 text-muted-foreground" />
                 <div className="max-w-md space-y-1">
-                  <p className="text-sm font-medium">No projects yet</p>
+                  <p className="text-sm font-medium">{t("schedule.view.noProjectsTitle")}</p>
                   <p className="text-sm text-muted-foreground">
-                    A schedule lives inside a project — a folder under the vault at
-                    projects/&lt;slug&gt;/schedules/. Create your first project to
-                    start planning.
+                    {t("schedule.view.noProjectsDescription")}
                   </p>
                 </div>
                 <Button size="sm" onClick={() => setProjectDialogOpen(true)}>
                   <Plus className="mr-1 size-3.5" />
-                  Create your first project
+                  {t("schedule.view.createFirstProject")}
                 </Button>
               </div>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
-                Select a schedule, or pick a project and press New. A new project can be
-                created from the project dropdown.
+                {t("schedule.view.selectPrompt")}
               </div>
             )}
           </div>
@@ -1329,7 +1327,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             )}
             {doc && !selected && !aiOpen && (
               <p className="p-3 text-xs text-muted-foreground">
-                Pick an element to edit it, or open Edit with AI.
+                {t("schedule.view.pickElementHint", { aiEdit: t("misc.aiEditSettings.title") })}
               </p>
             )}
             {aiOpen && aiRun && (
@@ -1366,9 +1364,11 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
 
       <ConfirmDialog
         open={deleteOpen}
-        title="Move this schedule to the trash?"
-        description={`"${files.find((f) => f.path === path)?.title ?? ""}" is moved to _ai/state/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
-        confirmLabel="Move to trash"
+        title={t("schedule.view.deleteConfirmTitle")}
+        description={t("schedule.view.deleteConfirmDescription", {
+          title: files.find((f) => f.path === path)?.title ?? "",
+        })}
+        confirmLabel={t("schedule.view.moveToTrash")}
         destructive
         onConfirm={() => void handleDelete()}
         onClose={() => setDeleteOpen(false)}

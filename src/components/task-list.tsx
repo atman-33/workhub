@@ -133,7 +133,7 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                   />
                   <ClaudeDesktopButton
                     className="shrink-0"
-                    mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                    mode={claudeDesktopMode === "chat" ? "chat" : "code"}
                     onSend={() => onSendToClaudeDesktop(task)}
                   />
                   <LaunchAgentButton

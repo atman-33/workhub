@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
+import { t as tStatic } from "@/lib/i18n";
 import {
   fetchItemTitles,
   PLAYER_PLAYLIST_LIMIT,
@@ -64,8 +65,14 @@ export type PlaylistImportState =
   | { phase: "adding"; done: number; total: number }
   | { phase: "error"; message: string };
 
-const toMessage = (error: unknown) =>
-  error instanceof Error ? error.message : UNSUPPORTED_PLAYLIST_MESSAGE;
+// The lib throws this constant verbatim (kept English so `.test.ts` can match
+// it by identity); translate it for display only.
+const toMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : UNSUPPORTED_PLAYLIST_MESSAGE;
+  return message === UNSUPPORTED_PLAYLIST_MESSAGE
+    ? tStatic("music.addUrl.unsupportedPlaylist")
+    : message;
+};
 
 /** Drives the "paste a playlist URL" flow: read ids, confirm, then add. */
 export const usePlaylistImport = (onDone: (added: number) => void) => {

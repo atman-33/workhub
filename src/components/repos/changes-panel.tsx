@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
 import { diffLineClass } from "@/lib/diff-format";
 import { cn } from "@/lib/utils";
 import type { CommitFileChange } from "@/types";
@@ -35,6 +36,7 @@ interface Props {
  * right. Read-only — no staging/discard.
  */
 export function ChangesPanel({ path, name, active, onClose }: Props) {
+  const t = useT();
   const [files, setFiles] = useState<CommitFileChange[] | null>(null);
   const [error, setError] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
         if (!cancelled) setDiff(text);
       })
       .catch((e) => {
-        if (!cancelled) setDiff(`diff failed — ${e}`);
+        if (!cancelled) setDiff(i18nT("repos.changesPanel.diffFailed", { error: String(e) }));
       })
       .finally(() => {
         if (!cancelled) setDiffLoading(false);
@@ -135,7 +137,7 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
       {/* panel header */}
       <div className="flex shrink-0 items-center gap-2 border-b bg-muted/30 px-3 py-1.5">
         <FolderGit2 className="size-3.5 text-muted-foreground" />
-        <span className="text-[12px] font-semibold">Changes</span>
+        <span className="text-[12px] font-semibold">{t("repos.changesPanel.title")}</span>
         {path && (
           <span className="min-w-0 truncate text-[11px] text-muted-foreground">{name}</span>
         )}
@@ -143,9 +145,16 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
           <Loader2 className="size-3 animate-spin text-primary" />
         )}
         <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-          {files ? `${files.length} file${files.length === 1 ? "" : "s"}` : ""}
+          {files
+            ? t(
+                files.length === 1
+                  ? "repos.changesPanel.fileCountOne"
+                  : "repos.changesPanel.fileCountOther",
+                { count: files.length },
+              )
+            : ""}
         </span>
-        <Hint label="Refresh" disabled={!path}>
+        <Hint label={t("repos.changesPanel.refresh")} disabled={!path}>
           <Button
             size="icon"
             variant="ghost"
@@ -156,7 +165,7 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
             <RefreshCw className="size-3.5" />
           </Button>
         </Hint>
-        <Hint label="Hide changes panel">
+        <Hint label={t("repos.changesPanel.hidePanel")}>
           <Button
             size="icon"
             variant="ghost"
@@ -171,7 +180,7 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
       {!path ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
           <FileDiff className="size-8 opacity-40" />
-          <p className="text-xs">Click a repository to see its working-tree changes.</p>
+          <p className="text-xs">{t("repos.changesPanel.emptyStateHint")}</p>
         </div>
       ) : (
         <ResizablePanelGroup
@@ -185,7 +194,7 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
               files={files}
               loading
               error={error || undefined}
-              emptyLabel="Working tree clean."
+              emptyLabel={t("repos.changesPanel.workingTreeClean")}
               selectedPath={selectedPath}
               onSelect={setSelectedPath}
               resetKey={path ?? undefined}
@@ -200,12 +209,12 @@ export function ChangesPanel({ path, name, active, onClose }: Props) {
               {diffLines === null ? (
                 <p className="px-3 py-2 text-[11px] text-muted-foreground">
                   {files && files.length > 0
-                    ? "Select a file to see its diff."
+                    ? t("repos.changesPanel.selectFileHint")
                     : ""}
                 </p>
               ) : diff === "" ? (
                 <p className="px-3 py-2 text-[11px] text-muted-foreground">
-                  No textual diff (binary file or no content change).
+                  {t("repos.changesPanel.noTextualDiff")}
                 </p>
               ) : (
                 <pre className="min-w-max px-2 py-1 font-mono text-[11px] leading-[1.5]">

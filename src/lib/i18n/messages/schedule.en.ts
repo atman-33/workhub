@@ -1,0 +1,114 @@
+/** English strings for the Schedule tab (T-0423). */
+export const scheduleEn = {
+  "schedule.kind.bar": "Bar",
+  "schedule.kind.arrow": "Arrow",
+  "schedule.kind.milestone": "Milestone",
+  "schedule.kind.note": "Note",
+
+  "schedule.color.blue": "Blue",
+  "schedule.color.green": "Green",
+  "schedule.color.amber": "Amber",
+  "schedule.color.red": "Red",
+  "schedule.color.purple": "Purple",
+  "schedule.color.gray": "Gray",
+
+  "schedule.itemEditor.titlePlaceholder": "Title",
+  "schedule.itemEditor.detailsPlaceholder": "Details",
+  "schedule.itemEditor.notePlaceholder": "Note text (shown on hover)",
+  "schedule.itemEditor.noLinkedTask": "No linked task",
+
+  "schedule.projectCreate.title": "New project",
+  "schedule.projectCreate.description":
+    "A schedule lives inside a project — a folder under the vault at projects/NNNN-<slug>/. This creates the folder from the bundled scaffold (README, prd, roadmap, …); the NNNN sort number is assigned automatically.",
+  "schedule.projectCreate.nameLabel": "Project name",
+  "schedule.projectCreate.namePlaceholder": "e.g. My web app",
+  "schedule.projectCreate.slugLabel": "Slug — projects/{folder}/ (lowercase, kebab-case)",
+  "schedule.projectCreate.create": "Create project",
+
+  "schedule.aiPanel.placeholder":
+    "e.g. push the implementation phase back a week and shorten the integration test by the same amount",
+  "schedule.aiPanel.confirmLabel": "Review the diff before applying",
+  "schedule.aiPanel.run": "Run (Ctrl+Enter)",
+  "schedule.aiPanel.running": "Running…",
+  "schedule.aiPanel.undoHint": "Undo the last AI edit",
+  "schedule.aiPanel.stalled":
+    "This is taking a while. The run log is under `_ai/logs/schedule/`.",
+  "schedule.aiPanel.history": "History",
+
+  "schedule.settings.hint": "Schedule settings",
+  "schedule.settings.exportFolderLabel": "HTML export folder",
+  "schedule.settings.exportFolderPlaceholder": "blank = the project's attachments/",
+
+  "schedule.sprint.hintActive": "Sprints: {weeks} week(s) from {start}",
+  "schedule.sprint.hintInactive": "Number the timeline by sprint",
+  "schedule.sprint.buttonActive": "{weeks}w sprints",
+  "schedule.sprint.button": "Sprints",
+  "schedule.sprint.startLabel": "Sprint 1 starts",
+  "schedule.sprint.lengthLabel": "Length",
+  "schedule.sprint.turnOff": "Turn sprints off",
+  "schedule.sprint.description":
+    "Number the timeline by sprint. The cadence is stored in this note, so two plans can compare different ones.",
+  "schedule.sprint.useTwoWeek": "Use two-week sprints",
+
+  "schedule.menu.addBar": "Add bar",
+  "schedule.menu.addArrow": "Add arrow",
+  "schedule.menu.addMilestone": "Add milestone",
+  "schedule.menu.addNote": "Add note",
+  "schedule.menu.weekendSet": "Weekend (set by the weekly: line)",
+  "schedule.menu.clearNonWorking": "Clear non-working day",
+  "schedule.menu.markNonWorking": "Mark non-working",
+  "schedule.menu.toggleNonWorking": "Toggle non-working {date}",
+
+  "schedule.grid.todayHint": "Today · {date}",
+  "schedule.grid.moveUp": "Move up",
+  "schedule.grid.moveDown": "Move down",
+  "schedule.grid.selectedPrefix": "Selected",
+  "schedule.grid.rightClickHint": "Right-click to add an element",
+  "schedule.grid.clearSelection": "Clear selection",
+
+  "schedule.timeline.selectFirst": "Drag across the chart to pick a period first",
+  "schedule.timeline.footerHint":
+    "Drag to move · Shift+drag snaps to weeks · Shift/Ctrl + wheel pans and zooms",
+
+  "schedule.view.noVault": "Set a vault path in Settings to use schedules.",
+  "schedule.view.pickElementHint": "Pick an element to edit it, or open {aiEdit}.",
+  "schedule.view.projectPlaceholder": "Project",
+  "schedule.view.allProjects": "All projects",
+  "schedule.view.newProject": "New project…",
+  "schedule.view.selectSchedule": "Select a schedule",
+  "schedule.view.createHint": "Create a schedule in {project}",
+  "schedule.view.createHintNone": "Pick a project, or open a schedule, first",
+  "schedule.view.newScheduleIn": "New schedule in {project}",
+  "schedule.view.scheduleNamePlaceholder": "Schedule name",
+  "schedule.view.aiRunningHint": "An AI edit is running",
+  "schedule.view.renameHint": "Rename this schedule",
+  "schedule.view.renameDescription": "Renames the note and its file in the vault",
+  "schedule.view.rename": "Rename",
+  "schedule.view.calendarModeHint": "Week grid — day-level planning",
+  "schedule.view.timelineModeHint": "Long-range timeline — months, phases and sprints",
+  "schedule.view.modeCalendar": "calendar",
+  "schedule.view.modeTimeline": "timeline",
+  "schedule.view.windowHint":
+    "Shift + wheel over the calendar moves this window a week; Ctrl + wheel grows or shrinks it",
+  "schedule.view.to": "to",
+  "schedule.view.showTodayHint": "Show today",
+  "schedule.view.presetHint": "Show {weeks} weeks from the window start",
+  "schedule.view.reloadHint": "Reload this schedule from disk",
+  "schedule.view.exportHint": "Export a single-file HTML page",
+  "schedule.view.showSidebarHint": "Show the side panel",
+  "schedule.view.hideSidebarHint": "Hide the side panel",
+  "schedule.view.deleteHint": "Move this schedule to the trash",
+  "schedule.view.noProjectsTitle": "No projects yet",
+  "schedule.view.noProjectsDescription":
+    "A schedule lives inside a project — a folder under the vault at projects/<slug>/schedules/. Create your first project to start planning.",
+  "schedule.view.createFirstProject": "Create your first project",
+  "schedule.view.selectPrompt":
+    "Select a schedule, or pick a project and press New. A new project can be created from the project dropdown.",
+  "schedule.view.deleteConfirmTitle": "Move this schedule to the trash?",
+  "schedule.view.deleteConfirmDescription":
+    '"{title}" is moved to _ai/state/schedule-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.',
+  "schedule.view.moveToTrash": "Move to trash",
+  "schedule.view.movedTo": "Moved to {path}",
+  "schedule.view.exportedTo": "Exported to {path}",
+  "schedule.view.noProjectFolderError": 'No project folder found for "{project}"',
+} as const;

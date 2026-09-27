@@ -4,6 +4,7 @@ import { ChangeFileList } from "@/components/change-file-list";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { diffLineClass } from "@/lib/diff-format";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitFileChange } from "@/types";
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function CommitDiffPanel({ path, entry, onClose }: Props) {
+  const t = useT();
   const [files, setFiles] = useState<CommitFileChange[] | null>(null);
   const [filesError, setFilesError] = useState("");
   const [selected, setSelected] = useState<CommitFileChange | null>(null);
@@ -54,7 +56,7 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
         if (!cancelled) setDiff(text);
       })
       .catch((e) => {
-        if (!cancelled) setDiff(`diff failed — ${e}`);
+        if (!cancelled) setDiff(tStatic("graph.diffPanel.diffFailed", { error: String(e) }));
       })
       .finally(() => {
         if (!cancelled) setDiffLoading(false);
@@ -76,7 +78,12 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
         )}
         <span className="min-w-0 truncate text-[12px] font-medium">{entry.subject}</span>
         <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-          {files ? `${files.length} file${files.length === 1 ? "" : "s"}` : ""}
+          {files
+            ? t(
+                files.length === 1 ? "graph.diffPanel.fileCountOne" : "graph.diffPanel.fileCountOther",
+                { count: files.length },
+              )
+            : ""}
         </span>
         <Button size="icon" variant="ghost" className="size-6 shrink-0" onClick={onClose}>
           <X className="size-3.5" />
@@ -90,7 +97,7 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
             files={files}
             loading
             error={filesError || undefined}
-            emptyLabel="No file changes."
+            emptyLabel={t("graph.diffPanel.emptyFiles")}
             selectedPath={selected?.path ?? null}
             onSelect={(p) => setSelected(files?.find((f) => f.path === p) ?? null)}
             resetKey={`${path}@${entry.hash}`}
@@ -105,11 +112,11 @@ export function CommitDiffPanel({ path, entry, onClose }: Props) {
             </div>
           ) : diffLines === null ? (
             <p className="px-3 py-2 text-[11px] text-muted-foreground">
-              Select a file to see its diff.
+              {t("graph.diffPanel.selectFile")}
             </p>
           ) : diff === "" ? (
             <p className="px-3 py-2 text-[11px] text-muted-foreground">
-              No textual diff (binary file or no content change).
+              {t("graph.diffPanel.noTextualDiff")}
             </p>
           ) : (
             <pre className="min-w-max px-2 py-1 font-mono text-[11px] leading-[1.5]">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DocsPreview } from "@/components/docs/docs-preview";
 import { FigureViewer } from "@/components/docs/figure-viewer";
 import { api } from "@/lib/api";
+import { setWindowTitle, useLocale, useT } from "@/lib/i18n";
 import type { DocsViewerPayload } from "@/types";
 
 /**
@@ -13,6 +14,8 @@ import type { DocsViewerPayload } from "@/types";
  * closing is the window's ✕.
  */
 export function ViewerApp() {
+  const t = useT();
+  const locale = useLocale();
   const [payload, setPayload] = useState<DocsViewerPayload | null | undefined>(undefined);
   const [loadError, setLoadError] = useState("");
   // What the document's own buttons report (open with default app, …).
@@ -25,10 +28,22 @@ export function ViewerApp() {
       .catch((e) => setLoadError(String(e)));
   }, []);
 
+  // Rust already gave this window a title from the open document's own
+  // name — never touch that, translated or not. Only the "nothing to open
+  // this window for" fallback is generic text worth translating, and only
+  // once the payload has actually settled into that case (payload ===
+  // undefined just means still loading, and Rust's title is still correct
+  // for that instant).
+  useEffect(() => {
+    if (payload === undefined) return;
+    const hasTitle = payload !== null && payload.title.trim().length > 0;
+    if (!hasTitle) setWindowTitle("docs.viewer.windowTitleFallback");
+  }, [payload, locale]);
+
   if (loadError || payload === null) {
     return (
       <div className="flex h-full items-center justify-center bg-background p-6 text-xs text-destructive">
-        {loadError || "Nothing to show — this window lost what it was opened for."}
+        {loadError || t("docs.viewer.nothingToShow")}
       </div>
     );
   }

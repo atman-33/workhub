@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AttrEditor } from "./attr-editor";
+import { MINDMAP_COLOR_LABEL_KEY } from "@/lib/i18n/labels";
+import { useT } from "@/lib/i18n";
 import {
   COLOR_HEX,
   COLORS,
@@ -93,6 +95,7 @@ export function NodeEditor({
   onAddSibling,
   onDelete,
 }: Props) {
+  const t = useT();
   const childCount = node.children.length;
 
   return (
@@ -102,14 +105,17 @@ export function NodeEditor({
         <span className="truncate font-mono text-[11px] text-muted-foreground">{node.id}</span>
         {childCount > 0 && (
           <span className="text-[11px] text-muted-foreground">
-            {childCount} {childCount === 1 ? "child" : "children"}
+            {t(
+              childCount === 1 ? "mindmap.nodeEditor.childCountOne" : "mindmap.nodeEditor.childCountOther",
+              { count: childCount },
+            )}
           </span>
         )}
       </div>
 
       <Input
         value={node.title}
-        placeholder="Title"
+        placeholder={t("mindmap.nodeEditor.titlePlaceholder")}
         disabled={disabled}
         className="h-8 text-xs"
         onChange={(e) => onChange({ title: collapseLines(e.target.value) })}
@@ -120,7 +126,7 @@ export function NodeEditor({
 
       <Textarea
         value={node.note ?? ""}
-        placeholder="Note (shown on hover)"
+        placeholder={t("mindmap.nodeEditor.notePlaceholder")}
         rows={3}
         disabled={disabled}
         className="resize-none text-xs"
@@ -130,7 +136,7 @@ export function NodeEditor({
 
       <div className="flex flex-wrap gap-1.5">
         {COLORS.map((color) => (
-          <Hint key={color} label={color} disabled={disabled}>
+          <Hint key={color} label={t(MINDMAP_COLOR_LABEL_KEY[color])} disabled={disabled}>
             <button
               type="button"
               disabled={disabled}
@@ -156,10 +162,10 @@ export function NodeEditor({
         onValueChange={(v) => onChange({ task: v === NONE ? undefined : v })}
       >
         <SelectTrigger className="h-7 text-xs">
-          <SelectValue placeholder="No linked task" />
+          <SelectValue placeholder={t("schedule.itemEditor.noLinkedTask")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>No linked task</SelectItem>
+          <SelectItem value={NONE}>{t("schedule.itemEditor.noLinkedTask")}</SelectItem>
           {tasks.map((task) => (
             <SelectItem key={task.id} value={task.id}>
               {task.id} {task.title}
@@ -181,10 +187,10 @@ export function NodeEditor({
       <div className="space-y-2 border-t pt-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground">
-            Sticky notes
-            {stickiesHidden && stickies.length > 0 && " (hidden on the map)"}
+            {t("mindmap.nodeEditor.stickyNotes")}
+            {stickiesHidden && stickies.length > 0 && t("mindmap.nodeEditor.hiddenOnMap")}
           </span>
-          <Hint label="Pin a sticky note to this node" disabled={disabled}>
+          <Hint label={t("mindmap.nodeEditor.pinStickyHint")} disabled={disabled}>
             <Button
               size="sm"
               variant="outline"
@@ -193,7 +199,7 @@ export function NodeEditor({
               onClick={onAddSticky}
             >
               <StickyNote className="mr-1 size-3" />
-              Add
+              {t("common.add")}
             </Button>
           </Hint>
         </div>
@@ -202,7 +208,7 @@ export function NodeEditor({
           <div key={sticky.id} className="space-y-1.5 rounded border p-2">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-muted-foreground">{sticky.id}</span>
-              <Hint label="Remove this sticky" disabled={disabled}>
+              <Hint label={t("mindmap.nodeEditor.removeStickyHint")} disabled={disabled}>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -216,7 +222,7 @@ export function NodeEditor({
             </div>
             <Textarea
               value={sticky.text}
-              placeholder="Sticky text"
+              placeholder={t("mindmap.nodeEditor.stickyTextPlaceholder")}
               rows={2}
               disabled={disabled}
               className="resize-none text-xs"
@@ -225,7 +231,7 @@ export function NodeEditor({
             />
             <div className="flex flex-wrap gap-1">
               {COLORS.map((color) => (
-                <Hint key={color} label={color} disabled={disabled}>
+                <Hint key={color} label={t(MINDMAP_COLOR_LABEL_KEY[color])} disabled={disabled}>
                   <button
                     type="button"
                     disabled={disabled}
@@ -245,7 +251,7 @@ export function NodeEditor({
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <Hint label="Add a child (Tab)" disabled={disabled}>
+        <Hint label={t("mindmap.nodeEditor.addChildHint")} disabled={disabled}>
           <Button
             size="sm"
             variant="outline"
@@ -254,10 +260,10 @@ export function NodeEditor({
             onClick={onAddChild}
           >
             <CornerDownRight className="mr-1 size-3" />
-            Child
+            {t("mindmap.nodeEditor.child")}
           </Button>
         </Hint>
-        <Hint label="Add a sibling (Enter)" disabled={disabled}>
+        <Hint label={t("mindmap.nodeEditor.addSiblingHint")} disabled={disabled}>
           <Button
             size="sm"
             variant="outline"
@@ -266,14 +272,14 @@ export function NodeEditor({
             onClick={onAddSibling}
           >
             <Plus className="mr-1 size-3" />
-            Sibling
+            {t("mindmap.nodeEditor.sibling")}
           </Button>
         </Hint>
         <Hint
           label={
             childCount > 0
-              ? `Delete this node and its ${childCount} descendant branch(es) (Delete)`
-              : "Delete this node (Delete)"
+              ? t("mindmap.nodeEditor.deleteWithDescendantsHint", { count: childCount })
+              : t("mindmap.nodeEditor.deleteHint")
           }
           disabled={disabled}
         >
@@ -285,7 +291,7 @@ export function NodeEditor({
             onClick={onDelete}
           >
             <Trash2 className="mr-1 size-3" />
-            Delete
+            {t("common.delete")}
           </Button>
         </Hint>
       </div>

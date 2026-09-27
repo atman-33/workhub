@@ -9,6 +9,7 @@ import { Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { t, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /** Stable PTY session id: re-mounting the component reattaches to the same
@@ -33,6 +34,7 @@ interface Props {
  * on the Rust side, since `terminal_open` reuses an existing session for the
  * same id. */
 export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
+  const tt = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -85,7 +87,9 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
           .catch(() => {});
       }, 300);
     } catch (e) {
-      term.writeln(`\r\n\x1b[31mfailed to open terminal: ${e}\x1b[0m`);
+      term.writeln(
+        `\r\n\x1b[31m${t("misc.terminalPanel.failedToOpen", { error: String(e) })}\x1b[0m`,
+      );
     }
   };
 
@@ -220,10 +224,7 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
     >
       <div ref={containerRef} className="h-full w-full px-2 py-1" />
       <div className="absolute right-2 top-1 z-10 flex items-center gap-0.5">
-        <Hint
-          label="Restart the terminal (herdr workspaces and agents keep running)"
-          disabled={restarting}
-        >
+        <Hint label={tt("misc.terminalPanel.restartHint")} disabled={restarting}>
           <Button
             variant="ghost"
             size="icon"
@@ -234,7 +235,13 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
             <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} />
           </Button>
         </Hint>
-        <Hint label={maximized ? "Restore terminal size" : "Maximize terminal"}>
+        <Hint
+          label={
+            maximized
+              ? tt("misc.terminalPanel.restoreSize")
+              : tt("misc.terminalPanel.maximize")
+          }
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -247,7 +254,7 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
       </div>
       {exited && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">
-          <p>herdr process exited</p>
+          <p>{tt("misc.terminalPanel.exited")}</p>
           <Button
             size="sm"
             variant="outline"
@@ -255,7 +262,8 @@ export function TerminalPanel({ visible, maximized, onToggleMaximize }: Props) {
             onClick={() => void restart()}
             disabled={restarting}
           >
-            <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} /> Reopen
+            <RotateCcw className={cn("size-3.5", restarting && "animate-spin")} />{" "}
+            {tt("misc.terminalPanel.reopen")}
           </Button>
         </div>
       )}

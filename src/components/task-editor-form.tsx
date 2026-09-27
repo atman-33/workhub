@@ -15,7 +15,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ChevronDown, Gem, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import { TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
+import { BACKLOG_STATUS_LABEL_KEY, TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -353,8 +353,12 @@ export function TaskEditorForm({
     [backlogItems, backlogUnknown, draft.backlog],
   );
   const backlogDetails = useMemo(
-    () => backlogOptionDetails(backlogItems),
-    [backlogItems],
+    () =>
+      backlogOptionDetails(backlogItems, (status) => {
+        const key = BACKLOG_STATUS_LABEL_KEY[status];
+        return key ? t(key) : status;
+      }),
+    [backlogItems, t],
   );
   const selectedBacklog = backlogItems.find((i) => i.id === draft.backlog);
 
@@ -680,7 +684,7 @@ export function TaskEditorForm({
                   {onSendToClaudeDesktop && (
                     <ClaudeDesktopButton
                       size="icon-sm"
-                      mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                      mode={claudeDesktopMode === "chat" ? "chat" : "code"}
                       onSend={handleSendToClaudeDesktop}
                     />
                   )}

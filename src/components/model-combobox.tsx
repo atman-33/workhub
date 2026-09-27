@@ -6,6 +6,7 @@ import {
   useOpencodeModels,
   useRecentOpencodeModels,
 } from "@/lib/agent-models";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   /** Agent the model is for: "opencode" | "claude-code" | "me". */
@@ -43,9 +44,10 @@ export function ModelCombobox({
   active = true,
   modal = false,
   disabled = false,
-  placeholder = "agent default",
+  placeholder,
   className,
 }: Props) {
+  const t = useT();
   const isOpencode = assignee === "opencode";
   const { models, error, loading } = useOpencodeModels(active && isOpencode);
   const { recent, record } = useRecentOpencodeModels();
@@ -88,13 +90,13 @@ export function ModelCombobox({
         allowCustom
         modal={modal}
         disabled={disabled}
-        placeholder={placeholder}
-        emptyText="No models."
+        placeholder={placeholder ?? t("misc.modelCombobox.agentDefault")}
+        emptyText={t("misc.modelCombobox.noModels")}
         className={className}
       />
       {isOpencode && error && (
         <p className="text-[10px] text-destructive/80">
-          opencode model list unavailable — {error}
+          {t("misc.modelCombobox.catalogError", { error })}
         </p>
       )}
     </div>

@@ -5,8 +5,31 @@
  * and anything it leaves out falls back to the English text. Keys are flat and
  * dotted by area (`nav.tasks`, `settings.general.title`) so a string is found
  * by searching for its key. Interpolate with `{name}` placeholders.
+ *
+ * The areas translated after T-0409 keep their strings in their own pair of
+ * files (`<area>.en.ts` / `<area>.ja.ts`) and are spread in below, so one
+ * area can grow without touching another's lines. New areas follow that
+ * pattern; the keys still share one flat namespace.
  */
+import { projectsEn } from "./projects.en";
+import { reposEn } from "./repos.en";
+import { inboxEn } from "./inbox.en";
+import { pluginsEn } from "./plugins.en";
+import { miscEn } from "./misc.en";
+import { scheduleEn } from "./schedule.en";
+import { mindmapEn } from "./mindmap.en";
+import { graphEn } from "./graph.en";
+import { docsEn } from "./docs.en";
+import { musicEn } from "./music.en";
+import { timerEn } from "./timer.en";
+import { voiceEn } from "./voice.en";
+import { clipsEn } from "./clips.en";
+import { inkEn } from "./ink.en";
+import { personaEn } from "./persona.en";
+
 export const en = {
+  "app.windowTitle": "workhub — All-in-one Dev Hub",
+
   "common.cancel": "Cancel",
   "common.save": "Save",
   "common.delete": "Delete",
@@ -226,6 +249,7 @@ export const en = {
   "taskEditor.msg.createFailed": "Create failed — {error}",
   "taskEditor.msg.autoSaveFailed": "Auto-save failed — {error}",
 
+  "taskEditor.windowTitle": "workhub — task editor",
   "taskEditor.header.editTask": "{id} — Edit task",
   "taskEditor.field.title": "Title",
   "taskEditor.field.titlePlaceholder": "Task title",
@@ -270,6 +294,7 @@ export const en = {
   "taskEditor.description.clickToEdit": "Click to edit",
   "taskEditor.footer.createAndOpen": "Create & edit in Obsidian",
 
+  "quickCapture.windowTitle": "workhub — quick capture",
   "quickCapture.header.title": "Quick capture",
   "quickCapture.field.titlePlaceholder": "Task title",
   "quickCapture.project.none": "No project",
@@ -366,6 +391,23 @@ export const en = {
   "settings.footer.saveFailed": "Save failed: {error}",
   "settings.footer.resetToDefaults": "Reset to defaults",
   "settings.footer.saving": "Saving…",
+
+  // Areas kept in their own files (T-0423).
+  ...projectsEn,
+  ...reposEn,
+  ...inboxEn,
+  ...pluginsEn,
+  ...miscEn,
+  ...scheduleEn,
+  ...mindmapEn,
+  ...graphEn,
+  ...docsEn,
+  ...musicEn,
+  ...timerEn,
+  ...voiceEn,
+  ...clipsEn,
+  ...inkEn,
+  ...personaEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

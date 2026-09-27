@@ -50,6 +50,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { api, nowUnix } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
 import type { TabFocus } from "@/lib/tab-focus";
 import { cn } from "@/lib/utils";
 import type { Config, GitInfo } from "@/types";
@@ -67,6 +68,7 @@ interface Props {
 const STATUS_POLL_MS = 5000;
 
 export function ReposView({ configVersion, active, focus }: Props) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
   const [showWorktrees, setShowWorktrees] = useState(false);
@@ -251,8 +253,14 @@ export function ReposView({ configVersion, active, focus }: Props) {
       setBusy((b) => ({ ...b, [path]: op }));
       void api
         .gitOp(path, op, branch)
-        .then((msg) => setStatus(`${path.split("/").pop()}: ${op} ok — ${msg}`))
-        .catch((e) => setStatus(`${path.split("/").pop()}: ${op} failed — ${e}`))
+        .then((msg) =>
+          setStatus(i18nT("repos.gitOpOk", { repo: path.split("/").pop() ?? path, op, message: msg })),
+        )
+        .catch((e) =>
+          setStatus(
+            i18nT("repos.gitOpFailed", { repo: path.split("/").pop() ?? path, op, error: String(e) }),
+          ),
+        )
         .finally(() => {
           setBusy((b) => {
             const { [path]: _, ...rest } = b;
@@ -278,14 +286,18 @@ export function ReposView({ configVersion, active, focus }: Props) {
     void api
       .openInVscode(cfg.settings.vscode_cmd, paths)
       .then(() => {
-        setStatus(`opened ${paths.length} project(s) in VS Code`);
+        setStatus(i18nT("repos.openedInVscode", { count: paths.length }));
         markOpened(paths);
       })
-      .catch((e) => setStatus(`VS Code launch failed — ${e}`));
+      .catch((e) => setStatus(i18nT("repos.vscodeLaunchFailed", { error: String(e) })));
   }, [markOpened]);
 
   const addProjects = useCallback(async () => {
-    const picked = await pickFolders({ directory: true, multiple: true, title: "Add project folders" });
+    const picked = await pickFolders({
+      directory: true,
+      multiple: true,
+      title: i18nT("repos.addFoldersDialogTitle"),
+    });
     if (!picked) return;
     const folders = (Array.isArray(picked) ? picked : [picked]).map((f) => f.replaceAll("\\", "/"));
     mutateConfig((cfg) => {
@@ -331,7 +343,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
           void api
             .openInVscode(s.vscode_cmd, [path])
             .then(() => markOpened([path]))
-            .catch((e) => setStatus(`VS Code launch failed — ${e}`));
+            .catch((e) => setStatus(i18nT("repos.vscodeLaunchFailed", { error: String(e) })));
           break;
         case "terminal":
           void api.openTerminal(s.terminal_cmd, path).then(() => markOpened([path]));
@@ -356,13 +368,15 @@ export function ReposView({ configVersion, active, focus }: Props) {
           setNotesPath(path);
           break;
         case "copyPath":
-          void writeText(path.replace(/\//g, "\\")).then(() => setStatus("Copied path"));
+          void writeText(path.replace(/\//g, "\\")).then(() =>
+            setStatus(i18nT("repos.copiedPath")),
+          );
           break;
         case "openRepo":
           void api
             .gitRemoteUrl(path)
             .then((url) => openUrl(url))
-            .catch((e) => setStatus(`Open on GitHub failed — ${e}`));
+            .catch((e) => setStatus(i18nT("repos.openOnGitHubFailed", { error: String(e) })));
           break;
         case "favorite":
           mutateConfig((c) => ({
@@ -410,18 +424,18 @@ export function ReposView({ configVersion, active, focus }: Props) {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <Layers className="size-10 text-muted-foreground/40" />
         <div>
-          <p className="font-semibold">No projects yet</p>
+          <p className="font-semibold">{t("repos.emptyTitle")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Register local repositories to see their git status at a glance.
+            {t("repos.emptyDescription")}
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={addProjects}>
-          <FolderPlus className="size-3.5" /> Add projects
+          <FolderPlus className="size-3.5" /> {t("repos.addProjects")}
         </Button>
       </div>
     ) : visible.length === 0 ? (
       <p className="mt-16 text-center text-sm text-muted-foreground">
-        No projects match the current filter.
+        {t("repos.noMatch")}
       </p>
     ) : (
       <div className="space-y-0.5">
@@ -457,26 +471,30 @@ export function ReposView({ configVersion, active, focus }: Props) {
             <Layers className="size-4 text-primary" />
           </div>
           <div className="flex items-baseline gap-2">
-            <h1 className="text-[15px] font-bold tracking-tight">Repos</h1>
+            <h1 className="text-[15px] font-bold tracking-tight">{t("repos.title")}</h1>
           </div>
-  
+
           <div className="ml-auto flex items-center gap-2">
             {selected.size > 0 && (
               <>
-                <span className="text-xs font-medium text-primary">{selected.size} selected</span>
+                <span className="text-xs font-medium text-primary">
+                  {t("repos.selectedCount", { count: selected.size })}
+                </span>
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-8 px-2 text-xs"
                   onClick={() => updateSelection(() => new Set())}
                 >
-                  <X className="size-3.5" /> Clear
+                  <X className="size-3.5" /> {t("repos.clear")}
                 </Button>
               </>
             )}
             <Button size="sm" className="h-8 gap-1.5" disabled={selected.size === 0} onClick={openSelected}>
               <Play className="size-3.5" />
-              Open{selected.size > 1 ? ` ${selected.size}` : ""} in VS Code
+              {selected.size > 1
+                ? t("repos.openMany", { count: selected.size })
+                : t("repos.openOne")}
             </Button>
           </div>
         </header>
@@ -484,7 +502,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
         {/* toolbar */}
         <div className="flex items-center gap-2 overflow-x-auto border-b px-4 py-2">
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={addProjects}>
-            <FolderPlus className="size-3.5" /> Add
+            <FolderPlus className="size-3.5" /> {t("repos.add")}
           </Button>
           <Button
             size="sm"
@@ -492,7 +510,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
             className="h-8 gap-1.5 text-xs"
             onClick={() => refreshAll(config.projects.map((p) => p.path))}
           >
-            <RefreshCw className="size-3.5" /> Refresh
+            <RefreshCw className="size-3.5" /> {t("repos.refresh")}
           </Button>
           <Button
             size="sm"
@@ -500,7 +518,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
             className="h-8 gap-1.5 text-xs"
             onClick={() => config.projects.forEach((p) => runGitOp(p.path, "fetch"))}
           >
-            <ArrowDownToLine className="size-3.5" /> Fetch all
+            <ArrowDownToLine className="size-3.5" /> {t("repos.fetchAll")}
           </Button>
           <Button
             size="sm"
@@ -508,16 +526,16 @@ export function ReposView({ configVersion, active, focus }: Props) {
             className="h-8 gap-1.5 text-xs"
             onClick={() => setShowWorktrees(true)}
           >
-            <TreeDeciduous className="size-3.5" /> Worktrees
+            <TreeDeciduous className="size-3.5" /> {t("repos.worktrees")}
           </Button>
-          <Hint label="Toggle the working-tree changes panel">
+          <Hint label={t("repos.toggleChangesHint")}>
             <Button
               size="sm"
               variant={showChanges ? "secondary" : "outline"}
               className="h-8 gap-1.5 text-xs"
               onClick={() => setShowChanges((v) => !v)}
             >
-              <PanelBottom className="size-3.5" /> Changes
+              <PanelBottom className="size-3.5" /> {t("repos.changes")}
             </Button>
           </Hint>
           {/* The commands that open a repository are read by this tab alone,
@@ -530,13 +548,13 @@ export function ReposView({ configVersion, active, focus }: Props) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
-                <Package className="size-3.5" /> Presets
+                <Package className="size-3.5" /> {t("repos.presets")}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               {config.presets.length === 0 && (
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  No presets yet — select projects and save one.
+                  {t("repos.noPresets")}
                 </DropdownMenuLabel>
               )}
               {config.presets.map((preset) => (
@@ -544,7 +562,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
                   key={preset.name}
                   onClick={() => {
                     updateSelection(() => new Set(preset.paths));
-                    setStatus(`preset '${preset.name}' loaded`);
+                    setStatus(t("repos.presetLoaded", { name: preset.name }));
                   }}
                 >
                   <span className="flex-1 truncate">{preset.name}</span>
@@ -565,7 +583,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={selected.size === 0} onClick={() => setShowSavePreset(true)}>
-                Save current selection…
+                {t("repos.saveSelection")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -577,7 +595,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search projects…"
+              placeholder={t("repos.searchPlaceholder")}
               className="h-8 w-44 pl-8 text-xs"
             />
           </div>
@@ -586,7 +604,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
             <Input
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              placeholder="tag"
+              placeholder={t("repos.tagPlaceholder")}
               className="h-8 w-24 pl-8 text-xs"
             />
           </div>
@@ -597,9 +615,9 @@ export function ReposView({ configVersion, active, focus }: Props) {
             onClick={() => setFavOnly(!favOnly)}
           >
             <Star className={cn("size-3.5", favOnly && "fill-amber-400 text-amber-400")} />
-            Favorites
+            {t("repos.favorites")}
           </Button>
-  
+
           <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
             {(["Name", "Recent"] as const).map((mode) => (
               <button
@@ -612,7 +630,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
                 )}
                 onClick={() => mutateConfig((c) => ({ ...c, sort: mode }))}
               >
-                {mode}
+                {mode === "Name" ? t("repos.sortName") : t("repos.sortRecent")}
               </button>
             ))}
           </div>
@@ -646,7 +664,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
         <footer className="flex items-center border-t px-4 py-1.5 text-[11px] text-muted-foreground">
           <span className="truncate">{status}</span>
           <span className="ml-auto shrink-0">
-            {config.projects.length} projects · {selected.size} selected
+            {t("repos.footerSummary", { count: config.projects.length, selected: selected.size })}
           </span>
         </footer>
       </>
@@ -669,7 +687,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
           // is via the graph header's × button or Escape instead.
           onInteractOutside={(e) => e.preventDefault()}
         >
-          <SheetTitle className="sr-only">Commit graph</SheetTitle>
+          <SheetTitle className="sr-only">{t("repos.commitGraph")}</SheetTitle>
           {graphPath !== null && (
             <GitGraphView
               path={graphPath}
@@ -691,7 +709,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
           className="w-[90vw] gap-0 p-0 sm:max-w-2xl"
           aria-describedby={undefined}
         >
-          <SheetTitle className="sr-only">Worktrees</SheetTitle>
+          <SheetTitle className="sr-only">{t("repos.worktrees")}</SheetTitle>
           {showWorktrees && (
             <WorktreesPanel
               projectPaths={config.projects.map((p) => p.path)}
@@ -716,12 +734,12 @@ export function ReposView({ configVersion, active, focus }: Props) {
       <Dialog open={showSavePreset} onOpenChange={setShowSavePreset}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Save preset</DialogTitle>
+            <DialogTitle>{t("repos.savePresetTitle")}</DialogTitle>
           </DialogHeader>
           <Input
             value={presetName}
             onChange={(e) => setPresetName(e.target.value)}
-            placeholder="preset name"
+            placeholder={t("repos.presetNamePlaceholder")}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter" && presetName.trim()) {
@@ -731,7 +749,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
           />
           <DialogFooter>
             <Button disabled={!presetName.trim()} onClick={savePreset}>
-              Save
+              {t("repos.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -748,6 +766,6 @@ export function ReposView({ configVersion, active, focus }: Props) {
     }));
     setPresetName("");
     setShowSavePreset(false);
-    setStatus(`preset '${name}' saved`);
+    setStatus(t("repos.presetSaved", { name }));
   }
 }

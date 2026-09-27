@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { t as i18nT, useT, type MessageKey } from "@/lib/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   pluginProblems,
@@ -44,14 +45,14 @@ import type { MarketplaceInfo, PluginCommandResult, PluginsState } from "@/types
  * complete" against "what else is loading in my sessions".
  */
 
-const STATUS_LABEL: Record<PluginStatus, string> = {
-  missing: "Required, off",
-  outdated: "Update available",
-  advised: "Recommended, off",
-  pending: "Installs next launch",
-  unknown: "Version unknown",
-  ok: "Up to date",
-  off: "Off",
+const STATUS_LABEL_KEY: Record<PluginStatus, MessageKey> = {
+  missing: "plugins.status.missing",
+  outdated: "plugins.status.outdated",
+  advised: "plugins.status.advised",
+  pending: "plugins.status.pending",
+  unknown: "plugins.status.unknown",
+  ok: "plugins.status.ok",
+  off: "plugins.status.off",
 };
 
 const STATUS_CLASS: Record<PluginStatus, string> = {
@@ -65,10 +66,10 @@ const STATUS_CLASS: Record<PluginStatus, string> = {
   off: "text-muted-foreground",
 };
 
-const TIER_LABEL: Record<string, string> = {
-  required: "Required",
-  recommended: "Recommended",
-  optional: "Optional",
+const TIER_LABEL_KEY: Record<string, MessageKey> = {
+  required: "plugins.tier.required",
+  recommended: "plugins.tier.recommended",
+  optional: "plugins.tier.optional",
 };
 
 function Badge({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -99,6 +100,7 @@ function PluginCard({
   onInstall: () => void;
   onOpenDetails: () => void;
 }) {
+  const t = useT();
   const scope = view.scope || "unlisted";
   return (
     // The whole card opens the contents dialog: a "Contents" button beside the
@@ -106,7 +108,7 @@ function PluginCard({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Contents of ${view.name}`}
+      aria-label={t("plugins.card.contentsAria", { name: view.name })}
       onClick={onOpenDetails}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -129,21 +131,23 @@ function PluginCard({
               view.tier !== "required" && view.tier !== "recommended" && "text-muted-foreground",
             )}
           >
-            {TIER_LABEL[view.tier] ?? "Unlisted"}
+            {TIER_LABEL_KEY[view.tier] ? t(TIER_LABEL_KEY[view.tier]) : t("plugins.tier.unlisted")}
           </Badge>
           <Badge className="text-muted-foreground">{scope}</Badge>
           {view.extra && (
-            <Hint label="Installed or enabled, but absent from the marketplace catalog">
-              <Badge className="border-amber-500/50 text-amber-600">Not in catalog</Badge>
+            <Hint label={t("plugins.card.notInCatalogHint")}>
+              <Badge className="border-amber-500/50 text-amber-600">
+                {t("plugins.card.notInCatalog")}
+              </Badge>
             </Hint>
           )}
-          <Badge className={STATUS_CLASS[view.status]}>{STATUS_LABEL[view.status]}</Badge>
+          <Badge className={STATUS_CLASS[view.status]}>{t(STATUS_LABEL_KEY[view.status])}</Badge>
         </div>
         {view.summary && (
           <p className="text-[11px] leading-relaxed text-muted-foreground">{view.summary}</p>
         )}
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
-          <span>{view.installed_version || "not installed"}</span>
+          <span>{view.installed_version || t("plugins.card.notInstalled")}</span>
           {view.latest_version && view.latest_version !== view.installed_version && (
             <>
               <ArrowRight className="size-3" />
@@ -155,7 +159,10 @@ function PluginCard({
             </>
           )}
           <span className="text-muted-foreground/70">
-            · {view.enabled ? `on (${view.effective_scope})` : "off"}
+            ·{" "}
+            {view.enabled
+              ? t("plugins.card.onScope", { scope: view.effective_scope })
+              : t("plugins.card.off")}
           </span>
         </div>
       </div>
@@ -168,25 +175,25 @@ function PluginCard({
       >
         {view.status === "outdated" && (
           <Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={onUpdate}>
-            Update
+            {t("plugins.card.update")}
           </Button>
         )}
         {view.status === "pending" && (
           <Hint
-            label={`claude plugin install --scope ${view.effective_scope}: fetch it now instead of at the next launch`}
+            label={`claude plugin install --scope ${view.effective_scope}${t("plugins.card.installHintSuffix")}`}
           >
             <Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={onInstall}>
-              Install
+              {t("plugins.card.install")}
             </Button>
           </Hint>
         )}
         <Hint
           label={
             view.enabled
-              ? `Disable in the ${view.effective_scope} settings.json`
+              ? t("plugins.card.disableHint", { scope: view.effective_scope })
               : view.installed_version
-                ? `Enable in the ${view.effective_scope} settings.json`
-                : `Install and enable at ${view.effective_scope} scope`
+                ? t("plugins.card.enableHint", { scope: view.effective_scope })
+                : t("plugins.card.installEnableHint", { scope: view.effective_scope })
           }
         >
           <span>
@@ -199,6 +206,7 @@ function PluginCard({
 }
 
 export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath: string }) {
+  const t = useT();
   const [state, setState] = useState<PluginsState | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -254,7 +262,7 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
       const out = await action();
       if (out && "command" in out) {
         setResult(out);
-        if (!out.ok) setError(`${out.command} failed`);
+        if (!out.ok) setError(i18nT("plugins.view.commandFailed", { command: out.command }));
       }
       await load();
     } catch (e) {
@@ -333,12 +341,18 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
         results.length === 1
           ? results[0]
           : {
-              command: `claude plugin marketplace update — ${names.length} marketplaces`,
+              command: t("plugins.view.bulkUpdateCommand", { count: names.length }),
               ok: results.every((r) => r.ok),
               output: results
                 .map(
                   (r) =>
-                    [`$ ${r.command}`, r.output || (r.ok ? "done" : "failed with no output")].join('\n'),
+                    [
+                      `$ ${r.command}`,
+                      r.output ||
+                        (r.ok
+                          ? t("plugins.view.resultDone")
+                          : t("plugins.view.resultFailedNoOutput")),
+                    ].join('\n'),
                 )
                 .join('\n\n'),
             },
@@ -347,8 +361,13 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
       if (failed.length > 0) {
         setError(
           failed.length === 1
-            ? `${failed[0].command} failed`
-            : `${failed.length} of ${results.length} marketplace updates failed`,
+            ? t("plugins.view.commandFailed", { command: failed[0].command })
+            : t(
+                failed.length === 1
+                  ? "plugins.view.someMarketplaceUpdatesFailedOne"
+                  : "plugins.view.someMarketplaceUpdatesFailedOther",
+                { count: failed.length, total: results.length },
+              ),
         );
       }
       await load();
@@ -373,17 +392,17 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
         {updating === name ? (
           <>
             <RefreshCw className="size-3.5 animate-spin" />
-            Updating {name}…
+            {t("plugins.view.updatingName", { name })}
           </>
         ) : (
-          `Update ${name}`
+          t("plugins.view.updateName", { name })
         )}
       </Button>
     </Hint>
   );
 
   if (!loaded) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("plugins.view.loading")}</div>;
   }
 
   return (
@@ -393,10 +412,9 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           <div className="flex items-start gap-2">
             <Puzzle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
-              <h2 className="text-sm font-medium">Plugins</h2>
+              <h2 className="text-sm font-medium">{t("plugins.view.title")}</h2>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                What this machine loads into a Claude Code session, and whether it is
-                current.
+                {t("plugins.view.subtitle")}
               </p>
             </div>
           </div>
@@ -413,15 +431,15 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
                   {updating ? (
                     <>
                       <RefreshCw className="size-3.5 animate-spin" />
-                      Updating {updating}…
+                      {t("plugins.view.updatingName", { name: updating })}
                     </>
                   ) : (
-                    "Update all marketplaces"
+                    t("plugins.view.updateAllMarketplaces")
                   )}
                 </Button>
               </Hint>
             )}
-            <Hint label="Re-read the local Claude Code state">
+            <Hint label={t("plugins.view.rereadHint")}>
               <Button
                 size="icon"
                 variant="ghost"
@@ -448,7 +466,7 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
               <span className="ml-1.5 text-muted-foreground">· {owned.length}</span>
             </TabsTrigger>
             <TabsTrigger value="others">
-              Other marketplaces
+              {t("plugins.view.otherMarketplaces")}
               <span className="ml-1.5 text-muted-foreground">· {otherCount}</span>
             </TabsTrigger>
           </TabsList>
@@ -456,25 +474,23 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           <TabsContent value="workhub" className="space-y-4 pt-4">
             <div className="flex items-start justify-between gap-3">
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                How much this vault needs each plugin, what is installed here, and what the
-                marketplace clone offers.
+                {t("plugins.view.workhubTabDescription")}
               </p>
               {updateMarketplaceButton(state?.marketplace ?? "")}
             </div>
 
             {!home?.clone_found && (
               <Warning>
-                The marketplace is not cloned on this machine, so no version can be
-                compared. Register it with{" "}
+                {t("plugins.view.notClonedWarningPrefix")}{" "}
                 <code>claude plugin marketplace add atman-33/workhub</code>.
               </Warning>
             )}
 
             {home?.clone_found && !home.catalog_found && (
               <Warning>
-                The marketplace clone carries no <code>.claude-plugin/catalog.json</code>,
-                so nothing here knows which plugins are required. Update the marketplace to
-                pick it up.
+                {t("plugins.view.noCatalogWarningPrefix")}{" "}
+                <code>.claude-plugin/catalog.json</code>
+                {t("plugins.view.noCatalogWarningSuffix")}
               </Warning>
             )}
 
@@ -483,29 +499,39 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
                 <p className="leading-relaxed">
                   <span className="font-medium">
-                    {missing.length} required{" "}
-                    {missing.length === 1 ? "plugin is" : "plugins are"} switched off
+                    {t(
+                      missing.length === 1
+                        ? "plugins.view.missingPluginsOne"
+                        : "plugins.view.missingPluginsOther",
+                      { count: missing.length },
+                    )}
                   </span>{" "}
-                  ({missing.map((m) => m.name).join(", ")}). Something in the app stops
-                  working without them — a task launch, a tab&apos;s AI edit, or the
-                  repositories the app hands to an agent.
+                  {t("plugins.view.missingPluginsDetail", {
+                    names: missing.map((m) => m.name).join(", "),
+                  })}
                 </p>
               </div>
             )}
 
             {outdated.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                {outdated.length} {outdated.length === 1 ? "plugin is" : "plugins are"}{" "}
-                behind the marketplace clone.
+                {t(
+                  outdated.length === 1
+                    ? "plugins.view.outdatedPluginsOne"
+                    : "plugins.view.outdatedPluginsOther",
+                  { count: outdated.length },
+                )}
               </p>
             )}
 
             {suggestions.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                {suggestions.length} recommended{" "}
-                {suggestions.length === 1 ? "plugin is" : "plugins are"} off (
-                {suggestions.map((s) => s.name).join(", ")}). Nothing breaks — the harness
-                is just poorer for it.
+                {t(
+                  suggestions.length === 1
+                    ? "plugins.view.suggestedPluginsOne"
+                    : "plugins.view.suggestedPluginsOther",
+                  { count: suggestions.length, names: suggestions.map((s) => s.name).join(", ") },
+                )}
               </p>
             )}
 
@@ -514,16 +540,13 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
 
           <TabsContent value="others" className="space-y-6 pt-4">
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Plugins from every other marketplace registered on this machine. Only what is
-              installed or switched on is listed — browsing and installing what a
-              marketplace offers stays with <code>claude plugin</code>. None of these ship a
-              catalog, so nothing here is called required or recommended: a plugin that is
-              off is simply off.
+              {t("plugins.view.othersTabDescriptionPrefix")} <code>claude plugin</code>
+              {t("plugins.view.othersTabDescriptionSuffix")}
             </p>
 
             {others.length === 0 ? (
               <p className="rounded border p-3 text-xs leading-relaxed text-muted-foreground">
-                Nothing is installed or enabled from any other marketplace.
+                {t("plugins.view.othersEmpty")}
               </p>
             ) : (
               others.map(({ info, rows }) => (
@@ -535,8 +558,8 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
                   {!info.clone_found && (
                     <Warning>
                       {info.clone_path
-                        ? "The clone is registered but missing from disk, so no version can be compared."
-                        : "This marketplace is no longer registered, but its plugins are still installed — a session still loads them. Re-add it to compare versions, or uninstall them."}
+                        ? t("plugins.view.cloneMissingWarning")
+                        : t("plugins.view.notRegisteredWarning")}
                     </Warning>
                   )}
                   <div className="space-y-2">{rows.map(card)}</div>
@@ -550,16 +573,17 @@ export function PluginsView({ active, vaultPath }: { active: boolean; vaultPath:
           <div className="space-y-1 rounded border p-3">
             <p className="font-mono text-[11px] text-muted-foreground">{result.command}</p>
             <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed">
-              {result.output || (result.ok ? "done" : "failed with no output")}
+              {result.output ||
+                (result.ok ? t("plugins.view.resultDone") : t("plugins.view.resultFailedNoOutput"))}
             </pre>
           </div>
         )}
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Enabling, disabling and updating all take effect in the next Claude Code session —
-          restart any session that is open. Enabled state is written to{" "}
-          <code>{state?.project_settings_path || "the vault settings"}</code> (project scope)
-          and <code>{state?.user_settings_path}</code> (user scope).
+          {t("plugins.view.footerNotePrefix")}{" "}
+          <code>{state?.project_settings_path || t("plugins.view.vaultSettingsFallback")}</code>{" "}
+          {t("plugins.view.footerNoteMid")} <code>{state?.user_settings_path}</code>{" "}
+          {t("plugins.view.footerNoteSuffix")}
         </p>
       </div>
 
@@ -583,6 +607,7 @@ function Warning({ children }: { children: React.ReactNode }) {
 
 /** One marketplace's heading in the "other marketplaces" tab. */
 function MarketplaceHeading({ info, count }: { info: MarketplaceInfo; count: number }) {
+  const t = useT();
   return (
     <div className="min-w-0 space-y-0.5">
       <h3 className="text-xs font-medium">
@@ -591,7 +616,9 @@ function MarketplaceHeading({ info, count }: { info: MarketplaceInfo; count: num
       </h3>
       {info.marketplace_updated && (
         <p className="font-mono text-[10px] text-muted-foreground">
-          clone refreshed {info.marketplace_updated.slice(0, 10)}
+          {t("plugins.view.marketplaceCloneRefreshed", {
+            date: info.marketplace_updated.slice(0, 10),
+          })}
         </p>
       )}
     </div>

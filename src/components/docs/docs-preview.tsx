@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import {
   basename,
   expandWikiEmbeds,
@@ -123,6 +124,7 @@ export function DocsPreview({
   standalone,
   notes,
 }: Props) {
+  const t = useT();
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -278,7 +280,7 @@ export function DocsPreview({
   if (!path) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
-        Pick a document on the left to read it.
+        {t("docs.preview.pickPrompt")}
       </div>
     );
   }
@@ -291,18 +293,18 @@ export function DocsPreview({
         </Hint>
         {!html && (
           <>
-            <Hint label="Zoom out (Ctrl+wheel)">
+            <Hint label={t("docs.preview.zoomOutHint")}>
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Zoom out"
+                aria-label={t("docs.preview.zoomOut")}
                 disabled={zoom <= PREVIEW_ZOOM.min}
                 onClick={() => setZoom((z) => stepPreviewZoom(z, -1))}
               >
                 <ZoomOut />
               </Button>
             </Hint>
-            <Hint label="Reset zoom">
+            <Hint label={t("docs.preview.resetZoomHint")}>
               <button
                 type="button"
                 onClick={() => setZoom(PREVIEW_ZOOM.initial)}
@@ -311,22 +313,24 @@ export function DocsPreview({
                 {Math.round(zoom * 100)}%
               </button>
             </Hint>
-            <Hint label="Zoom in (Ctrl+wheel)">
+            <Hint label={t("docs.preview.zoomInHint")}>
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Zoom in"
+                aria-label={t("docs.preview.zoomIn")}
                 disabled={zoom >= PREVIEW_ZOOM.max}
                 onClick={() => setZoom((z) => stepPreviewZoom(z, 1))}
               >
                 <ZoomIn />
               </Button>
             </Hint>
-            <Hint label={fullWidth ? "Reading width" : "Use the full width"}>
+            <Hint
+              label={fullWidth ? t("docs.preview.readingWidth") : t("docs.preview.useFullWidth")}
+            >
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Toggle full width"
+                aria-label={t("docs.preview.toggleFullWidth")}
                 aria-pressed={fullWidth}
                 className={cn(fullWidth && "bg-muted text-foreground")}
                 onClick={() => setFullWidth((w) => !w)}
@@ -337,11 +341,11 @@ export function DocsPreview({
           </>
         )}
         {!standalone && (
-          <Hint label="Open in a new window">
+          <Hint label={t("docs.preview.openNewWindowHint")}>
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label="Open in a new window"
+              aria-label={t("docs.preview.openNewWindow")}
               onClick={() =>
                 void api
                   .openDocsViewer({ kind: "doc", title: basename(path), path })
@@ -352,21 +356,21 @@ export function DocsPreview({
             </Button>
           </Hint>
         )}
-        <Hint label="Open with default app">
+        <Hint label={t("docs.entry.openWithDefaultApp")}>
           <Button
             size="icon-sm"
             variant="ghost"
-            aria-label="Open with default app"
+            aria-label={t("docs.entry.openWithDefaultApp")}
             onClick={() => void api.docsOpenExternal(path).catch((e) => onError(String(e)))}
           >
             <ExternalLink />
           </Button>
         </Hint>
-        <Hint label="Show this file in Explorer">
+        <Hint label={t("docs.preview.showFileHint")}>
           <Button
             size="icon-sm"
             variant="ghost"
-            aria-label="Show in Explorer"
+            aria-label={t("docs.entry.showInExplorer")}
             onClick={() => void api.docsReveal(path).catch((e) => onError(String(e)))}
           >
             <FolderOpen />
@@ -389,7 +393,7 @@ export function DocsPreview({
       >
         {error && <p className="text-xs text-destructive">{error}</p>}
         {!error && loading && !content && (
-          <p className="text-xs text-muted-foreground">Reading…</p>
+          <p className="text-xs text-muted-foreground">{t("docs.preview.reading")}</p>
         )}
         {!error && content && html && (
           <HtmlPreview
@@ -440,7 +444,7 @@ export function DocsPreview({
           </div>
         )}
         {!error && !loading && !content && (
-          <p className="text-xs text-muted-foreground">This document is empty.</p>
+          <p className="text-xs text-muted-foreground">{t("docs.preview.empty")}</p>
         )}
       </div>
       {noteLayer}

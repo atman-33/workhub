@@ -19,6 +19,7 @@ import { GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 import { attrValueColor, moveChipKey, orderedAttrKeys, setAttr } from "@/lib/mindmap/attrs";
 import { cn } from "@/lib/utils";
 import {
@@ -81,6 +82,7 @@ function SortableTag({
   disabled?: boolean;
   onRemove: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tag,
     disabled,
@@ -107,7 +109,7 @@ function SortableTag({
       <button
         type="button"
         disabled={disabled}
-        aria-label={`Remove tag ${tag}`}
+        aria-label={t("mindmap.attrEditor.removeTagAria", { tag })}
         className="leading-none"
         onClick={onRemove}
         // The chip itself is a drag handle; without this the button's press
@@ -149,6 +151,7 @@ function SortableKeyRow({
   onChange: (value: string) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: attrKey,
     disabled: disabled || !draggable,
@@ -191,7 +194,7 @@ function SortableKeyRow({
           <option key={v} value={v} />
         ))}
       </datalist>
-      <Hint label={`Remove ${attrKey}`} disabled={disabled}>
+      <Hint label={t("mindmap.attrEditor.removeKeyHint", { key: attrKey })} disabled={disabled}>
         <Button
           size="sm"
           variant="ghost"
@@ -215,6 +218,7 @@ export function AttrEditor({
   disabled,
   onChange,
 }: Props) {
+  const t = useT();
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newTag, setNewTag] = useState("");
@@ -275,7 +279,7 @@ export function AttrEditor({
 
   return (
     <div className="space-y-2 border-t pt-3">
-      <span className="text-[11px] text-muted-foreground">Attributes</span>
+      <span className="text-[11px] text-muted-foreground">{t("mindmap.attrEditor.title")}</span>
 
       {tags.length > 0 && (
         <DndContext
@@ -300,7 +304,7 @@ export function AttrEditor({
 
       <Input
         value={newTag}
-        placeholder="Add a tag"
+        placeholder={t("mindmap.attrEditor.addTagPlaceholder")}
         disabled={disabled}
         list="mindmap-tag-values"
         className="h-7 text-xs"
@@ -327,7 +331,7 @@ export function AttrEditor({
       {plainKeys.length > 0 && (
         <>
         <span className="block text-[10px] text-muted-foreground">
-          Drag to reorder the chips on every node
+          {t("mindmap.attrEditor.dragReorderHint")}
         </span>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={reorderKeys}>
           <SortableContext items={plainKeys} strategy={verticalListSortingStrategy}>
@@ -353,7 +357,7 @@ export function AttrEditor({
       <div className="flex items-center gap-1.5">
         <Input
           value={newKey}
-          placeholder="key"
+          placeholder={t("mindmap.attrEditor.keyPlaceholder")}
           disabled={disabled}
           list="mindmap-attr-keys"
           className="h-7 w-20 shrink-0 text-xs"
@@ -367,7 +371,7 @@ export function AttrEditor({
         </datalist>
         <Input
           value={newValue}
-          placeholder="value"
+          placeholder={t("mindmap.attrEditor.valuePlaceholder")}
           disabled={disabled}
           className="h-7 text-xs"
           onChange={(e) => setNewValue(clean(e.target.value))}
@@ -377,7 +381,10 @@ export function AttrEditor({
             if (e.key === "Enter") addAttr();
           }}
         />
-        <Hint label="Add this attribute" disabled={disabled || !isAttrKey(newKey) || !newValue}>
+        <Hint
+          label={t("mindmap.attrEditor.addHint")}
+          disabled={disabled || !isAttrKey(newKey) || !newValue}
+        >
           <Button
             size="sm"
             variant="outline"
@@ -385,7 +392,7 @@ export function AttrEditor({
             disabled={disabled || !isAttrKey(newKey) || !newValue}
             onClick={addAttr}
           >
-            Add
+            {t("common.add")}
           </Button>
         </Hint>
       </div>

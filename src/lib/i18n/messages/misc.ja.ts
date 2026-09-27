@@ -1,0 +1,203 @@
+import type { MessageKey } from "./en";
+
+/** Japanese strings for miscellaneous dialogs/panels and shared UI (T-0423). */
+export const miscJa: Partial<Record<MessageKey, string>> = {
+  "misc.branchCombobox.filterPlaceholder": "ブランチを絞り込み…",
+  "misc.branchCombobox.loading": "読み込み中…",
+  "misc.branchCombobox.noBranches": "ブランチがありません。",
+  "misc.branchCombobox.local": "ローカル",
+  "misc.branchCombobox.remote": "リモート",
+
+  "misc.combobox.selectPlaceholder": "選択…",
+  "misc.combobox.noResults": "該当なし。",
+  "misc.combobox.loading": "読み込み中…",
+  "misc.combobox.recent": "最近使った項目",
+  "misc.combobox.useCustom": "「{value}」を使用",
+
+  "misc.recurringDialog.title": "定期タスク",
+  "misc.recurringDialog.description": "決めたスケジュールで自動的にボードへタスクを作るルール。",
+  "misc.recurringDialog.loadError": "ルールを読み込めませんでした — {error}",
+  "misc.recurringDialog.saveError": "保存に失敗しました — {error}",
+  "misc.recurringDialog.runError": "実行に失敗しました — {error}",
+  "misc.recurringDialog.createdCount": "{count} 件作成",
+  "misc.recurringDialog.skippedCount": "{count} 件スキップ(未完了のまま)",
+  "misc.recurringDialog.nothingDue": "今のところ該当なし。",
+  "misc.recurringDialog.runNowHint": "ルールを保存してから、今すぐ該当分を作成します",
+  "misc.recurringDialog.runNow": "今すぐ実行",
+  "misc.recurringDialog.saving": "保存中…",
+
+  "misc.recurringSettings.description":
+    "決めたスケジュールで実際のタスクに変換されるルール。時刻はこの端末のローカル時計。アプリを閉じている間に逃した回はアプリ起動時に一度だけ作成され、さかのぼって埋め合わせることはありません。",
+  "misc.recurringSettings.addRule": "ルールを追加",
+  "misc.recurringSettings.empty": "定期ルールはまだありません。",
+  "misc.recurringSettings.untitled": "無題のルール",
+  "misc.recurringSettings.nextOccurrence": " ・次回 {time}",
+  "misc.recurringSettings.taskTitle": "タスクのタイトル",
+  "misc.recurringSettings.taskTitlePlaceholder": "週次レビュー",
+  "misc.recurringSettings.repeat": "繰り返し",
+  "misc.recurringSettings.daily": "毎日",
+  "misc.recurringSettings.weekly": "毎週",
+  "misc.recurringSettings.monthly": "毎月",
+  "misc.recurringSettings.time": "時刻",
+  "misc.recurringSettings.everyNDays": "何日おきか(開始日から数える)",
+  "misc.recurringSettings.weekdays": "曜日",
+  "misc.recurringSettings.weekday.sun": "日",
+  "misc.recurringSettings.weekday.mon": "月",
+  "misc.recurringSettings.weekday.tue": "火",
+  "misc.recurringSettings.weekday.wed": "水",
+  "misc.recurringSettings.weekday.thu": "木",
+  "misc.recurringSettings.weekday.fri": "金",
+  "misc.recurringSettings.weekday.sat": "土",
+  "misc.recurringSettings.dayOfMonth": "毎月の日付(月が短い場合は切り詰め)",
+  "misc.recurringSettings.startDate": "開始日",
+  "misc.recurringSettings.dueOffset": "期限までの日数",
+  "misc.recurringSettings.noDueDate": "期限なし",
+  "misc.recurringSettings.status": "ステータス",
+  "misc.recurringSettings.assignee": "担当",
+  "misc.recurringSettings.priority": "優先度",
+  "misc.recurringSettings.project": "プロジェクト",
+  "misc.recurringSettings.noProject": "プロジェクトなし",
+  "misc.recurringSettings.vaultProjectPlaceholder": "vault のプロジェクト",
+  "misc.recurringSettings.noVaultProjects": "vault プロジェクトがありません。Projects タブで作成してください。",
+  "misc.recurringSettings.model": "モデル",
+  "misc.recurringSettings.modelNa": "me では未使用",
+  "misc.recurringSettings.extraTags": "追加タグ(カンマ区切り)",
+  "misc.recurringSettings.tagsPlaceholder": "routine",
+  "misc.recurringSettings.tagsNotePrefix": "生成されるタスクには必ず",
+  "misc.recurringSettings.tagsNoteSuffix": " も付き、アプリが自分の作ったタスクだと見分けています。",
+  "misc.recurringSettings.taskBody": "タスク本文",
+  "misc.recurringSettings.skipTitle": "前回分が未完了の間はスキップ",
+  "misc.recurringSettings.skipDescription":
+    "このルールの前回分がまだ完了していない間は、タスクを再作成しません。その回は処理済みとして扱われるため、後でまとめて溜まることもありません。",
+  "misc.recurringSettings.planFirst": "プランファースト(確認あり)",
+  "misc.recurringSettings.gitWorktree": "Git worktree",
+  "misc.recurringSettings.lastGenerated": "前回の生成: {when}",
+  "misc.recurringSettings.never": "なし",
+
+  "misc.notesDialog.title": "{name} — メモとタグ",
+  "misc.notesDialog.notes": "メモ",
+  "misc.notesDialog.notesPlaceholder": "作業メモ、TODO、備忘録など…",
+  "misc.notesDialog.tags": "タグ(カンマ区切り)",
+  "misc.notesDialog.tagsPlaceholder": "rust, work, oss",
+
+  "misc.vaultSetup.stepTemplateTitle": "vault テンプレートを適用",
+  "misc.vaultSetup.stepTemplateDetail":
+    "タスク・プロジェクト・knowledge のフォルダを作成します。既存ファイルは上書きされません。",
+  "misc.vaultSetup.stepMarketplaceTitle": "workhub marketplace を登録",
+  "misc.vaultSetup.stepPluginTitle": "workhub プラグインを有効化",
+  "misc.vaultSetup.stepPluginDetail":
+    "~/.claude/settings.json(ユーザースコープ)に1つのキーを書き込みます。次回セッションから反映されます。",
+  "misc.vaultSetup.title": "この vault をセットアップ",
+  "misc.vaultSetup.allDoneDescription": "この vault は既にセットアップ済みです — 以下は実行不要です。",
+  "misc.vaultSetup.description":
+    "3つのステップをまとめて実行します。どれも vault の外に影響するため、ボタンを押すまで何も実行されません。",
+  "misc.vaultSetup.done": "完了",
+  "misc.vaultSetup.orRunManuallyPrefix": "または",
+  "misc.vaultSetup.orRunManuallySuffix": "を自分で実行してください",
+  "misc.vaultSetup.footerNote":
+    "有効化されるのは {required} のみです — アプリ自体に必要な唯一のプラグインです。おすすめのプラグイン({suggested})は好みの問題なので、{pluginsTab} タブで内容を確認してから有効にしてください。",
+  "misc.vaultSetup.running": "実行中…",
+  "misc.vaultSetup.runSetup": "セットアップを実行",
+  "misc.vaultSetup.runSetupCount": "セットアップを実行({count})",
+
+  "misc.aiEditSettings.title": "AI で編集",
+  "misc.aiEditSettings.description": "この{subject}を自然言語の指示で編集する際に使うエージェント。",
+  "misc.aiEditSettings.agent": "エージェント",
+  "misc.aiEditSettings.model": "モデル",
+  "misc.aiEditSettings.confirmDescription": "即座に適用せず、変更内容を表示して承認を待ちます。",
+
+  "misc.terminalPanel.failedToOpen": "ターミナルを開けませんでした: {error}",
+  "misc.terminalPanel.restartHint": "ターミナルを再起動(herdr のワークスペースとエージェントは動作したままです)",
+  "misc.terminalPanel.restoreSize": "ターミナルのサイズを元に戻す",
+  "misc.terminalPanel.maximize": "ターミナルを最大化",
+  "misc.terminalPanel.exited": "herdr プロセスが終了しました",
+  "misc.terminalPanel.reopen": "再度開く",
+
+  "misc.diagnosticLog.title": "診断ログ",
+  "misc.diagnosticLog.openFolder": "フォルダを開く",
+  "misc.diagnosticLog.description":
+    "アプリが実行中に記録した内容です。パッケージ版にはコンソールがないため、この画面とその元になるログファイルが、問題を報告する際の唯一の手がかりになります。記録されるのはアプリの動作(エラー、時刻、ウィンドウ配置)のみで、入力・発話・コピーした内容は含まれません。",
+  "misc.diagnosticLog.empty": "まだ何も記録されていません。",
+  "misc.diagnosticLog.autoRefresh": "自動更新",
+
+  "misc.inputListener.never": "なし",
+  "misc.inputListener.justNow": "たった今",
+  "misc.inputListener.secondsAgo": "{count}秒前",
+  "misc.inputListener.minutesAgo": "{count}分前",
+  "misc.inputListener.hoursAgo": "{count}時間前",
+  "misc.inputListener.notRunning": "停止中",
+  "misc.inputListener.minutesFmt": "{count}分",
+  "misc.inputListener.hoursMinutesFmt": "{hours}時間{minutes}分",
+  "misc.inputListener.title": "入力リスナー",
+  "misc.inputListener.restart": "リスナーを再起動",
+  "misc.inputListener.description":
+    "画面注釈(Alt 二度押し)と clips ポップアップを支える共有キーボードリスナー。ジェスチャーが反応しなくなったら、アプリの再起動ではなくここでリスナーを再起動してください。",
+  "misc.inputListener.status": "状態",
+  "misc.inputListener.running": "動作中",
+  "misc.inputListener.uptime": "稼働時間",
+  "misc.inputListener.lastKeySeen": "最後のキー入力",
+  "misc.inputListener.totalSuffix": "(累計 {count} 回)",
+  "misc.inputListener.reregistrations": "再登録回数",
+  "misc.inputListener.autoRebuilds": "自動再構築回数",
+  "misc.inputListener.manualRestarts": "手動再起動回数",
+  "misc.inputListener.lastWithReason": "(前回: {reason}、{when})",
+  "misc.inputListener.lastReasonOnly": "(前回: {reason})",
+  "misc.inputListener.staleWarning":
+    "最近リスナーにキー入力が届いていません。キーボードから離れている間は正常な状態です。入力しているのにジェスチャーが反応しない場合はリスナーを再起動してください。",
+  "misc.inputListener.elevatedWarning":
+    "管理者権限で実行中のアプリが最前面にあります。この状態では Windows が通常権限のアプリにキーボード入力を送らないため、ジェスチャーは機能しません — リスナーの再起動では解決しません。",
+
+  "misc.launchAgentButton.idle": "エージェントを起動",
+  "misc.launchAgentButton.launching": "起動中…",
+  "misc.launchAgentButton.launched": "起動しました",
+
+  "misc.copyPromptButton.copying": "コピー中…",
+  "misc.copyPromptButton.default": "プロンプトをコピー",
+
+  "misc.openInObsidianButton.label": "Obsidian で編集",
+
+  "misc.claudeDesktopButton.idle": "Claude Desktop に送信",
+  "misc.claudeDesktopButton.sending": "送信中…",
+  "misc.claudeDesktopButton.sent": "送信しました",
+  "misc.claudeDesktopButton.idleWithMode": "{idle}({mode})",
+
+  "misc.navListenerButton.restartFailed": "再起動に失敗: {error}",
+  "misc.navListenerButton.restarted": "入力リスナーを再起動しました",
+  "misc.navListenerButton.hint":
+    "入力リスナーを再起動\nAlt 二度押しの注釈や clips ポップアップが反応しなくなったときに使用します",
+  "misc.navListenerButton.ariaLabel": "入力リスナーを再起動",
+
+  "misc.modelCombobox.agentDefault": "エージェントの既定値",
+  "misc.modelCombobox.noModels": "モデルがありません。",
+  "misc.modelCombobox.catalogError": "opencode のモデル一覧を取得できません — {error}",
+
+  "misc.changeFileList.noChanges": "変更はありません。",
+  "misc.changeFileList.filesHeading": "ファイル",
+  "misc.changeFileList.treeView": "ツリー表示",
+  "misc.changeFileList.flatView": "フラット表示",
+
+  "misc.errorBoundary.title": "{label} の表示中にエラーが発生しました。",
+  "misc.errorBoundary.description":
+    "アプリの他の部分はそのまま動作しています。この内容は診断ログ(設定 → 診断)に書き込まれているため、再起動後も確認できます。",
+  "misc.errorBoundary.tryAgain": "再試行",
+  "misc.errorBoundary.copyDetails": "詳細をコピー",
+
+  "misc.vaultScopedBadge.label": "Vault",
+  "misc.vaultScopedBadge.tooltip":
+    "vault 内(.workhub/settings.json)に保存されるため、他の端末にも vault と一緒に引き継がれます。端末固有の設定は ~/.workhub/config.json に保存されます。",
+
+  "misc.backlogStatus.idea": "アイデア",
+  "misc.backlogStatus.ready": "対応可能",
+  "misc.backlogStatus.doing": "進行中",
+  "misc.backlogStatus.done": "完了",
+  "misc.backlogStatus.dropped": "取り止め",
+
+  "misc.claudeDesktopButton.modeChat": "チャット",
+  "misc.claudeDesktopButton.modeCode": "コードセッション",
+
+  "misc.markdown.copyCode": "コードをコピー",
+  "misc.markdown.openFigure": "ウィンドウで開く",
+  "misc.markdown.openFigureHint": "ウィンドウで開く（ダブルクリックでも可）",
+  "misc.dateTimePicker.placeholder": "日時を選択",
+  "misc.dateTimePicker.time": "時刻",
+};

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { rootLabel, sortRootsByLabel } from "@/lib/docs/roots";
 import type { DocsRootStatus } from "@/types";
 
@@ -42,6 +43,7 @@ export function DocsRootsBar({
   onError,
   onOpenSettings,
 }: Props) {
+  const t = useT();
   const [editing, setEditing] = useState<DocsRootStatus | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const selected = roots.find((r) => r.id === selectedId);
@@ -54,7 +56,7 @@ export function DocsRootsBar({
     const picked = await pickFolder({
       directory: true,
       multiple: false,
-      title: "Add a document folder",
+      title: tStatic("docs.rootsBar.addFolderTitle"),
     });
     if (typeof picked !== "string") return;
     try {
@@ -69,39 +71,48 @@ export function DocsRootsBar({
     <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
       <Select value={selectedId} onValueChange={onSelect}>
         <SelectTrigger size="sm" className="w-[280px]">
-          <SelectValue placeholder={roots.length ? "Pick a folder" : "No folders registered"} />
+          <SelectValue
+            placeholder={
+              roots.length ? t("docs.rootsBar.pickFolder") : t("docs.rootsBar.noFoldersRegistered")
+            }
+          />
         </SelectTrigger>
         <SelectContent>
           {listed.map((root) => (
             <SelectItem key={root.id} value={root.id}>
               {rootLabel(root)}
-              {!root.available && " (not on this PC)"}
+              {!root.available && t("docs.rootsBar.notOnThisPc")}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      <Hint label="Register a folder to browse">
-        <Button size="icon-sm" variant="ghost" aria-label="Add folder" onClick={() => void add()}>
-          <FolderPlus />
-        </Button>
-      </Hint>
-      <Hint label="Edit this folder's name and path" disabled={!selected}>
+      <Hint label={t("docs.rootsBar.addHint")}>
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="Edit folder"
+          aria-label={t("docs.rootsBar.addAria")}
+          onClick={() => void add()}
+        >
+          <FolderPlus />
+        </Button>
+      </Hint>
+      <Hint label={t("docs.rootsBar.editHint")} disabled={!selected}>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("docs.rootsBar.editAria")}
           disabled={!selected}
           onClick={() => setEditing(selected ?? null)}
         >
           <Pencil />
         </Button>
       </Hint>
-      <Hint label="Forget this folder (nothing on the share is touched)" disabled={!selected}>
+      <Hint label={t("docs.rootsBar.removeHint")} disabled={!selected}>
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="Remove folder"
+          aria-label={t("docs.rootsBar.removeAria")}
           disabled={!selected}
           onClick={() => setConfirmRemove(true)}
         >
@@ -109,11 +120,11 @@ export function DocsRootsBar({
         </Button>
       </Hint>
 
-      <Hint label="Docs settings (PlantUML server)">
+      <Hint label={t("docs.rootsBar.settingsHint")}>
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="Docs settings"
+          aria-label={t("docs.rootsBar.settingsAria")}
           className="ml-auto"
           onClick={onOpenSettings}
         >
@@ -132,13 +143,15 @@ export function DocsRootsBar({
 
       <ConfirmDialog
         open={confirmRemove}
-        title="Remove this folder?"
+        title={t("docs.rootsBar.removeConfirmTitle")}
         description={
           selected
-            ? `"${selected.name || selected.path}" is removed from the list. The folder itself and everything in it are left exactly as they are.`
+            ? t("docs.rootsBar.removeConfirmDescription", {
+                name: selected.name || selected.path,
+              })
             : ""
         }
-        confirmLabel="Remove"
+        confirmLabel={t("common.remove")}
         onConfirm={() => {
           if (selected) {
             void api

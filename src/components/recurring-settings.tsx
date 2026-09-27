@@ -14,6 +14,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelCombobox } from "@/components/model-combobox";
+import { useT, type MessageKey } from "@/lib/i18n";
+import {
+  TASK_ASSIGNEE_LABEL_KEY,
+  TASK_PRIORITY_LABEL_KEY,
+  TASK_STATUS_LABEL_KEY,
+} from "@/lib/i18n/labels";
 import { projectOptionDetails } from "@/lib/task-editor-fields";
 import { cn } from "@/lib/utils";
 import type { RecurringRule, TaskAssignee, TaskPriority, TaskStatus } from "@/types";
@@ -21,7 +27,18 @@ import type { RecurringRule, TaskAssignee, TaskPriority, TaskStatus } from "@/ty
 const STATUSES: TaskStatus[] = ["inbox", "todo", "doing"];
 const ASSIGNEES: TaskAssignee[] = ["me", "claude-code", "opencode"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high"];
+/** English day abbreviation used as the stable React key; the display label
+ * (below) is translated separately. */
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_KEYS: MessageKey[] = [
+  "misc.recurringSettings.weekday.sun",
+  "misc.recurringSettings.weekday.mon",
+  "misc.recurringSettings.weekday.tue",
+  "misc.recurringSettings.weekday.wed",
+  "misc.recurringSettings.weekday.thu",
+  "misc.recurringSettings.weekday.fri",
+  "misc.recurringSettings.weekday.sat",
+];
 
 /** Same English-first formatting as the rest of the settings dialog. */
 const TIMESTAMP = new Intl.DateTimeFormat("en-US", {
@@ -59,6 +76,7 @@ export function RecurringSettings({
   knownProjects,
   projectFolders,
 }: Props) {
+  const t = useT();
   const [expanded, setExpanded] = useState<string | null>(null);
   const projectDetails = useMemo(
     () => projectOptionDetails(projectFolders ?? {}),
@@ -76,11 +94,7 @@ export function RecurringSettings({
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          Rules the app turns into real tasks on their own schedule. Times are this machine's local
-          clock; a missed occurrence (app closed) is created once at the next start, never
-          backfilled.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("misc.recurringSettings.description")}</p>
         <Button
           type="button"
           size="sm"
@@ -88,13 +102,13 @@ export function RecurringSettings({
           className="shrink-0"
           onClick={() => onChange([...rules, newRule(rules)])}
         >
-          <Plus className="size-3.5" /> Add rule
+          <Plus className="size-3.5" /> {t("misc.recurringSettings.addRule")}
         </Button>
       </div>
 
       {rules.length === 0 && (
         <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-          No recurring rules yet.
+          {t("misc.recurringSettings.empty")}
         </p>
       )}
 
@@ -116,11 +130,17 @@ export function RecurringSettings({
                 )}
                 <div className="min-w-0">
                   <p className={cn("truncate text-sm", !rule.enabled && "text-muted-foreground")}>
-                    {rule.title.trim() || <span className="italic">Untitled rule</span>}
+                    {rule.title.trim() || (
+                      <span className="italic">{t("misc.recurringSettings.untitled")}</span>
+                    )}
                   </p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {rule.id} · {describeSchedule(rule)}
-                    {rule.enabled && next ? ` · next ${TIMESTAMP.format(next)}` : ""}
+                    {rule.enabled && next
+                      ? t("misc.recurringSettings.nextOccurrence", {
+                          time: TIMESTAMP.format(next),
+                        })
+                      : ""}
                   </p>
                 </div>
               </button>
@@ -141,11 +161,13 @@ export function RecurringSettings({
             {isOpen && (
               <div className="space-y-3 border-t p-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Task title</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {t("misc.recurringSettings.taskTitle")}
+                  </label>
                   <Input
                     value={rule.title}
                     onChange={(e) => patch(rule.id, { title: e.target.value })}
-                    placeholder="Weekly review"
+                    placeholder={t("misc.recurringSettings.taskTitlePlaceholder")}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -153,7 +175,9 @@ export function RecurringSettings({
                 {/* Schedule */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Repeat</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.repeat")}
+                    </label>
                     <Select
                       value={rule.schedule.kind}
                       onValueChange={(v) => patchSchedule(rule.id, { kind: v })}
@@ -162,14 +186,20 @@ export function RecurringSettings({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="daily">{t("misc.recurringSettings.daily")}</SelectItem>
+                        <SelectItem value="weekly">
+                          {t("misc.recurringSettings.weekly")}
+                        </SelectItem>
+                        <SelectItem value="monthly">
+                          {t("misc.recurringSettings.monthly")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Time</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.time")}
+                    </label>
                     <Input
                       type="time"
                       value={rule.schedule.time}
@@ -182,7 +212,7 @@ export function RecurringSettings({
                 {rule.schedule.kind === "daily" && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">
-                      Every N days (counted from the start date)
+                      {t("misc.recurringSettings.everyNDays")}
                     </label>
                     <Input
                       type="number"
@@ -200,7 +230,9 @@ export function RecurringSettings({
 
                 {rule.schedule.kind === "weekly" && (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Weekdays</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.weekdays")}
+                    </label>
                     <div className="flex flex-wrap gap-1">
                       {WEEKDAYS.map((label, day) => {
                         const on = rule.schedule.weekdays.includes(day);
@@ -219,7 +251,7 @@ export function RecurringSettings({
                               })
                             }
                           >
-                            {label}
+                            {t(WEEKDAY_KEYS[day])}
                           </Button>
                         );
                       })}
@@ -230,7 +262,7 @@ export function RecurringSettings({
                 {rule.schedule.kind === "monthly" && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">
-                      Day of month (clamped in shorter months)
+                      {t("misc.recurringSettings.dayOfMonth")}
                     </label>
                     <Input
                       type="number"
@@ -249,7 +281,9 @@ export function RecurringSettings({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Start date</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.startDate")}
+                    </label>
                     <Input
                       type="date"
                       value={rule.schedule.start_date}
@@ -259,12 +293,12 @@ export function RecurringSettings({
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">
-                      Due offset (days)
+                      {t("misc.recurringSettings.dueOffset")}
                     </label>
                     <Input
                       type="number"
                       value={rule.due_offset_days ?? ""}
-                      placeholder="no due date"
+                      placeholder={t("misc.recurringSettings.noDueDate")}
                       onChange={(e) =>
                         patch(rule.id, {
                           due_offset_days:
@@ -279,7 +313,9 @@ export function RecurringSettings({
                 {/* Generated task's frontmatter */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Status</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.status")}
+                    </label>
                     <Select
                       value={rule.status}
                       onValueChange={(v) => patch(rule.id, { status: v })}
@@ -290,14 +326,16 @@ export function RecurringSettings({
                       <SelectContent>
                         {STATUSES.map((s) => (
                           <SelectItem key={s} value={s}>
-                            {s}
+                            {t(TASK_STATUS_LABEL_KEY[s])}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Assignee</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.assignee")}
+                    </label>
                     <Select
                       value={rule.assignee}
                       // Model ids are per-CLI, so a leftover id would be passed
@@ -310,14 +348,16 @@ export function RecurringSettings({
                       <SelectContent>
                         {ASSIGNEES.map((a) => (
                           <SelectItem key={a} value={a}>
-                            {a}
+                            {t(TASK_ASSIGNEE_LABEL_KEY[a])}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Priority</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.priority")}
+                    </label>
                     <Select
                       value={rule.priority}
                       onValueChange={(v) => patch(rule.id, { priority: v })}
@@ -328,7 +368,7 @@ export function RecurringSettings({
                       <SelectContent>
                         {PRIORITIES.map((p) => (
                           <SelectItem key={p} value={p}>
-                            {p}
+                            {t(TASK_PRIORITY_LABEL_KEY[p])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -338,7 +378,9 @@ export function RecurringSettings({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Project</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.project")}
+                    </label>
                     <Combobox
                       value={rule.project}
                       onChange={(project) => patch(rule.id, { project })}
@@ -348,9 +390,9 @@ export function RecurringSettings({
                           : knownProjects
                       }
                       optionDetails={projectDetails}
-                      noneLabel="No project"
-                      placeholder="vault project"
-                      emptyText="No vault projects. Create one in the Projects tab."
+                      noneLabel={t("misc.recurringSettings.noProject")}
+                      placeholder={t("misc.recurringSettings.vaultProjectPlaceholder")}
+                      emptyText={t("misc.recurringSettings.noVaultProjects")}
                       modal
                     />
                     {projectFolders?.[rule.project] && (
@@ -360,14 +402,20 @@ export function RecurringSettings({
                     )}
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Model</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("misc.recurringSettings.model")}
+                    </label>
                     <ModelCombobox
                       assignee={rule.assignee as TaskAssignee}
                       value={rule.model}
                       onChange={(model) => patch(rule.id, { model })}
                       active={open}
                       disabled={rule.assignee === "me"}
-                      placeholder={rule.assignee === "me" ? "n/a for me" : "agent default"}
+                      placeholder={
+                        rule.assignee === "me"
+                          ? t("misc.recurringSettings.modelNa")
+                          : t("misc.modelCombobox.agentDefault")
+                      }
                       modal
                     />
                   </div>
@@ -375,7 +423,7 @@ export function RecurringSettings({
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
-                    Extra tags (comma separated)
+                    {t("misc.recurringSettings.extraTags")}
                   </label>
                   <Input
                     value={rule.tags.join(", ")}
@@ -383,21 +431,24 @@ export function RecurringSettings({
                       patch(rule.id, {
                         tags: e.target.value
                           .split(",")
-                          .map((t) => t.trim())
+                          .map((tag) => tag.trim())
                           .filter(Boolean),
                       })
                     }
-                    placeholder="routine"
+                    placeholder={t("misc.recurringSettings.tagsPlaceholder")}
                     className="h-8 text-xs"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Every generated task also carries <code>recurring/{rule.id}</code>, which is how
-                    the app recognizes its own tasks.
+                    {t("misc.recurringSettings.tagsNotePrefix")}{" "}
+                    <code>recurring/{rule.id}</code>
+                    {t("misc.recurringSettings.tagsNoteSuffix")}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Task body</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {t("misc.recurringSettings.taskBody")}
+                  </label>
                   <Textarea
                     value={rule.body}
                     onChange={(e) => patch(rule.id, { body: e.target.value })}
@@ -408,10 +459,9 @@ export function RecurringSettings({
 
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs">Skip while the last one is still open</p>
+                    <p className="text-xs">{t("misc.recurringSettings.skipTitle")}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      Don't create the task again while an earlier one from this rule is not done.
-                      The occurrence is still marked as handled, so it won't pile up later.
+                      {t("misc.recurringSettings.skipDescription")}
                     </p>
                   </div>
                   <Switch
@@ -422,14 +472,14 @@ export function RecurringSettings({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs">Plan first (confirm)</span>
+                    <span className="text-xs">{t("misc.recurringSettings.planFirst")}</span>
                     <Switch
                       checked={rule.confirm}
                       onCheckedChange={(v) => patch(rule.id, { confirm: v })}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs">Git worktree</span>
+                    <span className="text-xs">{t("misc.recurringSettings.gitWorktree")}</span>
                     <Switch
                       checked={rule.worktree}
                       onCheckedChange={(v) => patch(rule.id, { worktree: v })}
@@ -438,10 +488,11 @@ export function RecurringSettings({
                 </div>
 
                 <p className="text-[11px] text-muted-foreground">
-                  Last generated:{" "}
-                  {rule.last_generated
-                    ? TIMESTAMP.format(new Date(rule.last_generated * 1000))
-                    : "never"}
+                  {t("misc.recurringSettings.lastGenerated", {
+                    when: rule.last_generated
+                      ? TIMESTAMP.format(new Date(rule.last_generated * 1000))
+                      : t("misc.recurringSettings.never"),
+                  })}
                 </p>
               </div>
             )}

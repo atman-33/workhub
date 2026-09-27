@@ -46,6 +46,8 @@ import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
+import { t as tStatic, useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -126,12 +128,13 @@ const SIDEBAR_DEFAULT_PCT = 24;
 const NEW_STICKY_OFFSET = { dx: 96, dy: 24 };
 const NEW_STICKY_STAGGER = { dx: 14, dy: 18 };
 
-/** Wording for the box-width picker. The stored values stay short because they
- * are written into the note's frontmatter, where a human reads them too. */
-const NODE_WIDTH_LABEL: Record<NodeWidth, string> = {
-  auto: "Auto width",
-  siblings: "Even siblings",
-  depth: "Even by level",
+/** Message keys for the box-width picker. The stored values stay short
+ * because they are written into the note's frontmatter, where a human reads
+ * them too — only the display label is translated. */
+const NODE_WIDTH_LABEL_KEY: Record<NodeWidth, MessageKey> = {
+  auto: "mindmap.nodeWidth.auto",
+  siblings: "mindmap.nodeWidth.siblings",
+  depth: "mindmap.nodeWidth.depth",
 };
 
 /** Sentinel values for the pickers — Radix rejects an empty string. */
@@ -179,6 +182,7 @@ interface LoadDocOptions {
 }
 
 export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
   // Folder name per slug, for the `NNNN` number drawn beside it (T-0398).
@@ -815,7 +819,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       const roots = moveNode(doc.roots, id, parentId);
       // `null` means the drop was into the node's own subtree, or onto itself.
       if (!roots) {
-        setStatus("A node cannot be moved inside itself.");
+        setStatus(tStatic("mindmap.view.cannotMoveInside"));
         return;
       }
       const parent = findNode(roots, parentId);
@@ -1112,7 +1116,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       const moved = await api.deleteMindmap(vaultPath, path);
       setPath("");
       await loadFiles();
-      setStatus(`Moved to ${moved}`);
+      setStatus(tStatic("mindmap.view.movedTo", { path: moved }));
     } catch (e) {
       setStatus(String(e));
     }
@@ -1143,7 +1147,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     try {
       const dir = await exportDir();
       if (!dir) {
-        throw new Error(`No project folder found for "${targetProject}"`);
+        throw new Error(tStatic("mindmap.view.noProjectFolderError", { project: targetProject }));
       }
       const name = `${(doc.title || "mindmap").replace(/[\\/:*?"<>|]/g, "-")}.html`;
       const out = `${dir}/${name}`;
@@ -1159,7 +1163,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
         }),
         { vaultPath, project: targetProject },
       );
-      setStatus(`Exported to ${out}`);
+      setStatus(tStatic("mindmap.view.exportedTo", { path: out }));
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
@@ -1189,19 +1193,19 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     try {
       const dir = await exportDir();
       if (!dir) {
-        throw new Error(`No project folder found for "${targetProject}"`);
+        throw new Error(tStatic("mindmap.view.noProjectFolderError", { project: targetProject }));
       }
       const image = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new window.Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("the diagram could not be rasterized"));
+        img.onerror = () => reject(new Error(tStatic("mindmap.view.rasterizeFailed")));
         img.src = url;
       });
       const canvas = document.createElement("canvas");
       canvas.width = width * 2;
       canvas.height = height * 2;
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("no 2d canvas context");
+      if (!ctx) throw new Error(tStatic("mindmap.view.noCanvasContext"));
       ctx.scale(2, 2);
       ctx.drawImage(image, 0, 0);
 
@@ -1211,7 +1215,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
         vaultPath,
         project: targetProject,
       });
-      setStatus(`Exported to ${out}`);
+      setStatus(tStatic("mindmap.view.exportedTo", { path: out }));
       await api.openExplorer(out);
     } catch (e) {
       setStatus(String(e));
@@ -1244,7 +1248,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-        Set a vault path in Settings to use mindmaps.
+        {t("mindmap.view.noVault")}
       </div>
     );
   }
@@ -1252,10 +1256,10 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   if (projectsLoaded && !projects.length) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
-        This vault has no projects yet.
+        {t("mindmap.view.noProjectsTitle")}
         <Button size="sm" onClick={() => setProjectDialogOpen(true)}>
           <FolderPlus className="mr-1 size-3.5" />
-          New project…
+          {t("mindmap.view.newProject")}
         </Button>
         <ProjectCreateDialog
           vaultPath={vaultPath}
@@ -1293,20 +1297,22 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
+            <SelectItem value={ALL_PROJECTS}>{t("mindmap.view.allProjects")}</SelectItem>
             {projects.map((slug) => (
               <SelectItem key={slug} value={slug}>
                 {projectNumberedLabel(slug, projectFolders)}
               </SelectItem>
             ))}
             <SelectSeparator />
-            <SelectItem value={NEW_PROJECT}>New project…</SelectItem>
+            <SelectItem value={NEW_PROJECT}>{t("mindmap.view.newProject")}</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={path} onValueChange={setPath} disabled={!files.length}>
           <SelectTrigger className="h-7 w-56 text-xs">
-            <SelectValue placeholder={files.length ? "Pick a mindmap" : "No mindmaps yet"} />
+            <SelectValue
+              placeholder={files.length ? t("mindmap.view.pickPlaceholder") : t("mindmap.view.noneYet")}
+            />
           </SelectTrigger>
           <SelectContent>
             {files.map((file) => (
@@ -1321,13 +1327,13 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
         {creating ? (
           <InlineInput
             value={newTitle}
-            placeholder="Mindmap name"
+            placeholder={t("mindmap.view.namePlaceholder")}
             onChange={setNewTitle}
             onCommit={createFile}
             onCancel={() => setCreating(false)}
           />
         ) : (
-          <Hint label="New mindmap" disabled={!targetProject}>
+          <Hint label={t("mindmap.view.newHint")} disabled={!targetProject}>
             <Button
               size="sm"
               variant="outline"
@@ -1343,13 +1349,13 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
         {renaming ? (
           <InlineInput
             value={renameTitle}
-            placeholder="New name"
+            placeholder={t("mindmap.view.newNamePlaceholder")}
             onChange={setRenameTitle}
             onCommit={renameFile}
             onCancel={() => setRenaming(false)}
           />
         ) : (
-          <Hint label="Rename this mindmap" disabled={!path || aiRunning}>
+          <Hint label={t("mindmap.view.renameHint")} disabled={!path || aiRunning}>
             <Button
               size="sm"
               variant="outline"
@@ -1370,7 +1376,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           disabled={!doc || aiRunning}
           onValueChange={(v) => changeNodeWidth(v as NodeWidth)}
         >
-          <Hint label="How wide node boxes are">
+          <Hint label={t("mindmap.view.nodeWidthHint")}>
             <SelectTrigger className="h-7 w-32 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -1378,7 +1384,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           <SelectContent>
             {NODE_WIDTHS.map((value) => (
               <SelectItem key={value} value={value}>
-                {NODE_WIDTH_LABEL[value]}
+                {t(NODE_WIDTH_LABEL_KEY[value])}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1394,17 +1400,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               disabled={!doc || aiRunning}
               onValueChange={(v) => changeAttrView({ color: v === ATTR_NONE ? "" : v })}
             >
-              <Hint label="Colour the boxes by an attribute instead of the map's own colours">
+              <Hint label={t("mindmap.view.colorByHint")}>
                 <SelectTrigger className="h-7 w-36 text-xs">
                   <SelectValue />
                 </SelectTrigger>
               </Hint>
               <SelectContent>
-                <SelectItem value={ATTR_NONE}>Map colours</SelectItem>
+                <SelectItem value={ATTR_NONE}>{t("mindmap.view.mapColours")}</SelectItem>
                 <SelectSeparator />
                 {attrKeys.map((key) => (
                   <SelectItem key={key} value={key}>
-                    Colour by {key}
+                    {t("mindmap.view.colorByKey", { key })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1422,13 +1428,13 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 changeAttrView({ filter: option ? { key: option.key, value: option.value } : null });
               }}
             >
-              <Hint label="Dim every node that does not carry this attribute">
+              <Hint label={t("mindmap.view.filterHint")}>
                 <SelectTrigger className="h-7 w-40 text-xs">
                   <SelectValue />
                 </SelectTrigger>
               </Hint>
               <SelectContent>
-                <SelectItem value={ATTR_NONE}>No filter</SelectItem>
+                <SelectItem value={ATTR_NONE}>{t("mindmap.view.noFilter")}</SelectItem>
                 <SelectSeparator />
                 {attrFilterOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
@@ -1450,9 +1456,11 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
         <div className="ml-auto flex items-center gap-1.5">
           {status && <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>}
           {nodeCount > 0 && (
-            <span className="text-[11px] text-muted-foreground">{nodeCount} nodes</span>
+            <span className="text-[11px] text-muted-foreground">
+              {t("mindmap.view.nodeCount", { count: nodeCount })}
+            </span>
           )}
-          <Hint label="Fit the map to the window" disabled={!doc}>
+          <Hint label={t("mindmap.view.fitHint")} disabled={!doc}>
             <Button
               size="sm"
               variant="outline"
@@ -1467,8 +1475,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             <Hint
               label={
                 doc?.stickiesHidden
-                  ? `Show the ${stickyCount} sticky notes`
-                  : `Hide the ${stickyCount} sticky notes`
+                  ? t("mindmap.view.showStickiesHint", { count: stickyCount })
+                  : t("mindmap.view.hideStickiesHint", { count: stickyCount })
               }
               disabled={!doc || aiRunning}
             >
@@ -1484,7 +1492,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               </Button>
             </Hint>
           )}
-          <Hint label="Copy as a mermaid code block" disabled={!doc}>
+          <Hint label={t("mindmap.view.copyMermaidHint")} disabled={!doc}>
             <Button
               size="sm"
               variant="outline"
@@ -1496,7 +1504,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               mermaid
             </Button>
           </Hint>
-          <Hint label="Export a single-file HTML page" disabled={!doc}>
+          <Hint label={t("mindmap.view.exportHtmlHint")} disabled={!doc}>
             <Button
               size="sm"
               variant="outline"
@@ -1507,7 +1515,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <Download className="size-3.5" />
             </Button>
           </Hint>
-          <Hint label="Export a PNG image" disabled={!doc}>
+          <Hint label={t("mindmap.view.exportPngHint")} disabled={!doc}>
             <Button
               size="sm"
               variant="outline"
@@ -1522,7 +1530,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
             settings={config?.settings ?? null}
             onPatch={(patch) => void patchSettings(patch)}
           />
-          <Hint label="Edit with AI" disabled={!doc}>
+          <Hint label={t("misc.aiEditSettings.title")} disabled={!doc}>
             <Button
               size="sm"
               variant={aiOpen ? "secondary" : "outline"}
@@ -1533,7 +1541,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <Sparkles className="size-3.5" />
             </Button>
           </Hint>
-          <Hint label="Move this mindmap to the trash" disabled={!path || aiRunning}>
+          <Hint label={t("mindmap.view.deleteHint")} disabled={!path || aiRunning}>
             <Button
               size="sm"
               variant="outline"
@@ -1549,7 +1557,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
 
       {!doc ? (
         <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-          {files.length ? "Pick a mindmap." : "Create a mindmap to get started."}
+          {files.length ? t("mindmap.view.pickPrompt") : t("mindmap.view.createPrompt")}
         </div>
       ) : (
         <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
@@ -1586,10 +1594,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 onQuickAttr={quickAttr}
               />
               <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
-                Tab: child · Enter: sibling · F2 / double-click: rename · Delete: remove ·
-                Alt+arrows: reorder / indent · right-click a node: menu · drag onto a node:
-                move · right-drag: pan · wheel: zoom · sticky: drag to place, double-click to
-                edit
+                {t("mindmap.view.footerHint")}
               </div>
             </div>
           </ResizablePanel>
@@ -1628,7 +1633,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               ) : (
                 !aiOpen && (
                   <p className="p-3 text-xs text-muted-foreground">
-                    Pick a node to edit it, or press Tab to add one.
+                    {t("mindmap.view.pickNodePrompt")}
                   </p>
                 )
               )}
@@ -1658,9 +1663,9 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
 
       <ConfirmDialog
         open={deleteOpen}
-        title="Move this mindmap to the trash?"
-        description={`"${current?.title ?? ""}" is moved to _ai/state/mindmap-trash/ in the vault. Nothing is deleted, and the file can be moved back by hand.`}
-        confirmLabel="Move to trash"
+        title={t("mindmap.view.deleteConfirmTitle")}
+        description={t("mindmap.view.deleteConfirmDescription", { title: current?.title ?? "" })}
+        confirmLabel={t("mindmap.view.moveToTrash")}
         destructive
         onConfirm={() => void deleteFile()}
         onClose={() => setDeleteOpen(false)}

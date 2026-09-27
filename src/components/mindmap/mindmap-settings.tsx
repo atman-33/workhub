@@ -5,6 +5,7 @@ import { AiEditSettings } from "@/components/ai-edit-settings";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 import type { Settings } from "@/types";
 
 /**
@@ -20,12 +21,13 @@ interface Props {
 }
 
 export function MindmapSettings({ settings, disabled, onPatch }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ready = settings != null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Hint label="Mindmap settings" disabled={disabled || !ready}>
+      <Hint label={t("mindmap.settings.hint")} disabled={disabled || !ready}>
         <PopoverTrigger asChild>
           <Button
             size="sm"
@@ -40,7 +42,7 @@ export function MindmapSettings({ settings, disabled, onPatch }: Props) {
       <PopoverContent className="w-72 p-3 text-xs" align="end">
         {settings && (
           <AiEditSettings
-            subject="mindmap"
+            subject={t("nav.mindmap")}
             assignee={settings.mindmap_assignee}
             model={settings.mindmap_model}
             confirm={settings.mindmap_confirm}

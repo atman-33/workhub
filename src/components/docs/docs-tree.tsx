@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import {
   EMPTY_SELECTION,
   formatPaths,
@@ -63,10 +64,13 @@ export function pickedRowClass(picked: boolean, selected: boolean): string {
 
 /** "Copy path", or "Copy N paths" when the row is part of a pick. */
 export function CopyPathItem({ targets, actions }: { targets: string[]; actions: EntryActions }) {
+  const t = useT();
   return (
     <ContextMenuItem onSelect={() => actions.copyPaths(targets)}>
       <Copy />
-      {targets.length > 1 ? `Copy ${targets.length} paths` : "Copy path"}
+      {targets.length > 1
+        ? t("docs.entry.copyPaths", { count: targets.length })
+        : t("docs.entry.copyPath")}
     </ContextMenuItem>
   );
 }
@@ -136,6 +140,7 @@ export function DocsTree({
   picked,
   onPickedChange,
 }: Props) {
+  const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
 
   const { rows, needed } = useMemo(
@@ -265,7 +270,7 @@ export function DocsTree({
       // can mean "previous/next row" rather than "scroll".
       tabIndex={0}
       role="tree"
-      aria-label="Documents"
+      aria-label={t("docs.tree.ariaLabel")}
       onKeyDown={onKeyDown}
       className="min-h-0 flex-1 overflow-auto py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
     >
@@ -336,6 +341,7 @@ function TreeRow({
   onPick: (e: React.MouseEvent, entry: DocsEntry) => boolean;
   actions: EntryActions;
 }) {
+  const t = useT();
   const { entry, depth } = row;
   const previewable = isPreviewable(entry);
   const starred = actions.isShortcut(entry.path);
@@ -368,7 +374,7 @@ function TreeRow({
             ) : (
               <button
                 type="button"
-                aria-label={open ? "Collapse" : "Expand"}
+                aria-label={open ? t("docs.tree.collapse") : t("docs.tree.expand")}
                 className="shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -402,7 +408,11 @@ function TreeRow({
 
   return (
     <ContextMenu>
-      <Hint label={previewable ? entry.name : `${entry.name} — opens outside workhub`}>
+      <Hint
+        label={
+          previewable ? entry.name : t("docs.entry.opensOutsideHint", { name: entry.name })
+        }
+      >
         <ContextMenuTrigger asChild>
           <button
             type="button"
@@ -457,22 +467,23 @@ function EntryMenu({
   starred: boolean;
   copyTargets: string[];
 }) {
+  const t = useT();
   return (
     <ContextMenuContent>
       {!entry.is_dir && (
         <ContextMenuItem onSelect={() => actions.openExternal(entry)}>
           <ExternalLink />
-          Open with default app
+          {t("docs.entry.openWithDefaultApp")}
         </ContextMenuItem>
       )}
       <ContextMenuItem onSelect={() => actions.reveal(entry)}>
         <FolderOpen />
-        Show in Explorer
+        {t("docs.entry.showInExplorer")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={() => actions.toggleShortcut(entry)}>
         {starred ? <StarOff /> : <Star />}
-        {starred ? "Remove from shortcuts" : "Add to shortcuts"}
+        {starred ? t("docs.sidebar.removeFromShortcuts") : t("docs.entry.addToShortcuts")}
       </ContextMenuItem>
       <CopyPathItem targets={copyTargets} actions={actions} />
     </ContextMenuContent>

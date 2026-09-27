@@ -16,6 +16,7 @@
  * window applies `ui_locale` whenever its settings change.
  */
 import { create } from "zustand";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "@/lib/api";
 import { en, type MessageKey } from "./messages/en";
 import { ja } from "./messages/ja";
@@ -85,13 +86,40 @@ export async function loadLocale(): Promise<void> {
   }
 }
 
+/** Sets this window's OS title bar text to `key`'s translation in the
+ * current locale (T-0423). Rust gives every secondary window a static English
+ * title at creation time — there is no locale to read there — so a window
+ * whose title should follow the display language re-sets it from here
+ * instead. Never for a window whose title carries content the user wrote
+ * (the docs viewer's doc title, for instance) — that stays exactly as Rust
+ * built it. */
+export function setWindowTitle(key: MessageKey, vars?: TranslateVars): void {
+  void getCurrentWindow()
+    .setTitle(translate(useLocaleStore.getState().locale, key, vars))
+    .catch(() => {
+      // Best-effort: a window without the `core:window:allow-set-title`
+      // permission keeps Rust's English title rather than crashing.
+    });
+}
+
 /** Entry-point setup for a secondary window: load the locale now and again
  * whenever the window regains focus. Several of these windows are hidden and
  * re-shown rather than recreated, so a load at startup alone would keep the
- * language they were first opened in. */
-export function initWindowLocale(): void {
-  void loadLocale();
-  window.addEventListener("focus", () => void loadLocale());
+ * language they were first opened in.
+ *
+ * `titleKey`, when given, also re-applies the window's title on every load —
+ * covering both the initial one and every later locale change reached via a
+ * focus event. Omit it for a window whose title is set some other way (the
+ * docs viewer builds its own, since its title carries the open document's
+ * name). */
+export function initWindowLocale(titleKey?: MessageKey): void {
+  const apply = () => {
+    void loadLocale().then(() => {
+      if (titleKey) setWindowTitle(titleKey);
+    });
+  };
+  apply();
+  window.addEventListener("focus", apply);
 }
 
 /** The current locale; re-renders the caller when it changes. */

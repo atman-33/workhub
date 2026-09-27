@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Music } from "lucide-react";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import { toMusicData, useMusicStore } from "@/stores/music";
 import type { Config } from "@/types";
 import { AddUrlForm } from "./add-url-form";
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function MusicView({ configVersion }: Props) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [status, setStatus] = useState("");
   const hydrated = useMusicStore((state) => state.hydrated);
@@ -36,7 +38,7 @@ export function MusicView({ configVersion }: Props) {
       .then((data) => {
         if (!cancelled) useMusicStore.getState().hydrate(data);
       })
-      .catch((e) => setStatus(`Failed to load music data — ${e}`));
+      .catch((e) => setStatus(tStatic("music.view.loadFailed", { error: String(e) })));
     return () => {
       cancelled = true;
     };
@@ -62,7 +64,7 @@ export function MusicView({ configVersion }: Props) {
         void api
           .saveMusicData(vaultPath, toMusicData(useMusicStore.getState()))
           .then(() => setStatus(""))
-          .catch((e) => setStatus(`Failed to save music data — ${e}`));
+          .catch((e) => setStatus(tStatic("music.view.saveFailed", { error: String(e) })));
       }, SAVE_DEBOUNCE_MS);
     });
     return () => {
@@ -75,10 +77,8 @@ export function MusicView({ configVersion }: Props) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <Music className="size-8" />
-        <p className="text-sm">No vault configured.</p>
-        <p className="text-xs">
-          Playlists are stored in the vault — set one up in the Tasks tab first.
-        </p>
+        <p className="text-sm">{t("music.view.noVault")}</p>
+        <p className="text-xs">{t("music.view.noVaultHint")}</p>
       </div>
     );
   }

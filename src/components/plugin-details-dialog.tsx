@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { PluginView } from "@/lib/plugins";
 import type { PluginDetails, PluginEntry } from "@/types";
 
@@ -38,6 +39,7 @@ export function PluginDetailsDialog({
   vaultPath: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const [details, setDetails] = useState<PluginDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +75,7 @@ export function PluginDetailsDialog({
             )}
           </DialogTitle>
           <DialogDescription className="text-[11px] leading-relaxed">
-            {details?.description || view?.summary || "No description."}
+            {details?.description || view?.summary || t("plugins.details.noDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -83,13 +85,15 @@ export function PluginDetailsDialog({
           </p>
         )}
 
-        {!details && !error && <p className="text-xs text-muted-foreground">Loading…</p>}
+        {!details && !error && (
+          <p className="text-xs text-muted-foreground">{t("plugins.details.loading")}</p>
+        )}
 
         {details && !details.installed && (
           <p className="rounded border p-3 text-xs leading-relaxed text-muted-foreground">
             {view?.enabled
-              ? "This plugin is switched on but not installed yet, so there are no contents to read. Press Install on its row to fetch it now — otherwise Claude Code fetches it on the next launch. A session that is already running picks it up after /reload-plugins or a restart."
-              : "Nothing is installed for this plugin on this machine, so there are no contents to read."}
+              ? t("plugins.details.enabledNotInstalled")
+              : t("plugins.details.notInstalled")}
           </p>
         )}
 
@@ -100,20 +104,20 @@ export function PluginDetailsDialog({
 }
 
 function Contents({ details }: { details: PluginDetails }) {
+  const t = useT();
   // Only the tabs the plugin actually has anything for. A plugin that ships
   // three skills and nothing else should not offer three empty tabs.
   const tabs = [
-    { key: "skills", label: "Skills", count: details.skills.length },
-    { key: "agents", label: "Agents", count: details.agents.length },
-    { key: "commands", label: "Commands", count: details.commands.length },
-    { key: "hooks", label: "Hooks", count: details.hooks.length },
-  ].filter((t) => t.count > 0);
+    { key: "skills", label: t("plugins.details.tabSkills"), count: details.skills.length },
+    { key: "agents", label: t("plugins.details.tabAgents"), count: details.agents.length },
+    { key: "commands", label: t("plugins.details.tabCommands"), count: details.commands.length },
+    { key: "hooks", label: t("plugins.details.tabHooks"), count: details.hooks.length },
+  ].filter((tab) => tab.count > 0);
 
   if (tabs.length === 0) {
     return (
       <p className="rounded border p-3 text-xs leading-relaxed text-muted-foreground">
-        This plugin ships no skills, agents, commands or hooks — whatever it
-        contributes is not something that can be listed here.
+        {t("plugins.details.noContents")}
       </p>
     );
   }
@@ -121,10 +125,10 @@ function Contents({ details }: { details: PluginDetails }) {
   return (
     <Tabs defaultValue={tabs[0].key} className="flex min-h-0 flex-1 flex-col gap-3">
       <TabsList>
-        {tabs.map((t) => (
-          <TabsTrigger key={t.key} value={t.key}>
-            {t.label}
-            <span className="ml-1.5 text-muted-foreground">· {t.count}</span>
+        {tabs.map((tab) => (
+          <TabsTrigger key={tab.key} value={tab.key}>
+            {tab.label}
+            <span className="ml-1.5 text-muted-foreground">· {tab.count}</span>
           </TabsTrigger>
         ))}
       </TabsList>

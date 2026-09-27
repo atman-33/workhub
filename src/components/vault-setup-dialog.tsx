@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /** The one plugin without which the app itself stops working. */
@@ -23,8 +24,6 @@ type StepState = "checking" | "todo" | "done" | "running" | "failed";
 
 interface Step {
   id: StepId;
-  title: string;
-  detail: string;
   state: StepState;
   /** stdout/stderr of a `claude plugin` run, or the error that stopped it. */
   output: string;
@@ -32,27 +31,27 @@ interface Step {
   manual: string;
 }
 
-const STEPS: Omit<Step, "state" | "output">[] = [
-  {
-    id: "template",
-    title: "Apply the vault template",
-    detail:
-      "Creates the task, project and knowledge folders. Existing files are never overwritten.",
-    manual: "",
+/** Step wording, keyed by id; `detail` for "marketplace" is the literal CLI
+ * command rather than descriptive text, so it is never translated. */
+const STEP_KEYS: Record<StepId, { title: MessageKey; detail: MessageKey | null }> = {
+  template: {
+    title: "misc.vaultSetup.stepTemplateTitle",
+    detail: "misc.vaultSetup.stepTemplateDetail",
   },
+  marketplace: { title: "misc.vaultSetup.stepMarketplaceTitle", detail: null },
+  plugin: {
+    title: "misc.vaultSetup.stepPluginTitle",
+    detail: "misc.vaultSetup.stepPluginDetail",
+  },
+};
+
+const STEPS: Omit<Step, "state" | "output">[] = [
+  { id: "template", manual: "" },
   {
     id: "marketplace",
-    title: "Register the workhub marketplace",
-    detail: "claude plugin marketplace add atman-33/workhub",
     manual: "claude plugin marketplace add atman-33/workhub",
   },
-  {
-    id: "plugin",
-    title: "Enable the workhub plugin",
-    detail:
-      "Writes one key to ~/.claude/settings.json (user scope). Applies from the next session.",
-    manual: "claude plugin install workhub@workhub-marketplace",
-  },
+  { id: "plugin", manual: "claude plugin install workhub@workhub-marketplace" },
 ];
 
 /**
@@ -88,6 +87,7 @@ export function VaultSetupDialog({
   /** Fired after a run that changed something, so the board can reload. */
   onDone: () => void;
 }) {
+  const t = useT();
   const [steps, setSteps] = useState<Step[]>(
     STEPS.map((s) => ({ ...s, state: "checking", output: "" })),
   );
@@ -186,11 +186,11 @@ export function VaultSetupDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Set up this vault</DialogTitle>
+          <DialogTitle>{t("misc.vaultSetup.title")}</DialogTitle>
           <DialogDescription>
             {allDone
-              ? "This vault is already set up — nothing below needs running."
-              : "Three steps, run together. Each one reaches outside the vault, so nothing here runs until you press the button."}
+              ? t("misc.vaultSetup.allDoneDescription")
+              : t("misc.vaultSetup.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -220,12 +220,23 @@ export function VaultSetupDialog({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{step.title}</span>
+                    <span className="font-medium">{t(STEP_KEYS[step.id].title)}</span>
                     {step.state === "done" && (
-                      <span className="text-[10px] tracking-wide uppercase">done</span>
+                      <span className="text-[10px] tracking-wide uppercase">
+                        {t("misc.vaultSetup.done")}
+                      </span>
                     )}
                   </div>
-                  <p className="mt-0.5 leading-relaxed text-muted-foreground">{step.detail}</p>
+                  {STEP_KEYS[step.id].detail && (
+                    <p className="mt-0.5 leading-relaxed text-muted-foreground">
+                      {t(STEP_KEYS[step.id].detail as MessageKey)}
+                    </p>
+                  )}
+                  {step.id === "marketplace" && (
+                    <p className="mt-0.5 font-mono leading-relaxed text-muted-foreground">
+                      {step.manual}
+                    </p>
+                  )}
                   {step.output && (
                     <pre className="mt-1.5 max-h-24 overflow-auto rounded bg-muted/50 p-2 font-mono text-[10px] whitespace-pre-wrap">
                       {step.output}
@@ -240,11 +251,13 @@ export function VaultSetupDialog({
                         disabled={running}
                         onClick={() => void retry(step.id)}
                       >
-                        <RotateCw className="size-3" /> Retry
+                        <RotateCw className="size-3" /> {t("common.retry")}
                       </Button>
                       {step.manual && (
                         <span className="text-[11px] text-muted-foreground">
-                          or run <code className="font-mono">{step.manual}</code> yourself
+                          {t("misc.vaultSetup.orRunManuallyPrefix")}{" "}
+                          <code className="font-mono">{step.manual}</code>{" "}
+                          {t("misc.vaultSetup.orRunManuallySuffix")}
                         </span>
                       )}
                     </div>
@@ -256,15 +269,16 @@ export function VaultSetupDialog({
         </div>
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Only <code className="font-mono">workhub</code> is switched on — it is the one plugin
-          the app itself needs. The recommended ones ({SUGGESTED}) are a matter of how you like
-          to work; turn them on in the <span className="font-medium">Plugins</span> tab, where
-          you can read what each one carries first.
+          {t("misc.vaultSetup.footerNote", {
+            required: REQUIRED_PLUGIN,
+            suggested: SUGGESTED,
+            pluginsTab: t("nav.plugins"),
+          })}
         </p>
 
         <DialogFooter>
           <Button variant="outline" size="sm" disabled={running} onClick={onClose}>
-            {ran || allDone ? "Close" : "Later"}
+            {ran || allDone ? t("common.close") : t("common.later")}
           </Button>
           <Button
             size="sm"
@@ -272,8 +286,10 @@ export function VaultSetupDialog({
             onClick={() => void runAll()}
           >
             {running
-              ? "Running…"
-              : `Run setup${outstanding.length ? ` (${outstanding.length})` : ""}`}
+              ? t("misc.vaultSetup.running")
+              : outstanding.length
+                ? t("misc.vaultSetup.runSetupCount", { count: outstanding.length })
+                : t("misc.vaultSetup.runSetup")}
           </Button>
         </DialogFooter>
       </DialogContent>

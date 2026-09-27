@@ -2,15 +2,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, MonitorUp } from "lucide-react";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 
 type SendState = "idle" | "sending" | "success";
 
-const LABELS: Record<SendState, string> = {
-  idle: "Send to Claude Desktop",
-  sending: "Sending…",
-  success: "Sent",
+const LABEL_KEYS: Record<SendState, MessageKey> = {
+  idle: "misc.claudeDesktopButton.idle",
+  sending: "misc.claudeDesktopButton.sending",
+  success: "misc.claudeDesktopButton.sent",
+};
+
+/** Display labels for the `mode` prop (T-0423) — kept as a lookup so no
+ *  English word is interpolated into the translated tooltip sentence. */
+const MODE_LABEL_KEYS: Record<"chat" | "code", MessageKey> = {
+  chat: "misc.claudeDesktopButton.modeChat",
+  code: "misc.claudeDesktopButton.modeCode",
 };
 
 interface Props {
@@ -18,9 +26,9 @@ interface Props {
   onSend: () => Promise<unknown>;
   /** Render the state label next to the icon instead of an icon-only button. */
   showLabel?: boolean;
-  /** Appended to the idle tooltip, e.g. "code session" / "chat", so the user
-   * can tell which kind of session the current setting will open. */
-  mode?: string;
+  /** Appended to the idle tooltip so the user can tell which kind of session
+   * the current setting will open. */
+  mode?: "chat" | "code";
   size?: VariantProps<typeof buttonVariants>["size"];
   variant?: VariantProps<typeof buttonVariants>["variant"];
   className?: string;
@@ -41,6 +49,7 @@ export function ClaudeDesktopButton({
   className,
   disabled,
 }: Props) {
+  const t = useT();
   const [state, setState] = useState<SendState>("idle");
   const mounted = useRef(true);
   useEffect(() => {
@@ -83,7 +92,7 @@ export function ClaudeDesktopButton({
       size={resolvedSize}
       variant={variant}
       disabled={disabled || busy}
-      aria-label="Send to Claude Desktop"
+      aria-label={t("misc.claudeDesktopButton.idle")}
       aria-busy={state === "sending"}
       className={cn(
         busy && "opacity-100 disabled:opacity-100",
@@ -96,12 +105,18 @@ export function ClaudeDesktopButton({
       }}
     >
       {icon}
-      {showLabel && <span>{LABELS[state]}</span>}
+      {showLabel && <span>{t(LABEL_KEYS[state])}</span>}
     </Button>
   );
 
   if (showLabel) return button;
-  const tooltip = state === "idle" && mode ? `${LABELS.idle} (${mode})` : LABELS[state];
+  const tooltip =
+    state === "idle" && mode
+      ? t("misc.claudeDesktopButton.idleWithMode", {
+          idle: t("misc.claudeDesktopButton.idle"),
+          mode: t(MODE_LABEL_KEYS[mode]),
+        })
+      : t(LABEL_KEYS[state]);
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>

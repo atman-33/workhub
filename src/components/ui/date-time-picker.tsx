@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CalendarIcon } from "lucide-react";
 
+import { type Locale, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -46,6 +47,15 @@ const DISPLAY = new Intl.DateTimeFormat("en-US", {
   hour12: false,
 });
 
+/** The picked date as shown on the trigger. Japanese is formatted by hand:
+ * `Intl` output there would still be English month names for "en-US", and
+ * the rule is never to lean on the OS display language (T-0423). */
+function formatDisplay(date: Date, locale: Locale): string {
+  if (locale !== "ja") return DISPLAY.format(date);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 /**
  * A date **and time** picker built from Popover + Calendar + two Selects,
  * replacing the native `<input type="datetime-local">`. The native popup —
@@ -57,10 +67,12 @@ const DISPLAY = new Intl.DateTimeFormat("en-US", {
 export function DateTimePicker({
   value,
   onChange,
-  placeholder = "Pick a date and time",
+  placeholder,
   className,
   modal = false,
 }: DateTimePickerProps) {
+  const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = React.useState(false);
   const selected = value ? new Date(value * 1000) : undefined;
 
@@ -87,7 +99,9 @@ export function DateTimePicker({
         >
           <CalendarIcon className="size-3.5 shrink-0 opacity-50" />
           <span className="flex-1 truncate text-left">
-            {selected ? DISPLAY.format(selected) : placeholder}
+            {selected
+              ? formatDisplay(selected, locale)
+              : (placeholder ?? t("misc.dateTimePicker.placeholder"))}
           </span>
         </Button>
       </PopoverTrigger>
@@ -101,7 +115,7 @@ export function DateTimePicker({
           }}
         />
         <div className="flex items-center gap-1.5 border-t p-3">
-          <span className="mr-auto text-xs font-medium text-muted-foreground">Time</span>
+          <span className="mr-auto text-xs font-medium text-muted-foreground">{t("misc.dateTimePicker.time")}</span>
           <Select
             value={String(base.getHours())}
             onValueChange={(v) => emit({ hour: Number(v) })}

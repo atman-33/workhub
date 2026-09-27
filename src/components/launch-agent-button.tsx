@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, Check, Loader2 } from "lucide-react";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 
@@ -15,10 +16,10 @@ type LaunchState = "idle" | "launching" | "success";
 const MIN_LAUNCH_MS = 2500;
 const SUCCESS_MS = 1200;
 
-const LABELS: Record<LaunchState, string> = {
-  idle: "Launch agent",
-  launching: "Launching…",
-  success: "Launched",
+const LABEL_KEYS: Record<LaunchState, MessageKey> = {
+  idle: "misc.launchAgentButton.idle",
+  launching: "misc.launchAgentButton.launching",
+  success: "misc.launchAgentButton.launched",
 };
 
 interface Props {
@@ -45,6 +46,7 @@ export function LaunchAgentButton({
   className,
   disabled,
 }: Props) {
+  const t = useT();
   const [state, setState] = useState<LaunchState>("idle");
   // Guard the post-await setState calls so a dialog/card unmounting mid-launch
   // (e.g. the editor closing) doesn't warn about updating an unmounted node.
@@ -95,7 +97,7 @@ export function LaunchAgentButton({
       size={resolvedSize}
       variant={variant}
       disabled={disabled || busy}
-      aria-label="Launch agent"
+      aria-label={t("misc.launchAgentButton.idle")}
       aria-busy={state === "launching"}
       className={cn(
         // Keep the disabled-while-busy button fully visible so the animation
@@ -116,7 +118,7 @@ export function LaunchAgentButton({
       }}
     >
       {icon}
-      {showLabel && <span>{LABELS[state]}</span>}
+      {showLabel && <span>{t(LABEL_KEYS[state])}</span>}
     </Button>
   );
 
@@ -126,7 +128,7 @@ export function LaunchAgentButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>{LABELS[state]}</TooltipContent>
+      <TooltipContent>{t(LABEL_KEYS[state])}</TooltipContent>
     </Tooltip>
   );
 }

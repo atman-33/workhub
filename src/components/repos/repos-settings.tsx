@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/i18n";
 import type { Settings } from "@/types";
 
 /**
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function ReposSettings({ settings, onPatch }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<Settings>>({});
 
@@ -68,7 +70,7 @@ export function ReposSettings({ settings, onPatch }: Props) {
         setOpen(v);
       }}
     >
-      <Hint label="Repos settings" disabled={!ready}>
+      <Hint label={t("repos.settings.hint")} disabled={!ready}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" className="h-8" disabled={!ready}>
             <Settings2 className="size-3.5" />
@@ -77,11 +79,19 @@ export function ReposSettings({ settings, onPatch }: Props) {
       </Hint>
       <PopoverContent className="w-80 space-y-3 p-3 text-xs" align="end">
         <p className="text-[11px] text-muted-foreground">
-          How a repository is opened from this tab. <code className="text-[11px]">{"{path}"}</code>{" "}
-          is replaced with the repository path.
+          {t("repos.settings.intro")} <code className="text-[11px]">{"{path}"}</code>{" "}
+          {t("repos.settings.introSuffix")}
         </p>
-        {field("VS Code command", "vscode_cmd", "Also used by the Worktrees panel.")}
-        {field("Terminal command", "terminal_cmd", "Opened at the repository's folder.")}
+        {field(
+          t("repos.settings.vscodeCommand"),
+          "vscode_cmd",
+          t("repos.settings.vscodeCommandHint"),
+        )}
+        {field(
+          t("repos.settings.terminalCommand"),
+          "terminal_cmd",
+          t("repos.settings.terminalCommandHint"),
+        )}
       </PopoverContent>
     </Popover>
   );

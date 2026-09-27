@@ -3,6 +3,7 @@ import { AlertTriangle, Check, Loader2, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRestartInputListener } from "@/lib/use-restart-input-listener";
 import { Button } from "@/components/ui/button";
+import { t, useT } from "@/lib/i18n";
 import type { InputListenerDiagnostics } from "@/types";
 
 /** The gesture features stop working when the shared Raw Input listener stops
@@ -13,23 +14,24 @@ import type { InputListenerDiagnostics } from "@/types";
 const REFRESH_MS = 2000;
 
 function duration(ms: number | null): string {
-  if (ms === null) return "never";
-  if (ms < 1000) return "just now";
+  if (ms === null) return t("misc.inputListener.never");
+  if (ms < 1000) return t("misc.inputListener.justNow");
   const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 60) return t("misc.inputListener.secondsAgo", { count: secs });
+  if (secs < 3600) return t("misc.inputListener.minutesAgo", { count: Math.floor(secs / 60) });
+  return t("misc.inputListener.hoursAgo", { count: Math.floor(secs / 3600) });
 }
 
 function uptime(ms: number | null): string {
-  if (ms === null) return "not running";
+  if (ms === null) return t("misc.inputListener.notRunning");
   const mins = Math.floor(ms / 60000);
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return t("misc.inputListener.minutesFmt", { count: mins });
   const hours = Math.floor(mins / 60);
-  return `${hours}h ${mins % 60}m`;
+  return t("misc.inputListener.hoursMinutesFmt", { hours, minutes: mins % 60 });
 }
 
 export function InputListenerPanel() {
+  useT(); // subscribes this component to locale changes
   const [info, setInfo] = useState<InputListenerDiagnostics | null>(null);
   const { restart, restarting, restarted, error, setError } =
     useRestartInputListener(setInfo);
@@ -58,7 +60,7 @@ export function InputListenerPanel() {
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">Input listener</p>
+        <p className="text-sm font-medium">{t("misc.inputListener.title")}</p>
         <Button
           size="sm"
           variant="outline"
@@ -72,59 +74,53 @@ export function InputListenerPanel() {
           ) : (
             <RotateCcw className="mr-1 size-3.5" />
           )}
-          Restart listener
+          {t("misc.inputListener.restart")}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
-        The shared keyboard listener behind screen annotation (double-press Alt)
-        and the clips popup. If a gesture stops responding, restart the listener
-        here instead of restarting the app.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("misc.inputListener.description")}</p>
       {info && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <span className="text-muted-foreground">Status</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.status")}</span>
           <span className={info.running ? "" : "text-amber-500"}>
-            {info.running ? "running" : "not running"}
+            {info.running ? t("misc.inputListener.running") : t("misc.inputListener.notRunning")}
             {info.consumers.length > 0 && ` (${info.consumers.join(", ")})`}
           </span>
-          <span className="text-muted-foreground">Uptime</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.uptime")}</span>
           <span>{uptime(info.uptime_ms)}</span>
-          <span className="text-muted-foreground">Last key seen</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.lastKeySeen")}</span>
           <span className={stale ? "text-amber-500" : ""}>
-            {duration(info.last_input_ms_ago)} ({info.input_count} total)
+            {duration(info.last_input_ms_ago)}{" "}
+            {t("misc.inputListener.totalSuffix", { count: info.input_count })}
           </span>
-          <span className="text-muted-foreground">Re-registrations</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.reregistrations")}</span>
           <span>
-            {info.reregistrations}
+            {info.reregistrations}{" "}
             {info.last_reregister_reason &&
-              ` (last: ${info.last_reregister_reason}, ${duration(
-                info.last_reregister_ms_ago,
-              )})`}
+              t("misc.inputListener.lastWithReason", {
+                reason: info.last_reregister_reason,
+                when: duration(info.last_reregister_ms_ago),
+              })}
           </span>
-          <span className="text-muted-foreground">Auto rebuilds</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.autoRebuilds")}</span>
           <span>
-            {info.rebuilds}
+            {info.rebuilds}{" "}
             {info.last_rebuild_reason &&
-              ` (last: ${info.last_rebuild_reason})`}
+              t("misc.inputListener.lastReasonOnly", { reason: info.last_rebuild_reason })}
           </span>
-          <span className="text-muted-foreground">Manual restarts</span>
+          <span className="text-muted-foreground">{t("misc.inputListener.manualRestarts")}</span>
           <span>{info.restarts}</span>
         </div>
       )}
       {stale && (
         <p className="flex items-start gap-1.5 text-xs text-amber-500">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          No keystrokes have reached the listener recently. That is normal while
-          you are away from the keyboard; if a gesture is not responding while
-          you type, restart the listener.
+          {t("misc.inputListener.staleWarning")}
         </p>
       )}
       {info?.elevated_foreground && (
         <p className="flex items-start gap-1.5 text-xs text-amber-500">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          An app running as administrator is in the foreground. Windows sends no
-          keyboard input to normal-privilege apps while that is the case, so the
-          gestures cannot work over it — restarting the listener will not help.
+          {t("misc.inputListener.elevatedWarning")}
         </p>
       )}
       {(error || info?.last_error) && (

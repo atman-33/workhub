@@ -1,0 +1,203 @@
+/** English strings for miscellaneous dialogs/panels and shared UI (T-0423). */
+export const miscEn = {
+  "misc.branchCombobox.filterPlaceholder": "Filter branches…",
+  "misc.branchCombobox.loading": "Loading…",
+  "misc.branchCombobox.noBranches": "No branches.",
+  "misc.branchCombobox.local": "Local",
+  "misc.branchCombobox.remote": "Remote",
+
+  "misc.combobox.selectPlaceholder": "Select…",
+  "misc.combobox.noResults": "No results.",
+  "misc.combobox.loading": "Loading…",
+  "misc.combobox.recent": "Recent",
+  "misc.combobox.useCustom": "Use “{value}”",
+
+  "misc.recurringDialog.title": "Recurring tasks",
+  "misc.recurringDialog.description": "Rules that put a task on the board on their own schedule.",
+  "misc.recurringDialog.loadError": "Could not load the rules — {error}",
+  "misc.recurringDialog.saveError": "Save failed — {error}",
+  "misc.recurringDialog.runError": "Run failed — {error}",
+  "misc.recurringDialog.createdCount": "created {count}",
+  "misc.recurringDialog.skippedCount": "skipped {count} (still open)",
+  "misc.recurringDialog.nothingDue": "Nothing due right now.",
+  "misc.recurringDialog.runNowHint": "Save the rules, then create whatever is due right now",
+  "misc.recurringDialog.runNow": "Run now",
+  "misc.recurringDialog.saving": "Saving…",
+
+  "misc.recurringSettings.description":
+    "Rules the app turns into real tasks on their own schedule. Times are this machine's local clock; a missed occurrence (app closed) is created once at the next start, never backfilled.",
+  "misc.recurringSettings.addRule": "Add rule",
+  "misc.recurringSettings.empty": "No recurring rules yet.",
+  "misc.recurringSettings.untitled": "Untitled rule",
+  "misc.recurringSettings.nextOccurrence": " · next {time}",
+  "misc.recurringSettings.taskTitle": "Task title",
+  "misc.recurringSettings.taskTitlePlaceholder": "Weekly review",
+  "misc.recurringSettings.repeat": "Repeat",
+  "misc.recurringSettings.daily": "Daily",
+  "misc.recurringSettings.weekly": "Weekly",
+  "misc.recurringSettings.monthly": "Monthly",
+  "misc.recurringSettings.time": "Time",
+  "misc.recurringSettings.everyNDays": "Every N days (counted from the start date)",
+  "misc.recurringSettings.weekdays": "Weekdays",
+  "misc.recurringSettings.weekday.sun": "Sun",
+  "misc.recurringSettings.weekday.mon": "Mon",
+  "misc.recurringSettings.weekday.tue": "Tue",
+  "misc.recurringSettings.weekday.wed": "Wed",
+  "misc.recurringSettings.weekday.thu": "Thu",
+  "misc.recurringSettings.weekday.fri": "Fri",
+  "misc.recurringSettings.weekday.sat": "Sat",
+  "misc.recurringSettings.dayOfMonth": "Day of month (clamped in shorter months)",
+  "misc.recurringSettings.startDate": "Start date",
+  "misc.recurringSettings.dueOffset": "Due offset (days)",
+  "misc.recurringSettings.noDueDate": "no due date",
+  "misc.recurringSettings.status": "Status",
+  "misc.recurringSettings.assignee": "Assignee",
+  "misc.recurringSettings.priority": "Priority",
+  "misc.recurringSettings.project": "Project",
+  "misc.recurringSettings.noProject": "No project",
+  "misc.recurringSettings.vaultProjectPlaceholder": "vault project",
+  "misc.recurringSettings.noVaultProjects": "No vault projects. Create one in the Projects tab.",
+  "misc.recurringSettings.model": "Model",
+  "misc.recurringSettings.modelNa": "n/a for me",
+  "misc.recurringSettings.extraTags": "Extra tags (comma separated)",
+  "misc.recurringSettings.tagsPlaceholder": "routine",
+  "misc.recurringSettings.tagsNotePrefix": "Every generated task also carries",
+  "misc.recurringSettings.tagsNoteSuffix": ", which is how the app recognizes its own tasks.",
+  "misc.recurringSettings.taskBody": "Task body",
+  "misc.recurringSettings.skipTitle": "Skip while the last one is still open",
+  "misc.recurringSettings.skipDescription":
+    "Don't create the task again while an earlier one from this rule is not done. The occurrence is still marked as handled, so it won't pile up later.",
+  "misc.recurringSettings.planFirst": "Plan first (confirm)",
+  "misc.recurringSettings.gitWorktree": "Git worktree",
+  "misc.recurringSettings.lastGenerated": "Last generated: {when}",
+  "misc.recurringSettings.never": "never",
+
+  "misc.notesDialog.title": "{name} — Notes & tags",
+  "misc.notesDialog.notes": "Notes",
+  "misc.notesDialog.notesPlaceholder": "working context, TODOs, reminders…",
+  "misc.notesDialog.tags": "Tags (comma separated)",
+  "misc.notesDialog.tagsPlaceholder": "rust, work, oss",
+
+  "misc.vaultSetup.stepTemplateTitle": "Apply the vault template",
+  "misc.vaultSetup.stepTemplateDetail":
+    "Creates the task, project and knowledge folders. Existing files are never overwritten.",
+  "misc.vaultSetup.stepMarketplaceTitle": "Register the workhub marketplace",
+  "misc.vaultSetup.stepPluginTitle": "Enable the workhub plugin",
+  "misc.vaultSetup.stepPluginDetail":
+    "Writes one key to ~/.claude/settings.json (user scope). Applies from the next session.",
+  "misc.vaultSetup.title": "Set up this vault",
+  "misc.vaultSetup.allDoneDescription": "This vault is already set up — nothing below needs running.",
+  "misc.vaultSetup.description":
+    "Three steps, run together. Each one reaches outside the vault, so nothing here runs until you press the button.",
+  "misc.vaultSetup.done": "done",
+  "misc.vaultSetup.orRunManuallyPrefix": "or run",
+  "misc.vaultSetup.orRunManuallySuffix": "yourself",
+  "misc.vaultSetup.footerNote":
+    "Only {required} is switched on — it is the one plugin the app itself needs. The recommended ones ({suggested}) are a matter of how you like to work; turn them on in the {pluginsTab} tab, where you can read what each one carries first.",
+  "misc.vaultSetup.running": "Running…",
+  "misc.vaultSetup.runSetup": "Run setup",
+  "misc.vaultSetup.runSetupCount": "Run setup ({count})",
+
+  "misc.aiEditSettings.title": "Edit with AI",
+  "misc.aiEditSettings.description":
+    "Agent used when you edit this {subject} with a natural-language instruction.",
+  "misc.aiEditSettings.agent": "Agent",
+  "misc.aiEditSettings.model": "Model",
+  "misc.aiEditSettings.confirmDescription":
+    "Show what would change and wait for approval instead of applying immediately.",
+
+  "misc.terminalPanel.failedToOpen": "failed to open terminal: {error}",
+  "misc.terminalPanel.restartHint": "Restart the terminal (herdr workspaces and agents keep running)",
+  "misc.terminalPanel.restoreSize": "Restore terminal size",
+  "misc.terminalPanel.maximize": "Maximize terminal",
+  "misc.terminalPanel.exited": "herdr process exited",
+  "misc.terminalPanel.reopen": "Reopen",
+
+  "misc.diagnosticLog.title": "Diagnostic log",
+  "misc.diagnosticLog.openFolder": "Open folder",
+  "misc.diagnosticLog.description":
+    "What the app recorded while it ran. The packaged build has no console window, so this — and the log file behind it — is where a problem you want to report leaves a trace. It holds what the app did (errors, timings, window placement), never what you typed, dictated, or copied.",
+  "misc.diagnosticLog.empty": "Nothing recorded yet.",
+  "misc.diagnosticLog.autoRefresh": "Auto-refresh",
+
+  "misc.inputListener.never": "never",
+  "misc.inputListener.justNow": "just now",
+  "misc.inputListener.secondsAgo": "{count}s ago",
+  "misc.inputListener.minutesAgo": "{count}m ago",
+  "misc.inputListener.hoursAgo": "{count}h ago",
+  "misc.inputListener.notRunning": "not running",
+  "misc.inputListener.minutesFmt": "{count}m",
+  "misc.inputListener.hoursMinutesFmt": "{hours}h {minutes}m",
+  "misc.inputListener.title": "Input listener",
+  "misc.inputListener.restart": "Restart listener",
+  "misc.inputListener.description":
+    "The shared keyboard listener behind screen annotation (double-press Alt) and the clips popup. If a gesture stops responding, restart the listener here instead of restarting the app.",
+  "misc.inputListener.status": "Status",
+  "misc.inputListener.running": "running",
+  "misc.inputListener.uptime": "Uptime",
+  "misc.inputListener.lastKeySeen": "Last key seen",
+  "misc.inputListener.totalSuffix": "({count} total)",
+  "misc.inputListener.reregistrations": "Re-registrations",
+  "misc.inputListener.autoRebuilds": "Auto rebuilds",
+  "misc.inputListener.manualRestarts": "Manual restarts",
+  "misc.inputListener.lastWithReason": "(last: {reason}, {when})",
+  "misc.inputListener.lastReasonOnly": "(last: {reason})",
+  "misc.inputListener.staleWarning":
+    "No keystrokes have reached the listener recently. That is normal while you are away from the keyboard; if a gesture is not responding while you type, restart the listener.",
+  "misc.inputListener.elevatedWarning":
+    "An app running as administrator is in the foreground. Windows sends no keyboard input to normal-privilege apps while that is the case, so the gestures cannot work over it — restarting the listener will not help.",
+
+  "misc.launchAgentButton.idle": "Launch agent",
+  "misc.launchAgentButton.launching": "Launching…",
+  "misc.launchAgentButton.launched": "Launched",
+
+  "misc.copyPromptButton.copying": "Copying…",
+  "misc.copyPromptButton.default": "Copy prompt",
+
+  "misc.openInObsidianButton.label": "Edit in Obsidian",
+
+  "misc.claudeDesktopButton.idle": "Send to Claude Desktop",
+  "misc.claudeDesktopButton.sending": "Sending…",
+  "misc.claudeDesktopButton.sent": "Sent",
+  "misc.claudeDesktopButton.idleWithMode": "{idle} ({mode})",
+
+  "misc.navListenerButton.restartFailed": "Restart failed: {error}",
+  "misc.navListenerButton.restarted": "Input listener restarted",
+  "misc.navListenerButton.hint":
+    "Restart input listener\nUse when the double-press Alt annotation or the clips popup stops responding",
+  "misc.navListenerButton.ariaLabel": "Restart input listener",
+
+  "misc.modelCombobox.agentDefault": "agent default",
+  "misc.modelCombobox.noModels": "No models.",
+  "misc.modelCombobox.catalogError": "opencode model list unavailable — {error}",
+
+  "misc.changeFileList.noChanges": "No changes.",
+  "misc.changeFileList.filesHeading": "Files",
+  "misc.changeFileList.treeView": "Tree view",
+  "misc.changeFileList.flatView": "Flat view",
+
+  "misc.errorBoundary.title": "The {label} view stopped with an error.",
+  "misc.errorBoundary.description":
+    "The rest of the app is still running. This was written to the diagnostic log (Settings → Diagnostics), so it is still readable after a restart.",
+  "misc.errorBoundary.tryAgain": "Try again",
+  "misc.errorBoundary.copyDetails": "Copy details",
+
+  "misc.vaultScopedBadge.label": "Vault",
+  "misc.vaultScopedBadge.tooltip":
+    "Stored in the vault (.workhub/settings.json), so it follows the vault to your other machines. Machine-specific settings stay in ~/.workhub/config.json.",
+
+  "misc.backlogStatus.idea": "Idea",
+  "misc.backlogStatus.ready": "Ready",
+  "misc.backlogStatus.doing": "Doing",
+  "misc.backlogStatus.done": "Done",
+  "misc.backlogStatus.dropped": "Dropped",
+
+  "misc.claudeDesktopButton.modeChat": "chat",
+  "misc.claudeDesktopButton.modeCode": "code session",
+
+  "misc.markdown.copyCode": "Copy code",
+  "misc.markdown.openFigure": "Open in a window",
+  "misc.markdown.openFigureHint": "Open in a window (or double-click)",
+  "misc.dateTimePicker.placeholder": "Pick a date and time",
+  "misc.dateTimePicker.time": "Time",
+} as const;

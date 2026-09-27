@@ -11,6 +11,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import { t as i18nT, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { InboxNote, Settings } from "@/types";
 
@@ -41,11 +42,12 @@ function formatDate(unixSecs: number): string {
 }
 
 function formatAge(days: number): string {
-  if (days <= 0) return "today";
-  return `${days}d`;
+  if (days <= 0) return i18nT("inbox.today");
+  return i18nT("inbox.daysAgo", { days });
 }
 
 export function InboxView({ configVersion, active }: Props) {
+  const t = useT();
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   // Held whole rather than as the few tidy fields, because the settings popover
   // patches onto it and `patchSettings` merges the patch into a fresh read
@@ -122,7 +124,7 @@ export function InboxView({ configVersion, active }: Props) {
   if (!vaultPath) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        Set a vault path in Settings to see the notes waiting in its inbox.
+        {t("inbox.noVault")}
       </div>
     );
   }
@@ -131,13 +133,15 @@ export function InboxView({ configVersion, active }: Props) {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
         <Inbox className="size-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">Inbox</span>
+        <span className="text-xs font-medium">{t("inbox.title")}</span>
         <span className="text-[11px] text-muted-foreground">
-          {notes.length} note{notes.length === 1 ? "" : "s"}
+          {t(notes.length === 1 ? "inbox.noteCountOne" : "inbox.noteCountOther", {
+            count: notes.length,
+          })}
           {notes.some((n) => n.pending) &&
-            ` · ${notes.filter((n) => n.pending).length} with a proposal`}
+            ` ${t("inbox.withProposal", { count: notes.filter((n) => n.pending).length })}`}
         </span>
-        <Hint label="Reload" disabled={loading}>
+        <Hint label={t("inbox.reload")} disabled={loading}>
           <Button
             size="icon-xs"
             variant="ghost"
@@ -162,7 +166,7 @@ export function InboxView({ configVersion, active }: Props) {
           <div className="h-full overflow-y-auto">
             {notes.length === 0 && !loading && (
               <p className="p-4 text-xs text-muted-foreground">
-                Nothing is waiting in the inbox.
+                {t("inbox.empty")}
               </p>
             )}
             {notes.map((note) => (
@@ -180,7 +184,7 @@ export function InboxView({ configVersion, active }: Props) {
                 <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span>{formatDate(note.modified)}</span>
                   <Hint
-                    label={note.stale ? "Old enough for the vault-tidy routine to act on" : undefined}
+                    label={note.stale ? t("inbox.staleHint") : undefined}
                   >
                     <span
                       className={cn(
@@ -191,7 +195,7 @@ export function InboxView({ configVersion, active }: Props) {
                       {note.pending && (
                         <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 text-primary">
                           <Lightbulb className="size-2.5" />
-                          proposal
+                          {t("inbox.proposalBadge")}
                         </span>
                       )}
                     </span>
@@ -222,30 +226,29 @@ export function InboxView({ configVersion, active }: Props) {
                   <div className="border-t bg-muted/30 px-4 py-3 text-xs">
                     <p className="mb-1 flex items-center gap-1.5 font-medium">
                       <Lightbulb className="size-3.5 text-primary" />
-                      Vault tidy deferred this note
+                      {t("inbox.tidyDeferred")}
                     </p>
                     {current.pending.proposal && (
                       <p className="text-muted-foreground">
-                        <span className="text-foreground">Proposal:</span>{" "}
+                        <span className="text-foreground">{t("inbox.proposalLabel")}</span>{" "}
                         {current.pending.proposal}
                       </p>
                     )}
                     {current.pending.reason && (
                       <p className="text-muted-foreground">
-                        <span className="text-foreground">Reason:</span>{" "}
+                        <span className="text-foreground">{t("inbox.reasonLabel")}</span>{" "}
                         {current.pending.reason}
                       </p>
                     )}
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Filing is still done in Obsidian — acting on a proposal from here
-                      comes later.
+                      {t("inbox.filingNote")}
                     </p>
                   </div>
                 )}
               </>
             ) : (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                Select a note to preview it.
+                {t("inbox.selectNote")}
               </div>
             )}
           </div>

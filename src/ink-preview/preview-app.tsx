@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
+import { t as tStatic, useT } from "@/lib/i18n";
 import {
   CURSORS,
   MIN_DRAG,
@@ -48,6 +49,7 @@ function TipButton({ label, ...props }: ComponentProps<typeof Button> & { label:
 }
 
 export function PreviewApp() {
+  const t = useT();
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [src, setSrc] = useState("");
@@ -186,7 +188,7 @@ export function PreviewApp() {
       const saved = await api.saveInkCrop(path, render());
       // The main window's list refreshes itself on the backend's
       // captures-changed event; this just confirms what landed.
-      setSavedNote(`Saved ${saved.split("/").pop() ?? saved}`);
+      setSavedNote(tStatic("ink.preview.savedNote", { name: saved.split("/").pop() ?? saved }));
       setTimeout(() => setSavedNote(""), 2500);
     } catch (e) {
       setError(String(e));
@@ -248,38 +250,38 @@ export function PreviewApp() {
         <Scissors className="size-3.5 shrink-0 text-muted-foreground" />
         <Hint label={path}>
           <span className="min-w-0 truncate text-xs font-medium">
-            {name || "Ink preview"}
+            {name || t("ink.preview.fallbackName")}
           </span>
         </Hint>
           <span className="shrink-0 text-[11px] text-muted-foreground">
-            {selection ? `${selection} selected` : natural}
+            {selection ? t("ink.preview.selected", { selection }) : natural}
           </span>
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             <TipButton
-              label={rect ? "Copy selection (Ctrl+C)" : "Copy image (Ctrl+C)"}
+              label={rect ? t("ink.preview.copySelectionHint") : t("ink.preview.copyImageHint")}
               disabled={busy || (!src && !rect)}
               onClick={() => void copy()}
-              aria-label="Copy to clipboard"
+              aria-label={t("ink.preview.copyToClipboardAria")}
             >
               {copied ? <Check className="text-emerald-500" /> : <Copy />}
             </TipButton>
             <TipButton
-              label="Save the selection beside the original (Enter)"
+              label={t("ink.preview.saveCropHint")}
               disabled={busy || !rect}
               onClick={() => void saveCrop()}
-              aria-label="Save crop"
+              aria-label={t("ink.preview.saveCropAria")}
             >
               <Save />
             </TipButton>
             <TipButton
-              label="Clear the selection (Esc)"
+              label={t("ink.preview.clearSelectionHint")}
               disabled={!rect}
               onClick={() => setRect(null)}
-              aria-label="Clear selection"
+              aria-label={t("ink.preview.clearSelectionAria")}
             >
               <Crop />
             </TipButton>
-            <TipButton label="Close (Esc)" onClick={hide} aria-label="Close preview">
+            <TipButton label={t("ink.preview.closeHint")} onClick={hide} aria-label={t("ink.preview.closeAria")}>
               <X />
             </TipButton>
           </div>
@@ -329,8 +331,7 @@ export function PreviewApp() {
             </p>
           ) : (
             <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-              Drag to select · drag its edges to adjust · drag inside to move · Ctrl+C copies · Enter
-              saves the crop · Esc clears, then closes
+              {t("ink.preview.footerHint")}
             </p>
           )}
         </div>

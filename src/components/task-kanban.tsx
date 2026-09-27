@@ -276,7 +276,7 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                         <>
                           <CopyPromptButton onCopy={() => onCopyTaskPrompt(task)} />
                           <ClaudeDesktopButton
-                            mode={claudeDesktopMode === "chat" ? "chat" : "code session"}
+                            mode={claudeDesktopMode === "chat" ? "chat" : "code"}
                             onSend={() => onSendToClaudeDesktop(task)}
                           />
                           <LaunchAgentButton onLaunch={() => onLaunchAgent(task)} />

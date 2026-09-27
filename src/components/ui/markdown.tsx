@@ -9,6 +9,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { calloutKind, colonBlocksToCallouts, rehypeCallouts } from "@/lib/callouts";
 import { rehypeLineNumbers } from "@/lib/docs/rehype-line";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
 import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
@@ -25,6 +26,7 @@ function nodeText(node: React.ReactNode): string {
 }
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const [copied, setCopied] = React.useState(false);
   const copy = () => {
     const text = nodeText(children).replace(/\n$/, "");
@@ -38,7 +40,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       <button
         type="button"
         onClick={copy}
-        aria-label="Copy code"
+        aria-label={t("misc.markdown.copyCode")}
         className="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
       >
         {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
@@ -114,6 +116,7 @@ function FigureFrame({
   inline?: boolean;
   children: React.ReactNode;
 }) {
+  const t = useT();
   if (!onOpen) return <>{children}</>;
   return (
     <span
@@ -130,8 +133,8 @@ function FigureFrame({
       <button
         type="button"
         onClick={onOpen}
-        aria-label="Open in a window"
-        title="Open in a window (or double-click)"
+        aria-label={t("misc.markdown.openFigure")}
+        title={t("misc.markdown.openFigureHint")}
         className="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/figure:opacity-100"
       >
         <Maximize2Icon className="size-3" />

@@ -72,7 +72,7 @@ import {
 } from "@/lib/app-zoom";
 import { installedVersions, workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
-import { applyLocale, useT, type MessageKey } from "@/lib/i18n";
+import { applyLocale, setWindowTitle, useLocale, useT, type MessageKey } from "@/lib/i18n";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
 import { cn } from "@/lib/utils";
 import type { Notice, Settings, TemplateDiff, UpdateInfo } from "@/types";
@@ -248,6 +248,12 @@ export default function App() {
   useEffect(() => {
     if (uiLocale !== undefined) applyLocale(uiLocale);
   }, [uiLocale]);
+  // The main window's title carries no per-session content, unlike the docs
+  // viewer's — so it just follows the display language directly (T-0423).
+  const locale = useLocale();
+  useEffect(() => {
+    setWindowTitle("app.windowTitle");
+  }, [locale]);
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [templateDiff, setTemplateDiff] = useState<TemplateDiff | null>(null);

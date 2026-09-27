@@ -33,11 +33,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Config, MeetingStructStatus, SttModelStatus, VoiceCaptureStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
 
 const MAX_ENTRIES = 50;
 
+// Model names are what whisper.cpp calls them upstream — not translated.
 const VOICE_MODELS: { id: string; label: string; size: string }[] = [
   { id: "tiny", label: "Tiny", size: "75MB" },
   { id: "base", label: "Base", size: "142MB" },
@@ -46,10 +48,10 @@ const VOICE_MODELS: { id: string; label: string; size: string }[] = [
   { id: "large-v3-turbo-q5_0", label: "Large v3 Turbo (quantized)", size: "547MB" },
 ];
 
-const VOICE_LANGUAGES: { id: string; label: string }[] = [
-  { id: "auto", label: "Auto-detect" },
-  { id: "ja", label: "Japanese" },
-  { id: "en", label: "English" },
+const VOICE_LANGUAGES: { id: string; labelKey: MessageKey }[] = [
+  { id: "auto", labelKey: "voice.settings.language.auto" },
+  { id: "ja", labelKey: "voice.settings.language.ja" },
+  { id: "en", labelKey: "voice.settings.language.en" },
 ];
 
 function formatCreated(iso: string): string {
@@ -65,6 +67,7 @@ function HistoryRow({
   entry: VoiceHistoryEntry;
   onDelete: (id: string) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -81,14 +84,19 @@ function HistoryRow({
           {formatCreated(entry.created)} · {entry.model}
         </span>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="icon-xs" variant="ghost" onClick={() => void handleCopy()} aria-label="Copy">
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            onClick={() => void handleCopy()}
+            aria-label={t("voice.history.copyAria")}
+          >
             {copied ? <Check className="text-emerald-500" /> : <Copy />}
           </Button>
           <Button
             size="icon-xs"
             variant="ghost"
             onClick={() => onDelete(entry.id)}
-            aria-label="Delete"
+            aria-label={t("voice.history.deleteAria")}
           >
             <Trash2 />
           </Button>
@@ -110,6 +118,7 @@ function HistoryRow({
 
 /** The voice-input settings and the local whisper models. */
 function VoiceSettings({ configVersion }: { configVersion: number }) {
+  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [hotkey, setHotkey] = useState("");
   const [modelStatus, setModelStatus] = useState<SttModelStatus[]>([]);
@@ -209,9 +218,9 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
           disabled={!config}
           onCheckedChange={(v) => void patchSettings({ voice_enabled: v })}
         />
-        <span className="text-xs">Enable voice input</span>
+        <span className="text-xs">{t("voice.settings.enable")}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Hotkey</span>
+          <span className="text-xs text-muted-foreground">{t("voice.settings.hotkey")}</span>
           <Input
             value={hotkey}
             disabled={!config || !enabled}
@@ -229,7 +238,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Model</span>
+          <span className="text-xs text-muted-foreground">{t("voice.settings.model")}</span>
           <Select
             value={settings?.voice_model ?? "small"}
             disabled={!config || !enabled}
@@ -248,7 +257,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Language</span>
+          <span className="text-xs text-muted-foreground">{t("voice.settings.language")}</span>
           <Select
             value={settings?.voice_language ?? "auto"}
             disabled={!config || !enabled}
@@ -260,14 +269,14 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
             <SelectContent>
               {VOICE_LANGUAGES.map((l) => (
                 <SelectItem key={l.id} value={l.id}>
-                  {l.label}
+                  {t(l.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Indicator</span>
+          <span className="text-xs text-muted-foreground">{t("voice.settings.indicator")}</span>
           <Select
             value={settings?.voice_indicator_placement ?? "caret"}
             disabled={!config || !enabled}
@@ -281,8 +290,8 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
               <SelectValue className="truncate" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="caret">Follow the text cursor</SelectItem>
-              <SelectItem value="fixed">Fixed (remembers where you drag it)</SelectItem>
+              <SelectItem value="caret">{t("voice.settings.indicatorCaret")}</SelectItem>
+              <SelectItem value="fixed">{t("voice.settings.indicatorFixed")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -292,23 +301,23 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
             disabled={!config || !enabled}
             onCheckedChange={(v) => void patchSettings({ voice_system_audio: v })}
           />
-          <span className="text-xs">Include system audio</span>
+          <span className="text-xs">{t("voice.settings.includeSystemAudio")}</span>
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Press the hotkey to dictate into the focused app.{" "}
+        {t("voice.settings.hintPrefix")}{" "}
         {settings?.voice_indicator_placement === "fixed"
-          ? "The indicator appears where you last dragged it, or bottom-center of the primary screen."
-          : "The indicator appears next to the text cursor of the app you are dictating into, or by the mouse pointer when no text cursor can be found."}{" "}
-        Turn on <b>Include system audio</b> during online meetings to also transcribe the other side's
-        voice (headphones recommended — with speakers, the remote voice is recorded twice).
+          ? t("voice.settings.hintIndicatorFixed")
+          : t("voice.settings.hintIndicatorCaret")}{" "}
+        {t("voice.settings.hintSystemAudioPrefix")} <b>{t("voice.settings.hintSystemAudioBold")}</b>{" "}
+        {t("voice.settings.hintSystemAudioSuffix")}
       </p>
 
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">Local models</p>
+        <p className="text-xs font-medium text-muted-foreground">{t("voice.models.title")}</p>
         {noModel && (
           <p className="text-[11px] text-amber-600 dark:text-amber-400">
-            No model downloaded yet — download one before dictating.
+            {t("voice.models.none")}
           </p>
         )}
         <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
@@ -323,7 +332,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
                     <span className="shrink-0 text-muted-foreground">({m.size})</span>
                     {status?.active && (
                       <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">
-                        active
+                        {t("voice.models.active")}
                       </span>
                     )}
                   </span>
@@ -332,7 +341,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
                       type="button"
                       size="icon-xs"
                       variant="ghost"
-                      aria-label={`Delete ${m.label}`}
+                      aria-label={t("voice.models.deleteAria", { model: m.label })}
                       onClick={() => void deleteModel(m.id)}
                       disabled={isDownloading}
                     >
@@ -343,7 +352,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
                       type="button"
                       size="icon-xs"
                       variant="ghost"
-                      aria-label={`Download ${m.label}`}
+                      aria-label={t("voice.models.downloadAria", { model: m.label })}
                       onClick={() => void downloadModel(m.id)}
                       disabled={isDownloading}
                     >
@@ -383,6 +392,7 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
  * the clipboard and run in whatever agent is at hand (Claude Code /
  * OpenCode). */
 function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean) => void }) {
+  const t = useT();
   const [active, setActive] = useState<VoiceMeeting | null>(null);
   const [meetings, setMeetings] = useState<VoiceMeeting[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -590,52 +600,61 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
   const structLine = !active
     ? null
     : struct?.running
-      ? "Structuring…"
+      ? t("voice.meeting.structuring")
       : struct?.lastError
-        ? `Structure failed: ${struct.lastError}`
+        ? t("voice.meeting.structureFailed", { error: struct.lastError })
         : struct?.lastOkAt
-          ? `Structured ${new Date(struct.lastOkAt * 1000).toLocaleString()} · every ${struct.intervalSecs}s`
+          ? t("voice.meeting.structured", {
+              when: new Date(struct.lastOkAt * 1000).toLocaleString(),
+              seconds: struct.intervalSecs,
+            })
           : struct && struct.intervalSecs === 0
-            ? "Auto-structure off"
-            : `Auto-structure every ${struct?.intervalSecs ?? 120}s`;
+            ? t("voice.meeting.autoStructureOff")
+            : t("voice.meeting.autoStructureEvery", { seconds: struct?.intervalSecs ?? 120 });
 
   return (
     <div className="flex shrink-0 flex-col gap-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <FileText className="size-4 text-muted-foreground" />
-        <h3 className="text-xs font-medium">Meeting mode</h3>
+        <h3 className="text-xs font-medium">{t("voice.meeting.title")}</h3>
         {active ? (
           capture?.recording ? (
             <span className="flex items-center gap-1.5 text-xs text-red-500">
               <span className="size-2 animate-pulse rounded-full bg-red-500" />
-              Recording · {active.entries} entr{active.entries === 1 ? "y" : "ies"}
+              {t("voice.meeting.recording", { count: active.entries })}
             </span>
           ) : capture?.transcribing ? (
-            <span className="text-xs text-muted-foreground">Transcribing…</span>
+            <span className="text-xs text-muted-foreground">
+              {t("voice.meeting.transcribing")}
+            </span>
           ) : (
             <span className="text-xs text-amber-600 dark:text-amber-400">
-              Paused — auto-capture held (indicator stop or hotkey)
+              {t("voice.meeting.paused")}
             </span>
           )
         ) : (
-          <span className="text-xs text-muted-foreground">
-            Recording runs on its own during the meeting; each utterance is appended here
-          </span>
+          <span className="text-xs text-muted-foreground">{t("voice.meeting.idleHint")}</span>
         )}
         <div className="ml-auto flex items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
-              <Button size="icon-xs" variant="ghost" aria-label="Auto-structure settings">
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={t("voice.meeting.autoStructureSettingsAria")}
+              >
                 <Settings2 />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 space-y-3">
               <p className="flex items-center gap-2 text-sm font-medium">
-                Auto-structure
+                {t("voice.meeting.autoStructure")}
                 <VaultScopedBadge />
               </p>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Agent</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("voice.meeting.agent")}
+                </label>
                 <Select
                   value={structSettings?.meeting_struct_assignee ?? "claude-code"}
                   onValueChange={(v) => void patchStructSettings({ meeting_struct_assignee: v })}
@@ -650,7 +669,9 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Model</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("voice.meeting.model")}
+                </label>
                 <ModelCombobox
                   assignee={structSettings?.meeting_struct_assignee ?? "claude-code"}
                   value={structSettings?.meeting_struct_model ?? ""}
@@ -659,7 +680,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Every (seconds, 0 = off)
+                  {t("voice.meeting.intervalLabel")}
                 </label>
                 <Input
                   type="number"
@@ -678,11 +699,11 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Meetings folder (in vault)
+                  {t("voice.meeting.folderLabel")}
                 </label>
                 <Input
                   value={structSettings?.voice_meetings_dir ?? "voice/meetings"}
-                  placeholder="voice/meetings"
+                  placeholder={t("voice.meeting.folderPlaceholder")}
                   onChange={(e) =>
                     void patchStructSettings({
                       voice_meetings_dir: e.target.value,
@@ -692,8 +713,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Only new transcript goes to the agent — a run with nothing new costs nothing.
-                New meetings go into this folder.
+                {t("voice.meeting.autoStructureHint")}
               </p>
             </PopoverContent>
           </Popover>
@@ -704,18 +724,18 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               onClick={() => void handleCopyPrompt(shownId)}
             >
               {copied ? <Check className="text-emerald-500" /> : <Copy />}
-              Minutes prompt
+              {t("voice.meeting.minutesPrompt")}
             </Button>
           )}
           {active && (
             <Button size="xs" variant="outline" onClick={() => void handleStructNow()}>
               <Sparkles />
-              Structure now
+              {t("voice.meeting.structureNow")}
             </Button>
           )}
           {active && (
             <Button size="xs" variant="ghost" onClick={() => void handleRepro()}>
-              Terminal
+              {t("voice.meeting.terminal")}
             </Button>
           )}
           {shownId && (
@@ -724,24 +744,24 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               variant={showLog ? "outline" : "ghost"}
               onClick={() => setShowLog((v) => !v)}
             >
-              Run log
+              {t("voice.meeting.runLog")}
             </Button>
           )}
           {active && capture && !capture.recording && !capture.transcribing && (
             <Button size="xs" variant="outline" onClick={() => void handleStart()}>
               <Play />
-              Resume
+              {t("voice.meeting.resume")}
             </Button>
           )}
           {active ? (
             <Button size="xs" variant="outline" onClick={() => void handleStop()}>
               <Square />
-              Stop meeting
+              {t("voice.meeting.stopMeeting")}
             </Button>
           ) : (
             <Button size="xs" variant="outline" onClick={() => void handleStart()}>
               <Play />
-              Start meeting
+              {t("voice.meeting.startMeeting")}
             </Button>
           )}
         </div>
@@ -763,21 +783,25 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
               variant={minutesView ? "ghost" : "outline"}
               onClick={() => setMinutesView(false)}
             >
-              Transcript
+              {t("voice.meeting.transcriptTab")}
             </Button>
             <Button
               size="xs"
               variant={minutesView ? "outline" : "ghost"}
               onClick={() => setMinutesView(true)}
             >
-              Minutes
+              {t("voice.meeting.minutesTab")}
             </Button>
             <div className="ml-auto flex items-center gap-1">
               <Button
                 size="icon-xs"
                 variant="ghost"
                 onClick={() => void handleCopyBody()}
-                aria-label={minutesView ? "Copy minutes" : "Copy transcript"}
+                aria-label={
+                  minutesView
+                    ? t("voice.meeting.copyMinutesAria")
+                    : t("voice.meeting.copyTranscriptAria")
+                }
               >
                 {copiedBody ? <Check className="text-emerald-500" /> : <Copy />}
               </Button>
@@ -785,7 +809,11 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                 size="icon-xs"
                 variant="ghost"
                 onClick={() => setExpanded(true)}
-                aria-label={minutesView ? "Expand minutes" : "Expand transcript"}
+                aria-label={
+                  minutesView
+                    ? t("voice.meeting.expandMinutesAria")
+                    : t("voice.meeting.expandTranscriptAria")
+                }
               >
                 <Maximize2 />
               </Button>
@@ -793,14 +821,14 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
           </div>
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-xs select-text">
             {minutesView
-              ? minutes || "Not structured yet…"
-              : transcript || "Waiting for the first transcript…"}
+              ? minutes || t("voice.meeting.notStructuredYet")
+              : transcript || t("voice.meeting.waitingForFirstTranscript")}
           </pre>
           <Dialog open={expanded} onOpenChange={(o) => !o && setExpanded(false)}>
             <DialogContent className="sm:max-w-3xl" draggable>
               <DialogHeader>
                 <DialogTitle>
-                  {minutesView ? "Minutes" : "Transcript"}
+                  {minutesView ? t("voice.meeting.minutesTab") : t("voice.meeting.transcriptTab")}
                 </DialogTitle>
               </DialogHeader>
               <div className="flex justify-end">
@@ -810,13 +838,13 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                   onClick={() => void handleCopyBody()}
                 >
                   {copiedBody ? <Check className="text-emerald-500" /> : <Copy />}
-                  Copy
+                  {t("voice.meeting.copy")}
                 </Button>
               </div>
               <pre className="max-h-[60dvh] overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-3 text-xs select-text">
                 {minutesView
-                  ? minutes || "Not structured yet…"
-                  : transcript || "Waiting for the first transcript…"}
+                  ? minutes || t("voice.meeting.notStructuredYet")
+                  : transcript || t("voice.meeting.waitingForFirstTranscript")}
               </pre>
             </DialogContent>
           </Dialog>
@@ -825,7 +853,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
 
       {showLog && shownId && (
         <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px] select-text">
-          {structLog || "No structuring runs logged yet…"}
+          {structLog || t("voice.meeting.noRunsLogged")}
         </pre>
       )}
 
@@ -838,14 +866,14 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
                 onClick={() => setOpenId((o) => (o === m.id ? null : m.id))}
                 className="min-w-0 flex-1 truncate text-left text-muted-foreground hover:text-foreground"
               >
-                {formatCreated(m.started)} · {m.entries} entr{m.entries === 1 ? "y" : "ies"}
-                {m.id === active?.id && " (live)"}
+                {t("voice.meeting.listRow", { when: formatCreated(m.started), count: m.entries })}
+                {m.id === active?.id && t("voice.meeting.listRowLive")}
               </button>
               <Button
                 size="icon-xs"
                 variant="ghost"
                 onClick={() => setDeleteTarget(m)}
-                aria-label="Delete meeting"
+                aria-label={t("voice.meeting.deleteAria")}
               >
                 <Trash2 />
               </Button>
@@ -858,13 +886,16 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete meeting"
+        title={t("voice.meeting.deleteTitle")}
         description={
           deleteTarget
-            ? `Delete the meeting from ${formatCreated(deleteTarget.started)} with ${deleteTarget.entries} entr${deleteTarget.entries === 1 ? "y" : "ies"}? Its transcript, minutes and run log are removed. This cannot be undone.`
+            ? t("voice.meeting.deleteDescription", {
+                when: formatCreated(deleteTarget.started),
+                count: deleteTarget.entries,
+              })
             : ""
         }
-        confirmLabel="Delete"
+        confirmLabel={t("voice.meeting.deleteConfirm")}
         destructive
         onConfirm={() => void confirmDelete()}
         onClose={() => setDeleteTarget(null)}
@@ -874,6 +905,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
 }
 
 export function VoiceView({ configVersion }: { configVersion: number }) {
+  const t = useT();
   const [entries, setEntries] = useState<VoiceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearOpen, setClearOpen] = useState(false);
@@ -924,20 +956,20 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       <div className="flex shrink-0 items-center gap-2">
         <Mic className="size-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium">Voice</h2>
+        <h2 className="text-sm font-medium">{t("voice.header.title")}</h2>
         <span className="truncate text-xs text-muted-foreground">
-          Dictate into any app with a hotkey, transcribed locally
+          {t("voice.header.subtitle")}
         </span>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1">
         <TabsList className="shrink-0">
-          <TabsTrigger value="dictate">Dictate</TabsTrigger>
+          <TabsTrigger value="dictate">{t("voice.tab.dictate")}</TabsTrigger>
           <TabsTrigger value="meeting">
-            Meeting
+            {t("voice.tab.meeting")}
             {meetingLive && <span className="size-1.5 rounded-full bg-red-500" />}
           </TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="history">{t("voice.tab.history")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dictate" className="min-h-0 flex-1 overflow-y-auto">
@@ -953,10 +985,9 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
           className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
         >
           <div className="flex shrink-0 items-center gap-2">
-            <h3 className="text-xs font-medium">History</h3>
+            <h3 className="text-xs font-medium">{t("voice.history.title")}</h3>
             <span className="text-xs text-muted-foreground">
-              {entries.length} entr{entries.length === 1 ? "y" : "ies"} · only the latest{" "}
-              {MAX_ENTRIES} are kept
+              {t("voice.history.count", { count: entries.length, max: MAX_ENTRIES })}
             </span>
             <Button
               size="xs"
@@ -965,18 +996,15 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
               disabled={entries.length === 0}
               onClick={() => setClearOpen(true)}
             >
-              Clear all
+              {t("voice.history.clearAll")}
             </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
+              <p className="text-sm text-muted-foreground">{t("voice.history.loading")}</p>
             ) : entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No voice transcripts yet. Recordings are saved here automatically, even if the
-                paste into another app fails or its target loses focus.
-              </p>
+              <p className="text-sm text-muted-foreground">{t("voice.history.empty")}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {entries.map((entry) => (
@@ -996,9 +1024,9 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
 
       <ConfirmDialog
         open={clearOpen}
-        title="Clear voice history"
-        description={`Delete all ${entries.length} saved transcript${entries.length === 1 ? "" : "s"}? This cannot be undone.`}
-        confirmLabel="Clear all"
+        title={t("voice.history.clearTitle")}
+        description={t("voice.history.clearDescription", { count: entries.length })}
+        confirmLabel={t("voice.history.clearConfirm")}
         destructive
         onConfirm={confirmClear}
         onClose={() => setClearOpen(false)}
@@ -1006,13 +1034,15 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete transcript"
+        title={t("voice.history.deleteTranscriptTitle")}
         description={
           deleteTarget
-            ? `Delete the transcript from ${formatCreated(deleteTarget.created)}? This cannot be undone.`
+            ? t("voice.history.deleteTranscriptDescription", {
+                when: formatCreated(deleteTarget.created),
+              })
             : ""
         }
-        confirmLabel="Delete"
+        confirmLabel={t("voice.history.deleteConfirm")}
         destructive
         onConfirm={confirmDelete}
         onClose={() => setDeleteTarget(null)}

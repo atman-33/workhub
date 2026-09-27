@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { COL_W, ROW_H, type Edge, type RowLayout } from "@/lib/git-graph";
 import { formatCommitDate, formatCommitDateFull } from "@/lib/commit-format";
 import { timeAgo } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CommitEntry, CommitRef, GraphOp } from "@/types";
 
@@ -150,6 +151,7 @@ function RefBadge({
   onRequestDialog: (dialog: DialogRequest) => void;
   onDeleteBranch: (name: string) => void;
 }) {
+  const t = useT();
   const badge = (
     <Badge
       variant="outline"
@@ -190,25 +192,41 @@ function RefBadge({
           <ContextMenuContent>
             <ContextMenuItem
               disabled={!!opBusy}
-              onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
+              onClick={() => onOp(t("graph.op.checkout"), { kind: "checkout", branch: commitRef.name })}
             >
-              <GitBranch /> Checkout
+              <GitBranch /> {t("graph.op.checkout")}
             </ContextMenuItem>
             <ContextMenuItem
               disabled={!!opBusy || detached}
-              onClick={() => onOp(`Merge ${commitRef.name}`, { kind: "merge", branch: commitRef.name })}
+              onClick={() =>
+                onOp(t("graph.op.merge", { branch: commitRef.name }), {
+                  kind: "merge",
+                  branch: commitRef.name,
+                })
+              }
             >
-              <GitMerge /> Merge into {currentBranch || "current"}…
+              <GitMerge />{" "}
+              {t("graph.op.mergeInto", {
+                branch: currentBranch || t("graph.op.currentBranchFallback"),
+              })}
             </ContextMenuItem>
             <ContextMenuItem
               disabled={!!opBusy || detached}
-              onClick={() => onOp(`Rebase onto ${commitRef.name}`, { kind: "rebase", branch: commitRef.name })}
+              onClick={() =>
+                onOp(t("graph.op.rebase", { branch: commitRef.name }), {
+                  kind: "rebase",
+                  branch: commitRef.name,
+                })
+              }
             >
-              <Redo2 /> Rebase {currentBranch || "current"} onto this
+              <Redo2 />{" "}
+              {t("graph.op.rebaseOnto", {
+                branch: currentBranch || t("graph.op.currentBranchFallback"),
+              })}
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy branch name
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, t("graph.copyKind.branchName"))}>
+              <Copy /> {t("graph.op.copyBranchName")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
@@ -217,15 +235,15 @@ function RefBadge({
               onClick={() =>
                 onRequestDialog({
                   kind: "confirm",
-                  title: "Delete branch",
-                  description: `Delete local branch "${commitRef.name}"?`,
-                  confirmLabel: "Delete",
+                  title: t("graph.op.deleteBranchTitle"),
+                  description: t("graph.op.deleteBranchDescription", { branch: commitRef.name }),
+                  confirmLabel: t("common.delete"),
                   destructive: true,
                   onConfirm: () => onDeleteBranch(commitRef.name),
                 })
               }
             >
-              <Trash2 /> Delete…
+              <Trash2 /> {t("graph.op.deleteEllipsis")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenuPortal>
@@ -247,13 +265,13 @@ function RefBadge({
           <ContextMenuContent>
             <ContextMenuItem
               disabled={!!opBusy}
-              onClick={() => onOp("Checkout", { kind: "checkout", branch: commitRef.name })}
+              onClick={() => onOp(t("graph.op.checkout"), { kind: "checkout", branch: commitRef.name })}
             >
-              <GitBranch /> Checkout
+              <GitBranch /> {t("graph.op.checkout")}
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => onCopy(commitRef.name, "branch name")}>
-              <Copy /> Copy branch name
+            <ContextMenuItem onClick={() => onCopy(commitRef.name, t("graph.copyKind.branchName"))}>
+              <Copy /> {t("graph.op.copyBranchName")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenuPortal>
@@ -276,15 +294,16 @@ function RefBadge({
             onClick={() =>
               onRequestDialog({
                 kind: "confirm",
-                title: "Delete tag",
-                description: `Delete tag "${commitRef.name}"?`,
-                confirmLabel: "Delete",
+                title: t("graph.op.deleteTagTitle"),
+                description: t("graph.op.deleteTagDescription", { tag: commitRef.name }),
+                confirmLabel: t("common.delete"),
                 destructive: true,
-                onConfirm: () => onOp("Delete tag", { kind: "delete_tag", name: commitRef.name }),
+                onConfirm: () =>
+                  onOp(t("graph.op.deleteTag"), { kind: "delete_tag", name: commitRef.name }),
               })
             }
           >
-            <Trash2 /> Delete tag…
+            <Trash2 /> {t("graph.op.deleteTagEllipsis")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenuPortal>
@@ -307,6 +326,7 @@ export const CommitRow = memo(function CommitRow({
   onDeleteBranch,
   onSelect,
 }: Props) {
+  const t = useT();
   const rowContent = (
     <div
       className={cn(
@@ -366,7 +386,7 @@ export const CommitRow = memo(function CommitRow({
           <ContextMenuContent>
             <ContextMenuSub>
               <ContextMenuSubTrigger disabled={!!opBusy}>
-                <Eraser /> Discard changes
+                <Eraser /> {t("graph.op.discardChanges")}
               </ContextMenuSubTrigger>
               <ContextMenuPortal>
                 <ContextMenuSubContent>
@@ -374,40 +394,38 @@ export const CommitRow = memo(function CommitRow({
                     onClick={() =>
                       onRequestDialog({
                         kind: "confirm",
-                        title: "Discard changes",
-                        description:
-                          "Discard all staged and unstaged changes to tracked files? Untracked files are kept. This cannot be undone.",
-                        confirmLabel: "Discard",
+                        title: t("graph.op.discardChanges"),
+                        description: t("graph.op.discardChangesDescription"),
+                        confirmLabel: t("graph.op.discard"),
                         destructive: true,
                         onConfirm: () =>
-                          onOp("Discard changes", {
+                          onOp(t("graph.op.discardChanges"), {
                             kind: "discard_changes",
                             include_untracked: false,
                           }),
                       })
                     }
                   >
-                    Tracked files only
+                    {t("graph.op.trackedOnly")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     variant="destructive"
                     onClick={() =>
                       onRequestDialog({
                         kind: "confirm",
-                        title: "Discard all changes",
-                        description:
-                          "Discard all staged and unstaged changes AND delete untracked files and directories? This cannot be undone.",
-                        confirmLabel: "Discard all",
+                        title: t("graph.op.discardAllTitle"),
+                        description: t("graph.op.discardAllDescription"),
+                        confirmLabel: t("graph.op.discardAll"),
                         destructive: true,
                         onConfirm: () =>
-                          onOp("Discard all changes", {
+                          onOp(t("graph.op.discardAllTitle"), {
                             kind: "discard_changes",
                             include_untracked: true,
                           }),
                       })
                     }
                   >
-                    Include untracked files
+                    {t("graph.op.includeUntracked")}
                   </ContextMenuItem>
                 </ContextMenuSubContent>
               </ContextMenuPortal>
@@ -428,15 +446,17 @@ export const CommitRow = memo(function CommitRow({
             onClick={() =>
               onRequestDialog({
                 kind: "confirm",
-                title: "Checkout commit",
-                description: `Check out commit ${entry.hash.slice(0, 7)}? HEAD will be detached from any branch.`,
-                confirmLabel: "Checkout",
+                title: t("graph.op.checkoutCommitTitle"),
+                description: t("graph.op.checkoutCommitDescription", {
+                  hash: entry.hash.slice(0, 7),
+                }),
+                confirmLabel: t("graph.op.checkout"),
                 onConfirm: () =>
-                  onOp("Checkout commit", { kind: "checkout_commit", hash: entry.hash }),
+                  onOp(t("graph.op.checkoutCommitTitle"), { kind: "checkout_commit", hash: entry.hash }),
               })
             }
           >
-            <GitCommitHorizontal /> Checkout this commit…
+            <GitCommitHorizontal /> {t("graph.op.checkoutCommitEllipsis")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
@@ -444,39 +464,45 @@ export const CommitRow = memo(function CommitRow({
             onClick={() =>
               onRequestDialog({
                 kind: "name",
-                title: "Create branch",
-                placeholder: "branch name",
+                title: t("graph.op.createBranchTitle"),
+                placeholder: t("graph.op.branchNamePlaceholder"),
                 withCheckout: true,
                 onSubmit: (name, checkout) =>
-                  onOp("Create branch", { kind: "create_branch", name, hash: entry.hash, checkout }),
+                  onOp(t("graph.op.createBranch"), {
+                    kind: "create_branch",
+                    name,
+                    hash: entry.hash,
+                    checkout,
+                  }),
               })
             }
           >
-            <GitBranch /> Create branch here…
+            <GitBranch /> {t("graph.op.createBranchEllipsis")}
           </ContextMenuItem>
           <ContextMenuItem
             disabled={!!opBusy}
             onClick={() =>
               onRequestDialog({
                 kind: "name",
-                title: "Create tag",
-                placeholder: "tag name",
-                onSubmit: (name) => onOp("Create tag", { kind: "create_tag", name, hash: entry.hash }),
+                title: t("graph.op.createTagTitle"),
+                placeholder: t("graph.op.tagNamePlaceholder"),
+                onSubmit: (name) =>
+                  onOp(t("graph.op.createTag"), { kind: "create_tag", name, hash: entry.hash }),
               })
             }
           >
-            <Tag /> Create tag here…
+            <Tag /> {t("graph.op.createTagEllipsis")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
             disabled={!!opBusy || detached}
-            onClick={() => onOp("Cherry-pick", { kind: "cherry_pick", hash: entry.hash })}
+            onClick={() => onOp(t("graph.op.cherryPickLabel"), { kind: "cherry_pick", hash: entry.hash })}
           >
-            <History /> Cherry-pick onto current
+            <History /> {t("graph.op.cherryPick")}
           </ContextMenuItem>
           <ContextMenuSub>
             <ContextMenuSubTrigger disabled={!!opBusy || detached}>
-              <Redo2 /> Reset current branch to here
+              <Redo2 /> {t("graph.op.resetToHere")}
             </ContextMenuSubTrigger>
             <ContextMenuPortal>
               <ContextMenuSubContent>
@@ -487,26 +513,31 @@ export const CommitRow = memo(function CommitRow({
                     onClick={() =>
                       onRequestDialog({
                         kind: "confirm",
-                        title: `Reset (${mode})`,
-                        description: `Reset the current branch to this commit using --${mode}?`,
-                        confirmLabel: "Reset",
+                        title: t("graph.op.resetTitle", { mode }),
+                        description: t("graph.op.resetDescription", { mode }),
+                        confirmLabel: t("graph.op.reset"),
                         destructive: mode === "hard",
-                        onConfirm: () => onOp(`Reset (${mode})`, { kind: "reset", hash: entry.hash, mode }),
+                        onConfirm: () =>
+                          onOp(t("graph.op.resetTitle", { mode }), {
+                            kind: "reset",
+                            hash: entry.hash,
+                            mode,
+                          }),
                       })
                     }
                   >
-                    {mode[0].toUpperCase() + mode.slice(1)}
+                    {t(`graph.mode.${mode}`)}
                   </ContextMenuItem>
                 ))}
               </ContextMenuSubContent>
             </ContextMenuPortal>
           </ContextMenuSub>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={() => onCopy(entry.hash, "hash")}>
-            <Copy /> Copy hash
+          <ContextMenuItem onClick={() => onCopy(entry.hash, t("graph.copyKind.hash"))}>
+            <Copy /> {t("graph.op.copyHash")}
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => onCopy(entry.subject, "message")}>
-            <Copy /> Copy message
+          <ContextMenuItem onClick={() => onCopy(entry.subject, t("graph.copyKind.message"))}>
+            <Copy /> {t("graph.op.copyMessage")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenuPortal>
