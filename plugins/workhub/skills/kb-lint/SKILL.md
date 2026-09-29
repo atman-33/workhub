@@ -100,7 +100,7 @@ drift apart:
 node "<memory plugin>/engine/cli.mjs" doctor
 ```
 
-Report its `cap:` lines — `policy entries` (more than 40 across every
+Report its `cap:` lines — `policy entries` (more than 50 across every
 section), `policy entry P-NN` (an entry over 3 lines), `policy ids` (an entry
 with no `P-NN`, or one used twice) and `policy cases` (individual cases written
 into the policy). The policy is not held to the 120-line limit of the other

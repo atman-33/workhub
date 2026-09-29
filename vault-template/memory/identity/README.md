@@ -46,9 +46,9 @@ belongs in `../notes/`, where search will find it.
 |---|---|
 | Notes in this folder | 8 |
 | Each note | 120 lines (`decision-policy.md` excepted) |
-| `decision-policy.md`, all sections together | 40 entries, 3 lines each |
+| `decision-policy.md`, all sections together | 50 entries, 3 lines each |
 
-A forty-first policy entry arrives by merging or dropping one, never by
+A fifty-first policy entry arrives by merging or dropping one, never by
 appending. The policy is counted in entries because a line total lets the
 entries grow while the prose around them shrinks, and a quota per section makes
 an entry's home depend on which box has room.

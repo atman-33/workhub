@@ -219,8 +219,10 @@ export const CAPS = {
   // per-section quota makes a rule's home depend on which box has room rather
   // than on what the rule is; a line count lets the entries grow while the
   // prose around them shrinks. The number is not a measured optimum — it is
-  // the point at which the owner is asked to consolidate (T-0458).
-  policyEntries: 40,
+  // the point at which the owner is asked to consolidate (T-0458). It is
+  // provisional: nothing measured 50 as better than 40, so it is revisited
+  // against the citation data once `axes` has a full window (2026-12-29).
+  policyEntries: 50,
   policyEntryLines: 3,
 };
 

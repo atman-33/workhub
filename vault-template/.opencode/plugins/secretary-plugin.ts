@@ -191,8 +191,8 @@ const secretaryPlugin: Plugin = async (ctx, _options) => {
     "  `## Promoted rules` as an axis. This is what stops the same question being",
     "  asked twice. A new policy entry must be an axis (not a case), must not",
     "  overlap an existing one, and must say something the model would not do",
-    "  unprompted; it opens with the next unused `P-NN`. The policy holds 40",
-    "  entries at most — a 41st arrives by merging or dropping one.",
+    "  unprompted; it opens with the next unused `P-NN`. The policy holds 50",
+    "  entries at most — a 51st arrives by merging or dropping one.",
     "</owner-identity>",
   ].join("\n");
 

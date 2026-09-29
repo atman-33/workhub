@@ -12,8 +12,8 @@ applying.
 
 So the layers have caps, and reaching one is the signal to consolidate. The cap
 is the mechanism — not a tidiness rule, and not a number to raise when it gets
-inconvenient. It already works: `memory/identity/decision-policy.md` has held to "40
-entries, 3 lines each, a forty-first arrives by merging or dropping one" and it
+inconvenient. It already works: `memory/identity/decision-policy.md` has held to "50
+entries, 3 lines each, a fifty-first arrives by merging or dropping one" and it
 is the one part of the harness that has never bloated. What the number cannot
 tell you is which entries still earn their place — for that, step 1 also asks
 which ones nobody has cited.
@@ -42,7 +42,7 @@ node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" doctor
 |---|---|---|
 | `identity/` notes | 8 | Read in full, every session |
 | One `identity/` note | 120 lines | The same. `decision-policy.md` is exempt |
-| `decision-policy.md` entries | 40, 3 lines each | Counted across every section, not per section |
+| `decision-policy.md` entries | 50, 3 lines each | Counted across every section, not per section |
 | `episodes/` notes | 60 | Past this, promotion has stopped happening |
 
 A cap is a prompt to consolidate, never a licence to delete.
@@ -58,7 +58,15 @@ It lists the entries — `## Always ask` excepted — that no note in
 nothing until 90 days have passed since the policy's `axes_since`, because an
 empty record would otherwise read as "nothing is used". These are candidates for
 moving down to `notes/`, not a verdict: an entry can be rarely reached and still
-right. Propose each one with what it would cost to lose.
+right. Propose each one with what it would cost to lose, and one of three
+outcomes:
+
+- **Keep** — high-stakes, always applies, or something is seen leaning on it.
+- **Localize** — it only matters for one kind of work. Move it to a
+  path-scoped `.claude/rules/` file or a skill, where it is read only when
+  relevant.
+- **Demote** — a duplicate, out of date, or already enforced by a hook, CI or
+  CLAUDE.md. Move it down to `notes/`, or drop it.
 
 ### 2. Find what is actually wrong
 

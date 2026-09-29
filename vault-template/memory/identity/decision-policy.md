@@ -29,7 +29,7 @@ Each entry opens with a `P-NN` id (`- P-01 …`, or `1. P-04 …` in a numbered
 list): the next unused one, never reused, never renumbered. An agent cites the
 id when a recommendation or a decision note stands on the entry.
 
-**Size limit.** 40 entries across all sections, at most 3 lines each. A 41st
+**Size limit.** 50 entries across all sections, at most 3 lines each. A 51st
 arrives by merging or dropping one, never by appending. There is no quota per
 section and no line count on purpose: a quota decides where a rule lives by
 which box has room, and a line count lets the entries grow while the prose

@@ -116,8 +116,8 @@ argument-hint: "<task-id>"
      `## Preferences`.
    - an axis the same reasoning has now applied twice → that note's
      `## Promoted rules`. Any new entry opens with the next unused `P-NN` and
-     passes the admission test at the top of the policy. The policy holds 40
-     entries of 3 lines at most; a 41st arrives by merging or dropping one,
+     passes the admission test at the top of the policy. The policy holds 50
+     entries of 3 lines at most; a 51st arrives by merging or dropping one,
      never by appending.
 
    Say in the report which lines you added and where. This is what stops the

@@ -179,14 +179,14 @@ describe("decision policy caps", () => {
     expect(capFindings(vault)).toEqual([]);
   });
 
-  it("says nothing for a policy at its cap of forty entries of three lines", () => {
-    // 39 here plus the numbered entry after the last heading makes forty.
-    note("identity", "decision-policy", policy(many(39, 2)));
+  it("says nothing for a policy at its cap of fifty entries of three lines", () => {
+    // 49 here plus the numbered entry after the last heading makes fifty.
+    note("identity", "decision-policy", policy(many(49, 2)));
     expect(capFindings(vault)).toEqual([]);
   });
 
-  it("reports a forty-first entry, wherever it lands", () => {
-    note("identity", "decision-policy", policy(many(40)));
+  it("reports a fifty-first entry, wherever it lands", () => {
+    note("identity", "decision-policy", policy(many(50)));
     expect(capFindings(vault).map((f) => f.cap)).toEqual(["policy entries"]);
   });
 
@@ -204,7 +204,7 @@ describe("decision policy caps", () => {
 
   it("does not hold the policy to the identity line cap", () => {
     // Forty entries of three lines is far past 120 lines, on purpose.
-    note("identity", "decision-policy", policy(many(39, 2)));
+    note("identity", "decision-policy", policy(many(49, 2)));
     expect(capFindings(vault).some((f) => f.cap.startsWith("identity/"))).toBe(false);
   });
 
