@@ -786,6 +786,7 @@ pub fn scan_and_index(vault: &Path) -> Result<Vec<Task>, String> {
 
 use include_dir::{include_dir, Dir};
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 
 static VAULT_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../vault-template");
 
@@ -811,6 +812,53 @@ fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
+}
+
+/// `bytes` with every CRLF turned into LF when it is UTF-8 text, and
+/// unchanged otherwise.
+///
+/// Template sync compares content, not line endings (T-0448). The embedded
+/// template carries whatever endings the build's checkout had — CRLF on a
+/// Windows checkout with `core.autocrlf` — while a copy in the vault can hold
+/// the same text with LF, and a byte-exact comparison reported that as a
+/// hand edit. The two conflicts that surfaced were project `_backlog.base`
+/// copies with no baseline yet, identical to the template but for endings.
+fn normalize_eol(bytes: &[u8]) -> Cow<'_, [u8]> {
+    match std::str::from_utf8(bytes) {
+        Ok(text) if text.contains("\r\n") => Cow::Owned(text.replace("\r\n", "\n").into_bytes()),
+        _ => Cow::Borrowed(bytes),
+    }
+}
+
+/// The hash template sync records and compares: sha256 of the content with
+/// its line endings normalized (see [`normalize_eol`]).
+fn content_hash(bytes: &[u8]) -> String {
+    sha256_hex(&normalize_eol(bytes))
+}
+
+/// True when `a` and `b` hold the same content, line endings aside.
+fn same_content(a: &[u8], b: &[u8]) -> bool {
+    normalize_eol(a) == normalize_eol(b)
+}
+
+/// True when `bytes` is the content a manifest `baseline` recorded.
+///
+/// Baselines written before T-0448 are sha256 of the raw template bytes,
+/// which a hash cannot be normalized after the fact, so for those the content
+/// is hashed in both spellings a template ships — all-LF and all-CRLF — as
+/// well as raw. Accepting them keeps every existing manifest meaningful
+/// without a schema bump; bumping it would drop every baseline, and a managed
+/// file the owner edited while the template stayed put would then start
+/// reporting `Conflict`.
+fn matches_baseline(bytes: &[u8], baseline: &str) -> bool {
+    let lf = normalize_eol(bytes);
+    if sha256_hex(&lf) == baseline || sha256_hex(bytes) == baseline {
+        return true;
+    }
+    match std::str::from_utf8(&lf) {
+        Ok(text) => sha256_hex(text.replace('\n', "\r\n").as_bytes()) == baseline,
+        Err(_) => false,
+    }
 }
 
 /// Recursively collects every embedded template file, skipping `node_modules`
@@ -1079,7 +1127,7 @@ fn orphan_paths(vault: &Path, template: &Dir) -> Result<Vec<(String, OrphanKind)
         let dst_path = vault.join(rel);
         let kind = if !dst_path.exists() {
             OrphanKind::GoneAlready
-        } else if sha256_hex(&fs::read(&dst_path).map_err(|e| e.to_string())?) == *baseline {
+        } else if matches_baseline(&fs::read(&dst_path).map_err(|e| e.to_string())?, baseline) {
             OrphanKind::Untouched
         } else {
             OrphanKind::Edited
@@ -1235,13 +1283,13 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
             // matches the template — never when it merely happens to be
             // whatever was already on disk (see the doc comment above).
             let on_disk = fs::read(&dst_path).map_err(|e| e.to_string())?;
-            if on_disk == file.contents() {
-                manifest.files.insert(rel, sha256_hex(&on_disk));
+            if same_content(&on_disk, file.contents()) {
+                manifest.files.insert(rel, content_hash(&on_disk));
             }
         } else {
             // Freshly created: on-disk content is exactly the template's, so
             // recording it as the baseline is always safe.
-            manifest.files.insert(rel, sha256_hex(file.contents()));
+            manifest.files.insert(rel, content_hash(file.contents()));
         }
     }
 
@@ -1259,6 +1307,8 @@ fn init_from(vault: &Path, template: &Dir) -> Result<(), String> {
 ///   - `new == baseline`: nothing changed upstream — `UpToDate`.
 ///   - `current == baseline`: only the template changed — `Updatable`.
 ///   - otherwise: both diverged — `Conflict`.
+///
+/// "Equal" ignores line endings throughout (see [`normalize_eol`]).
 pub fn check_vault_template(vault: &Path) -> Result<TemplateDiff, String> {
     diff_against(vault, &VAULT_TEMPLATE)
 }
@@ -1268,26 +1318,26 @@ fn diff_against(vault: &Path, template: &Dir) -> Result<TemplateDiff, String> {
 
     let mut entries = Vec::new();
     for (rel, content) in tracked_files(vault, template) {
-        let new_hash = sha256_hex(&content);
         let dst_path = vault.join(&rel);
 
+        // Every comparison here ignores line endings (T-0448): a copy that
+        // differs from the template only in CRLF vs LF is not a hand edit.
         let state = if !dst_path.exists() {
             TemplateFileState::Added
         } else {
             let current = fs::read(&dst_path).map_err(|e| e.to_string())?;
-            let current_hash = sha256_hex(&current);
             match manifest.files.get(&rel) {
                 None => {
-                    if current_hash == new_hash {
+                    if same_content(&current, &content) {
                         TemplateFileState::UpToDate
                     } else {
                         TemplateFileState::Conflict
                     }
                 }
                 Some(baseline_hash) => {
-                    if new_hash == *baseline_hash {
+                    if matches_baseline(&content, baseline_hash) {
                         TemplateFileState::UpToDate
-                    } else if current_hash == *baseline_hash {
+                    } else if matches_baseline(&current, baseline_hash) {
                         TemplateFileState::Updatable
                     } else {
                         TemplateFileState::Conflict
@@ -1373,7 +1423,7 @@ fn apply_from(
             // owner left it; only the baseline moves to the new template
             // hash, so this path stays quiet until the template changes
             // again. No side file is written.
-            manifest.files.insert(rel.clone(), sha256_hex(content));
+            manifest.files.insert(rel.clone(), content_hash(content));
             continue;
         }
 
@@ -1382,7 +1432,7 @@ fn apply_from(
             // recoverable copy of what the owner had before replacing it.
             if dst_path.exists() {
                 let current = fs::read(&dst_path).map_err(|e| e.to_string())?;
-                if current != *content {
+                if !same_content(&current, content) {
                     let backup_name = format!(
                         "{}.bak",
                         dst_path
@@ -1397,7 +1447,7 @@ fn apply_from(
         }
 
         fs::write(&dst_path, content).map_err(|e| e.to_string())?;
-        manifest.files.insert(rel.clone(), sha256_hex(content));
+        manifest.files.insert(rel.clone(), content_hash(content));
     }
 
     write_manifest(vault, &manifest)
@@ -1487,10 +1537,10 @@ fn adopt_matching_baselines(vault: &Path, template: &Dir) -> Result<(), String> 
         if !dst_path.exists() {
             continue;
         }
-        if fs::read(&dst_path).map_err(|e| e.to_string())? != content {
+        if !same_content(&fs::read(&dst_path).map_err(|e| e.to_string())?, &content) {
             continue;
         }
-        manifest.files.insert(rel, sha256_hex(&content));
+        manifest.files.insert(rel, content_hash(&content));
         changed = true;
     }
 
@@ -1690,8 +1740,14 @@ fn template_file_diff_from(vault: &Path, template: &Dir, path: &str) -> Result<S
         String::new()
     };
 
+    // Line endings are not compared anywhere in template sync (T-0448), so
+    // the diff does not show them either — a CRLF copy of LF text would
+    // otherwise render as every line changed.
+    let current = current.replace("\r\n", "\n");
+    let new = new.replace("\r\n", "\n");
+
     let mut out = format!("--- {path} (vault)\n+++ {path} (template)\n");
-    for hunk in TextDiff::from_lines(current.as_str(), new)
+    for hunk in TextDiff::from_lines(current.as_str(), new.as_str())
         .unified_diff()
         .iter_hunks()
     {
@@ -3114,6 +3170,156 @@ mod tests {
             !diff.files.iter().any(|f| f.path.starts_with("projects/")),
             "a template that opts out must behave exactly as before"
         );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    // Line endings are not content (T-0448). The embedded template carries
+    // CRLF when it was built from a Windows checkout with `core.autocrlf`,
+    // while the vault's copy can hold the same text with LF.
+    static CRLF_TEMPLATE: Dir<'_> = Dir::new(
+        "",
+        &[
+            DirEntry::File(File::new("note.md", b"line one\r\nline two\r\n")),
+            DirEntry::File(File::new(".template-policy.json", br#"{"seed_only": []}"#)),
+        ],
+    );
+
+    static CRLF_TEMPLATE_V2: Dir<'_> = Dir::new(
+        "",
+        &[
+            DirEntry::File(File::new("note.md", b"line one\r\nline two v2\r\n")),
+            DirEntry::File(File::new(".template-policy.json", br#"{"seed_only": []}"#)),
+        ],
+    );
+
+    fn write_baseline(vault: &Path, rel: &str, hash: String) {
+        let mut manifest = TemplateManifest {
+            schema_version: MANIFEST_SCHEMA_VERSION,
+            app_version: "test".into(),
+            files: HashMap::new(),
+        };
+        manifest.files.insert(rel.into(), hash);
+        write_manifest(vault, &manifest).unwrap();
+    }
+
+    #[test]
+    fn a_copy_differing_only_in_line_endings_is_up_to_date_without_a_baseline() {
+        let vault = temp_test_vault("eol-no-baseline");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("note.md"), "line one\nline two\n").unwrap();
+
+        let diff = diff_against(&vault, &CRLF_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::UpToDate),
+            "LF vs CRLF is not a hand edit"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_crlf_copy_of_an_lf_template_is_up_to_date_without_a_baseline() {
+        static LF_TEMPLATE: Dir<'_> = Dir::new(
+            "",
+            &[
+                DirEntry::File(File::new("note.md", b"line one\nline two\n")),
+                DirEntry::File(File::new(".template-policy.json", br#"{"seed_only": []}"#)),
+            ],
+        );
+        let vault = temp_test_vault("eol-reverse");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("note.md"), "line one\r\nline two\r\n").unwrap();
+
+        let diff = diff_against(&vault, &LF_TEMPLATE).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn apply_safe_adopts_a_baseline_for_a_copy_differing_only_in_line_endings() {
+        let vault = temp_test_vault("eol-adopt");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("note.md"), "line one\nline two\n").unwrap();
+
+        apply_safe_from(&vault, &CRLF_TEMPLATE).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.join("note.md")).unwrap(),
+            "line one\nline two\n",
+            "adopting a baseline must not rewrite the file"
+        );
+        assert_eq!(
+            load_manifest(&vault).files.get("note.md"),
+            Some(&content_hash(b"line one\nline two\n"))
+        );
+        // With the baseline adopted, the next template change is a quiet update.
+        let diff = diff_against(&vault, &CRLF_TEMPLATE_V2).unwrap();
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::Updatable)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_raw_hash_baseline_from_before_eol_normalization_still_matches() {
+        let vault = temp_test_vault("eol-legacy-baseline");
+        fs::create_dir_all(&vault).unwrap();
+        // The copy was rewritten with LF after a CRLF template was applied,
+        // and the manifest holds the raw CRLF hash an older build recorded.
+        fs::write(vault.join("note.md"), "line one\nline two\n").unwrap();
+        write_baseline(&vault, "note.md", sha256_hex(b"line one\r\nline two\r\n"));
+
+        let diff = diff_against(&vault, &CRLF_TEMPLATE).unwrap();
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::UpToDate)
+        );
+        let diff = diff_against(&vault, &CRLF_TEMPLATE_V2).unwrap();
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::Updatable),
+            "the owner changed nothing but the endings, so the update is safe"
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn a_real_edit_is_still_a_conflict_whatever_its_line_endings() {
+        let vault = temp_test_vault("eol-real-edit");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("note.md"), "line one\nmy own line\n").unwrap();
+        write_baseline(&vault, "note.md", sha256_hex(b"line one\r\nline two\r\n"));
+
+        let diff = diff_against(&vault, &CRLF_TEMPLATE_V2).unwrap();
+
+        assert_eq!(
+            diff_state(&diff, "note.md"),
+            Some(TemplateFileState::Conflict)
+        );
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn the_template_diff_ignores_line_endings() {
+        let vault = temp_test_vault("eol-diff");
+        fs::create_dir_all(&vault).unwrap();
+        fs::write(vault.join("note.md"), "line one\nline two\n").unwrap();
+
+        let diff = template_file_diff_from(&vault, &CRLF_TEMPLATE, "note.md").unwrap();
+
+        assert_eq!(diff, "--- note.md (vault)\n+++ note.md (template)\n");
 
         fs::remove_dir_all(&vault).ok();
     }
