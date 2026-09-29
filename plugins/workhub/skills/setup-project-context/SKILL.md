@@ -6,7 +6,7 @@ allowed-tools: Read Write
 ---
 
 Set up the per-project configuration consumed by the workhub plugin's harness
-hooks (and, for `roleBasedDelegation`, by the engineering plugin). `SessionStart` reads `.claude/project-context.json` from the project root
+hooks (and, for `postToolFormatCommands`, by the engineering plugin). `SessionStart` reads `.claude/project-context.json` from the project root
 and injects a `<project-context>` block (registered project absolute paths)
 into Claude's context at session start.
 
@@ -22,7 +22,6 @@ Steps:
 
     ```json
     {
-      "roleBasedDelegation": true,
       "postToolFormatCommands": [
         "<optional global default command run in any target project root after Edit/Write>"
       ],
@@ -40,8 +39,7 @@ Steps:
    ```
 
 3. Report what was done and remind the user:
-    - `roleBasedDelegation`, `postToolFormatCommands`, and
-      `projects` are all optional; omit any of them and the relevant hook skips
+   - `postToolFormatCommands` and `projects` are both optional; omit any of them and the relevant hook skips
       that part. A missing file injects nothing.
    - A sibling repo's own guidance is injected lazily by the plugin's PreToolUse
      hook (`inject-target-rules.mjs`): when you Read/Edit/Write a file under a
@@ -66,10 +64,6 @@ Steps:
      outside the current working directory. Each command runs in the matched
      target project's root, and failures are reported in a `systemMessage`
      without blocking the main flow.
-    - Set `roleBasedDelegation` to `true` to inject the engineering plugin's
-     role-based delegation criteria (when/whom to delegate to the `code-explore`,
-     `implementer`, `heavy-implementer`, and `test-runner` sub-agents) at session
-     start. Leave it out to keep sessions lean.
    - Use absolute paths for the current environment. Windows and WSL use
      different path forms (`C:/repos/...` vs `/mnt/c/repos/...`), so if you run
      Claude Code in both on the same repo, the values must match the environment

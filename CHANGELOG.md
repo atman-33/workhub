@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.151.2 (2026-09-29)
+
+- **New vaults no longer switch on role-based delegation** (T-0451). The
+  `.claude/project-context.json` the app creates, and the one the vault
+  template seeds, carried `"roleBasedDelegation": true`, which made the
+  `engineering` plugin inject criteria for delegating work to its
+  `code-explore`, `implementer` and `heavy-implementer` sub-agents at the start
+  of every session. That hook and those three agents are gone from
+  `engineering` 0.30.0 — the criteria pushed every session towards delegating
+  against Claude Code's own default, and a delegated implementation re-reads
+  context the main session already holds — so the key is no longer written.
+  An existing vault that still has it is left alone; the key is ignored.
+
 ## 0.151.1 (2026-09-29)
 
 - **Vault template updates no longer report a conflict for a file that only

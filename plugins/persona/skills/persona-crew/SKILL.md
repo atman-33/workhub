@@ -18,7 +18,7 @@ persona-crew は圧縮形式で出力する3つの subagent プリセット。�
 - 「X の定義はどこ / Y を呼ぶ箇所 / Z の全用法」 → `persona-investigator`
 - 同上に加えてアーキテクチャの解説や提案も欲しい → `Explore`（標準）
 - スコープが明確な surgical 編集、2ファイル以下 → `persona-builder`
-- 新機能 / 3ファイル以上 / 横断リファクタ → 主スレッド、または `heavy-implementer`
+- 新機能 / 3ファイル以上 / 横断リファクタ → 主スレッド
 - diff / branch / file のバグレビュー → `persona-reviewer`
 - 根拠と代替案つきの深いコードレビュー → 標準の Code Reviewer
 - 1行で答えが確定している内容 → 主スレッドで完結。委譲しない

@@ -13,8 +13,8 @@ essential failure details — nothing more.
 - A test, build, or lint command needs to run and the main session only needs
   the verdict, not the full log.
 
-You do **not** fix code. If tests fail, report the failures; the main session or
-an implementer agent decides what to change.
+You do **not** fix code. If tests fail, report the failures; the main session decides
+what to change.
 
 ## How to work
 

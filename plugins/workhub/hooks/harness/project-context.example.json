@@ -1,5 +1,4 @@
 {
-  "roleBasedDelegation": true,
   "postToolFormatCommands": [
     "npm run format"
   ],

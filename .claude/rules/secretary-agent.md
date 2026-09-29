@@ -108,7 +108,7 @@ come back if someone tries to convert it:
   where the owner is.
 - **There is nothing to isolate.** `strategy/` is two north-star notes, two
   current notes and a handful of bottlenecks. The context-isolation argument
-  that justifies `code-explore` does not apply at that size.
+  for a sub-agent does not apply at that size.
 - **Two personas in one session read as neither.** The `persona` plugin owns
   the session voice; a subagent with its own character would have its words
   relayed by whatever character the main session is wearing.

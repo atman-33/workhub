@@ -28,19 +28,33 @@ Install that plugin to keep those workflows.
 
 ### Sub-agents
 
-Role-based sub-agents (see `agents/`) so each kind of work runs in its own
-context on a model matched to its cost and difficulty. Models are fixed in each
-agent's frontmatter:
+One sub-agent (see `agents/`):
 
 | Agent | Model | Role |
 |-------|-------|------|
-| `code-explore` | sonnet | Broad, read-only code investigation / reference tracing |
-| `implementer` | sonnet | Implement settled, mostly-mechanical changes |
-| `heavy-implementer` | sonnet | Large / multi-file implementation or debugging |
 | `test-runner` | haiku | Run tests/build/lint and summarize the result |
 
-The main session decides when to delegate. To make those criteria available to
-Claude automatically, enable delegation-criteria injection (below).
+It exists to keep a long test or build log out of the main context: the main
+session gets the verdict and the failing lines, not the whole transcript.
+Nothing tells Claude when to use it — its `description` is enough, and the main
+session calls it when a run is worth isolating.
+
+This plugin used to ship three more — `code-explore`, `implementer` and
+`heavy-implementer` — plus a SessionStart hook (`inject-role-delegation`,
+switched on by `roleBasedDelegation` in `.claude/project-context.json`) that
+injected criteria for delegating work to them. All four were removed (T-0451):
+
+- The injected criteria pushed every session towards delegation, which runs
+  against Claude Code's own default of spawning a sub-agent only when asked,
+  and they reached sessions that never touch code.
+- Delegating an implementation makes the sub-agent re-read, from nothing, the
+  context the main session already holds, and leaves the main session
+  reporting on code it did not write. The cheaper model seldom pays for that.
+- `code-explore` duplicated Claude Code's built-in `Explore` agent, which does
+  the same job and ships with the tool.
+
+A `roleBasedDelegation` key left in an existing `project-context.json` is
+ignored.
 
 ### MCP servers
 
@@ -60,13 +74,11 @@ fail to start for reasons that have nothing to do with engineering workflow.
 They are two plugins rather than one for the same reason: turning Serena off
 should not take context7 with it.
 
-The sub-agents above still prefer Serena's symbol-aware tools **when
-`mcp-serena` is enabled**, and fall back to `Grep`/`Glob`/`Edit` when it is
-not. Nothing in this plugin requires either server.
+Nothing in this plugin requires either server.
 
 ### The shared config: `.claude/project-context.json`
 
-One of this plugin's hooks reads `.claude/project-context.json` in the project
+This plugin's PostToolUse hook reads `.claude/project-context.json` in the project
 root — the file the workhub app writes, and the one the `workhub` plugin's
 `setup-project-context` skill scaffolds. The `workhub` plugin reads the same
 file: it owns the `<project-context>` injection and the sibling-repository rule
@@ -75,29 +87,8 @@ injection, which are documented in
 because they are the sole readers of a file the app writes, and keeping them
 here made `engineering` impossible to switch off.
 
-What this plugin still reads from that file:
-
-- `roleBasedDelegation` — see below. It stayed here because the criteria it
-  injects name this plugin's own sub-agents, so it has to switch off with them.
-- `postToolFormatCommands` and `projects[]` — see
-  [PostToolUse hook](#posttooluse-hook-target-project-formatting).
-
-### SessionStart hook: role-based delegation criteria
-
-Setting `"roleBasedDelegation": true` in `.claude/project-context.json` makes
-[`hooks/scripts/inject-role-delegation.mjs`](hooks/scripts/inject-role-delegation.mjs)
-inject a `<role-based-delegation>` block describing
-**when to delegate and which sub-agent to use** (the `code-explore`,
-`implementer`, `heavy-implementer`, and `test-runner` agents above). This is the
-plugin-friendly equivalent of importing a delegation-criteria doc into your
-`CLAUDE.md`: the criteria are loaded at session start without you having to edit
-`CLAUDE.md`.
-
-The criteria text lives in [`hooks/role-based-model-selection.md`](hooks/role-based-model-selection.md)
-and is injected verbatim. The flag is opt-in, so sessions stay lean unless you
-ask for it — consistent with the hook's "never nag an unconfigured project"
-behavior. Enable it where you actually run multi-step development work (e.g. at
-`user` scope, or per repo).
+What this plugin still reads from that file: `postToolFormatCommands` and
+`projects[]` — see [PostToolUse hook](#posttooluse-hook-target-project-formatting).
 
 ### PostToolUse hook: target-project formatting
 

@@ -40,7 +40,7 @@ notes or screenshots. Read everything they point at.
 
 Then gather the **facts** yourself: read the relevant code, configuration,
 existing docs and data models of the target repository. Delegate a broad sweep
-to a sub-agent (`code-explore` when available) rather than reading dozens of
+to a sub-agent (the built-in `Explore` agent) rather than reading dozens of
 files here. Never ask the user for something you can look up.
 
 ### 2. Decide the output folder

@@ -9,10 +9,6 @@ so Serena can be switched off without losing that plugin's skills and
 sub-agents — plugin enable/disable is Claude Code's only granularity, so a
 server that is bundled with anything else cannot be turned off on its own.
 
-`engineering`'s `code-explore`, `implementer` and `heavy-implementer` agents
-use Serena's tools when this plugin is enabled, and fall back to
-`Grep`/`Glob`/`Edit` when it is not.
-
 ## What it registers
 
 | Server | Role |
