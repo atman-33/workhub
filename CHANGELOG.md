@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.151.3 (2026-09-29)
+
+- **The vault template tells agents to hand follow-up tasks to a fresh
+  session** (T-0455). The Working agreement in the template `CLAUDE.md` gains a
+  short *Follow-up tasks* paragraph: a task filed mid-session runs in its own
+  session by default, and in Claude Desktop the handoff is a chip started
+  locally, because a chip worktree copies the vault rather than the target
+  repository. The criteria live in the new `task-handoff` skill of the
+  `workhub` plugin (0.45.0), so the vault only carries the pointer. Apply the
+  template update to pick it up.
+
 ## 0.151.2 (2026-09-29)
 
 - **New vaults no longer switch on role-based delegation** (T-0451). The
