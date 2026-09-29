@@ -49,6 +49,16 @@ argument-hint: "<task-id>"
        prefix records creation order and nothing else.
      - Do **not** add the task to the item's frontmatter. The link runs one
        way — the task names the item, never the reverse.
+     - **Review the project's `roadmap.md`.** `## Status` and the README move
+       with every report, but the roadmap's milestone table is easy to leave
+       behind (a project once sat at `planned` with M1–M4 already done). If
+       this task completed a milestone or changed its scope, update that row
+       in `projects/NNNN-<project>/roadmap.md` — its `Status`, and `Notes` if
+       the task id or scope belongs there — plus `## Now / Next / Later` and
+       `updated:` when they moved. Which milestone a task finished is a
+       judgement, so decide it here rather than expecting a tool to. Do
+       nothing when the project has no `roadmap.md` or the task maps to no
+       milestone.
    - **A task with no `project`** is vault housekeeping: it has no item and no
      project folder, so its outcome belongs in `knowledge/` or stays in the
      raw log.
