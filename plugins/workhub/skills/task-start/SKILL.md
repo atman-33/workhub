@@ -187,6 +187,12 @@ argument-hint: "<task-id>"
      (step 2) and should not be writing a new one.
 7. **Begin the work** in the target repository (or its worktree), following
    that repo's own instructions (CLAUDE.md etc.).
+   - **Naming a branch outside worktree mode.** The repository's own
+     convention wins (CONTRIBUTING, CLAUDE.md). Without one, use
+     `<type>/<task-id>-<slug>`: `<type>` is `feature`, `fix`, `docs` or
+     `chore` — never `feat` — the task id is lowercase, and the slug is two to
+     four lowercase words joined by hyphens (`feature/t-0456-battle-core`).
+     Worktree mode keeps its own `task/<task-id>` branch from step 5.
 
 ## Handing information to another session
 
