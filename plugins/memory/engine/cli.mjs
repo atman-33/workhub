@@ -369,6 +369,16 @@ ${total} finding(s) — none of them block anything.`);
       return;
     }
 
+    case "axes": {
+      // Markdown only, like `notes`: works before setup ever ran.
+      const vault = resolveVault();
+      if (!vault) throw new Error("vault not found (WORKHUB_VAULT / cwd / ~/.workhub/config.json)");
+      const { axisUsage } = await import("./lib/store.mjs");
+      const { formatAxisUsage } = await import("./lib/format.mjs");
+      console.log(formatAxisUsage(axisUsage(vault)));
+      return;
+    }
+
     case "reflect-done": {
       // The last step of the memory-reflect skill: stamp when it ran, so the
       // brief stops asking for it for another week (T-0386).

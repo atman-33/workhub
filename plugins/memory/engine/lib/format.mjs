@@ -101,3 +101,23 @@ export function formatNotes(hits, { vault = "", total = hits.length, terms = [],
   }
   return lines.join("\n");
 }
+
+/** The `axes` report: which decision-policy entries nobody has cited lately. */
+export function formatAxisUsage(usage) {
+  if (usage.status === "off") {
+    return "axes: not tracking — the policy has no `axes_since:` in its frontmatter.";
+  }
+  if (usage.status === "collecting") {
+    return `axes: counting citations since ${usage.since}; nothing to report for ${usage.remaining} more day(s).`;
+  }
+  if (!usage.unused.length) {
+    return `axes: every entry outside \`## Always ask\` was cited in the last ${usage.days} days.`;
+  }
+  const lines = [
+    `axes: ${usage.unused.length} entr${usage.unused.length === 1 ? "y" : "ies"} not cited in the last ${usage.days} days`,
+    "  (candidates for moving down to notes/ — the owner decides)",
+    "",
+  ];
+  for (const e of usage.unused) lines.push(`- ${e.id} [${e.section}] ${e.head}`);
+  return lines.join("\n");
+}

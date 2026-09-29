@@ -100,15 +100,16 @@ drift apart:
 node "<memory plugin>/engine/cli.mjs" doctor
 ```
 
-Report its `cap:` lines — `promoted rules` (more than 12), `promoted rule N`
-(an entry over 3 lines), `policy cases` (individual cases written into the
-policy), and `identity/decision-policy` (over 120 lines). Where that plugin is
-not installed, skip this section and say so — do not re-implement the limits
-here.
+Report its `cap:` lines — `policy entries` (more than 40 across every
+section), `policy entry P-NN` (an entry over 3 lines), `policy ids` (an entry
+with no `P-NN`, or one used twice) and `policy cases` (individual cases written
+into the policy). The policy is not held to the 120-line limit of the other
+`identity/` notes. Where that plugin is not installed, skip this section and say
+so — do not re-implement the limits here.
 
 **Report:** name the offending entries and suggest what to do — merge two
-promoted rules into the axis they share, drop one that a later rule subsumes,
-or move a case down to `memory/notes/`. Never auto-fix: deciding
+entries into the axis they share, drop one that a later entry subsumes, or move
+a case down to `memory/notes/`. Never auto-fix: deciding
 which rule survives is the owner's call.
 
 `memory/notes/` has no size limit and is not checked here.

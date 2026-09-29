@@ -30,7 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, join } from "node:path";
-import { parseNote } from "./note.mjs";
+import { parseFrontmatter, parseNote } from "./note.mjs";
 
 export const LAYERS = ["identity", "notes", "episodes"];
 
@@ -214,13 +214,22 @@ export const CAPS = {
   identityNoteLines: 120,
   identityNotes: 8,
   episodes: 60,
-  // The decision policy's own limit, and the one that actually bites: the
-  // line count above is only the insurance derived from it (12 full-size rules
-  // plus a filled `## Preferences` come to 118 lines). Counting lines would let
-  // the rules grow while the prose around them shrank.
-  promotedRules: 12,
-  promotedRuleLines: 3,
+  // The decision policy's own limit, and the only one it has: a count of its
+  // entries across every section, not lines and not a quota per section. A
+  // per-section quota makes a rule's home depend on which box has room rather
+  // than on what the rule is; a line count lets the entries grow while the
+  // prose around them shrinks. The number is not a measured optimum — it is
+  // the point at which the owner is asked to consolidate (T-0458).
+  policyEntries: 40,
+  policyEntryLines: 3,
 };
+
+/**
+ * How long an axis may go uncited before `axes` reports it as a candidate for
+ * moving down to notes/. Measured from `axes_since` in the policy's
+ * frontmatter, so nothing is reported before a full window of citations exists.
+ */
+export const AXIS_UNUSED_DAYS = 90;
 
 /**
  * When `notes` search should stop being a text scan. Not a cap — notes/ has
@@ -231,18 +240,34 @@ export const CAPS = {
 export const NOTES_INDEX_THRESHOLD = 500;
 
 /**
- * The `## Promoted rules` section of the decision policy, as entries: one
- * top-level `- ` bullet each, continuation lines included.
+ * The decision policy as entries: one top-level `- ` or `1. ` item each, from
+ * every `## ` section, continuation lines included. `id` is the `P-NN` the
+ * entry opens with, or null — it is how a recommendation or a decision note
+ * cites the axis it stood on (T-0458).
  */
-export function promotedRules(policyText) {
-  const lines = policyText.split(/\r?\n/);
-  const start = lines.findIndex((line) => /^##\s+Promoted rules\s*$/.test(line));
-  if (start === -1) return [];
+export function policyEntries(policyText) {
   const entries = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^##\s/.test(line)) break;
-    if (line.startsWith("- ")) entries.push([line]);
-    else if (entries.length && /^\s+\S/.test(line)) entries[entries.length - 1].push(line);
+  let section = null;
+  // A continuation line must follow its entry directly: a blank line ends it,
+  // so an indented `<!-- e.g. -->` example further down is not counted as one.
+  let open = false;
+  for (const line of policyText.split(/\r?\n/)) {
+    const heading = /^##\s+(.*?)\s*$/.exec(line);
+    if (heading) {
+      section = heading[1];
+      open = false;
+      continue;
+    }
+    if (section === null) continue;
+    if (/^(?:-|\d+\.)\s/.test(line)) {
+      const id = /^(?:-|\d+\.)\s+(P-\d+)\b/.exec(line)?.[1] ?? null;
+      entries.push({ section, id, lines: [line] });
+      open = true;
+    } else if (open && /^\s+\S/.test(line)) {
+      entries[entries.length - 1].lines.push(line);
+    } else {
+      open = false;
+    }
   }
   return entries;
 }
@@ -257,23 +282,38 @@ function policyFindings(vault) {
   const text = readFileSync(path, "utf8");
   const findings = [];
 
-  const rules = promotedRules(text);
-  if (rules.length > CAPS.promotedRules) {
+  const entries = policyEntries(text);
+  if (entries.length > CAPS.policyEntries) {
     findings.push({
-      cap: "promoted rules",
-      detail: `${rules.length} rules (cap ${CAPS.promotedRules})`,
-      fix: "a new rule arrives by merging two or dropping one — which survives is the owner's call",
+      cap: "policy entries",
+      detail: `${entries.length} entries (cap ${CAPS.policyEntries})`,
+      fix: "a new entry arrives by merging two or dropping one — which survives is the owner's call",
     });
   }
-  rules.forEach((entry, i) => {
-    if (entry.length > CAPS.promotedRuleLines) {
+  for (const entry of entries) {
+    if (entry.lines.length > CAPS.policyEntryLines) {
       findings.push({
-        cap: `promoted rule ${i + 1}`,
-        detail: `${entry.length} lines (cap ${CAPS.promotedRuleLines}): ${entry[0].slice(2, 40)}…`,
+        cap: `policy entry ${entry.id ?? "(no id)"}`,
+        detail: `${entry.lines.length} lines (cap ${CAPS.policyEntryLines}): ${entry.lines[0].slice(0, 40)}…`,
         fix: "state the axis, not the case — the case belongs in notes/",
       });
     }
-  });
+  }
+  const seen = new Set();
+  const unlabelled = entries.filter((e) => e.id === null).length;
+  const duplicated = entries.filter((e) => e.id && (seen.has(e.id) || !seen.add(e.id))).map((e) => e.id);
+  if (unlabelled || duplicated.length) {
+    findings.push({
+      cap: "policy ids",
+      detail: [
+        unlabelled ? `${unlabelled} without a P-NN id` : "",
+        duplicated.length ? `duplicated: ${duplicated.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("; "),
+      fix: "give each entry the next unused P-NN, never reuse or renumber one — it is how the axis is cited",
+    });
+  }
 
   const cases = text.split(/\r?\n/).filter((line) => CASE_LINE.test(line));
   if (cases.length) {
@@ -315,6 +355,8 @@ export function capFindings(vault) {
     });
   }
   for (const note of identity) {
+    // The policy is capped by its entry count, not by its length.
+    if (note.slug === "decision-policy") continue;
     const lines = note.body.split(/\r?\n/).length;
     if (lines > CAPS.identityNoteLines) {
       findings.push({
@@ -334,4 +376,67 @@ export function capFindings(vault) {
     });
   }
   return findings;
+}
+
+const DAY_MS = 86400000;
+
+/** When a note happened: its own date field, else the file's mtime. */
+function dateOfNote(text, path) {
+  const { frontmatter } = parseFrontmatter(text);
+  for (const key of ["decided", "created", "updated"]) {
+    const t = Date.parse(String(frontmatter[key] ?? ""));
+    if (!Number.isNaN(t)) return t;
+  }
+  return statSync(path).mtimeMs;
+}
+
+/**
+ * Which policy entries have been cited lately (T-0458).
+ *
+ * A cap is a number nobody measured; use is a measurement. An axis that no
+ * recommendation, decision or question has stood on for a season is one the
+ * owner can move down to notes/. `## Always ask` is left out on purpose: a
+ * safety entry is rarely reached exactly because it works.
+ *
+ * Citations are `P-NN` in `memory/notes/` and `_ai/comms/`, dated by the note.
+ * Nothing is reported until `axes_since` is a full window old, or an empty
+ * record would read as "nothing is used".
+ *
+ * @returns {{status: "off"}
+ *   | {status: "collecting", since: string, remaining: number}
+ *   | {status: "ready", days: number, unused: object[], cited: Record<string, number>}}
+ */
+export function axisUsage(vault, { now = Date.now(), days = AXIS_UNUSED_DAYS } = {}) {
+  const path = join(layerDir(vault, "identity"), "decision-policy.md");
+  if (!existsSync(path)) return { status: "off" };
+  const text = readFileSync(path, "utf8");
+  const { frontmatter } = parseFrontmatter(text);
+  const since = Date.parse(String(frontmatter.axes_since ?? ""));
+  if (Number.isNaN(since)) return { status: "off" };
+
+  const elapsed = Math.floor((now - since) / DAY_MS);
+  if (elapsed < days) {
+    return { status: "collecting", since: String(frontmatter.axes_since), remaining: days - elapsed };
+  }
+
+  const cited = {};
+  for (const dir of [layerDir(vault, "notes"), join(vault, "_ai", "comms")]) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith(".md") || name === "README.md") continue;
+      const file = join(dir, name);
+      const raw = readFileSync(file, "utf8");
+      if (dateOfNote(raw, file) < now - days * DAY_MS) continue;
+      for (const id of new Set(raw.match(/\bP-\d+\b/g) ?? [])) cited[id] = (cited[id] ?? 0) + 1;
+    }
+  }
+
+  const unused = policyEntries(text)
+    .filter((e) => e.id && e.section !== "Always ask" && !cited[e.id])
+    .map((e) => ({
+      id: e.id,
+      section: e.section,
+      head: e.lines[0].replace(/^(?:-|\d+\.)\s+P-\d+\s*/, "").slice(0, 60),
+    }));
+  return { status: "ready", days, unused, cited };
 }

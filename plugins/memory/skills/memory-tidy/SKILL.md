@@ -12,9 +12,11 @@ applying.
 
 So the layers have caps, and reaching one is the signal to consolidate. The cap
 is the mechanism — not a tidiness rule, and not a number to raise when it gets
-inconvenient. It already works: `memory/identity/decision-policy.md` has held to "12
-promoted rules, 3 lines each, a thirteenth arrives by merging or dropping one"
-and it is the one part of the harness that has never bloated.
+inconvenient. It already works: `memory/identity/decision-policy.md` has held to "40
+entries, 3 lines each, a forty-first arrives by merging or dropping one" and it
+is the one part of the harness that has never bloated. What the number cannot
+tell you is which entries still earn their place — for that, step 1 also asks
+which ones nobody has cited.
 
 ## What this may do on its own
 
@@ -39,10 +41,24 @@ node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" doctor
 | Cap | Limit | Why that one |
 |---|---|---|
 | `identity/` notes | 8 | Read in full, every session |
-| One `identity/` note | 120 lines | The same |
+| One `identity/` note | 120 lines | The same. `decision-policy.md` is exempt |
+| `decision-policy.md` entries | 40, 3 lines each | Counted across every section, not per section |
 | `episodes/` notes | 60 | Past this, promotion has stopped happening |
 
 A cap is a prompt to consolidate, never a licence to delete.
+
+Then ask which policy entries are dead weight:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" axes
+```
+
+It lists the entries — `## Always ask` excepted — that no note in
+`memory/notes/` or `_ai/comms/` has cited by `P-NN` in the last 90 days. It says
+nothing until 90 days have passed since the policy's `axes_since`, because an
+empty record would otherwise read as "nothing is used". These are candidates for
+moving down to `notes/`, not a verdict: an entry can be rarely reached and still
+right. Propose each one with what it would cost to lose.
 
 ### 2. Find what is actually wrong
 
