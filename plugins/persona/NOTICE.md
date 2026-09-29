@@ -12,7 +12,7 @@ used under the MIT License.
 What this plugin changed:
 
 - One engine with pluggable character files, instead of a single hard-coded
-  persona. Compression rules, boundaries, subskills and agents are
+  persona. Compression rules, boundaries and subskills are
   character-agnostic and shared.
 - State became two axes (character x level) and is persisted, so a switch
   survives into later sessions.
@@ -22,6 +22,10 @@ What this plugin changed:
 - Compression of files is performed by the model against the shared rules, with
   deterministic pre-flight refusal and post-hoc validation in Node, replacing
   the upstream Python CLI.
+- The `crew` skill and its three subagents were carried over and later
+  removed (T-0451/T-0452): delegating a one- or two-file edit costs more than
+  making it, the built-in `Explore` agent covers the investigator, and bug
+  review is not a job for the smallest model.
 
 ## Bundled characters
 

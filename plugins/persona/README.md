@@ -145,11 +145,7 @@ workhub アプリを使っているなら、**Persona タブ**から一覧・切
 /persona-compress      メモリファイルの圧縮
 /persona-stats         トークン使用量と推定削減量
 /persona-help          リファレンスカード
-/persona-crew          圧縮出力 subagent への委譲判断
 ```
-
-エージェント `persona-investigator` / `persona-builder` / `persona-reviewer` も
-キャラクター非依存で、圧縮形式で結果を返す。
 
 ## 他のスキルから切り替える（persona-switch）
 
@@ -235,7 +231,6 @@ characters/      標準キャラクター定義（フックが読む。モデル
 hooks/           エンジン本体
 scripts/         他スキル向けの切替 CLI (persona-switch)
 skills/          スキル定義
-agents/          圧縮出力の subagent
 commands/        スラッシュコマンド
 mcp-servers/     persona-shrink
 ```
