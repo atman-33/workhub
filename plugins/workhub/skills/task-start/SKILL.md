@@ -41,6 +41,19 @@ argument-hint: "<task-id>"
      often written in an earlier session that ran out of context, or by a
      different agent CLI. Treat it as settled: follow it instead of
      re-planning, say so up front, and ask before deviating from it.
+   - **Fill in what the launch prompt left out.** The app's launch buttons
+     build a full prompt; a Claude Desktop chip (`task-handoff`) or a
+     hand-typed request carries little more than the task id. Where the
+     prompt you were given is silent, take these from the task and
+     `<vault>/.workhub/settings.json`; where it speaks, it wins:
+     - **`confirm: true` with an empty `## Plan`** → plan-first. Tell the
+       owner what you make of the request, including a better approach if you
+       see one; then draft the plan, present it in full in chat, and hold
+       every change and file write until they approve. Step 6 records it.
+     - **`## Plan` / `## Results` language** → `settings.language`: `ja` is
+       Japanese, anything else or absent is English.
+     - **Custom prompt** → `settings.custom_prompt`: follow it as if it were
+       appended to the launch prompt.
    - **Pick up answers waiting for this task.** A question filed for the owner
      lives in `<vault>/_ai/comms/`; the answer arrives asynchronously, so a
      resumed task must read it before doing anything else:
@@ -84,7 +97,7 @@ argument-hint: "<task-id>"
    - Write the answer back onto the task so the judgement is made once:
 
      ```bash
-     node "C:/Users/gpbjk/.claude/plugins/cache/workhub-marketplace/workhub/0.31.0/scripts/task-cli.mjs" update <task-id> --backlog B-NNN
+     node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs" update <task-id> --backlog B-NNN
      ```
 
      A new item is created from the app's task editor, or by making
@@ -216,7 +229,8 @@ Rules for this:
   the task blocked instead of waiting on the terminal.
 - When the work is finished, always finish with the `task-report` skill —
   do not edit the task's `## Results` or status directly here.
-- The language of `## Plan` and `## Results` follows the workhub **Task
-  language** setting, stated in the app's launch prompt (default English). It
+- The language of `## Plan` and `## Results` follows the workhub **Language**
+  setting, stated in the app's launch prompt or read from the vault
+  (step 2; default English). It
   governs those two sections only — never code, comments, commit messages, or
   repository documentation.
