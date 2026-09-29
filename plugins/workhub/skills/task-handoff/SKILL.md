@@ -1,6 +1,6 @@
 ---
 name: task-handoff
-description: Decide whether a workhub task continues in this session or goes to a fresh one, and hand it off. Use right after filing a task (task-list, task-report follow-ups), or when the user asks to run a task in another session.
+description: Decide whether a workhub task meant for an agent to work continues in this session or goes to a fresh one, and hand it off. Use right after filing such a task (task-list, task-report follow-ups), or when the user asks to run a task in another session.
 argument-hint: "<task-id>"
 ---
 
@@ -14,7 +14,10 @@ a recommendation with its reason, every time — and carries out the handoff.
 ## Steps
 
 1. **Recommend continue or hand off.** Read the task file's frontmatter and
-   `## Description`. Recommend a **fresh session** when any of these hold:
+   `## Description`. This skill is for a task an agent is meant to work
+   (`todo`, an agent assignee); for an `inbox` idea or a task assigned to
+   `me`, the filing is the whole job and this skill is done — unless the
+   owner asked for the handoff themselves. Recommend a **fresh session** when any of these hold:
 
    - it is its own unit of work — a different milestone or backlog item from
      the task this session is on;
