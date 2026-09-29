@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.152.0 (2026-09-30)
+
+- **The decision policy is capped by its entry count across every section,
+  and each entry carries an id** (T-0458). `memory/identity/decision-policy.md`
+  is read in full on every question an agent puts to you, so it needs a limit —
+  but the old one, 120 lines derived from "12 promoted rules plus a filled
+  Preferences", broke first because Preferences had no cap of its own, and a
+  quota per section decided where an entry lived by which box had room rather
+  than by what it was. The limit is now one number: 50 entries, 3 lines each,
+  across all sections (provisional — nothing measured it, so it is revisited
+  against real usage). Entries open with a `P-NN` id, and `memory-doctor` and
+  `/kb-lint` report an entry with no id, a duplicate, or one over three lines.
+  Agents cite the id when a recommendation stands on an entry, so the new
+  `node cli.mjs axes` can list the entries nobody has cited in 90 days;
+  `memory-tidy` puts each to you as keep, localize or demote — a candidate, not
+  a verdict. The template policy ships with ids and states the test an entry has
+  to pass (an axis rather than a case, no overlap, not already enforced
+  elsewhere). The policy in an existing vault is seeded once and never
+  overwritten by a template sync, so add the ids and `axes_since: <date>`
+  yourself when you want the counting to start. Needs `memory` 0.10.0 and
+  `workhub` 0.46.0.
+- **Agents branch as `<type>/<task-id>-<slug>` by default** (T-0457). Without a
+  repository convention of its own, the branch name an agent picks used to vary
+  from session to session. `engineering`'s `create-feature-branch` and the
+  `task-start` skill now agree on one shape — for example
+  `feature/t-0456-battle-core` — and rank the sources: the repository's own
+  convention first, then the vault's `task/T-NNNN` for worktree mode, then this
+  default. Skills only, so it takes effect through the plugin update.
+
 ## 0.151.3 (2026-09-29)
 
 - **The vault template tells agents to hand follow-up tasks to a fresh
