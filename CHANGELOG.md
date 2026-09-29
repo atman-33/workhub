@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.151.1 (2026-09-29)
+
+- **Vault template updates no longer report a conflict for a file that only
+  differs in line endings** (T-0448). Template sync compared each vault file
+  with the bundled template byte for byte, so a copy holding the same text
+  with LF instead of CRLF (or the reverse) counted as a hand edit. That hit
+  new and renamed projects hardest: their `backlog/_backlog.base` has no
+  recorded baseline yet, so it surfaced in the update dialog as a conflict
+  with nothing to resolve. Line endings are now ignored everywhere template
+  sync compares or records content, including the dialog's "Show diff".
+  Existing template manifests keep working unchanged, and a file you really
+  edited is still reported as a conflict.
+
 ## 0.151.0 (2026-09-27)
 
 - **Music playlists can be exchanged with other tools** (T-0435). Export used
