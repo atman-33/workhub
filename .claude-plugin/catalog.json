@@ -11,7 +11,7 @@
       "name": "engineering",
       "tier": "recommended",
       "scope": "user",
-      "summary": "Development workflow: role-based sub-agents, the commit/PR/ADR/TDD skills. How a team commits and branches is a team's own call, so this is a recommendation - nothing in the app stops working without it. The serena/context7 MCP servers it used to carry now live in mcp-serena and mcp-context7."
+      "summary": "Development workflow: the commit/PR/ADR/system-design skills and a test-runner sub-agent. How a team commits and branches is a team's own call, so this is a recommendation - nothing in the app stops working without it. The serena/context7 MCP servers it used to carry now live in mcp-serena and mcp-context7."
     },
     {
       "name": "mcp-serena",

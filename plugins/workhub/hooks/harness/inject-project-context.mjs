@@ -12,10 +12,6 @@
  * Lives in this plugin rather than `engineering` because it is the sole reader
  * of a file the app itself writes: without it the app's registered projects
  * never reach an agent, which is what makes `workhub` the one required plugin.
- * The same config's `roleBasedDelegation` flag is read by a separate hook in
- * `engineering`, next to the sub-agents that flag talks about — so switching
- * that plugin off takes the delegation criteria with it, instead of leaving an
- * instruction to delegate to agents that are no longer installed.
  *
  * Behaviour:
  *   - No config file   -> emit nothing (don't nag unconfigured projects).

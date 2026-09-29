@@ -20,9 +20,8 @@ const OPENCODE_CONFIG_RELATIVE: &str = "opencode.json";
 ///   `name`/`path` are set and every other key (`summary`,
 ///   `postToolFormatCommands`, ...) is preserved;
 /// - entries present only in the JSON (registered by hand) are left untouched;
-/// - top-level keys other than `projects` (e.g. `roleBasedDelegation`,
-///   `openspecPath`) are preserved; a missing file starts from a minimal
-///   default with `roleBasedDelegation: true`.
+/// - top-level keys other than `projects` (e.g. `openspecPath`) are
+///   preserved; a missing file starts from an empty object.
 pub fn sync_project_context(vault: &Path, projects: &[Project]) -> Result<(), String> {
     let context_path = vault.join(PROJECT_CONTEXT_RELATIVE);
 
@@ -34,11 +33,7 @@ pub fn sync_project_context(vault: &Path, projects: &[Project]) -> Result<(), St
             Ok(_) => return Err(format!("{}: not a JSON object", context_path.display())),
             Err(e) => return Err(format!("{}: {}", context_path.display(), e)),
         },
-        Err(_) => {
-            let mut map = Map::new();
-            map.insert("roleBasedDelegation".into(), Value::Bool(true));
-            map
-        }
+        Err(_) => Map::new(),
     };
 
     let mut entries: Vec<Value> = match root.remove("projects") {
@@ -318,7 +313,7 @@ mod tests {
         let vault = temp_vault("create");
         sync_project_context(&vault, &[project("alpha", "C:\\repos\\alpha")]).unwrap();
         let ctx = read_context(&vault);
-        assert_eq!(ctx["roleBasedDelegation"], Value::Bool(true));
+        assert!(ctx.get("roleBasedDelegation").is_none());
         assert_eq!(ctx["projects"][0]["name"], "alpha");
         assert_eq!(ctx["projects"][0]["path"], "C:/repos/alpha");
         fs::remove_dir_all(&vault).unwrap();

@@ -182,8 +182,7 @@ or run this plugin's `setup-project-context` skill.
 }
 ```
 
-- `roleBasedDelegation`, `postToolFormatCommands`, and
-  `projects` are all optional. Omit any and the relevant hook skips that part;
+- `postToolFormatCommands` and `projects` are both optional. Omit any and the relevant hook skips that part;
   a missing file injects nothing.
 - `postToolFormatCommands` is read by the `engineering` plugin's PostToolUse
   hook, not by this one. It can be declared either at the top level (global
@@ -199,10 +198,6 @@ or run this plugin's `setup-project-context` skill.
   injected lazily by the PreToolUse hook when you actually touch that repo's
   files — see [PreToolUse hook](#pretooluse-hook-target-repo-guidance-injection)
   below.
-- `roleBasedDelegation: true` injects the role-based delegation criteria. That
-  one is read by the `engineering` plugin, not this one — the criteria name
-  its sub-agents, so they switch off together. Without `engineering`
-  installed the key is simply ignored.
 
 This produces:
 
