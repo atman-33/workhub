@@ -102,7 +102,7 @@ never a number to raise.
 | Layer | Cap |
 |---|---|
 | `identity/` notes | 8 |
-| One `identity/` note | 120 lines |
+| One `identity/` note | 120 lines (the decision policy is counted in entries instead: 50, 3 lines each) |
 | `episodes/` notes | 60 |
 
 ## Known failure modes

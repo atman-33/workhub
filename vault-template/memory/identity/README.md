@@ -45,9 +45,12 @@ belongs in `../notes/`, where search will find it.
 | File | Cap |
 |---|---|
 | Notes in this folder | 8 |
-| Each note | 120 lines |
-| Promoted rules (the axes) | 12 entries, 3 lines each |
+| Each note | 120 lines (`decision-policy.md` excepted) |
+| `decision-policy.md`, all sections together | 50 entries, 3 lines each |
 
-A thirteenth rule arrives by merging or dropping one, never by appending.
+A fifty-first policy entry arrives by merging or dropping one, never by
+appending. The policy is counted in entries because a line total lets the
+entries grow while the prose around them shrinks, and a quota per section makes
+an entry's home depend on which box has room.
 `memory-doctor` reports a cap that is over; it never enforces one, because
 which rule survives a merge is the owner's call.

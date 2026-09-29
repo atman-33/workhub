@@ -115,8 +115,10 @@ argument-hint: "<task-id>"
    - a standing leaning → `<vault>/memory/identity/decision-policy.md`'s
      `## Preferences`.
    - an axis the same reasoning has now applied twice → that note's
-     `## Promoted rules`, at most 12 entries of 3 lines. A thirteenth arrives
-     by merging or dropping one, never by appending.
+     `## Promoted rules`. Any new entry opens with the next unused `P-NN` and
+     passes the admission test at the top of the policy. The policy holds 50
+     entries of 3 lines at most; a 51st arrives by merging or dropping one,
+     never by appending.
 
    Say in the report which lines you added and where. This is what stops the
    next task asking the same question.

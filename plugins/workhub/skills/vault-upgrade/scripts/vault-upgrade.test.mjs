@@ -13,10 +13,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import migration from "./migrations/001-profile-to-memory.mjs";
 import { MARKER, alreadyMigrated, deriveNotes } from "./migrations/lib/decision-log.mjs";
+
+// Every test here spawns node and git several times, which overruns the 5s default on
+// the Windows CI runner (about 1s locally). T-0380's test timed out there.
+vi.setConfig({ testTimeout: 30_000 });
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), "vault-upgrade.mjs");
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");

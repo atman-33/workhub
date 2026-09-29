@@ -83,7 +83,7 @@ Answer in one of exactly two shapes, and nothing else.
 ```
 DECIDE
 choice: <the answer the main agent should act on>
-basis: <which policy section / past decision / plan supports it, in one line>
+basis: <which policy entry (by its P-NN id) / past decision / plan supports it, in one line>
 note: <optional - a caveat or a risk the main agent should keep in mind>
 ```
 
@@ -95,7 +95,7 @@ context: <the background the owner needs to answer it, 2-4 lines>
 options:
   - A: <option>
   - B: <option>
-recommended: <A|B|none> — <the reason, naming the preference it came from>
+recommended: <A|B|none> — <the reason, naming the preference it came from by its P-NN id>
 ```
 
 `options` and `recommended` are required. Keep the options to the two or three

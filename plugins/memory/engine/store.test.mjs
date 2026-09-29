@@ -17,9 +17,10 @@ import { validateNote } from "./lib/schema.mjs";
 import {
   NOTES_INDEX_THRESHOLD,
   archiveNote,
+  axisUsage,
   capFindings,
   hasStore,
-  promotedRules,
+  policyEntries,
   query,
   readLayer,
   searchNotes,
@@ -136,39 +137,115 @@ describe("caps", () => {
   });
 });
 
-// The decision policy's real limit is a count of rules, not lines: the line
-// cap is only the insurance derived from it. Until T-0375 the count lived only
-// in kb-lint's prose, so nothing that runs code ever checked it.
+// The decision policy's limit is one count of entries across every section
+// (T-0458): not lines, and not a quota per section. Until T-0375 the count
+// lived only in kb-lint's prose, so nothing that runs code ever checked it.
 describe("decision policy caps", () => {
-  const rule = (i, extra = 0) => `- Rule ${i}.\n${"  more\n".repeat(extra)}`;
-  const policy = (rules, before = "") =>
-    `---\ntitle: Policy\n---\n# Policy\n${before}\n## Promoted rules\n\nIntro prose.\n\n${rules.join("")}\n## Later\n- not a rule\n`;
+  const entry = (i, extra = 0) => `- P-${String(i).padStart(2, "0")} Rule ${i}.\n${"  more\n".repeat(extra)}`;
+  const policy = (entries, { before = "", fm = "" } = {}) =>
+    `---\ntitle: Policy\n${fm}---\n# Policy\nPreamble.\n- not an entry, it is above the first section\n\n## Preferences\n${before}\n${entries.join("")}\n## Gray-zone principles\n1. P-90 A numbered one.\n`;
+  const many = (n, extra = 0) => Array.from({ length: n }, (_, i) => entry(i + 1, extra));
 
-  it("reads the promoted rules as entries, continuation lines included", () => {
-    const entries = promotedRules(policy([rule(1, 2), rule(2)]));
-    expect(entries).toHaveLength(2);
-    expect(entries[0]).toHaveLength(3);
+  it("reads entries from every section, numbered ones too, continuation lines included", () => {
+    const entries = policyEntries(policy([entry(1, 2)]));
+    expect(entries.map((e) => [e.section, e.id])).toEqual([
+      ["Preferences", "P-01"],
+      ["Gray-zone principles", "P-90"],
+    ]);
+    expect(entries[0].lines).toHaveLength(3);
   });
 
-  it("says nothing for twelve rules of three lines", () => {
-    note("identity", "decision-policy", policy(Array.from({ length: 12 }, (_, i) => rule(i, 2))));
+  it("ends a continuation at a blank line, so an indented example is not an entry's line", () => {
+    const text = [
+      "## A",
+      "- P-01 Rule.",
+      "  more",
+      "",
+      "<!-- e.g.",
+      "     - P-02 an example",
+      "       spills over -->",
+    ].join("\n");
+    const entries = policyEntries(text);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].lines).toHaveLength(2);
+  });
+
+  it("passes the policy the vault template ships with", () => {
+    const shipped = readFileSync(
+      new URL("../../../vault-template/memory/identity/decision-policy.md", import.meta.url),
+      "utf8",
+    );
+    note("identity", "decision-policy", shipped);
     expect(capFindings(vault)).toEqual([]);
   });
 
-  it("reports a thirteenth rule", () => {
-    note("identity", "decision-policy", policy(Array.from({ length: 13 }, (_, i) => rule(i))));
-    expect(capFindings(vault).map((f) => f.cap)).toEqual(["promoted rules"]);
+  it("says nothing for a policy at its cap of fifty entries of three lines", () => {
+    // 49 here plus the numbered entry after the last heading makes fifty.
+    note("identity", "decision-policy", policy(many(49, 2)));
+    expect(capFindings(vault)).toEqual([]);
   });
 
-  it("reports a rule that runs past three lines", () => {
-    note("identity", "decision-policy", policy([rule(1, 3)]));
-    expect(capFindings(vault).map((f) => f.cap)).toEqual(["promoted rule 1"]);
+  it("reports a fifty-first entry, wherever it lands", () => {
+    note("identity", "decision-policy", policy(many(50)));
+    expect(capFindings(vault).map((f) => f.cap)).toEqual(["policy entries"]);
+  });
+
+  it("reports an entry that runs past three lines", () => {
+    note("identity", "decision-policy", policy([entry(1, 3)]));
+    expect(capFindings(vault).map((f) => f.cap)).toEqual(["policy entry P-01"]);
+  });
+
+  it("reports an entry with no id and one whose id is used twice", () => {
+    note("identity", "decision-policy", policy(["- No id here.\n", entry(2), entry(2)]));
+    const finding = capFindings(vault).find((f) => f.cap === "policy ids");
+    expect(finding.detail).toMatch(/1 without a P-NN id/);
+    expect(finding.detail).toMatch(/duplicated: P-02/);
+  });
+
+  it("does not hold the policy to the identity line cap", () => {
+    // Forty entries of three lines is far past 120 lines, on purpose.
+    note("identity", "decision-policy", policy(many(49, 2)));
+    expect(capFindings(vault).some((f) => f.cap.startsWith("identity/"))).toBe(false);
   });
 
   it("reports a case written into the policy instead of into notes/", () => {
-    const before = "## Preferences\n- 2026-09-01 T-0042 use tabs\n  (from: the formatter question)\n";
-    note("identity", "decision-policy", policy([rule(1)], before));
-    expect(capFindings(vault).map((f) => f.cap)).toEqual(["policy cases"]);
+    const before = "- 2026-09-01 T-0042 use tabs\n  (from: the formatter question)\n";
+    note("identity", "decision-policy", policy([entry(1)], { before }));
+    expect(capFindings(vault).map((f) => f.cap)).toContain("policy cases");
+  });
+});
+
+describe("axis usage", () => {
+  const NOW = Date.parse("2026-12-31");
+  const policy = (since) =>
+    `---\ntitle: Policy\n${since ? `axes_since: ${since}\n` : ""}---\n# Policy\n## Always ask\n- P-01 Delete only after asking.\n## Preferences\n- P-02 Cited one.\n- P-03 Cited too long ago.\n- P-04 Never cited.\n`;
+  const cite = (folder, name, date, ids) => {
+    const dir = folder === "comms" ? join(vault, "_ai", "comms") : join(vault, "memory", "notes");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${name}.md`), `---\ntitle: ${name}\ndecided: ${date}\n---\nbasis: ${ids.join(", ")}\n`);
+  };
+
+  it("is off when the policy does not say when counting started", () => {
+    note("identity", "decision-policy", policy(""));
+    expect(axisUsage(vault, { now: NOW }).status).toBe("off");
+  });
+
+  it("reports nothing until a full window has passed since counting started", () => {
+    note("identity", "decision-policy", policy("2026-12-01"));
+    expect(axisUsage(vault, { now: NOW })).toEqual({ status: "collecting", since: "2026-12-01", remaining: 60 });
+  });
+
+  it("lists entries nobody cited in the window, and never one from Always ask", () => {
+    note("identity", "decision-policy", policy("2026-09-30"));
+    cite("notes", "recent", "2026-12-20", ["P-02"]);
+    cite("comms", "Q-0001", "2026-11-15", ["P-02", "P-99"]);
+    cite("notes", "old", "2026-06-01", ["P-03"]);
+
+    const usage = axisUsage(vault, { now: NOW });
+    expect(usage.status).toBe("ready");
+    expect(usage.cited["P-02"]).toBe(2);
+    // P-03 was only cited outside the window; P-01 is exempt.
+    expect(usage.unused.map((e) => e.id)).toEqual(["P-03", "P-04"]);
   });
 });
 
