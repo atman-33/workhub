@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.152.1 (2026-09-30)
+
+- **`task-report` reviews the project's `roadmap.md`** (T-0461). Reporting a
+  task already updated the backlog item's Status and the README, but never the
+  roadmap, so a project could sit at `planned` with its milestones long done —
+  as happened with the Spiritual Blade remake, where M1 to M4 were finished and
+  the table still said otherwise. Step 3 now asks the agent to update the
+  matching milestone row when the task completed or reshaped one, and to do
+  nothing when the project has no roadmap or the task maps to no milestone.
+  Skills only, so it takes effect through the plugin update. Needs `workhub`
+  0.46.1.
+
 ## 0.152.0 (2026-09-30)
 
 - **The decision policy is capped by its entry count across every section,
