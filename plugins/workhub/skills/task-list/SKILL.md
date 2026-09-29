@@ -68,8 +68,11 @@ the index, so never hand-write a task file to get around it.
   heading (the CLI adds it, and drops a leading one if you wrote it anyway),
   and no `## Plan` or `## Results`: a new task starts with both empty, and a
   file that carries either is refused.
-- Report the id and the file path back, and stop there. Creating a task is not
-  permission to start it; `task-start` is a separate decision.
+- Report the id and the file path back. Creating a task is not permission to
+  start it; `task-start` is a separate decision.
+- When the task is meant to be worked soon (`todo`, an agent assignee), run
+  `task-handoff` on it next: it recommends continuing in this session or
+  handing the task to a fresh one, and the owner decides.
 
 A follow-up you found while finishing another task belongs to `task-report`
 instead — it has the criteria for splitting one out and what its Description

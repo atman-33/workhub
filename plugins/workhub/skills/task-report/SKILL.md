@@ -101,6 +101,10 @@ argument-hint: "<task-id>"
    (or `inbox` when it is only an idea) — never start a follow-up yourself as
    part of closing this task. List what you filed in the report and in the
    final message, so the owner can drop any of them.
+
+   Then run `task-handoff` on each follow-up filed for an agent. It puts the
+   choice of continuing here or starting a fresh session to the owner, with a
+   recommendation — a fresh session by default.
 6. **Feed the owner's judgement calls back.** If the owner settled anything
    during this task — a question you put to them, a correction to your
    approach, a preference they stated in passing — record the rule it

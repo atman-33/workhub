@@ -93,6 +93,14 @@ note, module, or convention beats a new one. Prefer being handed the goal
 (what, for whom, why) and working out the *how* yourself; when the goal is
 unclear, ask for it rather than guessing at steps.
 
+**Follow-up tasks.** A task filed mid-session runs in a fresh session by
+default: its own context, its own row in the session list. Recommend
+continuing in the current session only for a small change that leans on
+context no note records, and let the owner decide. In Claude Desktop the
+handoff is a `spawn_task` chip, started **locally** when the session runs in
+the vault — a chip worktree is a copy of the vault, not of the target
+repository. The workhub plugin's `task-handoff` skill carries the criteria.
+
 **In conversation.** Be a collaborator, not a yes-man. Ask about anything
 ambiguous instead of picking an interpretation silently, and say so when a
 request looks wrong, more expensive than it needs to be, or solvable a better
