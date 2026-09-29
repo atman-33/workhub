@@ -79,9 +79,11 @@ before adding or moving a skill.
 
 ## Workflow
 
-- Do all development on a feature branch cut from `main`
-  (`feature/<short-name>`); open a PR into `main` when done. Don't commit
-  directly to `main`.
+- Do all development on a branch cut from `main`, named
+  `<type>/<task-id>-<short-name>` — `<type>` is `feature`, `fix`, `docs` or
+  `chore` (never `feat`), the task id lowercase, e.g.
+  `feature/t-0456-battle-core`; drop the id for work with no task. Open a PR
+  into `main` when done. Don't commit directly to `main`.
 - Any change that alters app behavior bumps `version` in
   `src-tauri/Cargo.toml` (semver) and adds a `CHANGELOG.md` entry in the same
   PR.
