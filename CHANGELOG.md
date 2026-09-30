@@ -2,6 +2,22 @@
 
 ## 0.153.0 (2026-10-01)
 
+- **The app no longer flashes at 100% before settling on the saved zoom**
+  (T-0491). The main window used to open, show at 100% for a moment, and only
+  then jump to the zoom you had saved. It is now created hidden and revealed
+  once the saved zoom is applied, with a 5-second fallback so a frontend that
+  never answers cannot leave it invisible.
+- **The Tasks project filter stops listing projects only archived tasks use**. A stale `project:` value on a long-archived task
+  stayed in the dropdown forever. Unregistered values now come from archived tasks only while
+  archived tasks are shown, and the value you have selected is always kept so
+  the active filter never disappears from its own list.
+- **The OpenCode sync no longer reads a skill's scratch files as a hand edit**
+  (T-0469). `create-pull-request` writes drafts under its own `.tmp/`, and after
+  one use the diagnostic reported the skill as locally edited although its
+  `SKILL.md` was identical to upstream. The drift hash now skips what the skill
+  itself declares as generated in its `.gitignore`, plus `.git` and
+  `node_modules`; a pattern it does not understand behaves as before.
+
 - **Tasks can depend on other tasks** (T-0490). A task lists the tasks that must
   be done before it can start in a new `depends_on` frontmatter key, set from
   the task editor's Optional section (a searchable picker that leaves out
