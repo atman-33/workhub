@@ -170,6 +170,11 @@ blocked_note: waiting for the vendor quote
 blocked_since: 2026-08-06
                     # optional; when the wait started, only while blocked. The
                     # board counts the days from it
+depends_on: [T-0012, T-0034]
+                    # optional; absent = none. Tasks that must be `done` before
+                    # this one can start. Not `blocked`: nobody sets a wait by
+                    # hand — it is derived from those tasks' `status` and
+                    # clears by itself when they are done. A loop is refused
 created: 2026-07-10
 updated: 2026-07-10
 ```
@@ -792,6 +797,9 @@ mechanical authoring):
 
 - **Status transitions you may perform:** `todo → doing → review` only.
   Never set `done` — a human does that in the app.
+- **Never start a task whose `depends_on` predecessors are not all `done`.**
+  `task-cli start` refuses it and lists them; tell the owner instead of
+  passing `--force`, which only they may allow.
 - When updating a task file, change only `status`, `updated`, the `## Plan`
   section (plan-first tasks, before implementation starts), and the
   `## Results` section. Preserve all other frontmatter and body content.

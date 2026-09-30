@@ -39,6 +39,7 @@ import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
 import { PriorityBadge } from "@/components/priority-badge";
+import { TaskDependsOnField } from "@/components/task-depends-on-field";
 import { todayString } from "@/lib/task-blocked";
 import { buildBody, parseBody } from "@/lib/task-body";
 import {
@@ -74,6 +75,7 @@ const EMPTY_DRAFT: TaskDraft = {
   blocked: false,
   blockedNote: "",
   blockedSince: "",
+  dependsOn: "",
   due: "",
   tags: "",
   content: "",
@@ -87,7 +89,9 @@ const CREATE_DRAFT_KEY = "workhub:task-draft:create";
 function loadCreateDraft(): TaskDraft | null {
   try {
     const raw = localStorage.getItem(CREATE_DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as TaskDraft) : null;
+    // A draft saved before a field existed lacks it; fill the gap from the
+    // empty draft so the form never reads `undefined`.
+    return raw ? ({ ...EMPTY_DRAFT, ...JSON.parse(raw) } as TaskDraft) : null;
   } catch {
     return null;
   }
@@ -213,12 +217,16 @@ export function TaskEditorForm({
       draftTaskIdRef.current = task.id;
       const seeded = draftFromTask(task);
       setDraft(seeded);
-      setOptionalOpen(Boolean(seeded.due || seeded.tags.trim() || seeded.blocked));
+      setOptionalOpen(
+        Boolean(seeded.due || seeded.tags.trim() || seeded.blocked || seeded.dependsOn),
+      );
     } else {
       draftTaskIdRef.current = null;
       const loaded = loadCreateDraft() ?? EMPTY_DRAFT;
       setDraft(loaded);
-      setOptionalOpen(Boolean(loaded.due || loaded.tags.trim() || loaded.blocked));
+      setOptionalOpen(
+        Boolean(loaded.due || loaded.tags.trim() || loaded.blocked || loaded.dependsOn),
+      );
     }
     dirtyFieldsRef.current = new Set();
     setDescEditing(false);
@@ -312,6 +320,24 @@ export function TaskEditorForm({
   // field: change the project and the items are re-read for it. Switching
   // project also clears the item, since a `B-NNN` from the old project would
   // point at nothing (T-0253).
+  // Every task, for the predecessor picker. Read once per open; the picker only
+  // needs ids, titles and statuses, which change rarely while a form is open.
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  useEffect(() => {
+    if (!vaultPath) return;
+    let cancelled = false;
+    api
+      .listTasks(vaultPath)
+      .then((list) => {
+        if (!cancelled) setAllTasks(list);
+      })
+      .catch(() => {
+        if (!cancelled) setAllTasks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultPath, task?.id]);
   const [backlogItems, setBacklogItems] = useState<BacklogItem[]>([]);
   const [backlogLoading, setBacklogLoading] = useState(false);
   const project = draft.project.trim();
@@ -494,7 +520,7 @@ export function TaskEditorForm({
   // Worktree followed it to the main row (B-025 rework) for the same reason:
   // it is a launch setting, read at a glance before a launch.
   const hasOptionalDetails = Boolean(
-    draft.due || draft.tags.trim() || draft.blocked,
+    draft.due || draft.tags.trim() || draft.blocked || draft.dependsOn,
   );
 
   const handleClose = useCallback(() => {
@@ -1019,6 +1045,18 @@ export function TaskEditorForm({
                   />,
                 )}
               </div>
+              {field(
+                t("taskEditor.field.dependsOn"),
+                <TaskDependsOnField
+                  taskId={mode === "edit" && task ? task.id : ""}
+                  value={draft.dependsOn
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)}
+                  tasks={allTasks}
+                  onChange={(next) => update({ dependsOn: next.join(", ") })}
+                />,
+              )}
               {/* Blocked stays full-width: Worktree moved up to the launch
                   row (B-025 rework), so no second card shares this line. */}
               {toggle(

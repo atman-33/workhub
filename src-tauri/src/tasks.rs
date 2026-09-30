@@ -110,46 +110,55 @@ fn unquote(s: &str) -> String {
 struct RawFrontmatter {
     map: HashMap<String, String>,
     tags: Vec<String>,
+    depends_on: Vec<String>,
 }
+
+/// Frontmatter keys whose value is a list (inline `[a, b]` or a `- a` block).
+const LIST_KEYS: [&str; 2] = ["tags", "depends_on"];
 
 fn parse_frontmatter(front: &str) -> RawFrontmatter {
     let mut map = HashMap::new();
-    let mut tags = Vec::new();
-    let mut in_tags_block = false;
+    let mut lists: HashMap<&'static str, Vec<String>> = HashMap::new();
+    let mut block_key: Option<&'static str> = None;
     for raw_line in front.lines() {
         let line = raw_line.trim_end();
-        if in_tags_block {
+        if let Some(key) = block_key {
             let trimmed = line.trim_start();
             if let Some(rest) = trimmed.strip_prefix("- ") {
-                tags.push(unquote(rest.trim()));
+                lists.entry(key).or_default().push(unquote(rest.trim()));
                 continue;
             } else if trimmed.is_empty() {
                 continue;
             } else {
-                in_tags_block = false; // fall through to normal key parsing
+                block_key = None; // fall through to normal key parsing
             }
         }
         let Some(idx) = line.find(':') else { continue };
         let key = line[..idx].trim().to_string();
         let val = line[idx + 1..].trim();
-        if key == "tags" {
+        if let Some(list_key) = LIST_KEYS.iter().find(|k| **k == key) {
             if val.is_empty() {
-                in_tags_block = true;
-                tags.clear();
+                block_key = Some(list_key);
+                lists.insert(list_key, Vec::new());
             } else if let Some(inner) = val.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
-                tags = inner
+                let items = inner
                     .split(',')
                     .map(|s| unquote(s.trim()))
                     .filter(|s| !s.is_empty())
                     .collect();
+                lists.insert(list_key, items);
             } else {
-                tags = vec![unquote(val)];
+                lists.insert(list_key, vec![unquote(val)]);
             }
         } else {
             map.insert(key, unquote(val));
         }
     }
-    RawFrontmatter { map, tags }
+    RawFrontmatter {
+        map,
+        tags: lists.remove("tags").unwrap_or_default(),
+        depends_on: lists.remove("depends_on").unwrap_or_default(),
+    }
 }
 
 /// Quotes a scalar only if it contains characters that would otherwise
@@ -235,8 +244,14 @@ fn render_frontmatter(t: &Task) -> String {
     } else {
         format!("backlog: {}\n", yaml_scalar(&t.backlog))
     };
+    // Same policy once more: only tasks with a predecessor carry `depends_on:`.
+    let depends_line = if t.depends_on.is_empty() {
+        String::new()
+    } else {
+        format!("depends_on: {}\n", render_tags(&t.depends_on))
+    };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\n{}priority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\n{}priority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}{}created: {}\nupdated: {}\n---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
@@ -252,6 +267,7 @@ fn render_frontmatter(t: &Task) -> String {
         confirm_line,
         worktree_line,
         blocked_lines,
+        depends_line,
         t.created,
         t.updated,
     )
@@ -309,6 +325,7 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
         blocked: raw.map.get("blocked").map(|v| v == "true").unwrap_or(false),
         blocked_note: get("blocked_note"),
         blocked_since: get("blocked_since"),
+        depends_on: raw.depends_on,
         created: get("created"),
         updated: get("updated"),
         file: path.to_string_lossy().replace('\\', "/"),
@@ -437,6 +454,7 @@ pub struct CreateTaskInput {
     pub blocked: Option<bool>,
     pub blocked_note: Option<String>,
     pub blocked_since: Option<String>,
+    pub depends_on: Option<Vec<String>>,
     pub due: Option<String>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
@@ -472,6 +490,7 @@ pub struct UpdateTaskInput {
     pub blocked: Option<bool>,
     pub blocked_note: Option<String>,
     pub blocked_since: Option<String>,
+    pub depends_on: Option<Vec<String>>,
     pub body: Option<String>,
 }
 
@@ -517,6 +536,7 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         } else {
             String::new()
         },
+        depends_on: normalize_deps(input.depends_on.unwrap_or_default()),
         created: now.clone(),
         updated: now,
         file: file.to_string_lossy().replace('\\', "/"),
@@ -549,6 +569,80 @@ fn find_task_by_id(vault: &Path, id: &str) -> Result<Task, String> {
         }
     }
     Err(format!("task {id} not found"))
+}
+
+/// Trims, drops blanks and duplicates, keeping the caller's order.
+fn normalize_deps(deps: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for d in deps {
+        let d = d.trim().to_string();
+        if !d.is_empty() && !out.contains(&d) {
+            out.push(d);
+        }
+    }
+    out
+}
+
+/// Whether giving `id` the predecessors `deps` would close a loop: true when
+/// `id` is one of `deps`, or is reachable by following `depends_on` from them.
+pub fn would_create_cycle(id: &str, deps: &[String], all: &[Task]) -> bool {
+    let mut stack: Vec<&str> = deps.iter().map(|d| d.as_str()).collect();
+    let mut seen: Vec<&str> = Vec::new();
+    while let Some(cur) = stack.pop() {
+        if cur == id {
+            return true;
+        }
+        if seen.contains(&cur) {
+            continue;
+        }
+        seen.push(cur);
+        if let Some(t) = all.iter().find(|t| t.id == cur) {
+            stack.extend(t.depends_on.iter().map(|d| d.as_str()));
+        }
+    }
+    false
+}
+
+fn check_no_cycle(id: &str, deps: &[String], all: &[Task]) -> Result<(), String> {
+    if would_create_cycle(id, deps, all) {
+        Err(format!(
+            "{id} cannot depend on {}: that would make a dependency cycle",
+            deps.join(", ")
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// Predecessors of `task` that are not finished yet. A predecessor counts as
+/// resolved once its `status` is `done`; an id that matches no task is treated
+/// as resolved too, so a deleted predecessor never pins a task forever.
+pub fn unresolved_deps<'a>(task: &Task, all: &'a [Task]) -> Vec<&'a Task> {
+    task.depends_on
+        .iter()
+        .filter_map(|d| all.iter().find(|t| &t.id == d))
+        .filter(|t| t.status != "done")
+        .collect()
+}
+
+/// Refuses to start `id` while a predecessor is still open. The message lists
+/// each one so the caller can show it as-is; the UI asks for confirmation
+/// first and passes `force` to skip this check.
+pub fn check_startable(vault: &Path, id: &str) -> Result<(), String> {
+    let all = scan_tasks(vault)?;
+    let Some(task) = all.iter().find(|t| t.id == id) else {
+        return Ok(());
+    };
+    let open = unresolved_deps(task, &all);
+    if open.is_empty() {
+        return Ok(());
+    }
+    let list = open
+        .iter()
+        .map(|t| format!("{} {} [{}]", t.id, t.title, t.status))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!("{id} depends on unfinished tasks: {list}"))
 }
 
 pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String> {
@@ -611,6 +705,14 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
             task.blocked_note.clear();
             task.blocked_since.clear();
         }
+    }
+    if let Some(v) = input.depends_on {
+        let deps = normalize_deps(v);
+        if !deps.is_empty() {
+            let all = scan_tasks(vault)?;
+            check_no_cycle(&task.id, &deps, &all)?;
+        }
+        task.depends_on = deps;
     }
     if let Some(v) = input.body {
         task.body = v;
@@ -711,6 +813,7 @@ struct IndexEntry<'a> {
     blocked: bool,
     blocked_note: &'a str,
     blocked_since: &'a str,
+    depends_on: &'a [String],
     created: &'a str,
     updated: &'a str,
     file: String,
@@ -739,6 +842,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             blocked: t.blocked,
             blocked_note: &t.blocked_note,
             blocked_since: &t.blocked_since,
+            depends_on: &t.depends_on,
             created: &t.created,
             updated: &t.updated,
             file: t
@@ -2119,6 +2223,7 @@ mod tests {
                     blocked: false,
                     blocked_note: String::new(),
                     blocked_since: String::new(),
+                    depends_on: vec![],
                     created: today(),
                     updated: today(),
                     file: t3_path.to_string_lossy().replace('\\', "/"),
@@ -2332,6 +2437,168 @@ mod tests {
         let raw = fs::read_to_string(&task.file).unwrap();
         assert!(!raw.contains("confirm:"), "raw frontmatter: {raw}");
         assert!(!raw.contains("worktree:"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn depends_on_round_trips_and_is_omitted_when_unset() {
+        let vault = temp_vault("depends-on");
+        let a = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "first".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let raw = fs::read_to_string(&a.file).unwrap();
+        assert!(!raw.contains("depends_on"), "raw frontmatter: {raw}");
+
+        let b = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "second".into(),
+                depends_on: Some(vec![a.id.clone(), " ".into(), a.id.clone()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Blanks and duplicates are dropped.
+        assert_eq!(b.depends_on, vec![a.id.clone()]);
+        let raw = fs::read_to_string(&b.file).unwrap();
+        assert!(
+            raw.contains(&format!("depends_on: [{}]\n", a.id)),
+            "raw frontmatter: {raw}"
+        );
+
+        let scanned = scan_tasks(&vault).unwrap();
+        let reread = scanned.iter().find(|t| t.id == b.id).unwrap();
+        assert_eq!(reread.depends_on, vec![a.id.clone()]);
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert!(index
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["id"] == b.id.as_str() && e["depends_on"][0] == a.id.as_str()));
+
+        // An empty list clears the key from the file.
+        let cleared = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: b.id.clone(),
+                depends_on: Some(vec![]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(cleared.depends_on.is_empty());
+        let raw = fs::read_to_string(&b.file).unwrap();
+        assert!(!raw.contains("depends_on"), "raw frontmatter: {raw}");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn depends_on_block_list_is_read() {
+        let raw =
+            parse_frontmatter("id: T-0002\ntags: []\ndepends_on:\n  - T-0001\n  - \"T-0003\"\n");
+        assert_eq!(raw.depends_on, vec!["T-0001", "T-0003"]);
+        assert!(raw.tags.is_empty());
+    }
+
+    #[test]
+    fn update_rejects_dependency_cycles() {
+        let vault = temp_vault("dep-cycle");
+        let mk = |title: &str, deps: Option<Vec<String>>| {
+            create_task(
+                &vault,
+                CreateTaskInput {
+                    title: title.into(),
+                    depends_on: deps,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let a = mk("a", None);
+        let b = mk("b", Some(vec![a.id.clone()]));
+        let c = mk("c", Some(vec![b.id.clone()]));
+
+        let set = |id: &str, deps: Vec<String>| {
+            update_task(
+                &vault,
+                UpdateTaskInput {
+                    id: id.into(),
+                    depends_on: Some(deps),
+                    ..Default::default()
+                },
+            )
+        };
+        // Self reference, a two-step loop and a three-step loop are all refused.
+        assert!(set(&a.id, vec![a.id.clone()]).is_err());
+        assert!(set(&a.id, vec![b.id.clone()]).is_err());
+        let err = set(&a.id, vec![c.id.clone()]).unwrap_err();
+        assert!(err.contains("cycle"), "error: {err}");
+        // Nothing was written by the refused updates.
+        assert!(find_task_by_id(&vault, &a.id)
+            .unwrap()
+            .depends_on
+            .is_empty());
+        // A non-loop is fine.
+        assert!(set(&c.id, vec![a.id.clone(), b.id.clone()]).is_ok());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn unresolved_deps_ignores_done_and_unknown_ids() {
+        let vault = temp_vault("dep-unresolved");
+        let mk = |title: &str, status: &str| {
+            create_task(
+                &vault,
+                CreateTaskInput {
+                    title: title.into(),
+                    status: Some(status.into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let open = mk("open", "doing");
+        let done = mk("done", "done");
+        let waiting = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "waiting".into(),
+                depends_on: Some(vec![open.id.clone(), done.id.clone(), "T-9999".into()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let all = scan_tasks(&vault).unwrap();
+        let waiting = all.iter().find(|t| t.id == waiting.id).unwrap();
+        let ids: Vec<&str> = unresolved_deps(waiting, &all)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
+        assert_eq!(ids, vec![open.id.as_str()]);
+
+        // The start check reports the open predecessor and clears once it is done.
+        let err = check_startable(&vault, &waiting.id).unwrap_err();
+        assert!(err.contains(&open.id), "error: {err}");
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: open.id.clone(),
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(check_startable(&vault, &waiting.id).is_ok());
 
         fs::remove_dir_all(&vault).ok();
     }

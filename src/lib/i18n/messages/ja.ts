@@ -146,6 +146,13 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "task.blocked.label": "ブロック中",
   "task.blocked.clickToEdit": "クリックで理由を編集",
 
+  "task.dependency.waiting": "{ids} 待ち",
+  "task.dependency.waitingTooltip": "次のタスクが完了するまで着手できません:",
+  "task.dependency.startTitle": "先行タスクが完了していません",
+  "task.dependency.startDescription":
+    "{id} は未完了の先行タスクに依存しています。いま着手すると、その順序を飛ばすことになります。",
+  "task.dependency.startAnyway": "それでも着手",
+
   "task.blockedDialog.editTitle": "ブロック理由を編集",
   "task.blockedDialog.markTitle": "ブロック中にする",
   "task.blockedDialog.editDescription": "このタスクは何を待っていますか？",
@@ -274,6 +281,13 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "taskEditor.field.due": "期限",
   "taskEditor.field.tags": "タグ（カンマ区切り）",
   "taskEditor.field.tagsPlaceholder": "feature, bug",
+  "taskEditor.field.dependsOn": "先行タスク",
+  "taskEditor.field.dependsOnDescription":
+    "このタスクの着手前に完了している必要があるタスク。完了すると自動で解消されます。",
+  "taskEditor.field.dependsOnAdd": "先行タスクを追加…",
+  "taskEditor.field.dependsOnEmpty": "追加できるタスクがありません（循環になるものは除外）",
+  "taskEditor.field.dependsOnRemove": "{id} を外す",
+  "taskEditor.field.dependsOnUnknown": "見つかりません",
   "taskEditor.field.blocked": "ブロック中",
   "taskEditor.field.blockedDescription":
     "他の誰かの対応待ちです。タスクのステータスはそのままで、ボードには待機期間が表示されます。",

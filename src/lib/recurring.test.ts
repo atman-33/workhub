@@ -46,6 +46,7 @@ function task(overrides: Partial<Task> = {}): Task {
     blocked: false,
     blocked_note: "",
     blocked_since: "",
+    depends_on: [],
     created: "2026-07-30",
     updated: "2026-07-30",
     file: "C:/vault/tasks/T-0001 Daily standup.md",

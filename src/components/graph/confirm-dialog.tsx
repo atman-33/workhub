@@ -34,7 +34,7 @@ export function ConfirmDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription className="whitespace-pre-line">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

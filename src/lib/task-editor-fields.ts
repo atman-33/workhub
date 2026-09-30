@@ -29,6 +29,8 @@ export interface TaskDraft {
   blocked: boolean;
   blockedNote: string;
   blockedSince: string;
+  /** Predecessor task ids, comma-separated like `tags`. */
+  dependsOn: string;
   due: string;
   tags: string; // comma-separated for editing
   content: string;
@@ -52,6 +54,7 @@ export function draftFromTask(task: Task): TaskDraft {
     blocked: task.blocked,
     blockedNote: task.blocked_note,
     blockedSince: task.blocked_since,
+    dependsOn: task.depends_on.join(", "),
     due: task.due,
     tags: task.tags.join(", "),
     content: parseBody(task.body).content,
@@ -85,6 +88,10 @@ export function fieldsFromDraft(
     blocked: draft.blocked,
     blockedNote: draft.blockedNote,
     blockedSince: draft.blockedSince,
+    dependsOn: draft.dependsOn
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean),
     due: draft.due,
     tags: draft.tags
       .split(",")
@@ -116,6 +123,7 @@ type UpdateTaskInputFields = {
   blocked: boolean;
   blockedNote: string;
   blockedSince: string;
+  dependsOn: string[];
   due: string;
   tags: string[];
 };

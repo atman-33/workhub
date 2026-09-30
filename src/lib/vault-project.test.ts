@@ -81,6 +81,7 @@ function task(over: Partial<Task> = {}): Task {
     blocked: false,
     blocked_note: "",
     blocked_since: "",
+    depends_on: [],
     confirm: false,
     worktree: false,
     ...over,

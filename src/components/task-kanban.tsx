@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
 import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
+import { DependencyBadge } from "@/components/dependency-badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
@@ -57,6 +58,8 @@ type DropPos = { col: TaskStatus; index: number } | null;
 
 interface Props {
   tasks: Task[];
+  /** Open predecessors per task id; absent for a task that is not waiting. */
+  waiting: ReadonlyMap<string, Task[]>;
   onOpen: (task: Task) => void;
   /** Applies one or more frontmatter updates (order and/or status), then refreshes. */
   onMove: (updates: UpdateTaskInput[]) => void;
@@ -77,7 +80,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
   const t = useT();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
@@ -244,6 +247,9 @@ export function TaskKanban({ tasks, onOpen, onMove, onLaunchAgent, onCopyTaskPro
                       onEdit={() => onEditBlocked(task)}
                       className="w-full"
                     />
+                  )}
+                  {waiting.has(task.id) && (
+                    <DependencyBadge waiting={waiting.get(task.id) ?? []} className="w-full" />
                   )}
                   <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                     <span>{task.id}</span>

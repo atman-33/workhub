@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.153.0 (2026-10-01)
+
+- **Tasks can depend on other tasks** (T-0490). A task lists the tasks that must
+  be done before it can start in a new `depends_on` frontmatter key, set from
+  the task editor's Optional section (a searchable picker that leaves out
+  anything that would close a loop). While any of them is not `done`, the card
+  or row shows a "waiting on T-0012" badge with the predecessors in its tooltip.
+  Nothing is stored about the waiting itself: it is worked out from the
+  predecessors' status each time, so it clears on its own once they are done —
+  and it is separate from `blocked`, the flag you set by hand for a wait on
+  someone outside. Dragging a waiting task into Doing, or launching an agent on
+  it, asks first ("Start anyway"); the backend refuses the launch without that
+  confirmation. A loop is refused when it is saved. `task-cli` gains
+  `--depends-on` on `create` and `update`, a `waiting-on` column in `list`, and
+  refuses `start` (and `update --status doing`) for a waiting task unless the
+  owner allows `--force`. `CLAUDE.md` in the vault template documents the key
+  and tells agents never to start a waiting task; it takes effect in an existing
+  vault through a template update. Needs `workhub` 0.47.0.
+
 ## 0.152.1 (2026-09-30)
 
 - **`task-report` reviews the project's `roadmap.md`** (T-0461). Reporting a

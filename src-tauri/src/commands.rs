@@ -1746,7 +1746,11 @@ pub fn launch_agent_for_task(
     terminal_embed: bool,
     language: String,
     custom_prompt: String,
+    force: bool,
 ) -> Result<String, String> {
+    if !force && !vault_path.is_empty() {
+        tasks::check_startable(&PathBuf::from(&vault_path), &task_id)?;
+    }
     actions::launch_agent_for_task(actions::LaunchAgentForTaskParams {
         agent_cmd: &agent_cmd,
         assignee: &assignee,
