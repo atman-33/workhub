@@ -602,12 +602,79 @@ export function hashFile(filePath) {
 }
 
 /**
+ * Runtime artifacts every synced skill dir can be expected to grow, regardless
+ * of what the skill declares for itself. `.git` and `node_modules` are never
+ * shipped content, so ignoring them cannot hide a real edit.
+ */
+const ALWAYS_IGNORED_PATTERNS = [".git", "node_modules"];
+
+/**
+ * Runtime artifacts a skill declares for itself, read from the `.gitignore` it
+ * ships. Skills already document their own scratch output there (`.tmp/`,
+ * `config.json`, `transport.config.json`, `__pycache__/`), so honouring that
+ * file beats maintaining a name list here: a new skill is covered by the
+ * declaration it already ships.
+ *
+ * Deliberately partial gitignore semantics, enough for the three shapes these
+ * skills use: a bare name, a rooted path, and `X/*` meaning X is runtime.
+ * `!` negations and other globs are skipped rather than half-implemented,
+ * because an entry this function silently misreads would either hide a hand
+ * edit or invent drift. A pattern with those characters is simply not ignored,
+ * which is the same behaviour as before this function grew a list.
+ *
+ * @returns {{anchored: Set<string>, bare: Set<string>}}
+ */
+function readIgnorePatterns(dirPath) {
+  const anchored = new Set();
+  const bare = new Set();
+  const add = (pattern) => {
+    if (pattern.includes("/")) anchored.add(pattern);
+    else bare.add(pattern);
+  };
+  for (const pattern of ALWAYS_IGNORED_PATTERNS) add(pattern);
+  let raw;
+  try {
+    raw = readFileSync(path.join(dirPath, ".gitignore"), "utf8");
+  } catch {
+    return { anchored, bare };
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const pattern = line.trim();
+    if (!pattern || pattern.startsWith("#")) continue;
+    if (pattern.startsWith("!")) continue;
+    // `X/*` declares that X's contents are generated, i.e. X itself is
+    // runtime. Collapsing it here is what makes the common
+    // "ignore this directory's output" spelling work.
+    const scope = pattern.endsWith("/*") ? pattern.slice(0, -2) : pattern;
+    if (!scope || /[*?[\]]/.test(scope)) continue;
+    const normalized = scope.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+    if (normalized) add(normalized);
+  }
+  return { anchored, bare };
+}
+
+function isIgnored(relPath, name, ignores) {
+  if (ignores.bare.has(name)) return true;
+  if (ignores.anchored.has(relPath)) return true;
+  // A `dir/` pattern ignores everything beneath it, at any depth.
+  for (let i = relPath.indexOf("/"); i !== -1; i = relPath.indexOf("/", i + 1)) {
+    if (ignores.bare.has(relPath.slice(0, i)) || ignores.anchored.has(relPath.slice(0, i))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Stable recursive directory SHA1. Contributions: relative path (forward-slash
  * normalized) + file contents, in lexicographic order so the hash is repeatable
- * across platforms.
+ * across platforms. Runtime artifacts (see ALWAYS_IGNORED_PATTERNS and the
+ * skill's own `.gitignore`) are excluded, so generating scratch inside a synced
+ * skill dir does not read as a hand edit.
  */
 export function hashDirectory(dirPath) {
   const h = crypto.createHash("sha1");
+  const ignores = readIgnorePatterns(dirPath);
   const stack = [""];
   const collected = [];
   while (stack.length) {
@@ -621,6 +688,7 @@ export function hashDirectory(dirPath) {
     }
     for (const entry of entries) {
       const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (isIgnored(entryRel, entry.name, ignores)) continue;
       if (entry.isDirectory()) {
         stack.push(entryRel);
       } else if (entry.isFile()) {
