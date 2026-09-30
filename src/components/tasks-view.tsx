@@ -49,7 +49,7 @@ import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { cn } from "@/lib/utils";
-import { taskProjectFilterLabel, projectOptionsOf } from "@/lib/vault-project";
+import { taskProjectFilterLabel, projectOptionsOf, unknownTaskProjects } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
@@ -327,16 +327,9 @@ export function TasksView({
   // filter in slug order, matching neither Obsidian nor the Projects tab.
   const filterProjects = useMemo(() => {
     const known = new Set(knownProjects);
-    const unknown = Array.from(
-      new Set(
-        tasks
-          .map((t) => t.project)
-          .filter(Boolean)
-          .filter((p) => !known.has(p)),
-      ),
-    ).sort();
+    const unknown = unknownTaskProjects(tasks, known, showArchived, projectFilter);
     return [...knownProjects, ...unknown];
-  }, [knownProjects, tasks]);
+  }, [knownProjects, tasks, showArchived, projectFilter]);
 
   // Display label for the filter: the `NNNN` sort number beside a known slug,
   // like the task editor and recurring-rule pickers (T-0282/T-0286), and an
