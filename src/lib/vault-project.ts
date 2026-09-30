@@ -294,6 +294,31 @@ export function taskProjectFilterLabel(
   return projectNumberedLabel(value, folders);
 }
 
+/**
+ * `project:` values tasks carry that no project answers to, for the Tasks
+ * toolbar filter — sorted, deduped.
+ *
+ * Archived tasks only count while they are on the board (`includeArchived`).
+ * A value that survives only on a long-archived task is history, not a
+ * mis-filed task to hunt for, and listing it leaves a dead project in the
+ * picker with nothing to show. `keep` is the value currently selected, so the
+ * active filter never disappears from its own dropdown.
+ */
+export function unknownTaskProjects(
+  tasks: readonly Task[],
+  known: ReadonlySet<string>,
+  includeArchived: boolean,
+  keep = "",
+): string[] {
+  const values = new Set<string>();
+  for (const t of tasks) {
+    if (!t.project || known.has(t.project)) continue;
+    if (t.archived && !includeArchived && t.project !== keep) continue;
+    values.add(t.project);
+  }
+  return Array.from(values).sort();
+}
+
 /** Project options for the pickers, derived from one vault listing. */
 export interface ProjectOptions {
   /** Slugs in folder order, deduped — duplicate-slug folders answer to one

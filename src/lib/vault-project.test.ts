@@ -19,6 +19,7 @@ import {
   projectNumberedLabel,
   taskProjectFilterLabel,
   unknownProjects,
+  unknownTaskProjects,
 } from "./vault-project";
 
 function project(over: Partial<VaultProject> = {}): VaultProject {
@@ -399,6 +400,28 @@ describe("taskProjectFilterLabel", () => {
     expect(taskProjectFilterLabel("0150-sato-retirement-gift", folders, known)).toBe(
       "0150-sato-retirement-gift (unregistered)",
     );
+  });
+});
+
+describe("unknownTaskProjects", () => {
+  const known = new Set(["demo"]);
+  const tasks = [
+    task({ id: "T-1", project: "demo" }),
+    task({ id: "T-2", project: "typo" }),
+    task({ id: "T-3", project: "gone", archived: true }),
+    task({ id: "T-4", project: "" }),
+  ];
+
+  it("lists unknown values of active tasks only while archive is hidden", () => {
+    expect(unknownTaskProjects(tasks, known, false)).toEqual(["typo"]);
+  });
+
+  it("includes archive-only values when archived tasks are shown", () => {
+    expect(unknownTaskProjects(tasks, known, true)).toEqual(["gone", "typo"]);
+  });
+
+  it("keeps the currently selected value even if only archived tasks carry it", () => {
+    expect(unknownTaskProjects(tasks, known, false, "gone")).toEqual(["gone", "typo"]);
   });
 });
 
