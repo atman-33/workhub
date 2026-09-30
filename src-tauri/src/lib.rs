@@ -100,20 +100,36 @@ pub fn apply_autostart(app: &tauri::AppHandle, enabled: bool) {
     }
 }
 
-/// Minimizes the main window when this process was launched by the sign-in
-/// registration rather than by the user.
+/// Set once the main window has been revealed, so the frontend's call and the
+/// fallback timer cannot both act (a second minimize would re-minimize a
+/// window the user already restored).
+static MAIN_REVEALED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// How long the main window may stay hidden waiting for the frontend (T-0491).
+const REVEAL_FALLBACK: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Shows the main window, which `tauri.conf.json` creates hidden so the
+/// WebView never paints at 100% before the remembered zoom is applied.
 ///
-/// Minimized, not hidden: there is no tray icon, so a hidden main window
-/// would only be reachable by launching the exe again (the single-instance
-/// handler shows it). A taskbar button is the obvious way back.
-fn apply_autostart_launch(app: &tauri::App) {
-    if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+/// When this process was launched by the sign-in registration it is shown
+/// minimized instead of hidden: there is no tray icon, so a hidden main
+/// window would only be reachable by launching the exe again (the
+/// single-instance handler shows it). A taskbar button is the obvious way
+/// back. Only the first call acts.
+pub fn reveal_main_window(app: &tauri::AppHandle) {
+    if MAIN_REVEALED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
-    if let Some(main_window) = app.get_webview_window("main") {
+    let Some(main_window) = app.get_webview_window("main") else {
+        return;
+    };
+    if std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+        // Minimizing a hidden window shows it minimized.
         if let Err(e) = main_window.minimize() {
             crate::diag!("autostart: cannot minimize the main window: {e}");
         }
+    } else if let Err(e) = main_window.show() {
+        crate::diag!("cannot show the main window: {e}");
     }
 }
 
@@ -144,7 +160,7 @@ pub fn run() {
         }))
         // Start-with-Windows (T-0258). The extra argument is how the app
         // recognizes a sign-in launch and starts out of the way — see
-        // `apply_autostart_launch` below.
+        // `reveal_main_window`.
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_ARG]),
@@ -209,7 +225,14 @@ pub fn run() {
             // moment the user moves the folder; rewriting it on every start
             // is cheaper than detecting that.
             apply_autostart(app.handle(), cfg.settings.autostart);
-            apply_autostart_launch(app);
+            // The window starts hidden; the frontend reveals it once the saved
+            // zoom is applied. If it never does (load failure, IPC error), do
+            // it here so the app cannot be left invisible.
+            let fallback_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(REVEAL_FALLBACK);
+                reveal_main_window(&fallback_handle);
+            });
             // Give a vault that has no `.workhub/settings.json` yet the
             // values this machine is already using, so the split never
             // starts by losing settings (T-0206).
@@ -309,6 +332,7 @@ pub fn run() {
             commands::task_editor_hide,
             commands::task_editor_request_terminal_panel,
             commands::focus_main_window,
+            commands::reveal_main_window,
             commands::input_listener_diagnostics,
             commands::diagnostic_log,
             commands::diagnostic_log_info,

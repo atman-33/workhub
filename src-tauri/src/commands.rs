@@ -584,6 +584,14 @@ pub fn focus_main_window(app: tauri::AppHandle) {
     }
 }
 
+/// Reveals the main window, which starts hidden so the saved zoom can be
+/// applied before the first paint (T-0491). The frontend calls it once the
+/// zoom is in place; `lib.rs` has a timer for when it never does.
+#[tauri::command]
+pub fn reveal_main_window(app: tauri::AppHandle) {
+    crate::reveal_main_window(&app);
+}
+
 #[tauri::command]
 pub fn app_version() -> String {
     update::current_version().to_string()

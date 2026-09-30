@@ -167,7 +167,16 @@ function ZoomControl() {
   }, []);
 
   useEffect(() => {
-    apply(zoomRef.current);
+    // The window starts hidden (tauri.conf.json) so it never paints at 100%
+    // before the saved zoom lands (T-0491). Reveal it once the zoom is
+    // applied — or failed to apply; either way the user must get a window.
+    // Rust also reveals it after a timeout if this never runs.
+    if (isTauri()) {
+      getCurrentWebview()
+        .setZoom(zoomRef.current)
+        .catch(console.error)
+        .finally(() => void api.revealMainWindow().catch(console.error));
+    }
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
       const action = matchZoomKey(e);

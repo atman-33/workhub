@@ -535,6 +535,7 @@ export const api = {
     invoke<void>("task_editor_request_terminal_panel"),
   /** Brings the main window (and with it the terminal panel) to the front. */
   focusMainWindow: () => invoke<void>("focus_main_window"),
+  revealMainWindow: () => invoke<void>("reveal_main_window"),
 
   // ---- voice input: transcript history ----
   voiceHistoryList: () => invoke<VoiceHistoryEntry[]>("voice_history_list"),
