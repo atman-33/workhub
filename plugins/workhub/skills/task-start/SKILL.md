@@ -22,6 +22,12 @@ argument-hint: "<task-id>"
    `tasks/` and `_ai/`) → `vault_path` in `%APPDATA%\workhub\config.json`.
    The CLI refuses `review`/`done` tasks — report and stop in that case.
 
+   **A task with open predecessors is not started either.** When it has
+   `depends_on` and any of those tasks is not `done`, the CLI exits non-zero,
+   lists them and writes nothing. Report the predecessors to the owner and
+   stop. Pass `--force` only when the owner has said in chat to start it
+   anyway — never on your own, and never to get around the error.
+
    *Fallback (no node, or script missing):* edit the task file by hand —
    set `status: doing` and `updated: <today>` in the frontmatter (preserve
    the body byte-for-byte; never start `review`/`done`/`archived` tasks),

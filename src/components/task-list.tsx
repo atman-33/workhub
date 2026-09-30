@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
 import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
 import { ClaudeDesktopButton } from "@/components/claude-desktop-button";
+import { DependencyBadge } from "@/components/dependency-badge";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { LaunchAgentButton } from "@/components/launch-agent-button";
 import { OpenInObsidianButton } from "@/components/open-in-obsidian-button";
@@ -24,6 +25,8 @@ import type { Task, TaskPriority } from "@/types";
 
 interface Props {
   tasks: Task[];
+  /** Open predecessors per task id; absent for a task that is not waiting. */
+  waiting: ReadonlyMap<string, Task[]>;
   onOpen: (task: Task) => void;
   onLaunchAgent: (task: Task) => Promise<unknown>;
   onCopyTaskPrompt: (task: Task) => Promise<unknown>;
@@ -40,7 +43,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, waiting, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
   const t = useT();
   if (tasks.length === 0) {
     return (
@@ -86,6 +89,12 @@ export function TaskList({ tasks, onOpen, onLaunchAgent, onCopyTaskPrompt, onSen
                   since={task.blocked_since}
                   onEdit={() => onEditBlocked(task)}
                   // Capped so a long reason can't squeeze the title out.
+                  className="max-w-[16rem]"
+                />
+              )}
+              {waiting.has(task.id) && (
+                <DependencyBadge
+                  waiting={waiting.get(task.id) ?? []}
                   className="max-w-[16rem]"
                 />
               )}

@@ -48,6 +48,7 @@ import {
 import { TASK_EDITOR_TERMINAL_PANEL_EVENT } from "@/lib/task-editor-bridge";
 import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
+import { unresolvedDeps } from "@/lib/task-dependencies";
 import { cn } from "@/lib/utils";
 import { taskProjectFilterLabel, projectOptionsOf, unknownTaskProjects } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
@@ -98,6 +99,13 @@ export function TasksView({
   /** Task whose blocked reason is being edited in the one-field dialog. */
   const [blockedTarget, setBlockedTarget] = useState<Task | null>(null);
   const [archiveDoneOpen, setArchiveDoneOpen] = useState(false);
+  /** A start (drag to Doing, or an agent launch) held back because the task
+   *  still has open predecessors; `run` is what "Start anyway" does. */
+  const [startGuard, setStartGuard] = useState<{
+    task: Task;
+    open: Task[];
+    run: () => void;
+  } | null>(null);
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
   /**
@@ -391,20 +399,48 @@ export function TasksView({
     }
   }, [config, openTerminalPanel]);
 
+  // Waiting is derived from the predecessors' status on every render, never
+  // stored: it clears by itself the moment they reach Done. Computed over the
+  // whole board, not `visible`, so a filter cannot hide a predecessor.
+  const waiting = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      if (task.status === "done" || task.depends_on.length === 0) continue;
+      const open = unresolvedDeps(task, tasks);
+      if (open.length > 0) map.set(task.id, open);
+    }
+    return map;
+  }, [tasks]);
+
   // Returns the launch promise so callers (the animated LaunchAgentButton) can
   // sync their feedback to it; still surfaces the outcome in the status bar.
-  const launchAgent = useCallback(
-    async (task: Task) => {
+  const runLaunch = useCallback(
+    async (task: Task, force: boolean) => {
       if (!config) return;
       prepareTerminalForLaunch();
       try {
-        setStatus(await launchAgentForTask(config, task));
+        setStatus(await launchAgentForTask(config, task, force));
       } catch (e) {
         setStatus(i18nT("task.msg.launchFailed", { error: String(e) }));
         throw e;
       }
     },
     [config, prepareTerminalForLaunch],
+  );
+
+  // A task with open predecessors asks before an agent starts on it. The
+  // backend refuses the same launch unless `force` is passed, so this dialog is
+  // the only way through from the board.
+  const launchAgent = useCallback(
+    async (task: Task) => {
+      const open = waiting.get(task.id);
+      if (open) {
+        setStartGuard({ task, open, run: () => void runLaunch(task, true).catch(() => {}) });
+        return;
+      }
+      await runLaunch(task, false);
+    },
+    [waiting, runLaunch],
   );
 
   const copyTaskPrompt = useCallback(
@@ -468,6 +504,23 @@ export function TasksView({
       }
     },
     [vaultPath, refreshTasks],
+  );
+
+  // Dragging a waiting task into Doing asks first, like launching an agent on
+  // it. Every other move (reordering, other columns) goes straight through.
+  const moveWithGuard = useCallback(
+    (updates: UpdateTaskInput[]) => {
+      for (const u of updates) {
+        const task = tasks.find((x) => x.id === u.id);
+        const open = task ? waiting.get(task.id) : undefined;
+        if (task && open && u.status === "doing" && task.status !== "doing") {
+          setStartGuard({ task, open, run: () => void applyUpdates(updates) });
+          return;
+        }
+      }
+      void applyUpdates(updates);
+    },
+    [tasks, waiting, applyUpdates],
   );
 
   const setArchived = useCallback(
@@ -825,6 +878,7 @@ export function TasksView({
             viewMode === "list" ? (
               <TaskList
                 tasks={visible}
+                waiting={waiting}
                 onOpen={(task) => openEditor("edit", task)}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
@@ -840,8 +894,9 @@ export function TasksView({
             ) : (
               <TaskKanban
                 tasks={visible}
+                waiting={waiting}
                 onOpen={(task) => openEditor("edit", task)}
-                onMove={(updates) => void applyUpdates(updates)}
+                onMove={moveWithGuard}
                 onLaunchAgent={launchAgent}
                 onCopyTaskPrompt={copyTaskPrompt}
                 onSendToClaudeDesktop={sendTaskToClaudeDesktop}
@@ -931,6 +986,26 @@ export function TasksView({
         destructive
         onConfirm={() => void confirmDelete()}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={startGuard !== null}
+        title={t("task.dependency.startTitle")}
+        description={
+          startGuard
+            ? [
+                t("task.dependency.startDescription", { id: startGuard.task.id }),
+                ...startGuard.open.map((d) => `${d.id} ${d.title} [${d.status}]`),
+              ].join("\n")
+            : ""
+        }
+        confirmLabel={t("task.dependency.startAnyway")}
+        onConfirm={() => {
+          const run = startGuard?.run;
+          setStartGuard(null);
+          run?.();
+        }}
+        onClose={() => setStartGuard(null)}
       />
 
       <ConfirmDialog

@@ -936,6 +936,12 @@ pub struct Task {
     /// has been stalled. Empty when not blocked.
     #[serde(default)]
     pub blocked_since: String,
+    /// Ids of tasks that must reach `done` before this one can be started.
+    /// Unlike `blocked` this is not a flag anyone sets by hand: whether the
+    /// task is waiting is derived from the predecessors' `status` each time, so
+    /// it clears itself when they finish. Empty when the task has none.
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub created: String,
     pub updated: String,
     /// Absolute path to the task's Markdown file (forward slashes).

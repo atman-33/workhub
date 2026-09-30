@@ -392,6 +392,7 @@ export const api = {
     terminalEmbed: boolean,
     language: string,
     customPrompt: string,
+    force = false,
   ) =>
     invoke<string>("launch_agent_for_task", {
       agentCmd,
@@ -410,6 +411,7 @@ export const api = {
       terminalEmbed,
       language,
       customPrompt,
+      force,
     }),
 
   copyTaskPrompt: (

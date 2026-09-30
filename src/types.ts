@@ -853,6 +853,10 @@ export interface Task {
   blocked_note: string;
   /** `YYYY-MM-DD` the task became blocked, for the stalled-days badge. */
   blocked_since: string;
+  /** Ids of tasks that must be `done` before this one can start. Not a flag
+   * anyone sets by hand: whether the task is waiting is derived from the
+   * predecessors' status (see `lib/task-dependencies.ts`). */
+  depends_on: string[];
   created: string;
   updated: string;
   file: string;
@@ -901,6 +905,7 @@ export interface CreateTaskInput {
   blocked?: boolean;
   blockedNote?: string;
   blockedSince?: string;
+  dependsOn?: string[];
   due?: string;
   tags?: string[];
   body?: string;
@@ -926,6 +931,8 @@ export interface UpdateTaskInput {
   blocked?: boolean;
   blockedNote?: string;
   blockedSince?: string;
+  /** Replaces the whole list; empty clears it. A loop is refused by the backend. */
+  dependsOn?: string[];
   body?: string;
 }
 

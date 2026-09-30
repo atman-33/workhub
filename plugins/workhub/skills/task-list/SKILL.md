@@ -21,6 +21,14 @@ override): `WORKHUB_VAULT` env var → **the current directory if it is a
 vault** (has `tasks/` and `_ai/`) → `vault_path` in
 `%APPDATA%\workhub\config.json`. If none resolves, ask the user.
 
+The `waiting-on` column lists a task's predecessors (`depends_on`) that are not
+`done` yet. A task with anything there cannot be started: do not offer it as
+the next one to pick. File a dependency with
+`create --depends-on T-0012,T-0034`, or set it with
+`update <id> --depends-on T-0012` (an empty value clears it; a loop is
+refused). This is not `--blocked`, which is a flag for a wait on someone
+outside; a dependency clears by itself once the predecessors are done.
+
 ## Fallback: manual read (no node, or script missing)
 
 1. Resolve the vault with the same order as above.

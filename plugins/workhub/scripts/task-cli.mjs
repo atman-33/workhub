@@ -13,12 +13,14 @@
 //                            [--assignee a]
 //                                 [--priority p] [--status s] [--due d]
 //                                 [--model m] [--tags a,b] [--confirm]
-//                                 [--worktree] [--body-file path] [--json]
-//   node task-cli.mjs start  <id>
+//                                 [--worktree] [--depends-on T-0012,T-0034]
+//                                 [--body-file path] [--json]
+//   node task-cli.mjs start  <id> [--force]
 //   node task-cli.mjs update <id> [--status s] [--assignee a] [--project p]
 //                                 [--backlog B-NNN]
 //                                 [--priority p] [--model m] [--due d]
 //                                 [--blocked true|false] [--blocked-note "..."]
+//                                 [--depends-on T-0012,T-0034 | ""] [--force]
 //   node task-cli.mjs report <id>
 //   node task-cli.mjs sessions [--json]
 //   (all commands accept --vault <path>; start/report accept --session <key>)
@@ -315,6 +317,7 @@ function regenerateIndex(vault) {
     due: t.due,
     tags: t.tags,
     archived: t.archived,
+    depends_on: depsOf(t),
     created: t.created,
     updated: t.updated,
     file: t.file.startsWith(vaultPrefix)
@@ -411,15 +414,104 @@ function cmdList(vault, flags) {
     console.log("no matching tasks");
     return;
   }
-  const rows = tasks.map((t) => [t.id, t.status, t.assignee, t.priority, t.project, t.due, t.title]);
-  const header = ["id", "status", "assignee", "priority", "project", "due", "title"];
+  // `waiting-on` lists the predecessors still open, so an agent picking a task
+  // sees at a glance that one is not startable yet.
+  const all = scanTasks(vault);
+  const rows = tasks.map((t) => [
+    t.id,
+    t.status,
+    t.assignee,
+    t.priority,
+    t.project,
+    t.due,
+    unresolvedDeps(t, all)
+      .map((d) => d.id)
+      .join(","),
+    t.title,
+  ]);
+  const header = ["id", "status", "assignee", "priority", "project", "due", "waiting-on", "title"];
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => String(r[i]).length)));
   const fmt = (r) => r.map((c, i) => String(c).padEnd(widths[i])).join("  ");
   console.log(fmt(header));
   for (const r of rows) console.log(fmt(r));
 }
 
-function applyUpdates(task, flags) {
+// ---------------------------------------------------------------------
+// dependencies — mirrors `unresolved_deps` / `would_create_cycle` in tasks.rs
+// ---------------------------------------------------------------------
+
+// `depends_on` is not in KNOWN_KEYS, so it travels in `extra` like `blocked`.
+// Read it back from there: inline `[a, b]` or a `- a` block.
+function depsOf(task) {
+  const lines = task.extra ?? [];
+  const at = lines.findIndex((l) => /^depends_on\s*:/.test(l.trimStart()));
+  if (at < 0) return [];
+  const val = lines[at].slice(lines[at].indexOf(":") + 1).trim();
+  if (val.startsWith("[") && val.endsWith("]")) {
+    return val
+      .slice(1, -1)
+      .split(",")
+      .map((s) => unquote(s))
+      .filter(Boolean);
+  }
+  if (val !== "") return [unquote(val)];
+  const out = [];
+  for (const l of lines.slice(at + 1)) {
+    const t = l.trimStart();
+    if (!t.startsWith("- ")) break;
+    out.push(unquote(t.slice(2)));
+  }
+  return out;
+}
+
+/** Replaces the whole list; an empty list removes the key. */
+function setDeps(task, deps) {
+  const lines = task.extra ?? [];
+  const at = lines.findIndex((l) => /^depends_on\s*:/.test(l.trimStart()));
+  let keep = lines;
+  if (at >= 0) {
+    let end = at + 1;
+    while (end < lines.length && /^(\s|- )/.test(lines[end])) end++;
+    keep = [...lines.slice(0, at), ...lines.slice(end)];
+  }
+  task.extra = deps.length ? [...keep, `depends_on: ${renderTags(deps)}`] : keep;
+}
+
+/** Predecessors not finished yet. `done` (archived or not) and ids that match
+ *  no task count as resolved, like the app. */
+function unresolvedDeps(task, all) {
+  return depsOf(task)
+    .map((d) => all.find((t) => t.id === d))
+    .filter((t) => t && t.status !== "done");
+}
+
+function wouldCreateCycle(id, deps, all) {
+  const stack = [...deps];
+  const seen = new Set();
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === id) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const t = all.find((x) => x.id === cur);
+    if (t) stack.push(...depsOf(t));
+  }
+  return false;
+}
+
+/** Refuses to start a task whose predecessors are still open, unless forced. */
+function checkStartable(task, all, flags) {
+  if (flags.force) return;
+  const open = unresolvedDeps(task, all);
+  if (open.length === 0) return;
+  const list = open.map((t) => `${t.id} ${t.title} [${t.status}]`).join(", ");
+  fail(
+    `task ${task.id} depends on unfinished tasks: ${list}. ` +
+      "Do not start it; tell the owner. Only the owner may allow --force.",
+  );
+}
+
+function applyUpdates(task, flags, all) {
   const editable = ["status", "assignee", "project", "backlog", "priority", "model", "due"];
   let changed = false;
   for (const key of editable) {
@@ -428,6 +520,22 @@ function applyUpdates(task, flags) {
       changed = true;
     }
   }
+  if (flags["depends-on"] !== undefined) {
+    const deps = [
+      ...new Set(
+        flags["depends-on"]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (deps.length && wouldCreateCycle(task.id, deps, all)) {
+      fail(`${task.id} cannot depend on ${deps.join(", ")}: that would make a dependency cycle`);
+    }
+    setDeps(task, deps);
+    changed = true;
+  }
+  if (flags.status === "doing") checkStartable(task, all, flags);
   if (flags.blocked !== undefined) {
     applyBlocked(task, flags);
     changed = true;
@@ -553,6 +661,10 @@ function cmdCreate(vault, flags) {
     file: path.join(dir, `${id} ${sanitizeFilename(title)}.md`).replaceAll("\\", "/"),
     body,
   };
+  if (flags["depends-on"]) {
+    // A new task has no dependents yet, so it cannot close a loop.
+    setDeps(task, [...new Set(flags["depends-on"].split(",").map((s) => s.trim()).filter(Boolean))]);
+  }
   if (fs.existsSync(task.file)) fail(`${task.file} already exists`);
   writeTaskFile(task);
   regenerateIndex(vault);
@@ -580,6 +692,7 @@ function cmdStart(vault, id, flags) {
   if (task.status === "review" || task.status === "done") {
     fail(`task ${id} is '${task.status}' — only inbox/todo/doing tasks can be started`);
   }
+  checkStartable(task, scanTasks(vault), flags);
   task.status = "doing";
   task.updated = today();
   writeTaskFile(task);
@@ -604,9 +717,9 @@ function cmdStart(vault, id, flags) {
 
 function cmdUpdate(vault, id, flags) {
   const task = findTask(vault, id);
-  if (!applyUpdates(task, flags)) {
+  if (!applyUpdates(task, flags, scanTasks(vault))) {
     fail(
-      "nothing to update — pass at least one of --status/--assignee/--project/--backlog/--priority/--model/--due/--blocked",
+      "nothing to update — pass at least one of --status/--assignee/--project/--backlog/--priority/--model/--due/--blocked/--depends-on",
     );
   }
   task.updated = today();
@@ -686,7 +799,7 @@ function fail(msg) {
 
 // Flags that stand alone. Everything else takes a value, so a bare `--confirm`
 // would otherwise swallow the next argument (or fail for want of one).
-const BOOLEAN_FLAGS = new Set(["json", "confirm", "worktree"]);
+const BOOLEAN_FLAGS = new Set(["json", "confirm", "worktree", "force"]);
 
 function parseArgs(argv) {
   const positional = [];

@@ -155,6 +155,13 @@ export const en = {
   "task.blocked.label": "Blocked",
   "task.blocked.clickToEdit": "Click to edit the reason",
 
+  "task.dependency.waiting": "Waiting on {ids}",
+  "task.dependency.waitingTooltip": "Cannot start until these tasks are done:",
+  "task.dependency.startTitle": "Predecessor tasks are not done",
+  "task.dependency.startDescription":
+    "{id} depends on tasks that are not done yet. Starting it now skips that order.",
+  "task.dependency.startAnyway": "Start anyway",
+
   "task.blockedDialog.editTitle": "Edit blocked reason",
   "task.blockedDialog.markTitle": "Mark as blocked",
   "task.blockedDialog.editDescription": "What is this task waiting on?",
@@ -285,6 +292,13 @@ export const en = {
   "taskEditor.field.due": "Due",
   "taskEditor.field.tags": "Tags (comma separated)",
   "taskEditor.field.tagsPlaceholder": "feature, bug",
+  "taskEditor.field.dependsOn": "Depends on",
+  "taskEditor.field.dependsOnDescription":
+    "Tasks that must be done before this one can start. Clears by itself when they finish.",
+  "taskEditor.field.dependsOnAdd": "Add a predecessor…",
+  "taskEditor.field.dependsOnEmpty": "No task to add (loops are excluded)",
+  "taskEditor.field.dependsOnRemove": "Remove {id}",
+  "taskEditor.field.dependsOnUnknown": "not found",
   "taskEditor.field.blocked": "Blocked",
   "taskEditor.field.blockedDescription":
     "Waiting on someone else. The task keeps its status; the board shows how long it has been waiting.",

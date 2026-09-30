@@ -15,7 +15,7 @@ import type { Config, Task } from "@/types";
 /** Launches the configured agent CLI on `task`. Returns the backend's status
  *  message. The caller is responsible for making the terminal panel visible
  *  first when running embedded — see `TASK_EDITOR_TERMINAL_PANEL_EVENT`. */
-export function launchAgentForTask(config: Config, task: Task): Promise<string> {
+export function launchAgentForTask(config: Config, task: Task, force = false): Promise<string> {
   const agentCmd =
     task.assignee === "opencode" ? config.settings.opencode_cmd : config.settings.agent_cmd;
   return api.launchAgentForTask(
@@ -35,6 +35,7 @@ export function launchAgentForTask(config: Config, task: Task): Promise<string> 
     config.settings.terminal_embed,
     config.settings.language,
     config.settings.custom_prompt,
+    force,
   );
 }
 
