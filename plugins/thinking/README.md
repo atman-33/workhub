@@ -16,7 +16,7 @@ claude plugin install thinking@workhub-marketplace
 
 | Skill | For |
 |---|---|
-| `teach-back` | Understanding a document well enough to explain it to someone else. Quizzes you on definitions, numbers, evidence, background and scope, and keeps the document's own gaps apart from yours. |
+| `teach-back` | Understanding a document well enough to explain it to someone else. Quizzes you on definitions, numbers, evidence, background and scope, and keeps the document's own gaps apart from yours. For reports that rest on cause-and-effect claims it adds armor mode: sorts fact from hypothesis, cross-examines the chain, and hands over what to assert, hedge and leave out, with small text diagrams along the way. |
 | `ladder` | Thinking a concept or a problem through, one agreed level at a time. `down` breaks a concept into definition, purpose, desired state, components and observable conditions; `up` climbs from a symptom through facts and causes to the purpose and the state worth aiming for. |
 
 Both keep their record in chat and write a file only when asked. No scripts,
