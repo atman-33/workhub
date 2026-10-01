@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.153.1 (2026-10-01)
+
+- **The recurring-rules dialog no longer reloads itself in a loop** (#320). Opening it
+  re-read the config over and over until it was closed, and the empty state
+  flickered. `useT()` handed out a new `t` on every render and the dialog's load
+  effect depends on it; `t` now stays the same until the language changes, which
+  also stops the task editor from recomputing its backlog labels on every render.
+
 ## 0.153.0 (2026-10-01)
 
 - **The app no longer flashes at 100% before settling on the saved zoom**
