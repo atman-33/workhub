@@ -17,13 +17,8 @@ claude plugin install claude-tooling@workhub-marketplace
 | Skill | For |
 |---|---|
 | `create-claude-command` | a project's own `.claude/commands/` slash command |
-| `writing-great-skills` | the vocabulary and principles behind a predictable skill |
 | `install-skill` | installing a skill from a GitHub skills repository |
 | `manage-desktop-routines` | Claude Code Desktop routines: create, back up, restore |
-| `grilling` | stress-testing a plan or design before it is built |
-
-`grilling` sits here rather than in `authoring` because it is the tool you reach
-for while shaping what a command or skill should do, not while writing prose.
 
 ## Plugin update notifications
 

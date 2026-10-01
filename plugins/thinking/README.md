@@ -24,7 +24,7 @@ no vault or project-context dependency.
 
 ## How they differ from neighbours
 
-- `grilling` (`claude-tooling`) questions the *decisions* in a plan and offers
+- `grilling` (`mattpocock-skills`) questions the *decisions* in a plan and offers
   a recommended answer to each. These skills question your *understanding*,
   and hold back the answer.
 - `strategy-decompose` (`strategy`) starts from a strategy document handed
