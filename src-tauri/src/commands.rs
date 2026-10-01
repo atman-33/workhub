@@ -85,7 +85,11 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, Stri
         if !vault.trim().is_empty() {
             let vault = std::path::Path::new(vault);
             let _ = harness::sync_project_context(vault, &config.projects);
-            let _ = harness::sync_opencode_permissions(vault, &config.projects);
+            let _ = harness::sync_opencode_permissions(
+                vault,
+                &config.projects,
+                &config.settings.worktree_root,
+            );
         }
     }
     Ok(config)
@@ -1567,7 +1571,11 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
         // (best-effort — a fresh vault already has the template default).
         let config = storage::load();
         let _ = harness::sync_project_context(&vault, &config.projects);
-        let _ = harness::sync_opencode_permissions(&vault, &config.projects);
+        let _ = harness::sync_opencode_permissions(
+            &vault,
+            &config.projects,
+            &config.settings.worktree_root,
+        );
         Ok(())
     })
     .await

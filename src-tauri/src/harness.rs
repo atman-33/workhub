@@ -11,6 +11,11 @@ use std::path::Path;
 const PROJECT_CONTEXT_RELATIVE: &str = ".claude/project-context.json";
 const OPENCODE_CONFIG_RELATIVE: &str = "opencode.json";
 
+/// The `permission.bash` keys that make `git worktree add` ask. The rule that
+/// lets a worktree under the Worktree root through is one of these plus the
+/// root as a suffix.
+const WORKTREE_ADD_ASK_KEYS: [&str; 2] = ["git worktree add*", "git -C * worktree add*"];
+
 /// Upserts the app's registered projects into the vault's
 /// `.claude/project-context.json`.
 ///
@@ -96,7 +101,11 @@ pub fn sync_project_context(vault: &Path, projects: &[Project]) -> Result<(), St
 /// `permission.bash` catch-all `"*"` sorts first (ASCII 42), every key this
 /// function writes is `"allow"`, and lexicographic order keeps a longer prefix
 /// (`C:/repos/secret/**`) after the pattern it refines (`C:/repos/**`).
-pub fn sync_opencode_permissions(vault: &Path, projects: &[Project]) -> Result<(), String> {
+pub fn sync_opencode_permissions(
+    vault: &Path,
+    projects: &[Project],
+    worktree_root: &str,
+) -> Result<(), String> {
     let config_path = vault.join(OPENCODE_CONFIG_RELATIVE);
 
     let raw = match fs::read_to_string(&config_path) {
@@ -134,6 +143,27 @@ pub fn sync_opencode_permissions(vault: &Path, projects: &[Project]) -> Result<(
         directories
             .entry(format!("{normalized}/**"))
             .or_insert_with(|| Value::String("allow".into()));
+    }
+
+    let worktree_dir = normalize_path(worktree_root);
+    if !worktree_dir.is_empty() {
+        directories
+            .entry(format!("{worktree_dir}/**"))
+            .or_insert_with(|| Value::String("allow".into()));
+
+        // Creating a worktree under the Worktree root is what a worktree-mode
+        // task is told to do, so it should not prompt; a worktree anywhere
+        // else keeps the template's `ask`. Each allow key is its `ask` key
+        // plus a suffix, which sorts after it — the order OpenCode needs,
+        // since the last matching rule wins.
+        if let Some(bash) = permission.get_mut("bash").and_then(Value::as_object_mut) {
+            for ask_key in WORKTREE_ADD_ASK_KEYS {
+                if bash.contains_key(ask_key) {
+                    bash.entry(format!("{ask_key}{worktree_dir}/*"))
+                        .or_insert_with(|| Value::String("allow".into()));
+                }
+            }
+        }
     }
 
     let body =
@@ -222,6 +252,7 @@ mod tests {
                 project("alpha", r"C:\repos\alpha"),
                 project("srms", "//wsl.localhost/Ubuntu/home/atman/repos/srms/"),
             ],
+            "",
         )
         .unwrap();
 
@@ -250,7 +281,7 @@ mod tests {
         let vault = temp_vault("opencode-ask");
         write_opencode(&vault, OPENCODE_BASE);
         // The project is registered but the user pinned it to `ask` by hand.
-        sync_opencode_permissions(&vault, &[project("secret", "C:/repos/secret")]).unwrap();
+        sync_opencode_permissions(&vault, &[project("secret", "C:/repos/secret")], "").unwrap();
         assert_eq!(
             read_opencode(&vault)["permission"]["external_directory"]["C:/repos/secret/**"],
             "ask"
@@ -264,10 +295,10 @@ mod tests {
         write_opencode(&vault, OPENCODE_BASE);
         let projects = [project("alpha", "C:/repos/alpha")];
 
-        sync_opencode_permissions(&vault, &projects).unwrap();
+        sync_opencode_permissions(&vault, &projects, "").unwrap();
         let after_first = fs::read_to_string(vault.join(OPENCODE_CONFIG_RELATIVE)).unwrap();
 
-        sync_opencode_permissions(&vault, &projects).unwrap();
+        sync_opencode_permissions(&vault, &projects, "").unwrap();
         let after_second = fs::read_to_string(vault.join(OPENCODE_CONFIG_RELATIVE)).unwrap();
 
         assert_eq!(after_first, after_second);
@@ -280,10 +311,75 @@ mod tests {
         fs::remove_dir_all(&vault).unwrap();
     }
 
+    const OPENCODE_WITH_WORKTREE_GUARD: &str = r#"{
+  "permission": {
+    "external_directory": { "~/**": "allow" },
+    "bash": {
+      "*": "allow",
+      "git worktree add*": "ask",
+      "git -C * worktree add*": "ask"
+    }
+  }
+}
+"#;
+
+    #[test]
+    fn opencode_allows_worktrees_under_the_root_after_the_ask_rules() {
+        let vault = temp_vault("opencode-worktree");
+        write_opencode(&vault, OPENCODE_WITH_WORKTREE_GUARD);
+
+        sync_opencode_permissions(&vault, &[], r"C:\repos\.worktrees\").unwrap();
+
+        let cfg = read_opencode(&vault);
+        assert_eq!(
+            cfg["permission"]["external_directory"]["C:/repos/.worktrees/**"],
+            "allow"
+        );
+        let bash = cfg["permission"]["bash"].as_object().unwrap();
+        assert_eq!(bash["git worktree add*"], "ask");
+        assert_eq!(bash["git -C * worktree add*"], "ask");
+        assert_eq!(bash["git worktree add*C:/repos/.worktrees/*"], "allow");
+        assert_eq!(bash["git -C * worktree add*C:/repos/.worktrees/*"], "allow");
+
+        // OpenCode lets the last matching rule win, so each allow has to come
+        // after the ask it refines.
+        let keys: Vec<&String> = bash.keys().collect();
+        let position = |key: &str| keys.iter().position(|k| k.as_str() == key).unwrap();
+        assert!(position("git worktree add*") < position("git worktree add*C:/repos/.worktrees/*"));
+        assert!(
+            position("git -C * worktree add*")
+                < position("git -C * worktree add*C:/repos/.worktrees/*")
+        );
+        fs::remove_dir_all(&vault).unwrap();
+    }
+
+    #[test]
+    fn opencode_adds_no_worktree_allow_without_the_ask_rule_or_a_root() {
+        let vault = temp_vault("opencode-worktree-none");
+        write_opencode(&vault, OPENCODE_BASE);
+        sync_opencode_permissions(&vault, &[], "C:/repos/.worktrees").unwrap();
+        // No guard to refine: only the directory rule is added.
+        let bash = read_opencode(&vault)["permission"]["bash"].clone();
+        assert_eq!(bash.as_object().unwrap().len(), 2);
+
+        write_opencode(&vault, OPENCODE_WITH_WORKTREE_GUARD);
+        sync_opencode_permissions(&vault, &[], "  ").unwrap();
+        let cfg = read_opencode(&vault);
+        assert_eq!(cfg["permission"]["bash"].as_object().unwrap().len(), 3);
+        assert_eq!(
+            cfg["permission"]["external_directory"]
+                .as_object()
+                .unwrap()
+                .len(),
+            1
+        );
+        fs::remove_dir_all(&vault).unwrap();
+    }
+
     #[test]
     fn opencode_missing_file_is_a_no_op() {
         let vault = temp_vault("opencode-missing");
-        sync_opencode_permissions(&vault, &[project("alpha", "C:/repos/alpha")]).unwrap();
+        sync_opencode_permissions(&vault, &[project("alpha", "C:/repos/alpha")], "").unwrap();
         assert!(!vault.join(OPENCODE_CONFIG_RELATIVE).exists());
         fs::remove_dir_all(&vault).unwrap();
     }
@@ -292,7 +388,7 @@ mod tests {
     fn opencode_refuses_to_overwrite_malformed_file() {
         let vault = temp_vault("opencode-malformed");
         write_opencode(&vault, "not json");
-        assert!(sync_opencode_permissions(&vault, &[project("a", "C:/repos/a")]).is_err());
+        assert!(sync_opencode_permissions(&vault, &[project("a", "C:/repos/a")], "").is_err());
         assert_eq!(
             fs::read_to_string(vault.join(OPENCODE_CONFIG_RELATIVE)).unwrap(),
             "not json"
@@ -300,7 +396,7 @@ mod tests {
 
         // A `permission` key of the wrong shape is refused the same way.
         write_opencode(&vault, r#"{ "permission": "allow-everything" }"#);
-        assert!(sync_opencode_permissions(&vault, &[project("a", "C:/repos/a")]).is_err());
+        assert!(sync_opencode_permissions(&vault, &[project("a", "C:/repos/a")], "").is_err());
         assert_eq!(
             fs::read_to_string(vault.join(OPENCODE_CONFIG_RELATIVE)).unwrap(),
             r#"{ "permission": "allow-everything" }"#
