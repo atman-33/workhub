@@ -139,6 +139,8 @@ interface Props {
    *  save. Never rejects. */
   onAutoSave?: (draft: TaskDraft, dirty: ReadonlySet<DraftField>) => Promise<boolean>;
   /** Launches an agent for the edited task; flushed edits are read from disk. */
+  /** Resolve `false` when the launch was called off (a declined confirmation):
+   *  the form then stays open instead of closing as if the agent had started. */
   onLaunchAgent?: (task: Task) => Promise<unknown>;
   /** Copies the agent prompt for the edited task to the clipboard. */
   onCopyTaskPrompt?: (task: Task) => Promise<unknown>;
@@ -578,7 +580,8 @@ export function TaskEditorForm({
     if (!task || !onLaunchAgent) return;
     const d = await flushDraft();
     try {
-      await onLaunchAgent(taskWithDraft(task, d));
+      const launched = await onLaunchAgent(taskWithDraft(task, d));
+      if (launched === false) return;
     } catch (e) {
       setActionError(String(e));
       return;
