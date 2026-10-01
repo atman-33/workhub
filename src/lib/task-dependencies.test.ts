@@ -81,3 +81,15 @@ describe("dependencyCandidates", () => {
     expect(dependencyCandidates("T-4", ["T-1"], all).map((t) => t.id)).toEqual(["T-2", "T-3"]);
   });
 });
+
+describe("hand-written cycles", () => {
+  const loop = [task("T-1", "todo", ["T-2"]), task("T-2", "todo", ["T-1"])];
+
+  it("unresolvedDeps terminates and reports the other half of the loop", () => {
+    expect(unresolvedDeps(loop[0], loop).map((t) => t.id)).toEqual(["T-2"]);
+  });
+
+  it("wouldCreateCycle terminates on an existing loop", () => {
+    expect(wouldCreateCycle("T-9", ["T-1"], loop)).toBe(false);
+  });
+});

@@ -20,6 +20,8 @@ import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
 import { t as i18nT } from "@/lib/i18n";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { unresolvedDeps } from "@/lib/task-dependencies";
 import { TaskEditorForm } from "@/components/task-editor-form";
 import { fieldsFromDraft, type DraftField, type TaskDraft } from "@/lib/task-editor-fields";
 import {
@@ -38,6 +40,13 @@ export function EditorApp() {
   const [payload, setPayload] = useState<TaskEditorPayload | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A launch held back by open predecessors, waiting on the owner's answer.
+   *  `settle` resolves the pending `launchAgent` promise. */
+  const [startGuard, setStartGuard] = useState<{
+    open: Task[];
+    task: Task;
+    settle: (go: boolean) => void;
+  } | null>(null);
 
   useEffect(() => {
     const unlisten = listen<TaskEditorPayload>(TASK_EDITOR_OPEN_EVENT, (event) => {
@@ -160,16 +169,37 @@ export function EditorApp() {
   // The agent runs in the main window's terminal panel, so ask for the panel
   // first and bring that window forward afterwards — otherwise the launch
   // happens somewhere the user cannot see from here.
-  const launchAgent = useCallback(
-    async (t: Task) => {
+  const runLaunch = useCallback(
+    async (t: Task, force: boolean) => {
       if (!config) return;
       if (config.settings.terminal_embed && config.settings.use_herdr) {
         await api.taskEditorRequestTerminalPanel();
       }
-      await launchAgentForTask(config, t);
+      await launchAgentForTask(config, t, force);
       void api.focusMainWindow();
     },
     [config],
+  );
+
+  // Same guard as the board: a task with open predecessors asks before an agent
+  // starts on it, since the backend refuses the launch without `force`. The
+  // snapshot in the payload can be stale, so predecessors are read fresh.
+  // Resolves `false` when the owner declines, so the form stays open.
+  const launchAgent = useCallback(
+    async (t: Task): Promise<boolean> => {
+      if (!config) return false;
+      const all = vaultPath ? await api.listTasks(vaultPath) : [];
+      const open = t.status === "done" ? [] : unresolvedDeps(t, all);
+      if (open.length === 0) {
+        await runLaunch(t, false);
+        return true;
+      }
+      const go = await new Promise<boolean>((settle) => setStartGuard({ open, task: t, settle }));
+      if (!go) return false;
+      await runLaunch(t, true);
+      return true;
+    },
+    [config, vaultPath, runLaunch],
   );
 
   const copyPrompt = useCallback(
@@ -207,6 +237,27 @@ export function EditorApp() {
           claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
         />
       )}
+      <ConfirmDialog
+        open={startGuard !== null}
+        title={i18nT("task.dependency.startTitle")}
+        description={
+          startGuard
+            ? [
+                i18nT("task.dependency.startDescription", { id: startGuard.task.id }),
+                ...startGuard.open.map((d) => `${d.id} ${d.title} [${d.status}]`),
+              ].join("\n")
+            : ""
+        }
+        confirmLabel={i18nT("task.dependency.startAnyway")}
+        onConfirm={() => {
+          startGuard?.settle(true);
+          setStartGuard(null);
+        }}
+        onClose={() => {
+          startGuard?.settle(false);
+          setStartGuard(null);
+        }}
+      />
     </TooltipProvider>
   );
 }

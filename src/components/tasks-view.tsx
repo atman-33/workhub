@@ -93,6 +93,8 @@ export function TasksView({
   const [tagFilter, setTagFilter] = useState("");
   /** "" = any, "blocked" = only waiting tasks, "unblocked" = what's actionable. */
   const [blockedFilter, setBlockedFilter] = useState("");
+  /** "" = any, "waiting" = open predecessors, "ready" = nothing in the way. */
+  const [dependencyFilter, setDependencyFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
@@ -355,6 +357,19 @@ export function TasksView({
     [tasks],
   );
 
+  // Waiting is derived from the predecessors' status on every render, never
+  // stored: it clears by itself the moment they reach Done. Computed over the
+  // whole board, not `visible`, so a filter cannot hide a predecessor.
+  const waiting = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      if (task.status === "done" || task.depends_on.length === 0) continue;
+      const open = unresolvedDeps(task, tasks);
+      if (open.length > 0) map.set(task.id, open);
+    }
+    return map;
+  }, [tasks]);
+
   // Everything except the blocked filter. The toolbar's blocked counter reads
   // this rather than `visible`, so switching to "Not blocked" doesn't zero out
   // the very number that says how much is waiting.
@@ -376,9 +391,11 @@ export function TasksView({
       scoped.filter((t) => {
         if (blockedFilter === "blocked" && !t.blocked) return false;
         if (blockedFilter === "unblocked" && t.blocked) return false;
+        if (dependencyFilter === "waiting" && !waiting.has(t.id)) return false;
+        if (dependencyFilter === "ready" && waiting.has(t.id)) return false;
         return true;
       }),
-    [scoped, blockedFilter],
+    [scoped, blockedFilter, dependencyFilter, waiting],
   );
 
   // Blocked tasks in scope, and how many of those nobody has chased in a week.
@@ -398,19 +415,6 @@ export function TasksView({
       openTerminalPanel();
     }
   }, [config, openTerminalPanel]);
-
-  // Waiting is derived from the predecessors' status on every render, never
-  // stored: it clears by itself the moment they reach Done. Computed over the
-  // whole board, not `visible`, so a filter cannot hide a predecessor.
-  const waiting = useMemo(() => {
-    const map = new Map<string, Task[]>();
-    for (const task of tasks) {
-      if (task.status === "done" || task.depends_on.length === 0) continue;
-      const open = unresolvedDeps(task, tasks);
-      if (open.length > 0) map.set(task.id, open);
-    }
-    return map;
-  }, [tasks]);
 
   // Returns the launch promise so callers (the animated LaunchAgentButton) can
   // sync their feedback to it; still surfaces the outcome in the status bar.
@@ -760,6 +764,16 @@ export function TasksView({
                 #{tag}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={dependencyFilter} onValueChange={setDependencyFilter}>
+          <SelectTrigger size="sm" className="min-w-[7.5rem]">
+            <SelectValue placeholder={t("task.toolbar.dependencyAny")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t("task.toolbar.dependencyAny")}</SelectItem>
+            <SelectItem value="waiting">{t("task.toolbar.dependencyWaiting")}</SelectItem>
+            <SelectItem value="ready">{t("task.toolbar.dependencyReady")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex shrink-0 items-center gap-1.5">
