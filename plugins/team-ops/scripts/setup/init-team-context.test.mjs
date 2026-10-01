@@ -12,7 +12,12 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Every case starts node and git processes, which is slow where process creation is
+// slow (Windows with an antivirus) and slower still when vitest runs the whole
+// suite in parallel. The default 5s limit then fails tests that pass alone.
+vi.setConfig({ testTimeout: 30_000 });
 
 const SCRIPT = fileURLToPath(new URL("./init-team-context.mjs", import.meta.url));
 

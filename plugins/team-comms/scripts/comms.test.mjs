@@ -15,7 +15,12 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import os from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Every case starts node and git processes, which is slow where process creation is
+// slow (Windows with an antivirus) and slower still when vitest runs the whole
+// suite in parallel. The default 5s limit then fails tests that pass alone.
+vi.setConfig({ testTimeout: 30_000 });
 
 const CLI = fileURLToPath(new URL("./comms.mjs", import.meta.url));
 const HOOK = fileURLToPath(new URL("../hooks/scripts/comms-notify.mjs", import.meta.url));
