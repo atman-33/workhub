@@ -15,6 +15,7 @@
  * secondary window's entry point calls `initWindowLocale()`, and the main
  * window applies `ui_locale` whenever its settings change.
  */
+import { useCallback } from "react";
 import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "@/lib/api";
@@ -127,10 +128,14 @@ export function useLocale(): Locale {
   return useLocaleStore((s) => s.locale);
 }
 
-/** A `t(key, vars?)` bound to the current locale; re-renders on change. */
+/**
+ * A `t(key, vars?)` bound to the current locale; re-renders on change. The
+ * function is stable until the locale changes, so it is safe in a hook
+ * dependency array.
+ */
 export function useT(): (key: MessageKey, vars?: TranslateVars) => string {
   const locale = useLocale();
-  return (key, vars) => translate(locale, key, vars);
+  return useCallback((key, vars) => translate(locale, key, vars), [locale]);
 }
 
 /** `t()` outside React (module-level helpers, toasts built in callbacks). */
