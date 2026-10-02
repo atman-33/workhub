@@ -82,6 +82,12 @@ argument-hint: "<task-id>"
      note's `## Promoted rules` as an axis. Say which you chose. An answer
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
+   - **Name the session.** Convention: `[<project>] <task-id> <title>`, or
+     `<task-id> <title>` without a `project`, title cut at 40 characters (the
+     vault's `CLAUDE.md`, *Session names*). When the session's current title
+     does not follow it and a `set_session_title` tool is available (Claude
+     Desktop), set it; otherwise leave it — OpenCode and a bare terminal cannot
+     be renamed.
 3. **Settle the backlog item, then load it.** A task's `backlog` frontmatter
    key is `B-NNN` in `projects/NNNN-<project>/backlog/`. It is where everything
    this task produces will go, so it has to be decided before the work starts,

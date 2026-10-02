@@ -197,7 +197,7 @@ fn sanitize_label(label: &str) -> String {
     let mut out = String::with_capacity(label.len());
     let mut prev_space = false;
     for ch in label.chars() {
-        let keep = if ch.is_alphanumeric() || ch == '-' || ch == '_' || ch == ' ' {
+        let keep = if ch.is_alphanumeric() || matches!(ch, '-' | '_' | ' ' | '[' | ']') {
             ch
         } else {
             ' '
@@ -254,6 +254,10 @@ mod tests {
         assert_eq!(
             sanitize_label("T-0042   Multiple   spaces"),
             "T-0042 Multiple spaces"
+        );
+        assert_eq!(
+            sanitize_label("[workhub] T-0042 Fix"),
+            "[workhub] T-0042 Fix"
         );
         assert_eq!(
             sanitize_label("<script>alert(1)</script>"),

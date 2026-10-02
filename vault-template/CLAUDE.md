@@ -713,6 +713,24 @@ knowledge, and configuration — never application code.
   comments, commit messages, and repository documentation always stay in
   English regardless of the Language setting.
 
+### Session names
+
+A session working a task is named so the session list reads at a glance:
+
+```text
+[<project>] <task-id> <title>     e.g. [workhub] T-0541 Session naming convention
+<task-id> <title>                 when the task has no `project`
+```
+
+- `<project>` is the task's `project` slug as written, without the folder
+  number. Keep it whole; truncate only the title, to 40 characters.
+- Brackets, not `|`, `:` or `/`: those are special in shells and Windows paths,
+  and a session name ends up in workspace labels and transcript file names.
+- The app's herdr launch and the `task-handoff` chip already use this form.
+  `task-start` renames a session that does not follow it when the host allows
+  (Claude Desktop's `set_session_title`); OpenCode and a bare terminal cannot be
+  renamed, so there the convention only applies to what the app launches.
+
 ### herdr workspace integration
 
 The workhub app can launch each AI task in a fresh [herdr](https://herdr.dev)

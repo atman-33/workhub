@@ -237,6 +237,28 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<Str
     Ok(format!("launched {} in a terminal", params.task_id))
 }
 
+/// Longest task title, in characters, kept in a session name.
+const SESSION_TITLE_MAX_CHARS: usize = 40;
+
+/// Builds the session name convention shared by every launch path:
+/// `[<project>] <task-id> <title>`, or `<task-id> <title>` when the task has no
+/// project. Only the title is truncated (to `SESSION_TITLE_MAX_CHARS`); the
+/// project and id are what make a session list scannable, so they stay whole.
+/// The convention itself is documented in the vault template's `CLAUDE.md`.
+pub fn session_name(project: &str, task_id: &str, task_title: &str) -> String {
+    let title: String = task_title
+        .trim()
+        .chars()
+        .take(SESSION_TITLE_MAX_CHARS)
+        .collect();
+    let project = project.trim();
+    if project.is_empty() {
+        format!("{task_id} {title}")
+    } else {
+        format!("[{project}] {task_id} {title}")
+    }
+}
+
 /// Starts the herdr server if needed, creates a workspace for the task, and
 /// launches the agent directly in the workspace's root pane.
 ///
@@ -250,7 +272,7 @@ fn launch_in_herdr(
     command_line: &str,
 ) -> Result<(), String> {
     herdr::ensure_server(params.herdr_cmd, params.terminal_embed)?;
-    let label = format!("{} {}", params.task_id, params.task_title);
+    let label = session_name(params.project, params.task_id, params.task_title);
     let workspace = herdr::create_workspace(params.herdr_cmd, vault, &label)?;
     let pane_command = in_pane_command(command_line);
     herdr::run_in_pane(params.herdr_cmd, &workspace.root_pane_id, &pane_command)
@@ -900,6 +922,33 @@ pub fn open_in_vscode(vscode_cmd: &str, paths: &[String]) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_name_puts_project_first() {
+        assert_eq!(
+            session_name("workhub", "T-0541", "Naming convention"),
+            "[workhub] T-0541 Naming convention"
+        );
+    }
+
+    #[test]
+    fn session_name_omits_brackets_without_project() {
+        assert_eq!(
+            session_name("", "T-0541", "Tidy vault"),
+            "T-0541 Tidy vault"
+        );
+        assert_eq!(
+            session_name("  ", "T-0541", "Tidy vault"),
+            "T-0541 Tidy vault"
+        );
+    }
+
+    #[test]
+    fn session_name_truncates_only_the_title() {
+        let title = "あ".repeat(60);
+        let name = session_name("workhub", "T-0541", &title);
+        assert_eq!(name, format!("[workhub] T-0541 {}", "あ".repeat(40)));
+    }
 
     #[test]
     fn explorer_reveals_files_and_opens_everything_else() {
