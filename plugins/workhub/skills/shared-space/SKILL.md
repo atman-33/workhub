@@ -21,6 +21,9 @@ say where something belongs. It has two modes.
 The app's **Projects** tab lists what `shared/` holds and offers a prompt that
 launches survey mode; nothing about these notes is written by the app itself.
 
+**Source of truth.** The format spec is `.claude/rules/shared-space.md` in the vault; it loads when you read a shared-space note. The sections below are a working summary for surveying, and the rule wins where they differ.
+
+
 ## What is worth recording
 
 **The rules, not the folder tree.** Naming conventions, which kind of document

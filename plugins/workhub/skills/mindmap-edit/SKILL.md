@@ -12,6 +12,8 @@ Apply a natural-language instruction to one workhub mindmap note by rewriting
 This skill is normally launched by the workhub app's Mindmap tab, which passes
 the file path and the instruction. It also works when invoked by hand.
 
+**Source of truth.** The format spec is `.claude/rules/mindmaps.md` in the vault; it loads when you read a mindmap note. The notation below is a working summary for editing, and the rule wins where they differ.
+
 ## The file
 
 A mindmap note is Markdown with flat frontmatter and two managed sections —

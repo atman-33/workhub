@@ -76,7 +76,7 @@ export function buildProjectFixPrompt(project: VaultProject): string {
 
 Project folder: ${location}
 
-Read the "Project layout" section of the vault's CLAUDE.md before changing
+Read ".claude/rules/projects.md" in the vault before changing
 anything — it is the definition these findings are measured against.
 
 Findings reported by the workhub Projects tab:
@@ -164,7 +164,7 @@ How to reach it: <PASTE ANY ACCESS NOTES — mapped drive, VPN, account>
 May I file things into it? <read-only | export-ok>${existing}
 
 Run the shared-space skill in survey mode. If it is not available, follow the
-"Shared-space notes" section of the vault's CLAUDE.md by hand.
+`.claude/rules/shared-space.md` in the vault by hand.
 
 What matters:
 
