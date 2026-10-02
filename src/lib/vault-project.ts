@@ -164,7 +164,7 @@ How to reach it: <PASTE ANY ACCESS NOTES — mapped drive, VPN, account>
 May I file things into it? <read-only | export-ok>${existing}
 
 Run the shared-space skill in survey mode. If it is not available, follow the
-`.claude/rules/shared-space.md` in the vault by hand.
+".claude/rules/shared-space.md" in the vault by hand.
 
 What matters:
 

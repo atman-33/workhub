@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.154.1 (2026-10-03)
+
+- **The shared-space survey prompt works again.** 0.154.0 shipped a syntax slip in the
+  prompt the Projects tab builds for survey mode, so it threw instead of producing
+  text, and CI on `main` went red. 0.154.0 should not be used; this release carries
+  everything it listed.
+
 ## 0.154.0 (2026-10-03)
 
 - **Task sessions are named `[project] task-id title`** (T-0541). The herdr workspace
