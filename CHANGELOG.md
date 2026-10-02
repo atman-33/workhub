@@ -1,7 +1,31 @@
 # Changelog
 
-## Unreleased
+## 0.154.0 (2026-10-03)
 
+- **Task sessions are named `[project] task-id title`** (T-0541). The herdr workspace
+  label, the `task-handoff` chip title and `task-start` all use one form now, so the
+  session list reads at a glance. Brackets rather than `|`, `:` or `/`, which are
+  special in shells and Windows paths; herdr label sanitizing lets them through.
+- **Waiting and ready tasks can be filtered on the board**, and launching an agent
+  from the task editor window asks for confirmation when the task still has open
+  predecessors, as the board already did. Hand-written dependency cycles are covered
+  by tests.
+- **OpenCode no longer asks before every worktree under the Worktree root.** The
+  vault's `opencode.json` made `git worktree add` an `ask`, which interrupted OpenCode
+  Desktop sessions started from a pasted task prompt. Syncing the permissions now also
+  allows that command and directory under the configured root; a worktree anywhere
+  else still asks.
+- **New `task-chain` skill** (`workhub` plugin) runs an ordered list of tasks in one
+  session, one subagent per task, with the owner's choices recorded up front. Skills
+  only, so it takes effect through the plugin update.
+- **`natural-japanese` is rebuilt around meaning-preserving rewrites** (`writing`
+  plugin 0.2.1). It now separates rewriting existing text from writing new text, folds
+  in the yomiyasu vocabulary catalogue, and ships Node `lint.mjs` / `diff.mjs` (no
+  Python, no score). The 0.2.1 fix removes a shebang that failed the whole test suite
+  on a CRLF checkout.
+- **`writing-great-skills` and `grilling` are removed from `claude-tooling`**, since
+  the `mattpocock-skills` plugin carries both; `teach-back` in `thinking` gains an
+  armor mode for report-style material that rests on causal claims.
 - **The vault template's `CLAUDE.md` shrinks from 859 to about 220 lines** (T-0542).
   It loads in every session of every vault, and most of it was format reference
   that only some work needs. The schedule, mindmap, shared-space, backlog and task
