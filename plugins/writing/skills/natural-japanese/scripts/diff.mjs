@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // diff — compare an original passage with its rewrite and list the places where
 // meaning is most likely to have moved.
 //
@@ -17,6 +16,9 @@
 //
 // Usage:
 //   node diff.mjs <original> <rewrite> [--json]
+//
+// Run it with `node`; there is no shebang because a CRLF checkout breaks a
+// hashbang when vitest imports the file.
 //
 // Derived from the diff idea in nanaism/yomiyasu (MIT), rewritten for this
 // repository; see plugins/writing/NOTICE.md.

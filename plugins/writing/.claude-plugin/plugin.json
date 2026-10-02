@@ -1,6 +1,6 @@
 {
   "name": "writing",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Write and rewrite natural Japanese work documents: a style constitution, doctype guides and readability principles for new writing, plus a meaning-preserving rewrite procedure with Node lint and diff checks for removing machine-sounding text. Install at user scope to make it available across all projects.",
   "author": {
     "name": "atman-33",

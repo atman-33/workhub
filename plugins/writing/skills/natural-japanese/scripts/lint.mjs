@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // lint — a deterministic first pass over Japanese prose for the surface marks
 // of machine-written text.
 //
@@ -13,6 +12,9 @@
 //
 // Exit code: 0 normally, 2 when the file cannot be read, 1 under --strict when
 // any warn-level finding exists.
+//
+// Run it with `node`; there is no shebang because a CRLF checkout breaks a
+// hashbang when vitest imports the file.
 //
 // Derived from the lint idea in nanaism/yomiyasu (MIT), rewritten for this
 // repository; see plugins/writing/NOTICE.md.
