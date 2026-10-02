@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **The vault template's `CLAUDE.md` shrinks from 859 to about 220 lines** (T-0542).
+  It loads in every session of every vault, and most of it was format reference
+  that only some work needs. The schedule, mindmap, shared-space, backlog and task
+  formats, and the project layout, now live in path-scoped rules
+  (`.claude/rules/schedules.md`, `mindmaps.md`, `shared-space.md`, `backlog.md`,
+  `tasks.md`, `projects.md`) that load only when you touch matching files, and the
+  worktree and knowledge-capture recipes point to the skills that own them. The
+  `schedule-edit`, `mindmap-edit` and `shared-space` skills name the rule as the
+  source of truth. After a template update an existing vault gets the shorter
+  file plus the new rules; nothing needs migrating.
+- **CI fails when the template's `CLAUDE.md` passes 250 lines**
+  (`scripts/check-claude-md-budget.mjs`), with a rule in
+  `.claude/rules/vault-template-claude-md.md` saying where new material goes.
+
 ## 0.153.1 (2026-10-01)
 
 - **The recurring-rules dialog no longer reloads itself in a loop** (#320). Opening it

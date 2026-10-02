@@ -9,8 +9,8 @@ surveyed: 1970-01-01
 ---
 
 Delete this file once the project has a real shared-space note. The
-`shared-space` skill writes them; see "Shared-space notes" in the vault's
-CLAUDE.md for what each field means.
+`shared-space` skill writes them; see `.claude/rules/shared-space.md` in the vault
+for what each field means.
 
 `direction: read-only` means never write anything into the place. Only the
 owner promotes a place to `export-ok`.

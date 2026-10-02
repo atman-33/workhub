@@ -4,714 +4,141 @@ This Obsidian vault is the data store of the workhub app and the owner's
 personal knowledge base. Humans and AI agents read and write the same Markdown
 files; it is the single source of truth for tasks and shared knowledge.
 
+This file is loaded in every session, so it holds only what applies to every
+session. Format details live in `.claude/rules/` and load when a matching path
+is touched: `tasks.md`, `projects.md`, `backlog.md`, `schedules.md`,
+`mindmaps.md`, `shared-space.md`.
+
 ## Structure
 
-| Folder | Zone | Contents |
-|--------|------|----------|
-| `tasks/` | human + AI | one task = one Markdown file with YAML frontmatter |
-| `projects/` | human + AI | per-project notes, one backlog item per unit of work |
-| `knowledge/` | human + AI | durable reference knowledge, one topic folder per theme |
-| `memory/` | human + AI | what agents know. `identity/` is who the owner is and how they decide — read in full every session, so it is capped; `notes/` is everything durable and searchable, one typed note per thing; `episodes/` is where sessions stopped, and decays; `.index/` is reserved for a derived search index over `notes/` — gitignored, rebuildable, not built until the store outgrows a text scan |
-| `strategy/` | human + AI | where the owner is heading (`north-star/`), where they are (`current/`) and what is blocking them (`bottlenecks/`) — read by `/strategist` |
-| `inbox/` | human + AI | raw input landing zone — classify with `/kb-ingest` |
-| `journal/` | human | daily/weekly notes — agents read but never ingest, move, or index |
+| Folder | Zone | Role |
+|--------|------|------|
+| `tasks/` | human + AI | one task = one Markdown file; archived ones in `tasks/archive/` |
+| `projects/` | human + AI | `NNNN-<slug>/` per project, one backlog item per unit of work |
+| `knowledge/` | human + AI | the owner's reference material, one topic folder per theme; nothing injects it |
+| `memory/` | human + AI | everything durable an agent knows (see Working agreement) |
+| `strategy/` | human + AI | `north-star/` (where they head), `current/` (where they are), `bottlenecks/` (what blocks them); `/strategist` reads it |
+| `inbox/` | human + AI | raw input; classify with `/kb-ingest` |
+| `journal/` | human | agents read it, and leave it where it is |
 | `archive/` | human + AI | completed or inactive material |
-| `templates/` | human | note templates (`task.md`, `_index.md.template`, `project/` scaffold) |
-| `_ai/` | **AI only** | app/agent working data — `index/` indexes, `logs/` agent reports + KB activity log, `comms/` secretary async Q&A, `state/` (session markers, pending lists, trash, the memory engine's verbatim database). No knowledge lives here — that is `memory/` |
-| `attachments/` | human + AI | images and other binary assets |
-| `.workhub/` | **app only** | `settings.json` — the app settings that belong to this vault (see below) |
+| `templates/` | human | note templates, including the `project/` scaffold |
+| `_ai/` | **AI only** | working data: `index/`, `logs/` (agent reports, `kb-log.md`), `comms/`, `state/`. Knowledge belongs in `memory/` |
+| `.workhub/` | **app only** | `settings.json`, the settings that describe this vault; change them in the app's Settings dialog |
 
-`.workhub/settings.json` holds the app settings that describe *this vault*
-rather than one machine — the AI's language, the custom prompt, the
-agent/model choices for schedule and mindmap edits, the recurring-task rules,
-and the vault-tidy policy. It is version-controlled with the vault on purpose:
-cloning the vault on another PC restores them. Machine-specific settings
-(paths, command templates, hotkeys, window geometry) stay in that machine's
-`~/.workhub/config.json` and are never written here. The app owns the file —
-change these settings from its Settings dialog rather than by editing it.
-
-English folder names are lowercase kebab-case. Topic folders under `knowledge/`
-follow the same convention (e.g. `knowledge/infra/`).
+Folder names are lowercase kebab-case, topic folders under `knowledge/`
+included.
 
 ## Working agreement
 
-How agents and the owner work together here. It applies to every session in
-this vault, on top of the task-specific prompt.
+How agents and the owner work together here, on top of the task prompt.
 
-**Owner context.** `memory/identity/` is who the owner is and how they decide.
-`about-me.md` covers background, current work and where the rest of their
-context lives; `decision-policy.md` covers what you may settle alone, what has
-to come back to them, and — in its `## Preferences` and `## Promoted rules`
-sections — the leanings you build a recommendation from. Read them before work
-that depends on any of that, instead of asking the owner to restate it.
+**Owner context.** `memory/identity/` holds who the owner is
+(`about-me.md`) and how they decide (`decision-policy.md`: what you may settle
+alone, what comes back to them, and the `## Preferences` and
+`## Promoted rules` you build a recommendation from). Read it before work that
+depends on any of that. The calls already settled are `type: decision` notes in
+`memory/notes/`; search them when the policy leaves a question open.
 
-The policy is deliberately short — it is read in full on every question, so it
-holds the *axes* of a decision and nothing else. The individual calls the owner
-has settled are typed notes in `memory/notes/` (`type: decision`), found by
-search rather than read whole: look there when the policy does not settle a
-question and a similar one may have come up before.
+**Memory.** `identity/` is read in full every session, so it stays capped.
+`notes/` is searched, so each note carries a `type:`. `episodes/` decays and is
+promoted from. A constraint about particular code goes in a `.claude/rules/`
+file, which fires on a path.
 
-**Everything durable an agent knows lives in `memory/`, and the split is by how
-it reaches a session, not by what it is about.** `identity/` is read in full
-every time, so it is capped — a note nobody can read in one pass stops being
-read, and the judgement it holds stops applying. `notes/` is reached by search,
-so it has no cap and needs a `type:` to be findable at all. `episodes/` decays
-and is promoted from. `knowledge/` is *not* part of this: it is the owner's own
-reference material, which nothing injects.
+**Recommend, don't ask openly.** Present every open choice with the answer the
+owner would most likely give, derived from `## Preferences` and
+`## Promoted rules`, and the reason. When they settle it, append the rule to
+`decision-log.md`'s `## Decisions` (a standing leaning goes to `## Preferences`;
+a second question settled by the same reasoning goes to `## Promoted rules`).
 
-One thing deliberately stays outside: a `.claude/rules/` file fires when a
-matching **path** is touched, which is a channel `memory/` does not have. A
-constraint about particular code belongs there, not here.
+**Plan first.** Write the plan before the implementation, and get it approved
+when the task is plan-first. Reuse an existing note, module or convention.
+Take the goal (what, for whom, why) and work out the *how*; ask for the goal
+when it is unclear.
 
-**Strategic context.** `strategy/` is where the owner is heading, not who
-they are, which is why it sits beside `memory/` rather than inside it:
-`north-star/` holds the mission, vision, values and the rules they will not
-break; `current/` holds the honest present tense (active work, numbers,
-capacity, and the quarter's roadmap); `bottlenecks/` holds what is stopping
-them, one file per wall.
+**Follow-up tasks.** A task filed mid-session runs in a fresh session. Recommend
+continuing here only for a small change that leans on context no note records,
+and let the owner decide. The `task-handoff` skill carries the criteria.
 
-It is **not** injected into every session — a code change does not need it,
-and paying for it every time would be waste. The `/strategist` skill loads it
-when the owner wants to think out loud, and cross-checks the three against
-each other. Read it yourself only when a task turns on the owner's priorities.
+**Collaborate.** Ask about anything ambiguous, and say so when a request looks
+wrong, costlier than needed, or solvable a better way. Give the reasons, then
+follow the owner's decision.
 
-Nothing in `strategy/` duplicates a project: a project keeps its own plan in
-`projects/NNNN-<project>/roadmap.md` and `schedules/`, and
-`strategy/current/roadmap.md` links to them rather than restating their dates.
-
-**Questions carry a recommendation.** Never put an open choice to the owner.
-Work out from the policy's `## Preferences` and `## Promoted rules` which answer
-they would most likely give, and offer it as the recommended option with its
-reason. When they settle a question, append the rule it establishes to
-`decision-log.md`'s `## Decisions` — or to the policy's `## Preferences` when it
-is a standing leaning, or to its `## Promoted rules` when the same reasoning has
-now settled a second question — so the same question is not asked twice.
-
-**Before building.** Write the plan before the implementation, and get it
-approved when the task is plan-first. Reuse what already exists — an existing
-note, module, or convention beats a new one. Prefer being handed the goal
-(what, for whom, why) and working out the *how* yourself; when the goal is
-unclear, ask for it rather than guessing at steps.
-
-**Follow-up tasks.** A task filed mid-session runs in a fresh session by
-default: its own context, its own row in the session list. Recommend
-continuing in the current session only for a small change that leans on
-context no note records, and let the owner decide. In Claude Desktop the
-handoff is a `spawn_task` chip, started **locally** when the session runs in
-the vault — a chip worktree is a copy of the vault, not of the target
-repository. The workhub plugin's `task-handoff` skill carries the criteria.
-
-**In conversation.** Be a collaborator, not a yes-man. Ask about anything
-ambiguous instead of picking an interpretation silently, and say so when a
-request looks wrong, more expensive than it needs to be, or solvable a better
-way. Disagree with reasons, then follow the owner's decision.
-
-**Recording.** Write down what a future session would otherwise have to
-rediscover, without being asked: decisions and the reasoning behind them,
-options that were rejected and why, and ideas parked for later. Route it as
-described in *Capturing knowledge* below — working notes for a session go to
-`_ai/state/`, design decisions to the project's `dev-notes/`, reusable
-constraints to `.claude/rules/`. When something fails, record the cause and
-what to do differently, so the next session does not repeat it.
+**Record.** Write down what a future session would otherwise rediscover:
+decisions with their reasoning, rejected options, parked ideas, and the cause
+of any failure with what to do differently. Session working notes go to
+`_ai/state/`, design decisions to the project's `dev-notes/`.
 
 **Safety.** Confirm with the owner before anything irreversible or outward
 facing: deleting or overwriting files, force-pushing, rewriting history,
-sending mail or messages, publishing, or spending money. Prefer the reversible
-form (append, copy, new file, draft) when one exists. Approval for one action
-is not approval for the next one.
+sending, publishing, spending. Prefer the reversible form (append, copy, new
+file, draft). Approval for one action covers that action only.
 
-The workhub app's **Settings → Agents → Custom prompt** is appended verbatim
-to every task launch prompt; its whitespace collapses to single spaces, so keep
-it to a short personal delta. Anything longer belongs in this file or in
-`memory/identity/about-me.md`, which agents read from the vault itself.
+The app's **Settings → Agents → Custom prompt** is appended to every task launch
+prompt with whitespace collapsed, so it is a short personal delta. Longer
+guidance goes in this file or `memory/identity/about-me.md`.
 
 ## Knowledge workflow
 
 Humans drop raw notes into `inbox/`; `/kb-ingest` classifies them into
 `projects/` / `knowledge/` / `archive/`, proposes tasks for actionable items,
 and maintains the zone `_index.md` files. `/kb-query` searches and synthesizes,
-`/kb-lint` health-checks, `/kb-index` repairs indexes. The KB activity log is
+`/kb-lint` health-checks, `/kb-index` repairs indexes. The activity log is
 `_ai/logs/kb-log.md`.
 
-## Task schema
-
-Active task files live flat in `tasks/`, named `<id> <title>.md` (e.g.
-`T-0042 Improve sort order.md`); archived tasks are moved into the
-`tasks/archive/` subfolder (same filename) to keep the flat listing tidy.
-Frontmatter:
-
-```yaml
-id: T-0042          # assigned by the app, never change
-title: ...
-status: todo        # inbox | todo | doing | review | done
-assignee: me        # me | claude-code | opencode
-project: devdeck    # target project/repo identifier (optional)
-backlog: B-007      # required once `project` is set: the backlog item in
-                    # projects/*-<project>/backlog/ this task belongs to. The
-                    # link runs this way only — the item never lists its
-                    # tasks. Left blank it means "not chosen yet", never "no
-                    # item": the agent fills it in at task-start
-priority: medium    # low | medium | high
-model: sonnet       # optional; AI model passed as `--model` when the app
-                    # launches an agent for this task. Absent = agent default.
-order: 2            # manual sort position; managed by the app — leave as is
-due: 2026-07-20     # optional
-tags: []
-archived: true      # optional; absent = false. Hidden from the board by
-                    # default; the app files it under tasks/archive/
-confirm: true       # optional; absent = false. Plan-first approval before executing
-worktree: true      # optional; absent = false. Work in a dedicated git worktree
-blocked: true       # optional; absent = false. Waiting on someone else. Kept
-                    # separate from `status` on purpose — a task can be
-                    # blocked in any column
-blocked_note: waiting for the vendor quote
-                    # optional; one line, only while blocked. The longer story
-                    # belongs in the body
-blocked_since: 2026-08-06
-                    # optional; when the wait started, only while blocked. The
-                    # board counts the days from it
-depends_on: [T-0012, T-0034]
-                    # optional; absent = none. Tasks that must be `done` before
-                    # this one can start. Not `blocked`: nobody sets a wait by
-                    # hand — it is derived from those tasks' `status` and
-                    # clears by itself when they are done. A loop is refused
-created: 2026-07-10
-updated: 2026-07-10
-```
-
-Body sections, in document order:
-
-| Section | Written by | Meaning |
-|---------|-----------|---------|
-| `## Description` | human | prompt/spec for AI — what should happen |
-| `## Plan` | AI, approved by human | the approved implementation plan |
-| `## Results` | AI, on completion | deliverables, links to deliverable notes |
-
-Description and Plan are inputs; Results is the output. A non-empty `## Plan`
-means the plan is already approved — follow it instead of re-planning. The
-section outlives the session that wrote it, so a plan approved by one agent
-can be executed later by another. The app renders Plan read-only; edit plans
-in Obsidian.
-
-## Project layout
-
-Each development project gets one folder under `projects/NNNN-<project-slug>/`
-(slug in English kebab-case). Create one from the app's **Projects** tab, which
-assigns the number and fills in `templates/project/`'s placeholders. Layout:
-
-| Path | Contents |
-|---|---|
-| `README.md` | Entry point — read first. Overview, current status, where things live, reading order, key links. Embeds the backlog Base. |
-| `prd.md` | Product intent, scope, goals — the single source of product intent |
-| `roadmap.md` | Milestones and schedule |
-| `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
-| `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
-| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
-| `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
-| `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
-| `shared/` | Shared-space notes (`<name>.md`), one per team knowledge base that lives outside the vault — where it is and how it is organised |
-| `attachments/` | Images and binaries for this project |
-| `_index.md` | Machine-readable index, maintained by `/kb-index` |
-
-**AI agents: open `README.md` first.** It states the current status and points
-to everything else — do not scan the whole project folder.
-
-**The project root is a closed set.** The only files directly under
-`projects/NNNN-<slug>/` are the five in the table above — `README.md`, `prd.md`,
-`roadmap.md`, `links.md` and `_index.md`. Every other note lives in a
-subfolder. The table is written for development projects, so an operational
-one will hold documents none of those folders describe — correspondence with a
-support desk, applications, statements. Create a subfolder for that kind of
-document rather than dropping it at the root, and register it in the project's
-`README.md` and `_index.md` so the next reader finds it.
-
-Folder names are English kebab-case; note file names may be Japanese (vault
-convention). `B-NNN` is a stable identifier, not a sort order — ordering and
-status live in frontmatter and are rendered by `_backlog.base`.
-
-**The project folder carries a number; the slug does not.** A project folder
-is `NNNN-<slug>` — four digits, a hyphen, the slug (`projects/0010-workhub/`).
-The slug is everything after the first `NNNN-`, and it is the only thing the
-rest of the vault uses: a task's `project: workhub`, a backlog item's
-`project:`, the `project == "workhub"` filter in `_backlog.base`. To find a
-project's folder from its slug, glob `projects/*-<slug>/` (or
-`archive/projects/*-<slug>/`); never build the path as `projects/<slug>/`.
-
-- The number exists so a file explorer that sorts by name — Obsidian's does —
-  lists projects in an order the owner chose rather than alphabetically. It has
-  no other meaning: no category, no priority.
-- Numbers go in tens, like a backlog item's child notes, so a project can be
-  slotted between two others without renaming either. The app gives a new
-  project the next ten above the highest number in `projects/` and
-  `archive/projects/`.
-- Renumbering is a folder rename and nothing more. That is why the number is
-  not part of the slug: `project:` appears in hundreds of task files, archived
-  ones included, and none of them should change because a folder moved in a
-  list. Only path-style links (`projects/0010-workhub/README.md`) follow the
-  rename; wikilinks resolve by basename and do not care.
-- Four digits, not three: the numbers are never reused, archived projects keep
-  theirs, and three digits in tens run out at 99 projects.
-- A folder with no number reads the same way — its slug is its whole name — so
-  the rule has no second path. The app flags two folders that resolve to the
-  same slug.
-- `B-NNN` stays three digits. It is an identifier, not a sort order, so
-  `B-1000` works as written; widening it would mean renaming ids that are
-  promised never to change.
-
-The layout has two axes, not one. `backlog/` groups by **unit of work** — one
-feature, one bug, one support case — keeping its spec, its research and its
-task outputs in one place. Everything else groups by **kind**, because it
-serves the project as a whole rather than any single item. Scattering one
-piece of work across four kind-named folders is exactly what this replaces:
-once an item holds all of it, a separate `specs/`, `research/` and
-`deliverables/` have nothing left to hold.
-
-`deliverables/` is worth a word, because dropping it looks like it costs
-something. It does not: an item is a **folder** at its smallest, holding the
-entry note — which is precisely what a deliverable note was, but carrying
-`## What`, `## Why` and `## Status` as well. Keeping both folders bought nothing and left
-a judgement call behind ("is this worth an item?") that has no good rule to
-answer it. A rule you have to remember is a rule that stops working.
-
-`_index.md` also carries an optional `repos:` key listing the registered
-repositories this project belongs to — each entry an absolute path, or the
-repository's name as it is registered in the app:
-
-```yaml
-repos:
-  - C:/repos/workhub
-  - C:/repos/workhub-vault
-```
-
-**The first entry is the project's default repository** — the one an agent
-works in when the task does not say which. The link is stored rather than
-inferred because a project folder and its repositories do not share a naming
-scheme (the vault's `multi-agent-ff15` is the repository
-`multi-agent-ff15-vscode`). The app's **Projects** tab reads and writes it,
-including the order.
-
-A project may legitimately span several repositories — an app and its vault,
-or a frontend and a backend — which is why this is a list and not a single
-key. The pre-T-0216 single `repo:` key is gone; it is not read as a fallback,
-so a note that still carries it reads as having no repository at all.
-
-`_index.md` carries two more optional keys, both written by the **Projects**
-tab and both safe to edit by hand:
-
-```yaml
-pinned: true        # optional; absent = false. Held at the top of the list
-order: 2            # optional; manual sort position within its group
-```
-
-`pinned` is how the owner says "this is what I am working on now": pinned
-projects are listed above the rest. `order` is a manual position, and is a
-number rather than an index on purpose — dropping a project between two
-others gives it the value halfway between theirs, so one reordering rewrites
-one note instead of renumbering every project in the vault. It is the same
-mechanism as a task's `order`. A project with no `order` is listed after every
-project that has one, alphabetically; archived projects sort last whatever
-either key says.
-
-The Projects tab can also list by **name** — the folder name, so by number —
-which is the order Obsidian shows. `order` and the folder number are two
-orders on purpose: `order` is the app's list, rearranged by dragging; the
-number is the file explorer's, rearranged by renaming. Pinned projects stay
-on top in both.
-
-Both live in the vault rather than in the app's machine-local config, so a
-second PC that clones the vault gets the pins and the order back. (The Repos
-tab's star is machine-local instead, because a repository path is specific to
-one machine.)
-
-A project that is finished or parked moves to `archive/projects/NNNN-<slug>/`,
-number and all —
-under `archive/projects/`, not `archive/<slug>/`, so the folder's origin
-survives the move. The **Projects** tab archives and restores it; a project
-folder is never deleted, because it holds months of hand-written prose.
-
-### Schedule notes
-
-`schedules/` holds the project's date planning. One file is one plan; copy it
-to compare alternatives. The app's **Schedule** tab renders the file as a
-continuous week grid and writes changes straight back, so the note stays
-editable in Obsidian at the same time.
-
-Frontmatter is flat (`type: schedule`, `title`, `range`, `created`,
-`updated`); the content lives in two managed sections, plus a `## Memo`
-section neither the app nor the AI ever rewrites:
-
-```markdown
-## Non-working
-
-- weekly: sat, sun
-- 2026-08-11 Mountain Day
-- 2026-08-13..2026-08-15 summer leave
-
-## Items
-
-- [bar] I-001 2026-07-21..2026-08-07 implementation #blue task:T-0090
-- [arrow] I-005 2026-07-21..2026-08-19 vendor lead time #gray
-- [milestone] I-003 2026-08-20 release review #red
-- [note] I-004 2026-07-31 monthly review 15:00
-```
-
-Element line: `- [<kind>] <id> <date-spec> <title> [#<color>] [task:<task-id>]`
-
-- `<kind>` is `bar`, `arrow`, `milestone`, or `note`. A `bar` is a period that
-  is settled; an `arrow` is the same span drawn as a thin double-headed line,
-  for a period that is still an estimate (lead time, buffer, parallel work).
-- `<id>` is `I-` + a number, unique in the file. **Never change or reuse one** —
-  it is how the app and the AI identify an element across edits.
-- `<date-spec>` is `YYYY-MM-DD..YYYY-MM-DD` for a `bar` or `arrow`, a single
-  `YYYY-MM-DD` otherwise.
-- `#<color>` is one of `blue`, `green`, `amber`, `red`, `purple`, `gray`.
-- `task:<task-id>` links the element to a task in `tasks/`.
-- An element may carry extra lines of text on **indented continuation lines**
-  beneath it (ordinary Markdown list continuation). A `note` shows them on
-  hover in the app; every other kind shows them in its tooltip.
-
-```markdown
-- [note] I-004 2026-07-31 monthly review
-  15:00-16:00, room A
-```
-
-Non-working days drive the working-day counts the grid shows. Schedule
-elements are **not** tasks: they are candidates under consideration, and
-putting them on the board would break its meaning. A task appears on the
-calendar through its own `due` date, or via a `task:` link.
-
-### Mindmap notes
-
-`mindmaps/` holds the project's idea maps. One file is one map; the app's
-**Mindmap** tab renders it as a mindmap and writes changes straight back, so
-the note stays editable in Obsidian at the same time.
-
-Frontmatter is flat (`type: mindmap`, `title`, `created`, `updated`, and the
-optional `node_width` / `stickies` / `attr_chips` / `attr_color` /
-`attr_filter`); the content lives in two managed sections — `## Nodes` and the
-optional `## Stickies` — plus a `## Memo` section neither the app nor the AI
-ever rewrites:
-
-```markdown
-## Nodes
-
-- N-001 workhub #blue
-  - N-002 tasks #green task:T-0042 prio:high
-    - N-003 kanban ^collapsed
-  - N-004 schedule #amber tags:検討中,見積り
-    lead times are still guesses
-
-## Stickies
-
-- S-001 node:N-004 @96,24 #amber re-check the dates after the vendor call
-```
-
-Node line:
-`- <id> <title> [#<color>] [task:<task-id>] [<key>:<value> ...] [^collapsed] [^left|^right]`
-
-- Nesting is indentation, two spaces per level — an ordinary nested bullet
-  list, which is what makes the file editable by hand.
-- `<id>` is `N-` + a number, unique in the file. **Never change or reuse one** —
-  it is how the app and the AI identify a node across edits. A node typed by
-  hand without an id gets one the next time the app reads the file.
-- `#<color>` is one of `blue`, `green`, `amber`, `red`, `purple`, `gray`. A
-  branch inherits the nearest coloured ancestor's colour, so colour the branch
-  head rather than every node.
-- `task:<task-id>` links the node to a task in `tasks/`.
-- `<key>:<value>` is a free-form **attribute** — importance, priority, an
-  owner, a grouping label, whatever the map is being sorted by. Any number of
-  them, in any order. The keys are not configured anywhere: the map's
-  vocabulary is whatever its nodes use, and the app offers the keys and values
-  already in the file as suggestions.
-  - A key is either lowercase ASCII (`[a-z][a-z0-9_-]*`) or Japanese
-    (hiragana, katakana or kanji, optionally mixed with that same lowercase
-    ASCII) — so `prio:high` and `優先度:高` are both attributes. Either way it
-    is 24 characters at most, and a value carries no spaces, since the line is
-    split on whitespace. Use `_` where a value needs one.
-  - Anything that does not fit those rules stays part of the title, which is
-    what keeps `15:00`, `https://example.com` and `Q3:目標` safe to write in a
-    node. Only the ASCII colon separates a key from its value, so a title
-    written with the full-width `：` — `目標：達成` — is never read as one.
-  - `tags:` is the one key the app treats as a list: its value is
-    comma-separated (`tags:検討中,要調査`), each tag gets its own chip, and
-    colouring or filtering by `tags` works on individual tags.
-  - The app draws attributes as chips under the node's title, can colour the
-    boxes by one key, and can dim every node that does not carry a given
-    `key=value`. All three are display settings — see the frontmatter keys
-    below. Right-clicking a chip on the map offers those commands, plus
-    removing that attribute from the node.
-- `^collapsed` hides the node's children **in the app**; the subtree itself is
-  untouched.
-- `^left` / `^right` pins a branch to one side of the root (only meaningful on
-  a child of a root). Without it, branches alternate by their position in the
-  list. The app writes it whenever an action implies a side — adding a branch
-  beside another, or dragging one across the root — so branches never swap
-  sides while the map is being edited.
-- A node may carry extra lines of text on **indented continuation lines**
-  beneath it, which the app shows on hover.
-
-Sticky line: `- <id> node:<node-id> @<dx>,<dy> [#<color>] [<text>]`
-
-A sticky is a note pinned to a node and drawn on the map beside it — always
-visible, unlike a node's own continuation lines, which only appear on hover.
-
-- `<id>` is `S-` + a number, unique in the file. **Never change or reuse one.**
-- `node:<node-id>` is required: it is what the sticky is pinned to. Deleting a
-  node deletes its stickies.
-- `@<dx>,<dy>` is an integer offset in pixels from the pinned node's **centre**
-  to the sticky's top-left corner — the only coordinate in the file, and a
-  relative one, so a sticky follows its node through any re-layout. Omitted, it
-  defaults to `@32,24`.
-- `#<color>` is from the same palette as a node's; absent means `amber`.
-- Longer text continues on **indented continuation lines**, like a node's note.
-- `## Stickies` goes between `## Nodes` and `## Memo`, and a map with no
-  stickies carries no such section at all.
-- The frontmatter key `stickies: hidden` hides every sticky on the map at once
-  (the Mindmap tab's sticky button). It is a display setting; it hides them in
-  the exports too, so a hand-out matches the screen.
-
-Three more frontmatter keys say how the attributes are being looked at. They
-live in the note for the same reason `node_width` does — the right answer
-differs per map, and an export has to look like what was on screen when it was
-made — and each one is written as the absence of the key when it is at its
-default:
-
-- `attr_chips: tags,prio` says **which** chips are drawn and **in what order**;
-  `none` turns them off entirely. Absent means every attribute is shown,
-  alphabetically — which is why a map that uses no attributes looks exactly as
-  it did before they existed. Alphabetical is only the fallback: `tags` sorts
-  last because of how it is spelled, not because it matters least, so a map
-  that cares about the order says so. The Mindmap tab's chip button edits this.
-  Within one key the order is the file's own — the order the tags were typed
-  in, which you can drag into shape in the node panel.
-- `attr_color: prio` colours the boxes by that attribute's value instead of by
-  `#<color>`. A node without the attribute is left uncoloured — "not labelled
-  yet" is usually the thing you are looking for — and branch colour inheritance
-  is off while it is on. The value → colour mapping is derived from the value
-  itself, so it is stable across maps and exports, and arbitrary: the colours
-  separate values, they do not rank them.
-- `attr_filter: prio=high` dims every node that does not carry it. Dims, never
-  hides: a mindmap is read through its shape, so removing the non-matching
-  nodes would re-flow the map out from under you. For `tags`, the match is
-  membership of the list.
-
-Node positions are deliberately **not** stored: the app lays the map out from
-the tree every time it draws it, anchored on the root — so collapsing a branch
-re-flows that branch without moving the centre of the map. The tab's "mermaid"
-button copies the map as a mermaid `mindmap` code block for pasting into a
-document — that export is one-way, since mermaid cannot carry ids, colours or
-task links.
-
-`node_width` decides how wide the boxes are drawn, and is set from the picker
-in the Mindmap tab. It belongs to the note rather than to the app because the
-right answer differs per map, and because an export has to look like what was
-on screen when it was made:
-
-- `auto` (the default, written as the absence of the key) sizes every box to
-  its own text;
-- `siblings` gives the children of one parent a common width;
-- `depth` gives every node at the same distance from the root a common width,
-  which lines the map up in columns at the cost of one long title widening
-  every box on its level.
-
-### Shared-space notes
-
-`shared/` records the team knowledge bases that live **outside** the vault — a
-network drive, a Google Drive or SharePoint folder, whatever the team actually
-files things in. One file is one place. The folder is the registry: nothing
-lists these notes in `_index.md`, the app and the `shared-space` skill read the
-folder itself, the same way `schedules/` and `mindmaps/` do.
-
-What is worth recording is the place's **rules** — naming conventions, which
-kind of document goes where, who owns what. A snapshot of the folder tree goes
-stale within weeks, so it is kept only as orientation. A place with no rules to
-record is just a link, and belongs in `links.md` instead.
-
-Frontmatter is flat:
-
-```yaml
----
-type: shared-space
-title: Design team share
-kind: network-drive    # network-drive | google-drive | onedrive | sharepoint | other
-location: //fileserver/design/projectX
-access: mapped to Z:, needs VPN
-direction: read-only   # read-only | export-ok
-surveyed: 2026-09-05
----
-```
-
-- `location` is the place's canonical address — a UNC path, a local sync path,
-  or a URL. `access` is the human note on how to reach it from this machine.
-- **`direction` is the safety valve.** `read-only` means never write anything
-  there; `export-ok` means the owner has said material may be filed into it. A
-  note whose `direction` is missing or unreadable is treated as `read-only`.
-- `surveyed` is when the rules below were last checked against reality.
-
-The body has four sections, in document order:
-
-| Section | Contents |
-|---|---|
-| `## Structure` | The parts of the folder tree that matter, as orientation — not an exhaustive listing |
-| `## Rules` | How the place is organised. Mark each rule `(stated)` when a document in the place says so, `(inferred)` when it was read off the existing files |
-| `## Placement` | Which vault notes belong where in that place. Only meaningful for `export-ok` places |
-| `## Memo` | The owner's own notes; neither the app nor an agent rewrites this section |
-
-The `shared-space` skill surveys a place and writes the note; the app's
-**Projects** tab lists what `shared/` holds, and offers a prompt to paste into
-an agent when a project has no shared space registered yet.
-
-Filing vault material into a shared space is always one-way, explicit, and
-per-occasion. There is no sync: mirroring a place the team also edits produces
-conflicts and stale duplicates, and neither is worth the convenience.
-
-### Backlog items
-
-`backlog/` is where a project's work actually lives. One item is one unit of
-work — a feature, a bug, a support case — and it holds everything that unit
-produces: the candidate write-up, the spec, the investigation, the notes each
-task left behind. `tasks/` at the vault root remains the app's executable task
-list; an item is what a task is *about*, never a duplicate of it.
-
-An item is a folder from the start (folder-first since T-0321):
-
-```text
-backlog/
-  _backlog.base
-  B-005-task-editor-project-source/
-    B-005-task-editor-project-source.md   <- entry note, named after the folder
-  B-007-mindmap/
-    B-007-mindmap.md                      <- entry note, named after the folder
-    010-feature-design.md
-    020-node-attributes.md
-    030-T-0194-sticky-notes.md
-    040-T-0194-manual-test.html
-```
-
-- Create the folder and its entry note together. **The entry note keeps the
-  folder's exact name** — so every `[[B-007-mindmap]]` resolves to the entry
-  note.
-- Child notes are `NNN-<title>.md`, numbered in **tens** so a later note can be
-  slotted between two existing ones. A task's output is `NNN-T-XXXX-<title>.md`,
-  which puts it in sequence and names the task it came from.
-- **A child note is named once and never renamed.** The tens are what make that
-  possible: a note that belongs between `010` and `020` becomes `015`, and
-  nothing else moves. Renumbering a folder to tidy it up breaks every link into
-  it, and buys nothing a reader can see.
-- **Moving an existing note into an item does rename it, so give it an alias.**
-  The `NNN-` prefix changes the basename, and `[[記事制作の自走化設計]]` written
-  anywhere in the vault stops resolving. Add the old basename to the note's
-  frontmatter:
-
-  ```yaml
-  aliases:
-    - 記事制作の自走化設計
-  ```
-
-  Obsidian resolves a wikilink through an alias, so every reference keeps
-  working and not one of them has to be edited. That matters more than it
-  sounds: T-0263 moved twelve notes and broke 28 references, seven of them in
-  **archived** tasks — historical records nobody should be rewriting, and the
-  ones you are least likely to find by searching.
-- Non-Markdown files (a test report, an exported image) sit directly in the
-  item folder. No sub-folders: a flat item folder is one glob to an agent.
-
-Frontmatter of the entry note:
-
-```yaml
-id: B-007
-title: Mindmap
-type: backlog
-project: <project-slug>
-status: doing        # idea | ready | doing | done | dropped
-priority: medium     # low | medium | high
-source:              # URL/id in an external backlog, when one owns this item
-created: 2026-09-01
-updated: 2026-09-10
-```
-
-Body sections, in document order:
-
-| Section | Contents |
-|---|---|
-| `## What` | The work, in a sentence or two |
-| `## Why` | The value or motivation |
-| `## Status` | Where it stands, in one line, then a dated log, newest first |
-| `## Notes` | Index of the child notes. Only once the item is a folder |
-
-`## Status` is what answers "which of these files is current?". A number prefix
-records the order things were *created*, which is not the same as which one is
-*live*; the dated log is, and the numbering only keeps the folder readable.
-
-**`source` decides who owns the priorities.** Filled in, an external backlog
-(GitHub Issues, monday.com, Jira) is authoritative: leave `status` and
-`priority` to it, and let the item folder be where the thinking and the outputs
-live. Empty, the vault owns them and `_backlog.base` *is* the product backlog.
-Same schema either way, so a project can move between the two without a
-rewrite.
-
-**The link to tasks runs one way.** A task names its item (`backlog: B-007`);
-the item never lists its tasks. Two hand-maintained copies of one relationship
-drift apart, and the query in the other direction is cheap — both the task
-board and `_backlog.base` filter on the task's own key.
-
-**Every task with a project has an item.** A task with no `project` is vault
-housekeeping and its output belongs in `_ai/logs/` or `knowledge/`; a task
-that names a project has somewhere for its output to land, and that somewhere
-is an item. The board does not enforce this — blocking a save would ruin quick
-capture, which is most of what the board is for. An empty `backlog` therefore
-means **"not chosen yet"**, never "no item needed", and the agent settles it
-at `task-start`:
-
-- Read the project's items and compare each one's `## What` against the task's
-  `## Description`.
-- **Only start a new item when the task overlaps none of the existing ones.**
-  If it overlaps at all, attach it to that one. The costs are not symmetric:
-  a note filed under the wrong item is one move to fix, while a duplicate item
-  splits a subject in two and the next reader cannot see that it happened.
-  The exception is a project with no items at all — there is nothing to
-  compare against, so start one.
-- Write the answer back onto the task (`backlog: B-NNN`) and say which item
-  was chosen, so the next session does not repeat the judgement.
-
-A recurring task is the one thing that stays without an item. It is a habit
-rather than a unit of work, and it leaves nothing durable behind for an item
-to accumulate.
+## Tasks
+
+A task is `tasks/<id> <title>.md` with YAML frontmatter (`id`, `title`,
+`status`, `assignee`, `project`, `backlog`, `priority`, `confirm`, `worktree`,
+`depends_on`, ...). The full schema loads from `.claude/rules/tasks.md` when you
+open a task file; `task-cli` and the app write it.
+
+Body sections, in order: `## Description` (human: the spec), `## Plan` (AI,
+approved by human), `## Results` (AI, on completion). Description and Plan are
+inputs, Results is the output. A non-empty `## Plan` is already approved: follow
+it, and append to it when it genuinely changes.
+
+## Projects and backlog items
+
+A project is `projects/NNNN-<slug>/`. `NNNN` only orders the folder; the slug is
+what `project:` keys use. Find a folder with the glob `projects/*-<slug>/` (or
+`archive/projects/*-<slug>/`). Open its `README.md` first: it states the status
+and points to everything else.
+
+**Every task with a project has a backlog item.** A task without a `project` is
+vault housekeeping: its output goes to `_ai/logs/` or `knowledge/`. An empty
+`backlog` means "not chosen yet", and `task-start` settles it:
+
+- Compare each item's `## What` with the task's `## Description`.
+- Attach the task to an overlapping item. Start a new item only when none
+  overlaps (or the project has none yet): a misfiled note is one move to fix,
+  while a duplicate item splits a subject unnoticed.
+- Write `backlog: B-NNN` onto the task and name the chosen item in your first
+  message.
+
+A recurring task keeps no item: it is a habit, and leaves nothing durable. The
+item format loads from `.claude/rules/backlog.md`, and the layout from
+`.claude/rules/projects.md`, when you work under `projects/`.
 
 ## Agent harness
 
 This vault is the default working directory for AI agent sessions
 (Claude Code / OpenCode). Development work targets external repositories
-registered in `.claude/project-context.json`; the vault itself holds tasks,
-knowledge, and configuration — never application code.
+registered in `.claude/project-context.json`; the vault holds tasks, knowledge
+and configuration.
 
-- Skills, hooks, and agents come from Claude Code plugins.
-  `.claude/settings.json` declares the `workhub-marketplace` (the workhub
-  GitHub repo) but enables nothing: plugins are switched on per machine, at
-  user scope, from the app's **Plugins** tab or with `/plugin`. Only `workhub`
-  is required — it carries the task board, the vault knowledge base, and the
-  harness hooks that read `.claude/project-context.json`. Everything else,
-  `engineering` included, is a recommendation you can switch off. See
-  `docs/plugins.md` in the workhub repo for the catalog and scope policy.
-- **Personal skills may live in this vault** at `.claude/skills/<name>/SKILL.md`
-  (agents at `.claude/agents/<name>.md`). The app's template only owns the paths
-  listed in `_ai/template-manifest.json`, so these are never overwritten by an
-  app update. See `.claude/skills/README.md`.
-  The rule of thumb: **only you use it → vault; someone else would use it →
-  promote it to a plugin** in the workhub repo's `plugins/` (rewritten in
-  English), then delete the vault copy.
-- `.opencode/skills/` (when present) is a generated artifact synced from the
-  enabled Claude plugins and from this vault's own `.claude/skills/` — edit the
-  source and re-sync, never the copies.
-- Respond in the language set by the workhub **Language** setting (⚙ Settings
-  → Agents) — the app injects a one-line reminder of it into every turn, in
-  both Claude Code and OpenCode, so a session does not drift back to English
-  partway through. Write documents and repository artifacts in English unless
-  the user explicitly requests otherwise.
-- The same **Language** setting also governs a task file's `## Plan` and
-  `## Results` sections, which the app states in its launch prompt. Code,
-  comments, commit messages, and repository documentation always stay in
-  English regardless of the Language setting.
+- Skills, hooks and agents come from Claude Code plugins. `.claude/settings.json`
+  declares the `workhub-marketplace`; plugins are switched on per machine from
+  the app's **Plugins** tab or `/plugin`, and only `workhub` is required. The
+  catalog and scope policy are in `docs/plugins.md` in the workhub repo.
+- Personal skills live at `.claude/skills/<name>/SKILL.md` and agents at
+  `.claude/agents/<name>.md`; template updates leave them alone. A skill someone
+  else would use is promoted to a plugin in the workhub repo's `plugins/`.
+- `.opencode/skills/` is generated from the enabled plugins and the vault's own
+  skills; edit the source and re-sync.
+- Respond in the workhub **Language** setting (⚙ Settings → Agents); the app
+  injects a reminder every turn. The same setting governs a task's `## Plan` and
+  `## Results`. Code, comments, commit messages and repository documentation are
+  English.
 
 ### Session names
 
@@ -731,129 +158,61 @@ A session working a task is named so the session list reads at a glance:
   (Claude Desktop's `set_session_title`); OpenCode and a bare terminal cannot be
   renamed, so there the convention only applies to what the app launches.
 
-### herdr workspace integration
+### Worktrees
 
-The workhub app can launch each AI task in a fresh [herdr](https://herdr.dev)
-workspace. This is enabled by default in the app settings. To use it, install
-herdr and its Claude Code / OpenCode integrations by running the
-`setup-herdr` skill from the `agent-ops` plugin. If herdr is not installed,
-the app automatically falls back to the configured terminal command.
-
-### Git worktree mode
-
-Set `worktree: true` in the task frontmatter to have the agent work in a
-dedicated git worktree instead of the repository's main working tree.
-
-**The launch prompt names the root to put them under.** It is the app's
-**Worktree root** setting (⚙ Settings → Agents), so it is the user's choice —
-never derive the location from the repository's own path when the prompt states
-one. Relative to that root, the layout is:
-
-```text
-<worktree-root>/<task-id>/<repo-name>
-```
-
-For example, with the default root `C:/repos/.worktrees`:
-
-```bash
-# create a new worktree and branch
-git worktree add C:/repos/.worktrees/T-0042/workhub -b task/T-0042
-
-# reuse an existing branch
-git worktree add C:/repos/.worktrees/T-0042/workhub task/T-0042
-
-# remove the worktree when it is no longer needed
-git worktree remove C:/repos/.worktrees/T-0042/workhub
-```
-
-If the setting is empty the prompt says so, and the worktree then goes beside
-the repository instead — `<repo>/../.worktrees/<task-id>/<repo-name>`.
-
-Do all task work inside the worktree path. If the worktree or branch already
-exists (e.g. resuming a task), reuse it instead of recreating. Never delete the
-worktree folder directly — that leaves stale git metadata. `task-report` offers
-this cleanup when the task is finished.
-
-For a multi-repo task, put each repo's worktree side by side under the same
-`<worktree-root>/<task-id>/` folder.
-
-**Without `worktree: true`, never create a worktree on your own** — not even
-to keep clear of another session or subagent working in the same tree. Ask
-the owner first. An unrequested worktree lands somewhere the owner did not
-choose and is left for them to clean up. The workhub plugin enforces this in
-Claude Code (a worktree guard asks the owner before any worktree is created
-for a task that did not opt in), and `opencode.json` asks before
-`git worktree add` in OpenCode. Do not start parallel work in one working tree
-without asking either; it is what makes a worktree look necessary.
+Work in the repository's main working tree. A task with `worktree: true` works
+in `<worktree-root>/<task-id>/<repo-name>` on branch `task/<task-id>`; the
+launch prompt names the root (the app's **Worktree root** setting), and
+`task-start` step 5 has the commands. Create a worktree only for such a task,
+and ask the owner first in any other case, including to keep clear of parallel
+work. Remove one with `git worktree remove`, so git's metadata stays consistent.
 
 ### Capturing knowledge
 
-When investigation or implementation yields reusable knowledge that is
-non-obvious from code, git history, or existing instruction files (gotchas,
-build quirks, design invariants, conventions, the "why" behind a decision),
-propose capturing it **at the moment of discovery** — do not defer. Route it
-to the right home (the workhub plugin's `capture-rule` skill does the
-mechanical authoring):
-
-- **Target repo's `.claude/rules/<slug>.md`** — repo-specific technical
-  knowledge; scope with repo-relative `paths:` so it auto-injects when
-  relevant files are touched. Committed and shared with the team.
-- **Vault `.claude/rules-ex/`** — cross-cutting knowledge that must reach
-  target-repo files but lives in this vault (`paths:` required; globs are
-  cwd-relative — see that folder's README for how to reach the repos from
-  here).
-- **Vault `.claude/rules/`** — knowledge about this vault harness's own
-  machinery (grow `vault-harness-local.md`; `vault-harness.md` is app-managed
-  and replaced on every template update).
-- **Vault `knowledge/`** — reference material humans also read (research
-  results, collected information). Rule of thumb: constraints agents must
-  *follow* are rules; information humans and agents *consult* is knowledge.
-- **Auto-memory** — personal/cross-project preferences, feedback, or
-  machine-local facts (not shared).
+Propose capturing reusable, non-obvious knowledge (gotchas, build quirks,
+design invariants, the "why" behind a decision) at the moment you find it. The
+`capture-rule` skill picks the home and writes it: a target repo's
+`.claude/rules/` for repo-specific technical knowledge, the vault's
+`.claude/rules-ex/` for cross-cutting knowledge that must reach repo files,
+`knowledge/` for reference humans also read, auto-memory for personal
+preferences.
 
 ## Rules for AI agents
 
-- **Status transitions you may perform:** `todo → doing → review` only.
-  Never set `done` — a human does that in the app.
-- **Never start a task whose `depends_on` predecessors are not all `done`.**
-  `task-cli start` refuses it and lists them; tell the owner instead of
-  passing `--force`, which only they may allow.
-- When updating a task file, change only `status`, `updated`, the `## Plan`
-  section (plan-first tasks, before implementation starts), and the
-  `## Results` section. Preserve all other frontmatter and body content.
-- Never rewrite an approved `## Plan` in place — it is the user's approval
-  record. Append if the plan genuinely changes, and say so.
-- Raw work reports go to `_ai/logs/`. Polished, human-readable summaries and
-  deliverables go to the task's backlog item or `knowledge/`, linked from its
-  `## Results`.
-- Read `_ai/index/tasks.json` first to find tasks; do not scan the whole
-  vault. Fall back to reading `tasks/` frontmatter if the index is missing.
-- Do not overwrite existing human-zone notes; append or create new notes and
-  link them. `_ai/` is yours to manage freely.
+- Move a task's status `todo → doing → review`; the owner sets `done` in the
+  app.
+- Start a task only when its `depends_on` predecessors are `done`. `task-cli
+  start` refuses otherwise and lists them: tell the owner, and leave `--force`
+  to them.
+- Change only `status`, `updated`, `## Plan` (plan-first tasks, before
+  implementation) and `## Results` in a task file; preserve the rest.
+- Append to an approved `## Plan` and say so; it is the owner's approval
+  record.
+- Raw work reports go to `_ai/logs/`. Polished summaries and deliverables go to
+  the task's backlog item or `knowledge/`, linked from `## Results`.
+- Find tasks through `_ai/index/tasks.json`, falling back to `tasks/`
+  frontmatter if the index is missing.
+- Append to or create-and-link human-zone notes. `_ai/` is yours to manage.
 
 ## Local instructions
 
-`CLAUDE.local.md` at the vault root holds the owner's own instructions for
-agents. The workhub app seeds it once and never updates it, which is exactly
-why it exists: this file (`CLAUDE.md`) is app-managed and re-applied on every
-app update, so anything written here would eventually be overwritten. Read
-`CLAUDE.local.md` when it is present, and treat it as taking precedence over
-this file. If it is missing or empty, there are simply no local instructions.
-
-Anything an agent is asked to remember permanently goes there, never into this
-file — see `.claude/rules/app-managed-files.md` for the full list of files the
-app manages.
+`CLAUDE.local.md` at the vault root holds the owner's own instructions. The app
+seeds it once and never updates it, and it takes precedence over this file; no
+file, or an empty one, means there are none. This file is app-managed and
+re-applied on every update, so anything an agent is asked to remember
+permanently goes in `CLAUDE.local.md`. The full list of app-managed files is in
+`.claude/rules/app-managed-files.md`.
 
 <important>
 - Confirm with the owner before irreversible or outward-facing actions
   (deleting, overwriting, force-pushing, sending, publishing, spending).
-- Never set a task's `status` to `done`. Only humans mark tasks done in the app.
-- Never delete a worktree folder directly; always use `git worktree remove`.
-- Personal skills may live in `.claude/skills/`; promote anything shared to a plugin.
-- Respond in the language set by the workhub **Language** setting; write
-  repository artifacts in English.
-- Never edit app-managed files (`CLAUDE.md`, `AGENTS.md`, `opencode.json`, and
-  the `.claude/**` / `.opencode/**` paths listed in `_ai/template-manifest.json`)
-  to record instructions — use `CLAUDE.local.md`. Unlisted paths such as
+- Never set a task's `status` to `done`; the owner does that in the app.
+- Remove a worktree with `git worktree remove`; deleting its folder leaves
+  stale git metadata.
+- Respond in the workhub **Language** setting; write repository artifacts in
+  English.
+- Record instructions in `CLAUDE.local.md`. This file, `AGENTS.md`,
+  `opencode.json` and the `.claude/**` / `.opencode/**` paths listed in
+  `_ai/template-manifest.json` are app-managed. Unlisted paths such as
   `.claude/skills/` are yours.
 </important>

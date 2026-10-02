@@ -50,6 +50,10 @@ jobs:
       - name: Plugin versions
         if: github.event_name == 'pull_request'
         run: node scripts/check-plugin-versions.mjs origin/${{ github.base_ref }}
+      # The template's CLAUDE.md loads in every session of every vault; see
+      # scripts/check-claude-md-budget.mjs.
+      - name: CLAUDE.md budget
+        run: node scripts/check-claude-md-budget.mjs
       - name: Test (frontend)
         run: npm test
       - name: Test (backend)
