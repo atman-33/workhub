@@ -28,6 +28,7 @@ function project(over: Partial<VaultProject> = {}): VaultProject {
     folder: "demo",
     number: null,
     name: "Demo",
+    alias: "",
     path: "C:/vault/projects/demo",
     status: "active",
     repos: [],
@@ -115,6 +116,15 @@ describe("issueLabel", () => {
   it("names an undocumented folder as such", () => {
     expect(issueLabel(issue({ kind: "unknown-folder", target: "pbl/" }))).toBe(
       "pbl/ is not in the documented layout",
+    );
+  });
+
+  it("names a malformed alias and one shared between projects", () => {
+    expect(issueLabel(issue({ kind: "invalid-alias", target: "Not Valid" }))).toBe(
+      "alias 'Not Valid' is not 2 to 8 lowercase letters, digits or hyphens",
+    );
+    expect(issueLabel(issue({ kind: "duplicate-alias", target: "sbr" }))).toBe(
+      "alias 'sbr' is used by more than one project",
     );
   });
 });

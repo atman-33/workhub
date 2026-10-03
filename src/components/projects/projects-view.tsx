@@ -118,6 +118,7 @@ export function ProjectsView({
   const [error, setError] = useState("");
   const [editName, setEditName] = useState("");
   const [editSummary, setEditSummary] = useState("");
+  const [editAlias, setEditAlias] = useState("");
   // Persisted per machine (T-0278) — this is how the owner likes to look at
   // the list, not anything about the vault's content.
   const [sortMode, setSortMode] = useState<ProjectSortMode>(() => readProjectSortMode());
@@ -217,6 +218,10 @@ export function ProjectsView({
     setEditName(current.name);
     setEditSummary(current.summary);
   }, [current?.slug, current?.name, current?.summary]);
+  useEffect(() => {
+    if (!current) return;
+    setEditAlias(current.alias);
+  }, [current?.slug, current?.alias]);
   const currentRepos = useMemo(
     () => (current ? linkedRepos(current, repos) : []),
     [current, repos],
@@ -336,6 +341,17 @@ export function ProjectsView({
         name,
         editSummary.trim(),
       );
+    });
+  };
+
+  const aliasDirty = !!current && editAlias.trim() !== current.alias;
+
+  /** The backend owns the format and uniqueness rules; a rejection comes back
+   * through `run` and shows in the same error line as every other write. */
+  const saveAlias = () => {
+    if (!vaultPath || !current || current.archived) return;
+    void run(t("projects.view.statusSavingAlias"), async () => {
+      await api.setVaultProjectAlias(vaultPath, current.slug, editAlias.trim());
     });
   };
 
@@ -512,6 +528,41 @@ export function ProjectsView({
                         </Button>
                       )}
                     </div>
+                    <label className="mt-3 block space-y-1">
+                      <span className="text-xs text-muted-foreground">{t("projects.view.alias")}</span>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editAlias}
+                          placeholder={t("projects.view.aliasPlaceholder")}
+                          className="h-8 max-w-64 font-mono text-sm"
+                          onChange={(e) => setEditAlias(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveAlias();
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7"
+                          disabled={!aliasDirty}
+                          onClick={saveAlias}
+                        >
+                          {t("projects.view.save")}
+                        </Button>
+                        {aliasDirty && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7"
+                            onClick={() => setEditAlias(current.alias)}
+                          >
+                            {t("projects.view.cancel")}
+                          </Button>
+                        )}
+                      </div>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {t("projects.view.aliasHelp")}
+                      </span>
+                    </label>
                   </>
                 )}
                 <p className="mt-2 font-mono text-[11px] text-muted-foreground">

@@ -45,6 +45,10 @@ export function issueLabel(issue: VaultProjectIssue): string {
       return `${issue.target} has no entry note named after the folder`;
     case "unknown-folder":
       return `${issue.target} is not in the documented layout`;
+    case "invalid-alias":
+      return `alias '${issue.target}' is not 2 to 8 lowercase letters, digits or hyphens`;
+    case "duplicate-alias":
+      return `alias '${issue.target}' is used by more than one project`;
     default:
       return issue.target;
   }
