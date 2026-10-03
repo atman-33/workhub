@@ -981,6 +981,21 @@ pub async fn set_vault_project_order(
     .map_err(|e| e.to_string())?
 }
 
+/// Sets or clears (empty `alias`) the project's session-name alias in
+/// README.md frontmatter, refusing a malformed or already-used one (T-0562).
+#[tauri::command]
+pub async fn set_vault_project_alias(
+    vault_path: String,
+    slug: String,
+    alias: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_project::set_project_alias(&PathBuf::from(vault_path), &slug, &alias)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Writes the project's display name and description into README.md
 /// frontmatter. The folder slug is not renamed.
 #[tauri::command]

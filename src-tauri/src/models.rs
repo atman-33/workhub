@@ -827,6 +827,10 @@ pub struct VaultProject {
     pub number: Option<u32>,
     /// `title` from README.md, falling back to the slug.
     pub name: String,
+    /// `alias` from README.md: the short label session names use in place of
+    /// the slug (T-0561). Empty when unset; display only, never a key.
+    #[serde(default)]
+    pub alias: String,
     /// Absolute path, forward slashes.
     pub path: String,
     /// `status` from README.md (active | paused | done); empty when unset.
