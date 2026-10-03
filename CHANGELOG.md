@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.156.0 (2026-10-03)
+
+- **OpenCode sessions can run `task-cli` and `comms-cli`** (T-0570). The workhub skills call
+  `${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs`, but the skill sync copies only the skill
+  folder and OpenCode never sets that variable, so every task skill fell back to editing
+  task files by hand. The vault template now ships `plugin-root-env-plugin.ts`, which sets
+  `CLAUDE_PLUGIN_ROOT` for OpenCode shell commands to the installed `workhub` plugin (no
+  second copy of the scripts to go stale; `WORKHUB_PLUGIN_ROOT` overrides, and a value
+  already set wins). It takes effect through the template update. Only `workhub` is
+  covered; the other harness plugins' skills that reference the variable are unchanged.
+- **A `task-orchestrate` skill for triaging many tasks** (`workhub` plugin 0.49.0). Given a
+  batch of tasks within or across projects, it advises on order, parallelism and worktree
+  use, then dispatches the ones the owner approves through `task-handoff` or `task-chain`,
+  both of which now point to it.
+
 ## 0.155.0 (2026-10-03)
 
 - **Projects can have a short alias** (T-0561, T-0562, T-0566). A long slug such as
