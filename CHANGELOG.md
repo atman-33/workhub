@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.155.0 (2026-10-03)
+
+- **Projects can have a short alias** (T-0561, T-0562, T-0566). A long slug such as
+  `spiritual-blade-remake` filled the session list and hid what the session was for.
+  A project's README now takes an optional `alias` (2 to 8 lowercase letters, digits
+  or hyphens, unique across projects), and the herdr workspace label uses it in place
+  of the slug. Without an alias the slug is used as before, and `project:` keys on
+  tasks stay the slug. The Projects tab has an Alias field under Name and Description
+  that checks the format and uniqueness and clears the alias when emptied, and the
+  layout findings report a malformed or shared alias.
+- **Sessions with no task are named too** (T-0561). A session on a known project is
+  `[alias] title`; with no project nothing is added. The `task-start`, `task-handoff`
+  and `project-start` skills (`workhub` plugin) and the vault template's session-name
+  rules describe it, so it takes effect through the plugin and template updates.
+
 ## 0.154.1 (2026-10-03)
 
 - **The shared-space survey prompt works again.** 0.154.0 shipped a syntax slip in the
