@@ -82,9 +82,11 @@ argument-hint: "<task-id>"
      note's `## Promoted rules` as an axis. Say which you chose. An answer
      that is not written back gets asked again next time, which is the whole
      problem the policy exists to solve.
-   - **Name the session.** Convention: `[<project>] <task-id> <title>`, or
+   - **Name the session.** Convention: `[<label>] <task-id> <title>`, or
      `<task-id> <title>` without a `project`, title cut at 40 characters (the
-     vault's `CLAUDE.md`, *Session names*). When the session's current title
+     vault's `CLAUDE.md`, *Session names*). `<label>` is the `alias` in
+     `projects/*-<project>/README.md` frontmatter when it has one, else the
+     `project` slug. When the session's current title
      does not follow it and a `set_session_title` tool is available (Claude
      Desktop), set it; otherwise leave it — OpenCode and a bare terminal cannot
      be renamed.
