@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { hashArtifact, hashDirectory, hashFile } from "./claude-plugin-sync-core.mjs";
+import { hashArtifact, hashDirectory, hashFile, workhubPluginRoot } from "./claude-plugin-sync-core.mjs";
 
 /**
  * Drift detection hashes a synced artifact to decide whether the target was
@@ -143,5 +143,25 @@ describe("hashArtifact", () => {
 
   it("returns an empty string for a path that does not exist", () => {
     expect(hashArtifact(join(root, "absent"))).toBe("");
+  });
+});
+
+describe("workhubPluginRoot", () => {
+  const saved = process.env.WORKHUB_PLUGIN_ROOT;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.WORKHUB_PLUGIN_ROOT;
+    else process.env.WORKHUB_PLUGIN_ROOT = saved;
+  });
+
+  it("resolves under the marketplace checkout by default", () => {
+    delete process.env.WORKHUB_PLUGIN_ROOT;
+    expect(workhubPluginRoot("m/root").split("\\").join("/")).toBe(
+      "m/root/workhub-marketplace/plugins/workhub",
+    );
+  });
+
+  it("lets WORKHUB_PLUGIN_ROOT override", () => {
+    process.env.WORKHUB_PLUGIN_ROOT = "/custom/workhub";
+    expect(workhubPluginRoot("ignored")).toBe("/custom/workhub");
   });
 });

@@ -245,6 +245,7 @@ export interface PersonaInjection {
 
 export function personaClaudeDir(): string;
 export function personaPluginRoot(marketplacesRoot?: string): string;
+export function workhubPluginRoot(marketplacesRoot?: string): string;
 export function isPersonaPluginEnabled(): boolean;
 export function readPersonaState(claudeDir?: string): {
   state: { enabled: boolean; character: string | null; level: string | null };
