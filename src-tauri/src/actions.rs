@@ -2,6 +2,7 @@ use crate::herdr;
 use crate::storage;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::process::Command;
 
 #[cfg(windows)]
@@ -241,22 +242,30 @@ pub fn launch_agent_for_task(params: LaunchAgentForTaskParams<'_>) -> Result<Str
 const SESSION_TITLE_MAX_CHARS: usize = 40;
 
 /// Builds the session name convention shared by every launch path:
-/// `[<project>] <task-id> <title>`, or `<task-id> <title>` when the task has no
-/// project. Only the title is truncated (to `SESSION_TITLE_MAX_CHARS`); the
-/// project and id are what make a session list scannable, so they stay whole.
-/// The convention itself is documented in the vault template's `CLAUDE.md`.
-pub fn session_name(project: &str, task_id: &str, task_title: &str) -> String {
+/// `[<label>] <task-id> <title>`, `<task-id> <title>` when there is no
+/// project, and `[<label>] <title>` when there is no task id. `label` is the
+/// project's alias when it has one, else its slug (see
+/// `vault_project::project_label`). Only the title is truncated (to
+/// `SESSION_TITLE_MAX_CHARS`); the label and id are what make a session list
+/// scannable, so they stay whole. The convention itself is documented in the
+/// vault template's `CLAUDE.md`.
+pub fn session_name(label: &str, task_id: &str, task_title: &str) -> String {
     let title: String = task_title
         .trim()
         .chars()
         .take(SESSION_TITLE_MAX_CHARS)
         .collect();
-    let project = project.trim();
-    if project.is_empty() {
-        format!("{task_id} {title}")
-    } else {
-        format!("[{project}] {task_id} {title}")
+    let label = label.trim();
+    let task_id = task_id.trim();
+    let mut parts = Vec::new();
+    if !label.is_empty() {
+        parts.push(format!("[{label}]"));
     }
+    if !task_id.is_empty() {
+        parts.push(task_id.to_string());
+    }
+    parts.push(title);
+    parts.join(" ")
 }
 
 /// Starts the herdr server if needed, creates a workspace for the task, and
@@ -272,7 +281,13 @@ fn launch_in_herdr(
     command_line: &str,
 ) -> Result<(), String> {
     herdr::ensure_server(params.herdr_cmd, params.terminal_embed)?;
-    let label = session_name(params.project, params.task_id, params.task_title);
+    // `project:` stays the slug everywhere else; only the visible name takes
+    // the alias (T-0561).
+    let label = session_name(
+        &crate::vault_project::project_label(Path::new(vault), params.project),
+        params.task_id,
+        params.task_title,
+    );
     let workspace = herdr::create_workspace(params.herdr_cmd, vault, &label)?;
     let pane_command = in_pane_command(command_line);
     herdr::run_in_pane(params.herdr_cmd, &workspace.root_pane_id, &pane_command)
@@ -941,6 +956,15 @@ mod tests {
             session_name("  ", "T-0541", "Tidy vault"),
             "T-0541 Tidy vault"
         );
+    }
+
+    #[test]
+    fn session_name_without_a_task_is_label_and_title() {
+        assert_eq!(
+            session_name("sbr", "", "Plan the next step"),
+            "[sbr] Plan the next step"
+        );
+        assert_eq!(session_name("", "", "Plan"), "Plan");
     }
 
     #[test]

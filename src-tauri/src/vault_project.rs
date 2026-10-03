@@ -125,8 +125,99 @@ pub fn list_projects(vault: &Path, include_archived: bool) -> Result<Vec<VaultPr
     if include_archived {
         scan_root(&archive_projects_dir(vault), true, &mut out)?;
     }
+    // Aliases must be unique across `projects/` and `archive/projects/`, so
+    // the check needs the whole list; archived projects count even when the
+    // caller did not ask for them.
+    let mut taken: HashMap<String, usize> = HashMap::new();
+    for p in &out {
+        if !p.alias.is_empty() {
+            *taken.entry(p.alias.clone()).or_insert(0) += 1;
+        }
+    }
+    if !include_archived {
+        let mut archived = Vec::new();
+        scan_root(&archive_projects_dir(vault), true, &mut archived)?;
+        for p in &archived {
+            if !p.alias.is_empty() {
+                *taken.entry(p.alias.clone()).or_insert(0) += 1;
+            }
+        }
+    }
+    for p in &mut out {
+        if taken.get(&p.alias).copied().unwrap_or(0) > 1 {
+            p.issues.push(VaultProjectIssue {
+                kind: "duplicate-alias".into(),
+                severity: "warn".into(),
+                target: p.alias.clone(),
+            });
+        }
+    }
     sort_projects(&mut out);
     Ok(out)
+}
+
+/// An alias is 2 to 8 characters of lowercase letters, digits and hyphens
+/// (T-0561). Not a slug: it is only ever shown, in a session name.
+pub fn is_valid_alias(alias: &str) -> bool {
+    (2..=8).contains(&alias.chars().count())
+        && alias
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// The label a session name shows for a project: its `alias` when README
+/// declares a valid one, otherwise the slug as written. Never an error — a
+/// missing project or README just means the slug, so a launch is never
+/// blocked by a naming nicety.
+pub fn project_label(vault: &Path, slug: &str) -> String {
+    let slug = slug.trim();
+    if slug.is_empty() || check_slug(slug).is_err() {
+        return slug.to_string();
+    }
+    for archived in [false, true] {
+        if let Ok(Some(dir)) = find_project(vault, slug, archived) {
+            let alias = read_note(&dir.join("README.md"))
+                .map(|n| frontmatter_value(&n.0, "alias").trim().to_string())
+                .unwrap_or_default();
+            if is_valid_alias(&alias) {
+                return alias;
+            }
+            break;
+        }
+    }
+    slug.to_string()
+}
+
+/// Sets (or, when `alias` is empty, clears) the project's `alias` in README.md
+/// frontmatter. Refuses a malformed alias and one another project already
+/// uses, in `projects/` or `archive/projects/`.
+pub fn set_project_alias(vault: &Path, slug: &str, alias: &str) -> Result<(), String> {
+    let slug = check_slug(slug)?;
+    let alias = alias.trim();
+    if !alias.is_empty() {
+        if !is_valid_alias(alias) {
+            return Err(
+                "an alias is 2 to 8 characters: lowercase letters, digits and hyphens".into(),
+            );
+        }
+        for p in list_projects(vault, true)? {
+            if p.alias == alias && p.slug != slug {
+                return Err(format!("alias '{alias}' is already used by '{}'", p.slug));
+            }
+        }
+    }
+    let dir = find_project(vault, slug, false)?
+        .ok_or_else(|| format!("no project named '{slug}' is in projects/"))?;
+    let path = dir.join("README.md");
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let (front, body) = split_frontmatter(&content)
+        .ok_or_else(|| "README.md has no frontmatter block".to_string())?;
+    let front = if alias.is_empty() {
+        remove_frontmatter_key(&front, "alias")
+    } else {
+        rewrite_frontmatter(&front, &[("alias", alias), ("updated", &today())])
+    };
+    fs::write(&path, format!("---\n{front}---\n{body}")).map_err(|e| e.to_string())
 }
 
 /// The list order the Projects tab shows, and the one the reorder writes
@@ -234,6 +325,10 @@ fn inspect(
         .as_ref()
         .map(|n| frontmatter_value(&n.0, "status"))
         .unwrap_or_default();
+    let alias = readme
+        .as_ref()
+        .map(|n| frontmatter_value(&n.0, "alias").trim().to_string())
+        .unwrap_or_default();
     // `_index.md` owns the link; README is read as a fallback so a project
     // that recorded it by hand in the more obvious place still shows up linked.
     // The legacy single `repo:` key is deliberately not read: the migration to
@@ -293,11 +388,20 @@ fn inspect(
         });
     }
 
+    if !alias.is_empty() && !is_valid_alias(&alias) {
+        issues.push(VaultProjectIssue {
+            kind: "invalid-alias".into(),
+            severity: "warn".into(),
+            target: alias.clone(),
+        });
+    }
+
     VaultProject {
         slug: slug.to_string(),
         folder: folder.to_string(),
         number,
         name,
+        alias,
         path: norm_path(dir),
         status: status.trim().to_string(),
         repos: repos.iter().map(|r| r.trim().to_string()).collect(),
@@ -1661,5 +1765,108 @@ mod tests {
         assert!(is_task_note("T-0042 title.md"));
         assert!(!is_task_note("T-title.md"));
         assert!(!is_task_note("README.md"));
+    }
+
+    #[test]
+    fn alias_format_is_two_to_eight_kebab_characters() {
+        for ok in ["sbr", "ab", "my-proj1", "12345678"] {
+            assert!(is_valid_alias(ok), "{ok}");
+        }
+        for bad in ["", "a", "toolongxx", "Sbr", "s_r", "s r", "あい"] {
+            assert!(!is_valid_alias(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn project_label_prefers_a_valid_alias_and_falls_back_to_the_slug() {
+        let vault = temp_vault("label");
+        write(
+            vault.join("projects/0010-long-project-name/README.md"),
+            "---\ntitle: Long\nalias: lpn\n---\n",
+        );
+        write(
+            vault.join("projects/0020-bad/README.md"),
+            "---\ntitle: Bad\nalias: Not Valid\n---\n",
+        );
+        write(
+            vault.join("projects/0030-plain/README.md"),
+            "---\ntitle: P\n---\n",
+        );
+        write(
+            vault.join("archive/projects/0040-old-thing/README.md"),
+            "---\ntitle: Old\nalias: old\n---\n",
+        );
+        assert_eq!(project_label(&vault, "long-project-name"), "lpn");
+        assert_eq!(project_label(&vault, "bad"), "bad");
+        assert_eq!(project_label(&vault, "plain"), "plain");
+        assert_eq!(project_label(&vault, "old-thing"), "old");
+        assert_eq!(project_label(&vault, "missing"), "missing");
+        assert_eq!(project_label(&vault, ""), "");
+    }
+
+    #[test]
+    fn set_project_alias_validates_checks_uniqueness_and_clears() {
+        let vault = temp_vault("set-alias");
+        write(
+            vault.join("projects/0010-alpha/README.md"),
+            "---\ntitle: A\nstatus: active\n---\n\nbody\n",
+        );
+        write(
+            vault.join("projects/0020-beta/README.md"),
+            "---\ntitle: B\n---\n",
+        );
+        write(
+            vault.join("archive/projects/0030-gamma/README.md"),
+            "---\ntitle: G\nalias: gam\n---\n",
+        );
+
+        set_project_alias(&vault, "alpha", "alp").unwrap();
+        let readme = fs::read_to_string(vault.join("projects/0010-alpha/README.md")).unwrap();
+        assert!(readme.contains("alias: alp\n") && readme.contains("status: active"));
+        assert!(readme.ends_with("\nbody\n"));
+
+        assert!(set_project_alias(&vault, "beta", "alp").is_err());
+        assert!(set_project_alias(&vault, "beta", "gam").is_err());
+        assert!(set_project_alias(&vault, "beta", "X").is_err());
+        // Re-setting a project's own alias is not a collision.
+        set_project_alias(&vault, "alpha", "alp").unwrap();
+
+        let alpha = list_projects(&vault, false).unwrap().remove(0);
+        assert_eq!(alpha.alias, "alp");
+
+        set_project_alias(&vault, "alpha", "").unwrap();
+        let readme = fs::read_to_string(vault.join("projects/0010-alpha/README.md")).unwrap();
+        assert!(!readme.contains("alias"));
+    }
+
+    #[test]
+    fn scan_flags_a_duplicate_or_malformed_alias() {
+        let vault = temp_vault("alias-findings");
+        write(
+            vault.join("projects/0010-a/README.md"),
+            "---\ntitle: A\nalias: dup\n---\n",
+        );
+        write(
+            vault.join("projects/0020-b/README.md"),
+            "---\ntitle: B\nalias: BAD!\n---\n",
+        );
+        write(
+            vault.join("archive/projects/0030-c/README.md"),
+            "---\ntitle: C\nalias: dup\n---\n",
+        );
+        let projects = list_projects(&vault, false).unwrap();
+        let kinds = |slug: &str| -> Vec<String> {
+            projects
+                .iter()
+                .find(|p| p.slug == slug)
+                .unwrap()
+                .issues
+                .iter()
+                .map(|i| i.kind.clone())
+                .filter(|k| k.ends_with("-alias"))
+                .collect()
+        };
+        assert_eq!(kinds("a"), ["duplicate-alias"]);
+        assert_eq!(kinds("b"), ["invalid-alias"]);
     }
 }
