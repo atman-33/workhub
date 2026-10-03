@@ -50,6 +50,26 @@ assigns the number and fills in `templates/project/`'s placeholders.
 - **Don't clobber human prose.** Append or create-and-link; keep `_index.md`
   current via `/kb-index`.
 
+## README frontmatter
+
+```yaml
+title: Spiritual Blade Remake
+type: project-readme
+project: spiritual-blade-remake   # the slug; what every `project:` key uses
+status: active                    # active | paused | done
+alias: sbr                        # optional; short label for session names
+```
+
+`alias` is a short label that stands in for a long slug in session names
+(`[sbr] T-0561 ...`, see the vault `CLAUDE.md` *Session names*). Only the
+session name uses it: `project:` keys, folder names and links stay the slug.
+Unset, the slug is used, so give one only to a slug too long to read in the
+session list (leave `workhub` alone).
+
+- Lowercase letters, digits and hyphens (kebab-case), 2 to 8 characters.
+- Unique across `projects/` and `archive/projects/`. Check before assigning.
+- Not Obsidian's `aliases:` list, which is about note-link resolution.
+
 ## The folder number and the slug
 
 **The project folder carries a number; the slug does not.** A project folder

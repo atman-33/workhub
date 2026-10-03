@@ -10,8 +10,9 @@ argument-hint: "<project-slug>"
 counterpart: the first move of a session whose subject is a project rather
 than a single task.
 
-It is **read-only**. It changes no task status, writes no notes, and creates
-no files. Its whole output is a summary in the chat.
+It is **read-only** as far as the vault goes. It changes no task status,
+writes no notes, and creates no files. Its output is a summary in the chat,
+plus the session's own title (step 6).
 
 ## Steps
 
@@ -69,9 +70,21 @@ no files. Its whole output is a summary in the chat.
    collect the tasks whose `project:` is this slug and whose `status` is not
    `done`. Note any that are `blocked`.
 
-6. **Report.** One summary, in this order:
+6. **Name the session.** The project is now settled, so apply the vault
+   `CLAUDE.md` *Session names* form for a session with no task:
+   `[<label>] <title>`, where `<label>` is the `alias` in the README
+   frontmatter (the slug when there is none) and `<title>` is a few words on
+   what this session is for, cut at 40 characters. Do it only when the
+   session's current title does not already follow the form, and a
+   `set_session_title` tool is available (Claude Desktop); otherwise skip it.
+   When the session is working a task, `task-start` has already named it:
+   leave it. Naming is the one write this skill makes, and it touches the
+   session, not the vault.
+
+7. **Report.** One summary, in this order:
 
    - **Goal** — what the project is for, in a sentence or two.
+   - **Alias** — the README's `alias`, or "none (slug is used)".
    - **Status** — the README's stated status, plus how stale it looks
      (when the README's own dates disagree with what the notes say, report
      the disagreement rather than picking one).

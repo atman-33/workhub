@@ -54,8 +54,9 @@ For an ordered list of tasks to run back to back, use `task-chain` instead.
 
 3. **Hand off.**
 
-   - **With `spawn_task`:** call it with the title `[<project>] <task-id> <title>` (just
-     `<task-id> <title>` when the task has no `project`; the vault's
+   - **With `spawn_task`:** call it with the title `[<label>] <task-id> <title>` (just
+     `<task-id> <title>` when the task has no `project`; `<label>` is the
+     project README's `alias`, else the slug; the vault's
      `CLAUDE.md` *Session names* defines it, titles cut at 40 characters), a
      `tldr` saying why this task gets its own session, and a minimal prompt:
 

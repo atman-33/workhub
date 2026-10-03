@@ -3,6 +3,7 @@ title: <Project name>
 type: project-readme
 project: <project-slug>
 status: active        # active | paused | done
+# alias: abc          # optional; 2-8 chars kebab, unique; short label for session names
 updated: {{DATE}}
 tags:
   - project

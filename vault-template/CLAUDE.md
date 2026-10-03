@@ -142,19 +142,24 @@ and configuration.
 
 ### Session names
 
-A session working a task is named so the session list reads at a glance:
+A session is named so the session list reads at a glance:
 
 ```text
-[<project>] <task-id> <title>     e.g. [workhub] T-0541 Session naming convention
-<task-id> <title>                 when the task has no `project`
+[<label>] <task-id> <title>   a session working a task, e.g. [sbr] T-0541 Session naming convention
+<task-id> <title>             when the task has no `project`
+[<label>] <title>             no task, but the project is settled (e.g. via `project-start`)
 ```
 
-- `<project>` is the task's `project` slug as written, without the folder
-  number. Keep it whole; truncate only the title, to 40 characters.
+- `<label>` is the project's `alias` (optional README frontmatter key, see
+  `.claude/rules/projects.md`), or the `project` slug as written, without the
+  folder number, when there is none. `project:` keys always stay the slug.
+- Truncate only the title, to 40 characters; keep the label whole.
+- A session with neither task nor project is left unnamed.
 - Brackets, not `|`, `:` or `/`: those are special in shells and Windows paths,
   and a session name ends up in workspace labels and transcript file names.
-- The app's herdr launch and the `task-handoff` chip already use this form.
-  `task-start` renames a session that does not follow it when the host allows
+- The app's herdr launch and the `task-handoff` chip use this form.
+  `task-start` (task sessions) and `project-start` (no task) rename a session
+  that does not follow it when the host allows
   (Claude Desktop's `set_session_title`); OpenCode and a bare terminal cannot be
   renamed, so there the convention only applies to what the app launches.
 
