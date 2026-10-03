@@ -260,6 +260,18 @@ sync — run the user sync with `--prune` to delete its stranded copies. `node
 .opencode/scripts/sync-claude-skills.mjs --prune` likewise deletes
 manifest-tracked orphans on the vault-local side; hand-written targets the
 manifest never recorded are left alone in both cases.
+A sync copies only the skill folder, so a plugin's `scripts/` never reach
+OpenCode. The `workhub` skills call `node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs"`
+(and `comms-cli.mjs`), which Claude Code resolves and OpenCode does not.
+`.opencode/plugins/plugin-root-env-plugin.ts` closes that gap through the
+`shell.env` hook: every shell command OpenCode runs gets `CLAUDE_PLUGIN_ROOT`
+pointing at the `workhub` plugin where Claude Code installed it
+(`~/.claude/plugins/marketplaces/workhub-marketplace/plugins/workhub`;
+`WORKHUB_PLUGIN_ROOT` overrides). A value already set wins, and a missing
+plugin sets nothing. It covers `workhub` only: some skills of the other set
+members (`engineering`'s guide skills, `persona-compress`) also reference
+`CLAUDE_PLUGIN_ROOT`, and stay unresolved in OpenCode until someone needs them.
+
 
 Migrating an older vault: enable the wanted plugins at user scope from the
 app's Plugins tab (or `claude plugin install`), run the user-scope sync, then

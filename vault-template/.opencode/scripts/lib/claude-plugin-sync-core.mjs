@@ -1334,6 +1334,18 @@ export function personaPluginRoot(marketplacesRoot) {
   return path.join(root, "workhub-marketplace", "plugins", "persona");
 }
 
+/**
+ * Directory of the workhub plugin's source tree, which holds the `scripts/`
+ * (task-cli, comms-cli) its skills call as `${CLAUDE_PLUGIN_ROOT}/scripts/...`.
+ * A skill sync copies only the skill folder, so OpenCode has to be pointed at
+ * this tree instead. WORKHUB_PLUGIN_ROOT overrides, like PERSONA_PLUGIN_ROOT.
+ */
+export function workhubPluginRoot(marketplacesRoot) {
+  if (process.env.WORKHUB_PLUGIN_ROOT) return process.env.WORKHUB_PLUGIN_ROOT;
+  const root = marketplacesRoot || defaultClaudePluginsRoot();
+  return path.join(root, "workhub-marketplace", "plugins", "workhub");
+}
+
 export function isPersonaPluginEnabled() {
   return readUserEnabledPlugins().some((p) => p.pluginRef === PERSONA_PLUGIN_REF);
 }
