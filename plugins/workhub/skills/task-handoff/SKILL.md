@@ -10,7 +10,8 @@ A task filed mid-session invites rolling straight into it. The owner's default
 runs the other way: a follow-up gets its own session, with a clean context and
 its own row in the session list. This skill turns that into an explicit call —
 a recommendation with its reason, every time — and carries out the handoff.
-For an ordered list of tasks to run back to back, use `task-chain` instead.
+For an ordered list of tasks to run back to back, use `task-chain` instead;
+to decide the order and parallelism of many tasks first, use `task-orchestrate`.
 
 ## Steps
 

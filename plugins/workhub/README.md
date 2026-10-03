@@ -13,6 +13,7 @@ workhub Obsidian vault.
 | `task-report` | Record results: raw report to `_ai/logs/`, polished notes to `projects/`/`knowledge/`, update the task's `## Results` and set `status: review` |
 | `task-handoff` | Recommend continuing a freshly filed task here or in a new session, and hand it off as a Claude Desktop chip (`spawn_task`) |
 | `task-chain` | Run an ordered list of tasks back to back, one subagent per task; the owner picks up front how `depends_on`, `confirm: true` and PR merging are handled |
+| `task-orchestrate` | Triage many tasks, within one project or across several: advise on order, parallelism and worktree use, then dispatch the approved ones through `task-handoff` / `task-chain` |
 | `vault-init` | Expand `vault-template/` into a new workhub vault |
 | `kb-ingest` | Classify notes from `inbox/` into `projects/`/`knowledge/`/`archive/`, propose tasks for actionable items, link and index |
 | `kb-query` | Search the vault and synthesize answers across notes, citing sources with wikilinks |

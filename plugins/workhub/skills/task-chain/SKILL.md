@@ -6,6 +6,9 @@ argument-hint: "<task-id> <task-id> ..."
 
 # task-chain — Run an ordered list of tasks
 
+The list and its order are the owner's. To get advice on the order, or on what
+can run in parallel, use `task-orchestrate` first.
+
 This session is the **orchestrator**: it holds the order, the dependencies and
 the owner's choices, and hands each task to a fresh subagent that runs
 `task-start` through `task-report`. The orchestrator does no task work itself.
