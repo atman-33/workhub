@@ -349,7 +349,9 @@ export interface VaultProjectIssue {
     | "loose-task-note"
     | "unknown-folder"
     | "backlog-entry-missing"
-    | "duplicate-slug";
+    | "duplicate-slug"
+    | "invalid-alias"
+    | "duplicate-alias";
   severity: "warn" | "info";
   /** The path or name the finding is about, relative to the project folder. */
   target: string;
@@ -411,6 +413,9 @@ export interface VaultProject {
    * every numbered one in name order. */
   number: number | null;
   name: string;
+  /** `alias` from README.md: the short label session names use in place of the
+   * slug. Empty when unset (T-0562). */
+  alias: string;
   /** Absolute path, forward slashes. */
   path: string;
   /** `status` from README.md (active | paused | done); empty when unset. */

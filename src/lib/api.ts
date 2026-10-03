@@ -195,6 +195,10 @@ export const api = {
    * The folder slug is not renamed. */
   setVaultProjectDetails: (vaultPath: string, slug: string, name: string, summary: string) =>
     invoke<void>("set_vault_project_details", { vaultPath, slug, name, summary }),
+  /** Writes the `alias` into README.md frontmatter; an empty string clears it.
+   * Rejects a malformed alias and one another project already uses (T-0562). */
+  setVaultProjectAlias: (vaultPath: string, slug: string, alias: string) =>
+    invoke<void>("set_vault_project_alias", { vaultPath, slug, alias }),
   /** Pins the project and records its manual sort position in `_index.md`.
    * Pass `null` for `order` to clear the position, which puts the project
    * back at the end of its group (T-0231). */
