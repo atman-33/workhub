@@ -86,8 +86,10 @@ plus the session's own title (step 6).
    `[<label>] <title>`, where `<label>` is the `alias` in the README
    frontmatter (the slug when there is none) and `<title>` is a few words on
    what this session is for, cut at 40 characters. Do it only when the
-   session's current title does not already follow the form, and a
-   `set_session_title` tool is available (Claude Desktop); otherwise skip it.
+   session's current title does not already follow the form. On Claude
+   Desktop `set_session_title` is a deferred tool: load it first, as
+   `task-start` step 2 (*Name the session*) describes. Where no such tool
+   exists (OpenCode, a bare terminal), skip it.
    When the session is working a task, `task-start` has already named it:
    leave it. Naming is the one write this skill makes, and it touches the
    session, not the vault.

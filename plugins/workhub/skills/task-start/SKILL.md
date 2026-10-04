@@ -87,9 +87,20 @@ argument-hint: "<task-id>"
      vault's `CLAUDE.md`, *Session names*). `<label>` is the `alias` in
      `projects/*-<project>/README.md` frontmatter when it has one, else the
      `project` slug. When the session's current title
-     does not follow it and a `set_session_title` tool is available (Claude
-     Desktop), set it; otherwise leave it — OpenCode and a bare terminal cannot
-     be renamed.
+     does not follow it, set it; OpenCode and a bare terminal cannot be
+     renamed, so leave it there.
+     - **Claude Desktop lists `set_session_title` as a deferred tool**
+       (`mcp__ccd_session_mgmt__set_session_title`), which cannot be called
+       until it is loaded: run `ToolSearch` with
+       `select:mcp__ccd_session_mgmt__set_session_title`, then call it with
+       `session_id: "self"`. Skipping the load is the same as not renaming.
+     - Check the current title first (`get_session` with `"self"`). A session
+       started from the app's launch button or **Send to Claude Desktop** gets
+       an auto-generated summary title with no `[label]` and often not the
+       task's title; that is the case this step exists for. A chip
+       (`spawn_task`) already carries the right title.
+     - If the search finds no such tool, leave the title; that is the host
+       saying it cannot rename.
 3. **Settle the backlog item, then load it.** A task's `backlog` frontmatter
    key is `B-NNN` in `projects/NNNN-<project>/backlog/`. It is where everything
    this task produces will go, so it has to be decided before the work starts,
