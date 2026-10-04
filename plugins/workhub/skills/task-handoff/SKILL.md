@@ -39,19 +39,26 @@ to decide the order and parallelism of many tasks first, use `task-orchestrate`.
 
 2. **Pick the chip's start mode.** Applies when this session has the desktop
    app's `spawn_task` tool (Claude Desktop). Starting a chip asks the owner
-   whether to run it locally or in a git worktree, and that worktree is made
-   of *this session's* working directory.
+   whether to run it locally or in a git worktree. Two different worktrees are
+   in play; keep them apart:
 
-   - Recommend **local** when this session runs in the vault — nearly always.
-     A chip worktree is a copy of the vault: it isolates nothing in the target
-     repository, and the task file, `_ai/` markers and notes the new session
-     writes land in the copy rather than the vault the app reads. A task that
-     needs its repository isolated carries `worktree: true` in its
-     frontmatter; `task-start` then builds the worktree in the target
-     repository.
-   - Recommend **worktree** only when this session runs in the target
-     repository itself and other work is in flight in that working tree, or
-     will run beside it.
+   - The chip's worktree is made of *this session's* working directory, on a
+     `claude/...` branch. In the vault, that is a worktree of the vault.
+   - `worktree: true` in a task's frontmatter makes `task-start` build a
+     worktree of the *target repository* on `task/<task-id>`. It is
+     independent of the chip's start mode, and both can apply to one task.
+
+   Recommend by the task, which is how the owner works:
+
+   - A task with `worktree: true` → **worktree**.
+   - Any other task started from a session in the vault → **local**.
+   - A session running in the target repository itself, with other work in
+     flight in that working tree or about to run beside it → **worktree**.
+
+   Where a worktree session writes is settled: the app reads the main vault,
+   and a worktree session files its reports there. Whether a vault worktree
+   keeps parallel sessions' vault writes (task files, `_ai/`, logs) from
+   colliding is unconfirmed, so do not offer it as a reason.
 
 3. **Hand off.**
 
