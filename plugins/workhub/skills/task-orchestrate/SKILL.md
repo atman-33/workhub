@@ -50,9 +50,8 @@ work that is already on the board. Neither replaces the other.
      touch different repositories, or clearly different areas of one. The board
      carries no file-level data, so a same-repository judgement is an
      **inference from `## Description` and the backlog item**: label it as one.
-   - **Width:** recommend a work-in-progress limit (default 2 to 3 sessions
-     open at once). Review is the real bottleneck, so more than the owner can
-     review in a sitting is not parallelism, only a queue.
+     Set no fixed cap on how many run at once; judge it on the spot from the
+     collisions and from how much the owner can review in a sitting.
    - **Worktree:** recommend one for a task when it runs beside another task in
      the same repository, or the working tree already holds another session's
      uncommitted work. Recommend none for a serial run, or a task in a
@@ -61,22 +60,27 @@ work that is already on the board. Neither replaces the other.
      tasks and let the owner turn it on in the app, or edit the frontmatter if
      they ask you to.
 
-3. **Propose.** Show the plan in the chat before doing anything, in waves:
+3. **Propose.** Show the plan in the chat before doing anything, in waves.
+   Write it as ordinary Markdown (a bold heading per wave, bullets under it),
+   not
+   as a code block: a code block does not wrap, so long lines force sideways
+   scrolling. Use a code block only when a monospaced figure is really needed,
+   such as a dependency flow.
 
-   ```text
-   Wave 1 (start now, in parallel)
-     T-0xxx  <title>   start: own session | chain | subagent   worktree: yes|no
-             why: <one line, with the file or preference it comes from>
-   Wave 2 (after Wave 1 reaches review)
-     ...
-   Not ready: T-0yyy waits on T-0xxx · T-0zzz is held by another session
-   Inferred, not known: <each same-area judgement>
-   ```
+   - **Wave 1: start now, in parallel**
+     - T-0xxx <title>: start in own session | chain | subagent; worktree yes | no
+       - why: <one line, with the file or preference it comes from>
+   - **Wave 2: after Wave 1 reaches review**
+     - ...
+   - **Not ready**
+     - T-0yyy waits on T-0xxx
+     - T-0zzz is held by another session
+   - **Inferred, not known**
+     - <each same-area judgement>
 
    Open choices follow the decision policy: at most two options, one marked
-   recommended with its reason and `P-NN`. Include the WIP limit and any
-   `confirm: true` task, whose plan the owner approves in whichever session
-   runs it.
+   recommended with its reason and `P-NN`. Flag any `confirm: true` task, whose
+   plan the owner approves in whichever session runs it.
 
 4. **Dispatch what the owner approves, and only that.**
    - Own session: run `task-handoff` for the task; it makes the chip and the
