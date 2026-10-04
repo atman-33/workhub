@@ -1,7 +1,7 @@
 ---
 name: task-orchestrate
 description: Triage a pile of workhub tasks, within one project or across several, and advise on the order, what can run in parallel, and whether a worktree is needed, then dispatch the approved ones. Use when the owner wants to know which task to take next, how to work through a backlog, or opens a session to steer many tasks; not for a fixed ordered list (task-chain) or a single task (task-handoff).
-argument-hint: "[<project-slug> | all]"
+argument-hint: "[<project-slug | alias> | all]"
 ---
 
 # task-orchestrate — Advise on the order, then dispatch
@@ -24,6 +24,13 @@ work that is already on the board. Neither replaces the other.
 ## Steps
 
 1. **Take stock (read-only).** `TC` = `node <plugin>/scripts/task-cli.mjs`.
+   - **Resolve the argument first.** `all` or no argument means every project.
+     Otherwise it is a slug or a project `alias`: `TC list --project` matches the
+     slug exactly and returns nothing for an alias, so resolve an alias to its
+     slug as `project-start` step 1 describes (the `alias:` in
+     `projects/*/README.md`, then `archive/projects/*/README.md`; a slug match
+     wins; none or several matches: ask, never guess). Say the resolution
+     (`sbr` → `spiritual-blade-remake`) before the proposal.
    - `TC list --json` (add `--project <slug>` when the argument names one). Keep
      `todo`, `doing` and `review`; list `inbox` ideas apart, as candidates for
      promotion, not as work.
