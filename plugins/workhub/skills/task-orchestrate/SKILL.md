@@ -62,9 +62,8 @@ work that is already on the board. Neither replaces the other.
 
 3. **Propose.** Show the plan in the chat before doing anything, in waves.
    Write it as ordinary Markdown (a bold heading per wave, bullets under it),
-   not
-   as a code block: a code block does not wrap, so long lines force sideways
-   scrolling. Use a code block only when a monospaced figure is really needed,
+   not as a code block: a code block does not wrap, so long lines force
+   sideways scrolling. Use a code block only when a monospaced figure is really needed,
    such as a dependency flow.
 
    - **Wave 1: start now, in parallel**
