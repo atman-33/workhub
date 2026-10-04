@@ -1,7 +1,7 @@
 ---
 name: project-start
 description: Load a vault project's context - read its README first, follow the reading order only as far as the request needs, resolve its repositories, and summarize goal, status, where the source lives and what is in flight. Use when the user says to work on a project by slug or name, or asks what a project is about.
-argument-hint: "<project-slug>"
+argument-hint: "<project-slug | alias>"
 ---
 
 # project-start — Load a vault project's context
@@ -17,13 +17,24 @@ plus the session's own title (step 6).
 ## Steps
 
 1. **Resolve the project.** The argument is a project slug
-   (`projects/NNNN-<slug>/`) or part of a project's title. The folder is the
-   slug behind a sort number, so find it with the glob `projects/*-<slug>/`.
+   (`projects/NNNN-<slug>/`), a project's `alias`, or part of a project's
+   title. The folder is the slug behind a sort number, so find it with the glob
+   `projects/*-<slug>/`.
+
+   **Alias lookup.** When no folder matches as a slug, look for an `alias:`
+   equal to the argument in the frontmatter of `projects/*/README.md` and
+   `archive/projects/*/README.md` (e.g. `grep -l "^alias: sbr" ...`). The
+   matching README's folder name minus its `NNNN-` prefix is the slug; use that
+   slug from here on, including in `task-cli --project`, which matches the slug
+   exactly and returns nothing for an alias. A slug match wins over an alias
+   match. Say the resolution in your first message (`sbr` →
+   `spiritual-blade-remake`). `task-orchestrate` resolves its argument the same
+   way.
 
    - No argument, or nothing matches: list the folders under
      `<vault>/projects/` (skipping names that start with `_` or `.`) with the
      `title` from each `README.md`, and ask which one. Do not guess.
-   - Several match: ask. A wrong project read in full is a wasted context
+   - Several match (two projects sharing an alias, or a slug and a title): ask. A wrong project read in full is a wasted context
      window.
 
    Vault resolution follows `task-start`: `WORKHUB_VAULT` → the current
