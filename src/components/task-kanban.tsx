@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Archive, ClipboardList } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Archive, ChevronDown, ClipboardList } from "lucide-react";
 import { ArchiveMoreFooter, type ArchiveFooterProps } from "@/components/archive-more-footer";
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
@@ -20,6 +20,7 @@ import {
 import { useT, type MessageKey } from "@/lib/i18n";
 import { parseBody } from "@/lib/task-body";
 import { dueTone } from "@/lib/task-due";
+import { projectLanes, type Lane } from "@/lib/task-lanes";
 import { priorityTintClass } from "@/lib/task-priority";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from "@/types";
@@ -54,11 +55,33 @@ function columnWithEffectiveOrders(tasks: Task[], status: TaskStatus) {
   return { items, eff };
 }
 
-/** Insertion position (drop target): column plus index within it. */
-type DropPos = { col: TaskStatus; index: number } | null;
+/** How the board is split: one set of columns, or one row of columns per
+ * project (T-0646). */
+export type KanbanGroupBy = "none" | "project";
+
+
+const NO_LANE = "";
+
+/** Insertion position (drop target): lane, column, and index within it. */
+type DropPos = { lane: string; col: TaskStatus; index: number } | null;
+
+const COLLAPSED_KEY = "workhub.tasks.collapsedLanes";
+
+function loadCollapsed(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
 
 interface Props {
   tasks: Task[];
+  /** `project` draws one row of columns per project. */
+  groupBy?: KanbanGroupBy;
+  /** Project slugs in display order, for the project rows. */
+  projectOrder?: readonly string[];
   /** Footer props while archived tasks are capped; omit when all are drawn. */
   archiveFooter?: ArchiveFooterProps;
   /** Open predecessors per task id; absent for a task that is not waiting. */
@@ -83,23 +106,57 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archiveFooter, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
   const t = useT();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
 
-  const columns = useMemo(
-    () => COLUMNS.map((col) => ({ ...col, ...columnWithEffectiveOrders(tasks, col.key) })),
-    [tasks],
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+
+  const toggleLane = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        // Storage unavailable: the fold just does not survive a restart.
+      }
+      return next;
+    });
+
+  const lanes = useMemo<Lane[]>(
+    () =>
+      groupBy === "project"
+        ? projectLanes(tasks, projectOrder)
+        : [{ key: NO_LANE, project: null, tasks }],
+    [tasks, groupBy, projectOrder],
   );
 
-  const handleDrop = (col: TaskStatus, index: number) => {
+  const laneColumns = useMemo(
+    () =>
+      lanes.map((lane) => ({
+        lane,
+        columns: COLUMNS.map((col) => ({ ...col, ...columnWithEffectiveOrders(lane.tasks, col.key) })),
+      })),
+    [lanes],
+  );
+
+  const handleDrop = (lane: Lane, col: TaskStatus, index: number) => {
     setDropPos(null);
     const dragged = tasks.find((t) => t.id === draggedId);
     setDraggedId(null);
     if (!dragged) return;
 
-    const { items, eff } = columnWithEffectiveOrders(tasks, col);
+    // Dropping into another project's row re-files the task. Its backlog item
+    // belongs to the old project, so it is cleared rather than left dangling.
+    const projectChange =
+      lane.project !== null && dragged.project !== lane.project
+        ? { project: lane.project, backlog: "" }
+        : {};
+    const sameLane = lane.project === null || dragged.project === lane.project;
+
+    const { items, eff } = columnWithEffectiveOrders(lane.tasks, col);
     // Work against the column without the dragged card, adjusting the
     // insertion index if the card is moving down within the same column.
     const fromIdx = items.findIndex((t) => t.id === dragged.id);
@@ -108,7 +165,7 @@ export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLa
       .filter(({ t }) => t.id !== dragged.id);
     let insert = index;
     if (fromIdx !== -1 && fromIdx < index) insert -= 1;
-    if (fromIdx !== -1 && insert === fromIdx && dragged.status === col) return; // no-op drop
+    if (sameLane && fromIdx !== -1 && insert === fromIdx && dragged.status === col) return; // no-op drop
 
     const prev = insert > 0 ? rows[insert - 1].e : null;
     const next = insert < rows.length ? rows[insert].e : null;
@@ -119,7 +176,7 @@ export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLa
     else if (next === null) order = prev + 1;
     else order = (prev + next) / 2;
 
-    const statusChange = dragged.status !== col ? { status: col } : {};
+    const statusChange = { ...(dragged.status !== col ? { status: col } : {}), ...projectChange };
 
     // Fractional precision exhausted between equal/adjacent floats: reindex
     // the whole column (rare; one write per card).
@@ -148,57 +205,56 @@ export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLa
 
   const indicator = <div className="h-0.5 rounded bg-ring" />;
 
-  return (
-    <div className="grid h-full min-h-0 grid-cols-5 gap-3 overflow-x-auto overflow-y-hidden p-3">
-      {columns.map((col) => (
-        <div
-          key={col.key}
-          className={cn(
-            "flex min-h-0 min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
-            dropPos?.col === col.key && "border-ring",
-          )}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-            // Only when over the column padding itself (cards handle their own).
-            if (e.target === e.currentTarget) setDropPos({ col: col.key, index: col.items.length });
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropPos(null);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            handleDrop(col.key, dropPos?.col === col.key ? dropPos.index : col.items.length);
-          }}
-        >
-          <div className="flex items-center justify-between border-b px-2.5 py-2">
-            <span className="text-xs font-semibold">{t(col.labelKey)}</span>
-            <div className="flex items-center gap-1.5">
-              {col.key === "done" && col.items.some((t) => !t.archived) && (
-                <Hint label={t("task.kanban.archiveAllDone")}>
-                  <button
-                    className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                    onClick={onArchiveDone}
-                  >
-                    <Archive className="size-3.5" />
-                  </button>
-                </Hint>
-              )}
-              <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
-            </div>
+  const isDrop = (lane: Lane, col: TaskStatus) =>
+    dropPos !== null && dropPos.lane === lane.key && dropPos.col === col;
+
+  type Column = (typeof laneColumns)[number]["columns"][number];
+
+  /** One column of one row. Only the ungrouped board gives it its own header;
+   * the project rows share a single sticky header row above them. */
+  const renderCell = (lane: Lane, col: Column, withHeader: boolean) => (
+    <div
+      key={col.key}
+      className={cn(
+        "flex min-h-0 min-w-0 flex-col rounded-lg border bg-muted/20 transition-colors",
+        isDrop(lane, col.key) && "border-ring",
+      )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        // Only when over the column padding itself (cards handle their own).
+        if (e.target === e.currentTarget)
+          setDropPos({ lane: lane.key, col: col.key, index: col.items.length });
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropPos(null);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        handleDrop(lane, col.key, isDrop(lane, col.key) ? (dropPos?.index ?? col.items.length) : col.items.length);
+      }}
+    >
+      {withHeader && (
+        <div className="flex items-center justify-between border-b px-2.5 py-2">
+          <span className="text-xs font-semibold">{t(col.labelKey)}</span>
+          <div className="flex items-center gap-1.5">
+            {doneArchiveButton(col)}
+            <span className="text-[11px] text-muted-foreground">{col.items.length}</span>
           </div>
-          <div
-            className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-              if (e.target === e.currentTarget)
-                setDropPos({ col: col.key, index: col.items.length });
-            }}
-          >
+        </div>
+      )}
+      <div
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (e.target === e.currentTarget)
+            setDropPos({ lane: lane.key, col: col.key, index: col.items.length });
+        }}
+      >
             {col.items.map((task, i) => (
               <div key={task.id}>
-                {dropPos?.col === col.key && dropPos.index === i && indicator}
+                {isDrop(lane, col.key) && dropPos?.index === i && indicator}
                 <ContextMenu>
                   <ContextMenuTrigger asChild>
                 <div
@@ -216,7 +272,7 @@ export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLa
                     e.preventDefault();
                     e.stopPropagation();
                     e.dataTransfer.dropEffect = "move";
-                    setDropPos({ col: col.key, index: cardInsertIndex(e, i) });
+                    setDropPos({ lane: lane.key, col: col.key, index: cardInsertIndex(e, i) });
                   }}
                   className={cn(
                     "cursor-grab space-y-1.5 rounded-md border bg-background p-2.5 shadow-xs hover:border-ring active:cursor-grabbing",
@@ -332,11 +388,98 @@ export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLa
                 </ContextMenu>
               </div>
             ))}
-            {dropPos?.col === col.key && dropPos.index === col.items.length && indicator}
-            {col.key === "done" && archiveFooter && <ArchiveMoreFooter {...archiveFooter} />}
+        {isDrop(lane, col.key) && dropPos?.index === col.items.length && indicator}
+        {withHeader && col.key === "done" && archiveFooter && <ArchiveMoreFooter {...archiveFooter} />}
+      </div>
+    </div>
+  );
+
+  const doneArchiveButton = (col: Column) =>
+    col.key === "done" && col.items.some((t) => !t.archived) ? (
+      <Hint label={t("task.kanban.archiveAllDone")}>
+        <button
+          className="flex items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          onClick={onArchiveDone}
+        >
+          <Archive className="size-3.5" />
+        </button>
+      </Hint>
+    ) : null;
+
+  if (groupBy !== "project") {
+    return (
+      <div className="grid h-full min-h-0 grid-cols-5 gap-3 overflow-x-auto overflow-y-hidden p-3">
+        {laneColumns[0].columns.map((col) => renderCell(laneColumns[0].lane, col, true))}
+      </div>
+    );
+  }
+
+  const allColumns = COLUMNS.map((col) => ({
+    ...col,
+    count: tasks.filter((x) => x.status === col.key).length,
+  }));
+  // Fixed 5-column track: a project row is as tall as its fullest column, so
+  // each row's cells scroll with the page rather than inside themselves.
+  const track = "grid-cols-[10rem_repeat(5,minmax(11rem,1fr))]";
+
+  return (
+    <div className="h-full min-h-0 overflow-auto p-3">
+      <div className={cn("grid min-w-max gap-2", track)}>
+        <div className="sticky top-0 z-10 bg-background" />
+        {allColumns.map((col) => (
+          <div
+            key={col.key}
+            className="sticky top-0 z-10 flex items-center justify-between rounded-lg border bg-background px-2.5 py-2"
+          >
+            <span className="text-xs font-semibold">{t(col.labelKey)}</span>
+            <div className="flex items-center gap-1.5">
+              {doneArchiveButton({
+                ...col,
+                ...columnWithEffectiveOrders(tasks, col.key),
+              })}
+              <span className="text-[11px] text-muted-foreground">{col.count}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+        {laneColumns.map(({ lane, columns }) => {
+          const isCollapsed = collapsed.has(lane.key);
+          const doing = lane.tasks.filter((x) => x.status === "doing").length;
+          return (
+            <Fragment key={lane.key}>
+              <button
+                type="button"
+                aria-expanded={!isCollapsed}
+                className="sticky left-0 flex flex-col items-start gap-0.5 self-start rounded-lg border bg-muted/30 px-2.5 py-2 text-left hover:border-ring"
+                onClick={() => toggleLane(lane.key)}
+              >
+                <span className="flex w-full items-center gap-1 text-xs font-semibold">
+                  <ChevronDown
+                    className={cn("size-3.5 shrink-0 transition-transform", isCollapsed && "-rotate-90")}
+                  />
+                  <span className="min-w-0 truncate">
+                    {lane.project === "" ? t("task.kanban.noProject") : lane.project}
+                  </span>
+                </span>
+                <span className="pl-4 text-[11px] text-muted-foreground">
+                  {t("task.kanban.laneSummary", { count: lane.tasks.length, doing })}
+                </span>
+              </button>
+              {isCollapsed ? (
+                <div className="col-span-5 flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-2 text-[11px] text-muted-foreground">
+                  {columns.map((col) => (
+                    <Badge key={col.key} variant="outline">
+                      {t(col.labelKey)} {col.items.length}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                columns.map((col) => renderCell(lane, col, false))
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+      {archiveFooter && <ArchiveMoreFooter {...archiveFooter} />}
     </div>
   );
 }

@@ -219,6 +219,13 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "task.toolbar.terminalHint": "埋め込みターミナル（herdr）の表示切り替え",
   "task.toolbar.terminal": "ターミナル",
   "task.toolbar.list": "リスト",
+  "task.kanban.noProject": "(プロジェクトなし)",
+  "task.kanban.laneSummary": "{count}件 · 進行中 {doing}",
+  "task.toolbar.groupByProject": "プロジェクト別",
+  "task.toolbar.groupByProjectHint": "プロジェクトごとの行に分けて表示",
+  "task.confirm.moveProjectTitle": "プロジェクトを変更",
+  "task.confirm.moveProjectDescription": "「{id} {title}」のプロジェクトを「{from}」から「{to}」に変更しますか？バックログ項目の紐づけは外れます。",
+  "task.confirm.moveProjectConfirm": "変更する",
   "task.toolbar.kanban": "カンバン",
 
   "task.footer.summary": "{total}件のタスク · {shown}件表示中",
