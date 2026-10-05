@@ -9,9 +9,11 @@ import {
   List,
   PauseCircle,
   Plus,
+  MoreHorizontal,
   RefreshCw,
   Repeat,
   Search,
+  SlidersHorizontal,
   Terminal as TerminalIcon,
   Wrench,
   X,
@@ -26,13 +28,14 @@ import { TerminalPanel } from "@/components/terminal-panel";
 import { VaultSetupDialog } from "@/components/vault-setup-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Hint } from "@/components/ui/hint";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -381,6 +384,7 @@ export function TasksView({
   // Everything except the blocked filter. The toolbar's blocked counter reads
   // this rather than `visible`, so switching to "Not blocked" doesn't zero out
   // the very number that says how much is waiting.
+  const activeFilterCount = [assigneeFilter, tagFilter, dependencyFilter, blockedFilter].filter(Boolean).length;
   const terms = useMemo(() => searchTerms(searchQuery), [searchQuery]);
   const scoped = useMemo(
     () =>
@@ -714,22 +718,36 @@ export function TasksView({
         <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => openEditor("create", null)}>
           <Plus className="size-3.5" /> {t("task.toolbar.newTask")}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 text-xs"
-          onClick={() => refreshTasks(vaultPath)}
-        >
-          <RefreshCw className="size-3.5" /> {t("common.refresh")}
-        </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={initializing} onClick={initVault}>
+        <Hint label={t("common.refresh")}>
+          <Button
+            size="icon"
+            variant="outline"
+            className="size-8 shrink-0"
+            aria-label={t("common.refresh")}
+            onClick={() => refreshTasks(vaultPath)}
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </Hint>
+        <DropdownMenu>
+          <Hint label={t("task.toolbar.more")}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-8 shrink-0"
+                aria-label={t("task.toolbar.more")}
+              >
+                <MoreHorizontal className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+          </Hint>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem disabled={initializing} onSelect={() => void initVault()}>
               {initializing ? t("task.toolbar.initializing") : t("task.toolbar.initVault")}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("task.toolbar.initVaultTooltip")}</TooltipContent>
-        </Tooltip>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* List view only. On the kanban board the columns *are* the statuses,
             so filtering by one leaves a single column standing with nothing on
@@ -742,7 +760,10 @@ export function TasksView({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t("task.toolbar.searchPlaceholder")}
             aria-label={t("task.toolbar.searchPlaceholder")}
-            className="h-8 w-48 px-8 text-xs"
+            className={cn(
+              "h-8 px-8 text-xs transition-[width]",
+              searchQuery ? "w-56" : "w-32 focus:w-56",
+            )}
           />
           {searchQuery && (
             <button
@@ -770,19 +791,6 @@ export function TasksView({
             </SelectContent>
           </Select>
         )}
-        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-          <SelectTrigger size="sm" className="min-w-[7.5rem]">
-            <SelectValue placeholder={t("task.toolbar.allAssignees")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("task.toolbar.allAssignees")}</SelectItem>
-            {(["me", "claude-code", "opencode"] as TaskAssignee[]).map((a) => (
-              <SelectItem key={a} value={a}>
-                {t(TASK_ASSIGNEE_LABEL_KEY[a])}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger size="sm" className="min-w-[7rem]">
             <SelectValue placeholder={t("task.toolbar.allProjects")} />
@@ -797,40 +805,85 @@ export function TasksView({
             ))}
           </SelectContent>
         </Select>
-        <Select value={tagFilter} onValueChange={setTagFilter}>
-          <SelectTrigger size="sm" className="min-w-[6.5rem]">
-            <SelectValue placeholder={t("task.toolbar.allTags")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("task.toolbar.allTags")}</SelectItem>
-            {knownTags.map((tag) => (
-              <SelectItem key={tag} value={tag}>
-                #{tag}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={dependencyFilter} onValueChange={setDependencyFilter}>
-          <SelectTrigger size="sm" className="min-w-[7.5rem]">
-            <SelectValue placeholder={t("task.toolbar.dependencyAny")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("task.toolbar.dependencyAny")}</SelectItem>
-            <SelectItem value="waiting">{t("task.toolbar.dependencyWaiting")}</SelectItem>
-            <SelectItem value="ready">{t("task.toolbar.dependencyReady")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <Popover>
+          <Hint label={t("task.toolbar.filters")}>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant={activeFilterCount > 0 ? "secondary" : "outline"}
+                className="h-8 shrink-0 gap-1.5 text-xs"
+                aria-label={t("task.toolbar.filters")}
+              >
+                <SlidersHorizontal className="size-3.5" />
+                {activeFilterCount > 0 && <span className="text-[11px]">{activeFilterCount}</span>}
+              </Button>
+            </PopoverTrigger>
+          </Hint>
+          <PopoverContent align="start" className="flex w-60 flex-col gap-2 p-3">
+            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder={t("task.toolbar.allAssignees")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("task.toolbar.allAssignees")}</SelectItem>
+                {(["me", "claude-code", "opencode"] as TaskAssignee[]).map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {t(TASK_ASSIGNEE_LABEL_KEY[a])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder={t("task.toolbar.allTags")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("task.toolbar.allTags")}</SelectItem>
+                {knownTags.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    #{tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={dependencyFilter} onValueChange={setDependencyFilter}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder={t("task.toolbar.dependencyAny")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("task.toolbar.dependencyAny")}</SelectItem>
+                <SelectItem value="waiting">{t("task.toolbar.dependencyWaiting")}</SelectItem>
+                <SelectItem value="ready">{t("task.toolbar.dependencyReady")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={blockedFilter} onValueChange={setBlockedFilter}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder={t("task.toolbar.blockedAny")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("task.toolbar.blockedAny")}</SelectItem>
+                <SelectItem value="blocked">{t("task.toolbar.blockedOnly")}</SelectItem>
+                <SelectItem value="unblocked">{t("task.toolbar.notBlocked")}</SelectItem>
+              </SelectContent>
+            </Select>
+            {activeFilterCount > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 justify-start text-xs"
+                onClick={() => {
+                  setAssigneeFilter("");
+                  setTagFilter("");
+                  setDependencyFilter("");
+                  setBlockedFilter("");
+                }}
+              >
+                {t("task.toolbar.filtersReset")}
+              </Button>
+            )}
+          </PopoverContent>
+        </Popover>
         <div className="flex shrink-0 items-center gap-1.5">
-          <Select value={blockedFilter} onValueChange={setBlockedFilter}>
-            <SelectTrigger size="sm" className="min-w-[7.5rem]">
-              <SelectValue placeholder={t("task.toolbar.blockedAny")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">{t("task.toolbar.blockedAny")}</SelectItem>
-              <SelectItem value="blocked">{t("task.toolbar.blockedOnly")}</SelectItem>
-              <SelectItem value="unblocked">{t("task.toolbar.notBlocked")}</SelectItem>
-            </SelectContent>
-          </Select>
           {/* The cards say nothing about a block going stale — this does, once
               for the whole board. Clicking it narrows to the waiting tasks. */}
           {blockedCount > 0 && (
