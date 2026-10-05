@@ -11,6 +11,7 @@ import {
   Plus,
   MoreHorizontal,
   RefreshCw,
+  Rows3,
   Repeat,
   Search,
   SlidersHorizontal,
@@ -22,7 +23,7 @@ import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { RecurringDialog } from "@/components/recurring-dialog";
 import { TerminalSettings } from "@/components/tasks/terminal-settings";
-import { TaskKanban } from "@/components/task-kanban";
+import { TaskKanban, type KanbanGroupBy } from "@/components/task-kanban";
 import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
 import { VaultSetupDialog } from "@/components/vault-setup-dialog";
@@ -65,6 +66,8 @@ import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, Up
 const TERMINAL_PANEL_SIZE = 35;
 
 type ViewMode = "list" | "kanban";
+
+const GROUP_BY_KEY = "workhub.tasks.groupBy";
 
 interface Props {
   /** Bumped by the app shell after settings are saved; triggers a config reload. */
@@ -119,6 +122,22 @@ export function TasksView({
     open: Task[];
     run: () => void;
   } | null>(null);
+  /** A drag into another project's row, held until the owner confirms it
+   *  re-files the task; `run` applies the move. */
+  const [projectGuard, setProjectGuard] = useState<{
+    task: Task;
+    to: string;
+    run: () => void;
+  } | null>(null);
+  /** Board layout: one set of columns, or one row of columns per project
+   *  (T-0646). A machine-local preference, so it lives in localStorage. */
+  const [groupBy, setGroupBy] = useState<KanbanGroupBy>(() => {
+    try {
+      return localStorage.getItem(GROUP_BY_KEY) === "project" ? "project" : "none";
+    } catch {
+      return "none";
+    }
+  });
   const [status, setStatus] = useState("");
   const [initializing, setInitializing] = useState(false);
   /**
@@ -541,18 +560,42 @@ export function TasksView({
   // it. Every other move (reordering, other columns) goes straight through.
   const moveWithGuard = useCallback(
     (updates: UpdateTaskInput[]) => {
+      const proceed = () => {
+        for (const u of updates) {
+          const task = tasks.find((x) => x.id === u.id);
+          const open = task ? waiting.get(task.id) : undefined;
+          if (task && open && u.status === "doing" && task.status !== "doing") {
+            setStartGuard({ task, open, run: () => void applyUpdates(updates) });
+            return;
+          }
+        }
+        void applyUpdates(updates);
+      };
+      // A drop into another project's row re-files the task: ask first, since
+      // the card quietly jumps to a place the owner may not have aimed for.
       for (const u of updates) {
         const task = tasks.find((x) => x.id === u.id);
-        const open = task ? waiting.get(task.id) : undefined;
-        if (task && open && u.status === "doing" && task.status !== "doing") {
-          setStartGuard({ task, open, run: () => void applyUpdates(updates) });
+        if (task && u.project !== undefined && u.project !== task.project) {
+          setProjectGuard({ task, to: u.project, run: proceed });
           return;
         }
       }
-      void applyUpdates(updates);
+      proceed();
     },
     [tasks, waiting, applyUpdates],
   );
+
+  const toggleGroupBy = useCallback(() => {
+    setGroupBy((prev) => {
+      const next: KanbanGroupBy = prev === "project" ? "none" : "project";
+      try {
+        localStorage.setItem(GROUP_BY_KEY, next);
+      } catch {
+        // Storage unavailable: the choice just does not survive a restart.
+      }
+      return next;
+    });
+  }, []);
 
   const setArchived = useCallback(
     (task: Task, archived: boolean) => {
@@ -963,7 +1006,25 @@ export function TasksView({
           </div>
         )}
 
-        <div className="ml-auto flex shrink-0 items-center overflow-hidden rounded-md border">
+        {viewMode === "kanban" && (
+          <Hint label={t("task.toolbar.groupByProjectHint")}>
+            <Button
+              size="sm"
+              variant={groupBy === "project" ? "secondary" : "outline"}
+              aria-pressed={groupBy === "project"}
+              className="ml-auto h-8 shrink-0 gap-1.5 text-xs"
+              onClick={toggleGroupBy}
+            >
+              <Rows3 className="size-3.5" /> {t("task.toolbar.groupByProject")}
+            </Button>
+          </Hint>
+        )}
+        <div
+          className={cn(
+            "flex shrink-0 items-center overflow-hidden rounded-md border",
+            viewMode !== "kanban" && "ml-auto",
+          )}
+        >
           <button
             className={cn(
               "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",
@@ -1009,6 +1070,8 @@ export function TasksView({
             ) : (
               <TaskKanban
                 tasks={board.tasks}
+                groupBy={groupBy}
+                projectOrder={knownProjects}
                 archiveFooter={archiveFooter}
                 waiting={waiting}
                 onOpen={(task) => openEditor("edit", task)}
@@ -1122,6 +1185,28 @@ export function TasksView({
           run?.();
         }}
         onClose={() => setStartGuard(null)}
+      />
+
+      <ConfirmDialog
+        open={projectGuard !== null}
+        title={t("task.confirm.moveProjectTitle")}
+        description={
+          projectGuard
+            ? t("task.confirm.moveProjectDescription", {
+                id: projectGuard.task.id,
+                title: projectGuard.task.title,
+                from: projectGuard.task.project || t("task.kanban.noProject"),
+                to: projectGuard.to || t("task.kanban.noProject"),
+              })
+            : ""
+        }
+        confirmLabel={t("task.confirm.moveProjectConfirm")}
+        onConfirm={() => {
+          const run = projectGuard?.run;
+          setProjectGuard(null);
+          run?.();
+        }}
+        onClose={() => setProjectGuard(null)}
       />
 
       <ConfirmDialog

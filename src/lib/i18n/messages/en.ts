@@ -229,6 +229,13 @@ export const en = {
   "task.toolbar.terminalHint": "Toggle the embedded terminal (herdr)",
   "task.toolbar.terminal": "Terminal",
   "task.toolbar.list": "List",
+  "task.kanban.noProject": "(no project)",
+  "task.kanban.laneSummary": "{count} tasks · {doing} doing",
+  "task.toolbar.groupByProject": "By project",
+  "task.toolbar.groupByProjectHint": "Split the board into one row per project",
+  "task.confirm.moveProjectTitle": "Change project",
+  "task.confirm.moveProjectDescription": "Move \"{id} {title}\" from \"{from}\" to \"{to}\"? Its backlog item link will be cleared.",
+  "task.confirm.moveProjectConfirm": "Move",
   "task.toolbar.kanban": "Kanban",
 
   "task.footer.summary": "{total} tasks · {shown} shown",
