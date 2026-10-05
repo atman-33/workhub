@@ -11,8 +11,10 @@ import {
   Plus,
   RefreshCw,
   Repeat,
+  Search,
   Terminal as TerminalIcon,
   Wrench,
+  X,
 } from "lucide-react";
 import { BlockedDialog } from "@/components/blocked-dialog";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
@@ -23,6 +25,7 @@ import { TaskList } from "@/components/task-list";
 import { TerminalPanel } from "@/components/terminal-panel";
 import { VaultSetupDialog } from "@/components/vault-setup-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Hint } from "@/components/ui/hint";
 import {
   ResizableHandle,
@@ -38,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { matchesTaskSearch, searchTerms } from "@/lib/task-search";
 import { ARCHIVE_PAGE_SIZE, limitArchived } from "@/lib/archive-limit";
 import { t as i18nT, useT } from "@/lib/i18n";
 import { TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
@@ -97,6 +101,7 @@ export function TasksView({
   /** "" = any, "waiting" = open predecessors, "ready" = nothing in the way. */
   const [dependencyFilter, setDependencyFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   // Archived tasks drawn on the board; a few hundred rows at once is slow.
   const [archivedLimit, setArchivedLimit] = useState(ARCHIVE_PAGE_SIZE);
   const [recurringOpen, setRecurringOpen] = useState(false);
@@ -376,17 +381,21 @@ export function TasksView({
   // Everything except the blocked filter. The toolbar's blocked counter reads
   // this rather than `visible`, so switching to "Not blocked" doesn't zero out
   // the very number that says how much is waiting.
+  const terms = useMemo(() => searchTerms(searchQuery), [searchQuery]);
   const scoped = useMemo(
     () =>
       tasks.filter((t) => {
-        if (!showArchived && t.archived) return false;
+        // A search looks through the archive too: the point is finding a task
+        // you cannot place, and it may well be an old one.
+        if (!showArchived && terms.length === 0 && t.archived) return false;
+        if (!matchesTaskSearch(t, terms)) return false;
         if (statusFilter && t.status !== statusFilter) return false;
         if (assigneeFilter && t.assignee !== assigneeFilter) return false;
         if (!matchesProjectFilter(t, projectFilter)) return false;
         if (tagFilter && !t.tags.includes(tagFilter)) return false;
         return true;
       }),
-    [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived],
+    [tasks, statusFilter, assigneeFilter, projectFilter, tagFilter, showArchived, terms],
   );
 
   const visible = useMemo(
@@ -726,6 +735,26 @@ export function TasksView({
             so filtering by one leaves a single column standing with nothing on
             screen to say why. The list is flat and shows status as a badge, so
             there this is the only way to narrow by it. */}
+        <div className="relative shrink-0">
+          <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("task.toolbar.searchPlaceholder")}
+            aria-label={t("task.toolbar.searchPlaceholder")}
+            className="h-8 w-48 px-8 text-xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label={t("task.toolbar.searchClear")}
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
         {viewMode === "list" && (
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger size="sm" className="min-w-[7rem]">

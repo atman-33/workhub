@@ -208,6 +208,8 @@ export const en = {
   "task.toolbar.allProjects": "All projects",
   "task.toolbar.noProject": "No project set",
   "task.toolbar.allTags": "All tags",
+  "task.toolbar.searchPlaceholder": "Search tasks…",
+  "task.toolbar.searchClear": "Clear search",
   "task.toolbar.blockedAny": "Blocked: any",
   "task.toolbar.blockedOnly": "Blocked only",
   "task.toolbar.notBlocked": "Not blocked",
