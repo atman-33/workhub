@@ -1,4 +1,5 @@
 import { ClipboardList } from "lucide-react";
+import { ArchiveMoreFooter } from "@/components/archive-more-footer";
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
 import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
@@ -22,9 +23,12 @@ import { dueTone } from "@/lib/task-due";
 import { priorityTintClass } from "@/lib/task-priority";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
+import type { ArchiveFooterProps } from "@/components/archive-more-footer";
 
 interface Props {
   tasks: Task[];
+  /** Footer props while archived tasks are capped; omit when all are drawn. */
+  archiveFooter?: ArchiveFooterProps;
   /** Open predecessors per task id; absent for a task that is not waiting. */
   waiting: ReadonlyMap<string, Task[]>;
   onOpen: (task: Task) => void;
@@ -43,7 +47,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskList({ tasks, waiting, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
+export function TaskList({ tasks, archiveFooter, waiting, onOpen, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onDelete }: Props) {
   const t = useT();
   if (tasks.length === 0) {
     return (
@@ -61,6 +65,8 @@ export function TaskList({ tasks, waiting, onOpen, onLaunchAgent, onCopyTaskProm
             <div
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-md border bg-background px-3 py-2 hover:border-ring",
+                // Skip layout/paint for rows scrolled out of view.
+                "[content-visibility:auto] [contain-intrinsic-size:auto_2.75rem]",
                 priorityTintClass(task),
                 task.archived && "opacity-50",
                 // Blocked rows recede, but less than archived ones.
@@ -177,6 +183,7 @@ export function TaskList({ tasks, waiting, onOpen, onLaunchAgent, onCopyTaskProm
           </ContextMenuContent>
         </ContextMenu>
       ))}
+      {archiveFooter && <ArchiveMoreFooter {...archiveFooter} />}
     </div>
   );
 }

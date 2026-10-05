@@ -167,6 +167,9 @@ export const ja: Partial<Record<MessageKey, string>> = {
 
   "task.list.empty": "現在のフィルタに一致するタスクはありません。",
   "task.list.archivedBadge": "アーカイブ済み",
+  "task.archive.shown": "アーカイブ {shown} / {total} 件を表示中",
+  "task.archive.more": "さらに 50 件表示",
+  "task.archive.all": "すべて表示",
   "task.list.planRecorded": "Plan 記録あり",
   "task.list.editBlockedReason": "ブロック理由を編集…",
   "task.list.markBlocked": "ブロック中にする…",
