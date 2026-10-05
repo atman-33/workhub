@@ -50,7 +50,7 @@ import type { TabFocus } from "@/lib/tab-focus";
 import { isStaleBlock } from "@/lib/task-blocked";
 import { unresolvedDeps } from "@/lib/task-dependencies";
 import { cn } from "@/lib/utils";
-import { taskProjectFilterLabel, projectOptionsOf, unknownTaskProjects } from "@/lib/vault-project";
+import { NO_PROJECT_FILTER, matchesProjectFilter, taskProjectFilterLabel, projectOptionsOf, unknownTaskProjects } from "@/lib/vault-project";
 import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
@@ -379,7 +379,7 @@ export function TasksView({
         if (!showArchived && t.archived) return false;
         if (statusFilter && t.status !== statusFilter) return false;
         if (assigneeFilter && t.assignee !== assigneeFilter) return false;
-        if (projectFilter && t.project !== projectFilter) return false;
+        if (!matchesProjectFilter(t, projectFilter)) return false;
         if (tagFilter && !t.tags.includes(tagFilter)) return false;
         return true;
       }),
@@ -746,6 +746,7 @@ export function TasksView({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">{t("task.toolbar.allProjects")}</SelectItem>
+            <SelectItem value={NO_PROJECT_FILTER}>{t("task.toolbar.noProject")}</SelectItem>
             {filterProjects.map((p) => (
               <SelectItem key={p} value={p}>
                 {projectFilterLabel(p)}
