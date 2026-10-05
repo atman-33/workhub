@@ -5,9 +5,11 @@ import {
   buildProjectFixPrompt,
   buildSharedSpaceSurveyPrompt,
   health,
+  NO_PROJECT_FILTER,
   isSurveyStale,
   issueLabel,
   linkedRepos,
+  matchesProjectFilter,
   planProjectMove,
   projectOfNotePath,
   projectNumberOfFolder,
@@ -597,5 +599,23 @@ describe("projectOptionsOf", () => {
       project({ slug: "test", folder: "0020-test" }),
     ]);
     expect(out.slugs).toEqual(["test"]);
+  });
+});
+
+describe("matchesProjectFilter", () => {
+  it("passes everything when the filter is empty", () => {
+    expect(matchesProjectFilter({ project: "workhub" }, "")).toBe(true);
+    expect(matchesProjectFilter({ project: "" }, "")).toBe(true);
+  });
+
+  it("selects only tasks without a project for the no-project value", () => {
+    expect(matchesProjectFilter({ project: "" }, NO_PROJECT_FILTER)).toBe(true);
+    expect(matchesProjectFilter({ project: "workhub" }, NO_PROJECT_FILTER)).toBe(false);
+  });
+
+  it("compares slugs exactly otherwise", () => {
+    expect(matchesProjectFilter({ project: "workhub" }, "workhub")).toBe(true);
+    expect(matchesProjectFilter({ project: "other" }, "workhub")).toBe(false);
+    expect(matchesProjectFilter({ project: "" }, "workhub")).toBe(false);
   });
 });

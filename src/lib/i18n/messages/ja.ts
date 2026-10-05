@@ -193,6 +193,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "task.toolbar.allStatuses": "すべてのステータス",
   "task.toolbar.allAssignees": "すべての担当者",
   "task.toolbar.allProjects": "すべてのプロジェクト",
+  "task.toolbar.noProject": "プロジェクト未設定",
   "task.toolbar.allTags": "すべてのタグ",
   "task.toolbar.blockedAny": "ブロック: すべて",
   "task.toolbar.blockedOnly": "ブロック中のみ",

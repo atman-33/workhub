@@ -203,6 +203,7 @@ export const en = {
   "task.toolbar.allStatuses": "All statuses",
   "task.toolbar.allAssignees": "All assignees",
   "task.toolbar.allProjects": "All projects",
+  "task.toolbar.noProject": "No project set",
   "task.toolbar.allTags": "All tags",
   "task.toolbar.blockedAny": "Blocked: any",
   "task.toolbar.blockedOnly": "Blocked only",

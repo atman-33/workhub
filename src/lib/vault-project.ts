@@ -299,6 +299,20 @@ export function taskProjectFilterLabel(
 }
 
 /**
+ * The Tasks toolbar filter value that selects tasks with no `project:`. Not a
+ * slug (those are kebab-case), so it cannot collide with a real project; the
+ * empty string stays "all projects".
+ */
+export const NO_PROJECT_FILTER = "__none__";
+
+/** Whether a task passes the Tasks toolbar project filter. */
+export function matchesProjectFilter(task: Pick<Task, "project">, filter: string): boolean {
+  if (!filter) return true;
+  if (filter === NO_PROJECT_FILTER) return !task.project;
+  return task.project === filter;
+}
+
+/**
  * `project:` values tasks carry that no project answers to, for the Tasks
  * toolbar filter — sorted, deduped.
  *

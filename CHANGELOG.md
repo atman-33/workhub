@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.157.0 (2026-10-05)
+
+- **Tasks can be filtered to those with no project** (T-0639). The project dropdown in the Tasks toolbar gains a "No project set" entry right below "All projects", so tasks whose `project:` is empty can be listed on their own.
+
 ## 0.156.0 (2026-10-03)
 
 - **OpenCode sessions can run `task-cli` and `comms-cli`** (T-0570). The workhub skills call
