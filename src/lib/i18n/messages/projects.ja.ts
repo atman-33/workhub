@@ -32,7 +32,7 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.view.name": "名前",
   "projects.view.alias": "略称",
   "projects.view.aliasPlaceholder": "未設定（セッション名には slug が出ます）",
-  "projects.view.aliasHelp": "2〜8 文字の小文字英数とハイフン。空にすると slug に戻ります。",
+  "projects.view.aliasHelp": "英数字・日本語・ハイフン。文字数の制限なし（短いほうがセッション一覧で読みやすい）。空にすると slug に戻ります。",
   "projects.view.statusSavingAlias": "略称を保存中…",
   "projects.view.description": "説明",
   "projects.view.descriptionPlaceholder": "このプロジェクトの簡単な説明",

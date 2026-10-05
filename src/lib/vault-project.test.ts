@@ -123,7 +123,7 @@ describe("issueLabel", () => {
 
   it("names a malformed alias and one shared between projects", () => {
     expect(issueLabel(issue({ kind: "invalid-alias", target: "Not Valid" }))).toBe(
-      "alias 'Not Valid' is not 2 to 8 lowercase letters, digits or hyphens",
+      "alias 'Not Valid' is not made of letters, digits and hyphens",
     );
     expect(issueLabel(issue({ kind: "duplicate-alias", target: "sbr" }))).toBe(
       "alias 'sbr' is used by more than one project",

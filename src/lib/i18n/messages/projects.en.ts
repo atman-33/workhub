@@ -29,7 +29,7 @@ export const projectsEn = {
   "projects.view.name": "Name",
   "projects.view.alias": "Alias",
   "projects.view.aliasPlaceholder": "Not set (the slug is shown in session names)",
-  "projects.view.aliasHelp": "2 to 8 characters: lowercase letters, digits and hyphens. Leave empty to use the slug.",
+  "projects.view.aliasHelp": "Letters, digits and hyphens, any script, no length limit (shorter reads better in the session list). Leave empty to use the slug.",
   "projects.view.statusSavingAlias": "Saving alias…",
   "projects.view.description": "Description",
   "projects.view.descriptionPlaceholder": "A short description of this project",

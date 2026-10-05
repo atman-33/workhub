@@ -46,7 +46,7 @@ export function issueLabel(issue: VaultProjectIssue): string {
     case "unknown-folder":
       return `${issue.target} is not in the documented layout`;
     case "invalid-alias":
-      return `alias '${issue.target}' is not 2 to 8 lowercase letters, digits or hyphens`;
+      return `alias '${issue.target}' is not made of letters, digits and hyphens`;
     case "duplicate-alias":
       return `alias '${issue.target}' is used by more than one project`;
     default:

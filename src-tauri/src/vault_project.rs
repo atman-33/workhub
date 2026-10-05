@@ -131,7 +131,7 @@ pub fn list_projects(vault: &Path, include_archived: bool) -> Result<Vec<VaultPr
     let mut taken: HashMap<String, usize> = HashMap::new();
     for p in &out {
         if !p.alias.is_empty() {
-            *taken.entry(p.alias.clone()).or_insert(0) += 1;
+            *taken.entry(alias_key(&p.alias)).or_insert(0) += 1;
         }
     }
     if !include_archived {
@@ -139,12 +139,12 @@ pub fn list_projects(vault: &Path, include_archived: bool) -> Result<Vec<VaultPr
         scan_root(&archive_projects_dir(vault), true, &mut archived)?;
         for p in &archived {
             if !p.alias.is_empty() {
-                *taken.entry(p.alias.clone()).or_insert(0) += 1;
+                *taken.entry(alias_key(&p.alias)).or_insert(0) += 1;
             }
         }
     }
     for p in &mut out {
-        if taken.get(&p.alias).copied().unwrap_or(0) > 1 {
+        if taken.get(&alias_key(&p.alias)).copied().unwrap_or(0) > 1 {
             p.issues.push(VaultProjectIssue {
                 kind: "duplicate-alias".into(),
                 severity: "warn".into(),
@@ -156,13 +156,19 @@ pub fn list_projects(vault: &Path, include_archived: bool) -> Result<Vec<VaultPr
     Ok(out)
 }
 
-/// An alias is 2 to 8 characters of lowercase letters, digits and hyphens
-/// (T-0561). Not a slug: it is only ever shown, in a session name.
+/// An alias is one or more letters, digits or hyphens, in any script
+/// (T-0645; it was 2 to 8 lowercase ASCII characters under T-0561). Not a
+/// slug: it is only ever shown, in a session name. Whitespace, brackets and
+/// the characters a Windows file name or a plain YAML scalar cannot carry
+/// (`: / \ * ? " < > | #`) stay out, because the alias reaches all three.
 pub fn is_valid_alias(alias: &str) -> bool {
-    (2..=8).contains(&alias.chars().count())
-        && alias
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    !alias.is_empty() && alias.chars().all(|c| c.is_alphanumeric() || c == '-')
+}
+
+/// What two aliases are compared by. `Sbr` and `sbr` read as the same label in
+/// a session list, so they collide even though both are valid.
+fn alias_key(alias: &str) -> String {
+    alias.to_lowercase()
 }
 
 /// The label a session name shows for a project: its `alias` when README
@@ -197,11 +203,11 @@ pub fn set_project_alias(vault: &Path, slug: &str, alias: &str) -> Result<(), St
     if !alias.is_empty() {
         if !is_valid_alias(alias) {
             return Err(
-                "an alias is 2 to 8 characters: lowercase letters, digits and hyphens".into(),
+                "an alias is made of letters, digits and hyphens (no spaces or symbols)".into(),
             );
         }
         for p in list_projects(vault, true)? {
-            if p.alias == alias && p.slug != slug {
+            if alias_key(&p.alias) == alias_key(alias) && p.slug != slug {
                 return Err(format!("alias '{alias}' is already used by '{}'", p.slug));
             }
         }
@@ -1768,11 +1774,34 @@ mod tests {
     }
 
     #[test]
-    fn alias_format_is_two_to_eight_kebab_characters() {
-        for ok in ["sbr", "ab", "my-proj1", "12345678"] {
+    fn alias_is_letters_digits_and_hyphens_of_any_script_and_length() {
+        for ok in [
+            "sbr",
+            "a",
+            "my-proj1",
+            "12345678",
+            "Sbr",
+            "あい",
+            "プロジェクト名",
+            "スピブレー",
+            "a-very-long-alias-that-has-no-upper-limit-at-all",
+        ] {
             assert!(is_valid_alias(ok), "{ok}");
         }
-        for bad in ["", "a", "toolongxx", "Sbr", "s_r", "s r", "あい"] {
+        for bad in [
+            "",
+            "s_r",
+            "s r",
+            "a:b",
+            "[x]",
+            "a/b",
+            "a\\b",
+            "a#b",
+            "a|b",
+            "a?b",
+            "a\"b",
+            "あ　い",
+        ] {
             assert!(!is_valid_alias(bad), "{bad}");
         }
     }
@@ -1827,12 +1856,36 @@ mod tests {
 
         assert!(set_project_alias(&vault, "beta", "alp").is_err());
         assert!(set_project_alias(&vault, "beta", "gam").is_err());
-        assert!(set_project_alias(&vault, "beta", "X").is_err());
+        assert!(set_project_alias(&vault, "beta", "a b").is_err());
+        // Uniqueness ignores case: `ALP` and `alp` read as the same label.
+        assert!(set_project_alias(&vault, "beta", "ALP").is_err());
+        assert!(set_project_alias(&vault, "beta", "GAM").is_err());
         // Re-setting a project's own alias is not a collision.
         set_project_alias(&vault, "alpha", "alp").unwrap();
 
         let alpha = list_projects(&vault, false).unwrap().remove(0);
         assert_eq!(alpha.alias, "alp");
+
+        // Japanese and a single character round-trip through the README.
+        set_project_alias(&vault, "beta", "ベータ").unwrap();
+        set_project_alias(&vault, "alpha", "α").unwrap();
+        let readme = fs::read_to_string(vault.join("projects/0020-beta/README.md")).unwrap();
+        assert!(readme.contains(
+            "alias: ベータ
+"
+        ));
+        let listed = list_projects(&vault, false).unwrap();
+        let alias_of = |slug: &str| {
+            listed
+                .iter()
+                .find(|p| p.slug == slug)
+                .unwrap()
+                .alias
+                .clone()
+        };
+        assert_eq!(alias_of("beta"), "ベータ");
+        assert_eq!(alias_of("alpha"), "α");
+        assert_eq!(project_label(&vault, "beta"), "ベータ");
 
         set_project_alias(&vault, "alpha", "").unwrap();
         let readme = fs::read_to_string(vault.join("projects/0010-alpha/README.md")).unwrap();
