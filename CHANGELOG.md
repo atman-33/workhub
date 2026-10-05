@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.158.0 (2026-10-05)
+
+- **Tasks can be searched by text** (T-0641). The Tasks toolbar has a search box that matches the id, title, project, backlog id and tags, with several words all required. A non-empty search also looks through archived tasks, since the task you cannot place is often an old one; the archive paging from T-0640 still applies, so a broad search stays light. Task bodies are not searched because the board does not load them. The existing Obsidian button on each row opens by file path, so it works on archived rows too.
+- **The Tasks toolbar is more compact** (T-0641). The assignee, tag, dependency and blocked filters moved into one Filters popover that shows how many are active and can reset them, Refresh is icon-only, and Init vault moved into a "more" menu. The search box stays narrow until focused. Together they keep the toolbar from overflowing now that search is there.
+- **Showing archived tasks no longer draws hundreds of rows at once** (T-0640). Archived tasks appear newest first, 50 at a time, with "show more" and "show all" in the footer, so turning on Archived stays responsive with a long history.
+
 ## 0.157.0 (2026-10-05)
 
 - **Tasks can be filtered to those with no project** (T-0639). The project dropdown in the Tasks toolbar gains a "No project set" entry right below "All projects", so tasks whose `project:` is empty can be listed on their own.
