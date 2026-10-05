@@ -66,8 +66,12 @@ session name uses it: `project:` keys, folder names and links stay the slug.
 Unset, the slug is used, so give one only to a slug too long to read in the
 session list (leave `workhub` alone).
 
-- Lowercase letters, digits and hyphens (kebab-case), 2 to 8 characters.
-- Unique across `projects/` and `archive/projects/`. Check before assigning.
+- Letters, digits and hyphens, in any script (`sbr`, `Sbr`, `スピブレ`), no
+  length limit. No spaces or symbols: the alias lands in a session name, a
+  Windows file name and a plain YAML value. Keep it short anyway; the label
+  is never truncated in the session list.
+- Unique across `projects/` and `archive/projects/`, ignoring case (`Sbr` and
+  `sbr` collide). Check before assigning.
 - Not Obsidian's `aliases:` list, which is about note-link resolution.
 
 ## The folder number and the slug
