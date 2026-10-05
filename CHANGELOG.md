@@ -3,6 +3,7 @@
 ## 0.157.0 (2026-10-05)
 
 - **Tasks can be filtered to those with no project** (T-0639). The project dropdown in the Tasks toolbar gains a "No project set" entry right below "All projects", so tasks whose `project:` is empty can be listed on their own.
+- **`workhub` plugin 0.49.4: session renaming and project aliases work from the skills.** On Claude Desktop `set_session_title` is a deferred tool, so `task-start` and `project-start` never renamed a session started from the launch button; they now load it through `ToolSearch` first. `task-orchestrate` and `project-start` resolve a project alias such as `sbr` to its slug before calling `task-cli --project`, which matches the slug exactly and returned nothing for an alias. `task-handoff` no longer conflates a chip's worktree with `worktree: true` when recommending a start mode, and `task-orchestrate` drops the WIP cap and the code-block format from its proposal.
 
 ## 0.156.0 (2026-10-03)
 
