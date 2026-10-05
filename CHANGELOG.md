@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.159.0 (2026-10-06)
+
+- **The Tasks board can be split into one row per project** (T-0646). A "By project" toggle in the Tasks toolbar turns the five status columns into a grid with a row for each project, in project-folder order and with "no project" last, so the state of each project reads at a glance instead of being mixed into shared columns. Each row header shows its task count and how many are in progress, and folds into a one-line summary of counts per status. Dropping a card into another project's row asks for confirmation, then moves the task to that project and clears its backlog item, which belonged to the old project. The toggle and the folded rows are remembered; with it off the board is unchanged.
+- **Project aliases can be written in any script** (T-0645). An alias is now one or more letters, digits or hyphens in any language with no length limit, so a Japanese alias works. Whitespace and symbols that a session name, a Windows file name or a plain YAML value cannot carry are still rejected, and uniqueness is compared case-insensitively, so `Sbr` and `sbr` collide.
+
 ## 0.158.0 (2026-10-05)
 
 - **Tasks can be searched by text** (T-0641). The Tasks toolbar has a search box that matches the id, title, project, backlog id and tags, with several words all required. A non-empty search also looks through archived tasks, since the task you cannot place is often an old one; the archive paging from T-0640 still applies, so a broad search stays light. Task bodies are not searched because the board does not load them. The existing Obsidian button on each row opens by file path, so it works on archived rows too.
