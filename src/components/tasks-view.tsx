@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { ARCHIVE_PAGE_SIZE, limitArchived } from "@/lib/archive-limit";
 import { t as i18nT, useT } from "@/lib/i18n";
 import { TASK_ASSIGNEE_LABEL_KEY, TASK_STATUS_LABEL_KEY } from "@/lib/i18n/labels";
 import {
@@ -96,6 +97,8 @@ export function TasksView({
   /** "" = any, "waiting" = open predecessors, "ready" = nothing in the way. */
   const [dependencyFilter, setDependencyFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  // Archived tasks drawn on the board; a few hundred rows at once is slow.
+  const [archivedLimit, setArchivedLimit] = useState(ARCHIVE_PAGE_SIZE);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   /** Task whose blocked reason is being edited in the one-field dialog. */
@@ -396,6 +399,17 @@ export function TasksView({
         return true;
       }),
     [scoped, blockedFilter, dependencyFilter, waiting],
+  );
+
+  const board = useMemo(() => limitArchived(visible, archivedLimit), [visible, archivedLimit]);
+  const archiveFooter = useMemo(
+    () => ({
+      shown: board.archivedShown,
+      total: board.archivedTotal,
+      onMore: () => setArchivedLimit((n) => n + ARCHIVE_PAGE_SIZE),
+      onAll: () => setArchivedLimit(Number.MAX_SAFE_INTEGER),
+    }),
+    [board.archivedShown, board.archivedTotal],
   );
 
   // Blocked tasks in scope, and how many of those nobody has chased in a week.
@@ -821,7 +835,10 @@ export function TasksView({
               "flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
               showArchived ? "bg-secondary font-medium" : "text-muted-foreground hover:bg-accent/50",
             )}
-            onClick={() => setShowArchived((v) => !v)}
+            onClick={() => {
+              setShowArchived((v) => !v);
+              setArchivedLimit(ARCHIVE_PAGE_SIZE);
+            }}
           >
             <Archive className="size-3.5" /> {t("task.toolbar.archivedLabel")}
           </button>
@@ -892,7 +909,8 @@ export function TasksView({
           const boardContent =
             viewMode === "list" ? (
               <TaskList
-                tasks={visible}
+                tasks={board.tasks}
+                archiveFooter={archiveFooter}
                 waiting={waiting}
                 onOpen={(task) => openEditor("edit", task)}
                 onLaunchAgent={launchAgent}
@@ -908,7 +926,8 @@ export function TasksView({
               />
             ) : (
               <TaskKanban
-                tasks={visible}
+                tasks={board.tasks}
+                archiveFooter={archiveFooter}
                 waiting={waiting}
                 onOpen={(task) => openEditor("edit", task)}
                 onMove={moveWithGuard}

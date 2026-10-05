@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Archive, ClipboardList } from "lucide-react";
+import { ArchiveMoreFooter, type ArchiveFooterProps } from "@/components/archive-more-footer";
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/hint";
 import { BlockedBadge, BlockedMark } from "@/components/blocked-badge";
@@ -58,6 +59,8 @@ type DropPos = { col: TaskStatus; index: number } | null;
 
 interface Props {
   tasks: Task[];
+  /** Footer props while archived tasks are capped; omit when all are drawn. */
+  archiveFooter?: ArchiveFooterProps;
   /** Open predecessors per task id; absent for a task that is not waiting. */
   waiting: ReadonlyMap<string, Task[]>;
   onOpen: (task: Task) => void;
@@ -80,7 +83,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, archiveFooter, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
   const t = useT();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
@@ -330,6 +333,7 @@ export function TaskKanban({ tasks, waiting, onOpen, onMove, onLaunchAgent, onCo
               </div>
             ))}
             {dropPos?.col === col.key && dropPos.index === col.items.length && indicator}
+            {col.key === "done" && archiveFooter && <ArchiveMoreFooter {...archiveFooter} />}
           </div>
         </div>
       ))}

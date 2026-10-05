@@ -177,6 +177,9 @@ export const en = {
 
   "task.list.empty": "No tasks match the current filter.",
   "task.list.archivedBadge": "archived",
+  "task.archive.shown": "Showing {shown} of {total} archived",
+  "task.archive.more": "Show 50 more",
+  "task.archive.all": "Show all",
   "task.list.planRecorded": "Plan recorded",
   "task.list.editBlockedReason": "Edit blocked reason…",
   "task.list.markBlocked": "Mark as blocked…",
