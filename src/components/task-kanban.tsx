@@ -418,18 +418,17 @@ export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archive
     ...col,
     count: tasks.filter((x) => x.status === col.key).length,
   }));
-  // Fixed 5-column track: a project row is as tall as its fullest column, so
-  // each row's cells scroll with the page rather than inside themselves.
-  const track = "grid-cols-[10rem_repeat(5,minmax(11rem,1fr))]";
-
   return (
-    <div className="h-full min-h-0 overflow-auto p-3">
-      <div className={cn("grid min-w-max gap-2", track)}>
-        <div className="sticky top-0 z-10 bg-background" />
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-3">
+      {/* One status header row for the whole board, kept in view while the
+          project rows scroll under it. The project name is a band above each
+          row rather than a column beside it, so the five status columns keep
+          the full width and the board never needs a horizontal scrollbar. */}
+      <div className="sticky top-0 z-10 grid grid-cols-5 gap-2 bg-background pt-3 pb-2">
         {allColumns.map((col) => (
           <div
             key={col.key}
-            className="sticky top-0 z-10 flex items-center justify-between rounded-lg border bg-background px-2.5 py-2"
+            className="flex min-w-0 items-center justify-between rounded-lg border bg-background px-2.5 py-2"
           >
             <span className="text-xs font-semibold">{t(col.labelKey)}</span>
             <div className="flex items-center gap-1.5">
@@ -441,6 +440,8 @@ export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archive
             </div>
           </div>
         ))}
+      </div>
+      <div className="grid grid-cols-5 gap-2">
         {laneColumns.map(({ lane, columns }) => {
           const isCollapsed = collapsed.has(lane.key);
           const doing = lane.tasks.filter((x) => x.status === "doing").length;
@@ -449,32 +450,29 @@ export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archive
               <button
                 type="button"
                 aria-expanded={!isCollapsed}
-                className="sticky left-0 flex flex-col items-start gap-0.5 self-start rounded-lg border bg-muted/30 px-2.5 py-2 text-left hover:border-ring"
+                className="col-span-5 mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-l-4 border-l-[oklch(0.68_0.13_255)] bg-muted px-2.5 py-1.5 text-left hover:border-ring"
                 onClick={() => toggleLane(lane.key)}
               >
-                <span className="flex w-full items-center gap-1 text-xs font-semibold">
-                  <ChevronDown
-                    className={cn("size-3.5 shrink-0 transition-transform", isCollapsed && "-rotate-90")}
-                  />
-                  <span className="min-w-0 truncate">
-                    {lane.project === "" ? t("task.kanban.noProject") : lane.project}
-                  </span>
+                <ChevronDown
+                  className={cn("size-3.5 shrink-0 transition-transform", isCollapsed && "-rotate-90")}
+                />
+                <span className="min-w-0 truncate text-[13px] font-semibold text-foreground">
+                  {lane.project === "" ? t("task.kanban.noProject") : lane.project}
                 </span>
-                <span className="pl-4 text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground">
                   {t("task.kanban.laneSummary", { count: lane.tasks.length, doing })}
                 </span>
+                {isCollapsed && (
+                  <span className="ml-auto flex flex-wrap items-center gap-1">
+                    {columns.map((col) => (
+                      <Badge key={col.key} variant="outline" className="text-[10px]">
+                        {t(col.labelKey)} {col.items.length}
+                      </Badge>
+                    ))}
+                  </span>
+                )}
               </button>
-              {isCollapsed ? (
-                <div className="col-span-5 flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-2 text-[11px] text-muted-foreground">
-                  {columns.map((col) => (
-                    <Badge key={col.key} variant="outline">
-                      {t(col.labelKey)} {col.items.length}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                columns.map((col) => renderCell(lane, col, false))
-              )}
+              {!isCollapsed && columns.map((col) => renderCell(lane, col, false))}
             </Fragment>
           );
         })}
