@@ -483,21 +483,31 @@ export function collectSkillCatalog(root: string): SkillEntry[] {
   return skills;
 }
 
-export function loadMatchingRules(root: string, relativePath: string): RuleFile[] {
-  const rulesRoot = `${root}/.claude/rules`;
-  let entries: string[];
+// Every `.md` under `dir` as a sorted path relative to it, subfolders included
+// (Claude Code reads them too). A missing directory yields an empty list.
+function listMarkdownFiles(dir: string, prefix = ""): string[] {
+  let dirents;
   try {
-    entries = readdirSync(rulesRoot);
+    dirents = readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
-
-  const matches: RuleFile[] = [];
-  for (const entry of entries) {
-    if (!entry.toLowerCase().endsWith(".md")) {
-      continue;
+  const out: string[] = [];
+  for (const dirent of dirents) {
+    const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+    if (dirent.isDirectory()) {
+      out.push(...listMarkdownFiles(`${dir}/${dirent.name}`, rel));
+    } else if (dirent.name.toLowerCase().endsWith(".md")) {
+      out.push(rel);
     }
+  }
+  return out.sort();
+}
 
+export function loadMatchingRules(root: string, relativePath: string): RuleFile[] {
+  const rulesRoot = `${root}/.claude/rules`;
+  const matches: RuleFile[] = [];
+  for (const entry of listMarkdownFiles(rulesRoot)) {
     const rulePath = `${rulesRoot}/${entry}`;
     const raw = safeReadText(rulePath);
     if (!raw) {
@@ -578,19 +588,8 @@ export function loadExtendedRules(
   candidatePaths: string[],
 ): RuleFile[] {
   const rulesRoot = `${normalizePath(workspaceRoot)}/.claude/rules-ex`;
-  let entries: string[];
-  try {
-    entries = readdirSync(rulesRoot);
-  } catch {
-    return [];
-  }
-
   const matches: RuleFile[] = [];
-  for (const entry of entries) {
-    if (!entry.toLowerCase().endsWith(".md")) {
-      continue;
-    }
-
+  for (const entry of listMarkdownFiles(rulesRoot)) {
     const rulePath = `${rulesRoot}/${entry}`;
     const raw = safeReadText(rulePath);
     if (!raw) {
@@ -620,7 +619,7 @@ export function loadExtendedRules(
   return matches;
 }
 
-function matchesExtendedGlob(relativePath: string, pattern: string): boolean {
+export function matchesExtendedGlob(relativePath: string, pattern: string): boolean {
   const clean = normalizePath(pattern.trim());
   try {
     return globToRegExp(clean).test(relativePath);
@@ -681,12 +680,16 @@ export function isUnder(child: string, parent: string): boolean {
   );
 }
 
-function globToRegExp(glob: string): RegExp {
+export function globToRegExp(glob: string): RegExp {
   let output = "";
   for (let index = 0; index < glob.length; index += 1) {
     const char = glob[index];
     if (char === "*") {
-      if (glob[index + 1] === "*") {
+      if (glob[index + 1] === "*" && glob[index + 2] === "/") {
+        // A double star followed by a slash spans zero or more directories.
+        output += "(?:.*/)?";
+        index += 2;
+      } else if (glob[index + 1] === "*") {
         output += ".*";
         index += 1;
       } else {
@@ -711,7 +714,7 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${output}$`);
 }
 
-function matchesGlob(relativePath: string, pattern: string): boolean {
+export function matchesGlob(relativePath: string, pattern: string): boolean {
   const normalizedPattern = pattern.replace(/^\.\//, "").replace(/^\/+/, "");
   try {
     if (globToRegExp(normalizedPattern).test(relativePath)) {
