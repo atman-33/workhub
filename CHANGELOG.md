@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.159.2 (2026-10-06)
+
+- **Rule matching in the `workhub` plugin (0.49.5) and the OpenCode plugins handles zero-depth globs and rule subfolders** (T-0648). A `paths:` pattern such as `**/WebRole/**` used to need at least one leading directory, so it missed `WebRole/a.vb`, and `src/**/*.ts` missed `src/a.ts`; a `**` followed by a slash now also matches no directory at all. Rules kept in a subfolder such as `.claude/rules/workerrole/policy.md` were ignored because only the top level of `.claude/rules` was read, although Claude Code reads the subfolders; both the target repository's rules and the vault's `rules-ex` are now read recursively. The Claude Code `rules-ex` hook shares the one glob converter instead of keeping its own copy, and the OpenCode copy in the vault template got the same two fixes.
+
 ## 0.159.1 (2026-10-06)
 
 - **The By project board no longer scrolls sideways** (T-0646). The project name used to sit in a fixed column beside each row, which together with the five status columns was wider than a narrow window and forced a horizontal scrollbar. The name is now a band above each row, so the five status columns share the full width as they do on the ungrouped board, and the band spans the row instead of being a short box. A folded row shows its per-status counts in the same band, and the status headers stay in view while rows scroll. The band is a shade darker with a blue edge so the project rows read as separate groups.
