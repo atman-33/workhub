@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.159.1 (2026-10-06)
+
+- **The By project board no longer scrolls sideways** (T-0646). The project name used to sit in a fixed column beside each row, which together with the five status columns was wider than a narrow window and forced a horizontal scrollbar. The name is now a band above each row, so the five status columns share the full width as they do on the ungrouped board, and the band spans the row instead of being a short box. A folded row shows its per-status counts in the same band, and the status headers stay in view while rows scroll. The band is a shade darker with a blue edge so the project rows read as separate groups.
+
 ## 0.159.0 (2026-10-06)
 
 - **The Tasks board can be split into one row per project** (T-0646). A "By project" toggle in the Tasks toolbar turns the five status columns into a grid with a row for each project, in project-folder order and with "no project" last, so the state of each project reads at a glance instead of being mixed into shared columns. Each row header shows its task count and how many are in progress, and folds into a one-line summary of counts per status. Dropping a card into another project's row asks for confirmation, then moves the task to that project and clears its backlog item, which belonged to the old project. The toggle and the folded rows are remembered; with it off the board is unchanged.
