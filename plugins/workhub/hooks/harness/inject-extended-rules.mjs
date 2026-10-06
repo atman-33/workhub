@@ -39,6 +39,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
+import { globToRegExp } from "./target-rules-core.mjs";
 import { createHash } from "node:crypto";
 
 const RULES_RELATIVE_DIR = ".claude/rules-ex";
@@ -121,33 +122,6 @@ function emit(additionalContext, systemMessage) {
   }
   process.stdout.write(JSON.stringify(payload));
   process.exit(0);
-}
-
-/**
- * Convert a single glob pattern to an anchored, full-match RegExp.
- * Supports `**` (any depth, incl. slashes), `*` (single segment), `?`.
- */
-/** @param {string} glob */
-function globToRegExp(glob) {
-  let re = "";
-  for (let i = 0; i < glob.length; i++) {
-    const ch = glob[i];
-    if (ch === "*") {
-      if (glob[i + 1] === "*") {
-        re += ".*";
-        i++;
-      } else {
-        re += "[^/]*";
-      }
-    } else if (ch === "?") {
-      re += "[^/]";
-    } else if (".+^${}()|[]\\".includes(ch)) {
-      re += "\\" + ch;
-    } else {
-      re += ch;
-    }
-  }
-  return new RegExp("^" + re + "$");
 }
 
 /**

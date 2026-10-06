@@ -9,7 +9,9 @@ import {
   findAncestorProjects,
   findTargetProjectChain,
   hasRepoGuidance,
+  globToRegExp,
   loadMatchingRules,
+  matchesGlob,
   normalizePath,
   parseSkillFrontMatter,
   renderSkillsBlock,
@@ -68,6 +70,8 @@ beforeAll(() => {
   frontend = normalizePath(makeRepo(join(fullStack, "frontend")));
   write(join(frontend, "AGENTS.md"), "# frontend\n");
   mkdirSync(join(frontend, ".claude", "rules"), { recursive: true });
+  mkdirSync(join(frontend, ".claude", "rules", "nested"), { recursive: true });
+  write(join(frontend, ".claude", "rules", "nested", "deep.md"), "---\npaths: src/**/*.tsx\n---\nNested rule.\n");
   write(join(frontend, ".claude", "rules", "always.md"), "No front matter: always applies.\n");
   mkdirSync(join(frontend, "src"), { recursive: true });
   write(join(frontend, "src", "app.tsx"), "export {};\n");
@@ -204,7 +208,19 @@ describe("loadMatchingRules across the chain", () => {
 
   it("applies a rule with no front matter everywhere", () => {
     const rules = loadMatchingRules(frontend, "src/app.tsx");
-    expect(rules.map((rule) => rule.rel)).toEqual([".claude/rules/always.md"]);
+    expect(rules.map((rule) => rule.rel)).toEqual([
+      ".claude/rules/always.md",
+      ".claude/rules/nested/deep.md",
+    ]);
+  });
+
+  it("reads rules from subfolders and skips them when the path does not match", () => {
+    expect(loadMatchingRules(frontend, "src/app.tsx").map((r) => r.rel)).toContain(
+      ".claude/rules/nested/deep.md"
+    );
+    expect(loadMatchingRules(frontend, "src/app.css").map((r) => r.rel)).toEqual([
+      ".claude/rules/always.md",
+    ]);
   });
 
   it("returns nothing for a repo with no rules directory", () => {
@@ -239,5 +255,23 @@ describe("skill catalog", () => {
     );
     expect(block).toContain("cannot be invoked by name");
     expect(block).toContain('name="deploy-stack"');
+  });
+});
+
+describe("matchesGlob zero-depth `**/`", () => {
+  it("matches a leading `**/` at the root", () => {
+    expect(matchesGlob("WebRole/a.vb", "**/WebRole/**")).toBe(true);
+    expect(matchesGlob("x/WebRole/a.vb", "**/WebRole/**")).toBe(true);
+  });
+
+  it("matches a middle `**/` with zero directories", () => {
+    expect(matchesGlob("src/a.ts", "src/**/*.ts")).toBe(true);
+    expect(matchesGlob("src/b/c/a.ts", "src/**/*.ts")).toBe(true);
+    expect(matchesGlob("srcx/a.ts", "src/**/*.ts")).toBe(false);
+  });
+
+  it("keeps globToRegExp root-anchored", () => {
+    expect(globToRegExp("workhub/src/**/*.ts").test("workhub/src/a.ts")).toBe(true);
+    expect(globToRegExp("workhub/src/**/*.ts").test("other/workhub/src/a.ts")).toBe(false);
   });
 });
