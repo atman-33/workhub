@@ -1118,6 +1118,21 @@ pub fn run_schedule_edit(
     schedule_edit::run(app, path, instruction, confirm)
 }
 
+/// Copies the schedule-edit prompt for `path` to the clipboard, for pasting into
+/// an interactive agent session. `instruction` may be empty.
+#[tauri::command]
+pub fn copy_schedule_edit_prompt(
+    app: tauri::AppHandle,
+    path: String,
+    instruction: String,
+    confirm: bool,
+) -> Result<(), String> {
+    let prompt = schedule_edit::build_copy_prompt(&path.replace('\\', "/"), &instruction, confirm);
+    app.clipboard()
+        .write_text(prompt)
+        .map_err(|e| format!("failed to copy prompt: {e}"))
+}
+
 #[tauri::command]
 pub fn schedule_edit_status(app: tauri::AppHandle) -> schedule_edit::ScheduleEditRun {
     schedule_edit::snapshot(&app)
@@ -1560,6 +1575,21 @@ pub fn run_mindmap_edit(
     confirm: bool,
 ) -> Result<String, String> {
     mindmap_edit::run(app, path, instruction, confirm)
+}
+
+/// Copies the mindmap-edit prompt for `path` to the clipboard, for pasting into
+/// an interactive agent session. `instruction` may be empty.
+#[tauri::command]
+pub fn copy_mindmap_edit_prompt(
+    app: tauri::AppHandle,
+    path: String,
+    instruction: String,
+    confirm: bool,
+) -> Result<(), String> {
+    let prompt = mindmap_edit::build_copy_prompt(&path.replace('\\', "/"), &instruction, confirm);
+    app.clipboard()
+        .write_text(prompt)
+        .map_err(|e| format!("failed to copy prompt: {e}"))
 }
 
 #[tauri::command]
