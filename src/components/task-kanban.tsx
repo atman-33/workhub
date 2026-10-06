@@ -450,13 +450,13 @@ export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archive
               <button
                 type="button"
                 aria-expanded={!isCollapsed}
-                className="col-span-5 mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/30 px-2.5 py-1.5 text-left hover:border-ring"
+                className="col-span-5 mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-l-4 border-l-[oklch(0.68_0.13_255)] bg-muted px-2.5 py-1.5 text-left hover:border-ring"
                 onClick={() => toggleLane(lane.key)}
               >
                 <ChevronDown
                   className={cn("size-3.5 shrink-0 transition-transform", isCollapsed && "-rotate-90")}
                 />
-                <span className="min-w-0 truncate text-xs font-semibold">
+                <span className="min-w-0 truncate text-[13px] font-semibold text-foreground">
                   {lane.project === "" ? t("task.kanban.noProject") : lane.project}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
