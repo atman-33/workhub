@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.160.0 (2026-10-07)
+
+- **The Mindmap and Schedule AI panels can copy their edit prompt for a chat session** (T-0657). Next to Run there is now a copy button that puts the `mindmap-edit` / `schedule-edit` prompt on the clipboard, with the note's path and whatever instruction you have typed (or a request to wait for instructions when the box is empty), so you can keep directing an edit from Claude Desktop the way a task's Copy prompt lets you. Unsaved changes on screen are saved first so the agent reads the current file. Unlike a headless run there is no lock and no undo for an edit made this way, because the app cannot see the chat session.
+
 ## 0.159.2 (2026-10-06)
 
 - **Rule matching in the `workhub` plugin (0.49.5) and the OpenCode plugins handles zero-depth globs and rule subfolders** (T-0648). A `paths:` pattern such as `**/WebRole/**` used to need at least one leading directory, so it missed `WebRole/a.vb`, and `src/**/*.ts` missed `src/a.ts`; a `**` followed by a slash now also matches no directory at all. Rules kept in a subfolder such as `.claude/rules/workerrole/policy.md` were ignored because only the top level of `.claude/rules` was read, although Claude Code reads the subfolders; both the target repository's rules and the vault's `rules-ex` are now read recursively. The Claude Code `rules-ex` hook shares the one glob converter instead of keeping its own copy, and the OpenCode copy in the vault template got the same two fixes.
