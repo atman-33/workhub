@@ -140,6 +140,20 @@ export function resolveDocRelative(docPath: string, src: string): string | null 
 }
 
 /**
+ * Resolves a link written in a document to the file it names, or `null` when
+ * it is not a link to a file (T-0647): a web address, a bare `#fragment`, any
+ * other scheme. A `#fragment` or `?query` after the file name is dropped — the
+ * tab opens whole documents. The name is percent-decoded, so both
+ * `a｜b.md` and the `a%EF%BD%9Cb.md` an editor writes reach the real file.
+ */
+export function resolveDocLink(docPath: string, href: string): string | null {
+  const raw = href.trim();
+  if (!raw || /^([a-z][a-z0-9+.-]+:|#)/i.test(raw)) return null;
+  const file = raw.replace(/^<|>$/g, "").replace(/[#?].*$/, "");
+  return file ? resolveDocRelative(docPath, file) : null;
+}
+
+/**
  * Collapses `.` and `..` segments, keeping whatever root the path starts with
  * — a UNC `//server`, a `C:/` drive, or a leading `/`.
  */

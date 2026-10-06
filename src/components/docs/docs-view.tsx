@@ -721,6 +721,7 @@ export function DocsView() {
               onError={setError}
               onBusyChange={setDocBusy}
               notes={notesPane}
+              onOpenDoc={openDoc}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

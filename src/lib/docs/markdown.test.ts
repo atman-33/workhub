@@ -5,6 +5,7 @@ import {
   expandWikiEmbeds,
   isExternalSrc,
   normalizeSlashPath,
+  resolveDocLink,
   resolveDocRelative,
   splitFrontmatter,
   toWindowsPath,
@@ -178,5 +179,25 @@ describe("splitFrontmatter", () => {
     const { frontmatter, body } = splitFrontmatter("---\na: 1\n---\ntext\n---\nmore\n");
     expect(frontmatter).toBe("a: 1");
     expect(body).toBe("text\n---\nmore\n");
+  });
+});
+
+describe("resolveDocLink", () => {
+  const doc = "G:/shared drives/team/notes/design.md";
+
+  it("resolves a link with full-width bars and Japanese in the name", () => {
+    expect(resolveDocLink(doc, "開発プロセス｜予実ベロシティ更新方法.md")).toBe(
+      "G:/shared drives/team/notes/開発プロセス｜予実ベロシティ更新方法.md",
+    );
+  });
+
+  it("decodes a percent-encoded name and drops a fragment", () => {
+    expect(resolveDocLink(doc, "a%EF%BD%9Cb.md#sec")).toBe("G:/shared drives/team/notes/a｜b.md");
+  });
+
+  it("is null for the web, a bare fragment and other schemes", () => {
+    expect(resolveDocLink(doc, "https://example.com/a.md")).toBeNull();
+    expect(resolveDocLink(doc, "#top")).toBeNull();
+    expect(resolveDocLink(doc, "mailto:a@b.c")).toBeNull();
   });
 });

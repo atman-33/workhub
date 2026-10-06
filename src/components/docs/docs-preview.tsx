@@ -7,6 +7,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { HtmlPreview } from "@/components/docs/html-preview";
 import { type DocNotesPane, useNoteLayer } from "@/components/docs/use-note-layer";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,9 @@ import { useT } from "@/lib/i18n";
 import {
   basename,
   expandWikiEmbeds,
+  resolveDocLink,
   resolveDocRelative,
+  toWindowsPath,
   splitFrontmatter,
 } from "@/lib/docs/markdown";
 import { contentStamp } from "@/lib/docs/annotations";
@@ -46,6 +49,11 @@ interface Props {
    * pane is the read-only view it has always been.
    */
   notes?: DocNotesPane;
+  /**
+   * Opens a document a link points at, in this pane (T-0647). Absent — a
+   * viewer window has no listing to move within — the file goes to the OS.
+   */
+  onOpenDoc?: (path: string) => void;
 }
 
 /**
@@ -123,6 +131,7 @@ export function DocsPreview({
   onBusyChange,
   standalone,
   notes,
+  onOpenDoc,
 }: Props) {
   const t = useT();
   const [content, setContent] = useState("");
@@ -232,6 +241,24 @@ export function DocsPreview({
       }
     },
     [cache, cacheKey, path, remoteImages],
+  );
+
+  const onOpenLink = useCallback(
+    (href: string) => {
+      const target = resolveDocLink(path, href);
+      if (!target) return;
+      if (onOpenDoc) onOpenDoc(target);
+      else void api.docsOpenExternal(target).catch((e) => onError(String(e)));
+    },
+    [path, onOpenDoc, onError],
+  );
+
+  const onCopyLink = useCallback(
+    (href: string) => {
+      const target = resolveDocLink(path, href);
+      if (target) void writeText(toWindowsPath(target)).catch((e) => onError(String(e)));
+    },
+    [path, onError],
   );
 
   const onOpenFigure = useCallback((figure: DocsFigure) => openFigure(figure, onError), [onError]);
@@ -438,6 +465,8 @@ export function DocsPreview({
               plantuml={api.docsRenderPlantuml}
               resolveAsset={resolveAsset}
               onOpenFigure={onOpenFigure}
+              onOpenLink={onOpenLink}
+              onCopyLink={onCopyLink}
             >
               {markdown}
             </Markdown>

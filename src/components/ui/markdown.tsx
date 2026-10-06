@@ -13,6 +13,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
 import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./context-menu";
 
 /** Collect the plain text of a React node tree (for copying a code block). */
 function nodeText(node: React.ReactNode): string {
@@ -501,6 +502,18 @@ interface MarkdownProps {
    * was before. `0` is a real value and turns them on.
    */
   sourceLineOffset?: number;
+  /**
+   * Follows a link that points at a file rather than at the web (T-0647): a
+   * relative `[x](a｜b.md)` written in the document. Without it such a link
+   * goes to the OS opener like any other, which cannot resolve it.
+   */
+  onOpenLink?: (href: string) => void;
+  /**
+   * Adds a right-click "Copy path" to those same links. The webview's own
+   * "Copy link address" would put the percent-encoded URL of the app's origin
+   * on the clipboard, which nothing outside the app can follow.
+   */
+  onCopyLink?: (href: string) => void;
 }
 
 /**
@@ -526,7 +539,10 @@ export function Markdown({
   plantuml,
   onOpenFigure,
   sourceLineOffset,
+  onOpenLink,
+  onCopyLink,
 }: MarkdownProps) {
+  const t = useT();
   const source = React.useMemo(
     () => (callouts ? colonBlocksToCallouts(children) : children),
     [callouts, children],
@@ -564,18 +580,34 @@ export function Markdown({
         return <div {...props}>{children}</div>;
       },
       a({ href, children, ...props }) {
-        return (
+        // A link to a file of the share: no scheme and not a bare `#fragment`.
+        const local = !!href && !/^([a-z][a-z0-9+.-]+:|#)/i.test(href.trim());
+        const anchor = (
           <a
             {...props}
             href={href}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (href) void openUrl(href);
+              if (!href) return;
+              if (local && onOpenLink) onOpenLink(href);
+              else void openUrl(href);
             }}
           >
             {children}
           </a>
+        );
+        if (!local || !onCopyLink) return anchor;
+        return (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>{anchor}</ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => onCopyLink(href)}>
+                <CopyIcon />
+                {t("docs.entry.copyPath")}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         );
       },
       pre({ children }) {
@@ -650,7 +682,7 @@ export function Markdown({
         );
       },
     }),
-    [callouts, mermaid, plantuml, resolveAsset, onOpenFigure],
+    [callouts, mermaid, plantuml, resolveAsset, onOpenFigure, onOpenLink, onCopyLink, t],
   );
   return (
     <div className={cn(variant === "document" ? DOCUMENT_STYLE : COMPACT_STYLE, className)}>
