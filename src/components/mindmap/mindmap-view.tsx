@@ -1234,6 +1234,15 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     [flushSave, path],
   );
 
+  const copyAiPrompt = useCallback(
+    async (instruction: string, confirm: boolean) => {
+      // Flush first so the file the agent reads has the on-screen edits.
+      await flushSave();
+      await api.copyMindmapEditPrompt(path, instruction, confirm);
+    },
+    [flushSave, path],
+  );
+
   const undoAiEdit = useCallback(async () => {
     try {
       await api.restoreMindmapSnapshot(path);
@@ -1644,6 +1653,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                   disabled={!path}
                   onRun={(instruction, confirm) => void runAiEdit(instruction, confirm)}
                   onUndo={() => void undoAiEdit()}
+                  onCopyPrompt={copyAiPrompt}
                 />
               )}
             </div>

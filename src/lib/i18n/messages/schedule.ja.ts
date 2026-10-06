@@ -33,6 +33,7 @@ export const scheduleJa: Partial<Record<MessageKey, string>> = {
   "schedule.aiPanel.run": "実行(Ctrl+Enter)",
   "schedule.aiPanel.running": "実行中…",
   "schedule.aiPanel.undoHint": "直前の AI 編集を取り消す",
+  "schedule.aiPanel.copyPrompt": "対話セッションに貼り付けるプロンプトをコピー",
   "schedule.aiPanel.stalled":
     "少し時間がかかっています。実行ログは `_ai/logs/schedule/` にあります。",
   "schedule.aiPanel.history": "履歴",

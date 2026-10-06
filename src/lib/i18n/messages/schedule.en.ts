@@ -31,6 +31,7 @@ export const scheduleEn = {
   "schedule.aiPanel.run": "Run (Ctrl+Enter)",
   "schedule.aiPanel.running": "Running…",
   "schedule.aiPanel.undoHint": "Undo the last AI edit",
+  "schedule.aiPanel.copyPrompt": "Copy a prompt to paste into a chat session",
   "schedule.aiPanel.stalled":
     "This is taking a while. The run log is under `_ai/logs/schedule/`.",
   "schedule.aiPanel.history": "History",

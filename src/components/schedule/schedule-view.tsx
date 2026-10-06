@@ -1340,6 +1340,11 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
                     .runScheduleEdit(path, instruction, confirm)
                     .catch((e) => setStatus(String(e)));
                 }}
+                onCopyPrompt={async (instruction, confirm) => {
+                  // Flush first so the file the agent reads has the on-screen edits.
+                  await flushSave();
+                  await api.copyScheduleEditPrompt(path, instruction, confirm);
+                }}
                 onUndo={() => {
                   void api
                     .restoreScheduleSnapshot(path)

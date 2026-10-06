@@ -149,11 +149,7 @@ fn resolve_vault(cfg: &Config) -> Option<PathBuf> {
 /// "never touch `## Memo`" rule live in the skill, and duplicating them here
 /// would give the agent two sources to reconcile when they drift.
 fn build_prompt(path: &str, instruction: &str, confirm: bool) -> String {
-    let mode = if confirm {
-        "Do NOT write the file. Report the exact lines you would change, as a diff, and stop."
-    } else {
-        "Apply the change to the file."
-    };
+    let mode = mode_line(confirm);
     format!(
         "Use the `mindmap-edit` skill to edit this workhub mindmap note.\n\n\
 Mindmap file: {path}\n\n\
@@ -161,6 +157,38 @@ Instruction:\n{instruction}\n\n\
 {mode}\n\n\
 Report a one-paragraph summary of what changed (or would change), naming the \
 node ids you touched. Do not modify any other file.\n"
+    )
+}
+
+fn mode_line(confirm: bool) -> &'static str {
+    if confirm {
+        "Do NOT write the file. Report the exact lines you would change, as a diff, and stop."
+    } else {
+        "Apply the change to the file."
+    }
+}
+
+/// The same prompt for pasting into an interactive session (Claude Desktop and
+/// the like) by hand. `instruction` is whatever the panel holds: when it is
+/// empty the owner will give instructions in the following messages, so the
+/// prompt says to wait instead of editing on its own.
+pub fn build_copy_prompt(path: &str, instruction: &str, confirm: bool) -> String {
+    let instruction = instruction.trim();
+    let request = if instruction.is_empty() {
+        "I will give you the instructions in the following messages. \
+Do not edit anything until I do."
+            .to_string()
+    } else {
+        format!("Instruction:\n{instruction}")
+    };
+    format!(
+        "Use the `mindmap-edit` skill to edit this workhub mindmap note.\n\n\
+Mindmap file: {path}\n\n\
+{request}\n\n\
+{mode}\n\n\
+After each change, summarize in a sentence what changed (or would change), \
+naming the node ids you touched. Do not modify any other file.\n",
+        mode = mode_line(confirm)
     )
 }
 
@@ -412,6 +440,20 @@ mod tests {
 
         let dry = build_prompt("x.md", "group", true);
         assert!(dry.contains("Do NOT write the file"));
+    }
+
+    #[test]
+    fn copy_prompt_carries_the_instruction_or_waits_for_one() {
+        let with = build_copy_prompt("C:/v/a.md", "  group the UI ideas \n", false);
+        assert!(with.contains("`mindmap-edit` skill"));
+        assert!(with.contains("C:/v/a.md"));
+        assert!(with.contains("Instruction:\ngroup the UI ideas"));
+        assert!(with.contains("Apply the change"));
+
+        let without = build_copy_prompt("C:/v/a.md", "   ", true);
+        assert!(!without.contains("Instruction:"));
+        assert!(without.contains("Do not edit anything until I do"));
+        assert!(without.contains("Do NOT write the file"));
     }
 
     #[test]

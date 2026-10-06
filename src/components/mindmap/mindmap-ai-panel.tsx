@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { Hint } from "@/components/ui/hint";
 import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/api";
@@ -26,9 +27,18 @@ interface Props {
   disabled?: boolean;
   onRun: (instruction: string, confirm: boolean) => void;
   onUndo: () => void;
+  /** Copies the same prompt for an interactive session; the instruction may be empty. */
+  onCopyPrompt: (instruction: string, confirm: boolean) => Promise<unknown>;
 }
 
-export function MindmapAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }: Props) {
+export function MindmapAiPanel({
+  run,
+  defaultConfirm,
+  disabled,
+  onRun,
+  onUndo,
+  onCopyPrompt,
+}: Props) {
   const t = useT();
   const [instruction, setInstruction] = useState("");
   const [confirm, setConfirm] = useState(defaultConfirm);
@@ -95,6 +105,12 @@ export function MindmapAiPanel({ run, defaultConfirm, disabled, onRun, onUndo }:
             <RotateCcw className="size-3" />
           </Button>
         </Hint>
+        <CopyPromptButton
+          label={t("schedule.aiPanel.copyPrompt")}
+          className="size-7"
+          disabled={disabled}
+          onCopy={() => onCopyPrompt(instruction.trim(), confirm)}
+        />
       </div>
 
       {running && run.stalled && (

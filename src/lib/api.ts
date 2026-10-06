@@ -263,6 +263,8 @@ export const api = {
     }),
   runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>
     invoke<string>("run_schedule_edit", { path, instruction, confirm }),
+  copyScheduleEditPrompt: (path: string, instruction: string, confirm: boolean) =>
+    invoke<void>("copy_schedule_edit_prompt", { path, instruction, confirm }),
   scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
   restoreScheduleSnapshot: (path: string) =>
     invoke<ScheduleDoc>("restore_schedule_snapshot", { path }),
@@ -364,6 +366,8 @@ export const api = {
     }),
   runMindmapEdit: (path: string, instruction: string, confirm: boolean) =>
     invoke<string>("run_mindmap_edit", { path, instruction, confirm }),
+  copyMindmapEditPrompt: (path: string, instruction: string, confirm: boolean) =>
+    invoke<void>("copy_mindmap_edit_prompt", { path, instruction, confirm }),
   mindmapEditStatus: () => invoke<MindmapEditRun>("mindmap_edit_status"),
   restoreMindmapSnapshot: (path: string) =>
     invoke<MindmapDoc>("restore_mindmap_snapshot", { path }),
