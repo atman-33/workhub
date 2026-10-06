@@ -62,7 +62,7 @@ export function isUnder(child, parent) {
 
 /**
  * Convert a single glob pattern to an anchored, full-match RegExp.
- * Supports `**` (any depth, incl. slashes), `*` (single segment), `?`.
+ * Supports `**` (any depth, incl. slashes; a `**` followed by a slash also matches zero directories), `*` (single segment), `?`.
  */
 /** @param {string} glob */
 export function globToRegExp(glob) {
@@ -70,7 +70,11 @@ export function globToRegExp(glob) {
   for (let i = 0; i < glob.length; i++) {
     const ch = glob[i];
     if (ch === "*") {
-      if (glob[i + 1] === "*") {
+      if (glob[i + 1] === "*" && glob[i + 2] === "/") {
+        // `**/` spans zero or more directories, so `a/**/b` also hits `a/b`.
+        re += "(?:.*/)?";
+        i += 2;
+      } else if (glob[i + 1] === "*") {
         re += ".*";
         i++;
       } else {
@@ -362,23 +366,43 @@ export function resolveInstructionsFile(root) {
 }
 
 /**
- * The `.claude/rules/*.md` under `root` that apply to `relPath`.
+ * Every `.md` under `dir` as a sorted path relative to it, subfolders included
+ * (Claude Code reads them too). A missing directory yields an empty list.
+ */
+/** @param {string} dir @param {string} prefix @returns {string[]} */
+function listMarkdownFiles(dir, prefix) {
+  /** @type {import("node:fs").Dirent[]} */
+  let dirents;
+  try {
+    dirents = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  /** @type {string[]} */
+  const out = [];
+  for (const d of dirents) {
+    const rel = prefix ? `${prefix}/${d.name}` : d.name;
+    if (d.isDirectory()) {
+      out.push(...listMarkdownFiles(`${dir}/${d.name}`, rel));
+    } else if (d.name.toLowerCase().endsWith(".md")) {
+      out.push(rel);
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * The `.claude/rules` Markdown files (any depth) under `root` that apply to `relPath`.
  * A rule without a `paths:` front matter key applies everywhere.
  */
 /** @param {string} root @param {string} relPath @returns {RuleFile[]} */
 export function loadMatchingRules(root, relPath) {
   const rulesDir = `${normalizePath(root)}/.claude/rules`;
-  /** @type {string[]} */
-  let entries;
-  try {
-    entries = readdirSync(rulesDir).filter((f) => f.toLowerCase().endsWith(".md"));
-  } catch {
-    return [];
-  }
+  const entries = listMarkdownFiles(rulesDir, "");
 
   /** @type {RuleFile[]} */
   const matches = [];
-  for (const file of entries.sort()) {
+  for (const file of entries) {
     const abs = `${rulesDir}/${file}`;
     let content;
     try {
