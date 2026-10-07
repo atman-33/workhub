@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.161.0 (2026-10-07)
+
+- **A Mindmap can show each node's id on the map** (T-0658). When you direct an edit by id ("move N-005 under N-004"), the map used to draw only titles, so matching the AI's ids to the nodes on screen was done by eye. The new `#` toolbar button draws every node's id in a small band above its title; the setting is stored in the note (`node_ids: show` in its frontmatter, absent by default, so existing maps look the same) and is drawn in the image and HTML exports as well. The node panel gets a copy button next to the selected node's id. The mermaid copy still leaves ids out, because mermaid cannot carry them. The `mindmaps.md` rule in the vault template documents the new key, so existing vaults pick it up on the next template update.
+
 ## 0.160.0 (2026-10-07)
 
 - **The Mindmap and Schedule AI panels can copy their edit prompt for a chat session** (T-0657). Next to Run there is now a copy button that puts the `mindmap-edit` / `schedule-edit` prompt on the clipboard, with the note's path and whatever instruction you have typed (or a request to wait for instructions when the box is empty), so you can keep directing an edit from Claude Desktop the way a task's Copy prompt lets you. Unsaved changes on screen are saved first so the agent reads the current file. Unlike a headless run there is no lock and no undo for an edit made this way, because the app cannot see the chat session.
