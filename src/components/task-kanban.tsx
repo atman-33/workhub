@@ -95,6 +95,7 @@ interface Props {
   /** `claude_desktop_mode` setting, shown in the send button's tooltip. */
   claudeDesktopMode: string;
   onOpenInObsidian: (task: Task) => Promise<unknown>;
+  onOpenBacklogItem: (task: Task) => void;
   onCyclePriority: (task: Task, next: TaskPriority) => void;
   /** Opens the one-field reason editor (blocking the task if it wasn't). */
   onEditBlocked: (task: Task) => void;
@@ -106,7 +107,7 @@ interface Props {
   onDelete: (task: Task) => void;
 }
 
-export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archiveFooter, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
+export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archiveFooter, waiting, onOpen, onMove, onLaunchAgent, onCopyTaskPrompt, onSendToClaudeDesktop, claudeDesktopMode, onOpenInObsidian, onOpenBacklogItem, onCyclePriority, onEditBlocked, onUnblock, onArchive, onArchiveDone, onDelete }: Props) {
   const t = useT();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropPos, setDropPos] = useState<DropPos>(null);
@@ -366,6 +367,13 @@ export function TaskKanban({ tasks, groupBy = "none", projectOrder = [], archive
                 </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
+                    <ContextMenuItem
+                      disabled={!task.project || !task.backlog}
+                      onSelect={() => onOpenBacklogItem(task)}
+                    >
+                      {t("task.list.openBacklogItem")}
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => onEditBlocked(task)}>
                       {task.blocked
                         ? t("task.list.editBlockedReason")

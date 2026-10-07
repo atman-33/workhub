@@ -185,6 +185,7 @@ export const en = {
   "task.list.markBlocked": "Mark as blocked…",
   "task.list.unblock": "Unblock",
   "task.list.unarchive": "Unarchive",
+  "task.list.openBacklogItem": "Open backlog item in Obsidian",
   "task.list.archive": "Archive",
   "task.list.deleteEllipsis": "Delete…",
 
@@ -267,6 +268,7 @@ export const en = {
   "task.msg.copyFailed": "Copy prompt failed — {error}",
   "task.msg.sendFailed": "Send to Claude Desktop failed — {error}",
   "task.msg.openObsidianFailed": "Open in Obsidian failed — {error}",
+  "task.msg.openBacklogFailed": "Open backlog item failed — {error}",
   "task.msg.updateFailed": "Update failed — {error}",
   "task.msg.deleted": "Deleted {id} (moved to recycle bin)",
   "task.msg.deleteFailed": "Delete failed — {error}",

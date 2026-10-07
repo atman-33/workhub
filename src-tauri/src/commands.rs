@@ -911,6 +911,27 @@ pub async fn list_backlog_items(
     .map_err(|e| e.to_string())?
 }
 
+/// Opens a task's backlog item in Obsidian (T-0660). Obsidian's URI cannot
+/// open a folder, so the item's entry note is opened; an item without one
+/// falls back to its folder in Explorer. An error when the item is not found.
+#[tauri::command]
+pub async fn open_backlog_item(
+    vault_path: String,
+    slug: String,
+    backlog: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let found = vault_project::find_backlog_item(&PathBuf::from(vault_path), &slug, &backlog)?
+            .ok_or_else(|| format!("backlog item {backlog} not found in {slug}"))?;
+        match found.note {
+            Some(note) => actions::open_in_obsidian(&note.to_string_lossy()),
+            None => actions::open_explorer(&found.folder.to_string_lossy().replace('/', "\\")),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Creates a backlog item in a project from a title and returns it, so the
 /// task editor can offer "new item" instead of sending the user off to
 /// Obsidian. Naming an item has to be cheaper than skipping it (T-0266).

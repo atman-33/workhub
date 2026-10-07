@@ -541,6 +541,21 @@ export function TasksView({
     }
   }, []);
 
+  // Right-click jump to the task's backlog item (T-0660). The item is a
+  // folder, which Obsidian's URI cannot open, so the backend opens its entry
+  // note. Errors land in the status bar.
+  const openBacklogItem = useCallback(
+    async (task: Task) => {
+      if (!vaultPath || !task.project || !task.backlog) return;
+      try {
+        await api.openBacklogItem(vaultPath, task.project, task.backlog);
+      } catch (e) {
+        setStatus(i18nT("task.msg.openBacklogFailed", { error: String(e) }));
+      }
+    },
+    [vaultPath],
+  );
+
   const applyUpdates = useCallback(
     async (updates: UpdateTaskInput[]) => {
       if (!vaultPath) return;
@@ -1061,6 +1076,7 @@ export function TasksView({
                 onSendToClaudeDesktop={sendTaskToClaudeDesktop}
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
+                onOpenBacklogItem={openBacklogItem}
                 onCyclePriority={cyclePriority}
                 onEditBlocked={setBlockedTarget}
                 onUnblock={unblockTask}
@@ -1081,6 +1097,7 @@ export function TasksView({
                 onSendToClaudeDesktop={sendTaskToClaudeDesktop}
                 claudeDesktopMode={config?.settings.claude_desktop_mode ?? "code"}
                 onOpenInObsidian={openTaskInObsidian}
+                onOpenBacklogItem={openBacklogItem}
                 onCyclePriority={cyclePriority}
                 onEditBlocked={setBlockedTarget}
                 onUnblock={unblockTask}

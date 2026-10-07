@@ -315,6 +315,7 @@ pub fn run() {
             commands::opencode_models,
             commands::open_explorer,
             commands::open_in_obsidian,
+            commands::open_backlog_item,
             commands::app_version,
             commands::ink_capture_dir,
             commands::ink_overlay_ready,

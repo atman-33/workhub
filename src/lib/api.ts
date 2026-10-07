@@ -176,6 +176,10 @@ export const api = {
    * Empty rather than an error when the project has no `backlog/` folder. */
   listBacklogItems: (vaultPath: string, slug: string) =>
     invoke<BacklogItem[]>("list_backlog_items", { vaultPath, slug }),
+  /** Opens a backlog item's entry note in Obsidian (its folder in Explorer
+   * when the note is missing). Rejects when the item cannot be found. */
+  openBacklogItem: (vaultPath: string, slug: string, backlog: string) =>
+    invoke<void>("open_backlog_item", { vaultPath, slug, backlog }),
   /** Creates a backlog item in the project from a title and returns it. */
   createBacklogItem: (vaultPath: string, slug: string, title: string) =>
     invoke<BacklogItem>("create_backlog_item", { vaultPath, slug, title }),

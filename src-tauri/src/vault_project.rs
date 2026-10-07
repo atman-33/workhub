@@ -689,6 +689,64 @@ pub fn list_backlog_items(vault: &Path, slug: &str) -> Result<Vec<BacklogItem>, 
     Ok(out)
 }
 
+/// Where a backlog item lives on disk: its folder, and the entry note that
+/// names it when there is one.
+pub struct BacklogLocation {
+    pub folder: PathBuf,
+    pub note: Option<PathBuf>,
+}
+
+/// Finds the folder of backlog item `id` (`B-NNN`) in a project, archived
+/// projects included, so a task on a parked project still resolves (T-0660).
+///
+/// Matches on the folder's `B-NNN` prefix rather than the frontmatter, so a
+/// folder still without its entry note is found too. Should two folders share
+/// an id, the one with an entry note wins, then the first by name.
+pub fn find_backlog_item(
+    vault: &Path,
+    slug: &str,
+    id: &str,
+) -> Result<Option<BacklogLocation>, String> {
+    let slug = check_slug(slug)?;
+    let mut project_dir = None;
+    for archived in [false, true] {
+        if let Some(d) = find_project(vault, slug, archived)? {
+            project_dir = Some(d);
+            break;
+        }
+    }
+    let Some(dir) = project_dir.map(|d| d.join(BACKLOG_DIR)) else {
+        return Ok(None);
+    };
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(None);
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| !n.starts_with('.') && !n.starts_with('_'))
+        .filter(|n| id_prefix(n).eq_ignore_ascii_case(id.trim()))
+        .collect();
+    names.sort();
+    let located: Vec<BacklogLocation> = names
+        .iter()
+        .map(|n| {
+            let note = dir.join(n).join(format!("{n}.md"));
+            BacklogLocation {
+                folder: dir.join(n),
+                note: note.is_file().then_some(note),
+            }
+        })
+        .collect();
+    let mut located = located.into_iter();
+    let first = located.next();
+    Ok(match first {
+        Some(f) if f.note.is_none() => located.find(|l| l.note.is_some()).or(Some(f)),
+        other => other,
+    })
+}
+
 /// Orders two backlog ids numerically on their `B-NNN` number rather than
 /// lexically, so `B-1000` sorts after `B-200` (T-0278: lexical order was fine
 /// while every project stayed under a thousand items, but stopped being a
@@ -1287,6 +1345,37 @@ mod tests {
         assert_eq!(items[1].status, "doing");
         assert_eq!(items[2].title, "B-003-headless");
         assert_eq!(items[2].status, "");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// The right-click "open backlog item" jump (T-0660) resolves an item by
+    /// its `B-NNN` prefix, returns the entry note when it exists, and falls
+    /// back to the bare folder when it does not.
+    #[test]
+    fn a_backlog_item_resolves_to_its_entry_note_or_its_folder() {
+        let vault = temp_vault("backlog-locate");
+        let backlog = vault.join("projects").join("demo").join("backlog");
+        write(vault.join("projects").join("demo").join("README.md"), "---
+title: Demo
+---
+");
+        write(backlog.join("B-001-a").join("B-001-a.md"), "---
+id: B-001
+---
+");
+        write(backlog.join("B-002-headless").join("010-x.md"), "note
+");
+
+        let a = find_backlog_item(&vault, "demo", "B-001").unwrap().unwrap();
+        assert_eq!(a.note.unwrap(), backlog.join("B-001-a").join("B-001-a.md"));
+
+        let b = find_backlog_item(&vault, "demo", "b-002").unwrap().unwrap();
+        assert_eq!(b.folder, backlog.join("B-002-headless"));
+        assert!(b.note.is_none());
+
+        assert!(find_backlog_item(&vault, "demo", "B-099").unwrap().is_none());
+        assert!(find_backlog_item(&vault, "nope", "B-001").unwrap().is_none());
 
         fs::remove_dir_all(&vault).ok();
     }
