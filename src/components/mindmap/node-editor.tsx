@@ -1,4 +1,6 @@
-import { CornerDownRight, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { Check, CornerDownRight, Copy, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
@@ -97,12 +99,32 @@ export function NodeEditor({
 }: Props) {
   const t = useT();
   const childCount = node.children.length;
+  const [idCopied, setIdCopied] = useState(false);
+
+  /** The id is how the AI is told which node is meant, so it is one click from
+   * the clipboard. A failed write is not worth a message: the id is on screen. */
+  const copyId = async () => {
+    try {
+      await writeText(node.id);
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1500);
+    } catch {
+      // clipboard unavailable
+    }
+  };
 
   return (
     // Width comes from the sidebar column, not from here — see mindmap-view.
     <div className="shrink-0 space-y-3 border-b p-3 text-xs">
       <div className="flex items-center justify-between">
-        <span className="truncate font-mono text-[11px] text-muted-foreground">{node.id}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="truncate font-mono text-[11px] text-muted-foreground">{node.id}</span>
+          <Hint label={t("mindmap.nodeEditor.copyIdHint")}>
+            <Button size="icon" variant="ghost" className="size-5" onClick={copyId}>
+              {idCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
+            </Button>
+          </Hint>
+        </span>
         {childCount > 0 && (
           <span className="text-[11px] text-muted-foreground">
             {t(

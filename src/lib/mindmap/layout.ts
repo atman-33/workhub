@@ -50,6 +50,14 @@ export interface LayoutOptions {
    * here too, so the canvas and the two exports cannot disagree about them.
    */
   attrView: AttrView;
+  /**
+   * Draw each node's id in a small band above its title.
+   *
+   * Layout needs it for the reason it needs the chips: the band is *inside*
+   * the box, so it grows the node and moves its siblings, and the canvas and
+   * the exports must agree on where it is.
+   */
+  showIds: boolean;
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
@@ -59,7 +67,15 @@ export const DEFAULT_LAYOUT: LayoutOptions = {
   fontSize: 14,
   nodeWidth: "auto",
   attrView: DEFAULT_ATTR_VIEW,
+  showIds: false,
 };
+
+/** Font size a node's id is drawn at when ids are shown. */
+export const ID_FONT_SIZE = 10;
+/** Height of the id band at the top of a box. */
+export const ID_BAND_HEIGHT = 13;
+/** Baseline of the id text, measured from the top of the box. */
+export const ID_BASELINE = 11;
 
 /** Font size a chip's label is drawn at — small enough to read as an aside. */
 export const CHIP_FONT_SIZE = 10;
@@ -121,6 +137,11 @@ export interface PositionedNode {
    * a chip row from shoving the title off-centre.
    */
   chipsHeight: number;
+  /**
+   * Height of the id band at the top of `height`, 0 when ids are hidden. The
+   * title is centred between this band and the chip band.
+   */
+  idHeight: number;
   /**
    * True when a filter is on and this node does not match it.
    *
@@ -342,6 +363,7 @@ interface Boxed {
   height: number;
   chipRows: AttrChip[][];
   chipsHeight: number;
+  idHeight: number;
 }
 
 function measure(node: MindmapNode, opts: LayoutOptions): Boxed {
@@ -351,13 +373,19 @@ function measure(node: MindmapNode, opts: LayoutOptions): Boxed {
 
   const chipRows = packChips(chipsOf(node, opts.attrView.chips), opts.maxWidth - PAD_X * 2);
   const chipsHeight = chipsHeightOf(chipRows);
+  const idHeight = opts.showIds ? ID_BAND_HEIGHT : 0;
+  const idWidth = opts.showIds ? textWidth(node.id, ID_FONT_SIZE) : 0;
 
   return {
     lines,
-    width: Math.max(MIN_WIDTH, Math.ceil(Math.max(widest, chipRowsWidth(chipRows))) + PAD_X * 2),
-    height: titleHeight + chipsHeight,
+    width: Math.max(
+      MIN_WIDTH,
+      Math.ceil(Math.max(widest, chipRowsWidth(chipRows), idWidth)) + PAD_X * 2,
+    ),
+    height: idHeight + titleHeight + chipsHeight,
     chipRows,
     chipsHeight,
+    idHeight,
   };
 }
 
@@ -372,6 +400,7 @@ interface Measured {
   height: number;
   chipRows: AttrChip[][];
   chipsHeight: number;
+  idHeight: number;
   children: Measured[];
   /** Vertical extent of this node's whole subtree. */
   extent: number;
@@ -548,6 +577,7 @@ export function layoutMindmap(
       ...(m.node.attrs ? { attrs: m.node.attrs } : {}),
       chipRows: m.chipRows,
       chipsHeight: m.chipsHeight,
+      idHeight: m.idHeight,
       dimmed: isDimmed(m.node),
       // The root's own colour is not a branch colour: it would tint every
       // branch the same and destroy the colour coding. Colouring by an
@@ -631,6 +661,7 @@ export function layoutMindmap(
       ...(m.node.attrs ? { attrs: m.node.attrs } : {}),
       chipRows: m.chipRows,
       chipsHeight: m.chipsHeight,
+      idHeight: m.idHeight,
       dimmed: isDimmed(m.node),
     };
     nodes.push(rootNode);

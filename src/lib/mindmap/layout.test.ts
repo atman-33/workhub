@@ -257,6 +257,22 @@ describe("nodeWidth", () => {
   });
 });
 
+describe("node ids", () => {
+  it("adds an id band above the title only when ids are shown", () => {
+    const roots = tree(["- N-001 root", "  - N-002 child"]);
+    const plain = layoutMindmap(roots);
+    const withIds = layoutMindmap(roots, { showIds: true });
+    expect(plain.byId.get("N-002")?.idHeight).toBe(0);
+    const band = withIds.byId.get("N-002")?.idHeight ?? 0;
+    expect(band).toBeGreaterThan(0);
+    expect(withIds.byId.get("N-002")?.height).toBe((plain.byId.get("N-002")?.height ?? 0) + band);
+  });
+
+  it("is off by default, so an existing map keeps its layout", () => {
+    expect(DEFAULT_LAYOUT.showIds).toBe(false);
+  });
+});
+
 describe("stickies", () => {
   const roots = tree(["- N-001 root", "  - N-002 branch"]);
   const sticky = (over: Partial<Sticky> = {}): Sticky => ({

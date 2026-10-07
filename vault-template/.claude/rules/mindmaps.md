@@ -120,6 +120,14 @@ default:
   nodes would re-flow the map out from under you. For `tags`, the match is
   membership of the list.
 
+A fourth frontmatter key, `node_ids: show`, draws each node's id in a small
+band above its title, so a map can be discussed with an AI by id ("move N-005
+under N-004"). It is a display setting like the three above — written as the
+absence of the key when ids are hidden (the default), drawn in the image and
+HTML exports so they match the screen, and never a change to a node: the id
+in the file stays the only copy. The mermaid copy leaves ids out, since
+mermaid cannot carry them.
+
 Node positions are deliberately **not** stored: the app lays the map out from
 the tree every time it draws it, anchored on the root — so collapsing a branch
 re-flows that branch without moving the centre of the map. The tab's "mermaid"

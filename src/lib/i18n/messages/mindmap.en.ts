@@ -20,6 +20,8 @@ export const mindmapEn = {
   "mindmap.view.nodeCount": "{count} nodes",
   "mindmap.view.showStickiesHint": "Show the {count} sticky notes",
   "mindmap.view.hideStickiesHint": "Hide the {count} sticky notes",
+  "mindmap.view.showIdsHint": "Show node ids",
+  "mindmap.view.hideIdsHint": "Hide node ids",
   "mindmap.view.copyMermaidHint": "Copy as a mermaid code block",
   "mindmap.view.exportHtmlHint": "Export a single-file HTML page",
   "mindmap.view.exportPngHint": "Export a PNG image",
@@ -44,6 +46,7 @@ export const mindmapEn = {
   "mindmap.nodeWidth.siblings": "Even siblings",
   "mindmap.nodeWidth.depth": "Even by level",
 
+  "mindmap.nodeEditor.copyIdHint": "Copy the node id",
   "mindmap.nodeEditor.childCountOne": "{count} child",
   "mindmap.nodeEditor.childCountOther": "{count} children",
   "mindmap.nodeEditor.titlePlaceholder": "Title",

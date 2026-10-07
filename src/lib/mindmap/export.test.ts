@@ -65,6 +65,19 @@ describe("toSvg", () => {
   });
 });
 
+describe("node ids", () => {
+  it("draws each node's id when asked, and not otherwise", () => {
+    expect(toSvg(sample())).not.toContain("N-002");
+    const svg = toSvg(sample(), { showIds: true });
+    expect(svg).toContain(">N-001<");
+    expect(svg).toContain(">N-002<");
+  });
+
+  it("keeps ids out of the mermaid copy", () => {
+    expect(toMermaid(sample())).not.toMatch(/N-00\d/);
+  });
+});
+
 describe("toHtml", () => {
   it("is a single self-contained file", () => {
     const html = toHtml(sample(), { title: "ideas", exportedOn: "2026-08-26" });

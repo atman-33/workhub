@@ -23,6 +23,8 @@ import {
   chipWidth,
   DEFAULT_LAYOUT,
   DIMMED_OPACITY,
+  ID_BASELINE,
+  ID_FONT_SIZE,
   layoutMindmap,
   STICKY_FONT_SIZE,
   STICKY_PAD,
@@ -64,6 +66,7 @@ const INK = "#1f2937";
 const PAPER = "#ffffff";
 const MUTED = "#9ca3af";
 const ROOT_FILL = "#111827";
+const ROOT_ID_INK = "#d1d5db";
 
 function nodeStroke(node: PositionedNode): string {
   const color = node.color ?? node.branchColor;
@@ -81,7 +84,16 @@ function renderNode(node: PositionedNode, fontSize: number): string {
   // band, then drop to the baseline of the first one.
   const titleHeight = node.height - node.chipsHeight;
   const firstBaseline =
-    node.y + titleHeight / 2 - ((node.lines.length - 1) * lineHeight) / 2 + fontSize * 0.36;
+    node.y +
+    node.idHeight +
+    (titleHeight - node.idHeight) / 2 -
+    ((node.lines.length - 1) * lineHeight) / 2 +
+    fontSize * 0.36;
+
+  const id = node.idHeight
+    ? `<text x="${node.x + node.width / 2}" y="${node.y + ID_BASELINE}" text-anchor="middle" ` +
+      `font-size="${ID_FONT_SIZE}" fill="${isRoot ? ROOT_ID_INK : MUTED}">${esc(node.id)}</text>`
+    : "";
 
   const lines = node.lines
     .map(
@@ -104,7 +116,7 @@ function renderNode(node: PositionedNode, fontSize: number): string {
     `<g${node.dimmed ? ` opacity="${DIMMED_OPACITY}"` : ""}>` +
     `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" ` +
     `rx="${radius}" ry="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${isRoot ? 0 : 1.5}" />` +
-    `${lines}${renderChips(node, titleHeight)}${collapsed}</g>`
+    `${id}${lines}${renderChips(node, titleHeight)}${collapsed}</g>`
   );
 }
 
@@ -183,6 +195,8 @@ export interface SvgOptions {
   /** The note's attribute view, for the same reason: an export made while the
    * map was filtered has to come out filtered. */
   attrView?: AttrView;
+  /** Draw each node's id, as the note's `node_ids: show` does on screen. */
+  showIds?: boolean;
   /** Stickies to draw. The caller passes none when the note hides them, which
    * is what makes the export match what was on screen. */
   stickies?: Sticky[];
@@ -200,6 +214,7 @@ export function toSvg(roots: MindmapNode[], options: SvgOptions = {}): string {
     fontSize,
     nodeWidth: options.nodeWidth ?? DEFAULT_LAYOUT.nodeWidth,
     attrView: options.attrView ?? DEFAULT_ATTR_VIEW,
+    showIds: options.showIds ?? false,
     stickies: options.stickies ?? [],
   });
   const titleHeight = options.title ? fontSize * 2.5 : 0;
@@ -242,12 +257,14 @@ export function toHtml(
     mermaid?: string;
     nodeWidth?: NodeWidth;
     attrView?: AttrView;
+    showIds?: boolean;
     stickies?: Sticky[];
   },
 ): string {
   const svg = toSvg(roots, {
     ...(options.nodeWidth ? { nodeWidth: options.nodeWidth } : {}),
     ...(options.attrView ? { attrView: options.attrView } : {}),
+    ...(options.showIds ? { showIds: true } : {}),
     ...(options.stickies ? { stickies: options.stickies } : {}),
   });
   const mermaid = options.mermaid
