@@ -175,6 +175,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "task.list.markBlocked": "ブロック中にする…",
   "task.list.unblock": "ブロック解除",
   "task.list.unarchive": "アーカイブ解除",
+  "task.list.openBacklogItem": "バックログ項目を Obsidian で開く",
   "task.list.archive": "アーカイブ",
   "task.list.deleteEllipsis": "削除…",
 
@@ -256,6 +257,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "task.msg.copyFailed": "プロンプトのコピーに失敗しました — {error}",
   "task.msg.sendFailed": "Claude Desktop への送信に失敗しました — {error}",
   "task.msg.openObsidianFailed": "Obsidian で開けませんでした — {error}",
+  "task.msg.openBacklogFailed": "バックログ項目を開けませんでした — {error}",
   "task.msg.updateFailed": "更新に失敗しました — {error}",
   "task.msg.deleted": "{id} を削除しました（ゴミ箱に移動）",
   "task.msg.deleteFailed": "削除に失敗しました — {error}",
