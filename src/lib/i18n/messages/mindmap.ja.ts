@@ -22,6 +22,8 @@ export const mindmapJa: Partial<Record<MessageKey, string>> = {
   "mindmap.view.nodeCount": "{count} ノード",
   "mindmap.view.showStickiesHint": "{count} 件の付箋を表示",
   "mindmap.view.hideStickiesHint": "{count} 件の付箋を隠す",
+  "mindmap.view.showIdsHint": "ノード ID を表示",
+  "mindmap.view.hideIdsHint": "ノード ID を隠す",
   "mindmap.view.copyMermaidHint": "mermaid コードブロックとしてコピー",
   "mindmap.view.exportHtmlHint": "単一ファイルの HTML を出力",
   "mindmap.view.exportPngHint": "PNG 画像を出力",
@@ -46,6 +48,7 @@ export const mindmapJa: Partial<Record<MessageKey, string>> = {
   "mindmap.nodeWidth.siblings": "兄弟で揃える",
   "mindmap.nodeWidth.depth": "階層で揃える",
 
+  "mindmap.nodeEditor.copyIdHint": "ノード ID をコピー",
   "mindmap.nodeEditor.childCountOne": "子ノード {count} 件",
   "mindmap.nodeEditor.childCountOther": "子ノード {count} 件",
   "mindmap.nodeEditor.titlePlaceholder": "タイトル",

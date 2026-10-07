@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   FolderPlus,
+  Hash,
   Image,
   Maximize2,
   Pencil,
@@ -697,6 +698,13 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     mutate({ ...doc, stickiesHidden: !doc.stickiesHidden });
   }, [doc, mutate]);
 
+  /** Shows or hides every node's id on the map. Like the stickies toggle it is
+   * a frontmatter display setting: it never touches a node. */
+  const toggleNodeIds = useCallback(() => {
+    if (!doc) return;
+    mutate({ ...doc, nodeIdsShown: !doc.nodeIdsShown });
+  }, [doc, mutate]);
+
   const undo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (!prev || !doc) return;
@@ -1159,6 +1167,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
           mermaid: toMermaidBlock(doc.roots),
           nodeWidth: doc.nodeWidth,
           attrView,
+          showIds: doc.nodeIdsShown,
           stickies: visibleStickies,
         }),
         { vaultPath, project: targetProject },
@@ -1184,6 +1193,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       title: doc.title,
       nodeWidth: doc.nodeWidth,
       attrView,
+      showIds: doc.nodeIdsShown,
       stickies: visibleStickies,
     });
     const width = Number(/width="(\d+)"/.exec(svg)?.[1] ?? 800);
@@ -1480,6 +1490,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <Maximize2 className="size-3.5" />
             </Button>
           </Hint>
+          <Hint
+            label={doc?.nodeIdsShown ? t("mindmap.view.hideIdsHint") : t("mindmap.view.showIdsHint")}
+            disabled={!doc || aiRunning}
+          >
+            <Button
+              size="sm"
+              variant={doc?.nodeIdsShown ? "secondary" : "outline"}
+              className="h-7 text-xs"
+              disabled={!doc || aiRunning}
+              onClick={toggleNodeIds}
+            >
+              <Hash className="size-3.5" />
+            </Button>
+          </Hint>
           {stickyCount > 0 && (
             <Hint
               label={
@@ -1576,6 +1600,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
                 roots={doc.roots}
                 nodeWidth={doc.nodeWidth}
                 attrView={attrView}
+                showIds={doc.nodeIdsShown}
                 stickies={visibleStickies}
                 selectedId={selectedId}
                 selectedStickyId={selectedStickyId}

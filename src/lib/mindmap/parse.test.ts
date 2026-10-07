@@ -421,6 +421,23 @@ describe("stickies", () => {
     expect(shown).not.toContain("stickies: hidden");
   });
 
+  it("carries the node-id display flag through the frontmatter", () => {
+    const content = note("- N-001 root\n  - N-002 child");
+    const doc = parseMindmap(content);
+    expect(doc.nodeIdsShown).toBe(false);
+    // The default is the absence of the key.
+    expect(serializeMindmap(content, doc, "2026-10-07")).not.toContain("node_ids");
+
+    const shown = serializeMindmap(content, { ...doc, nodeIdsShown: true }, "2026-10-07");
+    expect(shown).toContain("node_ids: show");
+    expect(parseMindmap(shown).nodeIdsShown).toBe(true);
+    // Displaying ids never rewrites a node line.
+    expect(shown).toContain("- N-001 root\n  - N-002 child");
+
+    const hidden = serializeMindmap(shown, parseMindmap(content), "2026-10-07");
+    expect(hidden).not.toContain("node_ids");
+  });
+
   it("numbers the next sticky above the highest used", () => {
     expect(nextStickyId([])).toBe("S-001");
     expect(nextStickyId([{ id: "S-007", nodeId: "N-001", dx: 0, dy: 0, text: "" }])).toBe("S-008");

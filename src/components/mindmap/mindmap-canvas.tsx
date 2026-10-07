@@ -20,6 +20,8 @@ import {
   chipWidth,
   DEFAULT_LAYOUT,
   DIMMED_OPACITY,
+  ID_BASELINE,
+  ID_FONT_SIZE,
   layoutMindmap,
   NODE_PAD_X,
   STICKY_FONT_SIZE,
@@ -69,6 +71,8 @@ interface Props {
   /** The note's attribute view — chips, colouring, filter — applied by the
    * layout, so what is on screen is what an export will contain. */
   attrView: AttrView;
+  /** Draw each node's id above its title (the note's `node_ids: show`). */
+  showIds: boolean;
   /** Sticky notes to draw. Empty while the note hides them. */
   stickies: Sticky[];
   selectedId: string | null;
@@ -162,6 +166,7 @@ export function MindmapCanvas({
   roots,
   nodeWidth,
   attrView,
+  showIds,
   stickies,
   selectedId,
   selectedStickyId,
@@ -189,7 +194,7 @@ export function MindmapCanvas({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [layout, setLayout] = useState<MindmapLayout>(() =>
-    layoutMindmap(roots, { nodeWidth, attrView, stickies }),
+    layoutMindmap(roots, { nodeWidth, attrView, showIds, stickies }),
   );
   const [drag, setDrag] = useState<DragState | null>(null);
   const [stickyDrag, setStickyDrag] = useState<StickyDragState | null>(null);
@@ -219,7 +224,7 @@ export function MindmapCanvas({
   const anchorId = useRef<string | null>(null);
 
   useEffect(() => {
-    const next = layoutMindmap(roots, { nodeWidth, attrView, stickies });
+    const next = layoutMindmap(roots, { nodeWidth, attrView, showIds, stickies });
     const anchor = anchorId.current;
     anchorId.current = null;
     if (anchor) {
@@ -235,7 +240,7 @@ export function MindmapCanvas({
     }
     layoutRef.current = next;
     setLayout(next);
-  }, [roots, nodeWidth, attrView, stickies]);
+  }, [roots, nodeWidth, attrView, showIds, stickies]);
 
   /**
    * What is currently typed in the rename box.
@@ -711,7 +716,11 @@ function NodeBox({
   // box, so adding an attribute does not push the title off-centre.
   const titleHeight = node.height - node.chipsHeight;
   const firstBaseline =
-    node.y + titleHeight / 2 - ((node.lines.length - 1) * lineHeight) / 2 + 14 * 0.36;
+    node.y +
+    node.idHeight +
+    (titleHeight - node.idHeight) / 2 -
+    ((node.lines.length - 1) * lineHeight) / 2 +
+    14 * 0.36;
   const badgeX = node.side === "right" ? node.x + node.width + 8 : node.x - 8;
   // Chips are hidden while the title is being typed: the inline editor covers
   // the box, and a chip poking out from under it reads as a rendering bug.
@@ -781,6 +790,18 @@ function NodeBox({
             {line}
           </text>
         ))
+      )}
+
+      {node.idHeight > 0 && !editing && (
+        <text
+          x={x + width / 2}
+          y={node.y + ID_BASELINE}
+          textAnchor="middle"
+          fontSize={ID_FONT_SIZE}
+          className={cn("select-none font-mono", isRoot ? "fill-background/70" : "fill-muted-foreground")}
+        >
+          {node.id}
+        </text>
       )}
 
       {chipRows.map((row, rowIndex) => {

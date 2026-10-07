@@ -238,6 +238,12 @@ export interface MindmapDocModel {
    * the answer belongs to the map, not to the machine it is opened on.
    */
   stickiesHidden: boolean;
+  /**
+   * `node_ids: show` from the frontmatter — draw each node's id above its
+   * title. A display setting kept in the note for the same reason as
+   * `node_width`; the default (ids hidden) is the absence of the key.
+   */
+  nodeIdsShown: boolean;
   /** How the map's attributes are being looked at right now. */
   attrView: AttrView;
 }
@@ -811,6 +817,7 @@ export function parseMindmap(content: string, fallbackTitle = ""): MindmapDocMod
     stickies: [],
     rawStickies: [],
     stickiesHidden: frontmatterValue(s.frontmatter, "stickies") === "hidden",
+    nodeIdsShown: frontmatterValue(s.frontmatter, "node_ids") === "show",
     attrView: {
       chips: parseAttrChips(frontmatterValue(s.frontmatter, "attr_chips")),
       color: frontmatterValue(s.frontmatter, "attr_color").trim(),
@@ -981,6 +988,9 @@ export function serializeMindmap(content: string, doc: MindmapDocModel, today: s
   frontmatter = doc.stickiesHidden
     ? setFrontmatterValue(frontmatter, "stickies", "hidden")
     : removeFrontmatterKey(frontmatter, "stickies");
+  frontmatter = doc.nodeIdsShown
+    ? setFrontmatterValue(frontmatter, "node_ids", "show")
+    : removeFrontmatterKey(frontmatter, "node_ids");
   // The three attribute view settings follow the same rule as `node_width`:
   // the default is written as the absence of the key, so a note only carries
   // one once it has been changed away from it.
