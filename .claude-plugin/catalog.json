@@ -65,7 +65,7 @@
       "name": "thinking",
       "tier": "optional",
       "scope": "user",
-      "summary": "Skills that ask instead of answer: teach-back quizzes you on a document until you can explain it; ladder structures a concept or a problem one agreed level at a time."
+      "summary": "Skills that ask instead of answer: teach-back quizzes you on a document until you can explain it; ladder structures a concept or a problem one agreed level at a time; tree-review checks an existing logic tree and groups its leaf causes into a few major issues."
     },
     {
       "name": "strategy",
