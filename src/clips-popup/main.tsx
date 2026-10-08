@@ -3,6 +3,9 @@ import ReactDOM from "react-dom/client";
 import { ClipsApp } from "./clips-app";
 import { initWindowLocale } from "@/lib/i18n";
 import "../index.css";
+import { initTheme } from "@/lib/theme";
+
+initTheme();
 
 initWindowLocale("clips.popup.windowTitle");
 

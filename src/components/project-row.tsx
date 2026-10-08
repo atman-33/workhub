@@ -69,17 +69,17 @@ interface Props {
 function chipTone(tone: "green" | "orange" | "amber" | "blue" | "purple" | "red" | "gray") {
   switch (tone) {
     case "green":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
     case "orange":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-400";
+      return "border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400";
     case "amber":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-400";
+      return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
     case "blue":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-400";
+      return "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400";
     case "purple":
-      return "border-violet-500/30 bg-violet-500/10 text-violet-300";
+      return "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300";
     case "red":
-      return "border-red-500/30 bg-red-500/10 text-red-400";
+      return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
     case "gray":
       return "border-border bg-muted/60 text-muted-foreground";
   }
@@ -172,7 +172,7 @@ export const ProjectRow = memo(function ProjectRow({
             onAction({ kind: "favorite" });
           }}
         >
-          <Star className={cn("size-4", project.favorite && "fill-amber-400 text-amber-400")} />
+          <Star className={cn("size-4", project.favorite && "fill-amber-400 text-amber-600 dark:text-amber-400")} />
         </button>
       </Hint>
 
@@ -188,7 +188,7 @@ export const ProjectRow = memo(function ProjectRow({
       ))}
       {project.notes.trim() && (
         <NotebookPen
-          className="size-3.5 shrink-0 text-amber-400/80"
+          className="size-3.5 shrink-0 text-amber-600/80 dark:text-amber-400/80"
           aria-label={t("projects.row.hasNotesAria")}
         />
       )}

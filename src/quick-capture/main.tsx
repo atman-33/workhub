@@ -3,6 +3,9 @@ import ReactDOM from "react-dom/client";
 import { CaptureApp } from "./capture-app";
 import { initWindowLocale } from "@/lib/i18n";
 import "../index.css";
+import { initTheme } from "@/lib/theme";
+
+initTheme();
 
 initWindowLocale("quickCapture.windowTitle");
 

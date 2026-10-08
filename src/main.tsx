@@ -4,6 +4,9 @@ import App from "./app";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { api } from "@/lib/api";
 import "./index.css";
+import { initTheme } from "@/lib/theme";
+
+initTheme();
 
 /**
  * Everything the webview throws goes to the diagnostic log (T-0254).

@@ -27,6 +27,13 @@ import { InputListenerPanel } from "@/components/input-listener-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
 import { LOCALES, useT, type MessageKey } from "@/lib/i18n";
+import {
+  isThemePreference,
+  readThemePreference,
+  setThemePreference,
+  THEME_PREFERENCES,
+  type ThemePreference,
+} from "@/lib/theme";
 import type { Settings, UpdateInfo } from "@/types";
 
 const TIDY_DEFAULTS: Settings["tidy"] = {
@@ -146,6 +153,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [theme, setTheme] = useState<ThemePreference>(readThemePreference);
 
   useEffect(() => {
     if (open) {
@@ -260,6 +268,31 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
               does not sit flush against the edge at the end of the scroll. */}
           <div className="-mx-6 h-[min(65vh,520px)] overflow-y-auto px-6 pb-4">
             <TabsContent value="general" className="mt-0 space-y-3">
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">{t("settings.general.theme.title")}</p>
+                <Select
+                  value={theme}
+                  onValueChange={(v) => {
+                    if (!isThemePreference(v)) return;
+                    setTheme(v);
+                    setThemePreference(v);
+                  }}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {THEME_PREFERENCES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {t(`settings.general.theme.${p}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.general.theme.description")}
+                </p>
+              </div>
               {/* Every group on this tab is a titled bordered section, so no
                   checkbox sits loose next to a framed one. */}
               <div className="space-y-2 rounded-md border p-3">

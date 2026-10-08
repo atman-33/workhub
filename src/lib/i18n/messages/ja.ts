@@ -342,6 +342,12 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "settings.tab.general": "一般",
   "settings.tab.agents": "エージェント",
 
+  "settings.general.theme.title": "テーマ",
+  "settings.general.theme.light": "ライト",
+  "settings.general.theme.dark": "ダーク",
+  "settings.general.theme.system": "システムに合わせる",
+  "settings.general.theme.description":
+    "アプリの配色です。このマシンですべてのウィンドウに即時反映されます。vault には保存されません。",
   "settings.general.language.title": "表示言語",
   "settings.general.language.description":
     "アプリの画面が表示される言語です。スケジュールカレンダーとその HTML エクスポートを含みます。未翻訳の画面は英語のままです。表示のみに影響し、ノートに書き込まれる内容は翻訳されません。",

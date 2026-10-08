@@ -21,11 +21,11 @@ const priorityStyle: Record<TaskPriority, { badge: string; dot: string }> = {
     dot: "bg-muted-foreground/60",
   },
   medium: {
-    badge: "border-amber-500/30 bg-amber-500/15 text-amber-400",
+    badge: "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400",
     dot: "bg-amber-400",
   },
   high: {
-    badge: "border-red-500/30 bg-red-500/15 text-red-400",
+    badge: "border-red-500/30 bg-red-500/15 text-red-600 dark:text-red-400",
     dot: "bg-red-400",
   },
 };

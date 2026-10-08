@@ -4,6 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ViewerApp } from "./viewer-app";
 import { initWindowLocale } from "@/lib/i18n";
 import "../index.css";
+import { initTheme } from "@/lib/theme";
+
+initTheme();
 
 initWindowLocale();
 

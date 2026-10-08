@@ -228,7 +228,7 @@ function WorktreeRow({
       <span className="max-w-40 truncate text-[13px] font-medium">{wt.repo_name}</span>
       <Badge
         variant="outline"
-        className="h-5 gap-1 border-violet-500/30 bg-violet-500/10 px-1.5 text-[11px] text-violet-300"
+        className="h-5 gap-1 border-violet-500/30 bg-violet-500/10 px-1.5 text-[11px] text-violet-700 dark:text-violet-300"
       >
         <GitBranch className="size-3" />
         <span className="max-w-40 truncate">
@@ -239,7 +239,7 @@ function WorktreeRow({
         <Hint label={t("projects.worktrees.uncommittedChanges")}>
           <Badge
             variant="outline"
-            className="h-5 border-amber-500/30 bg-amber-500/10 px-1.5 text-[11px] text-amber-400"
+            className="h-5 border-amber-500/30 bg-amber-500/10 px-1.5 text-[11px] text-amber-600 dark:text-amber-400"
           >
             {t("projects.worktrees.dirty")}
           </Badge>
@@ -343,7 +343,7 @@ function RemoveDialog({
         {target && (
           <div className="space-y-3 text-sm">
             {wt?.dirty && (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 {t("projects.worktrees.dirtyWarning")}
               </p>
             )}
@@ -369,7 +369,7 @@ function RemoveDialog({
               )}
             </label>
             {target.deleteBranch && (
-              <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
                 {t("projects.worktrees.deleteBranchWarning")}
               </p>
             )}

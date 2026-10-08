@@ -95,7 +95,7 @@ export function ChangeFileList({
               ) : (
                 <ChevronDown className="size-3.5 shrink-0" />
               )}
-              <Folder className="size-3.5 shrink-0 text-sky-400/70" />
+              <Folder className="size-3.5 shrink-0 text-sky-600/70 dark:text-sky-400/70" />
               <Hint label={node.path}>
                 <span className="min-w-0 truncate text-[11px]">{node.name}</span>
               </Hint>
@@ -152,7 +152,7 @@ export function ChangeFileList({
       {/* body */}
       <div className="min-h-0 flex-1 overflow-auto py-1">
         {error ? (
-          <p className="px-3 py-2 text-[11px] text-red-400">{error}</p>
+          <p className="px-3 py-2 text-[11px] text-red-600 dark:text-red-400">{error}</p>
         ) : files === null && loading ? (
           <div className="flex justify-center py-4">
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -211,10 +211,10 @@ function FileRow({
         <span className="min-w-0 flex-1 truncate text-[11px]">{label}</span>
       </Hint>
       {change.additions !== null && (
-        <span className="shrink-0 text-[10px] text-emerald-400">+{change.additions}</span>
+        <span className="shrink-0 text-[10px] text-emerald-600 dark:text-emerald-400">+{change.additions}</span>
       )}
       {change.deletions !== null && (
-        <span className="shrink-0 text-[10px] text-red-400">−{change.deletions}</span>
+        <span className="shrink-0 text-[10px] text-red-600 dark:text-red-400">−{change.deletions}</span>
       )}
     </button>
   );

@@ -22,19 +22,19 @@ import { cn } from "@/lib/utils";
 
 /** Obsidian's colour families, on the app's dark background. */
 const KIND_STYLE: Record<CalloutKind, { icon: LucideIcon; box: string; title: string }> = {
-  note: { icon: Pencil, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-400" },
-  abstract: { icon: ClipboardList, box: "border-cyan-500/50 bg-cyan-500/10", title: "text-cyan-400" },
-  info: { icon: Info, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-400" },
-  todo: { icon: CircleCheck, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-400" },
-  tip: { icon: Flame, box: "border-teal-500/50 bg-teal-500/10", title: "text-teal-400" },
-  success: { icon: Check, box: "border-green-500/50 bg-green-500/10", title: "text-green-400" },
-  question: { icon: CircleHelp, box: "border-amber-500/50 bg-amber-500/10", title: "text-amber-400" },
-  warning: { icon: TriangleAlert, box: "border-orange-500/50 bg-orange-500/10", title: "text-orange-400" },
-  failure: { icon: X, box: "border-red-500/50 bg-red-500/10", title: "text-red-400" },
-  danger: { icon: Zap, box: "border-red-500/50 bg-red-500/10", title: "text-red-400" },
-  bug: { icon: Bug, box: "border-red-500/50 bg-red-500/10", title: "text-red-400" },
-  example: { icon: List, box: "border-purple-500/50 bg-purple-500/10", title: "text-purple-400" },
-  quote: { icon: Quote, box: "border-zinc-500/50 bg-zinc-500/10", title: "text-zinc-400" },
+  note: { icon: Pencil, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-600 dark:text-blue-400" },
+  abstract: { icon: ClipboardList, box: "border-cyan-500/50 bg-cyan-500/10", title: "text-cyan-600 dark:text-cyan-400" },
+  info: { icon: Info, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-600 dark:text-blue-400" },
+  todo: { icon: CircleCheck, box: "border-blue-500/50 bg-blue-500/10", title: "text-blue-600 dark:text-blue-400" },
+  tip: { icon: Flame, box: "border-teal-500/50 bg-teal-500/10", title: "text-teal-600 dark:text-teal-400" },
+  success: { icon: Check, box: "border-green-500/50 bg-green-500/10", title: "text-green-600 dark:text-green-400" },
+  question: { icon: CircleHelp, box: "border-amber-500/50 bg-amber-500/10", title: "text-amber-600 dark:text-amber-400" },
+  warning: { icon: TriangleAlert, box: "border-orange-500/50 bg-orange-500/10", title: "text-orange-600 dark:text-orange-400" },
+  failure: { icon: X, box: "border-red-500/50 bg-red-500/10", title: "text-red-600 dark:text-red-400" },
+  danger: { icon: Zap, box: "border-red-500/50 bg-red-500/10", title: "text-red-600 dark:text-red-400" },
+  bug: { icon: Bug, box: "border-red-500/50 bg-red-500/10", title: "text-red-600 dark:text-red-400" },
+  example: { icon: List, box: "border-purple-500/50 bg-purple-500/10", title: "text-purple-600 dark:text-purple-400" },
+  quote: { icon: Quote, box: "border-zinc-500/50 bg-zinc-500/10", title: "text-zinc-600 dark:text-zinc-400" },
 };
 
 /** The untitled NotePM/Zenn boxes read better with the "stop" glyph for danger. */
