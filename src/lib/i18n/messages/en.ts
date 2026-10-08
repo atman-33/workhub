@@ -353,6 +353,12 @@ export const en = {
   "settings.tab.general": "General",
   "settings.tab.agents": "Agents",
 
+  "settings.general.theme.title": "Theme",
+  "settings.general.theme.light": "Light",
+  "settings.general.theme.dark": "Dark",
+  "settings.general.theme.system": "Follow system",
+  "settings.general.theme.description":
+    "Color theme of the app. Applies right away on this machine, in every window; it is not part of the vault.",
   "settings.general.language.title": "Display language",
   "settings.general.language.description":
     "Language the app's screens are shown in, including the schedule calendar and its HTML export. Screens not yet translated stay in English. Display only — nothing written to your notes is translated.",

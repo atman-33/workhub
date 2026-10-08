@@ -616,7 +616,7 @@ export function ReposView({ configVersion, active, focus }: Props) {
             className="h-8 gap-1.5 text-xs"
             onClick={() => setFavOnly(!favOnly)}
           >
-            <Star className={cn("size-3.5", favOnly && "fill-amber-400 text-amber-400")} />
+            <Star className={cn("size-3.5", favOnly && "fill-amber-400 text-amber-600 dark:text-amber-400")} />
             {t("repos.favorites")}
           </Button>
 

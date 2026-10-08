@@ -80,11 +80,11 @@ export function refTone(kind: CommitRef["kind"], isCurrent = false) {
     case "branch":
       return isCurrent
         ? "border-violet-400 bg-violet-500 text-white ring-1 ring-violet-300/40"
-        : "border-violet-500/30 bg-violet-500/10 text-violet-300";
+        : "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300";
     case "remote":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-400";
+      return "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400";
     case "tag":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-400";
+      return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
     case "head":
       // Only ever rendered for a detached HEAD.
       return isCurrent

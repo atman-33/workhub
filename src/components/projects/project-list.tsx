@@ -150,7 +150,7 @@ export function ProjectList({
                   <Star
                     className={cn(
                       "size-3.5",
-                      p.pinned && "fill-amber-400 text-amber-400",
+                      p.pinned && "fill-amber-400 text-amber-600 dark:text-amber-400",
                     )}
                   />
                 </button>
@@ -225,7 +225,7 @@ export function ProjectList({
       {(pinned.length > 0 || (reorderable && dragged !== null)) && (
         <>
           <p className="flex items-center gap-1.5 border-b bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-            <Star className="size-3 fill-amber-400 text-amber-400" />
+            <Star className="size-3 fill-amber-400 text-amber-600 dark:text-amber-400" />
             {t("projects.list.pinned")}
           </p>
           {pinned.map((p, i) => renderRow(p, "pinned", i))}

@@ -1356,16 +1356,25 @@ mod tests {
     fn a_backlog_item_resolves_to_its_entry_note_or_its_folder() {
         let vault = temp_vault("backlog-locate");
         let backlog = vault.join("projects").join("demo").join("backlog");
-        write(vault.join("projects").join("demo").join("README.md"), "---
+        write(
+            vault.join("projects").join("demo").join("README.md"),
+            "---
 title: Demo
 ---
-");
-        write(backlog.join("B-001-a").join("B-001-a.md"), "---
+",
+        );
+        write(
+            backlog.join("B-001-a").join("B-001-a.md"),
+            "---
 id: B-001
 ---
-");
-        write(backlog.join("B-002-headless").join("010-x.md"), "note
-");
+",
+        );
+        write(
+            backlog.join("B-002-headless").join("010-x.md"),
+            "note
+",
+        );
 
         let a = find_backlog_item(&vault, "demo", "B-001").unwrap().unwrap();
         assert_eq!(a.note.unwrap(), backlog.join("B-001-a").join("B-001-a.md"));
@@ -1374,8 +1383,12 @@ id: B-001
         assert_eq!(b.folder, backlog.join("B-002-headless"));
         assert!(b.note.is_none());
 
-        assert!(find_backlog_item(&vault, "demo", "B-099").unwrap().is_none());
-        assert!(find_backlog_item(&vault, "nope", "B-001").unwrap().is_none());
+        assert!(find_backlog_item(&vault, "demo", "B-099")
+            .unwrap()
+            .is_none());
+        assert!(find_backlog_item(&vault, "nope", "B-001")
+            .unwrap()
+            .is_none());
 
         fs::remove_dir_all(&vault).ok();
     }

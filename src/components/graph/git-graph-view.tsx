@@ -573,7 +573,7 @@ export function GitGraphView({
           further would not be the fix at that point... but the timer alone
           can't tell that, so both actions stay offered regardless. */}
       {slowLoad && loading && (
-        <div className="flex items-center gap-3 border-b bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200">
+        <div className="flex items-center gap-3 border-b bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
           <Loader2 className="size-3.5 shrink-0 animate-spin" />
           <span className="flex-1">{t("graph.slowLoad.message")}</span>
           <Button

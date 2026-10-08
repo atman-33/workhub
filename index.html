@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" class="dark">
   <head>
+    <script src="/theme-boot.js"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workhub</title>
@@ -30,6 +31,13 @@
         background: #16181f;
         background: oklch(0.165 0.012 265);
         color-scheme: dark;
+      }
+      /* Light theme: keep in sync with the `:root` --background token. */
+      html:not(.dark),
+      html:not(.dark) body {
+        background: #fafafa;
+        background: oklch(0.985 0 0);
+        color-scheme: light;
       }
       #boot {
         position: fixed;
