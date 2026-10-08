@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHIP_BOTTOM_GAP,
+  CHIP_HEIGHT,
+  CHIP_TOP_GAP,
   DEFAULT_LAYOUT,
   layoutMindmap,
   STICKY_WIDTH,
@@ -360,6 +363,13 @@ describe("attribute chips in the layout", () => {
     expect(tagged?.chipRows).toHaveLength(1);
     expect(tagged?.chipsHeight).toBeGreaterThan(0);
     expect(tagged?.height).toBe((bare?.height ?? 0) + (tagged?.chipsHeight ?? 0));
+  });
+
+  it("keeps the last chip row clear of the box's bottom edge", () => {
+    const node = withChips(["- N-001 root", "  - N-002 child prio:high"]).byId.get("N-002");
+    const titleHeight = (node?.height ?? 0) - (node?.chipsHeight ?? 0);
+    const lastRowBottom = titleHeight + CHIP_TOP_GAP + CHIP_HEIGHT;
+    expect((node?.height ?? 0) - lastRowBottom).toBeGreaterThanOrEqual(CHIP_BOTTOM_GAP);
   });
 
   it("wraps a long chip list into rows instead of widening without limit", () => {
