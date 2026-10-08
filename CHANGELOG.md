@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.162.1 (2026-10-09)
+
+- **A mindmap node's attribute chips no longer sit on its bottom border** (T-0666). The chip band ended exactly at the bottom edge of the box, so the last row of chips touched the border line. The band now leaves a 4px gap below it, taken from the gap above it, so the node is exactly as tall as before and the map does not grow; the space between the title and the chips shrinks a little in return.
+
 ## 0.162.0 (2026-10-08)
 
 - **The app can be switched between light, dark and system color themes** (T-0661). Every window used to be hard-wired to dark, even though the stylesheet already carried a light palette. Settings → General now has a Theme choice: Light, Dark, or Follow system, which flips live when the OS does. The choice is kept per machine (it is not part of the vault), applies at once in every open window, and is painted before the first frame, so starting in Light no longer flashes dark; the native title bar follows too. Dark stays the default, so nothing changes until you pick another. The text colors that only read well on a dark background got darker light-mode partners. The embedded terminal stays dark, and the voice indicator and the ink overlay always stay dark because they float over other apps. Walking each tab in Light for colors that are still dark-only is left for real use.
