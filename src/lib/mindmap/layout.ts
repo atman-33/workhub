@@ -85,8 +85,18 @@ export const CHIP_PAD_X = 5;
 export const CHIP_HEIGHT = 15;
 /** Gap between two chips on a row, and between two rows. */
 export const CHIP_GAP = 4;
-/** Gap between the title block and the first chip row. */
-export const CHIP_TOP_GAP = 5;
+/**
+ * Gap between the title block and the first chip row. Small on purpose: the
+ * title block already ends in its own bottom padding, so the visible gap is
+ * that padding plus this.
+ */
+export const CHIP_TOP_GAP = 1;
+/**
+ * Gap between the last chip row and the box's bottom edge. Without it the pill
+ * sits on the border line. It takes over what `CHIP_TOP_GAP` gave up, so a
+ * chip band is no taller than before.
+ */
+export const CHIP_BOTTOM_GAP = 4;
 
 /**
  * Opacity a node that the filter passes over is drawn at.
@@ -354,7 +364,9 @@ function chipRowsWidth(rows: AttrChip[][]): number {
 /** Vertical band the chip rows occupy at the bottom of a box, 0 when none. */
 function chipsHeightOf(rows: AttrChip[][]): number {
   if (!rows.length) return 0;
-  return CHIP_TOP_GAP + rows.length * CHIP_HEIGHT + (rows.length - 1) * CHIP_GAP;
+  return (
+    CHIP_TOP_GAP + rows.length * CHIP_HEIGHT + (rows.length - 1) * CHIP_GAP + CHIP_BOTTOM_GAP
+  );
 }
 
 interface Boxed {
