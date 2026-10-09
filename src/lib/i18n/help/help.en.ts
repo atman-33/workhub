@@ -199,15 +199,25 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 - **Repositories** links the project to the repositories registered on the Repos tab. The list is stored as \`repos:\` in the project's \`_index.md\` (created from the scaffold if the project predates it) rather than guessed from the name, because the two do not share a naming scheme. A project may legitimately span several — an app and its vault, say — and the first entry is the one an agent defaults to.
 - **Shared spaces** records the team knowledge bases that live outside the vault — a network drive, a Google Drive or SharePoint folder. Each is a note in the project's \`shared/\` folder saying where the place is and how the team organises it, and each carries a **direction**: \`read-only\` (the default — never write anything there) or \`export-ok\`. The app only reads these notes: **Copy prompt** gives you a prompt to paste the location into and hand to an AI agent, which surveys the place and writes the note. A **stale** mark means the rules have not been checked against reality in three months.
 - **Name and description** are edited in the detail pane and stored as \`title:\` and \`description:\` in the project's README.md. The folder slug does not change, so task \`project:\` values stay valid. An empty description falls back to the first prose paragraph of the README.
-- **New project** scaffolds \`projects/NNNN-<slug>/\` from the bundled template — the same folder the Schedule and Mindmap tabs pick from. The \`NNNN-\` sort number is assigned automatically (the next multiple of ten); the slug is everything after it, and is what a task's \`project:\` names — the number is only a folder-name detail for sorting in Obsidian.
+- **New project** scaffolds \`projects/NNNN-<slug>/\` from the bundled template — the same folder the Diagrams tab picks from. The \`NNNN-\` sort number is assigned automatically (the next multiple of ten); the slug is everything after it, and is what a task's \`project:\` names — the number is only a folder-name detail for sorting in Obsidian.
 - **The Order/Name button** switches how the list is sorted: **Order** is the pinned-then-dragged position kept in \`_index.md\`, **Name** sorts by the folder itself, so numbered projects line up by their \`NNNN-\` prefix. Dragging to reorder only works in Order mode. The choice is remembered on this machine.
 - **Archive** moves the folder to \`archive/projects/NNNN-<slug>/\` (keeping its number) and **Restore** brings it back. There is no delete: a project folder holds months of hand-written prose, so archiving is the only removal, and it is reversible. An archived project also disappears from the Schedule and Mindmap project pickers — its folder has left \`projects/\` — and a note left open from it is closed rather than kept pointing into the archive.
-- The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Schedule**, **Mindmap** and **Repos** tabs already scoped to it.`,
+- The buttons across the top of the detail pane open the project's README in Obsidian and jump to the **Tasks**, **Diagrams** and **Repos** tabs already scoped to it.`,
+  },
+  "diagrams": {
+    short: "Diagrams",
+    title: "Diagrams tab",
+    body: `The **Diagrams** tab holds every kind of diagram of a project in one place — the Schedule and Mindmap editors described below, and the diagram kinds added later.
+
+- Pick a **project** at the top, optionally narrow the list to one **kind**, and choose a diagram from the list on the left. Right-click a row to rename it or move it to the trash.
+- **New diagram** asks for the project, the kind, a name and a **place**: the whole project, or inside one of its **backlog items**. A note inside a backlog item is named \`NNN-<name>.md\` after the notes already there.
+- What a note is — and so which editor opens — comes from its frontmatter \`type\`, not from the folder it sits in. Notes in \`schedules/\`, \`mindmaps/\`, \`diagrams/\` and inside a backlog item are all listed; archived projects and files starting with \`_\` are not.
+- A new project no longer starts with \`schedules/\` or \`mindmaps/\`: the folder appears when its first diagram is made.`,
   },
   "schedule": {
     short: "Planning dates",
     title: "Planning dates (Schedule)",
-    body: `The **Schedule** tab is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
+    body: `The **Schedule** editor (in the **Diagrams** tab) is a workspace for *deciding* dates — the digital version of drawing a calendar on a whiteboard — not a record of a settled plan.
 
 - A schedule lives inside a **vault project** — a folder under \`projects/\` in the vault (not one of the repositories registered on the Repos tab). Create one from the project dropdown's **New project…** entry; while the vault has no projects at all, the middle of the tab offers a **Create your first project** button instead. The folder is scaffolded from the bundled template (README, prd, roadmap, …).
 - A schedule lives in the vault as \`projects/<project-slug>/schedules/<name>.md\`. Pick a project, then **+** to create one, or open an existing note from the second dropdown. The pencil beside it renames the open schedule — the title and the file name move together. Copy the file in Obsidian to compare alternatives.
@@ -237,7 +247,7 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
   "mindmap": {
     short: "Mapping ideas",
     title: "Mapping ideas (Mindmap)",
-    body: `The **Mindmap** tab is for thinking in branches — the shape you would draw on a whiteboard when an idea has parts, and the parts have parts.
+    body: `The **Mindmap** editor (in the **Diagrams** tab) is for thinking in branches — the shape you would draw on a whiteboard when an idea has parts, and the parts have parts.
 
 - A mindmap lives in the vault as \`projects/<project-slug>/mindmaps/<name>.md\`, beside that project's schedules. Pick a project, then **+** to create one, or open an existing map from the second dropdown. The pencil renames it — the title and the file name move together.
 - **The file is an ordinary nested bullet list.** Node positions are never stored: the map is laid out from the tree every time it is drawn. That is what keeps the note readable and editable in Obsidian, and it is why there is no "arrange" command — there is nothing to arrange.
@@ -245,7 +255,7 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 - **Drag a node onto another node** to move it — its whole subtree travels with it. A drop that would put a node inside itself is refused.
 - **The circle beside a node with children** collapses and expands it; the number shown is how many children are hidden. Collapsing is only a way of looking at the map — the subtree stays in the file, and exports still include it. The map is anchored on its root, and the node you collapse stays under the pointer, so folding a branch away does not slide everything else around.
 - **The width picker** decides how wide the boxes are: **Auto width** sizes each box to its own text, **Even siblings** gives the children of one parent a common width, and **Even by level** lines the whole map up in columns. The setting belongs to the note (\`node_width\` in its frontmatter), so two maps can differ and an export looks like what was on screen.
-- **Right-drag pans and the wheel zooms** toward the pointer, as on the Schedule tab. **Fit** frames the whole map again. A minimap appears in the corner once the map is larger than the window.
+- **Right-drag pans and the wheel zooms** toward the pointer, as in the Schedule editor. **Fit** frames the whole map again. A minimap appears in the corner once the map is larger than the window.
 - **Colour a branch head**, not every node: a node with no colour of its own is drawn in the nearest coloured ancestor's colour. Clicking the current colour again clears it. The side panel also links a node to a task and holds a longer note, shown on hover.
 - **Sticky notes** are the always-visible kind of note: pick a node and press **Add** under *Sticky notes* in the side panel. Drag a sticky to place it, double-click it to edit (**Ctrl** + **Enter** commits, **Escape** abandons), and **Delete** removes the selected one. Its position is stored as an offset from its node, so it follows the node through any re-layout and holds still as you pan or zoom. The toolbar's sticky button hides them all at once when the map gets busy — that setting lives in the note (\`stickies\` in its frontmatter) and applies to the exports too. Deleting a node deletes its stickies.
 - **Node ids** (\`N-001\` and so on) are how an AI is told which node is meant. The toolbar's **#** button draws each node's id above its title; the side panel shows the selected node's id with a copy button. The setting lives in the note (\`node_ids: show\` in its frontmatter), is drawn in the image/HTML exports and never changes a node. The mermaid copy leaves ids out, since mermaid cannot carry them.

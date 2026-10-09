@@ -58,9 +58,16 @@ const KNOWN_DIRS: &[&str] = &[
     "dev-notes",
     "schedules",
     "mindmaps",
+    "diagrams",
     "shared",
     "attachments",
 ];
+
+/// The subset of [`KNOWN_DIRS`] a project is expected to have. The diagram
+/// folders are recognised but optional (T-0680): a project gets `diagrams/`,
+/// `schedules/` or `mindmaps/` when its first diagram of that kind is made, so
+/// their absence is not a finding.
+const EXPECTED_DIRS: &[&str] = &["backlog", "dev-notes", "shared", "attachments"];
 
 /// Where units of work live. Counted differently from every other folder
 /// because an item is a folder of notes (T-0253, folder-first since T-0321).
@@ -573,7 +580,7 @@ fn inspect_folders(dir: &Path) -> (Vec<VaultProjectFolder>, Vec<VaultProjectIssu
             folders.push(VaultProjectFolder { name, count, known });
         }
     }
-    for known in KNOWN_DIRS {
+    for known in EXPECTED_DIRS {
         if !folders.iter().any(|f| f.name == *known) {
             issues.push(VaultProjectIssue {
                 kind: "missing-folder".into(),

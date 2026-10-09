@@ -7,7 +7,7 @@ files; it is the single source of truth for tasks and shared knowledge.
 This file is loaded in every session, so it holds only what applies to every
 session. Format details live in `.claude/rules/` and load when a matching path
 is touched: `tasks.md`, `projects.md`, `backlog.md`, `schedules.md`,
-`mindmaps.md`, `shared-space.md`.
+`mindmaps.md`, `diagrams.md`, `shared-space.md`.
 
 ## Structure
 

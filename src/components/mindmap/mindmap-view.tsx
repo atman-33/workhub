@@ -28,6 +28,7 @@ import { NodeEditor } from "@/components/mindmap/node-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { Input } from "@/components/ui/input";
 import {
   ResizableHandle,
@@ -169,6 +170,8 @@ interface Props {
   projectsVersion?: number;
   /** A project the Projects tab asked this view to open (T-0190). */
   focus?: TabFocus;
+  /** Set when the Diagrams tab hosts this view (T-0680). */
+  embedded?: EmbeddedDiagram;
 }
 
 /** Options for the Mindmap view's note reader. */
@@ -182,7 +185,7 @@ interface LoadDocOptions {
   onGone?: () => void;
 }
 
-export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props) {
+export function MindmapView({ configVersion, projectsVersion = 0, focus, embedded }: Props) {
   const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
@@ -191,12 +194,18 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   // Restored from the last session, so a restart lands back on the map that was
   // being worked on rather than on whatever the scan happens to list first.
-  const [project, setProject] = useState(() => readViewState(VIEW_ID).project);
+  const [ownProject, setOwnProject] = useState(() => readViewState(VIEW_ID).project);
+  // Hosted by the Diagrams tab (T-0680), the project and the open note are the
+  // host's to choose; the setters then do nothing or ask the host.
+  const project = embedded ? embedded.project : ownProject;
+  const setProject = embedded ? () => undefined : setOwnProject;
   const [files, setFiles] = useState<MindmapFile[]>([]);
   // An empty list before the first scan means "unknown", not "no notes" — the
   // auto-open below must not read it as a reason to drop the restored path.
   const [filesLoaded, setFilesLoaded] = useState(false);
-  const [path, setPath] = useState(() => readViewState(VIEW_ID).path);
+  const [ownPath, setOwnPath] = useState(() => readViewState(VIEW_ID).path);
+  const path = embedded ? embedded.path : ownPath;
+  const setPath = embedded ? embedded.onPathChange : setOwnPath;
   const [doc, setDoc] = useState<MindmapDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -262,7 +271,9 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
       ),
     [attrKeys, attrValuesFor],
   );
-  const current = files.find((f) => f.path === path) ?? null;
+  const current =
+    files.find((f) => f.path === path) ??
+    (embedded && path ? { path, project, title: embedded.title, updated: "" } : null);
   const targetProject = project || current?.project || projects[0] || "";
 
   // A project handed over by the Projects tab. Keyed on the request counter
@@ -385,7 +396,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   // just left behind whenever a same-named project exists there (T-0344). A
   // same-vault restart keeps restoring — only a changed vault clears.
   useEffect(() => {
-    if (!vaultPath) return;
+    if (!vaultPath || embedded) return;
     if (readLastVaultPath() !== vaultPath) {
       setProject("");
       setPath("");
@@ -459,7 +470,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   // note its own way, is what made this view clear and reopen the same file
   // until React aborted the render (T-0284) — see `resolveOpenNote`.
   useEffect(() => {
-    if (!filesLoaded || !projectsLoaded) return;
+    if (embedded || !filesLoaded || !projectsLoaded) return;
     const next = resolveOpenNote({ path, files, projects });
     if (next !== path) setPath(next);
   }, [files, filesLoaded, path, projects, projectsLoaded]);
@@ -467,12 +478,12 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   // Remember where the user was. Written on every change rather than on unmount
   // because the view is never unmounted — the tab bar only hides it.
   useEffect(() => {
-    writeViewState(VIEW_ID, "path", path);
-  }, [path]);
+    if (!embedded) writeViewState(VIEW_ID, "path", path);
+  }, [path, embedded]);
 
   useEffect(() => {
-    writeViewState(VIEW_ID, "project", project);
-  }, [project]);
+    if (!embedded) writeViewState(VIEW_ID, "project", project);
+  }, [project, embedded]);
 
   /**
    * Writes a model to state and schedules the file write, without touching the
@@ -1272,7 +1283,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
     );
   }
 
-  if (projectsLoaded && !projects.length) {
+  if (!embedded && projectsLoaded && !projects.length) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
         {t("mindmap.view.noProjectsTitle")}
@@ -1302,6 +1313,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
+        {!embedded && (
+          <>
         <Select
           value={project || ALL_PROJECTS}
           onValueChange={(v) => {
@@ -1388,6 +1401,9 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus }: Props
               <Pencil className="size-3.5" />
             </Button>
           </Hint>
+        )}
+
+          </>
         )}
 
         <Select

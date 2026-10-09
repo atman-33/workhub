@@ -1448,6 +1448,49 @@ pub fn docs_viewer_payload(
     crate::docs_viewer::payload(&app, window.label())
 }
 
+// ---- diagrams (T-0680) ----------------------------------------------------
+
+/// Lists every diagram note (Schedule, Mindmap and the newer kinds) by its
+/// frontmatter `type`, wherever it sits under `projects/`. Pass an empty
+/// string for "all projects".
+#[tauri::command]
+pub async fn list_diagrams(
+    vault_path: String,
+    project: String,
+) -> Result<Vec<crate::diagram::DiagramFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let project = (!project.trim().is_empty()).then_some(project);
+        crate::diagram::list_diagrams(&PathBuf::from(vault_path), project.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Creates a diagram note. `backlog` is a `B-NNN` item id to put it inside, or
+/// empty for the project-wide folder; `range` is only read for a schedule.
+#[tauri::command]
+pub async fn create_diagram(
+    vault_path: String,
+    project: String,
+    kind: String,
+    title: String,
+    backlog: String,
+    range: String,
+) -> Result<crate::diagram::DiagramFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::diagram::create_diagram(
+            &PathBuf::from(vault_path),
+            &project,
+            &kind,
+            &title,
+            &backlog,
+            &range,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---- mindmap notes (T-0188) ---------------------------------------------
 
 /// Lists mindmap notes, optionally narrowed to one project slug (pass an empty

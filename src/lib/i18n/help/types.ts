@@ -20,6 +20,7 @@ export const HELP_SECTION_IDS = [
   "voice",
   "clips",
   "projects",
+  "diagrams",
   "schedule",
   "mindmap",
   "docs",

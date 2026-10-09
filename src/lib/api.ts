@@ -3,6 +3,7 @@ import type { MusicData } from "@/lib/music/types";
 import type { TaskEditorPayload } from "@/lib/task-editor-bridge";
 import type {
   BacklogItem,
+  DiagramFile,
   BranchList,
   Clip,
   CommitFileChange,
@@ -321,6 +322,20 @@ export const api = {
   /** Read by a viewer window: what it was opened to show. */
   docsViewerPayload: () => invoke<DocsViewerPayload | null>("docs_viewer_payload"),
 
+  // ---- diagrams (any note under projects/ whose `type` is a diagram kind) ----
+  /** `project` narrows to one project slug; pass "" for every project. */
+  listDiagrams: (vaultPath: string, project = "") =>
+    invoke<DiagramFile[]>("list_diagrams", { vaultPath, project }),
+  /** `backlog` is a `B-NNN` item id, or "" for the project-wide folder;
+   * `range` is only read for a schedule. */
+  createDiagram: (
+    vaultPath: string,
+    project: string,
+    kind: string,
+    title: string,
+    backlog = "",
+    range = "",
+  ) => invoke<DiagramFile>("create_diagram", { vaultPath, project, kind, title, backlog, range }),
   // ---- mindmap notes (projects/<slug>/mindmaps/*.md) ----
   /** `project` narrows to one project slug; pass "" for every project. */
   listMindmaps: (vaultPath: string, project = "") =>

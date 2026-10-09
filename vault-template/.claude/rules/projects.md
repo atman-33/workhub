@@ -23,8 +23,9 @@ assigns the number and fills in `templates/project/`'s placeholders.
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
 | `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
-| `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
-| `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
+| `diagrams/` | Diagram notes (`<name>.md`) of the newer kinds, project-wide; the Diagrams tab finds a diagram by its `type`, wherever it sits (see `diagrams.md`). Created with the first diagram |
+| `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; edited in the Diagrams tab. Created with the first one |
+| `mindmaps/` | Mindmap notes (`<name>.md`), one per map; edited in the Diagrams tab. Created with the first one |
 | `shared/` | Shared-space notes (`<name>.md`), one per team knowledge base that lives outside the vault — where it is and how it is organised |
 | `attachments/` | Images and binaries for this project |
 | `_index.md` | Machine-readable index, maintained by `/kb-index` |

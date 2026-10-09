@@ -4,6 +4,7 @@ mod caret;
 mod clips;
 mod commands;
 mod diag;
+mod diagram;
 mod docs;
 mod docs_viewer;
 mod git;
@@ -403,6 +404,8 @@ pub fn run() {
             commands::docs_render_plantuml,
             commands::open_docs_viewer,
             commands::docs_viewer_payload,
+            commands::list_diagrams,
+            commands::create_diagram,
             commands::list_mindmaps,
             commands::read_mindmap,
             commands::write_mindmap,

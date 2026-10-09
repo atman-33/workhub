@@ -5,7 +5,6 @@ import {
   Archive,
   ArchiveRestore,
   ArrowUpDown,
-  CalendarRange,
   CircleAlert,
   CircleCheck,
   FolderOpen,
@@ -13,7 +12,7 @@ import {
   GitBranch,
   Info,
   ListTodo,
-  Network,
+  Shapes,
   RefreshCw,
 } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
@@ -82,7 +81,7 @@ import type { Config, Task, VaultProject } from "@/types";
 const NO_REPO = "__none__";
 
 /** Where the four navigation buttons hand off to. */
-export type ProjectTarget = "tasks" | "schedule" | "mindmap" | "repos";
+export type ProjectTarget = "tasks" | "diagrams" | "repos";
 
 interface Props {
   /** Bumped by the app shell after settings are saved. */
@@ -606,19 +605,10 @@ export function ProjectsView({
                   size="sm"
                   variant="outline"
                   className="h-7 gap-1.5"
-                  onClick={() => onNavigate("schedule", current.slug)}
+                  onClick={() => onNavigate("diagrams", current.slug)}
                 >
-                  <CalendarRange className="size-3.5" />
-                  {t("projects.view.scheduleButton")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1.5"
-                  onClick={() => onNavigate("mindmap", current.slug)}
-                >
-                  <Network className="size-3.5" />
-                  {t("projects.view.mindmapButton")}
+                  <Shapes className="size-3.5" />
+                  {t("projects.view.diagramsButton")}
                 </Button>
                 <Button
                   size="sm"

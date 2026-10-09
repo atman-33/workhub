@@ -296,11 +296,6 @@ fn civil_from_days(z: i64) -> (i32, u32, u32) {
 // projects
 // ---------------------------------------------------------------------
 
-/// Note-kind subfolders a freshly scaffolded project gets, so that a new
-/// project is immediately usable from every note tab instead of only from the
-/// one that happens to create the folder on first save.
-const NOTE_DIRS: &[&str] = &["schedules", "mindmaps"];
-
 pub fn projects_dir(vault: &Path) -> PathBuf {
     vault.join("projects")
 }
@@ -607,11 +602,9 @@ pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String
             Err(_) => fs::write(&dst, file.contents()).map_err(|e| e.to_string())?,
         }
     }
-    // The scaffold's only content in these folders is the excluded example
-    // note, so they would otherwise be missing until the first save.
-    for sub in NOTE_DIRS {
-        fs::create_dir_all(dir.join(sub)).map_err(|e| e.to_string())?;
-    }
+    // No diagram folders are made here (T-0680): the first diagram of a
+    // project creates the folder it lives in, so a project that never draws
+    // anything carries none of them.
     Ok(())
 }
 

@@ -6,6 +6,7 @@ import { pluginsJa } from "./plugins.ja";
 import { miscJa } from "./misc.ja";
 import { scheduleJa } from "./schedule.ja";
 import { mindmapJa } from "./mindmap.ja";
+import { diagramJa } from "./diagram.ja";
 import { graphJa } from "./graph.ja";
 import { docsJa } from "./docs.ja";
 import { musicJa } from "./music.ja";
@@ -50,6 +51,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "nav.projects": "プロジェクト",
   "nav.repos": "リポジトリ",
   "nav.schedule": "スケジュール",
+  "nav.diagrams": "図解",
   "nav.mindmap": "マインドマップ",
   "nav.docs": "ドキュメント",
   "nav.inbox": "受信箱",
@@ -441,6 +443,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   ...miscJa,
   ...scheduleJa,
   ...mindmapJa,
+  ...diagramJa,
   ...graphJa,
   ...docsJa,
   ...musicJa,

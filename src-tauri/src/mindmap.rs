@@ -117,6 +117,14 @@ pub fn write_mindmap(path: &Path, content: &str, expected_mtime: u64) -> Result<
     Ok(mtime_secs(path))
 }
 
+/// The text of a new mindmap note.
+pub fn skeleton(title: &str, now: &str) -> String {
+    format!(
+        "---\ntype: mindmap\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Nodes\n\n- N-001 {title}\n\n## Memo\n\n"
+    )
+}
+
 /// Creates `projects/<project>/mindmaps/<title>.md` from the skeleton.
 ///
 /// The skeleton is not empty: a mindmap with no root is not a mindmap, and the
@@ -144,10 +152,7 @@ pub fn create_mindmap(vault: &Path, project: &str, title: &str) -> Result<Mindma
     // Never clobber an existing note: suffix until the name is free.
     let path = unique_note_path(&dir, title, KIND, None);
     let now = today();
-    let content = format!(
-        "---\ntype: mindmap\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
-## Nodes\n\n- N-001 {title}\n\n## Memo\n\n"
-    );
+    let content = skeleton(title, &now);
     fs::write(&path, &content).map_err(|e| e.to_string())?;
     Ok(MindmapFile {
         path: norm_path(&path),
