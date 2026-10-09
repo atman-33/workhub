@@ -30,6 +30,11 @@ const SCHEDULES_CHANGED_EVENT: &str = "schedules-changed";
 /// Emitted when a `projects/*/mindmaps/*.md` file changes, so the Mindmap
 /// view reloads after an Obsidian or agent edit (T-0188).
 const MINDMAPS_CHANGED_EVENT: &str = "mindmaps-changed";
+
+/// Emitted when any `.md` under `projects/` changes, so the Diagrams tab can
+/// refresh its list. A diagram can sit anywhere in a project (T-0680), so this
+/// is deliberately broader than the two events above.
+const DIAGRAMS_CHANGED_EVENT: &str = "diagrams-changed";
 /// Emitted when a project folder appears under or disappears from `projects/`,
 /// so every project picker in the app reloads (T-0190). Without it the pickers
 /// were read once at mount and never again: a project created in the Projects
@@ -1894,16 +1899,6 @@ fn is_project_dir_path(p: &Path, projects_root: &Path) -> bool {
     p.parent() == Some(projects_root)
 }
 
-fn is_note_path(p: &Path, folder: &str) -> bool {
-    if p.extension().and_then(|e| e.to_str()) != Some("md") {
-        return false;
-    }
-    p.parent()
-        .and_then(|d| d.file_name())
-        .and_then(|n| n.to_str())
-        == Some(folder)
-}
-
 /// Starts (or restarts) watching `<vault>/tasks` and `<vault>/projects` for
 /// changes, debouncing bursts of events (e.g. an editor's
 /// save-as-temp-then-rename) into a single emit per affected area:
@@ -1952,6 +1947,7 @@ pub fn start_watcher(
         let mut tasks_touched = false;
         let mut schedules_touched = false;
         let mut mindmaps_touched = false;
+        let mut diagrams_touched = false;
         let mut projects_touched = false;
         let mut classify = |ev: &Result<Event, notify::Error>| match ev {
             Ok(event) => {
@@ -1961,9 +1957,16 @@ pub fn start_watcher(
                         projects_touched = true;
                     } else if is_project_dir_path(path, &projects) {
                         projects_touched = true;
-                    } else if is_note_path(path, "schedules") {
+                    } else if path.starts_with(&projects)
+                        && path.extension().and_then(|e| e.to_str()) == Some("md")
+                    {
+                        // A diagram may be anywhere in a project, so any note
+                        // there can be one. The open Schedule and Mindmap
+                        // editors re-read their file on these events and skip
+                        // it when its mtime is unchanged, so firing them for
+                        // every note is cheap (T-0680).
+                        diagrams_touched = true;
                         schedules_touched = true;
-                    } else if is_note_path(path, "mindmaps") {
                         mindmaps_touched = true;
                     } else if !path.starts_with(&projects) {
                         tasks_touched = true;
@@ -1996,6 +1999,9 @@ pub fn start_watcher(
         }
         if mindmaps_touched {
             let _ = app.emit(MINDMAPS_CHANGED_EVENT, ());
+        }
+        if diagrams_touched {
+            let _ = app.emit(DIAGRAMS_CHANGED_EVENT, ());
         }
         if projects_touched {
             let _ = app.emit(PROJECTS_CHANGED_EVENT, ());

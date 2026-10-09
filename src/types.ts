@@ -493,6 +493,21 @@ export interface ScheduleEditRun {
   history: ScheduleEditEntry[];
 }
 
+/** One diagram note (Schedule, Mindmap, ...) as the Diagrams tab lists it
+ * (`list_diagrams`, T-0680). */
+export interface DiagramFile {
+  /** Absolute path, forward slashes. */
+  path: string;
+  /** Owning project slug. */
+  project: string;
+  title: string;
+  /** The note's frontmatter `type`. */
+  kind: string;
+  updated: string;
+  /** `project`, or `backlog:B-NNN` for a note inside a backlog item's folder. */
+  scope: string;
+}
+
 /** One mindmap note as the picker sees it (`list_mindmaps`). */
 export interface MindmapFile {
   /** Absolute path, forward slashes — the id used by every other command. */

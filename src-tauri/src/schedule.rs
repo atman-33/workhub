@@ -120,6 +120,14 @@ pub fn write_schedule(path: &Path, content: &str, expected_mtime: u64) -> Result
     Ok(mtime_secs(path))
 }
 
+/// The text of a new schedule note.
+pub fn skeleton(title: &str, range: &str, now: &str) -> String {
+    format!(
+        "---\ntype: schedule\ntitle: {title}\nrange: {range}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Non-working\n\n- weekly: sat, sun\n\n## Items\n\n## Memo\n\n"
+    )
+}
+
 /// Creates `projects/<project>/schedules/<title>.md` from the skeleton. The
 /// weekend default in `## Non-working` is what makes a fresh note immediately
 /// useful — the working-day count is the point of the feature, and a note with
@@ -150,10 +158,7 @@ pub fn create_schedule(
     // Never clobber an existing note: suffix until the name is free.
     let path = unique_note_path(&dir, title, KIND, None);
     let now = today();
-    let content = format!(
-        "---\ntype: schedule\ntitle: {title}\nrange: {range}\ncreated: {now}\nupdated: {now}\n---\n\n\
-## Non-working\n\n- weekly: sat, sun\n\n## Items\n\n## Memo\n\n"
-    );
+    let content = skeleton(title, range, &now);
     fs::write(&path, &content).map_err(|e| e.to_string())?;
     Ok(ScheduleFile {
         path: norm_path(&path),
@@ -556,12 +561,11 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
             "README: {readme}"
         );
         assert!(!readme.contains("<Project name>"), "README: {readme}");
-        // The (example-free) schedules folder exists from the start.
-        assert!(vault.join("projects/0010-demo/schedules").is_dir());
-        // The notation demos are not part of a fresh project.
-        assert!(!vault
-            .join("projects/0010-demo/schedules/_example.md")
-            .exists());
+        // Diagram folders are not part of a fresh project (T-0680): the first
+        // diagram creates the folder it lives in.
+        assert!(!vault.join("projects/0010-demo/schedules").exists());
+        assert!(!vault.join("projects/0010-demo/mindmaps").exists());
+        assert!(!vault.join("projects/0010-demo/diagrams").exists());
         assert!(!vault.join("projects/0010-demo/shared/_example.md").exists());
         assert!(!vault
             .join("projects/0010-demo/backlog/B-000-example.md")

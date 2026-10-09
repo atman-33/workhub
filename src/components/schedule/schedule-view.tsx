@@ -26,6 +26,7 @@ import { TimelineGrid } from "@/components/schedule/timeline-grid";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Hint } from "@/components/ui/hint";
+import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -125,9 +126,11 @@ interface Props {
   projectsVersion?: number;
   /** A project the Projects tab asked this view to open (T-0190). */
   focus?: TabFocus;
+  /** Set when the Diagrams tab hosts this view (T-0680). */
+  embedded?: EmbeddedDiagram;
 }
 
-export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Props) {
+export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedded }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [files, setFiles] = useState<ScheduleFile[]>([]);
   // An empty list before the first scan means "unknown", not "no notes" — the
@@ -141,8 +144,14 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   // Restored from the last session, so a restart lands back on the plan that
   // was being worked on instead of on an empty grid.
-  const [project, setProject] = useState(() => readViewState(VIEW_ID).project);
-  const [path, setPath] = useState(() => readViewState(VIEW_ID).path);
+  const [ownProject, setOwnProject] = useState(() => readViewState(VIEW_ID).project);
+  const [ownPath, setOwnPath] = useState(() => readViewState(VIEW_ID).path);
+  // Hosted by the Diagrams tab (T-0680), the project and the open note are the
+  // host's to choose; the setters then do nothing or ask the host.
+  const project = embedded ? embedded.project : ownProject;
+  const setProject = embedded ? () => undefined : setOwnProject;
+  const path = embedded ? embedded.path : ownPath;
+  const setPath = embedded ? embedded.onPathChange : setOwnPath;
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [aiRun, setAiRun] = useState<ScheduleEditRun | null>(null);
@@ -320,7 +329,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   // just left behind whenever a same-named project exists there (T-0344). A
   // same-vault restart keeps restoring — only a changed vault clears.
   useEffect(() => {
-    if (!vaultPath) return;
+    if (!vaultPath || embedded) return;
     if (readLastVaultPath() !== vaultPath) {
       setProject("");
       setPath("");
@@ -371,7 +380,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   // note its own way, is what made this view clear and reopen the same file
   // until React aborted the render (T-0284) — see `resolveOpenNote`.
   useEffect(() => {
-    if (!filesLoaded || !projectsLoaded) return;
+    if (embedded || !filesLoaded || !projectsLoaded) return;
     const next = resolveOpenNote({ path, files, projects });
     if (next !== path) setPath(next);
   }, [files, filesLoaded, path, projects, projectsLoaded]);
@@ -379,12 +388,12 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   // Remember where the user was. Written on every change rather than on unmount
   // because the view is never unmounted — the tab bar only hides it.
   useEffect(() => {
-    writeViewState(VIEW_ID, "path", path);
-  }, [path]);
+    if (!embedded) writeViewState(VIEW_ID, "path", path);
+  }, [path, embedded]);
 
   useEffect(() => {
-    writeViewState(VIEW_ID, "project", project);
-  }, [project]);
+    if (!embedded) writeViewState(VIEW_ID, "project", project);
+  }, [project, embedded]);
 
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the calendar follows the file without a refresh button.
@@ -824,6 +833,8 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs">
+        {!embedded && (
+          <>
         {/* A schedule lives inside a vault project (a folder under
             `projects/`), which used to be creatable only by hand in the file
             system — a vault with none dead-ended this tab (T-0178). The
@@ -975,6 +986,9 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
             </Button>
           </PopoverContent>
         </Popover>
+
+          </>
+        )}
 
         {/* Calendar or timeline: the same note at two scales. Kept next to the
             file pickers rather than off to the right, because which drawing is
@@ -1371,7 +1385,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus }: Prop
         open={deleteOpen}
         title={t("schedule.view.deleteConfirmTitle")}
         description={t("schedule.view.deleteConfirmDescription", {
-          title: files.find((f) => f.path === path)?.title ?? "",
+          title: files.find((f) => f.path === path)?.title ?? embedded?.title ?? "",
         })}
         confirmLabel={t("schedule.view.moveToTrash")}
         destructive

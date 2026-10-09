@@ -18,6 +18,7 @@ import { pluginsEn } from "./plugins.en";
 import { miscEn } from "./misc.en";
 import { scheduleEn } from "./schedule.en";
 import { mindmapEn } from "./mindmap.en";
+import { diagramEn } from "./diagram.en";
 import { graphEn } from "./graph.en";
 import { docsEn } from "./docs.en";
 import { musicEn } from "./music.en";
@@ -58,6 +59,7 @@ export const en = {
   "nav.projects": "Projects",
   "nav.repos": "Repos",
   "nav.schedule": "Schedule",
+  "nav.diagrams": "Diagrams",
   "nav.mindmap": "Mindmap",
   "nav.docs": "Docs",
   "nav.inbox": "Inbox",
@@ -452,6 +454,7 @@ export const en = {
   ...miscEn,
   ...scheduleEn,
   ...mindmapEn,
+  ...diagramEn,
   ...graphEn,
   ...docsEn,
   ...musicEn,

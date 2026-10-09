@@ -7,18 +7,17 @@ import {
   Drama,
   FolderOpen,
   GitBranch,
-  CalendarRange,
   Inbox,
   ListTodo,
   Mic,
   Minus,
   Music,
-  Network,
   FolderKanban,
   Pencil,
   Plus,
   Puzzle,
   RotateCcw,
+  Shapes,
   Settings as SettingsIcon,
   Timer,
 } from "lucide-react";
@@ -40,7 +39,7 @@ import { HelpView } from "@/components/help-view";
 import { InboxView } from "@/components/inbox-view";
 import { InkView } from "@/components/ink-view";
 import { MemorySetupBanner } from "@/components/memory-setup-banner";
-import { MindmapView } from "@/components/mindmap/mindmap-view";
+import { DiagramsView } from "@/components/diagrams/diagrams-view";
 import { MusicView } from "@/components/music/music-view";
 import { PersonaView } from "@/components/persona-view";
 import { PluginsView } from "@/components/plugins-view";
@@ -50,7 +49,6 @@ import { NavListenerButton } from "@/components/nav-listener-button";
 import { NavMusicControl } from "@/components/music/nav-music-control";
 import { ProjectsView, type ProjectTarget } from "@/components/projects/projects-view";
 import { ReposView } from "@/components/repos-view";
-import { ScheduleView } from "@/components/schedule/schedule-view";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TasksView } from "@/components/tasks-view";
 import {
@@ -123,8 +121,7 @@ type Tab =
   | "projects"
   | "inbox"
   | "repos"
-  | "schedule"
-  | "mindmap"
+  | "diagrams"
   | "docs"
   | "music"
   | "timer"
@@ -142,8 +139,7 @@ const TABS: { key: Tab; labelKey: MessageKey; icon: typeof ListTodo }[] = [
   { key: "tasks", labelKey: "nav.tasks", icon: ListTodo },
   { key: "projects", labelKey: "nav.projects", icon: FolderKanban },
   { key: "repos", labelKey: "nav.repos", icon: GitBranch },
-  { key: "schedule", labelKey: "nav.schedule", icon: CalendarRange },
-  { key: "mindmap", labelKey: "nav.mindmap", icon: Network },
+  { key: "diagrams", labelKey: "nav.diagrams", icon: Shapes },
   { key: "docs", labelKey: "nav.docs", icon: BookOpen },
   { key: "inbox", labelKey: "nav.inbox", icon: Inbox },
   { key: "music", labelKey: "nav.music", icon: Music },
@@ -756,18 +752,11 @@ export default function App() {
               focus={focusFor("repos")}
             />
           </TabPanel>
-          <TabPanel id="schedule" tab={tab}>
-            <ScheduleView
+          <TabPanel id="diagrams" tab={tab}>
+            <DiagramsView
               configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
-              focus={focusFor("schedule")}
-            />
-          </TabPanel>
-          <TabPanel id="mindmap" tab={tab}>
-            <MindmapView
-              configVersion={configVersion}
-              projectsVersion={vaultProjectsVersion}
-              focus={focusFor("mindmap")}
+              focus={focusFor("diagrams")}
             />
           </TabPanel>
           <TabPanel id="docs" tab={tab}>
