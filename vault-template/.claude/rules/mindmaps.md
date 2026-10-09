@@ -5,7 +5,7 @@ paths:
 
 # Mindmap notes
 
-Format of a project's `mindmaps/` notes. The `mindmap-edit` skill follows this file; the spec lives here, not in the skill.
+Format of a project's `mindmaps/` notes. The `diagram-edit` skill follows this file; the spec lives here, not in the skill.
 
 `mindmaps/` holds the project's idea maps. One file is one map; the app's
 **Mindmap** tab renders it as a mindmap and writes changes straight back, so

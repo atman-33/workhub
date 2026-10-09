@@ -101,7 +101,7 @@ export const miscJa: Partial<Record<MessageKey, string>> = {
   "misc.vaultSetup.runSetupCount": "セットアップを実行({count})",
 
   "misc.aiEditSettings.title": "AI で編集",
-  "misc.aiEditSettings.description": "この{subject}を自然言語の指示で編集する際に使うエージェント。",
+  "misc.aiEditSettings.description": "図解を自然言語の指示で編集する際に使うエージェント。",
   "misc.aiEditSettings.agent": "エージェント",
   "misc.aiEditSettings.model": "モデル",
   "misc.aiEditSettings.confirmDescription": "即座に適用せず、変更内容を表示して承認を待ちます。",

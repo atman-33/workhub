@@ -1,25 +1,28 @@
-//! Headless agent edits of a mindmap note (T-0188).
+//! Headless agent edits of a diagram note (T-0091, T-0188, unified in T-0685).
 //!
-//! Same execution shape and the same safety story as `schedule_edit.rs`:
+//! One runner for every kind of diagram (schedule, mindmap, matrix2x2, flow,
+//! pfd): the run takes a path and nothing else, because the `diagram-edit`
+//! skill reads the note's frontmatter `type` and follows that kind's rule file.
+//! A new kind therefore needs no change here.
+//!
+//! Same execution shape as `tidy.rs` - spawn the agent CLI with the prompt on
+//! stdin, capture the output, report progress through a Tauri event - but with
+//! a different safety story, because this run rewrites a file the user is
+//! looking at and dragging things around in:
 //!
 //! - a snapshot is taken **before** the agent starts, so the UI can offer a
-//!   one-generation undo (`mindmap::restore_snapshot`);
-//! - `running` doubles as an editing lock: the canvas goes read-only while a
+//!   one-generation undo (`diagram::restore_snapshot`);
+//! - `running` doubles as an editing lock: the frontend goes read-only while a
 //!   run is live, so an app write and an agent write cannot interleave;
-//! - the file watcher reloads the note when the agent finishes, so nothing
-//!   here has to push the new content back.
+//! - the file watcher reloads the note when the agent finishes
+//!   (`diagrams-changed`), so nothing here has to push the new content back.
 //!
-//! The agent does the editing through the `mindmap-edit` skill, which owns the
-//! notation rules — above all that node ids are never renumbered and `## Memo`
-//! is never touched. This module only tells it which file and what to do.
-//!
-//! The two modules are kept side by side rather than merged: the state each
-//! one manages is a distinct Tauri managed type with its own event name, and
-//! generifying over that buys less than it costs in indirection. What they do
-//! share — snapshots, frontmatter, paths — lives in `vault_note.rs`.
+//! The agent does the editing through the `diagram-edit` skill, which owns the
+//! shared procedure (ids are never renumbered, `## Memo` is never touched). This
+//! module only tells it which file and what to do.
 
 use crate::actions;
-use crate::mindmap;
+use crate::diagram;
 use crate::models::Config;
 use crate::storage;
 use std::path::{Path, PathBuf};
@@ -33,24 +36,24 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-const STATUS_EVENT: &str = "mindmap-edit:status";
+const STATUS_EVENT: &str = "diagram-edit:status";
 /// A run still going after this long is flagged so the UI can warn instead of
-/// leaving the canvas locked with no explanation.
+/// leaving the calendar locked with no explanation.
 const STALL_SECS: u64 = 5 * 60;
-/// How many past runs the history keeps. The history is a "what did I just ask
-/// for" aid, not an audit log — `_ai/logs/mindmap/` holds the full output.
+/// How many past runs the history keeps. The history is a "what did I just
+/// ask for" aid, not an audit log — `_ai/logs/diagram-edit/` holds the full output.
 const HISTORY_LIMIT: usize = 10;
 
-pub struct MindmapEditState(pub Mutex<MindmapEditRun>);
+pub struct DiagramEditState(pub Mutex<DiagramEditRun>);
 
-impl Default for MindmapEditState {
+impl Default for DiagramEditState {
     fn default() -> Self {
-        MindmapEditState(Mutex::new(MindmapEditRun::idle()))
+        DiagramEditState(Mutex::new(DiagramEditRun::idle()))
     }
 }
 
 #[derive(Clone, serde::Serialize)]
-pub struct MindmapEditEntry {
+pub struct DiagramEditEntry {
     /// The natural-language instruction that was run.
     pub instruction: String,
     /// "completed" | "failed"
@@ -64,10 +67,10 @@ pub struct MindmapEditEntry {
 }
 
 #[derive(Clone, serde::Serialize)]
-pub struct MindmapEditRun {
+pub struct DiagramEditRun {
     /// "idle" | "running" | "completed" | "failed"
     pub state: String,
-    /// Absolute path of the mindmap the current/last run targeted.
+    /// Absolute path of the diagram the current/last run targeted.
     pub path: Option<String>,
     pub instruction: Option<String>,
     /// Unix seconds the current run started (state == "running").
@@ -79,14 +82,14 @@ pub struct MindmapEditRun {
     /// Whether an undo target exists for `path`.
     pub can_undo: bool,
     /// Most recent first.
-    pub history: Vec<MindmapEditEntry>,
+    pub history: Vec<DiagramEditEntry>,
     #[serde(skip)]
     child_id: Option<u32>,
 }
 
-impl MindmapEditRun {
+impl DiagramEditRun {
     fn idle() -> Self {
-        MindmapEditRun {
+        DiagramEditRun {
             state: "idle".into(),
             path: None,
             instruction: None,
@@ -112,14 +115,14 @@ fn now() -> u64 {
 }
 
 fn emit_status(app: &AppHandle) {
-    if let Some(st) = app.try_state::<MindmapEditState>() {
+    if let Some(st) = app.try_state::<DiagramEditState>() {
         let snapshot = st.0.lock().unwrap().clone();
         let _ = app.emit(STATUS_EVENT, snapshot);
     }
 }
 
-pub fn snapshot(app: &AppHandle) -> MindmapEditRun {
-    let st = app.state::<MindmapEditState>();
+pub fn snapshot(app: &AppHandle) -> DiagramEditRun {
+    let st = app.state::<DiagramEditState>();
     let mut run = st.0.lock().unwrap();
     if run.is_running() {
         if let Some(since) = run.since {
@@ -130,7 +133,7 @@ pub fn snapshot(app: &AppHandle) -> MindmapEditRun {
     // in-memory flag: `restore_snapshot` consumes the snapshot, so this is
     // what stops a second press from "undoing" an already-undone run.
     if let (Some(path), Some(vault)) = (run.path.clone(), resolve_vault(&storage::load())) {
-        run.can_undo = mindmap::has_snapshot(&vault, &PathBuf::from(path));
+        run.can_undo = diagram::has_snapshot(&vault, &PathBuf::from(path));
     }
     run.clone()
 }
@@ -151,12 +154,12 @@ fn resolve_vault(cfg: &Config) -> Option<PathBuf> {
 fn build_prompt(path: &str, instruction: &str, confirm: bool) -> String {
     let mode = mode_line(confirm);
     format!(
-        "Use the `mindmap-edit` skill to edit this workhub mindmap note.\n\n\
-Mindmap file: {path}\n\n\
+        "Use the `diagram-edit` skill to edit this workhub diagram note.\n\n\
+Diagram file: {path}\n\n\
 Instruction:\n{instruction}\n\n\
 {mode}\n\n\
 Report a one-paragraph summary of what changed (or would change), naming the \
-node ids you touched. Do not modify any other file.\n"
+element ids you touched. Do not modify any other file.\n"
     )
 }
 
@@ -182,19 +185,19 @@ Do not edit anything until I do."
         format!("Instruction:\n{instruction}")
     };
     format!(
-        "Use the `mindmap-edit` skill to edit this workhub mindmap note.\n\n\
-Mindmap file: {path}\n\n\
+        "Use the `diagram-edit` skill to edit this workhub diagram note.\n\n\
+Diagram file: {path}\n\n\
 {request}\n\n\
 {mode}\n\n\
 After each change, summarize in a sentence what changed (or would change), \
-naming the node ids you touched. Do not modify any other file.\n",
+naming the element ids you touched. Do not modify any other file.\n",
         mode = mode_line(confirm)
     )
 }
 
-/// Starts a run. Fails fast when another run is live — the UI keeps the canvas
-/// locked for the duration, so overlapping runs would be both confusing and a
-/// write race.
+/// Starts a run. Fails fast when another run is live — the UI keeps the
+/// calendar locked for the duration, so overlapping runs would be both
+/// confusing and a write race.
 pub fn run(
     app: AppHandle,
     path: String,
@@ -209,25 +212,28 @@ pub fn run(
     let vault = resolve_vault(&cfg).ok_or("no vault is configured")?;
     let target = PathBuf::from(path.replace('\\', "/"));
     if !target.is_file() {
-        return Err("the mindmap file does not exist".into());
+        return Err("the diagram file does not exist".into());
     }
+    // Refuse a note that is not a diagram before a snapshot or an agent is
+    // spent on it. Which kind it is does not matter here: the skill reads it.
+    diagram::kind_of(&target)?;
     {
-        let st = app.state::<MindmapEditState>();
+        let st = app.state::<DiagramEditState>();
         if st.0.lock().unwrap().is_running() {
-            return Err("a mindmap edit is already running".into());
+            return Err("a diagram edit is already running".into());
         }
     }
 
     // Before anything can touch the file — a failed spawn after this point
     // still leaves a valid undo target, which is the harmless direction.
-    mindmap::save_snapshot(&vault, &target)?;
+    diagram::save_snapshot(&vault, &target)?;
 
-    let assignee = cfg.settings.mindmap_assignee.clone();
+    let assignee = cfg.settings.diagram_assignee.clone();
     let argv = actions::tidy_agent_argv(
         &assignee,
         &cfg.settings.agent_cmd,
         &cfg.settings.opencode_cmd,
-        &cfg.settings.mindmap_model,
+        &cfg.settings.diagram_model,
         "",
     );
     if argv.first().map(|s| s.is_empty()).unwrap_or(true) {
@@ -252,13 +258,13 @@ pub fn run(
     let started = now();
 
     {
-        let st = app.state::<MindmapEditState>();
+        let st = app.state::<DiagramEditState>();
         let mut run = st.0.lock().unwrap();
         let history = run.history.clone();
-        *run = MindmapEditRun::idle();
+        *run = DiagramEditRun::idle();
         run.history = history;
         run.state = "running".into();
-        run.path = Some(mindmap::read_mindmap(&target)?.path);
+        run.path = Some(diagram::read_diagram(&target)?.path);
         run.instruction = Some(instruction.clone());
         run.since = Some(started);
         run.can_undo = true;
@@ -269,7 +275,7 @@ pub fn run(
     let watch_app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(STALL_SECS));
-        let st = watch_app.state::<MindmapEditState>();
+        let st = watch_app.state::<DiagramEditState>();
         let mut mark = false;
         {
             let mut run = st.0.lock().unwrap();
@@ -290,7 +296,7 @@ pub fn run(
         finish(&wait_app, pid, result, &vault_owned, &instruction, started);
     });
 
-    Ok("Mindmap edit started.".into())
+    Ok("Diagram edit started.".into())
 }
 
 /// Same `cmd /C` rationale as `tidy::build_command`: the agent CLIs are `.cmd`
@@ -331,7 +337,7 @@ fn finish(
             if out.status.success() {
                 (
                     "completed".to_string(),
-                    parsed.or_else(|| Some("Mindmap edit finished.".into())),
+                    parsed.or_else(|| Some("Diagram edit finished.".into())),
                     None,
                 )
             } else {
@@ -346,7 +352,7 @@ fn finish(
         Err(e) => ("failed".to_string(), None, Some(e.to_string())),
     };
 
-    let st = app.state::<MindmapEditState>();
+    let st = app.state::<DiagramEditState>();
     {
         let mut run = st.0.lock().unwrap();
         if run.child_id != Some(pid) {
@@ -354,7 +360,7 @@ fn finish(
         }
         run.history.insert(
             0,
-            MindmapEditEntry {
+            DiagramEditEntry {
                 instruction: instruction.to_string(),
                 state: state.clone(),
                 message: summary
@@ -376,7 +382,7 @@ fn finish(
     emit_status(app);
 }
 
-/// Same shape as `tidy::parse_result`, minus the session id: mindmap edits are
+/// Same shape as `tidy::parse_result`, minus the session id: diagram edits are
 /// one-shot and never resumed, so only the summary is of use here.
 fn parse_result(stdout: &str) -> Option<String> {
     let trimmed = stdout.trim();
@@ -393,11 +399,11 @@ fn parse_result(stdout: &str) -> Option<String> {
 }
 
 fn save_run_log(vault: &Path, instruction: &str, stdout: &str, stderr: &str) {
-    let dir = vault.join("_ai").join("logs").join("mindmap");
+    let dir = vault.join("_ai").join("logs").join("diagram-edit");
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }
-    let file = dir.join(format!("mindmap-edit-{}.log", now()));
+    let file = dir.join(format!("diagram-edit-{}.log", now()));
     let body = format!(
         "instruction: {instruction}\n\n=== stdout ===\n{stdout}\n\n=== stderr ===\n{stderr}\n"
     );
@@ -406,19 +412,19 @@ fn save_run_log(vault: &Path, instruction: &str, stdout: &str, stderr: &str) {
 
 /// Restores the pre-run snapshot and clears the undo affordance, so the button
 /// cannot be pressed twice against a snapshot that has already been consumed.
-pub fn undo(app: AppHandle, path: String) -> Result<crate::models::MindmapDoc, String> {
+pub fn undo(app: AppHandle, path: String) -> Result<diagram::DiagramDoc, String> {
     let cfg = storage::load();
     let vault = resolve_vault(&cfg).ok_or("no vault is configured")?;
     let target = PathBuf::from(path.replace('\\', "/"));
     {
-        let st = app.state::<MindmapEditState>();
+        let st = app.state::<DiagramEditState>();
         if st.0.lock().unwrap().is_running() {
-            return Err("wait for the running mindmap edit to finish".into());
+            return Err("wait for the running diagram edit to finish".into());
         }
     }
-    let doc = mindmap::restore_snapshot(&vault, &target)?;
+    let doc = diagram::restore_snapshot(&vault, &target)?;
     {
-        let st = app.state::<MindmapEditState>();
+        let st = app.state::<DiagramEditState>();
         let mut run = st.0.lock().unwrap();
         run.can_undo = false;
     }
@@ -432,22 +438,45 @@ mod tests {
 
     #[test]
     fn prompt_names_the_skill_and_the_mode() {
-        let apply = build_prompt("C:/v/projects/p/mindmaps/a.md", "group the UI ideas", false);
-        assert!(apply.contains("`mindmap-edit` skill"));
-        assert!(apply.contains("C:/v/projects/p/mindmaps/a.md"));
-        assert!(apply.contains("group the UI ideas"));
+        let apply = build_prompt("C:/v/projects/p/diagrams/a.md", "shift the boxes", false);
+        assert!(apply.contains("`diagram-edit` skill"));
+        assert!(apply.contains("C:/v/projects/p/diagrams/a.md"));
+        assert!(apply.contains("shift the boxes"));
         assert!(apply.contains("Apply the change"));
+        // The old per-kind skills are gone; the prompt must not point at them.
+        assert!(!apply.contains("schedule-edit"));
+        assert!(!apply.contains("mindmap-edit"));
 
-        let dry = build_prompt("x.md", "group", true);
+        let dry = build_prompt("x.md", "shift", true);
         assert!(dry.contains("Do NOT write the file"));
+        assert!(!dry.contains("Apply the change"));
+    }
+
+    #[test]
+    fn prompt_does_not_depend_on_the_kind() {
+        // The same text for every kind: the skill reads `type` from the file.
+        let a = build_prompt("a.md", "do it", false);
+        for kind in diagram::KINDS {
+            let path = format!("C:/v/projects/p/{kind}/a.md");
+            let p = build_prompt(&path, "do it", false);
+            assert_eq!(p.replace(&path, "a.md"), a);
+        }
     }
 
     #[test]
     fn copy_prompt_carries_the_instruction_or_waits_for_one() {
-        let with = build_copy_prompt("C:/v/a.md", "  group the UI ideas \n", false);
-        assert!(with.contains("`mindmap-edit` skill"));
+        let with = build_copy_prompt(
+            "C:/v/a.md",
+            "  shift by a week 
+",
+            false,
+        );
+        assert!(with.contains("`diagram-edit` skill"));
         assert!(with.contains("C:/v/a.md"));
-        assert!(with.contains("Instruction:\ngroup the UI ideas"));
+        assert!(with.contains(
+            "Instruction:
+shift by a week"
+        ));
         assert!(with.contains("Apply the change"));
 
         let without = build_copy_prompt("C:/v/a.md", "   ", true);
@@ -458,12 +487,26 @@ mod tests {
 
     #[test]
     fn parse_result_prefers_the_json_result_field() {
-        let json = r#"{"result":"added N-014 under N-002","is_error":false}"#;
+        let json = r#"{"result":"moved I-001 forward 7 days","is_error":false}"#;
         assert_eq!(
             parse_result(json).as_deref(),
-            Some("added N-014 under N-002")
+            Some("moved I-001 forward 7 days")
         );
-        assert_eq!(parse_result("thinking...\ndone\n").as_deref(), Some("done"));
-        assert_eq!(parse_result("   \n"), None);
+        assert_eq!(
+            parse_result(
+                "thinking...
+done
+"
+            )
+            .as_deref(),
+            Some("done")
+        );
+        assert_eq!(
+            parse_result(
+                "   
+"
+            ),
+            None
+        );
     }
 }

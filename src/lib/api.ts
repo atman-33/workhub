@@ -24,7 +24,6 @@ import type {
   InkCapture,
   InputListenerDiagnostics,
   MindmapDoc,
-  MindmapEditRun,
   MindmapFile,
   Notice,
   PersonaCharacter,
@@ -33,7 +32,7 @@ import type {
   PluginDetails,
   PluginsState,
   ScheduleDoc,
-  ScheduleEditRun,
+  DiagramEditRun,
   ScheduleFile,
   SttModelStatus,
   Task,
@@ -267,13 +266,14 @@ export const api = {
       vaultPath: guard?.vaultPath,
       project: guard?.project,
     }),
-  runScheduleEdit: (path: string, instruction: string, confirm: boolean) =>
-    invoke<string>("run_schedule_edit", { path, instruction, confirm }),
-  copyScheduleEditPrompt: (path: string, instruction: string, confirm: boolean) =>
-    invoke<void>("copy_schedule_edit_prompt", { path, instruction, confirm }),
-  scheduleEditStatus: () => invoke<ScheduleEditRun>("schedule_edit_status"),
-  restoreScheduleSnapshot: (path: string) =>
-    invoke<ScheduleDoc>("restore_schedule_snapshot", { path }),
+  runDiagramEdit: (path: string, instruction: string, confirm: boolean) =>
+    invoke<string>("run_diagram_edit", { path, instruction, confirm }),
+  copyDiagramEditPrompt: (path: string, instruction: string, confirm: boolean) =>
+    invoke<void>("copy_diagram_edit_prompt", { path, instruction, confirm }),
+  diagramEditStatus: () => invoke<DiagramEditRun>("diagram_edit_status"),
+  restoreDiagramSnapshot: (path: string) =>
+    invoke<DiagramDoc>("restore_diagram_snapshot", { path }),
+  hasSnapshot: (path: string) => invoke<boolean>("has_snapshot", { path }),
 
   // ---- Docs tab: read-only browsing of shared Markdown (T-0259) ----
   // The backend reads the allowed roots from the config itself, so these take
@@ -422,14 +422,6 @@ export const api = {
       vaultPath: guard.vaultPath,
       project: guard.project,
     }),
-  runMindmapEdit: (path: string, instruction: string, confirm: boolean) =>
-    invoke<string>("run_mindmap_edit", { path, instruction, confirm }),
-  copyMindmapEditPrompt: (path: string, instruction: string, confirm: boolean) =>
-    invoke<void>("copy_mindmap_edit_prompt", { path, instruction, confirm }),
-  mindmapEditStatus: () => invoke<MindmapEditRun>("mindmap_edit_status"),
-  restoreMindmapSnapshot: (path: string) =>
-    invoke<MindmapDoc>("restore_mindmap_snapshot", { path }),
-
   // ---- music player (vault-backed) ----
   loadMusicData: (vaultPath: string) =>
     invoke<MusicData | null>("load_music_data", { vaultPath }),

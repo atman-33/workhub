@@ -136,4 +136,17 @@ export const diagramEn = {
   "diagram.pfd.symbolsHint": "A node's kind is set by its id and cannot be changed; an arrow runs between symbols as listed above.",
   "diagram.pfd.autoAlign": "Auto-align",
   "diagram.pfd.autoAlignHint": "Forget every position set by dragging; the layout places all the nodes again",
+  "diagram.aiPanel.placeholder":
+    "e.g. group the UI ideas under a new branch and colour it red, or push the implementation phase back a week",
+  "diagram.aiPanel.confirmLabel": "Review the diff before applying",
+  "diagram.aiPanel.run": "Run (Ctrl+Enter)",
+  "diagram.aiPanel.running": "Running…",
+  "diagram.aiPanel.undoHint": "Undo the last AI edit",
+  "diagram.aiPanel.copyPrompt": "Copy a prompt to paste into a chat session",
+  "diagram.aiPanel.stalled":
+    "This is taking a while. The run log is under `_ai/logs/diagram-edit/`.",
+  "diagram.aiPanel.history": "History",
+  "diagram.aiPanel.toggleHint": "Edit this diagram with AI",
+  "diagram.aiPanel.settingsHint": "AI edit settings",
+  "diagram.aiPanel.lockedHint": "An AI edit is running",
 } as const;

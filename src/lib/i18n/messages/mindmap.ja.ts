@@ -84,13 +84,6 @@ export const mindmapJa: Partial<Record<MessageKey, string>> = {
   "mindmap.chipSettings.showAll": "すべて表示",
   "mindmap.chipSettings.hideAll": "すべて隠す",
 
-  "mindmap.aiPanel.placeholder":
-    "例: UI に関するアイデアを新しいブランチにまとめ、リリースブランチを赤にする",
-  "mindmap.aiPanel.stalled":
-    "少し時間がかかっています。実行ログは `_ai/logs/mindmap/` にあります。",
-
-  "mindmap.settings.hint": "マインドマップ設定",
-
   "mindmap.canvas.indent": "インデント",
   "mindmap.canvas.outdent": "アウトデント",
   "mindmap.canvas.rename": "名前を変更",

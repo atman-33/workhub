@@ -5,7 +5,7 @@ paths:
 
 # Schedule notes
 
-Format of a project's `schedules/` notes. The `schedule-edit` skill follows this file; the spec lives here, not in the skill.
+Format of a project's `schedules/` notes. The `diagram-edit` skill follows this file; the spec lives here, not in the skill.
 
 `schedules/` holds the project's date planning. One file is one plan; copy it
 to compare alternatives. The app's **Schedule** tab renders the file as a

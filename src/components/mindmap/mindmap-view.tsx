@@ -11,14 +11,11 @@ import {
   Maximize2,
   Pencil,
   Plus,
-  Sparkles,
   StickyNote,
   Trash2,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
-import { MindmapAiPanel } from "@/components/mindmap/mindmap-ai-panel";
 import { ChipSettings } from "@/components/mindmap/chip-settings";
-import { MindmapSettings } from "@/components/mindmap/mindmap-settings";
 import {
   MindmapCanvas,
   type NodeAbilities,
@@ -90,7 +87,7 @@ import {
   type NodeWidth,
   type Sticky,
 } from "@/lib/mindmap/parse";
-import type { Config, MindmapEditRun, MindmapFile, Task } from "@/types";
+import type { Config, MindmapFile, Task } from "@/types";
 
 /**
  * The Mindmap tab (T-0188).
@@ -224,8 +221,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   const [newTitle, setNewTitle] = useState("");
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiRun, setAiRun] = useState<MindmapEditRun | null>(null);
 
   const undoStack = useRef<MindmapDocModel[]>([]);
   const redoStack = useRef<MindmapDocModel[]>([]);
@@ -236,7 +231,9 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
-  const aiRunning = aiRun?.state === "running";
+  // The Diagrams tab owns the AI edit (T-0685); while one runs the agent holds
+  // the file and this view goes read-only.
+  const aiRunning = embedded?.locked ?? false;
   const selected = useMemo(
     () => (doc && selectedId ? findNode(doc.roots, selectedId) : null),
     [doc, selectedId],
@@ -289,14 +286,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   useEffect(() => {
     void api.getConfig().then(setConfig);
   }, [configVersion]);
-
-  /** Settings owned by this tab save immediately. The patch goes onto a fresh
-   * read of the config, so a setting another tab changed meanwhile is not
-   * reverted (T-0281). */
-  const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
-    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
-    setConfig(await api.patchSettings(patch));
-  }, []);
 
   // A listing that fails is almost always a folder that moved while it was
   // being read — archiving a project is a move, and the event that triggers
@@ -440,7 +429,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the canvas follows the file without a refresh button.
   useEffect(() => {
-    const unlisten = listen("mindmaps-changed", () => {
+    const unlisten = listen("diagrams-changed", () => {
       void loadFiles();
       // A pending local edit is the newer intent; letting the reload win would
       // throw away what the user typed a moment ago. The event is usually the
@@ -452,14 +441,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
       void unlisten.then((fn) => fn());
     };
   }, [path, loadDoc, loadFiles]);
-
-  useEffect(() => {
-    void api.mindmapEditStatus().then(setAiRun);
-    const unlisten = listen<MindmapEditRun>("mindmap-edit:status", (e) => setAiRun(e.payload));
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
 
   // The one writer of `path` that reacts to the listings: it keeps the open
   // note while both still account for it, opens one automatically when they do
@@ -531,6 +512,25 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
     const mtime = await api.writeMindmap(path, content, source.current.mtime);
     source.current = { content, mtime };
   }, [doc, path]);
+
+  // The Diagrams tab flushes before it starts an AI edit, so the file the
+  // agent reads has what is on screen (T-0685). Through a ref: the host's
+  // callbacks are new on every render.
+  const registerFlush = useRef(embedded?.registerFlush);
+  registerFlush.current = embedded?.registerFlush;
+  useEffect(() => {
+    registerFlush.current?.(flushSave);
+    return () => registerFlush.current?.(null);
+  }, [flushSave]);
+
+  // After an AI edit ends or is undone the host asks for a fresh read.
+  const reloadToken = embedded?.reloadToken ?? 0;
+  const handledReload = useRef(reloadToken);
+  useEffect(() => {
+    if (reloadToken === handledReload.current) return;
+    handledReload.current = reloadToken;
+    if (path) void loadDoc(path, { onGone: () => setPath("") });
+  }, [reloadToken, path, loadDoc]);
 
   /** Applies a user edit: records the previous state for undo, then writes. */
   const mutate = useCallback(
@@ -1232,36 +1232,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
     }
   }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
-  const runAiEdit = useCallback(
-    async (instruction: string, confirm: boolean) => {
-      try {
-        await flushSave();
-        await api.runMindmapEdit(path, instruction, confirm);
-      } catch (e) {
-        setStatus(String(e));
-      }
-    },
-    [flushSave, path],
-  );
-
-  const copyAiPrompt = useCallback(
-    async (instruction: string, confirm: boolean) => {
-      // Flush first so the file the agent reads has the on-screen edits.
-      await flushSave();
-      await api.copyMindmapEditPrompt(path, instruction, confirm);
-    },
-    [flushSave, path],
-  );
-
-  const undoAiEdit = useCallback(async () => {
-    try {
-      await api.restoreMindmapSnapshot(path);
-      await loadDoc(path);
-    } catch (e) {
-      setStatus(String(e));
-    }
-  }, [path, loadDoc]);
-
   // ---- render -------------------------------------------------------------
 
   if (!vaultPath) {
@@ -1564,21 +1534,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
               <Image className="size-3.5" />
             </Button>
           </Hint>
-          <MindmapSettings
-            settings={config?.settings ?? null}
-            onPatch={(patch) => void patchSettings(patch)}
-          />
-          <Hint label={t("misc.aiEditSettings.title")} disabled={!doc}>
-            <Button
-              size="sm"
-              variant={aiOpen ? "secondary" : "outline"}
-              className="h-7 text-xs"
-              disabled={!doc}
-              onClick={() => setAiOpen((v) => !v)}
-            >
-              <Sparkles className="size-3.5" />
-            </Button>
-          </Hint>
           <Hint label={t("mindmap.view.deleteHint")} disabled={!path || aiRunning}>
             <Button
               size="sm"
@@ -1670,21 +1625,9 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
                   onDelete={() => deleteNode(selected.id)}
                 />
               ) : (
-                !aiOpen && (
-                  <p className="p-3 text-xs text-muted-foreground">
-                    {t("mindmap.view.pickNodePrompt")}
-                  </p>
-                )
-              )}
-              {aiOpen && aiRun && (
-                <MindmapAiPanel
-                  run={aiRun}
-                  defaultConfirm={config?.settings.mindmap_confirm ?? false}
-                  disabled={!path}
-                  onRun={(instruction, confirm) => void runAiEdit(instruction, confirm)}
-                  onUndo={() => void undoAiEdit()}
-                  onCopyPrompt={copyAiPrompt}
-                />
+                <p className="p-3 text-xs text-muted-foreground">
+                  {t("mindmap.view.pickNodePrompt")}
+                </p>
               )}
             </div>
           </ResizablePanel>

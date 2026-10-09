@@ -5,6 +5,7 @@ mod clips;
 mod commands;
 mod diag;
 mod diagram;
+mod diagram_edit;
 mod docs;
 mod docs_viewer;
 mod git;
@@ -14,7 +15,6 @@ mod inbox;
 mod ink;
 mod ink_preview;
 mod mindmap;
-mod mindmap_edit;
 mod models;
 mod music;
 mod notices;
@@ -25,7 +25,6 @@ mod plugins;
 mod quick_capture;
 mod rawkey;
 mod schedule;
-mod schedule_edit;
 mod storage;
 mod stt;
 mod task_editor;
@@ -197,8 +196,7 @@ pub fn run() {
         .manage(voice_struct::StructState::default())
         .manage(stt::SttState::default())
         .manage(tidy::TidyState::default())
-        .manage(schedule_edit::ScheduleEditState::default())
-        .manage(mindmap_edit::MindmapEditState::default())
+        .manage(diagram_edit::DiagramEditState::default())
         .manage(docs_viewer::DocsViewerState::default())
         .setup(|app| {
             // Closing the main window used to leave the process running
@@ -377,10 +375,11 @@ pub fn run() {
             commands::rename_schedule,
             commands::delete_schedule,
             commands::export_schedule_html,
-            commands::run_schedule_edit,
-            commands::copy_schedule_edit_prompt,
-            commands::schedule_edit_status,
-            commands::restore_schedule_snapshot,
+            commands::run_diagram_edit,
+            commands::copy_diagram_edit_prompt,
+            commands::diagram_edit_status,
+            commands::has_snapshot,
+            commands::restore_diagram_snapshot,
             commands::docs_roots,
             commands::add_docs_root,
             commands::remove_docs_root,
@@ -420,10 +419,6 @@ pub fn run() {
             commands::delete_mindmap,
             commands::export_mindmap_file,
             commands::export_mindmap_png,
-            commands::run_mindmap_edit,
-            commands::copy_mindmap_edit_prompt,
-            commands::mindmap_edit_status,
-            commands::restore_mindmap_snapshot,
             commands::launch_agent_for_task,
             commands::load_music_data,
             commands::save_music_data,

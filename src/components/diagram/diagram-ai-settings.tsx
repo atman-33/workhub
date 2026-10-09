@@ -9,9 +9,10 @@ import { useT } from "@/lib/i18n";
 import type { Settings } from "@/types";
 
 /**
- * The Mindmap tab's own settings (T-0289) — the counterpart of
- * `schedule-settings.tsx`, and for the same reason: the agent that edits the
- * map is chosen beside the map rather than in a modal over it.
+ * Which agent edits a diagram, on which model, and whether the result is
+ * reviewed first (T-0289, unified in T-0685). One setting for every kind of
+ * diagram, so it sits in the Diagrams tab's toolbar rather than in each
+ * editor. Every change saves immediately through the caller's `onPatch`.
  */
 
 interface Props {
@@ -20,14 +21,14 @@ interface Props {
   onPatch: (patch: Partial<Settings>) => void;
 }
 
-export function MindmapSettings({ settings, disabled, onPatch }: Props) {
+export function DiagramAiSettings({ settings, disabled, onPatch }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const ready = settings != null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Hint label={t("mindmap.settings.hint")} disabled={disabled || !ready}>
+      <Hint label={t("diagram.aiPanel.settingsHint")} disabled={disabled || !ready}>
         <PopoverTrigger asChild>
           <Button
             size="sm"
@@ -42,17 +43,17 @@ export function MindmapSettings({ settings, disabled, onPatch }: Props) {
       <PopoverContent className="w-72 p-3 text-xs" align="end">
         {settings && (
           <AiEditSettings
-            subject={t("nav.mindmap")}
-            assignee={settings.mindmap_assignee}
-            model={settings.mindmap_model}
-            confirm={settings.mindmap_confirm}
+            assignee={settings.diagram_assignee}
+            model={settings.diagram_model}
+            confirm={settings.diagram_confirm}
             active={open}
             onAssigneeChange={(v) =>
-              // Model ids are per-CLI — see the same note in the Schedule tab.
-              onPatch({ mindmap_assignee: v, mindmap_model: "" })
+              // Model ids are per-CLI: a claude id left behind on an opencode
+              // run would be passed straight through to `--model` and fail.
+              onPatch({ diagram_assignee: v, diagram_model: "" })
             }
-            onModelChange={(model) => onPatch({ mindmap_model: model })}
-            onConfirmChange={(v) => onPatch({ mindmap_confirm: v })}
+            onModelChange={(model) => onPatch({ diagram_model: model })}
+            onConfirmChange={(v) => onPatch({ diagram_confirm: v })}
           />
         )}
       </PopoverContent>

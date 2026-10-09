@@ -127,20 +127,13 @@ export interface Settings {
   /** Built-in vault-tidy routine (files stale inbox notes, refreshes the
    * tasks/archive index via a headless agent). */
   tidy: TidySettings;
-  /** Agent CLI used for AI schedule edits: "claude-code" | "opencode". */
-  schedule_assignee: string;
+  /** Agent CLI used for AI diagram edits (every kind): "claude-code" | "opencode". */
+  diagram_assignee: string;
   /** Model passed to that agent via --model; empty = the agent's default. */
-  schedule_model: string;
-  /** Default AI schedule edits to confirm-first (show the diff) instead of
+  diagram_model: string;
+  /** Default AI diagram edits to confirm-first (show the diff) instead of
    * applying immediately. */
-  schedule_confirm: boolean;
-  /** Agent CLI used for AI mindmap edits: "claude-code" | "opencode". */
-  mindmap_assignee: string;
-  /** Model passed to that agent via --model; empty = the agent's default. */
-  mindmap_model: string;
-  /** Default AI mindmap edits to confirm-first instead of applying
-   * immediately. */
-  mindmap_confirm: boolean;
+  diagram_confirm: boolean;
   /** Seconds between automatic meeting structurings; 0 = off. Vault-scoped. */
   meeting_struct_interval_secs: number;
   /** Agent CLI used for meeting structuring: "claude-code" | "opencode". */
@@ -467,8 +460,8 @@ export interface ScheduleDoc {
   mtime: number;
 }
 
-/** One past AI schedule edit, newest first in `ScheduleEditRun.history`. */
-export interface ScheduleEditEntry {
+/** One past AI diagram edit, newest first in `DiagramEditRun.history`. */
+export interface DiagramEditEntry {
   instruction: string;
   /** "completed" | "failed" */
   state: string;
@@ -477,10 +470,10 @@ export interface ScheduleEditEntry {
   at: number;
 }
 
-/** Live state of the AI schedule-edit runner (`schedule_edit_status` /
- * `schedule-edit:status`). `state === "running"` also means the calendar is
- * locked against app-side writes. */
-export interface ScheduleEditRun {
+/** Live state of the AI diagram-edit runner (`diagram_edit_status` /
+ * `diagram-edit:status`), one for every kind of diagram. `state === "running"`
+ * also means the open diagram is locked against app-side writes. */
+export interface DiagramEditRun {
   /** "idle" | "running" | "completed" | "failed" */
   state: string;
   path: string | null;
@@ -490,7 +483,7 @@ export interface ScheduleEditRun {
   error: string | null;
   stalled: boolean;
   can_undo: boolean;
-  history: ScheduleEditEntry[];
+  history: DiagramEditEntry[];
 }
 
 /** One diagram note (Schedule, Mindmap, ...) as the Diagrams tab lists it
@@ -531,32 +524,6 @@ export interface MindmapDoc {
   path: string;
   content: string;
   mtime: number;
-}
-
-/** One past AI mindmap edit, newest first in `MindmapEditRun.history`. */
-export interface MindmapEditEntry {
-  instruction: string;
-  /** "completed" | "failed" */
-  state: string;
-  message: string;
-  seconds: number;
-  at: number;
-}
-
-/** Live state of the AI mindmap-edit runner (`mindmap_edit_status` /
- * `mindmap-edit:status`). `state === "running"` also means the canvas is
- * locked against app-side writes. */
-export interface MindmapEditRun {
-  /** "idle" | "running" | "completed" | "failed" */
-  state: string;
-  path: string | null;
-  instruction: string | null;
-  since: number | null;
-  summary: string | null;
-  error: string | null;
-  stalled: boolean;
-  can_undo: boolean;
-  history: MindmapEditEntry[];
 }
 
 /** Config for the built-in vault-tidy routine (T-0050). */

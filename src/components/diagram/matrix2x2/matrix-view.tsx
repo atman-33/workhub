@@ -32,6 +32,7 @@ import {
 } from "@/lib/diagram/sticky";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { Config, Task } from "@/types";
 
 /**
@@ -48,8 +49,8 @@ import type { Config, Task } from "@/types";
  * - **mtime guarding.** Every write carries the mtime the content was read at,
  *   so an Obsidian or agent edit in between is reported, not overwritten.
  *
- * AI editing arrives with the unified `diagram-edit` (T-0685); until then the
- * canvas is never locked.
+ * AI editing is hosted by the Diagrams tab (T-0685): it flushes the pending
+ * save before a run, and passes `locked` while the agent holds the file.
  */
 
 /** Quiet period after the last edit before the file is written. */
@@ -86,6 +87,14 @@ export function MatrixView({ configVersion, embedded }: Props) {
   onPathChange.current = embedded.onPathChange;
   const fallbackTitle = useRef(embedded.title);
   fallbackTitle.current = embedded.title;
+  // While an AI edit runs the agent holds the file (T-0685): every write path
+  // goes quiet and the toolbar, canvas and side panel stop answering. Read
+  // through a ref so the callbacks below stay stable.
+  const locked = embedded.locked;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+  const registerFlush = useRef(embedded.registerFlush);
+  registerFlush.current = embedded.registerFlush;
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doc, setDoc] = useState<MatrixDocModel | null>(null);
@@ -194,6 +203,33 @@ export function MatrixView({ configVersion, embedded }: Props) {
     }
   }, [loadDoc]);
 
+  const reloadToken = embedded.reloadToken;
+  const handledReload = useRef(reloadToken);
+  useEffect(() => {
+    if (reloadToken === handledReload.current) return;
+    handledReload.current = reloadToken;
+    if (pathRef.current) void loadDoc(pathRef.current);
+  }, [reloadToken, loadDoc]);
+
+  // The host asks for this before it starts an AI edit, so the file the agent
+  // reads has everything that is on screen.
+  const flush = useCallback(async () => {
+    await flushing.current;
+    await writePending();
+  }, [writePending]);
+  useEffect(() => {
+    registerFlush.current(flush);
+    return () => registerFlush.current(null);
+  }, [flush]);
+
+  // Entering the lock closes any inline edit: its box would sit dead under the
+  // inert canvas.
+  useEffect(() => {
+    if (!locked) return;
+    setEditingId(null);
+    setEditingStickyId(null);
+  }, [locked]);
+
   // Opening another note: the edit still pending belongs to the one being left
   // and is written first, so the load below cannot overwrite the mtime that
   // write is guarded by.
@@ -229,6 +265,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
   /** Shows a model and schedules the file write, without touching the undo stacks. */
   const apply = useCallback(
     (next: MatrixDocModel) => {
+      if (lockedRef.current) return; // the agent holds the file
       setDoc(next);
       pending.current = { path, doc: next };
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -240,7 +277,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
   /** Applies a user edit: records the previous state for undo, then writes. */
   const mutate = useCallback(
     (next: MatrixDocModel) => {
-      if (!doc) return;
+      if (!doc || lockedRef.current) return;
       undoStack.current.push(doc);
       if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
       redoStack.current = [];
@@ -459,6 +496,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
    */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (lockedRef.current) return;
       if (!doc || !rootRef.current || rootRef.current.offsetParent === null) return;
       // Never steal a key from a field the user is typing in.
       const target = e.target as HTMLElement | null;
@@ -585,9 +623,18 @@ export function MatrixView({ configVersion, embedded }: Props) {
     <div ref={rootRef} className="flex h-full min-h-0 flex-col">
       {doc && (
         <>
-          <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
+          <div
+            inert={locked}
+            className={cn(
+              "flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5",
+              locked && "opacity-60",
+            )}
+          >
             <span className="truncate text-xs font-medium">{doc.title}</span>
             <div className="ml-auto flex items-center gap-1.5">
+              {locked && (
+                <span className="text-[11px] text-amber-500">{t("diagram.aiPanel.lockedHint")}</span>
+              )}
               {status && (
                 <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>
               )}
@@ -646,7 +693,11 @@ export function MatrixView({ configVersion, embedded }: Props) {
             </div>
           </div>
 
-          <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          <ResizablePanelGroup
+            orientation="horizontal"
+            inert={locked}
+            className={cn("min-h-0 flex-1", locked && "opacity-60")}
+          >
             <ResizablePanel id="matrix-canvas" defaultSize="74%" minSize="40%" className="min-h-0">
               <div className="flex h-full min-h-0 flex-col">
                 <MatrixCanvas

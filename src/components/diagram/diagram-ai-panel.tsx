@@ -8,30 +8,31 @@ import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { MindmapEditRun } from "@/types";
+import type { DiagramEditRun } from "@/types";
 
 /**
- * Natural-language editing of the open mindmap.
+ * Natural-language editing of the open diagram, whatever its kind (T-0685).
  *
  * The panel is a thin shell over the backend runner: it submits an
- * instruction, reflects `mindmap-edit:status`, and offers the undo. It never
- * reads or writes the mindmap file — the agent writes it and the file watcher
+ * instruction, reflects `diagram-edit:status`, and offers the undo. It never
+ * reads or writes the diagram file - the agent writes it and the file watcher
  * brings the change back, which is why nothing here has to reconcile the
- * agent's output with what is on screen.
+ * agent's output with what is on screen. The `diagram-edit` skill reads the
+ * note's `type` itself, so this panel does not know the kind either.
  */
 
 interface Props {
-  run: MindmapEditRun;
+  run: DiagramEditRun;
   /** Whether the confirm-first mode starts on (from Settings). */
   defaultConfirm: boolean;
   disabled?: boolean;
-  onRun: (instruction: string, confirm: boolean) => void;
+  onRun: (instruction: string, confirm: boolean) => void | Promise<unknown>;
   onUndo: () => void;
   /** Copies the same prompt for an interactive session; the instruction may be empty. */
   onCopyPrompt: (instruction: string, confirm: boolean) => Promise<unknown>;
 }
 
-export function MindmapAiPanel({
+export function DiagramAiPanel({
   run,
   defaultConfirm,
   disabled,
@@ -63,15 +64,15 @@ export function MindmapAiPanel({
         // Ctrl+Enter rather than Enter: an instruction is usually a couple of
         // sentences, so plain Enter has to stay a newline.
         onKeyDown={(e) => {
-          e.stopPropagation();
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
+            e.stopPropagation();
             submit();
           }
         }}
         disabled={running || disabled}
         rows={4}
-        placeholder={t("mindmap.aiPanel.placeholder")}
+        placeholder={t("diagram.aiPanel.placeholder")}
         className="resize-none text-xs"
       />
 
@@ -81,20 +82,15 @@ export function MindmapAiPanel({
           onCheckedChange={(v) => setConfirm(v === true)}
           disabled={running}
         />
-        {t("schedule.aiPanel.confirmLabel")}
+        {t("diagram.aiPanel.confirmLabel")}
       </label>
 
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          className="h-7 flex-1 text-xs"
-          onClick={submit}
-          disabled={running || disabled}
-        >
+        <Button size="sm" className="h-7 flex-1 text-xs" onClick={submit} disabled={running || disabled}>
           {running ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
-          {running ? t("schedule.aiPanel.running") : t("schedule.aiPanel.run")}
+          {running ? t("diagram.aiPanel.running") : t("diagram.aiPanel.run")}
         </Button>
-        <Hint label={t("schedule.aiPanel.undoHint")} disabled={running || !run.can_undo}>
+        <Hint label={t("diagram.aiPanel.undoHint")} disabled={running || !run.can_undo}>
           <Button
             size="sm"
             variant="outline"
@@ -106,7 +102,7 @@ export function MindmapAiPanel({
           </Button>
         </Hint>
         <CopyPromptButton
-          label={t("schedule.aiPanel.copyPrompt")}
+          label={t("diagram.aiPanel.copyPrompt")}
           className="size-7"
           disabled={disabled}
           onCopy={() => onCopyPrompt(instruction.trim(), confirm)}
@@ -116,7 +112,7 @@ export function MindmapAiPanel({
       {running && run.stalled && (
         <div className="flex items-start gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[11px]">
           <TriangleAlert className="mt-0.5 size-3 shrink-0" />
-          {t("mindmap.aiPanel.stalled")}
+          {t("diagram.aiPanel.stalled")}
         </div>
       )}
       {run.state === "failed" && run.error && (
@@ -131,7 +127,7 @@ export function MindmapAiPanel({
       {run.history.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mb-1 text-[11px] font-medium text-muted-foreground">
-            {t("schedule.aiPanel.history")}
+            {t("diagram.aiPanel.history")}
           </div>
           <ul className="space-y-1.5">
             {run.history.map((entry) => (
