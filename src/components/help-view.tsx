@@ -18,6 +18,7 @@ import {
   Mic,
   MonitorUp,
   Network,
+  PanelTop,
   PenLine,
   Puzzle,
   Repeat,
@@ -55,6 +56,7 @@ import { cn } from "@/lib/utils";
 const SECTION_ICONS: Record<HelpSectionId, LucideIcon> = {
   setup: Rocket,
   zoom: ZoomIn,
+  tabs: PanelTop,
   template: FileDiff,
   memory: BrainCircuit,
   secretary: UserRoundCheck,

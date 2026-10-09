@@ -53,6 +53,16 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 - The **% readout** beside the version at the right end of the tab bar opens the same controls: −/+ buttons, a slider and a reset.
 - The zoom is remembered on this machine and re-applied on startup. The Docs preview's own text zoom and the mindmap/schedule gestures are unaffected.`,
   },
+  "tabs": {
+    short: "Tab bar",
+    title: "Tab bar and quick switch",
+    body: `The tab bar can be rearranged, and any tab is one keystroke away.
+
+- **Drag a tab** to reorder it. The order you leave is the order that stays visible when the window is narrow; tabs that do not fit go into the **»** menu.
+- **Right-click the tab bar** to hide the tab under the pointer. The same menu lists the hidden tabs so you can bring one back, and has a reset that restores the built-in order. The last visible tab cannot be hidden.
+- **Ctrl+K** opens a quick switch: type part of a tab's name and press Enter. It lists every tab, hidden ones included, so hiding a tab never makes it unreachable. A hidden tab you jump to stays in the bar until you switch away.
+- The arrangement is saved in the vault (\`.workhub/settings.json\`), so another PC that uses the same vault shows the same bar.`,
+  },
   "template": {
     short: "Vault template updates",
     title: "Vault template updates",
