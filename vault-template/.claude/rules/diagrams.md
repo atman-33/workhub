@@ -116,3 +116,84 @@ q_br: やらない
   by the app as it is and listed as a warning; leave such lines alone. A
   sticky whose `node:` names no item is kept too.
 - **Never edit `## Memo`**, and leave any section you do not know where it is.
+
+## flow
+
+A business flow: steps in swimlanes, joined by arrows. Self-contained -
+everything an edit needs is here.
+
+```markdown
+---
+type: flow
+title: 受注フロー
+created: 2026-10-09
+updated: 2026-10-09
+---
+
+## Lanes
+
+- L-001 営業 #blue
+- L-002 経理 #green
+
+## Steps
+
+- F-001 受注 ^start lane:L-001
+- F-002 見積を作る lane:L-001 task:T-0100
+  メモ行。hover で出る。
+- F-003 金額 1 万円超? ^decision lane:L-001
+- F-004 承認する lane:L-002 @640,0
+- F-005 完了 ^end lane:L-001
+
+## Edges
+
+- F-001 -> F-002
+- F-002 -> F-003
+- F-003 -> F-004 "はい"
+- F-003 -> F-005 "いいえ"
+- F-004 -> F-002 "差し戻し"
+
+## Stickies
+
+- S-001 node:F-004 @40,-20 #red 要確認
+```
+
+- **Frontmatter**: `type`, `title`, `created`, `updated` as for every
+  diagram; `stickies: hidden` is the only other key. No view settings.
+- **Sections** in this order: `## Lanes`, `## Steps`, `## Edges`, then the optional
+  `## Stickies` and `## Memo`. A missing managed section is written in by the app.
+- **Lane**: `- L-NNN <title> [#color]`. The order of the lines is the order of
+  the bands, top to bottom. A flow with no lanes is one plain row.
+- **Step**: `- F-NNN <title> [^kind] [lane:L-NNN] [task:<id>] [#color] [@x,y]`,
+  then optional indented lines (its note). Ids are the highest in the file plus
+  one; never change or reuse one. The kind is `^start` or `^end` (rounded ends),
+  `^decision` (diamond), or none for a process (box). Put a question in a
+  decision's title ("金額 1 万円超?") and label its outgoing arrows. The title is
+  every token left once the modifiers are taken out; keep it to one line.
+- **Lane membership**: `lane:L-NNN` names the lane the step belongs to. A step
+  with no `lane:`, or one naming a lane that does not exist, is shown in an
+  "Unassigned" band at the bottom. When you add a lane or step, give the step its
+  `lane:`.
+- **Arrow**: `- F-NNN -> F-NNN ["label"]`. Arrows have no id; the pair
+  `(from, to)` is the identity, so two lines for the same pair are one arrow (the
+  app keeps the first label). An arrow naming a step that does not exist is kept
+  by the app as it is and listed as a warning.
+- **Layout is automatic**: columns follow the flow (a step sits one column right
+  of the furthest step that flows into it) and rows are the lanes. An arrow that
+  goes back to an earlier step is drawn as a loop under the boxes and does not
+  move any column. Write the steps in flow order and add the arrows; do not
+  invent positions.
+- **`@x,y`** pins a step by hand. `x` is the centre's absolute horizontal position
+  in pixels; `y` is the vertical offset in pixels from the middle of the step's
+  lane (0 is the lane's centre line, negative is up), and the step stays inside
+  the lane. Whole numbers. **No `@` means "placed by the layout"**: when you add a
+  step leave the `@` off, and never rewrite another step's position. Moving a
+  step to another lane means changing its `lane:` and setting `y` to 0. Removing
+  every `@` is the app's "auto-align".
+- **`## Stickies`** pins a note to a step: `node:F-NNN` names the step (the key is
+  `node:` in every kind). Not to lanes or arrows. Delete a step and delete its
+  arrows and stickies.
+- **Keep what you do not understand.** A line under `## Lanes`, `## Steps` or
+  `## Edges` that is not a list item, or starts with another kind's id (`N-001`,
+  `M-001`, `P-001`), is kept by the app as it is and listed as a warning; leave such
+  lines alone. So is a sticky whose `node:` names no step.
+- **Never edit `## Memo`**, and leave any section you do not know where it is.
