@@ -24,7 +24,7 @@ const node = (id: string, shape: string, cx: number, cy: number, width = 100, he
   height,
 });
 
-const SHAPES = ["rect", "rounded", "pill", "diamond", "ellipse"];
+const SHAPES = ["rect", "rounded", "pill", "diamond", "ellipse", "document"];
 
 /** The point is on the boundary when a hair inside is in and a hair outside is out. */
 function expectOnBoundary(n: DiagramNode, p: Point) {

@@ -180,9 +180,8 @@ fn scope_of(parts: &[String]) -> String {
     "project".into()
 }
 
-/// The text of a new note of `kind`. The 2x2 matrix starts empty and the flow
-/// with a small working example; the PFD's editor arrives with its task of the
-/// diagram series.
+/// The text of a new note of `kind`. The 2x2 matrix starts empty; the flow and
+/// the PFD start with a small working example.
 fn skeleton(kind: &str, title: &str, range: &str, now: &str) -> Result<String, String> {
     Ok(match kind {
         "schedule" => crate::schedule::skeleton(title, range, now),
@@ -204,8 +203,14 @@ x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n
 ## Edges\n\n- F-001 -> F-002\n- F-002 -> F-003\n\n\
 ## Memo\n\n"
         ),
+        // One process, the deliverable it produces and the arrow between them:
+        // the two symbols and the one connection a PFD is made of. The positions
+        // are left to the layout.
         "pfd" => format!(
-            "---\ntype: pfd\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n## Nodes\n\n## Edges\n\n## Memo\n\n"
+            "---\ntype: pfd\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Nodes\n\n- P-001 Process\n- D-001 Deliverable\n\n\
+## Edges\n\n- P-001 -> D-001\n\n\
+## Memo\n\n"
         ),
         other => return Err(format!("unknown diagram type '{other}'")),
     })
@@ -638,6 +643,26 @@ mod tests {
         assert!(body.contains("- F-001 Start ^start lane:L-001"));
         assert!(body.contains("- F-003 End ^end lane:L-001"));
         assert!(body.contains("- F-002 -> F-003"));
+        // Written back as-is, it is still a valid diagram.
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn pfd_skeleton_is_a_process_a_deliverable_and_an_arrow() {
+        let vault = temp_vault("pfd-skeleton");
+        let file = create_diagram(&vault, "demo", "pfd", "Dev", "", "").unwrap();
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "pfd");
+        assert_eq!(frontmatter_value(&front, "title"), "Dev");
+        // Every managed section is there, in the order the editor writes them.
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Nodes") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        assert!(body.contains("- P-001 Process\n"));
+        assert!(body.contains("- D-001 Deliverable\n"));
+        assert!(body.contains("- P-001 -> D-001\n"));
         // Written back as-is, it is still a valid diagram.
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();

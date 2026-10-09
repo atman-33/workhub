@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
-import { EdgeArrow, HANDLE_RADIUS } from "@/components/diagram/edge-arrow";
+import { EdgeArrow } from "@/components/diagram/edge-arrow";
 import { NodeInput } from "@/components/diagram/node-input";
 import { ShapeOutline } from "@/components/diagram/node-shape";
 import { NoteTip } from "@/components/diagram/note-tip";
 import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
-import { useEdgeDrag, type EdgeDragState } from "@/components/diagram/use-edge-drag";
+import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import { COLOR_HEX } from "@/lib/diagram/colors";
 import {
@@ -20,15 +21,7 @@ import {
   type PositionedStep,
 } from "@/lib/diagram/flow/layout";
 import type { FlowDocModel } from "@/lib/diagram/flow/parse";
-import {
-  allowAnyConnection,
-  arrowHeadPath,
-  boundaryPoint,
-  centerOf,
-  hitNode,
-  type ConnectionRule,
-  type Point,
-} from "@/lib/diagram/node-edge";
+import { allowAnyConnection, hitNode, type ConnectionRule } from "@/lib/diagram/node-edge";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import { textWidth } from "@/lib/diagram/text";
@@ -405,7 +398,7 @@ export function FlowCanvas({
             )}
             {showHandles && !editing && (
               <ArrowHandles
-                step={step}
+                node={step}
                 onStart={(e) => {
                   if (e.button !== 0) return;
                   e.stopPropagation();
@@ -417,7 +410,7 @@ export function FlowCanvas({
         );
       })}
 
-      {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} layout={layout} />}
+      {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
 
       {/* Stickies are drawn last, so a note the user dropped over a step stays
           readable instead of disappearing under it. */}
@@ -439,65 +432,5 @@ export function FlowCanvas({
 
       {hovered?.note && !editingStep && !edgeDrag.drag && <NoteTip box={hovered} note={hovered.note} />}
     </DiagramSurface>
-  );
-}
-
-/** The four round handles on the sides of a step; pressing one starts an arrow. */
-function ArrowHandles({
-  step,
-  onStart,
-}: {
-  step: PositionedStep;
-  onStart: (e: React.PointerEvent) => void;
-}) {
-  const c = centerOf(step);
-  const far = 4000;
-  const spots: Point[] = [
-    boundaryPoint(step, { x: c.x + far, y: c.y }),
-    boundaryPoint(step, { x: c.x - far, y: c.y }),
-    boundaryPoint(step, { x: c.x, y: c.y - far }),
-    boundaryPoint(step, { x: c.x, y: c.y + far }),
-  ];
-  return (
-    <>
-      {spots.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x}
-          cy={p.y}
-          r={HANDLE_RADIUS}
-          className="cursor-crosshair fill-background stroke-ring"
-          strokeWidth={1.5}
-          onPointerDown={onStart}
-        />
-      ))}
-    </>
-  );
-}
-
-/** The arrow being drawn or re-routed, from the node it keeps to the pointer
- * (or to the node it would land on). */
-function RubberBand({ drag, layout }: { drag: EdgeDragState; layout: FlowLayout }) {
-  const anchor = layout.byId.get(drag.anchorId);
-  if (!anchor) return null;
-  const over = drag.overId ? layout.byId.get(drag.overId) : undefined;
-  const loose: Point = over ? boundaryPoint(over, centerOf(anchor)) : drag.pointer;
-  const anchorEnd = boundaryPoint(anchor, over ? centerOf(over) : drag.pointer);
-  // The head always sits at the arrow's `to`: the loose end, except when the
-  // held end is the arrow's start.
-  const headAtAnchor = drag.mode === "reattach" && drag.end === "from";
-  const [tail, tip] = headAtAnchor ? [loose, anchorEnd] : [anchorEnd, loose];
-  const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
-  return (
-    <g pointerEvents="none">
-      <path
-        d={`M ${tail.x} ${tail.y} L ${tip.x} ${tip.y}`}
-        fill="none"
-        strokeWidth={2}
-        strokeDasharray="5 4"
-        className="stroke-ring"
-      />
-      <path d={arrowHeadPath(tip, angle)} className="fill-ring stroke-ring" strokeWidth={1} />
-    </g>
   );
 }

@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { FolderPlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { FlowView } from "@/components/diagram/flow/flow-view";
+import { PfdView } from "@/components/diagram/pfd/pfd-view";
 import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -286,7 +287,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
     );
   }
 
-  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow") => ({
+  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
@@ -431,6 +432,9 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
           </div>
           <div className={cn("h-full", kind === "flow" ? "" : "hidden")}>
             <FlowView configVersion={configVersion} embedded={editorFor("flow")} />
+          </div>
+          <div className={cn("h-full", kind === "pfd" ? "" : "hidden")}>
+            <PfdView configVersion={configVersion} embedded={editorFor("pfd")} />
           </div>
           {!hasEditor(kind) && (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">

@@ -114,8 +114,60 @@ const ellipse: ShapeDef = {
   }),
 };
 
+/** Samples along the wavy bottom edge of the document shape. */
+const DOCUMENT_WAVE_SAMPLES = 32;
+
+/**
+ * Depth of the wave of a document shape of height `height`. Capped at about a
+ * tenth of the height: that is what keeps the shape star-shaped about its
+ * centre (a deeper wave lets a shallow line leave the shape and come back in),
+ * and `boundaryPoint` relies on a line crossing the outline once.
+ */
+export function documentWaveDepth(height: number): number {
+  return Math.min(6, height / 9);
+}
+
+/**
+ * Where the bottom edge of a document shape lies at horizontal offset `dx`
+ * from its centre: a sine of one period across the width, so the edge dips to
+ * the bottom of the box at a quarter of the way along and rises to
+ * `2 * depth` above it at three quarters. Measured downward from the centre.
+ */
+export function documentBottom(dx: number, size: ShapeSize): number {
+  const depth = documentWaveDepth(size.height);
+  const u = (dx + size.width / 2) / size.width;
+  return size.height / 2 - depth + depth * Math.sin(2 * Math.PI * u);
+}
+
+/**
+ * A page whose bottom edge ripples: the deliverable of the PFD (T-0683).
+ * `contains` and `outline` are built from the same function, so an arrow stops
+ * on the line that is drawn, ripple included.
+ */
+const documentShape: ShapeDef = {
+  id: "document",
+  contains: (dx, dy, s) =>
+    Math.abs(dx) <= s.width / 2 && dy >= -s.height / 2 && dy <= documentBottom(dx, s),
+  outline: (box) => {
+    const size = { width: box.width, height: box.height };
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const points = [`M ${box.x} ${box.y}`, `L ${box.x + box.width} ${box.y}`];
+    for (let i = DOCUMENT_WAVE_SAMPLES; i >= 0; i--) {
+      const dx = -box.width / 2 + (box.width * i) / DOCUMENT_WAVE_SAMPLES;
+      points.push(`L ${round2(cx + dx)} ${round2(cy + documentBottom(dx, size))}`);
+    }
+    points.push("Z");
+    return { tag: "path", attrs: { d: points.join(" ") } };
+  },
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 const registry = new Map<string, ShapeDef>(
-  [rect, rounded, pill, diamond, ellipse].map((s) => [s.id, s]),
+  [rect, rounded, pill, diamond, ellipse, documentShape].map((s) => [s.id, s]),
 );
 
 /** Adds (or replaces) a shape. */
