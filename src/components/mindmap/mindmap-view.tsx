@@ -50,6 +50,7 @@ import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { t as tStatic, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import { svgToPngBase64 } from "@/lib/diagram/raster";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -654,7 +655,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
       const existing = stickiesOf(doc.stickies, nodeId).length;
       const sticky: Sticky = {
         id: nextStickyId(doc.stickies),
-        nodeId,
+        targetId: nodeId,
         dx: NEW_STICKY_OFFSET.dx + existing * NEW_STICKY_STAGGER.dx,
         dy: NEW_STICKY_OFFSET.dy + existing * NEW_STICKY_STAGGER.dy,
         text: "",
@@ -791,7 +792,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
       mutate({
         ...doc,
         roots,
-        stickies: doc.stickies.filter((sticky) => !gone.has(sticky.nodeId)),
+        stickies: doc.stickies.filter((sticky) => !gone.has(sticky.targetId)),
       });
       setSelectedId(parent?.id ?? null);
     },
@@ -1207,32 +1208,20 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
       showIds: doc.nodeIdsShown,
       stickies: visibleStickies,
     });
-    const width = Number(/width="(\d+)"/.exec(svg)?.[1] ?? 800);
-    const height = Number(/height="(\d+)"/.exec(svg)?.[1] ?? 600);
-    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
     try {
       const dir = await exportDir();
       if (!dir) {
         throw new Error(tStatic("mindmap.view.noProjectFolderError", { project: targetProject }));
       }
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new window.Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(tStatic("mindmap.view.rasterizeFailed")));
-        img.src = url;
+      const png = await svgToPngBase64(svg, {
+        rasterize: tStatic("mindmap.view.rasterizeFailed"),
+        canvas: tStatic("mindmap.view.noCanvasContext"),
       });
-      const canvas = document.createElement("canvas");
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error(tStatic("mindmap.view.noCanvasContext"));
-      ctx.scale(2, 2);
-      ctx.drawImage(image, 0, 0);
 
       const name = `${(doc.title || "mindmap").replace(/[\\/:*?"<>|]/g, "-")}.png`;
       const out = `${dir}/${name}`;
-      await api.exportMindmapPng(out, canvas.toDataURL("image/png").split(",")[1] ?? "", {
+      await api.exportMindmapPng(out, png, {
         vaultPath,
         project: targetProject,
       });

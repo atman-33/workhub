@@ -311,7 +311,7 @@ describe("stickies", () => {
     expect(doc.stickies).toHaveLength(1);
     const sticky = doc.stickies[0];
     expect(sticky.id).toBe("S-001");
-    expect(sticky.nodeId).toBe("N-002");
+    expect(sticky.targetId).toBe("N-002");
     expect(sticky.dx).toBe(24);
     expect(sticky.dy).toBe(-36);
     expect(sticky.color).toBe("amber");
@@ -320,7 +320,7 @@ describe("stickies", () => {
 
   it("reads the modifiers in any order and keeps the rest as text", () => {
     const doc = parseMindmap(withStickies("- S-002 #red @0,0 node:N-001 a #b c"));
-    expect(doc.stickies[0].nodeId).toBe("N-001");
+    expect(doc.stickies[0].targetId).toBe("N-001");
     expect(doc.stickies[0].color).toBe("red");
     expect(doc.stickies[0].text).toBe("a #b c");
   });
@@ -359,7 +359,7 @@ describe("stickies", () => {
   it("keeps a sticky whose node no longer exists", () => {
     const content = withStickies("- S-001 node:N-999 @0,0 orphan");
     const doc = parseMindmap(content);
-    expect(doc.stickies[0].nodeId).toBe("N-999");
+    expect(doc.stickies[0].targetId).toBe("N-999");
     expect(serializeMindmap(content, doc, "2026-08-28")).toContain(
       "- S-001 node:N-999 @0,0 orphan",
     );
@@ -392,7 +392,7 @@ describe("stickies", () => {
   it("adds the section to a note that never had one", () => {
     const content = note("- N-001 root");
     const doc = parseMindmap(content);
-    doc.stickies.push({ id: "S-001", nodeId: "N-001", dx: 10, dy: 20, text: "new" });
+    doc.stickies.push({ id: "S-001", targetId: "N-001", dx: 10, dy: 20, text: "new" });
     const out = serializeMindmap(content, doc, "2026-08-28");
 
     expect(out).toContain("## Stickies\n\n- S-001 node:N-001 @10,20 new");
@@ -404,7 +404,7 @@ describe("stickies", () => {
   it("rounds a fractional offset on the way out", () => {
     const content = note("- N-001 root");
     const doc = parseMindmap(content);
-    doc.stickies.push({ id: "S-001", nodeId: "N-001", dx: 10.6, dy: -20.2, text: "x" });
+    doc.stickies.push({ id: "S-001", targetId: "N-001", dx: 10.6, dy: -20.2, text: "x" });
     expect(serializeMindmap(content, doc, "2026-08-28")).toContain("@11,-20");
   });
 
@@ -440,7 +440,7 @@ describe("stickies", () => {
 
   it("numbers the next sticky above the highest used", () => {
     expect(nextStickyId([])).toBe("S-001");
-    expect(nextStickyId([{ id: "S-007", nodeId: "N-001", dx: 0, dy: 0, text: "" }])).toBe("S-008");
+    expect(nextStickyId([{ id: "S-007", targetId: "N-001", dx: 0, dy: 0, text: "" }])).toBe("S-008");
   });
 
   it("lists the stickies of one node in file order", () => {

@@ -212,7 +212,9 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 - Pick a **project** at the top, optionally narrow the list to one **kind**, and choose a diagram from the list on the left. Right-click a row to rename it or move it to the trash.
 - **New diagram** asks for the project, the kind, a name and a **place**: the whole project, or inside one of its **backlog items**. A note inside a backlog item is named \`NNN-<name>.md\` after the notes already there.
 - What a note is — and so which editor opens — comes from its frontmatter \`type\`, not from the folder it sits in. Notes in \`schedules/\`, \`mindmaps/\`, \`diagrams/\` and inside a backlog item are all listed; archived projects and files starting with \`_\` are not.
-- A new project no longer starts with \`schedules/\` or \`mindmaps/\`: the folder appears when its first diagram is made.`,
+- A new project no longer starts with \`schedules/\` or \`mindmaps/\`: the folder appears when its first diagram is made.
+- **2x2 matrix** places items on two axes — for ranking by, say, effort against impact. Drag an item to place it (x runs left to right, y bottom to top, saved as \`@0.70,0.30\` on the item's line); double-click empty plot to add one, double-click an item to rename it. With nothing selected the side panel edits the axis and quadrant names (an empty one is not drawn); with an item selected it edits the title, colour, linked task, note and **sticky notes** pinned to it. An item you have not dragged yet sits near the middle and gets a position only when you move it.
+- Every diagram has the same canvas controls: the **wheel** zooms toward the pointer, **right-drag** pans, the fit button frames the whole diagram, and the **sticky** button shows or hides all sticky notes. The two export buttons write a single-file **HTML** page or a **PNG** image to the project's \`attachments/\` folder, drawn exactly as the canvas shows it (hidden stickies stay out).`,
   },
   "schedule": {
     short: "Planning dates",

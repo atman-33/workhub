@@ -1,5 +1,5 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Check, CornerDownRight, Copy, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { Check, CornerDownRight, Copy, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -12,13 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { StickyList } from "@/components/diagram/sticky-list";
 import { AttrEditor } from "./attr-editor";
 import { MINDMAP_COLOR_LABEL_KEY } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n";
 import {
   COLOR_HEX,
   COLORS,
-  STICKY_DEFAULT_COLOR,
   type Color,
   type MindmapNode,
   type Sticky,
@@ -206,71 +206,14 @@ export function NodeEditor({
         onChange={(attrs) => onChange({ attrs })}
       />
 
-      <div className="space-y-2 border-t pt-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">
-            {t("mindmap.nodeEditor.stickyNotes")}
-            {stickiesHidden && stickies.length > 0 && t("mindmap.nodeEditor.hiddenOnMap")}
-          </span>
-          <Hint label={t("mindmap.nodeEditor.pinStickyHint")} disabled={disabled}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px]"
-              disabled={disabled}
-              onClick={onAddSticky}
-            >
-              <StickyNote className="mr-1 size-3" />
-              {t("common.add")}
-            </Button>
-          </Hint>
-        </div>
-
-        {stickies.map((sticky) => (
-          <div key={sticky.id} className="space-y-1.5 rounded border p-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-muted-foreground">{sticky.id}</span>
-              <Hint label={t("mindmap.nodeEditor.removeStickyHint")} disabled={disabled}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="size-5 p-0"
-                  disabled={disabled}
-                  onClick={() => onDeleteSticky(sticky.id)}
-                >
-                  <X className="size-3" />
-                </Button>
-              </Hint>
-            </div>
-            <Textarea
-              value={sticky.text}
-              placeholder={t("mindmap.nodeEditor.stickyTextPlaceholder")}
-              rows={2}
-              disabled={disabled}
-              className="resize-none text-xs"
-              onChange={(e) => onChangeSticky(sticky.id, { text: e.target.value })}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            <div className="flex flex-wrap gap-1">
-              {COLORS.map((color) => (
-                <Hint key={color} label={t(MINDMAP_COLOR_LABEL_KEY[color])} disabled={disabled}>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChangeSticky(sticky.id, { color: color as Color })}
-                    style={{ background: COLOR_HEX[color as Color] }}
-                    className={cn(
-                      "size-4 rounded",
-                      (sticky.color ?? STICKY_DEFAULT_COLOR) === color &&
-                        "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-                    )}
-                  />
-                </Hint>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      <StickyList
+        stickies={stickies}
+        stickiesHidden={stickiesHidden}
+        disabled={disabled}
+        onAdd={onAddSticky}
+        onChange={onChangeSticky}
+        onDelete={onDeleteSticky}
+      />
 
       <div className="flex flex-wrap gap-1.5">
         <Hint label={t("mindmap.nodeEditor.addChildHint")} disabled={disabled}>

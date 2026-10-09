@@ -1,0 +1,711 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { MatrixCanvas } from "@/components/diagram/matrix2x2/matrix-canvas";
+import { ItemEditor } from "@/components/diagram/matrix2x2/item-editor";
+import { LabelsEditor } from "@/components/diagram/matrix2x2/labels-editor";
+import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { api } from "@/lib/api";
+import { exportFileName } from "@/lib/diagram/export-frame";
+import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
+import { layoutMatrix } from "@/lib/diagram/matrix2x2/layout";
+import {
+  clampUnit,
+  findItem,
+  nextItemId,
+  parseMatrix,
+  serializeMatrix,
+  warningCount,
+  type LabelField,
+  type MatrixDocModel,
+  type MatrixItem,
+} from "@/lib/diagram/matrix2x2/parse";
+import { svgToPngBase64 } from "@/lib/diagram/raster";
+import {
+  NEW_STICKY_OFFSET,
+  NEW_STICKY_STAGGER,
+  nextStickyId,
+  stickiesOf,
+  type Sticky,
+} from "@/lib/diagram/sticky";
+import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
+import { t as tStatic, useT } from "@/lib/i18n";
+import type { Config, Task } from "@/types";
+
+/**
+ * The 2x2 matrix editor (T-0681), hosted by the Diagrams tab.
+ *
+ * The same loop as the Mindmap tab, for the same reason: the note on disk is
+ * the source of truth, so this view parses the file into a model, lets
+ * gestures mutate the model, serializes back, and lets the file watcher bring
+ * external edits in. The two guards that make that safe are the same too:
+ *
+ * - **Debounced writes.** Typing a title produces a change per keystroke;
+ *   writing each one would thrash the file and the watcher. A pending write is
+ *   flushed when the open note changes or the view goes away.
+ * - **mtime guarding.** Every write carries the mtime the content was read at,
+ *   so an Obsidian or agent edit in between is reported, not overwritten.
+ *
+ * AI editing arrives with the unified `diagram-edit` (T-0685); until then the
+ * canvas is never locked.
+ */
+
+/** Quiet period after the last edit before the file is written. */
+const SAVE_DEBOUNCE_MS = 600;
+/** Depth of the in-memory undo stack (Ctrl+Z). */
+const UNDO_LIMIT = 50;
+/** Starting width of the right column, in percent of the view. */
+const SIDEBAR_DEFAULT_PCT = 26;
+/** A stable empty array, so "no stickies" does not re-lay the canvas out on every render. */
+const EMPTY_STICKIES: Sticky[] = [];
+/** Arrow-key nudge of the selected item, in unit coordinates. */
+const NUDGE = 0.01;
+const NUDGE_BIG = 0.05;
+
+function todayISO(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+interface Props {
+  /** Bumped by the app shell after settings are saved. */
+  configVersion: number;
+  /** What the Diagrams tab hands over: the open note and a way to let go of it. */
+  embedded: EmbeddedDiagram;
+}
+
+export function MatrixView({ configVersion, embedded }: Props) {
+  const t = useT();
+  const { project, path } = embedded;
+  // The host hands a fresh callback on every render; reading it through a ref
+  // keeps the loaders (and the effects that depend on them) stable.
+  const onPathChange = useRef(embedded.onPathChange);
+  onPathChange.current = embedded.onPathChange;
+  const fallbackTitle = useRef(embedded.title);
+  fallbackTitle.current = embedded.title;
+  const [config, setConfig] = useState<Config | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [doc, setDoc] = useState<MatrixDocModel | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Sticky selection is kept apart from item selection, and the two are
+  // mutually exclusive: Delete has to know which of the two it is deleting.
+  const [selectedStickyId, setSelectedStickyId] = useState<string | null>(null);
+  const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [fitToken, setFitToken] = useState(0);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const undoStack = useRef<MatrixDocModel[]>([]);
+  const redoStack = useRef<MatrixDocModel[]>([]);
+  // The raw file text and the mtime it was read at: serialization needs the
+  // original bytes to preserve `## Memo` and unmanaged frontmatter, and the
+  // mtime is what makes the next write conflict-safe.
+  const source = useRef<{ content: string; mtime: number }>({ content: "", mtime: 0 });
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The newest edit not yet written, and the note it belongs to. */
+  const pending = useRef<{ path: string; doc: MatrixDocModel } | null>(null);
+  /** The flush of the note just left; the next load waits for it. */
+  const flushing = useRef<Promise<void>>(Promise.resolve());
+  const pathRef = useRef(path);
+  pathRef.current = path;
+  /** An item added by a gesture and not named yet: abandoned if left empty. */
+  const freshId = useRef<string | null>(null);
+
+  const vaultPath = config?.settings.vault_path ?? null;
+  const targetProject = project;
+
+  useEffect(() => {
+    void api.getConfig().then(setConfig);
+  }, [configVersion]);
+
+  useEffect(() => {
+    if (!vaultPath) return;
+    void api.listTasks(vaultPath).then(setTasks);
+  }, [vaultPath]);
+  const projectTasks = useMemo(
+    () => (project ? tasks.filter((task) => task.project === project) : tasks),
+    [tasks, project],
+  );
+
+  const selected = useMemo(
+    () => (doc && selectedId ? findItem(doc.items, selectedId) : null),
+    [doc, selectedId],
+  );
+  /** The stickies the canvas and the exports draw: none while the note hides them. */
+  const visibleStickies = useMemo(
+    () => (doc && !doc.stickiesHidden ? doc.stickies : EMPTY_STICKIES),
+    [doc],
+  );
+
+  // ---- reading and writing ------------------------------------------------
+
+  const loadDoc = useCallback(
+    async (target: string, { fit = false, skipUnchanged = false } = {}) => {
+      if (!target) {
+        setDoc(null);
+        return;
+      }
+      let read: Awaited<ReturnType<typeof api.readDiagram>>;
+      try {
+        read = await api.readDiagram(target);
+      } catch {
+        // The note is no longer where it was (moved, renamed elsewhere, its
+        // project archived). Letting go of the path lets the list re-resolve.
+        setDoc(null);
+        onPathChange.current("");
+        return;
+      }
+      if (target !== pathRef.current) return; // the user moved on while it was read
+      if (skipUnchanged && read.mtime === source.current.mtime) return;
+      source.current = { content: read.content, mtime: read.mtime };
+      // A reload means the file, not the user, decided the current state - the
+      // stack would otherwise let Ctrl+Z "undo" someone else's edit.
+      undoStack.current = [];
+      redoStack.current = [];
+      setDoc(parseMatrix(read.content, fallbackTitle.current));
+      if (fit) setFitToken((n) => n + 1);
+    },
+    [],
+  );
+
+  /** Writes the newest pending edit now. Safe to call with nothing pending. */
+  const writePending = useCallback(async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const p = pending.current;
+    pending.current = null;
+    if (!p) return;
+    const content = serializeMatrix(source.current.content, p.doc, todayISO());
+    try {
+      const mtime = await api.writeDiagram(p.path, content, source.current.mtime);
+      if (p.path === pathRef.current) source.current = { content, mtime };
+      setStatus("");
+    } catch (e) {
+      // A conflict is not recoverable by retrying: the user has to see the
+      // other edit before deciding, so surface it and reload.
+      setStatus(String(e));
+      if (p.path === pathRef.current) void loadDoc(p.path);
+    }
+  }, [loadDoc]);
+
+  // Opening another note: the edit still pending belongs to the one being left
+  // and is written first, so the load below cannot overwrite the mtime that
+  // write is guarded by.
+  useEffect(() => {
+    setSelectedId(null);
+    setEditingId(null);
+    setSelectedStickyId(null);
+    setEditingStickyId(null);
+    freshId.current = null;
+    void (async () => {
+      await flushing.current;
+      await loadDoc(path, { fit: true });
+    })();
+    return () => {
+      flushing.current = writePending();
+    };
+  }, [path, loadDoc, writePending]);
+
+  // External edits (Obsidian, an AI agent) arrive as events rather than
+  // polling, so the canvas follows the file without a refresh button.
+  useEffect(() => {
+    const unlisten = listen("diagrams-changed", () => {
+      // A pending local edit is the newer intent; letting the reload win would
+      // throw away what the user typed a moment ago. The event is usually the
+      // echo of our own save, which `skipUnchanged` drops.
+      if (path && !saveTimer.current) void loadDoc(path, { skipUnchanged: true });
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [path, loadDoc]);
+
+  /** Shows a model and schedules the file write, without touching the undo stacks. */
+  const apply = useCallback(
+    (next: MatrixDocModel) => {
+      setDoc(next);
+      pending.current = { path, doc: next };
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => void writePending(), SAVE_DEBOUNCE_MS);
+    },
+    [path, writePending],
+  );
+
+  /** Applies a user edit: records the previous state for undo, then writes. */
+  const mutate = useCallback(
+    (next: MatrixDocModel) => {
+      if (!doc) return;
+      undoStack.current.push(doc);
+      if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
+      redoStack.current = [];
+      apply(next);
+    },
+    [doc, apply],
+  );
+
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop();
+    if (!prev || !doc) return;
+    redoStack.current.push(doc);
+    apply(prev);
+  }, [doc, apply]);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop();
+    if (!next || !doc) return;
+    undoStack.current.push(doc);
+    apply(next);
+  }, [doc, apply]);
+
+  // ---- selection ------------------------------------------------------------
+
+  const selectItem = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) setSelectedStickyId(null);
+  }, []);
+
+  const selectSticky = useCallback((id: string | null) => {
+    setSelectedStickyId(id);
+    if (id) setSelectedId(null);
+  }, []);
+
+  // ---- item commands --------------------------------------------------------
+
+  const patchItem = useCallback(
+    (id: string, patch: Partial<MatrixItem>) => {
+      if (!doc) return;
+      const items = doc.items.map((item) => (item.id === id ? { ...item, ...patch } : item));
+      // `undefined` in a patch means "clear it"; the spread leaves the key
+      // present, which the serializer would then treat as set.
+      for (const item of items) {
+        if (item.id !== id) continue;
+        const fields = item as unknown as Record<string, unknown>;
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) delete fields[key];
+        }
+      }
+      mutate({ ...doc, items });
+    },
+    [doc, mutate],
+  );
+
+  const moveItem = useCallback(
+    (id: string, x: number, y: number) => patchItem(id, { x: clampUnit(x), y: clampUnit(y) }),
+    [patchItem],
+  );
+
+  /** Adds an item, at unit coordinates when the gesture gave a spot. */
+  const addItem = useCallback(
+    (at?: { x: number; y: number }) => {
+      if (!doc) return;
+      const item: MatrixItem = {
+        id: nextItemId(doc.items),
+        title: "",
+        ...(at ? { x: clampUnit(at.x), y: clampUnit(at.y) } : {}),
+      };
+      freshId.current = item.id;
+      mutate({ ...doc, items: [...doc.items, item] });
+      selectItem(item.id);
+      // A new item is empty, so it opens straight into its title box -
+      // otherwise every add would be two gestures.
+      setEditingId(item.id);
+    },
+    [doc, mutate, selectItem],
+  );
+
+  const deleteItem = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      mutate({
+        ...doc,
+        items: doc.items.filter((item) => item.id !== id),
+        // Deleting an item deletes the stickies pinned to it.
+        stickies: doc.stickies.filter((sticky) => sticky.targetId !== id),
+      });
+      if (selectedId === id) setSelectedId(null);
+      if (editingId === id) setEditingId(null);
+    },
+    [doc, mutate, selectedId, editingId],
+  );
+
+  /**
+   * Ends an inline title edit. `title === null` abandons it. An item that was
+   * just added and is still unnamed is dropped - it is created empty, and an
+   * abandoned one would otherwise be a blank box left on the matrix.
+   */
+  const finishEdit = useCallback(
+    (id: string, title: string | null) => {
+      setEditingId(null);
+      if (!doc) return;
+      const item = findItem(doc.items, id);
+      if (!item) return;
+      const next = (title ?? item.title).replace(/\s+/g, " ").trim();
+      const fresh = freshId.current === id;
+      if (fresh) freshId.current = null;
+      if (!next && fresh) {
+        deleteItem(id);
+        return;
+      }
+      if (title !== null && next && next !== item.title) patchItem(id, { title: next });
+    },
+    [doc, deleteItem, patchItem],
+  );
+
+  const setLabel = useCallback(
+    (field: LabelField, value: string) => {
+      if (!doc) return;
+      mutate({ ...doc, [field]: value });
+    },
+    [doc, mutate],
+  );
+
+  // ---- sticky commands --------------------------------------------------------
+
+  const patchSticky = useCallback(
+    (id: string, patch: Partial<Sticky>) => {
+      if (!doc) return;
+      const stickies = doc.stickies.map((sticky) => (sticky.id === id ? { ...sticky, ...patch } : sticky));
+      for (const sticky of stickies) {
+        if (sticky.id !== id) continue;
+        const fields = sticky as unknown as Record<string, unknown>;
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) delete fields[key];
+        }
+      }
+      mutate({ ...doc, stickies });
+    },
+    [doc, mutate],
+  );
+
+  const addSticky = useCallback(
+    (targetId: string) => {
+      if (!doc) return;
+      const existing = stickiesOf(doc.stickies, targetId).length;
+      const sticky: Sticky = {
+        id: nextStickyId(doc.stickies),
+        targetId,
+        dx: NEW_STICKY_OFFSET.dx + existing * NEW_STICKY_STAGGER.dx,
+        dy: NEW_STICKY_OFFSET.dy + existing * NEW_STICKY_STAGGER.dy,
+        text: "",
+      };
+      // Adding a sticky while they are hidden would put it somewhere the user
+      // cannot see; showing them again is the only reading of the gesture that
+      // works.
+      mutate({ ...doc, stickies: [...doc.stickies, sticky], stickiesHidden: false });
+      selectSticky(sticky.id);
+      // A new sticky is empty, so it opens straight into its editor.
+      setEditingStickyId(sticky.id);
+    },
+    [doc, mutate, selectSticky],
+  );
+
+  const deleteSticky = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      mutate({ ...doc, stickies: doc.stickies.filter((sticky) => sticky.id !== id) });
+      if (selectedStickyId === id) setSelectedStickyId(null);
+      if (editingStickyId === id) setEditingStickyId(null);
+    },
+    [doc, mutate, selectedStickyId, editingStickyId],
+  );
+
+  /** Ends an inline sticky edit, dropping the sticky when nothing was typed. */
+  const finishStickyEdit = useCallback(
+    (id: string, text: string | null) => {
+      setEditingStickyId(null);
+      if (!doc) return;
+      const sticky = doc.stickies.find((s) => s.id === id);
+      if (!sticky) return;
+      const next = text === null ? sticky.text : text;
+      if (!next.trim()) {
+        deleteSticky(id);
+        return;
+      }
+      if (text !== null && text !== sticky.text) patchSticky(id, { text });
+    },
+    [doc, deleteSticky, patchSticky],
+  );
+
+  /** Shows or hides every sticky at once. Written to the note's frontmatter,
+   * so it travels with the diagram and the exports match the screen. */
+  const toggleStickies = useCallback(() => {
+    if (!doc) return;
+    mutate({ ...doc, stickiesHidden: !doc.stickiesHidden });
+  }, [doc, mutate]);
+
+  // ---- keyboard -------------------------------------------------------------
+
+  /** Moves the selected item by a step; an unplaced one starts from where it is drawn. */
+  const nudge = useCallback(
+    (dx: number, dy: number) => {
+      if (!doc || !selectedId) return;
+      const laid = layoutMatrix(doc).byId.get(selectedId);
+      if (!laid) return;
+      moveItem(selectedId, laid.fx + dx, laid.fy + dy);
+    },
+    [doc, selectedId, moveItem],
+  );
+
+  /**
+   * Keyboard editing, bound on the window rather than a focused element so the
+   * shortcuts work straight after a click on the canvas. The app keeps every
+   * tab mounted, so a view that is not on screen must not answer.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!doc || !rootRef.current || rootRef.current.offsetParent === null) return;
+      // Never steal a key from a field the user is typing in.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      if (editingId || editingStickyId) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (e.key === "Escape") {
+        setSelectedId(null);
+        setSelectedStickyId(null);
+        return;
+      }
+      if (e.key === "Delete" && selectedStickyId) {
+        e.preventDefault();
+        deleteSticky(selectedStickyId);
+        return;
+      }
+      if (!selectedId) return;
+      if (e.key === "F2" || e.key === "Enter") {
+        e.preventDefault();
+        setEditingId(selectedId);
+        return;
+      }
+      if (e.key === "Delete") {
+        e.preventDefault();
+        deleteItem(selectedId);
+        return;
+      }
+      if (e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const step = e.shiftKey ? NUDGE_BIG : NUDGE;
+        // Screen up is a higher y.
+        if (e.key === "ArrowLeft") nudge(-step, 0);
+        else if (e.key === "ArrowRight") nudge(step, 0);
+        else if (e.key === "ArrowUp") nudge(0, step);
+        else nudge(0, -step);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    doc,
+    editingId,
+    editingStickyId,
+    selectedId,
+    selectedStickyId,
+    deleteItem,
+    deleteSticky,
+    nudge,
+    undo,
+    redo,
+  ]);
+
+  // ---- export ---------------------------------------------------------------
+
+  /**
+   * Where an export lands: the project's real `attachments/` folder, which may
+   * carry a `NNNN-` sort prefix the slug never includes - resolved rather than
+   * guessed (T-0379). `null` when the slug has no folder.
+   */
+  const exportDir = useCallback(async () => {
+    if (!vaultPath || !targetProject) return null;
+    const projectDir = await api.resolveProjectDir(vaultPath, targetProject);
+    return projectDir ? `${projectDir}/attachments` : null;
+  }, [vaultPath, targetProject]);
+
+  const exportHtml = useCallback(async () => {
+    if (!doc || !vaultPath) return;
+    try {
+      const dir = await exportDir();
+      if (!dir) {
+        throw new Error(tStatic("diagram.matrix.noProjectFolder", { project: targetProject }));
+      }
+      const out = `${dir}/${exportFileName(doc.title, "matrix2x2", "html")}`;
+      await api.exportDiagramFile(
+        out,
+        renderHtml(doc, { title: doc.title, exportedOn: todayISO(), stickies: visibleStickies }),
+        { vaultPath, project: targetProject },
+      );
+      setStatus(tStatic("diagram.matrix.exportedTo", { path: out }));
+      await api.openExplorer(out);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
+
+  const exportPng = useCallback(async () => {
+    if (!doc || !vaultPath) return;
+    const svg = renderSvg(doc, { title: doc.title, stickies: visibleStickies });
+    try {
+      const dir = await exportDir();
+      if (!dir) {
+        throw new Error(tStatic("diagram.matrix.noProjectFolder", { project: targetProject }));
+      }
+      const png = await svgToPngBase64(svg, {
+        rasterize: tStatic("diagram.matrix.rasterizeFailed"),
+        canvas: tStatic("diagram.matrix.noCanvasContext"),
+      });
+      const out = `${dir}/${exportFileName(doc.title, "matrix2x2", "png")}`;
+      await api.exportDiagramPng(out, png, { vaultPath, project: targetProject });
+      setStatus(tStatic("diagram.matrix.exportedTo", { path: out }));
+      await api.openExplorer(out);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
+
+  // ---- render ---------------------------------------------------------------
+
+  const stickyCount = doc?.stickies.length ?? 0;
+  const warnings = doc ? warningCount(doc) : 0;
+
+  return (
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col">
+      {doc && (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
+            <span className="truncate text-xs font-medium">{doc.title}</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              {status && (
+                <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>
+              )}
+              {warnings > 0 && (
+                <span className="text-[11px] text-amber-500">
+                  {t("diagram.matrix.warnings", { count: warnings })}
+                </span>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {t("diagram.matrix.itemCount", { count: doc.items.length })}
+              </span>
+              <Hint label={t("diagram.matrix.addHint")}>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addItem()}>
+                  <Plus className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.matrix.fitHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setFitToken((n) => n + 1)}
+                >
+                  <Maximize2 className="size-3.5" />
+                </Button>
+              </Hint>
+              {stickyCount > 0 && (
+                <Hint
+                  label={
+                    doc.stickiesHidden
+                      ? t("diagram.matrix.showStickiesHint", { count: stickyCount })
+                      : t("diagram.matrix.hideStickiesHint", { count: stickyCount })
+                  }
+                >
+                  <Button
+                    size="sm"
+                    variant={doc.stickiesHidden ? "outline" : "secondary"}
+                    className="h-7 text-xs"
+                    onClick={toggleStickies}
+                  >
+                    <StickyNote className="mr-1 size-3.5" />
+                    {stickyCount}
+                  </Button>
+                </Hint>
+              )}
+              <Hint label={t("diagram.matrix.exportHtmlHint")}>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportHtml}>
+                  <Download className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.matrix.exportPngHint")}>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportPng}>
+                  <Image className="size-3.5" />
+                </Button>
+              </Hint>
+            </div>
+          </div>
+
+          <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+            <ResizablePanel id="matrix-canvas" defaultSize="74%" minSize="40%" className="min-h-0">
+              <div className="flex h-full min-h-0 flex-col">
+                <MatrixCanvas
+                  doc={doc}
+                  stickies={visibleStickies}
+                  selectedId={selectedId}
+                  selectedStickyId={selectedStickyId}
+                  editingId={editingId}
+                  editingStickyId={editingStickyId}
+                  fitToken={fitToken}
+                  onSelect={selectItem}
+                  onSelectSticky={selectSticky}
+                  onStartEdit={setEditingId}
+                  onCommitEdit={(id, title) => finishEdit(id, title)}
+                  onCancelEdit={() => editingId && finishEdit(editingId, null)}
+                  onStartEditSticky={setEditingStickyId}
+                  onCommitStickyText={(id, text) => finishStickyEdit(id, text)}
+                  onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
+                  onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
+                  onMoveItem={moveItem}
+                  onAddAt={(x, y) => addItem({ x, y })}
+                />
+                <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
+                  {t("diagram.matrix.footerHint")}
+                </div>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle />
+            {/* Rendered unconditionally, even with nothing selected:
+                `react-resizable-panels` recomputes its layout when the number
+                of panels changes, and taking this one away mid-session
+                collapsed the canvas (the same trap the Mindmap tab hit). */}
+            <ResizablePanel
+              id="matrix-side"
+              defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
+              minSize="16%"
+              className="min-h-0"
+            >
+              <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+                {selected ? (
+                  <ItemEditor
+                    item={selected}
+                    tasks={projectTasks}
+                    stickies={stickiesOf(doc.stickies, selected.id)}
+                    stickiesHidden={doc.stickiesHidden}
+                    onAddSticky={() => addSticky(selected.id)}
+                    onChangeSticky={patchSticky}
+                    onDeleteSticky={deleteSticky}
+                    onChange={(patch) => patchItem(selected.id, patch)}
+                    onDelete={() => deleteItem(selected.id)}
+                  />
+                ) : (
+                  <LabelsEditor labels={doc} onChange={setLabel} />
+                )}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </>
+      )}
+    </div>
+  );
+}
