@@ -9,6 +9,7 @@
 export const HELP_SECTION_IDS = [
   "setup",
   "zoom",
+  "tabs",
   "template",
   "memory",
   "secretary",

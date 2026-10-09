@@ -23,6 +23,16 @@ import {
   Timer,
 } from "lucide-react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { ClipsView } from "@/components/clips-view";
 import { DocsView } from "@/components/docs/docs-view";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -58,7 +68,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
+import { NavTabButton } from "@/components/nav-tab-button";
+import { TabQuickSwitch } from "@/components/tab-quick-switch";
+import { hideTab, reorderVisible, resolveTabLayout, showTab, toStored } from "@/lib/tab-layout";
+import type { TabLayout } from "@/lib/tab-layout";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
@@ -311,6 +333,34 @@ export default function App() {
   // whichever are out of view so they stay one click away.
   const stripRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef(new Map<Tab, HTMLButtonElement>());
+
+  // The owner's arrangement of the bar (T-0684). A hidden tab that is open
+  // right now stays in the strip as a transient last entry, so the current
+  // position is never invisible; it leaves again once another tab is chosen.
+  const layout = resolveTabLayout(
+    TABS.map((tb) => tb.key),
+    settings?.tab_order ?? [],
+    settings?.hidden_tabs ?? [],
+  );
+  const displayedTabs: Tab[] = (
+    layout.hidden.includes(tab) ? [...layout.visible, tab] : layout.visible
+  ) as Tab[];
+  const displayedRef = useRef<Tab[]>(displayedTabs);
+  displayedRef.current = displayedTabs;
+  const [menuTab, setMenuTab] = useState<Tab | null>(null);
+  const applyLayout = useCallback((next: TabLayout) => {
+    const stored = toStored(next);
+    setSettings((prev) => (prev ? { ...prev, ...stored } : prev));
+    void api.patchSettings(stored).catch(console.error);
+  }, []);
+  const dragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const onTabDragEnd = (e: DragEndEvent) => {
+    if (e.over && e.active.id !== e.over.id) {
+      applyLayout(reorderVisible(layout, String(e.active.id), String(e.over.id)));
+    }
+  };
   const [overflowTabs, setOverflowTabs] = useState<Tab[]>([]);
   const measureOverflow = useCallback(() => {
     const strip = stripRef.current;
@@ -318,7 +368,7 @@ export default function App() {
     const out: Tab[] = [];
     if (strip.scrollWidth > strip.clientWidth + 1) {
       const box = strip.getBoundingClientRect();
-      for (const { key } of TABS) {
+      for (const key of displayedRef.current) {
         const el = tabRefs.current.get(key);
         if (!el) continue;
         const r = el.getBoundingClientRect();
@@ -349,7 +399,7 @@ export default function App() {
       strip.removeEventListener("scroll", scheduleMeasure);
       window.removeEventListener("resize", scheduleMeasure);
     };
-  }, [measureOverflow, scheduleMeasure, tab]);
+  }, [measureOverflow, scheduleMeasure, tab, displayedTabs.join(",")]);
 
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
@@ -525,8 +575,14 @@ export default function App() {
               position stays readable, this container scrolls as the last
               resort at the narrowest widths, and the `»` button (T-0348) lists
               whichever tabs scrolled out of sight. */}
+          <ContextMenu>
+          <ContextMenuTrigger asChild>
           <div
             ref={stripRef}
+            onContextMenu={(e) => {
+              const el = (e.target as Element).closest("[data-tab-key]");
+              setMenuTab((el?.getAttribute("data-tab-key") as Tab | null) ?? null);
+            }}
             className="nav-tabs-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
             // The strip's scrollbar is hidden, and a plain wheel only produces a
             // vertical delta — translate it so the wheel still reaches the tabs
@@ -536,30 +592,84 @@ export default function App() {
               e.currentTarget.scrollLeft += e.deltaY;
             }}
           >
-            {TABS.map(({ key, labelKey, icon: Icon }) => (
-              <Hint key={key} label={t(labelKey)}>
-                <button
-                  ref={(el) => {
-                    if (tab === key) activeTabRef.current = el;
-                    if (el) tabRefs.current.set(key, el);
-                    else tabRefs.current.delete(key);
-                  }}
-                  onClick={() => setTab(key)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                    tab === key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  <span className={cn(tab === key ? "inline" : "hidden xl:inline")}>
-                    {t(labelKey)}
-                  </span>
-                </button>
-              </Hint>
-            ))}
+            <DndContext
+              sensors={dragSensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToHorizontalAxis]}
+              onDragEnd={onTabDragEnd}
+            >
+              <SortableContext items={layout.visible} strategy={horizontalListSortingStrategy}>
+                {displayedTabs.map((key) => {
+                  const entry = TABS.find((tb) => tb.key === key)!;
+                  return (
+                    <NavTabButton
+                      key={key}
+                      tabKey={key}
+                      label={t(entry.labelKey)}
+                      icon={entry.icon}
+                      active={tab === key}
+                      sortable={layout.visible.includes(key)}
+                      onSelect={() => setTab(key)}
+                      buttonRef={(el) => {
+                        if (tab === key) activeTabRef.current = el;
+                        if (el) tabRefs.current.set(key, el);
+                        else tabRefs.current.delete(key);
+                      }}
+                    />
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
           </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-56">
+            {menuTab && (
+              <ContextMenuItem
+                disabled={layout.visible.length <= 1 || !layout.visible.includes(menuTab)}
+                onClick={() => applyLayout(hideTab(layout, menuTab))}
+              >
+                {t(layout.visible.length <= 1 ? "nav.hideTabLast" : "nav.hideTab", {
+                  tab: t(TABS.find((tb) => tb.key === menuTab)!.labelKey),
+                })}
+              </ContextMenuItem>
+            )}
+            {layout.hidden.length > 0 && (
+              <>
+                {menuTab && <ContextMenuSeparator />}
+                <ContextMenuLabel>{t("nav.hiddenTabs")}</ContextMenuLabel>
+                {layout.hidden.map((key) => {
+                  const entry = TABS.find((tb) => tb.key === key)!;
+                  const Icon = entry.icon;
+                  return (
+                    <ContextMenuItem key={key} onClick={() => applyLayout(showTab(layout, key))}>
+                      <Icon className="size-4" />
+                      {t("nav.showTab", { tab: t(entry.labelKey) })}
+                    </ContextMenuItem>
+                  );
+                })}
+              </>
+            )}
+            {((settings?.tab_order.length ?? 0) > 0 || layout.hidden.length > 0) && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onClick={() =>
+                    applyLayout(
+                      resolveTabLayout(
+                        TABS.map((tb) => tb.key),
+                        [],
+                        [],
+                      ),
+                    )
+                  }
+                >
+                  <RotateCcw className="size-4" />
+                  {t("nav.resetTabs")}
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+          </ContextMenu>
           {overflowTabs.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -587,6 +697,15 @@ export default function App() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <TabQuickSwitch
+            tabs={TABS.map((tb) => ({
+              key: tb.key,
+              label: t(tb.labelKey),
+              icon: tb.icon,
+              hidden: layout.hidden.includes(tb.key),
+            }))}
+            onSelect={(key) => setTab(key as Tab)}
+          />
           <div className="flex shrink-0 items-center gap-1">
             <NavMusicControl onOpenMusic={() => setTab("music")} />
             {settings?.vault_path && (

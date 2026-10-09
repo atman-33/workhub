@@ -100,6 +100,9 @@ const DEFAULTS: Settings = {
   clips_rect: null,
   language: "en",
   ui_locale: "en",
+  // Managed from the tab bar itself (right-click / drag), not from this dialog (T-0684).
+  tab_order: [],
+  hidden_tabs: [],
   response_language_inject: true,
   custom_prompt: "",
   prompt_copy_multiline: true,

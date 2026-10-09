@@ -52,6 +52,10 @@ const VAULT_SCOPED: &[&str] = &[
     // Which language the app is read in (T-0409); replaced the schedule-only
     // `schedule_locale`, aliased below.
     "ui_locale",
+    // How the top-bar tabs are ordered and which are hidden (T-0684): a
+    // working preference of the owner, so a second PC shows the same bar.
+    "tab_order",
+    "hidden_tabs",
     "schedule_assignee",
     "schedule_model",
     "schedule_confirm",

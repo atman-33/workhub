@@ -365,6 +365,22 @@ pub struct Settings {
     /// the vault, like the agents' reply `language`.
     #[serde(alias = "schedule_locale", default = "default_ui_locale")]
     pub ui_locale: String,
+    /// Order of the top-bar tabs, as the owner arranged it (T-0684): tab keys,
+    /// hidden ones included. Empty means "the built-in order"; a key that is
+    /// unknown (a tab from a newer or older build) is ignored and a tab missing
+    /// from the list is appended, so the list never has to be migrated.
+    ///
+    /// Vault-scoped, not machine-local: the arrangement is a preference about
+    /// how the owner works, and a second PC should show the same bar. Split it
+    /// per machine only if the two ever need to differ (decision-policy P-31).
+    #[serde(default)]
+    pub tab_order: Vec<String>,
+    /// Top-bar tabs the owner hid (T-0684). A hidden tab is also absent from
+    /// the `»` overflow menu, but stays reachable from the Ctrl+K quick switch
+    /// and can be restored from the tab bar's context menu. Vault-scoped, like
+    /// `tab_order`.
+    #[serde(default)]
+    pub hidden_tabs: Vec<String>,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -561,6 +577,8 @@ impl Default for Settings {
             voice_meetings_dir: default_voice_meetings_dir(),
             schedule_export_dir: String::new(),
             ui_locale: default_ui_locale(),
+            tab_order: Vec::new(),
+            hidden_tabs: Vec::new(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
             notices_read: Vec::new(),

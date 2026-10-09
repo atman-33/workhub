@@ -158,6 +158,12 @@ export interface Settings {
    * calendar and its HTML export (it replaced `schedule_locale`). Display
    * only — nothing written to a file is localized. Vault-scoped. */
   ui_locale: string;
+  /** Top-bar tab keys in the owner's order, hidden ones included; empty =
+   * built-in order (T-0684). Vault-scoped. */
+  tab_order: string[];
+  /** Top-bar tabs the owner hid (T-0684). Still reachable via Ctrl+K.
+   * Vault-scoped. */
+  hidden_tabs: string[];
   /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
    * local-time calendar arithmetic; the backend only persists them. */
   recurring: RecurringRule[];
