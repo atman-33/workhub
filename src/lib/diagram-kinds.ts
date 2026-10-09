@@ -15,7 +15,7 @@ export type DiagramKind = (typeof DIAGRAM_KINDS)[number];
  * note of that kind can still be listed, but nobody is invited to make one
  * that has no editor.
  */
-export const CREATABLE_KINDS: readonly DiagramKind[] = ["schedule", "mindmap", "matrix2x2"];
+export const CREATABLE_KINDS: readonly DiagramKind[] = ["schedule", "mindmap", "matrix2x2", "flow"];
 
 /** The kinds that have an editor, and so can be renamed and deleted from the list. */
 export function hasEditor(kind: string): boolean {

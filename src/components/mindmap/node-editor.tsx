@@ -1,29 +1,19 @@
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Check, CornerDownRight, Copy, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { CornerDownRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+  ColorSwatches,
+  DeleteButton,
+  IdHeader,
+  NoteField,
+  PanelFrame,
+  TaskSelect,
+  TitleField,
+} from "@/components/diagram/panel-frame";
 import { StickyList } from "@/components/diagram/sticky-list";
 import { AttrEditor } from "./attr-editor";
-import { MINDMAP_COLOR_LABEL_KEY } from "@/lib/i18n/labels";
 import { useT } from "@/lib/i18n";
-import {
-  COLOR_HEX,
-  COLORS,
-  type Color,
-  type MindmapNode,
-  type Sticky,
-} from "@/lib/mindmap/parse";
-import { cn } from "@/lib/utils";
+import { type MindmapNode, type Sticky } from "@/lib/mindmap/parse";
 import type { Task } from "@/types";
 
 /**
@@ -37,7 +27,7 @@ import type { Task } from "@/types";
  * Like the schedule's item editor, this panel holds **no draft state**: every
  * field renders straight from `node`, so an inline rename or a re-parent on
  * the canvas is reflected here immediately rather than being served stale from
- * a local copy.
+ * a local copy. The common fields are the shared ones in `panel-frame`.
  */
 
 interface Props {
@@ -68,17 +58,6 @@ interface Props {
   onDelete: () => void;
 }
 
-/** Sentinel for the Select's "no value" option — Radix rejects an empty
- * string as an item value. */
-const NONE = "__none__";
-
-/** Folds pasted line breaks into spaces. The title is the node's single
- * grammar line in the file, so a newline there would emit a second, unparsable
- * line; multi-line text belongs in the note. */
-function collapseLines(value: string): string {
-  return value.split(/\s*[\r\n]+\s*/).join(" ");
-}
-
 export function NodeEditor({
   node,
   tasks,
@@ -99,102 +78,38 @@ export function NodeEditor({
 }: Props) {
   const t = useT();
   const childCount = node.children.length;
-  const [idCopied, setIdCopied] = useState(false);
-
-  /** The id is how the AI is told which node is meant, so it is one click from
-   * the clipboard. A failed write is not worth a message: the id is on screen. */
-  const copyId = async () => {
-    try {
-      await writeText(node.id);
-      setIdCopied(true);
-      setTimeout(() => setIdCopied(false), 1500);
-    } catch {
-      // clipboard unavailable
-    }
-  };
 
   return (
-    // Width comes from the sidebar column, not from here — see mindmap-view.
-    <div className="shrink-0 space-y-3 border-b p-3 text-xs">
-      <div className="flex items-center justify-between">
-        <span className="flex min-w-0 items-center gap-1">
-          <span className="truncate font-mono text-[11px] text-muted-foreground">{node.id}</span>
-          <Hint label={t("mindmap.nodeEditor.copyIdHint")}>
-            <Button size="icon" variant="ghost" className="size-5" onClick={copyId}>
-              {idCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            </Button>
-          </Hint>
-        </span>
-        {childCount > 0 && (
-          <span className="text-[11px] text-muted-foreground">
-            {t(
-              childCount === 1 ? "mindmap.nodeEditor.childCountOne" : "mindmap.nodeEditor.childCountOther",
-              { count: childCount },
-            )}
-          </span>
-        )}
-      </div>
+    <PanelFrame>
+      <IdHeader
+        id={node.id}
+        copyHint={t("mindmap.nodeEditor.copyIdHint")}
+        aside={
+          childCount > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              {t(
+                childCount === 1 ? "mindmap.nodeEditor.childCountOne" : "mindmap.nodeEditor.childCountOther",
+                { count: childCount },
+              )}
+            </span>
+          )
+        }
+      />
 
-      <Input
+      <TitleField
         value={node.title}
         placeholder={t("mindmap.nodeEditor.titlePlaceholder")}
         disabled={disabled}
-        className="h-8 text-xs"
-        onChange={(e) => onChange({ title: collapseLines(e.target.value) })}
-        // The canvas owns Tab/Enter as tree commands; inside a text field they
-        // have to mean what they always mean.
-        onKeyDown={(e) => e.stopPropagation()}
+        onChange={(title) => onChange({ title })}
       />
-
-      <Textarea
+      <NoteField
         value={node.note ?? ""}
         placeholder={t("mindmap.nodeEditor.notePlaceholder")}
-        rows={3}
         disabled={disabled}
-        className="resize-none text-xs"
-        onChange={(e) => onChange({ note: e.target.value })}
-        onKeyDown={(e) => e.stopPropagation()}
+        onChange={(note) => onChange({ note })}
       />
-
-      <div className="flex flex-wrap gap-1.5">
-        {COLORS.map((color) => (
-          <Hint key={color} label={t(MINDMAP_COLOR_LABEL_KEY[color])} disabled={disabled}>
-            <button
-              type="button"
-              disabled={disabled}
-              // Clicking the current colour clears it, so a branch can go back to
-              // inheriting its parent's — otherwise the only way out of a colour
-              // would be editing the file by hand.
-              onClick={() =>
-                onChange({ color: node.color === color ? undefined : (color as Color) })
-              }
-              style={{ background: COLOR_HEX[color as Color] }}
-              className={cn(
-                "size-5 rounded",
-                node.color === color && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-              )}
-            />
-          </Hint>
-        ))}
-      </div>
-
-      <Select
-        value={node.task ?? NONE}
-        disabled={disabled}
-        onValueChange={(v) => onChange({ task: v === NONE ? undefined : v })}
-      >
-        <SelectTrigger className="h-7 text-xs">
-          <SelectValue placeholder={t("schedule.itemEditor.noLinkedTask")} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>{t("schedule.itemEditor.noLinkedTask")}</SelectItem>
-          {tasks.map((task) => (
-            <SelectItem key={task.id} value={task.id}>
-              {task.id} {task.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <ColorSwatches value={node.color} disabled={disabled} onChange={(color) => onChange({ color })} />
+      <TaskSelect value={node.task} tasks={tasks} disabled={disabled} onChange={(task) => onChange({ task })} />
 
       <AttrEditor
         attrs={node.attrs}
@@ -240,26 +155,16 @@ export function NodeEditor({
             {t("mindmap.nodeEditor.sibling")}
           </Button>
         </Hint>
-        <Hint
-          label={
+        <DeleteButton
+          hint={
             childCount > 0
               ? t("mindmap.nodeEditor.deleteWithDescendantsHint", { count: childCount })
               : t("mindmap.nodeEditor.deleteHint")
           }
           disabled={disabled}
-        >
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            disabled={disabled}
-            onClick={onDelete}
-          >
-            <Trash2 className="mr-1 size-3" />
-            {t("common.delete")}
-          </Button>
-        </Hint>
+          onClick={onDelete}
+        />
       </div>
-    </div>
+    </PanelFrame>
   );
 }

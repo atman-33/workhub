@@ -92,6 +92,19 @@ export interface Sections {
   tail: string;
 }
 
+/** Cuts the leading `---` frontmatter block (closing line included) off a note. */
+export function splitFrontmatter(content: string): { frontmatter: string; rest: string } {
+  if (content.startsWith("---\n") || content.startsWith("---\r\n")) {
+    const end = content.indexOf("\n---", 3);
+    if (end !== -1) {
+      const after = content.indexOf("\n", end + 1);
+      const cut = after === -1 ? content.length : after + 1;
+      return { frontmatter: content.slice(0, cut), rest: content.slice(cut) };
+    }
+  }
+  return { frontmatter: "", rest: content };
+}
+
 /**
  * Splits the file into the regions serialization needs. A note missing its
  * primary section still parses (the section comes back empty and is written in
@@ -102,17 +115,7 @@ export interface Sections {
  * parses, and is written back with the two in the canonical order.
  */
 export function splitSections(content: string, primary: string): Sections {
-  let frontmatter = "";
-  let rest = content;
-  if (content.startsWith("---\n") || content.startsWith("---\r\n")) {
-    const end = content.indexOf("\n---", 3);
-    if (end !== -1) {
-      const after = content.indexOf("\n", end + 1);
-      const cut = after === -1 ? content.length : after + 1;
-      frontmatter = content.slice(0, cut);
-      rest = content.slice(cut);
-    }
-  }
+  const { frontmatter, rest } = splitFrontmatter(content);
 
   // Each managed section runs from its heading to the next heading of any
   // kind: everything else (`## Memo`, a human's own sections) is opaque and

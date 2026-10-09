@@ -180,8 +180,9 @@ fn scope_of(parts: &[String]) -> String {
     "project".into()
 }
 
-/// The text of a new note of `kind`. The three newer kinds start empty; their
-/// editors arrive with the tasks of the diagram series.
+/// The text of a new note of `kind`. The 2x2 matrix starts empty and the flow
+/// with a small working example; the PFD's editor arrives with its task of the
+/// diagram series.
 fn skeleton(kind: &str, title: &str, range: &str, now: &str) -> Result<String, String> {
     Ok(match kind {
         "schedule" => crate::schedule::skeleton(title, range, now),
@@ -193,8 +194,15 @@ fn skeleton(kind: &str, title: &str, range: &str, now: &str) -> Result<String, S
 x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n---\n\n\
 ## Items\n\n## Memo\n\n"
         ),
+        // A small working flow rather than empty sections: on a blank
+        // canvas there is nothing to double-click, and the three steps show
+        // what a lane, a terminator and an arrow look like.
         "flow" => format!(
-            "---\ntype: flow\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n## Lanes\n\n## Steps\n\n## Edges\n\n## Memo\n\n"
+            "---\ntype: flow\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Lanes\n\n- L-001 Lane 1\n\n\
+## Steps\n\n- F-001 Start ^start lane:L-001\n- F-002 Step lane:L-001\n- F-003 End ^end lane:L-001\n\n\
+## Edges\n\n- F-001 -> F-002\n- F-002 -> F-003\n\n\
+## Memo\n\n"
         ),
         "pfd" => format!(
             "---\ntype: pfd\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n## Nodes\n\n## Edges\n\n## Memo\n\n"
@@ -608,6 +616,28 @@ mod tests {
         }
         assert!(body.contains("## Items"));
         assert!(body.contains("## Memo"));
+        // Written back as-is, it is still a valid diagram.
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn flow_skeleton_is_a_small_working_flow() {
+        let vault = temp_vault("flow-skeleton");
+        let file = create_diagram(&vault, "demo", "flow", "Order", "", "").unwrap();
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "flow");
+        assert_eq!(frontmatter_value(&front, "title"), "Order");
+        // Every managed section is there, in the order the editor writes them.
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Lanes") < at("## Steps"));
+        assert!(at("## Steps") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        assert!(body.contains("- L-001 Lane 1"));
+        assert!(body.contains("- F-001 Start ^start lane:L-001"));
+        assert!(body.contains("- F-003 End ^end lane:L-001"));
+        assert!(body.contains("- F-002 -> F-003"));
         // Written back as-is, it is still a valid diagram.
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();

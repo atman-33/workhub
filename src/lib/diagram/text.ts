@@ -96,3 +96,14 @@ export function wrapTitle(title: string, maxWidth: number, fontSize: number): st
   return lines.length ? lines.map((l) => l.trimEnd()) : [""];
 }
 
+
+/** Cuts `text` to fit `maxWidth`, ending in an ellipsis when it had to cut. */
+export function truncateText(text: string, maxWidth: number, fontSize: number): string {
+  if (textWidth(text, fontSize) <= maxWidth) return text;
+  let out = "";
+  for (const ch of text) {
+    if (textWidth(`${out}${ch}…`, fontSize) > maxWidth) break;
+    out += ch;
+  }
+  return `${out}…`;
+}

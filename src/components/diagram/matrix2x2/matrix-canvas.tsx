@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
 import { NodeInput } from "@/components/diagram/node-input";
+import { NoteTip } from "@/components/diagram/note-tip";
 import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import { COLOR_HEX } from "@/lib/diagram/colors";
 import type { Sticky } from "@/lib/diagram/sticky";
-import {
-  STICKY_FONT_SIZE,
-  STICKY_PAD,
-  wrapStickyText,
-  type PositionedSticky,
-} from "@/lib/diagram/sticky-layout";
+import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import {
   AXIS_FONT_SIZE,
   ITEM_FONT_SIZE,
@@ -342,36 +338,7 @@ export function MatrixCanvas({
         />
       ))}
 
-      {hovered?.note && !editingItem && <NoteTip item={hovered} />}
+      {hovered?.note && !editingItem && <NoteTip box={hovered} note={hovered.note} />}
     </DiagramSurface>
-  );
-}
-
-/** An item's note, shown under it while the pointer rests on it. */
-function NoteTip({ item }: { item: PositionedItem }) {
-  const lines = wrapStickyText(item.note ?? "");
-  const lineHeight = STICKY_FONT_SIZE * 1.45;
-  const width = Math.min(
-    220,
-    Math.max(...lines.map((l) => textWidth(l, STICKY_FONT_SIZE))) + STICKY_PAD * 2,
-  );
-  const height = lines.length * lineHeight + STICKY_PAD * 2;
-  const x = item.x + item.width / 2 - width / 2;
-  const y = item.y + item.height + 16;
-  return (
-    <g pointerEvents="none">
-      <rect x={x} y={y} width={width} height={height} rx={4} className="fill-popover stroke-border" />
-      {lines.map((line, i) => (
-        <text
-          key={i}
-          x={x + STICKY_PAD}
-          y={y + STICKY_PAD + STICKY_FONT_SIZE * 0.9 + i * lineHeight}
-          fontSize={STICKY_FONT_SIZE}
-          className="fill-popover-foreground select-none"
-        >
-          {line}
-        </text>
-      ))}
-    </g>
   );
 }
