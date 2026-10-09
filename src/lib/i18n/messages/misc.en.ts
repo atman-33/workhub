@@ -100,7 +100,7 @@ export const miscEn = {
 
   "misc.aiEditSettings.title": "Edit with AI",
   "misc.aiEditSettings.description":
-    "Agent used when you edit this {subject} with a natural-language instruction.",
+    "Agent used when you edit a diagram with a natural-language instruction.",
   "misc.aiEditSettings.agent": "Agent",
   "misc.aiEditSettings.model": "Model",
   "misc.aiEditSettings.confirmDescription":

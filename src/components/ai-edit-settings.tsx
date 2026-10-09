@@ -14,15 +14,12 @@ import { useT } from "@/lib/i18n";
  * Which agent runs a natural-language edit, on which model, and whether the
  * result is reviewed before it lands (T-0289).
  *
- * The Schedule and Mindmap tabs each own their own copy of these three
- * settings, and both render them the same way, so the block lives here
- * instead of being written twice. Saving is the caller's job: the tab writes
+ * One agent edits every kind of diagram (T-0685), so these three settings
+ * belong to the Diagrams tab. Saving is the caller's job: the tab writes
  * through `api.patchSettings` the moment a control changes.
  */
 
 interface Props {
-  /** What the agent edits, for the wording ("schedule", "mindmap"). */
-  subject: string;
   assignee: string;
   model: string;
   confirm: boolean;
@@ -35,7 +32,6 @@ interface Props {
 }
 
 export function AiEditSettings({
-  subject,
   assignee,
   model,
   confirm,
@@ -54,7 +50,7 @@ export function AiEditSettings({
           <VaultScopedBadge />
         </p>
         <p className="text-xs text-muted-foreground">
-          {t("misc.aiEditSettings.description", { subject })}
+          {t("misc.aiEditSettings.description")}
         </p>
       </div>
       <div className="space-y-1.5">

@@ -27,17 +27,6 @@ export const scheduleJa: Partial<Record<MessageKey, string>> = {
   "schedule.projectCreate.slugLabel": "スラッグ — projects/{folder}/(小文字のケバブケース)",
   "schedule.projectCreate.create": "プロジェクトを作成",
 
-  "schedule.aiPanel.placeholder":
-    "例: 実装フェーズを1週間後ろにずらし、その分だけ統合テストを短くする",
-  "schedule.aiPanel.confirmLabel": "適用前に差分を確認する",
-  "schedule.aiPanel.run": "実行(Ctrl+Enter)",
-  "schedule.aiPanel.running": "実行中…",
-  "schedule.aiPanel.undoHint": "直前の AI 編集を取り消す",
-  "schedule.aiPanel.copyPrompt": "対話セッションに貼り付けるプロンプトをコピー",
-  "schedule.aiPanel.stalled":
-    "少し時間がかかっています。実行ログは `_ai/logs/schedule/` にあります。",
-  "schedule.aiPanel.history": "履歴",
-
   "schedule.settings.hint": "スケジュール設定",
   "schedule.settings.exportFolderLabel": "HTML エクスポート先フォルダ",
   "schedule.settings.exportFolderPlaceholder": "空欄 = プロジェクトの attachments/",
@@ -74,7 +63,7 @@ export const scheduleJa: Partial<Record<MessageKey, string>> = {
     "ドラッグで移動 · Shift+ドラッグで週単位にスナップ · Shift/Ctrl + ホイールでパン/ズーム",
 
   "schedule.view.noVault": "スケジュールを使うには設定で vault パスを指定してください。",
-  "schedule.view.pickElementHint": "要素を選んで編集するか、{aiEdit}を開いてください。",
+  "schedule.view.pickElementHint": "要素を選んで編集してください。",
   "schedule.view.projectPlaceholder": "プロジェクト",
   "schedule.view.allProjects": "すべてのプロジェクト",
   "schedule.view.newProject": "新規プロジェクト…",

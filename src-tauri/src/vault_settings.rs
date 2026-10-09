@@ -56,12 +56,12 @@ const VAULT_SCOPED: &[&str] = &[
     // working preference of the owner, so a second PC shows the same bar.
     "tab_order",
     "hidden_tabs",
-    "schedule_assignee",
-    "schedule_model",
-    "schedule_confirm",
-    "mindmap_assignee",
-    "mindmap_model",
-    "mindmap_confirm",
+    // The agent that edits any kind of diagram (T-0685). The former
+    // `schedule_*` / `mindmap_*` keys are deliberately not aliased: they are
+    // not read, and the next save drops them.
+    "diagram_assignee",
+    "diagram_model",
+    "diagram_confirm",
     "meeting_struct_interval_secs",
     "meeting_struct_assignee",
     "meeting_struct_model",
@@ -390,6 +390,48 @@ mod tests {
         let scoped = extract(&settings);
         assert!(!scoped.contains_key("schedule_locale"));
         assert_eq!(scoped.get("ui_locale"), Some(&serde_json::json!("ja")));
+    }
+
+    /// T-0685 unified the per-kind agent settings into `diagram_*` and chose not
+    /// to migrate: an old vault file's `schedule_*` / `mindmap_*` keys are not
+    /// read, and the next save drops them.
+    #[test]
+    fn legacy_schedule_and_mindmap_agent_keys_are_not_read() {
+        let mut settings = Settings::default();
+        apply(
+            &mut settings,
+            &overlay_of(serde_json::json!({
+                "schedule_assignee": "opencode",
+                "schedule_model": "x",
+                "schedule_confirm": true,
+                "mindmap_assignee": "opencode",
+                "mindmap_model": "y",
+                "mindmap_confirm": true,
+            })),
+        );
+        assert_eq!(settings.diagram_assignee, "claude-code");
+        assert_eq!(settings.diagram_model, "");
+        assert!(!settings.diagram_confirm);
+        let scoped = extract(&settings);
+        assert!(!scoped.contains_key("schedule_assignee"));
+        assert!(!scoped.contains_key("mindmap_model"));
+        assert!(scoped.contains_key("diagram_assignee"));
+    }
+
+    #[test]
+    fn diagram_agent_settings_are_vault_scoped() {
+        let mut settings = Settings::default();
+        apply(
+            &mut settings,
+            &overlay_of(serde_json::json!({
+                "diagram_assignee": "opencode",
+                "diagram_model": "m",
+                "diagram_confirm": true,
+            })),
+        );
+        assert_eq!(settings.diagram_assignee, "opencode");
+        assert_eq!(settings.diagram_model, "m");
+        assert!(settings.diagram_confirm);
     }
 
     #[test]

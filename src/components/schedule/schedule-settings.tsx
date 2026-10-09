@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Settings2 } from "lucide-react";
 
-import { AiEditSettings } from "@/components/ai-edit-settings";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
@@ -10,13 +9,12 @@ import { useT } from "@/lib/i18n";
 import type { Settings } from "@/types";
 
 /**
- * The Schedule tab's own settings (T-0289).
- *
- * They used to live in ⚙ Settings → Vault, which meant opening a modal over
- * the calendar to change them. (The calendar's language is no longer one of
- * them: it follows the app-wide display language since T-0409.) The Voice,
- * Ink, Clips and Docs tabs already own their settings; this is the same move
- * for Schedule (`.claude/rules/settings-placement.md`).
+ * The Schedule editor's own settings (T-0289): the HTML export folder. (The
+ * calendar's language follows the app-wide display language since T-0409, and
+ * the AI agent is chosen once for every kind of diagram, T-0685, in the
+ * Diagrams tab's toolbar.) The Voice, Ink, Clips and Docs tabs already own
+ * their settings; this is the same move for Schedule
+ * (`.claude/rules/settings-placement.md`).
  *
  * Every change saves immediately through the caller's `onPatch`, which merges
  * onto a fresh read of the config so a value another tab changed meanwhile is
@@ -64,23 +62,7 @@ export function ScheduleSettings({ settings, disabled, onPatch }: Props) {
       <PopoverContent className="w-72 space-y-4 p-3 text-xs" align="end">
         {settings && (
           <>
-            <AiEditSettings
-              subject={t("nav.schedule")}
-              assignee={settings.schedule_assignee}
-              model={settings.schedule_model}
-              confirm={settings.schedule_confirm}
-              active={open}
-              onAssigneeChange={(v) =>
-                // Clear the model when the agent changes: model ids are
-                // per-CLI, so a claude id left behind on an opencode run would
-                // be passed straight through to `--model` and fail.
-                onPatch({ schedule_assignee: v, schedule_model: "" })
-              }
-              onModelChange={(model) => onPatch({ schedule_model: model })}
-              onConfirmChange={(v) => onPatch({ schedule_confirm: v })}
-            />
-
-            <div className="space-y-1.5 border-t pt-3">
+            <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 {t("schedule.settings.exportFolderLabel")}
               </label>

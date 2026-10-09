@@ -109,15 +109,11 @@ const DEFAULTS: Settings = {
   claude_desktop_mode: "code",
   // Managed from the Inbox tab itself, not from this dialog (T-0300).
   tidy: TIDY_DEFAULTS,
-  // Managed from the Schedule tab itself, not from this dialog (T-0289).
-  schedule_assignee: "claude-code",
-  schedule_model: "",
-  schedule_confirm: false,
+  // Managed from the Diagrams tab itself, not from this dialog (T-0289, T-0685).
+  diagram_assignee: "claude-code",
+  diagram_model: "",
+  diagram_confirm: false,
   schedule_export_dir: "",
-  // Managed from the Mindmap tab itself, not from this dialog (T-0289).
-  mindmap_assignee: "claude-code",
-  mindmap_model: "",
-  mindmap_confirm: false,
   // Managed from the Voice tab's meeting panel, not from this dialog (T-0318).
   meeting_struct_interval_secs: 120,
   meeting_struct_assignee: "claude-code",

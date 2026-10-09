@@ -228,40 +228,29 @@ pub struct Settings {
     /// notes and refreshes the tasks/archive index via a headless agent.
     #[serde(default)]
     pub tidy: TidySettings,
-    /// Agent CLI used for AI schedule edits: "claude-code" | "opencode"
-    /// (T-0091).
+    /// Agent CLI used for AI diagram edits (every kind: schedule, mindmap,
+    /// matrix2x2, flow, pfd): "claude-code" | "opencode". Unified in T-0685
+    /// from the former `schedule_*` / `mindmap_*` triples, which are not read.
     #[serde(default = "default_schedule_assignee")]
-    pub schedule_assignee: String,
+    pub diagram_assignee: String,
     /// Model passed to that agent via `--model`; empty = the agent's default.
     #[serde(default)]
-    pub schedule_model: String,
-    /// Default an AI schedule edit to the confirm-first mode (show the diff,
+    pub diagram_model: String,
+    /// Default an AI diagram edit to the confirm-first mode (show the diff,
     /// apply on approval) instead of applying immediately.
     #[serde(default)]
-    pub schedule_confirm: bool,
-    /// Agent CLI used for AI mindmap edits: "claude-code" | "opencode"
-    /// (T-0188). Kept separate from `schedule_assignee` so the two surfaces
-    /// can run on different agents.
-    #[serde(default = "default_schedule_assignee")]
-    pub mindmap_assignee: String,
-    /// Model passed to that agent via `--model`; empty = the agent's default.
-    #[serde(default)]
-    pub mindmap_model: String,
-    /// Default an AI mindmap edit to the confirm-first mode (show what would
-    /// change, apply on approval) instead of applying immediately.
-    #[serde(default)]
-    pub mindmap_confirm: bool,
+    pub diagram_confirm: bool,
     /// How often a running meeting's transcript is sent to a headless agent
     /// for structuring (T-0318), in seconds. 0 disables the periodic run
     /// (the manual minutes prompt still works).
     ///
-    /// Vault-scoped like the schedule/mindmap agent preferences: how often
+    /// Vault-scoped like the diagram agent preferences: how often
     /// this vault's meetings get structured is the team's call, not a
     /// property of this machine.
     #[serde(default = "default_meeting_struct_interval_secs")]
     pub meeting_struct_interval_secs: u64,
     /// Agent CLI used for meeting structuring: "claude-code" | "opencode".
-    /// Vault-scoped, same reasoning as `schedule_assignee`.
+    /// Vault-scoped, same reasoning as `diagram_assignee`.
     #[serde(default = "default_schedule_assignee")]
     pub meeting_struct_assignee: String,
     /// Model passed to that agent via `--model`; empty = the agent's default.
@@ -565,12 +554,9 @@ impl Default for Settings {
             prompt_copy_multiline: true,
             claude_desktop_mode: default_claude_desktop_mode(),
             tidy: TidySettings::default(),
-            schedule_assignee: default_schedule_assignee(),
-            schedule_model: String::new(),
-            schedule_confirm: false,
-            mindmap_assignee: default_schedule_assignee(),
-            mindmap_model: String::new(),
-            mindmap_confirm: false,
+            diagram_assignee: default_schedule_assignee(),
+            diagram_model: String::new(),
+            diagram_confirm: false,
             meeting_struct_interval_secs: default_meeting_struct_interval_secs(),
             meeting_struct_assignee: default_schedule_assignee(),
             meeting_struct_model: String::new(),

@@ -1,6 +1,6 @@
+use crate::diagram_edit;
 use crate::docs::{self, DocsEntry, DocsRootStatus};
 use crate::mindmap;
-use crate::mindmap_edit;
 use crate::models::{
     BacklogItem, BranchList, CommitFileChange, Config, DocsRoot, DocsShortcut, GitInfo, GitLog,
     GraphOp, InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
@@ -8,7 +8,6 @@ use crate::models::{
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
-use crate::schedule_edit;
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::terminal::{self, TerminalState};
 use crate::vault_note;
@@ -1126,46 +1125,59 @@ pub async fn export_schedule_html(
     .map_err(|e| e.to_string())?
 }
 
-/// Launches a headless agent to apply a natural-language edit to a schedule
-/// note (T-0091). Returns immediately; progress arrives on
-/// `schedule-edit:status`.
+/// Launches a headless agent to apply a natural-language edit to a diagram
+/// note of any kind (T-0685). Returns immediately; progress arrives on
+/// `diagram-edit:status`.
 #[tauri::command]
-pub fn run_schedule_edit(
+pub fn run_diagram_edit(
     app: tauri::AppHandle,
     path: String,
     instruction: String,
     confirm: bool,
 ) -> Result<String, String> {
-    schedule_edit::run(app, path, instruction, confirm)
+    diagram_edit::run(app, path, instruction, confirm)
 }
 
-/// Copies the schedule-edit prompt for `path` to the clipboard, for pasting into
+/// Copies the diagram-edit prompt for `path` to the clipboard, for pasting into
 /// an interactive agent session. `instruction` may be empty.
 #[tauri::command]
-pub fn copy_schedule_edit_prompt(
+pub fn copy_diagram_edit_prompt(
     app: tauri::AppHandle,
     path: String,
     instruction: String,
     confirm: bool,
 ) -> Result<(), String> {
-    let prompt = schedule_edit::build_copy_prompt(&path.replace('\\', "/"), &instruction, confirm);
+    let prompt = diagram_edit::build_copy_prompt(&path.replace('\\', "/"), &instruction, confirm);
     app.clipboard()
         .write_text(prompt)
         .map_err(|e| format!("failed to copy prompt: {e}"))
 }
 
 #[tauri::command]
-pub fn schedule_edit_status(app: tauri::AppHandle) -> schedule_edit::ScheduleEditRun {
-    schedule_edit::snapshot(&app)
+pub fn diagram_edit_status(app: tauri::AppHandle) -> diagram_edit::DiagramEditRun {
+    diagram_edit::snapshot(&app)
 }
 
-/// Restores the snapshot taken before the last AI edit of this schedule.
+/// Restores the snapshot taken before the last AI edit of this diagram.
 #[tauri::command]
-pub fn restore_schedule_snapshot(
+pub fn restore_diagram_snapshot(
     app: tauri::AppHandle,
     path: String,
-) -> Result<ScheduleDoc, String> {
-    schedule_edit::undo(app, path)
+) -> Result<crate::diagram::DiagramDoc, String> {
+    diagram_edit::undo(app, path)
+}
+
+/// Whether an undo snapshot exists for this diagram.
+#[tauri::command]
+pub fn has_snapshot(path: String) -> bool {
+    let cfg = storage::load();
+    match cfg.settings.vault_path.as_deref() {
+        Some(v) if !v.trim().is_empty() => crate::diagram::has_snapshot(
+            &PathBuf::from(v.replace('\\', "/")),
+            &PathBuf::from(path.replace('\\', "/")),
+        ),
+        _ => false,
+    }
 }
 
 // ---- Docs tab: read-only browsing of shared Markdown (T-0259) -----------
@@ -1700,44 +1712,6 @@ pub async fn export_mindmap_png(
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-/// Launches a headless agent to apply a natural-language edit to a mindmap
-/// note. Returns immediately; progress arrives on `mindmap-edit:status`.
-#[tauri::command]
-pub fn run_mindmap_edit(
-    app: tauri::AppHandle,
-    path: String,
-    instruction: String,
-    confirm: bool,
-) -> Result<String, String> {
-    mindmap_edit::run(app, path, instruction, confirm)
-}
-
-/// Copies the mindmap-edit prompt for `path` to the clipboard, for pasting into
-/// an interactive agent session. `instruction` may be empty.
-#[tauri::command]
-pub fn copy_mindmap_edit_prompt(
-    app: tauri::AppHandle,
-    path: String,
-    instruction: String,
-    confirm: bool,
-) -> Result<(), String> {
-    let prompt = mindmap_edit::build_copy_prompt(&path.replace('\\', "/"), &instruction, confirm);
-    app.clipboard()
-        .write_text(prompt)
-        .map_err(|e| format!("failed to copy prompt: {e}"))
-}
-
-#[tauri::command]
-pub fn mindmap_edit_status(app: tauri::AppHandle) -> mindmap_edit::MindmapEditRun {
-    mindmap_edit::snapshot(&app)
-}
-
-/// Restores the snapshot taken before the last AI edit of this mindmap.
-#[tauri::command]
-pub fn restore_mindmap_snapshot(app: tauri::AppHandle, path: String) -> Result<MindmapDoc, String> {
-    mindmap_edit::undo(app, path)
 }
 
 /// `vault-template/` is embedded into the binary at compile time (see

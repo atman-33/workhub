@@ -82,12 +82,6 @@ export const mindmapEn = {
   "mindmap.chipSettings.showAll": "Show all",
   "mindmap.chipSettings.hideAll": "Hide all",
 
-  "mindmap.aiPanel.placeholder":
-    "e.g. group the UI ideas under a new branch and colour the release branch red",
-  "mindmap.aiPanel.stalled": "This is taking a while. The run log is under `_ai/logs/mindmap/`.",
-
-  "mindmap.settings.hint": "Mindmap settings",
-
   "mindmap.canvas.indent": "Indent",
   "mindmap.canvas.outdent": "Outdent",
   "mindmap.canvas.rename": "Rename",

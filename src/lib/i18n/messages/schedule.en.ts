@@ -25,17 +25,6 @@ export const scheduleEn = {
   "schedule.projectCreate.slugLabel": "Slug — projects/{folder}/ (lowercase, kebab-case)",
   "schedule.projectCreate.create": "Create project",
 
-  "schedule.aiPanel.placeholder":
-    "e.g. push the implementation phase back a week and shorten the integration test by the same amount",
-  "schedule.aiPanel.confirmLabel": "Review the diff before applying",
-  "schedule.aiPanel.run": "Run (Ctrl+Enter)",
-  "schedule.aiPanel.running": "Running…",
-  "schedule.aiPanel.undoHint": "Undo the last AI edit",
-  "schedule.aiPanel.copyPrompt": "Copy a prompt to paste into a chat session",
-  "schedule.aiPanel.stalled":
-    "This is taking a while. The run log is under `_ai/logs/schedule/`.",
-  "schedule.aiPanel.history": "History",
-
   "schedule.settings.hint": "Schedule settings",
   "schedule.settings.exportFolderLabel": "HTML export folder",
   "schedule.settings.exportFolderPlaceholder": "blank = the project's attachments/",
@@ -72,7 +61,7 @@ export const scheduleEn = {
     "Drag to move · Shift+drag snaps to weeks · Shift/Ctrl + wheel pans and zooms",
 
   "schedule.view.noVault": "Set a vault path in Settings to use schedules.",
-  "schedule.view.pickElementHint": "Pick an element to edit it, or open {aiEdit}.",
+  "schedule.view.pickElementHint": "Pick an element to edit it.",
   "schedule.view.projectPlaceholder": "Project",
   "schedule.view.allProjects": "All projects",
   "schedule.view.newProject": "New project…",

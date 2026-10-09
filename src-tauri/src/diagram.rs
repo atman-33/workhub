@@ -16,8 +16,10 @@
 //! they work on a path, and the path is all the Diagrams tab needs to hand over.
 
 use crate::vault_note::{
-    ai_state_dir, frontmatter_value, mtime_secs, norm_path, projects_dir, resolve_project_dir,
-    rewrite_frontmatter, sanitize_filename, split_frontmatter, today, unique_note_path,
+    ai_state_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs,
+    norm_path, projects_dir, resolve_project_dir, restore_snapshot as note_restore_snapshot,
+    rewrite_frontmatter, sanitize_filename, save_snapshot as note_save_snapshot, snapshot_path,
+    split_frontmatter, today, unique_note_path,
 };
 use crate::vault_project::find_backlog_item;
 use serde::{Deserialize, Serialize};
@@ -39,6 +41,12 @@ const MAX_DEPTH: usize = 3;
 
 /// Folders a scan never descends into.
 const SKIP_DIRS: &[&str] = &["attachments", "node_modules"];
+
+/// Folder under `_ai/state/` holding the one-generation undo snapshot of every
+/// kind of diagram (T-0685). The older `schedule-snapshots` and
+/// `mindmap-snapshots` folders are not read: a snapshot only matters for the
+/// run right before it, so there is nothing worth carrying over.
+pub const SNAPSHOT_DIR: &str = "diagram-snapshots";
 
 /// Folder under `_ai/state/` that a deleted diagram is moved into.
 const TRASH_DIR: &str = "diagram-trash";
@@ -406,6 +414,8 @@ pub fn rename_diagram(vault: &Path, path: &Path, new_title: &str) -> Result<Diag
     // a real rename, even though the two names collide on Windows.
     if norm_path(&target) != norm_path(path) {
         fs::rename(path, &target).map_err(|e| e.to_string())?;
+        // The snapshot is keyed by path; left behind, the undo would vanish.
+        move_snapshot(vault, SNAPSHOT_DIR, path, &target)?;
     }
     describe(vault, &target)
 }
@@ -428,7 +438,47 @@ pub fn delete_diagram(vault: &Path, path: &Path) -> Result<String, String> {
     // deleted twice; suffix rather than overwrite what is already in the trash.
     let target = unique_note_path(&dir, &format!("{name} {}", today()), "diagram", None);
     fs::rename(path, &target).map_err(|e| e.to_string())?;
+    // The snapshot describes a file that is no longer there.
+    let _ = fs::remove_file(snapshot_path(vault, SNAPSHOT_DIR, path));
     Ok(norm_path(&target))
+}
+
+/// The frontmatter `type` of the diagram at `path`, or an error when the file
+/// is not a diagram note.
+pub fn kind_of(path: &Path) -> Result<String, String> {
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let Some((front, _)) = split_frontmatter(&content) else {
+        return Err("this file is not a diagram note (no frontmatter block)".into());
+    };
+    let kind = frontmatter_value(&front, "type");
+    if !KINDS.contains(&kind.as_str()) {
+        return Err(format!(
+            "this file is not a diagram note (type '{kind}' is not one of {})",
+            KINDS.join(", ")
+        ));
+    }
+    Ok(kind)
+}
+
+// ---------------------------------------------------------------------
+// snapshots (undo for AI edits)
+// ---------------------------------------------------------------------
+
+/// Parks a copy of the note before an agent touches it.
+pub fn save_snapshot(vault: &Path, target: &Path) -> Result<(), String> {
+    note_save_snapshot(vault, SNAPSHOT_DIR, target)
+}
+
+/// Restores the note from its snapshot and consumes it, so "undo" is exactly
+/// one generation deep and cannot be pressed twice against a snapshot that no
+/// longer describes a state the user wants back.
+pub fn restore_snapshot(vault: &Path, target: &Path) -> Result<DiagramDoc, String> {
+    note_restore_snapshot(vault, SNAPSHOT_DIR, target, "diagram")?;
+    read_diagram(target)
+}
+
+pub fn has_snapshot(vault: &Path, target: &Path) -> bool {
+    note_has_snapshot(vault, SNAPSHOT_DIR, target)
 }
 
 /// The next `NNN` for a backlog item's child note: ten above the highest
@@ -740,6 +790,90 @@ mod tests {
         assert!(Path::new(&trashed).is_file());
         assert!(trashed.contains("_ai/state/diagram-trash/"), "{trashed}");
         assert!(delete_diagram(&vault, Path::new(&file.path)).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn snapshot_round_trips_one_generation_for_every_kind() {
+        let vault = temp_vault("snapshot");
+        for kind in KINDS {
+            let file =
+                create_diagram(&vault, "demo", kind, &format!("snap {kind}"), "", "").unwrap();
+            let path = PathBuf::from(&file.path);
+            assert_eq!(kind_of(&path).unwrap(), *kind);
+            let original = read_diagram(&path).unwrap().content;
+
+            assert!(!has_snapshot(&vault, &path), "{kind}");
+            save_snapshot(&vault, &path).unwrap();
+            assert!(has_snapshot(&vault, &path), "{kind}");
+
+            let edited = format!(
+                "{original}
+an agent wrote this
+"
+            );
+            write_diagram(&path, &edited, 0).unwrap();
+            assert_ne!(read_diagram(&path).unwrap().content, original);
+
+            let restored = restore_snapshot(&vault, &path).unwrap();
+            assert_eq!(restored.content, original, "{kind}");
+            // One generation only: the snapshot is consumed by the restore.
+            assert!(!has_snapshot(&vault, &path), "{kind}");
+            assert!(restore_snapshot(&vault, &path).is_err(), "{kind}");
+        }
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn snapshots_live_in_one_shared_folder() {
+        let vault = temp_vault("snapshot-dir");
+        let a = create_diagram(&vault, "demo", "pfd", "a", "", "").unwrap();
+        let b = create_diagram(&vault, "demo", "mindmap", "b", "", "").unwrap();
+        save_snapshot(&vault, Path::new(&a.path)).unwrap();
+        save_snapshot(&vault, Path::new(&b.path)).unwrap();
+        let dir = ai_state_dir(&vault).join("diagram-snapshots");
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 2);
+        assert!(!ai_state_dir(&vault).join("mindmap-snapshots").exists());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn kind_of_rejects_a_note_that_is_not_a_diagram() {
+        let vault = temp_vault("kind-of");
+        write(
+            &vault,
+            "projects/0010-demo/dev-notes/n.md",
+            "---
+type: note
+---
+",
+        );
+        write(
+            &vault,
+            "projects/0010-demo/dev-notes/bare.md",
+            "no frontmatter
+",
+        );
+        assert!(kind_of(&vault.join("projects/0010-demo/dev-notes/n.md")).is_err());
+        assert!(kind_of(&vault.join("projects/0010-demo/dev-notes/bare.md")).is_err());
+        assert!(kind_of(&vault.join("projects/0010-demo/dev-notes/missing.md")).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_carries_the_snapshot_and_delete_drops_it() {
+        let vault = temp_vault("snapshot-follow");
+        let file = create_diagram(&vault, "demo", "flow", "Before", "", "").unwrap();
+        let path = PathBuf::from(&file.path);
+        save_snapshot(&vault, &path).unwrap();
+
+        let renamed = rename_diagram(&vault, &path, "After").unwrap();
+        let moved = PathBuf::from(&renamed.path);
+        assert!(!has_snapshot(&vault, &path));
+        assert!(has_snapshot(&vault, &moved));
+
+        delete_diagram(&vault, &moved).unwrap();
+        assert!(!has_snapshot(&vault, &moved));
         fs::remove_dir_all(&vault).ok();
     }
 }

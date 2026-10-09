@@ -11,14 +11,12 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { usePanelRef } from "react-resizable-panels";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
-import { ScheduleAiPanel } from "@/components/schedule/schedule-ai-panel";
 import { ScheduleGrid } from "@/components/schedule/schedule-grid";
 import { ScheduleSettings } from "@/components/schedule/schedule-settings";
 import { SprintSettings } from "@/components/schedule/sprint-settings";
@@ -71,7 +69,7 @@ import {
   type ScheduleItem,
 } from "@/lib/schedule/parse";
 import { moveItem, type MoveDirection } from "@/lib/schedule/reorder";
-import type { Config, ScheduleEditRun, ScheduleFile, Task } from "@/types";
+import type { Config, ScheduleFile, Task } from "@/types";
 
 /**
  * The Schedule tab (design note §6).
@@ -154,7 +152,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   const setPath = embedded ? embedded.onPathChange : setOwnPath;
   const [doc, setDoc] = useState<ScheduleDocModel | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [aiRun, setAiRun] = useState<ScheduleEditRun | null>(null);
   // Only the *id* of the selection is state; the element itself is looked up in
   // the document below. Keeping a copy here would fork the truth: a drag on the
   // grid edits `doc` without passing through the side panel, and the panel's
@@ -177,9 +174,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   // API, which remembers the width it was dragged to across a collapse/expand
   // round trip — so no width has to be tracked here.
   const sidebarPanel = usePanelRef();
-  // Whether the AI instruction panel is open. Closed by default, opened from
-  // the toolbar, the same as the Mindmap tab's panel.
-  const [aiOpen, setAiOpen] = useState(false);
   // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
   // "that drag went somewhere I didn't mean", not for history — the file's git
   // backup and the AI-edit snapshot cover the durable cases.
@@ -201,7 +195,9 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const vaultPath = config?.settings.vault_path ?? null;
-  const aiRunning = aiRun?.state === "running";
+  // The Diagrams tab owns the AI edit (T-0685); while one runs the agent holds
+  // the file and this view goes read-only.
+  const aiRunning = embedded?.locked ?? false;
   const locale = useLocale();
   const t = useT();
 
@@ -398,7 +394,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   // External edits (Obsidian, the AI agent) arrive as events rather than
   // polling, so the calendar follows the file without a refresh button.
   useEffect(() => {
-    const unlisten = listen("schedules-changed", () => {
+    const unlisten = listen("diagrams-changed", () => {
       void loadFiles();
       if (path) void loadDoc(path);
     });
@@ -406,14 +402,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
       void unlisten.then((fn) => fn());
     };
   }, [path, loadDoc, loadFiles]);
-
-  useEffect(() => {
-    void api.scheduleEditStatus().then(setAiRun);
-    const unlisten = listen<ScheduleEditRun>("schedule-edit:status", (e) => setAiRun(e.payload));
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
 
   /**
    * Starts (or restarts) the debounced file write for a model that is already
@@ -504,6 +492,25 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
     const mtime = await api.writeSchedule(path, content, source.current.mtime);
     source.current = { content, mtime };
   }, [doc, path]);
+
+  // The Diagrams tab flushes before it starts an AI edit, so the file the
+  // agent reads has what is on screen (T-0685). Through a ref: the host's
+  // callbacks are new on every render.
+  const registerFlush = useRef(embedded?.registerFlush);
+  registerFlush.current = embedded?.registerFlush;
+  useEffect(() => {
+    registerFlush.current?.(flushSave);
+    return () => registerFlush.current?.(null);
+  }, [flushSave]);
+
+  // After an AI edit ends or is undone the host asks for a fresh read.
+  const reloadToken = embedded?.reloadToken ?? 0;
+  const handledReload = useRef(reloadToken);
+  useEffect(() => {
+    if (reloadToken === handledReload.current) return;
+    handledReload.current = reloadToken;
+    if (path) void loadDoc(path, () => setPath(""));
+  }, [reloadToken, path, loadDoc]);
 
   /**
    * Applies a user edit: records the previous state for undo, then writes.
@@ -1133,17 +1140,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
             settings={config?.settings ?? null}
             onPatch={(patch) => void patchSettings(patch)}
           />
-          <Hint label={t("misc.aiEditSettings.title")} disabled={!doc}>
-            <Button
-              size="sm"
-              variant={aiOpen ? "secondary" : "outline"}
-              className="h-7 text-xs"
-              disabled={!doc}
-              onClick={() => setAiOpen((v) => !v)}
-            >
-              <Sparkles className="size-3.5" />
-            </Button>
-          </Hint>
           <Hint
             label={
               sidebarCollapsed ? t("schedule.view.showSidebarHint") : t("schedule.view.hideSidebarHint")
@@ -1339,33 +1335,10 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
                 onClose={() => setSelectedId(null)}
               />
             )}
-            {doc && !selected && !aiOpen && (
+            {doc && !selected && (
               <p className="p-3 text-xs text-muted-foreground">
-                {t("schedule.view.pickElementHint", { aiEdit: t("misc.aiEditSettings.title") })}
+                {t("schedule.view.pickElementHint")}
               </p>
-            )}
-            {aiOpen && aiRun && (
-              <ScheduleAiPanel
-                run={aiRun}
-                defaultConfirm={config?.settings.schedule_confirm ?? false}
-                disabled={!path}
-                onRun={(instruction, confirm) => {
-                  void api
-                    .runScheduleEdit(path, instruction, confirm)
-                    .catch((e) => setStatus(String(e)));
-                }}
-                onCopyPrompt={async (instruction, confirm) => {
-                  // Flush first so the file the agent reads has the on-screen edits.
-                  await flushSave();
-                  await api.copyScheduleEditPrompt(path, instruction, confirm);
-                }}
-                onUndo={() => {
-                  void api
-                    .restoreScheduleSnapshot(path)
-                    .then(() => loadDoc(path))
-                    .catch((e) => setStatus(String(e)));
-                }}
-              />
             )}
           </aside>
         </ResizablePanel>

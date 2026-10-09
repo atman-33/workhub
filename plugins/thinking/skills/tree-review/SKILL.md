@@ -41,7 +41,7 @@ quotes it, and says in one sentence what is wrong. Checks, in this order:
 Close with a short list: findings by check, then the edits you suggest in
 words ("move X under Y", "split Z", "add the cause under W"). When the tree
 lives in a vault mind map, say the suggested edits can be handed to
-`workhub:mindmap-edit`; this skill never writes the file itself.
+`workhub:diagram-edit`; this skill never writes the file itself.
 
 ## Group
 

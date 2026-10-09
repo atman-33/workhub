@@ -11,6 +11,9 @@ is one of `schedule`, `mindmap`, `matrix2x2`, `flow` or `pfd`. The app's
 **Diagrams** tab lists them all and opens the editor for the note's `type`.
 Each kind's own format is below (Schedule and Mindmap keep their own rules,
 `schedules.md` and `mindmaps.md`; read the one for the note's `type`).
+The `diagram-edit` skill edits any of them from a natural-language instruction:
+it reads the note's `type` and follows the matching rule, so the formats live
+here and in those two files, not in the skill.
 
 ## Where a diagram lives
 

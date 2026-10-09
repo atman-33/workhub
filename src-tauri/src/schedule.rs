@@ -23,10 +23,9 @@
 
 use crate::models::{ScheduleDoc, ScheduleFile};
 use crate::vault_note::{
-    ai_state_dir, ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot,
-    move_snapshot, mtime_secs, norm_path, resolve_project_dir,
-    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
-    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
+    ai_state_dir, ensure_export_dir, frontmatter_value, move_snapshot, mtime_secs, norm_path,
+    resolve_project_dir, rewrite_frontmatter, scan_notes, split_frontmatter, today,
+    unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -37,10 +36,9 @@ const SCHEDULES_DIR: &str = "schedules";
 /// Note kind written into a schedule note's `type:` frontmatter key.
 const KIND: &str = "schedule";
 
-/// Folder under `_ai/state/` (see `vault_note::ai_state_dir`) where
-/// `run_schedule_edit` parks a copy of the file before an agent touches it, so
-/// the UI can offer a one-generation undo (design note §9.5).
-const SNAPSHOT_DIR: &str = "schedule-snapshots";
+/// Where the AI-edit undo snapshot lives; shared by every kind of diagram
+/// (`diagram::SNAPSHOT_DIR`). Kept here so a rename or delete carries or drops it.
+const SNAPSHOT_DIR: &str = crate::diagram::SNAPSHOT_DIR;
 
 /// Folder under `_ai/state/` that a deleted note is moved into.
 const TRASH_DIR: &str = "schedule-trash";
@@ -273,29 +271,10 @@ pub fn export_html(
     fs::write(out_path, html).map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------------------
-// snapshots (undo for AI edits)
-// ---------------------------------------------------------------------
-
-pub fn save_snapshot(vault: &Path, target: &Path) -> Result<(), String> {
-    note_save_snapshot(vault, SNAPSHOT_DIR, target)
-}
-
-/// Restores the schedule from its snapshot and consumes it, so "undo" is
-/// exactly one generation deep and cannot be pressed twice against a snapshot
-/// that no longer describes a state the user wants back (§9.5).
-pub fn restore_snapshot(vault: &Path, target: &Path) -> Result<ScheduleDoc, String> {
-    note_restore_snapshot(vault, SNAPSHOT_DIR, target, KIND)?;
-    read_schedule(target)
-}
-
-pub fn has_snapshot(vault: &Path, target: &Path) -> bool {
-    note_has_snapshot(vault, SNAPSHOT_DIR, target)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagram::{has_snapshot, restore_snapshot, save_snapshot};
     use crate::vault_note::{create_project, list_projects};
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;

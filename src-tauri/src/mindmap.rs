@@ -24,10 +24,9 @@
 
 use crate::models::{MindmapDoc, MindmapFile};
 use crate::vault_note::{
-    ai_state_dir, ensure_export_dir, frontmatter_value, has_snapshot as note_has_snapshot,
-    move_snapshot, mtime_secs, norm_path, projects_dir, resolve_project_dir,
-    restore_snapshot as note_restore_snapshot, rewrite_frontmatter,
-    save_snapshot as note_save_snapshot, scan_notes, split_frontmatter, today, unique_note_path,
+    ai_state_dir, ensure_export_dir, frontmatter_value, move_snapshot, mtime_secs, norm_path,
+    projects_dir, resolve_project_dir, rewrite_frontmatter, scan_notes, split_frontmatter, today,
+    unique_note_path,
 };
 use std::fs;
 use std::path::Path;
@@ -41,7 +40,7 @@ const KIND: &str = "mindmap";
 /// Folder under `_ai/state/` (see `vault_note::ai_state_dir`) where the AI
 /// edit flow parks a copy of the file before an agent touches it, so the UI
 /// can offer a one-generation undo.
-const SNAPSHOT_DIR: &str = "mindmap-snapshots";
+const SNAPSHOT_DIR: &str = crate::diagram::SNAPSHOT_DIR;
 
 /// Folder under `_ai/state/` that a deleted note is moved into.
 const TRASH_DIR: &str = "mindmap-trash";
@@ -280,29 +279,10 @@ pub fn export_binary(
     fs::write(out_path, bytes).map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------------------
-// snapshots (undo for AI edits)
-// ---------------------------------------------------------------------
-
-pub fn save_snapshot(vault: &Path, target: &Path) -> Result<(), String> {
-    note_save_snapshot(vault, SNAPSHOT_DIR, target)
-}
-
-/// Restores the mindmap from its snapshot and consumes it, so "undo" is
-/// exactly one generation deep and cannot be pressed twice against a snapshot
-/// that no longer describes a state the user wants back.
-pub fn restore_snapshot(vault: &Path, target: &Path) -> Result<MindmapDoc, String> {
-    note_restore_snapshot(vault, SNAPSHOT_DIR, target, KIND)?;
-    read_mindmap(target)
-}
-
-pub fn has_snapshot(vault: &Path, target: &Path) -> bool {
-    note_has_snapshot(vault, SNAPSHOT_DIR, target)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagram::{has_snapshot, restore_snapshot, save_snapshot};
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;
 

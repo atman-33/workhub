@@ -138,4 +138,17 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.pfd.symbolsHint": "ノードの種類は ID で決まり、変更できません。矢印は上の組み合わせの間にだけ引けます。",
   "diagram.pfd.autoAlign": "自動整列",
   "diagram.pfd.autoAlignHint": "ドラッグで付けた位置をすべて忘れ、レイアウトに任せ直す",
+  "diagram.aiPanel.placeholder":
+    "例: UI に関するアイデアを新しいブランチにまとめて赤にする、実装フェーズを1週間後ろにずらす",
+  "diagram.aiPanel.confirmLabel": "適用前に差分を確認する",
+  "diagram.aiPanel.run": "実行(Ctrl+Enter)",
+  "diagram.aiPanel.running": "実行中…",
+  "diagram.aiPanel.undoHint": "直前の AI 編集を取り消す",
+  "diagram.aiPanel.copyPrompt": "対話セッションに貼り付けるプロンプトをコピー",
+  "diagram.aiPanel.stalled":
+    "少し時間がかかっています。実行ログは `_ai/logs/diagram-edit/` にあります。",
+  "diagram.aiPanel.history": "履歴",
+  "diagram.aiPanel.toggleHint": "この図を AI で編集",
+  "diagram.aiPanel.settingsHint": "AI 編集の設定",
+  "diagram.aiPanel.lockedHint": "AI 編集を実行中です",
 };
