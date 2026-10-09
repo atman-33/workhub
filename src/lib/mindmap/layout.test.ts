@@ -280,7 +280,7 @@ describe("stickies", () => {
   const roots = tree(["- N-001 root", "  - N-002 branch"]);
   const sticky = (over: Partial<Sticky> = {}): Sticky => ({
     id: "S-001",
-    nodeId: "N-002",
+    targetId: "N-002",
     dx: 40,
     dy: -20,
     text: "note",
@@ -315,7 +315,7 @@ describe("stickies", () => {
   });
 
   it("draws nothing for a sticky whose node is gone", () => {
-    const layout = layoutMindmap(roots, { stickies: [sticky({ nodeId: "N-999" })] });
+    const layout = layoutMindmap(roots, { stickies: [sticky({ targetId: "N-999" })] });
     expect(layout.stickies).toHaveLength(0);
   });
 

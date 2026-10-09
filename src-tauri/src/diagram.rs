@@ -9,13 +9,15 @@
 //! Only the head of each file is read (the frontmatter), never the body, so
 //! listing a project with hundreds of notes stays cheap.
 //!
-//! Reading, writing, renaming and deleting a diagram stay with the per-kind
-//! modules (`schedule.rs`, `mindmap.rs`): they work on a path, and the path is
-//! all the Diagrams tab needs to hand over.
+//! Schedule and Mindmap keep reading, writing, renaming and deleting through
+//! their own modules (`schedule.rs`, `mindmap.rs`: their undo history and trash
+//! live in their own folders). The newer kinds go through the kind-independent
+//! `read_diagram` / `write_diagram` / `rename_diagram` / `delete_diagram` here:
+//! they work on a path, and the path is all the Diagrams tab needs to hand over.
 
 use crate::vault_note::{
-    frontmatter_value, norm_path, projects_dir, resolve_project_dir, sanitize_filename,
-    split_frontmatter, today, unique_note_path,
+    ai_state_dir, frontmatter_value, mtime_secs, norm_path, projects_dir, resolve_project_dir,
+    rewrite_frontmatter, sanitize_filename, split_frontmatter, today, unique_note_path,
 };
 use crate::vault_project::find_backlog_item;
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,9 @@ const MAX_DEPTH: usize = 3;
 
 /// Folders a scan never descends into.
 const SKIP_DIRS: &[&str] = &["attachments", "node_modules"];
+
+/// Folder under `_ai/state/` that a deleted diagram is moved into.
+const TRASH_DIR: &str = "diagram-trash";
 
 /// Subfolder for kinds that have no older home.
 const DIAGRAMS_DIR: &str = "diagrams";
@@ -181,8 +186,12 @@ fn skeleton(kind: &str, title: &str, range: &str, now: &str) -> Result<String, S
     Ok(match kind {
         "schedule" => crate::schedule::skeleton(title, range, now),
         "mindmap" => crate::mindmap::skeleton(title, now),
+        // The axis and quadrant labels start empty (an empty one is not drawn);
+        // the keys are there so a person or an agent sees what can be filled.
         "matrix2x2" => format!(
-            "---\ntype: matrix2x2\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n## Items\n\n## Memo\n\n"
+            "---\ntype: matrix2x2\ntitle: {title}\ncreated: {now}\nupdated: {now}\n\
+x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n---\n\n\
+## Items\n\n## Memo\n\n"
         ),
         "flow" => format!(
             "---\ntype: flow\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n## Lanes\n\n## Steps\n\n## Edges\n\n## Memo\n\n"
@@ -258,6 +267,155 @@ pub fn create_diagram(
         updated: now,
         scope: scope_of(&rel),
     })
+}
+
+/// A diagram note's full text plus the mtime that guards the next write.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagramDoc {
+    pub path: String,
+    pub content: String,
+    /// Unix seconds; pass back to [`write_diagram`] for conflict detection.
+    pub mtime: u64,
+}
+
+pub fn read_diagram(path: &Path) -> Result<DiagramDoc, String> {
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(DiagramDoc {
+        path: norm_path(path),
+        content,
+        mtime: mtime_secs(path),
+    })
+}
+
+/// Minimal structural check before a write. Deliberately shallow: each kind's
+/// grammar is validated on the frontend, and rejecting a file here for a
+/// notation slip would block the user from saving their way out of it. What
+/// this *does* catch is a caller about to write something that is not a
+/// diagram note at all (a truncated string, an empty buffer from a failed
+/// render), which would silently destroy the file.
+fn validate(content: &str) -> Result<(), String> {
+    let Some((front, _)) = split_frontmatter(content) else {
+        return Err("diagram content must start with a frontmatter block".into());
+    };
+    let kind = frontmatter_value(&front, "type");
+    if !KINDS.contains(&kind.as_str()) {
+        return Err(format!(
+            "diagram content has no valid `type` (found '{kind}')"
+        ));
+    }
+    Ok(())
+}
+
+/// Writes the file only when its on-disk mtime still matches `expected_mtime`,
+/// so a concurrent Obsidian/agent edit is reported instead of overwritten.
+/// Pass `0` to skip the check. Returns the new mtime so the caller can keep
+/// guarding subsequent writes without a re-read.
+pub fn write_diagram(path: &Path, content: &str, expected_mtime: u64) -> Result<u64, String> {
+    validate(content)?;
+    if expected_mtime != 0 {
+        // A guarded write is an edit of a note that was read. If the note has
+        // gone (renamed, moved, deleted), writing would quietly recreate it
+        // under the old name.
+        if !path.exists() {
+            return Err("the diagram file is gone — it was renamed, moved or deleted".into());
+        }
+        if mtime_secs(path) != expected_mtime {
+            return Err(
+                "the diagram file changed on disk since it was loaded — reload before saving"
+                    .into(),
+            );
+        }
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(path, content).map_err(|e| e.to_string())?;
+    Ok(mtime_secs(path))
+}
+
+/// The listing entry of the diagram at `path`, found by its place under
+/// `projects/`.
+fn describe(vault: &Path, path: &Path) -> Result<DiagramFile, String> {
+    let root = projects_dir(vault);
+    let rel = path
+        .strip_prefix(&root)
+        .map_err(|_| "this note is not inside the vault's projects/ folder".to_string())?;
+    let folder = rel
+        .components()
+        .next()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .unwrap_or_default();
+    let (_, slug) = crate::vault_note::parse_project_folder(&folder);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    read_head(&root.join(&folder), path, slug, &name)
+        .ok_or_else(|| "this note is not a diagram".to_string())
+}
+
+/// Renames a diagram: its frontmatter `title` and its file name move together.
+/// A numbered child of a backlog item (`020-<title>.md`) keeps its number so the
+/// item's ordering survives. The note's own file is never a name collision.
+pub fn rename_diagram(vault: &Path, path: &Path, new_title: &str) -> Result<DiagramFile, String> {
+    let title = new_title.trim();
+    if title.is_empty() {
+        return Err("a diagram name is required".into());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let Some((front, body)) = split_frontmatter(&content) else {
+        return Err("this file is not a diagram note (no frontmatter block)".into());
+    };
+    let kind = frontmatter_value(&front, "type");
+    if !KINDS.contains(&kind.as_str()) {
+        return Err("this file is not a diagram note (no valid `type`)".into());
+    }
+    let dir = path
+        .parent()
+        .ok_or_else(|| "the diagram path has no parent folder".to_string())?;
+
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let digits: String = stem.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let name = if !digits.is_empty() && stem[digits.len()..].starts_with('-') {
+        format!("{digits}-{}", sanitize_filename(title, &kind))
+    } else {
+        title.to_string()
+    };
+    let target = unique_note_path(dir, &name, &kind, Some(path));
+
+    let now = today();
+    let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
+    fs::write(path, format!("---\n{front_out}---\n{body}")).map_err(|e| e.to_string())?;
+    // Compared exactly, not case-insensitively: renaming "ideas" to "Ideas" is
+    // a real rename, even though the two names collide on Windows.
+    if norm_path(&target) != norm_path(path) {
+        fs::rename(path, &target).map_err(|e| e.to_string())?;
+    }
+    describe(vault, &target)
+}
+
+/// Moves a diagram into `_ai/state/diagram-trash/` rather than unlinking it:
+/// the app is not the only writer of these files, and a mis-click should not
+/// destroy prose someone typed in Obsidian. Returns where it went.
+pub fn delete_diagram(vault: &Path, path: &Path) -> Result<String, String> {
+    if !path.is_file() {
+        return Err("this diagram no longer exists".into());
+    }
+    let dir = ai_state_dir(vault).join(TRASH_DIR);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = path
+        .file_stem()
+        .and_then(|n| n.to_str())
+        .unwrap_or("diagram")
+        .to_string();
+    // Two projects may hold a note of the same name, and the same note may be
+    // deleted twice; suffix rather than overwrite what is already in the trash.
+    let target = unique_note_path(&dir, &format!("{name} {}", today()), "diagram", None);
+    fs::rename(path, &target).map_err(|e| e.to_string())?;
+    Ok(norm_path(&target))
 }
 
 /// The next `NNN` for a backlog item's child note: ten above the highest
@@ -430,6 +588,103 @@ mod tests {
         assert!(create_diagram(&vault, "demo", "pfd", "x", "B-999", "").is_err());
         assert!(create_diagram(&vault, "demo", "nope", "x", "", "").is_err());
         assert!(create_diagram(&vault, "missing", "pfd", "x", "", "").is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn matrix_skeleton_carries_empty_label_keys_and_an_items_section() {
+        let vault = temp_vault("matrix-skeleton");
+        let file = create_diagram(&vault, "demo", "matrix2x2", "Priorities", "", "").unwrap();
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "matrix2x2");
+        assert_eq!(frontmatter_value(&front, "title"), "Priorities");
+        for key in [
+            "x_axis", "x_low", "x_high", "y_axis", "y_low", "y_high", "q_tl", "q_tr", "q_bl",
+            "q_br",
+        ] {
+            assert!(front.contains(&format!("{key}:")), "missing {key}");
+            assert_eq!(frontmatter_value(&front, key), "");
+        }
+        assert!(body.contains("## Items"));
+        assert!(body.contains("## Memo"));
+        // Written back as-is, it is still a valid diagram.
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn write_refuses_a_stale_mtime_and_a_non_diagram() {
+        let vault = temp_vault("write");
+        let file = create_diagram(&vault, "demo", "matrix2x2", "Grid", "", "").unwrap();
+        let path = Path::new(&file.path);
+        let doc = read_diagram(path).unwrap();
+
+        let changed = doc.content.replace("## Items", "## Items\n\n- M-001 a");
+        let mtime = write_diagram(path, &changed, doc.mtime).unwrap();
+        assert!(fs::read_to_string(path).unwrap().contains("M-001"));
+        // A guard from before another writer touched the file is refused.
+        assert!(write_diagram(path, &changed, mtime + 5).is_err());
+        // 0 skips the check.
+        assert!(write_diagram(path, &changed, 0).is_ok());
+
+        // A guarded write to a note that has vanished does not recreate it.
+        let gone = path.with_file_name("gone.md");
+        assert!(write_diagram(&gone, &changed, mtime).is_err());
+        assert!(!gone.exists());
+
+        assert!(write_diagram(path, "no frontmatter", 0).is_err());
+        assert!(write_diagram(path, "---\ntype: note\n---\n", 0).is_err());
+        assert!(write_diagram(path, "---\ntitle: x\n---\n", 0).is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_moves_title_and_name_and_keeps_a_backlog_number() {
+        let vault = temp_vault("rename");
+        let loose = create_diagram(&vault, "demo", "matrix2x2", "Old", "", "").unwrap();
+        let renamed = rename_diagram(&vault, Path::new(&loose.path), "New name").unwrap();
+        assert!(
+            renamed.path.ends_with("diagrams/New name.md"),
+            "{}",
+            renamed.path
+        );
+        assert_eq!(renamed.title, "New name");
+        assert_eq!(renamed.kind, "matrix2x2");
+        assert!(!Path::new(&loose.path).exists());
+        let (front, body) = split_frontmatter(&fs::read_to_string(&renamed.path).unwrap()).unwrap();
+        assert_eq!(frontmatter_value(&front, "title"), "New name");
+        // Keys the rename does not know about, and the body, survive.
+        assert!(front.contains("q_tl:"));
+        assert!(body.contains("## Items"));
+
+        write(
+            &vault,
+            "projects/0010-demo/backlog/B-001-item/B-001-item.md",
+            "x",
+        );
+        let child = create_diagram(&vault, "demo", "matrix2x2", "Child", "B-001", "").unwrap();
+        assert!(child.path.ends_with("010-Child.md"), "{}", child.path);
+        let moved = rename_diagram(&vault, Path::new(&child.path), "Other").unwrap();
+        assert!(moved.path.ends_with("010-Other.md"), "{}", moved.path);
+        assert_eq!(moved.scope, "backlog:B-001");
+
+        // The same name is not a collision with the note itself.
+        let same = rename_diagram(&vault, Path::new(&moved.path), "Other").unwrap();
+        assert_eq!(same.path, moved.path);
+        assert!(rename_diagram(&vault, Path::new(&same.path), "  ").is_err());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_moves_to_the_trash_instead_of_unlinking() {
+        let vault = temp_vault("delete");
+        let file = create_diagram(&vault, "demo", "matrix2x2", "Gone", "", "").unwrap();
+        let trashed = delete_diagram(&vault, Path::new(&file.path)).unwrap();
+        assert!(!Path::new(&file.path).exists());
+        assert!(Path::new(&trashed).is_file());
+        assert!(trashed.contains("_ai/state/diagram-trash/"), "{trashed}");
+        assert!(delete_diagram(&vault, Path::new(&file.path)).is_err());
         fs::remove_dir_all(&vault).ok();
     }
 }

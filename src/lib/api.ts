@@ -3,6 +3,7 @@ import type { MusicData } from "@/lib/music/types";
 import type { TaskEditorPayload } from "@/lib/task-editor-bridge";
 import type {
   BacklogItem,
+  DiagramDoc,
   DiagramFile,
   BranchList,
   Clip,
@@ -336,6 +337,44 @@ export const api = {
     backlog = "",
     range = "",
   ) => invoke<DiagramFile>("create_diagram", { vaultPath, project, kind, title, backlog, range }),
+  // Kind-independent access to one diagram note, used by the newer kinds
+  // (Schedule and Mindmap keep their own commands and undo history).
+  readDiagram: (path: string) => invoke<DiagramDoc>("read_diagram", { path }),
+  /** Returns the new mtime. Rejects when the file changed on disk since it was
+   * read; pass `expectedMtime: 0` to write unconditionally. */
+  writeDiagram: (path: string, content: string, expectedMtime: number) =>
+    invoke<number>("write_diagram", { path, content, expectedMtime }),
+  /** Renames a note: frontmatter `title` and file name move together. Returns
+   * the note at its new path, which the caller must reselect. */
+  renameDiagram: (vaultPath: string, path: string, title: string) =>
+    invoke<DiagramFile>("rename_diagram", { vaultPath, path, title }),
+  /** Moves the note into `_ai/state/diagram-trash/` and returns where it went. */
+  deleteDiagram: (vaultPath: string, path: string) =>
+    invoke<string>("delete_diagram", { vaultPath, path }),
+  /** HTML or SVG export; `guard` as for `exportMindmapFile` (T-0379). */
+  exportDiagramFile: (
+    outPath: string,
+    content: string,
+    guard: { vaultPath: string; project: string },
+  ) =>
+    invoke<void>("export_diagram_file", {
+      outPath,
+      content,
+      vaultPath: guard.vaultPath,
+      project: guard.project,
+    }),
+  /** `base64Data` is the payload of a `data:image/png;base64,...` URL. */
+  exportDiagramPng: (
+    outPath: string,
+    base64Data: string,
+    guard: { vaultPath: string; project: string },
+  ) =>
+    invoke<void>("export_diagram_png", {
+      outPath,
+      base64Data,
+      vaultPath: guard.vaultPath,
+      project: guard.project,
+    }),
   // ---- mindmap notes (projects/<slug>/mindmaps/*.md) ----
   /** `project` narrows to one project slug; pass "" for every project. */
   listMindmaps: (vaultPath: string, project = "") =>

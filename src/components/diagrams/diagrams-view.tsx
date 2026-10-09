@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { FolderPlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { ScheduleView } from "@/components/schedule/schedule-view";
@@ -35,6 +36,7 @@ import {
   KIND_ICON,
   KIND_LABEL_KEY,
   backlogOfScope,
+  hasEditor,
   isDiagramKind,
   type DiagramKind,
 } from "@/lib/diagram-kinds";
@@ -224,10 +226,14 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
   async function rename(file: DiagramFile, title: string) {
     if (!vaultPath) return;
     try {
+      // Schedule and Mindmap keep their own commands (their undo history and
+      // trash live in their own folders); every newer kind shares one.
       const renamed =
         file.kind === "schedule"
           ? await api.renameSchedule(vaultPath, file.path, title)
-          : await api.renameMindmap(vaultPath, file.path, title);
+          : file.kind === "mindmap"
+            ? await api.renameMindmap(vaultPath, file.path, title)
+            : await api.renameDiagram(vaultPath, file.path, title);
       setRenaming(null);
       await loadFiles();
       if (file.path === path) setPath(renamed.path);
@@ -240,7 +246,8 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
     if (!vaultPath) return;
     try {
       if (file.kind === "schedule") await api.deleteSchedule(vaultPath, file.path);
-      else await api.deleteMindmap(vaultPath, file.path);
+      else if (file.kind === "mindmap") await api.deleteMindmap(vaultPath, file.path);
+      else await api.deleteDiagram(vaultPath, file.path);
       setDeleting(null);
       if (file.path === path) setPath("");
       await loadFiles();
@@ -278,7 +285,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
     );
   }
 
-  const editorFor = (which: "schedule" | "mindmap") => ({
+  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
@@ -366,7 +373,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
               const fileKind = isDiagramKind(file.kind) ? file.kind : null;
               const Icon = fileKind ? KIND_ICON[fileKind] : Pencil;
               const item = backlogOfScope(file.scope);
-              const editable = file.kind === "schedule" || file.kind === "mindmap";
+              const editable = hasEditor(file.kind);
               return (
                 <ContextMenu key={file.path}>
                   <ContextMenuTrigger asChild>
@@ -409,16 +416,19 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
         </aside>
 
         <div className="relative min-w-0 flex-1">
-          {/* Both editors stay mounted so a pending save is never lost to a
+          {/* Every editor stays mounted so a pending save is never lost to a
               switch between kinds, and each draws only when its own kind is
-              open (the other is handed an empty path). */}
+              open (the others are handed an empty path). */}
           <div className={cn("h-full", kind === "schedule" ? "" : "hidden")}>
             <ScheduleView configVersion={configVersion} embedded={editorFor("schedule")} />
           </div>
           <div className={cn("h-full", kind === "mindmap" ? "" : "hidden")}>
             <MindmapView configVersion={configVersion} embedded={editorFor("mindmap")} />
           </div>
-          {kind !== "schedule" && kind !== "mindmap" && (
+          <div className={cn("h-full", kind === "matrix2x2" ? "" : "hidden")}>
+            <MatrixView configVersion={configVersion} embedded={editorFor("matrix2x2")} />
+          </div>
+          {!hasEditor(kind) && (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
               {current ? (
                 <>

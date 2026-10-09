@@ -508,6 +508,14 @@ export interface DiagramFile {
   scope: string;
 }
 
+/** A diagram note's full text plus the mtime that guards the next write
+ * (`read_diagram`). */
+export interface DiagramDoc {
+  path: string;
+  content: string;
+  mtime: number;
+}
+
 /** One mindmap note as the picker sees it (`list_mindmaps`). */
 export interface MindmapFile {
   /** Absolute path, forward slashes — the id used by every other command. */

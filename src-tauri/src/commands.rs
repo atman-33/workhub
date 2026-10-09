@@ -1491,6 +1491,79 @@ pub async fn create_diagram(
     .map_err(|e| e.to_string())?
 }
 
+/// Reads a diagram note of any kind: the whole text plus the mtime that guards
+/// the next [`write_diagram`].
+#[tauri::command]
+pub async fn read_diagram(path: String) -> Result<crate::diagram::DiagramDoc, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::diagram::read_diagram(&PathBuf::from(path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Writes a diagram note, refusing when the file changed on disk since the
+/// caller read it (`expected_mtime` 0 skips the check). Returns the new mtime.
+#[tauri::command]
+pub async fn write_diagram(
+    path: String,
+    content: String,
+    expected_mtime: u64,
+) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::diagram::write_diagram(&PathBuf::from(path), &content, expected_mtime)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Renames a diagram note: its frontmatter `title` and its file name move
+/// together. Returns the note at its new path, which the caller must reselect.
+#[tauri::command]
+pub async fn rename_diagram(
+    vault_path: String,
+    path: String,
+    title: String,
+) -> Result<crate::diagram::DiagramFile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::diagram::rename_diagram(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Moves a diagram note into `_ai/state/diagram-trash/`. Returns where it went.
+#[tauri::command]
+pub async fn delete_diagram(vault_path: String, path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::diagram::delete_diagram(&PathBuf::from(vault_path), &PathBuf::from(path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Writes a frontend-generated HTML or SVG export of any diagram kind. Same
+/// destination rules as [`export_mindmap_file`] (T-0379).
+#[tauri::command]
+pub async fn export_diagram_file(
+    out_path: String,
+    content: String,
+    vault_path: Option<String>,
+    project: Option<String>,
+) -> Result<(), String> {
+    export_mindmap_file(out_path, content, vault_path, project).await
+}
+
+/// Writes a frontend-rendered PNG (base64) of any diagram kind. Same
+/// destination rules as [`export_mindmap_file`] (T-0379).
+#[tauri::command]
+pub async fn export_diagram_png(
+    out_path: String,
+    base64_data: String,
+    vault_path: Option<String>,
+    project: Option<String>,
+) -> Result<(), String> {
+    export_mindmap_png(out_path, base64_data, vault_path, project).await
+}
+
 // ---- mindmap notes (T-0188) ---------------------------------------------
 
 /// Lists mindmap notes, optionally narrowed to one project slug (pass an empty

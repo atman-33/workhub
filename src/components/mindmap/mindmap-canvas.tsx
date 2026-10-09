@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
-import { usePanDrag } from "@/components/schedule/use-pan-drag";
+import { DiagramSurface } from "@/components/diagram/diagram-surface";
+import { NodeInput } from "@/components/diagram/node-input";
+import { StickyPaper } from "@/components/diagram/sticky-paper";
+import { useCamera } from "@/components/diagram/use-camera";
+import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,8 +28,6 @@ import {
   ID_FONT_SIZE,
   layoutMindmap,
   NODE_PAD_X,
-  STICKY_FONT_SIZE,
-  STICKY_PAD,
   textWidth,
   type MindmapLayout,
   type PositionedNode,
@@ -41,6 +43,7 @@ import {
   type Sticky,
 } from "@/lib/mindmap/parse";
 import type { AttrChip, ChipAction, QuickAttrGroup } from "@/lib/mindmap/attrs";
+import type { Camera } from "@/lib/diagram/camera";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -114,7 +117,6 @@ interface Props {
   fitToken: number;
 }
 
-const MIN_ZOOM = 0.2;
 /** Travel, in screen px, before a press on a node becomes a drag rather than a
  * click. Mirrors `usePanDrag`'s threshold so both gestures arbitrate alike. */
 const DRAG_THRESHOLD_PX = 4;
@@ -122,15 +124,6 @@ const DRAG_THRESHOLD_PX = 4;
  * small and the gaps between them are not; without this, a drag that stops two
  * pixels short of the target silently does nothing. */
 const SNAP_RADIUS = 44;
-const MAX_ZOOM = 2.5;
-/** Padding around the map when fitting it to the viewport. */
-const FIT_PADDING = 48;
-
-interface Camera {
-  x: number;
-  y: number;
-  zoom: number;
-}
 
 interface DragState {
   id: string;
@@ -143,22 +136,6 @@ interface DragState {
   /** Drop target under (or nearest to) the pointer. */
   over: string | null;
   /** False until the press has travelled far enough to be a drag. */
-  active: boolean;
-}
-
-/** A sticky being dragged to a new offset. Kept apart from `DragState`: a
- * node drag re-parents, a sticky drag only moves paper. */
-interface StickyDragState {
-  id: string;
-  /** Pointer position when the press landed, in diagram coordinates. */
-  fromX: number;
-  fromY: number;
-  /** The sticky's offset when the press landed. */
-  dx: number;
-  dy: number;
-  /** How far the pointer has travelled since, in diagram coordinates. */
-  moveX: number;
-  moveY: number;
   active: boolean;
 }
 
@@ -191,25 +168,25 @@ export function MindmapCanvas({
   onQuickAttr,
   fitToken,
 }: Props) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [layout, setLayout] = useState<MindmapLayout>(() =>
     layoutMindmap(roots, { nodeWidth, attrView, showIds, stickies }),
   );
+  // Pan, zoom and fit are the shared camera; the map only says what a fit frames.
+  const view = useCamera({
+    bounds: layout.nodes.length ? layout.bounds : null,
+    fitToken,
+  });
+  const { camera, setCamera, size, toDiagram } = view;
   const [drag, setDrag] = useState<DragState | null>(null);
-  const [stickyDrag, setStickyDrag] = useState<StickyDragState | null>(null);
-  /**
-   * The canvas's own size, tracked rather than read on demand.
-   *
-   * The app shell keeps every tab mounted and hides the inactive ones, so on
-   * first mount this element measures 0x0 and any fit computed then is
-   * meaningless. Watching the box means the first fit happens when the tab is
-   * actually shown, and again whenever the window or the side panel resizes it.
-   */
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  /** A fit was asked for and has not been satisfiable yet (no size, no nodes). */
-  const pendingFit = useRef(true);
-
+  // A sticky drag only moves paper; the move is committed once, on release.
+  const stickyFree = useFreeDrag({
+    toDiagram,
+    zoom: camera.zoom,
+    onEnd: (d) => {
+      const source = stickies.find((s) => s.id === d.id);
+      if (source) onMoveSticky(d.id, Math.round(source.dx + d.dx), Math.round(source.dy + d.dy));
+    },
+  });
   /**
    * The layout the camera is currently aimed at, and the node the next layout
    * should be pinned to.
@@ -260,96 +237,6 @@ export function MindmapCanvas({
 
   /** Width the box needs for the text being typed into it. */
   const draftWidth = Math.ceil(textWidth(draft, DEFAULT_LAYOUT.fontSize)) + NODE_PAD_X * 2 + 16;
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const fit = useCallback((): boolean => {
-    const { width, height } = size;
-    if (!width || !height || !layout.nodes.length) return false;
-    const scale = Math.min(
-      (width - FIT_PADDING * 2) / Math.max(layout.bounds.width, 1),
-      (height - FIT_PADDING * 2) / Math.max(layout.bounds.height, 1),
-      // Never zoom *in* to fit: a two-node map blown up to fill the window
-      // looks broken rather than roomy.
-      1,
-    );
-    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, scale));
-    setCamera({
-      zoom,
-      x: width / 2 - (layout.bounds.x + layout.bounds.width / 2) * zoom,
-      y: height / 2 - (layout.bounds.y + layout.bounds.height / 2) * zoom,
-    });
-    return true;
-  }, [layout, size]);
-
-  // The view asks for a fit by bumping the token; it is recorded rather than
-  // acted on, because the request usually arrives one render before the layout
-  // and the size are both known.
-  useEffect(() => {
-    pendingFit.current = true;
-  }, [fitToken]);
-
-  // Satisfy a pending request as soon as it can be satisfied. Deliberately not
-  // a fit on every layout change: adding a node while zoomed in must not yank
-  // the camera away from what the user is looking at.
-  useEffect(() => {
-    if (!pendingFit.current) return;
-    if (fit()) pendingFit.current = false;
-    // `fitToken` is a dependency as well as the trigger above: pressing Fit
-    // when neither the layout nor the size has changed leaves `fit` with the
-    // same identity, and the request would never be acted on.
-  }, [fit, fitToken]);
-
-  const pan = useCallback((dx: number, dy: number) => {
-    setCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
-  }, []);
-  const panDrag = usePanDrag({ onPan: pan });
-
-  // Registered by hand and non-passively: React attaches `wheel` passively at
-  // the root, so a JSX `onWheel` cannot `preventDefault` — and without that,
-  // Ctrl+wheel would zoom the whole WebView on top of zooming the map. The
-  // canvas has nothing of its own to scroll, so it takes the plain wheel too
-  // (`.claude/rules/ui-conventions.md`).
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const rect = el.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
-      setCamera((c) => {
-        const next = Math.max(
-          MIN_ZOOM,
-          Math.min(MAX_ZOOM, c.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)),
-        );
-        // Keep the point under the cursor fixed while the scale changes.
-        const k = next / c.zoom;
-        return { zoom: next, x: px - (px - c.x) * k, y: py - (py - c.y) * k };
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-
-  /** Screen point -> diagram coordinates. */
-  const toDiagram = (clientX: number, clientY: number) => {
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return {
-      x: (clientX - rect.left - camera.x) / camera.zoom,
-      y: (clientY - rect.top - camera.y) / camera.zoom,
-    };
-  };
 
   /** True when `id` is `ancestorId` or sits somewhere beneath it. */
   const isWithin = (id: string, ancestorId: string): boolean => {
@@ -441,178 +328,122 @@ export function MindmapCanvas({
   const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
     if (locked || editingStickyId) return;
     e.stopPropagation();
-    const at = toDiagram(e.clientX, e.clientY);
-    const source = stickies.find((s) => s.id === sticky.id);
-    if (!source) return;
-    setStickyDrag({
-      id: sticky.id,
-      fromX: at.x,
-      fromY: at.y,
-      dx: source.dx,
-      dy: source.dy,
-      moveX: 0,
-      moveY: 0,
-      active: false,
-    });
+    if (!stickies.some((s) => s.id === sticky.id)) return;
+    stickyFree.start(e, sticky.id);
   };
-
-  // The move is committed once, on release, rather than on every pointer
-  // event: each commit is a file write and an undo entry, and a drag would
-  // otherwise fill the undo stack with a hundred intermediate positions.
-  useEffect(() => {
-    if (!stickyDrag) return;
-    const onMove = (e: PointerEvent) => {
-      const at = toDiagram(e.clientX, e.clientY);
-      setStickyDrag((d) => {
-        if (!d) return d;
-        const moveX = at.x - d.fromX;
-        const moveY = at.y - d.fromY;
-        const active =
-          d.active ||
-          (Math.abs(moveX) + Math.abs(moveY)) * camera.zoom >= DRAG_THRESHOLD_PX;
-        return { ...d, moveX, moveY, active };
-      });
-    };
-    const onUp = () => {
-      setStickyDrag((d) => {
-        if (d?.active) onMoveSticky(d.id, Math.round(d.dx + d.moveX), Math.round(d.dy + d.moveY));
-        return null;
-      });
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  });
 
   const dragged = drag?.active ? (layout.byId.get(drag.id) ?? null) : null;
 
   return (
-    <div
-      ref={wrapRef}
-      className={cn(
-        "relative min-h-0 flex-1 overflow-hidden bg-background",
-        panDrag.panning ? "cursor-grabbing" : drag ? "cursor-grabbing" : "cursor-default",
-      )}
-      onPointerDown={panDrag.onPointerDown}
-      onContextMenuCapture={panDrag.onContextMenuCapture}
+    <DiagramSurface
+      view={view}
+      grabbing={Boolean(drag)}
       // A click on the empty canvas clears the selection, which is what makes
       // "press Escape or click away" work without a global handler.
-      onClick={(e) => {
-        if (e.target === e.currentTarget || (e.target as Element).tagName === "svg") {
-          onSelect(null);
-          onSelectSticky(null);
-        }
+      onBackgroundClick={() => {
+        onSelect(null);
+        onSelectSticky(null);
       }}
+      overlay={
+        <Minimap layout={layout} camera={camera} size={size} selectedId={selectedId} />
+      }
     >
-      <svg className="absolute inset-0 size-full" role="presentation">
-        <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}>
-          {layout.edges.map((edge) => (
+      {layout.edges.map((edge) => (
+        <path
+          key={`${edge.from}-${edge.to}`}
+          d={edge.path}
+          fill="none"
+          stroke={edge.color ? COLOR_HEX[edge.color] : "currentColor"}
+          strokeOpacity={edge.color ? 0.85 : 0.35}
+          strokeWidth={1.75}
+          strokeLinecap="round"
+          className="text-muted-foreground"
+        />
+      ))}
+      {layout.nodes.map((node) => (
+        <NodeBox
+          key={node.id}
+          node={node}
+          selected={node.id === selectedId}
+          dragging={Boolean(drag?.active) && drag?.id === node.id}
+          dropTarget={drag?.over === node.id}
+          editing={node.id === editingId}
+          editingWidth={draftWidth}
+          draft={draft}
+          onDraftChange={setDraft}
+          locked={locked}
+          onSelect={onSelect}
+          onStartEdit={onStartEdit}
+          onCommitEdit={onCommitEdit}
+          onCancelEdit={onCancelEdit}
+          onToggleCollapse={(id) => {
+            anchorId.current = id;
+            onToggleCollapse(id);
+          }}
+          onDragStart={startNodeDrag}
+          attrView={attrView}
+          onChipAction={onChipAction}
+          abilities={abilitiesOf(node.id)}
+          onNodeAction={onNodeAction}
+          quickAttrs={quickAttrsOf(node)}
+          onQuickAttr={onQuickAttr}
+        />
+      ))}
+
+      {/* Stickies are drawn last, so a note the user dropped over a
+          branch stays readable instead of disappearing under it. */}
+      {layout.stickies.map((sticky) => (
+        <StickyPaper
+          key={sticky.id}
+          sticky={sticky}
+          offsetX={stickyFree.drag?.active && stickyFree.drag.id === sticky.id ? stickyFree.drag.dx : 0}
+          offsetY={stickyFree.drag?.active && stickyFree.drag.id === sticky.id ? stickyFree.drag.dy : 0}
+          selected={sticky.id === selectedStickyId}
+          editing={sticky.id === editingStickyId}
+          locked={locked}
+          onSelect={onSelectSticky}
+          onStartEdit={onStartEditSticky}
+          onCommit={onCommitStickyText}
+          onCancel={onCancelStickyEdit}
+          onDragStart={startStickyDrag}
+        />
+      ))}
+
+      {/* The node being dragged, redrawn under the pointer. Without a
+          ghost the gesture gave no feedback at all — the box stayed put
+          and only faded, so the map read as "nothing is moving". */}
+      {dragged && drag && (
+        <g pointerEvents="none" opacity={0.9}>
+          {drag.over && (
             <path
-              key={`${edge.from}-${edge.to}`}
-              d={edge.path}
+              d={dropLine(layout.byId.get(drag.over)!, drag)}
               fill="none"
-              stroke={edge.color ? COLOR_HEX[edge.color] : "currentColor"}
-              strokeOpacity={edge.color ? 0.85 : 0.35}
-              strokeWidth={1.75}
-              strokeLinecap="round"
-              className="text-muted-foreground"
+              className="stroke-primary"
+              strokeWidth={2}
+              strokeDasharray="5 4"
             />
-          ))}
-          {layout.nodes.map((node) => (
-            <NodeBox
-              key={node.id}
-              node={node}
-              selected={node.id === selectedId}
-              dragging={Boolean(drag?.active) && drag?.id === node.id}
-              dropTarget={drag?.over === node.id}
-              editing={node.id === editingId}
-              editingWidth={draftWidth}
-              draft={draft}
-              onDraftChange={setDraft}
-              locked={locked}
-              onSelect={onSelect}
-              onStartEdit={onStartEdit}
-              onCommitEdit={onCommitEdit}
-              onCancelEdit={onCancelEdit}
-              onToggleCollapse={(id) => {
-                anchorId.current = id;
-                onToggleCollapse(id);
-              }}
-              onDragStart={startNodeDrag}
-              attrView={attrView}
-              onChipAction={onChipAction}
-              abilities={abilitiesOf(node.id)}
-              onNodeAction={onNodeAction}
-              quickAttrs={quickAttrsOf(node)}
-              onQuickAttr={onQuickAttr}
-            />
-          ))}
-
-          {/* Stickies are drawn last, so a note the user dropped over a
-              branch stays readable instead of disappearing under it. */}
-          {layout.stickies.map((sticky) => (
-            <StickyPaper
-              key={sticky.id}
-              sticky={sticky}
-              offsetX={stickyDrag?.active && stickyDrag.id === sticky.id ? stickyDrag.moveX : 0}
-              offsetY={stickyDrag?.active && stickyDrag.id === sticky.id ? stickyDrag.moveY : 0}
-              selected={sticky.id === selectedStickyId}
-              editing={sticky.id === editingStickyId}
-              locked={locked}
-              onSelect={onSelectSticky}
-              onStartEdit={onStartEditSticky}
-              onCommit={onCommitStickyText}
-              onCancel={onCancelStickyEdit}
-              onDragStart={startStickyDrag}
-            />
-          ))}
-
-          {/* The node being dragged, redrawn under the pointer. Without a
-              ghost the gesture gave no feedback at all — the box stayed put
-              and only faded, so the map read as "nothing is moving". */}
-          {dragged && drag && (
-            <g pointerEvents="none" opacity={0.9}>
-              {drag.over && (
-                <path
-                  d={dropLine(layout.byId.get(drag.over)!, drag)}
-                  fill="none"
-                  className="stroke-primary"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                />
-              )}
-              <rect
-                x={drag.x - dragged.width / 2}
-                y={drag.y - dragged.height / 2}
-                width={dragged.width}
-                height={dragged.height}
-                rx={8}
-                className="fill-card stroke-primary"
-                strokeWidth={2}
-              />
-              <text
-                x={drag.x}
-                y={drag.y + 5}
-                textAnchor="middle"
-                fontSize={14}
-                className="fill-foreground select-none"
-              >
-                {dragged.lines[0]}
-              </text>
-            </g>
           )}
+          <rect
+            x={drag.x - dragged.width / 2}
+            y={drag.y - dragged.height / 2}
+            width={dragged.width}
+            height={dragged.height}
+            rx={8}
+            className="fill-card stroke-primary"
+            strokeWidth={2}
+          />
+          <text
+            x={drag.x}
+            y={drag.y + 5}
+            textAnchor="middle"
+            fontSize={14}
+            className="fill-foreground select-none"
+          >
+            {dragged.lines[0]}
+          </text>
         </g>
-      </svg>
-
-      <Minimap layout={layout} camera={camera} size={size} selectedId={selectedId} />
-
-      <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-        {Math.round(camera.zoom * 100)}%
-      </div>
-    </div>
+      )}
+    </DiagramSurface>
   );
 }
 
@@ -1042,202 +873,6 @@ function MenuAction({
       <span className="flex-1 truncate">{label}</span>
       {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
     </ContextMenuItem>
-  );
-}
-
-/** Inline rename. Enter commits, Escape abandons, blur commits — the same
- * bargain the task board's inline fields make.
- *
- * The value lives in the canvas so the box can size itself to the text; this
- * component only owns focus.
- */
-function NodeInput({
-  value,
-  onChange,
-  onCommit,
-  onCancel,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-  return (
-    <input
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={() => onCommit(value)}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onCommit(value);
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-      }}
-      // Its own background and text colour rather than the node's: the root is
-      // drawn in the foreground colour, so an inherited-colour field on it was
-      // white text on white.
-      className="size-full rounded border border-ring bg-background px-2 text-center text-sm text-foreground outline-none"
-    />
-  );
-}
-
-/**
- * One sticky note.
- *
- * Drawn in diagram coordinates like everything else, so it pans and zooms with
- * the map it annotates and its offset from its node never changes on screen.
- * A leader line runs back to the node, which is what keeps a sticky legible
- * once it has been dragged clear of the box it belongs to.
- */
-function StickyPaper({
-  sticky,
-  offsetX,
-  offsetY,
-  selected,
-  editing,
-  locked,
-  onSelect,
-  onStartEdit,
-  onCommit,
-  onCancel,
-  onDragStart,
-}: {
-  sticky: PositionedSticky;
-  /** Live drag displacement, applied while the pointer is down. */
-  offsetX: number;
-  offsetY: number;
-  selected: boolean;
-  editing: boolean;
-  locked?: boolean;
-  onSelect: (id: string) => void;
-  onStartEdit: (id: string) => void;
-  onCommit: (id: string, text: string) => void;
-  onCancel: () => void;
-  onDragStart: (e: React.PointerEvent, sticky: PositionedSticky) => void;
-}) {
-  const x = sticky.x + offsetX;
-  const y = sticky.y + offsetY;
-  const lineHeight = STICKY_FONT_SIZE * 1.45;
-  const firstBaseline = y + STICKY_PAD + STICKY_FONT_SIZE * 0.9;
-
-  return (
-    <g
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        onSelect(sticky.id);
-        onDragStart(e, sticky);
-      }}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        if (!locked) onStartEdit(sticky.id);
-      }}
-      className="cursor-pointer"
-    >
-      <path
-        d={`M ${sticky.anchorX} ${sticky.anchorY} L ${x + sticky.width / 2} ${y + sticky.height / 2}`}
-        stroke={COLOR_HEX[sticky.color]}
-        strokeOpacity={0.5}
-        strokeWidth={1}
-        strokeDasharray="3 3"
-        fill="none"
-      />
-      <rect
-        x={x}
-        y={y}
-        width={sticky.width}
-        height={sticky.height}
-        rx={3}
-        fill={STICKY_FILL_HEX[sticky.color]}
-        stroke={COLOR_HEX[sticky.color]}
-        strokeWidth={1}
-      />
-      {selected && (
-        <rect
-          x={x - 3}
-          y={y - 3}
-          width={sticky.width + 6}
-          height={sticky.height + 6}
-          rx={6}
-          fill="none"
-          className="stroke-ring"
-          strokeWidth={2}
-        />
-      )}
-      {editing ? (
-        <foreignObject x={x} y={y} width={sticky.width} height={sticky.height}>
-          <StickyInput
-            value={sticky.text}
-            onCommit={(text) => onCommit(sticky.id, text)}
-            onCancel={onCancel}
-          />
-        </foreignObject>
-      ) : (
-        sticky.lines.map((line, i) => (
-          <text
-            key={`${sticky.id}-${i}`}
-            x={x + STICKY_PAD}
-            y={firstBaseline + i * lineHeight}
-            fontSize={STICKY_FONT_SIZE}
-            fill={STICKY_INK}
-            className="select-none"
-          >
-            {line}
-          </text>
-        ))
-      )}
-    </g>
-  );
-}
-
-/** Inline sticky editing. Multi-line, so Enter is a line break and the commit
- * gestures are blur and Ctrl+Enter; Escape abandons, as everywhere else. */
-function StickyInput({
-  value,
-  onCommit,
-  onCancel,
-}: {
-  value: string;
-  onCommit: (text: string) => void;
-  onCancel: () => void;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const [draft, setDraft] = useState(value);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-  return (
-    <textarea
-      ref={ref}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onCommit(draft)}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-          e.preventDefault();
-          onCommit(draft);
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-      }}
-      // Paper colours rather than theme colours: the field sits on the sticky,
-      // and a themed field on pale paper is unreadable in the dark app.
-      style={{ background: "#ffffff", color: STICKY_INK }}
-      className="size-full resize-none rounded-[3px] border border-ring px-1.5 py-1 text-[11px] leading-[1.45] outline-none"
-    />
   );
 }
 

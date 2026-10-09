@@ -14,11 +14,23 @@
  */
 
 import { attrColorFor, chipsOf, type AttrChip } from "./attrs";
+import { LINE_HEIGHT, NODE_PAD_X, textWidth, wrapTitle } from "../diagram/text";
+import { placeSticky, type PositionedSticky } from "../diagram/sticky-layout";
+
+// Text measurement and sticky placement are shared by every diagram kind
+// (`lib/diagram/`); the names stay importable from here.
+export { NODE_PAD_X, textWidth, wrapTitle } from "../diagram/text";
+export {
+  STICKY_FONT_SIZE,
+  STICKY_PAD,
+  STICKY_WIDTH,
+  wrapStickyText,
+} from "../diagram/sticky-layout";
+export type { PositionedSticky } from "../diagram/sticky-layout";
 import {
   DEFAULT_ATTR_VIEW,
   nodeHasAttr,
   rootChildSide,
-  STICKY_DEFAULT_COLOR,
   type AttrView,
   type Color,
   type MindmapNode,
@@ -114,11 +126,8 @@ export function chipWidth(chip: AttrChip): number {
 
 /** Padding inside a node box. Exported because the canvas sizes the inline
  * rename box with it, so a node grows as it is typed into. */
-export const NODE_PAD_X = 12;
 const PAD_X = NODE_PAD_X;
 const PAD_Y = 8;
-/** Line height as a multiple of the font size. */
-const LINE_HEIGHT = 1.45;
 /** Smallest box, so that a node with an empty title is still clickable. */
 const MIN_WIDTH = 48;
 
@@ -187,33 +196,6 @@ export interface LayoutEdge {
   side: Side;
 }
 
-/**
- * A sticky note placed on the diagram.
- *
- * Its position comes from the file, but only as an offset from the node it is
- * pinned to — so a sticky is placed *after* the tree has been laid out, and
- * takes no part in that layout. Two stickies can therefore overlap; that is
- * the price of putting them exactly where the user dropped them, and the
- * bargain the feature is asking for.
- */
-export interface PositionedSticky {
-  id: string;
-  nodeId: string;
-  /** The text as the file holds it. Carried through so the inline editor can
-   * offer the user what they wrote, not the wrapped lines. */
-  text: string;
-  /** Body text split into the lines the paper renders. */
-  lines: string[];
-  color: Color;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  /** Point on the pinned node the leader line runs to. */
-  anchorX: number;
-  anchorY: number;
-}
-
 export interface MindmapLayout {
   nodes: PositionedNode[];
   edges: LayoutEdge[];
@@ -222,104 +204,6 @@ export interface MindmapLayout {
   /** Bounding box of everything drawn, before any padding the view adds. */
   bounds: { x: number; y: number; width: number; height: number };
   byId: Map<string, PositionedNode>;
-}
-
-/** How wide a sticky's paper is. Fixed rather than sized to its text: a wall
- * of stickies reads as a wall only if they are the same shape, and a sticky
- * that grew sideways would drift out from under the offset the user set. */
-export const STICKY_WIDTH = 180;
-/** Font size of a sticky's text — smaller than a node's, because a sticky is
- * an aside and must not compete with the map it annotates. */
-export const STICKY_FONT_SIZE = 11;
-/** Padding inside a sticky. Exported because the canvas and the export both
- * place the text with it. */
-export const STICKY_PAD = 8;
-/** Smallest paper, so an empty sticky is still visible and clickable. */
-const STICKY_MIN_HEIGHT = 34;
-
-// ---------------------------------------------------------------------------
-// text measurement
-// ---------------------------------------------------------------------------
-
-/**
- * Approximate advance width of one character at font size 1.
- *
- * Deliberately a table and not a canvas measurement: an export rendered on a
- * machine with different fonts must place its boxes exactly where the app did,
- * and `measureText` cannot promise that. The numbers are the usual ratios for
- * a UI sans-serif, rounded generously so a box is never too small for its
- * text.
- */
-function charWidth(ch: string): number {
-  const code = ch.codePointAt(0) ?? 0;
-  // CJK, kana, and full-width forms occupy a full em.
-  if (
-    (code >= 0x1100 && code <= 0x115f) ||
-    (code >= 0x2e80 && code <= 0xa4cf) ||
-    (code >= 0xac00 && code <= 0xd7a3) ||
-    (code >= 0xf900 && code <= 0xfaff) ||
-    (code >= 0xfe30 && code <= 0xfe6f) ||
-    (code >= 0xff00 && code <= 0xff60) ||
-    (code >= 0xffe0 && code <= 0xffe6)
-  ) {
-    return 1;
-  }
-  if (ch === " ") return 0.28;
-  if (/[iljtfIr.,;:'`|!]/.test(ch)) return 0.3;
-  if (/[A-Z@%&WM]/.test(ch)) return 0.68;
-  return 0.55;
-}
-
-export function textWidth(text: string, fontSize: number): number {
-  let w = 0;
-  for (const ch of text) w += charWidth(ch);
-  return w * fontSize;
-}
-
-/**
- * Splits a title into lines that fit `maxWidth`.
- *
- * Breaks on spaces where it can and mid-word where it cannot — a long URL or
- * an unspaced Japanese phrase must still fit the box rather than overflow it.
- */
-export function wrapTitle(title: string, maxWidth: number, fontSize: number): string[] {
-  const text = title.trim();
-  if (!text) return [""];
-  const limit = Math.max(maxWidth - PAD_X * 2, fontSize * 2);
-
-  const lines: string[] = [];
-  let line = "";
-  const flush = () => {
-    if (line) lines.push(line);
-    line = "";
-  };
-  // Keep the spaces attached to the word before them, so a break never
-  // produces a line that starts with a space.
-  const words = text.split(/(?<=\s)/);
-  for (const word of words) {
-    const candidate = line + word;
-    if (textWidth(candidate.trimEnd(), fontSize) <= limit || !line) {
-      // A single word that is itself too long is split character by character.
-      if (!line && textWidth(word.trimEnd(), fontSize) > limit) {
-        let chunk = "";
-        for (const ch of word) {
-          if (textWidth(chunk + ch, fontSize) > limit && chunk) {
-            lines.push(chunk);
-            chunk = "";
-          }
-          chunk += ch;
-        }
-        line = chunk;
-        continue;
-      }
-      line = candidate;
-      continue;
-    }
-    flush();
-    line = word;
-  }
-  flush();
-  return lines.length ? lines.map((l) => l.trimEnd()) : [""];
 }
 
 /**
@@ -479,56 +363,6 @@ function widenToMax(group: Measured[]): void {
  */
 function assignSides(children: Measured[]): Side[] {
   return children.map((child, index) => rootChildSide(child.node, index));
-}
-
-/**
- * Wraps a sticky's text, honouring the line breaks the user typed.
- *
- * `wrapTitle` measures against a node's padding, so the width handed to it is
- * corrected for the sticky's own — the alternative is a second wrapper, and
- * two wrappers drift.
- */
-export function wrapStickyText(text: string, width = STICKY_WIDTH): string[] {
-  const budget = width - STICKY_PAD * 2 + PAD_X * 2;
-  const lines = text.split("\n").flatMap((line) => wrapTitle(line, budget, STICKY_FONT_SIZE));
-  return lines.length ? lines : [""];
-}
-
-/** Places one sticky against the node it is pinned to. Returns `null` for a
- * sticky whose node is gone or hidden — the line stays in the file, but there
- * is nothing on screen to pin it to. */
-function placeSticky(sticky: Sticky, byId: Map<string, PositionedNode>): PositionedSticky | null {
-  const node = byId.get(sticky.nodeId);
-  if (!node) return null;
-
-  const lines = wrapStickyText(sticky.text);
-  const height = Math.max(
-    STICKY_MIN_HEIGHT,
-    Math.ceil(lines.length * STICKY_FONT_SIZE * LINE_HEIGHT) + STICKY_PAD * 2,
-  );
-  const centreX = node.x + node.width / 2;
-  const centreY = node.y + node.height / 2;
-  const x = centreX + sticky.dx;
-  const y = centreY + sticky.dy;
-
-  // The leader line ends on the edge of the node nearest the sticky, rather
-  // than at its centre, so it reads as "this paper belongs to that box".
-  const anchorX = Math.max(node.x, Math.min(x + STICKY_WIDTH / 2, node.x + node.width));
-  const anchorY = Math.max(node.y, Math.min(y + height / 2, node.y + node.height));
-
-  return {
-    id: sticky.id,
-    nodeId: sticky.nodeId,
-    text: sticky.text,
-    lines,
-    color: sticky.color ?? STICKY_DEFAULT_COLOR,
-    x,
-    y,
-    width: STICKY_WIDTH,
-    height,
-    anchorX,
-    anchorY,
-  };
 }
 
 export function layoutMindmap(
@@ -694,7 +528,7 @@ export function layoutMindmap(
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const stickies = (options.stickies ?? [])
-    .map((sticky) => placeSticky(sticky, byId))
+    .map((sticky) => placeSticky(sticky, byId.get(sticky.targetId)))
     .filter((s): s is PositionedSticky => s !== null);
 
   // Stickies count towards the bounds even though they took no part in the

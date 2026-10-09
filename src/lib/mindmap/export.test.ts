@@ -45,7 +45,7 @@ describe("toSvg", () => {
   });
 
   it("draws the stickies it is given, and none when it is given none", () => {
-    const stickies = [{ id: "S-001", nodeId: "N-002", dx: 96, dy: 24, text: "check me" }];
+    const stickies = [{ id: "S-001", targetId: "N-002", dx: 96, dy: 24, text: "check me" }];
     const withStickies = toSvg(sample(), { stickies });
 
     expect(withStickies).toContain("check me");
@@ -59,7 +59,7 @@ describe("toSvg", () => {
 
   it("escapes sticky text", () => {
     const svg = toSvg(sample(), {
-      stickies: [{ id: "S-001", nodeId: "N-001", dx: 0, dy: 0, text: "<script>" }],
+      stickies: [{ id: "S-001", targetId: "N-001", dx: 0, dy: 0, text: "<script>" }],
     });
     expect(svg).not.toContain("<script>");
   });
