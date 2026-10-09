@@ -32,10 +32,10 @@ New projects start with none of these folders; create the one a diagram needs.
 ## What every diagram shares
 
 - Flat frontmatter: `type`, `title`, `created`, `updated` (set `updated` when
-  you change the note), plus the kind's own optional keys.
-- Managed sections, then an optional `## Stickies`, then `## Memo`. **Never
-  edit `## Memo`**, and leave sections you do not recognise where they are.
-- Every element has an id (`N-001`, `M-001`, `F-001`, ...) that is **never
+  you change the note), plus the kind's own keys. Managed sections, then an
+  optional `## Stickies`, then `## Memo`. **Never edit `## Memo`**, and leave
+  sections you do not recognise where they are.
+- Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, ...) that is **never
   changed or reused**. An element typed without one is given one by the app.
 - A line is `- <id> <title> [tokens]`: whitespace-separated tokens such as
   `#<color>` and `task:<task-id>` are pulled out, the rest is the title. Extra
@@ -47,8 +47,6 @@ New projects start with none of these folders; create the one a diagram needs.
   element deletes its stickies. `stickies: hidden` in the frontmatter hides
   them all.
 - The view (zoom, pan) is never stored in the file.
-
-The format of each newer kind is added below when its editor ships.
 
 ## matrix2x2
 
@@ -107,15 +105,14 @@ q_br: やらない
   `@` off rather than inventing one. Moving one item changes only that item's
   `@`; never rewrite the others' positions.
 - **Title** is every token left once `@x,y`, `#color` and `task:` are taken
-  out; a malformed `@` stays in the title. Keep it to one line.
+  out (a malformed `@` stays in it); keep it to one line.
 - **`## Stickies`** pins a note to an item: `node:M-NNN` names the item (the key
   is `node:` in every kind). The offset is from the item's centre to the
   sticky's top-left corner in pixels. Delete an item and delete its stickies.
 - **Keep what you do not understand.** A line under `## Items` that is not a
   list item, or that starts with another kind's id (`N-001`, `F-002`), is kept
-  by the app as it is and listed as a warning; leave such lines alone. A
-  sticky whose `node:` names no item is kept too.
-- **Never edit `## Memo`**, and leave any section you do not know where it is.
+  by the app as it is and listed as a warning; leave it alone, and a sticky
+  whose `node:` names no item too. Never edit `## Memo`.
 
 ## flow
 
@@ -194,6 +191,78 @@ updated: 2026-10-09
   arrows and stickies.
 - **Keep what you do not understand.** A line under `## Lanes`, `## Steps` or
   `## Edges` that is not a list item, or starts with another kind's id (`N-001`,
-  `M-001`, `P-001`), is kept by the app as it is and listed as a warning; leave such
-  lines alone. So is a sticky whose `node:` names no step.
-- **Never edit `## Memo`**, and leave any section you do not know where it is.
+  `M-001`, `P-001`), is kept by the app as it is and listed as a warning; leave it
+  alone, and a sticky whose `node:` names no step too. Never edit `## Memo`.
+
+## pfd
+
+A PFD (process flow diagram): **processes** and the **deliverables** they
+produce or use, joined by arrows. Self-contained - everything an edit needs is
+here.
+
+```markdown
+---
+type: pfd
+title: 開発の流れ
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Nodes
+
+- P-001 要件を整理する @120,160
+  メモ行。定義書の要点など。hover で出る。
+- D-001 要件定義書 task:T-0100 #amber @360,160
+- P-002 設計する
+
+## Edges
+
+- P-001 -> D-001
+- D-001 -> P-002
+
+## Stickies
+
+- S-001 node:D-001 @40,-20 #red 要確認
+```
+
+- **Frontmatter**: as for every diagram; `stickies: hidden` is the only other key.
+  **Sections** in this order: `## Nodes`, `## Edges`, then the optional
+  `## Stickies` and `## Memo`.
+- **Node**: `- <id> <title> [task:<id>] [#color] [@x,y]`, then optional indented
+  lines (its note, shown on hover). Tokens may come in any order; the title is
+  what is left, on one line.
+- **What a node is comes from its id prefix**, nothing else: `P-NNN` is a
+  **process** (an oval; name it with a verb phrase - "要件を整理する"), `D-NNN` a
+  **deliverable** (a document shape with a wavy bottom edge; name it with a noun -
+  "要件定義書"). Numbers run per prefix: the highest `P-` in the file plus one for
+  the next process, likewise for `D-`. Never change or reuse an id, and never
+  turn a `P-` into a `D-` by editing the prefix - make a new node.
+- **Arrow**: `- <from> -> <to>`, no label, no id; the pair `(from, to)` is the
+  identity and two lines for one pair are one arrow. **Only a process to a
+  deliverable and a deliverable to a process are allowed** (a process makes or
+  reads a deliverable; a deliverable feeds the next process). An arrow between two
+  nodes of the same kind, or naming a node that does not exist, is kept by the app
+  as it is, listed as a warning and not drawn: do not write one.
+- **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
+  numbers, negatives allowed, y growing downward. **No `@` means "placed by the
+  layout"**, in columns that follow the arrows (a node sits one column right of
+  the furthest node that flows into it): when you add a node leave the `@` off,
+  write nodes in flow order, and never rewrite another node's position. The app
+  writes `@` only on the node the user dragged; removing every `@` is its
+  "auto-align". There are no lanes.
+- **`## Stickies`** pins a note to a node: `node:P-NNN` or `node:D-NNN` (the key is
+  `node:` in every kind). Not to arrows. Delete a node and delete its arrows and
+  stickies.
+- **Symbols are a closed list.** Only `P-` and `D-` exist today. A line whose
+  prefix is anything else (`X-001`, `F-001`, `N-001`, ...) is kept by the app as it
+  is and listed as a warning, which is also how a symbol not yet confirmed
+  survives. **Do not invent a prefix to express something new** - ask the owner,
+  and use a `P-` or `D-` node meanwhile. Leave such lines, lines that are not list
+  items and stickies whose `node:` names no node alone. Never edit `## Memo`.
+- **Adding a symbol (for the app's developers, not for note edits)**: add one entry
+  `{ prefix, name, shape, label, next }` to `SYMBOLS` in
+  `src/lib/diagram/pfd/symbols.ts` - `shape` an id from the shape registry
+  (`src/lib/diagram/shapes.ts`, `registerShape` for a new outline), `next` the
+  prefixes an arrow from it may reach (and add its prefix to the `next` of the
+  symbols that may lead to it). The line grammar does not change; then list the
+  new prefix in this section.
