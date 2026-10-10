@@ -87,7 +87,7 @@ describe("layoutArchitecture", () => {
 
   it("pins a block by hand without moving the rest", () => {
     const plain = layoutArchitecture(docOf());
-    const pinned = layoutArchitecture(docOf(), [], { pinned: { id: "C-004", cx: 900, cy: 100 } });
+    const pinned = layoutArchitecture(docOf(), [], { pinned: [{ id: "C-004", cx: 900, cy: 100 }] });
     expect(pinned.byId.get("C-004")).toMatchObject({ cx: 900, cy: 100, placed: true });
     for (const n of plain.nodes) {
       if (n.id === "C-004") continue;

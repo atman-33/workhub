@@ -10,6 +10,7 @@
  * and are not used.
  */
 import type { ArchitectureLayout } from "./layout";
+import { frameRectOf } from "./layout";
 import {
   findEdge,
   findFrame,
@@ -215,6 +216,85 @@ export function autoAlign(doc: ArchitectureDocModel): ArchitectureDocModel {
 /** True when at least one block carries a position. */
 export function hasManualPositions(doc: ArchitectureDocModel): boolean {
   return doc.nodes.some((n) => n.x !== undefined);
+}
+
+// ---- frames, by hand ------------------------------------------------------------
+
+/**
+ * Moves a frame by (`dx`, `dy`): every member's centre moves the same distance
+ * and every member gets a `@`. The frame's own line never changes - a frame
+ * has no position, so it follows its members. One call is one undo entry.
+ */
+export function moveFrame(
+  doc: ArchitectureDocModel,
+  layout: ArchitectureLayout,
+  frameId: string,
+  dx: number,
+  dy: number,
+): ArchitectureDocModel {
+  const moved = new Set(
+    doc.nodes.filter((n) => n.frame === frameId).map((n) => n.id),
+  );
+  if (moved.size === 0) return doc;
+  return {
+    ...doc,
+    nodes: doc.nodes.map((n) => {
+      if (!moved.has(n.id)) return n;
+      const laid = layout.byId.get(n.id);
+      if (!laid) return n;
+      return {
+        ...n,
+        x: Math.round(laid.cx + dx),
+        y: Math.round(laid.cy + dy),
+      };
+    }),
+  };
+}
+
+function rectContains(rect: { x: number; y: number; width: number; height: number }, cx: number, cy: number): boolean {
+  return cx >= rect.x && cx <= rect.x + rect.width && cy >= rect.y && cy <= rect.y + rect.height;
+}
+
+/**
+ * Drops a block at (`cx`, `cy`) after a drag: the block always moves there,
+ * and its membership may change with it.
+ *
+ * - its centre lands in another frame's rectangle (drawn without the dragged
+ *   block): it joins that frame;
+ * - it leaves its own frame's rectangle (drawn without it): it sits outside
+ *   every frame. A frame with no other member cannot be left this way;
+ * - otherwise it stays where it was a member of.
+ *
+ * Only this block gets a `@` (or a new one). One call is one undo entry.
+ */
+export function reparentByDrop(
+  doc: ArchitectureDocModel,
+  layout: ArchitectureLayout,
+  id: string,
+  cx: number,
+  cy: number,
+): ArchitectureDocModel {
+  const node = doc.nodes.find((n) => n.id === id);
+  if (!node) return doc;
+  const at = { x: Math.round(cx), y: Math.round(cy) };
+  const rects = new Map<string, { x: number; y: number; width: number; height: number }>();
+  for (const frame of doc.frames) {
+    const others = layout.nodes.filter((n) => n.frame === frame.id && n.id !== id);
+    const rect = frameRectOf(others);
+    if (rect) rects.set(frame.id, rect);
+  }
+  for (const frame of doc.frames) {
+    if (frame.id === node.frame) continue;
+    const rect = rects.get(frame.id);
+    if (rect && rectContains(rect, at.x, at.y)) {
+      return patchNode(moveNodeTo(doc, id, at.x, at.y), id, { frame: frame.id });
+    }
+  }
+  const own = node.frame !== undefined ? rects.get(node.frame) : undefined;
+  if (node.frame !== undefined && own && !rectContains(own, at.x, at.y)) {
+    return patchNode(moveNodeTo(doc, id, at.x, at.y), id, { frame: undefined });
+  }
+  return moveNodeTo(doc, id, at.x, at.y);
 }
 
 // ---- arrows -------------------------------------------------------------------
