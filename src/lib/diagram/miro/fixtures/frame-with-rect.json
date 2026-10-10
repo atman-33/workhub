@@ -1,0 +1,93 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "type": 12,
+            "prevFrameIndex": -1,
+            "x": 0,
+            "y": 0,
+            "width": 1463.699640746149,
+            "height": 894.5469917521634,
+            "style": "{\"fs\":14,\"tc\":6052956,\"ta\":\"l\",\"ff\":5,\"ss\":4,\"sc\":16777215,\"bc\":16777215,\"fo\":2,\"fd\":0}",
+            "text": "Frame 287",
+            "boardId": "",
+            "isClusteringContainer": false,
+            "speakerNotes": null,
+            "coldStartType": null,
+            "_parent": null,
+            "_position": {
+              "offsetPx": {
+                "x": 0,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "rotation": {
+              "rotation": 0
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeRotation": 0,
+            "relativeScale": 1,
+            "size": {
+              "width": 1463.699640746149,
+              "height": 894.5469917521634
+            }
+          },
+          "type": "frame"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "3458764686716409591",
+        "meta": {}
+      },
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": 225.93628442220904,
+                "y": 263.3048926894959
+              },
+              "schema": "parentOffsetPx",
+              "containerType": "FRAME"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 205.20970408252305,
+              "height": 205.20970408252305
+            },
+            "_parent": {
+              "index": 0
+            },
+            "text": "",
+            "style": "{\"st\":3,\"ss\":2,\"sc\":1710618,\"bc\":-1,\"bo\":1,\"brc\":1710618,\"brw\":2,\"bro\":1,\"brs\":2,\"ffn\":\"Noto Sans\",\"tc\":1710618,\"tsc\":1,\"ta\":\"c\",\"tav\":\"m\",\"fs\":51,\"b\":null,\"i\":null,\"u\":null,\"s\":null,\"bsc\":1,\"VER\":2.1,\"hl\":null,\"brr\":0}",
+            "shape": "3"
+          },
+          "type": "shape"
+        },
+        "type": 14,
+        "id": 1,
+        "initialId": "3458764686716455257",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}

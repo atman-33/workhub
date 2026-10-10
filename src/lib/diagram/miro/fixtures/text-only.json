@@ -1,0 +1,46 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": 0,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 26,
+              "height": 20
+            },
+            "_parent": null,
+            "text": "<p>text</p>",
+            "style": "{\"st\":14,\"bc\":-1,\"bo\":1,\"bsc\":0,\"ta\":\"l\",\"tc\":1710618,\"tsc\":1,\"ffn\":\"Noto Sans\",\"p\":0,\"b\":0,\"u\":0,\"i\":0,\"s\":0,\"fw\":0,\"brc\":-1,\"bro\":1,\"brw\":0,\"brs\":2,\"hl\":0}"
+          },
+          "type": "text"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "3458764686716039649",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}

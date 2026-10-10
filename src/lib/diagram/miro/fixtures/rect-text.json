@@ -1,0 +1,47 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": 0,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 983.8445543505222,
+              "height": 304.7598121010233
+            },
+            "_parent": null,
+            "text": "<p>test</p>",
+            "style": "{\"st\":3,\"ss\":2,\"sc\":1710618,\"bc\":-1,\"bo\":1,\"brc\":1710618,\"brw\":2,\"bro\":1,\"brs\":2,\"ffn\":\"Noto Sans\",\"tc\":1710618,\"tsc\":1,\"ta\":\"c\",\"tav\":\"m\",\"fs\":51,\"b\":0,\"i\":0,\"u\":0,\"s\":0,\"bsc\":1,\"VER\":2.1,\"hl\":0,\"brr\":0}",
+            "shape": "3"
+          },
+          "type": "shape"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "3458764686715688562",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}
