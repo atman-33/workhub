@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, RefreshCw, Shapes } from "lucide-react";
-import { DocsPreview } from "@/components/docs/docs-preview";
+import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import {
@@ -70,8 +70,10 @@ interface Props {
  * Read-only throughout: editing stays in Obsidian. Diagram notes are stage 1
  * only — a kind icon in the list and an "Open in Diagrams tab" button, no
  * embedded rendering. Standard Markdown links (`[x](y.md)`) are followed
- * inside the item's folder; anything else gets the Obsidian hint, and
- * `[[wikilinks]]` stay plain text (DocsPreview does not resolve them).
+ * inside the item's folder; anything else gets the Obsidian hint. A
+ * `[[wikilink]]` that resolves to one file in the folder is followed the same
+ * way (T-0726); one with no single answer gets the Obsidian hint aimed at the
+ * open note, where Obsidian can follow it.
  *
  * The parent mounts this per project (`key={slug}`), so the selection cannot
  * leak across projects.
@@ -87,6 +89,9 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
   const [selectedFile, setSelectedFile] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [linkHint, setLinkHint] = useState("");
+  // A `[[wikilink]]` click with no single file to open (T-0726): the link as
+  // written, and how many files answer to it (0 when none does).
+  const [wikiHint, setWikiHint] = useState<{ target: string; count: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [error, setError] = useState("");
@@ -96,6 +101,7 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
     setLoading(true);
     setError("");
     setLinkHint("");
+    setWikiHint(null);
     try {
       const resolved = (await api.resolveProjectDir(vaultPath, slug)) ?? fallbackDir ?? "";
       if (!resolved) {
@@ -214,10 +220,19 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
     const scope = item && backlogDir ? (item.isFile ? backlogDir : `${backlogDir}/${item.name}`) : "";
     if (scope && isWithinRoot(scope, target)) {
       setLinkHint("");
+      setWikiHint(null);
       setSelectedFile(target);
     } else {
+      setWikiHint(null);
       setLinkHint(target);
     }
+  };
+
+  /** A `[[wikilink]]` click with no single file to open (T-0726): the banner
+   * offers the open note itself in Obsidian, where the link can be followed. */
+  const openUnresolvedWiki = (info: UnresolvedWikiLink) => {
+    setLinkHint("");
+    setWikiHint({ target: info.target, count: info.candidates.length });
   };
 
   const taskCounts = useMemo(() => {
@@ -295,6 +310,7 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                       type="button"
                       onClick={() => {
                         setLinkHint("");
+                        setWikiHint(null);
                         setSelectedItem(item.name);
                       }}
                       className="min-w-0 flex-1 px-2 py-1.5 text-left"
@@ -341,6 +357,7 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                             type="button"
                             onClick={() => {
                               setLinkHint("");
+                              setWikiHint(null);
                               setSelectedFile(row.entry.path);
                             }}
                             title={backlogDir ? relativeWithin(backlogDir, row.entry.path) : row.entry.path}
@@ -381,6 +398,7 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                     aria-label={t("projects.view.docs.backToList")}
                     onClick={() => {
                       setLinkHint("");
+                      setWikiHint(null);
                       setSelectedFile("");
                     }}
                   >
@@ -428,6 +446,7 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                     aria-label={t("projects.view.docs.backToList")}
                     onClick={() => {
                       setLinkHint("");
+                      setWikiHint(null);
                       setSelectedFile("");
                     }}
                   >
@@ -463,12 +482,34 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                   </Button>
                 </div>
               )}
+              {wikiHint && (
+                <div className="flex items-center gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate">
+                    {wikiHint.count > 0
+                      ? t("projects.view.docs.wikiAmbiguousHint", {
+                          target: wikiHint.target,
+                          count: wikiHint.count,
+                        })
+                      : t("projects.view.docs.wikiNotFoundHint", { target: wikiHint.target })}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 shrink-0 gap-1 text-[11px]"
+                    onClick={() => openInObsidian(selectedFile)}
+                  >
+                    <BookOpen className="size-3" />
+                    {t("projects.view.docs.openInObsidian")}
+                  </Button>
+                </div>
+              )}
               <div className="min-h-0 flex-1">
                 <DocsPreview
                   path={selectedFile}
                   refreshToken={refreshToken}
                   onError={setError}
                   onOpenDoc={openDoc}
+                  onUnresolvedWikiLink={openUnresolvedWiki}
                 />
               </div>
             </>

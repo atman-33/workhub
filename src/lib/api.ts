@@ -45,6 +45,7 @@ import type {
   VoiceMeeting,
   VoiceCaptureStatus,
   MeetingStructStatus,
+  WikiLinkResolution,
   Worktree,
 } from "@/types";
 
@@ -300,6 +301,11 @@ export const api = {
    * do not. Rejects when nothing under the registered roots matches. */
   docsResolveOpenPath: (pasted: string, currentRoot?: string) =>
     invoke<DocsOpenPathResolution>("docs_resolve_open_path", { pasted, currentRoot }),
+  /** Resolves an Obsidian `[[wikilink]]` written in `from` (T-0726): one path
+   * when the name is unique, candidates when it is ambiguous, neither when it
+   * is missing. `target` is the link's file part — alias and heading split off. */
+  docsResolveWikiLink: (from: string, target: string) =>
+    invoke<WikiLinkResolution>("docs_resolve_wikilink", { from, target }),
   /** The PlantUML server diagrams are rendered on; "" when rendering is off. */
   docsShortcuts: () => invoke<DocsShortcut[]>("docs_shortcuts"),
   /** Replaces the whole list: adding, removing and reordering are one write. */

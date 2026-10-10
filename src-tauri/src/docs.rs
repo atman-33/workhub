@@ -687,6 +687,274 @@ pub fn guarded_resolve_open_path(
     with_timeout(move || resolve_open_path(&pasted, &roots, show_dot_entries))
 }
 
+/// One file answering to a `[[wikilink]]` when more than one does (T-0726).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct WikiLinkMatch {
+    /// Absolute path, forward slashes — the id the frontend passes back.
+    pub path: String,
+}
+
+/// How a `[[wikilink]]` written in a document resolved (T-0726): exactly one
+/// file, several, or none. `path` is set only for the unique hit; `matches`
+/// carries every candidate when the name is ambiguous and stays empty
+/// otherwise, so the two cases read apart without a second call.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct WikiLinkResolution {
+    /// The one file answering to the link, or `None`.
+    pub path: Option<String>,
+    /// Every file answering to it when more than one does; empty otherwise.
+    pub matches: Vec<WikiLinkMatch>,
+}
+
+/// Most candidates an ambiguous link reports. The reader picks the right one
+/// in Obsidian — the preview never guesses.
+const MAX_WIKILINK_MATCHES: usize = 8;
+
+/// Candidate file names for a link target: as typed, then with the Markdown
+/// extensions Obsidian lets the link omit. A target that already names one
+/// keeps only itself — `[[spec.txt]]` means that file, not `spec.txt.md`.
+fn wikilink_names(target: &str) -> Vec<String> {
+    let lower = target.to_ascii_lowercase();
+    if lower.ends_with(".md") || lower.ends_with(".markdown") {
+        vec![target.to_string()]
+    } else {
+        vec![
+            target.to_string(),
+            format!("{target}.md"),
+            format!("{target}.markdown"),
+        ]
+    }
+}
+
+/// True when the file `name` answers to the link `target`: the same file with
+/// or without its Markdown extension, ASCII-case-insensitively the way the
+/// filesystems these folders live on compare.
+///
+/// Only a Markdown note (or an extension-less note) answers by stem: a
+/// `[[shot]]` must not open `shot.png`, which the preview could not show —
+/// that link belongs to Obsidian. A target naming another extension outright
+/// (`[[shot.png]]`) still exact-matches, the same as a relative link to one
+/// would; opening it then says what the preview cannot do.
+/// The file name without one trailing Markdown extension: `spec.md` and
+/// `notes.markdown` answer to their stem, anything else to itself.
+fn wikilink_stem(file: &str) -> &str {
+    let lower = file.to_ascii_lowercase();
+    if lower.ends_with(".markdown") {
+        &file[..file.len() - ".markdown".len()]
+    } else if lower.ends_with(".md") {
+        &file[..file.len() - ".md".len()]
+    } else {
+        file
+    }
+}
+
+fn wikilink_name_matches(name: &str, target: &str) -> bool {
+    if name.eq_ignore_ascii_case(target) {
+        return true;
+    }
+    let lower = name.to_ascii_lowercase();
+    let is_note = lower.ends_with(".md") || lower.ends_with(".markdown") || !name.contains('.');
+    if !is_note {
+        return false;
+    }
+    let (name_stem, target_stem) = (wikilink_stem(name), wikilink_stem(target));
+    !target_stem.is_empty() && name_stem.eq_ignore_ascii_case(target_stem)
+}
+/// Joins `rel` onto `base` and takes it only when the result is a file that
+/// stays inside `against`.
+///
+/// Canonicalization is what makes this safe rather than a string check: `..`
+/// segments are collapsed and symlinks are followed, so a link that climbs
+/// out of the scope (or a link inside it pointing out) resolves to nothing
+/// instead of to an outside file — the same escape the main guard exists for.
+fn wikilink_join(base: &Path, rel: &str, against: &Path) -> Option<PathBuf> {
+    let real = fs::canonicalize(base.join(rel)).ok()?;
+    if !real.starts_with(against) || !real.is_file() {
+        return None;
+    }
+    Some(real)
+}
+
+/// The vault-wide search behind a bare `[[name]]` (T-0726): every note whose
+/// file name answers to the target, breadth-first.
+///
+/// Only ever the vault, which is local disk — never a registered document
+/// root, which may be a streamed network share this module promises not to
+/// walk (see the module docs). A document on a share still resolves its
+/// same-folder siblings by direct join; anything further belongs to Obsidian.
+/// Dot-entries follow `show_dot_entries`, links are not followed, and the walk
+/// is bounded exactly like the pasted-path search fallback.
+fn search_vault_for_name(vault: &Path, target: &str, show_dot_entries: bool) -> Vec<WikiLinkMatch> {
+    let started = Instant::now();
+    let mut seen = 0usize;
+    let mut found = Vec::new();
+    let mut queue = VecDeque::from([vault.to_path_buf()]);
+    while let Some(dir) = queue.pop_front() {
+        let Ok(read) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in read.flatten() {
+            seen += 1;
+            if seen > MAX_SEARCH_ENTRIES
+                || started.elapsed() > SEARCH_TIME_BUDGET
+                || found.len() >= MAX_WIKILINK_MATCHES
+            {
+                // Deterministic whatever stopped the walk: the reader compares
+                // candidates, and a shuffled list would move under them.
+                found.sort_by(|a: &WikiLinkMatch, b: &WikiLinkMatch| {
+                    a.path.to_lowercase().cmp(&b.path.to_lowercase())
+                });
+                return found;
+            }
+            let entry_name = entry.file_name().to_string_lossy().to_string();
+            if hidden(&entry_name, show_dot_entries) {
+                continue;
+            }
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_symlink() {
+                continue;
+            }
+            if !ft.is_dir() && wikilink_name_matches(&entry_name, target) {
+                found.push(WikiLinkMatch {
+                    path: norm(&entry.path()),
+                });
+            }
+            if ft.is_dir() {
+                queue.push_back(entry.path());
+            }
+        }
+    }
+    found.sort_by(|a: &WikiLinkMatch, b: &WikiLinkMatch| {
+        a.path.to_lowercase().cmp(&b.path.to_lowercase())
+    });
+    found
+}
+
+/// Resolves an Obsidian `[[wikilink]]` written in the document `from` (T-0726).
+///
+/// `target` is the link's file part as the frontend parsed it: the `|alias`
+/// and `#heading` never reach here. Obsidian looks a bare name up across the
+/// whole vault by (extension-less) file name; a `folder/name` narrows that to
+/// a path. This follows the same order: beside the document first, then the
+/// vault — a sibling note always wins over a same-named one elsewhere.
+///
+/// Every path returned passed through the containment guard on the way: joins
+/// are canonicalized against their scope, and the vault walk never leaves the
+/// vault, so a resolved link is always readable through `guarded_read_doc`.
+pub fn resolve_wikilink(
+    from: &str,
+    target: &str,
+    settings: &Settings,
+) -> Result<WikiLinkResolution, String> {
+    // A `./` lead is how some writers spell "next to this note"; it carries
+    // no meaning for the lookup.
+    let mut link = target.trim().replace('\\', "/");
+    while let Some(rest) = link.strip_prefix("./") {
+        link = rest.to_string();
+    }
+    let link = link.trim().to_string();
+    if link.is_empty() {
+        return Err("no link target given".into());
+    }
+    let roots = allowed_roots(settings);
+    // `from` is the document holding the link: outside every allowed root
+    // there is nothing to resolve against.
+    let from_real = resolve_within_roots(from, &roots)?;
+    let from_dir = from_real
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| from_real.clone());
+    let canonical_roots: Vec<PathBuf> = roots
+        .iter()
+        .filter(|r| !r.trim().is_empty())
+        .filter_map(|r| fs::canonicalize(r).ok())
+        .collect();
+    let scope: PathBuf = canonical_roots
+        .iter()
+        .find(|r| from_real.starts_with(r))
+        .cloned()
+        .unwrap_or(from_dir.clone());
+    let vault: Option<PathBuf> = settings
+        .vault_path
+        .as_deref()
+        .filter(|v| !v.trim().is_empty())
+        .and_then(|v| fs::canonicalize(v).ok());
+    let in_vault = vault.as_ref().is_some_and(|v| from_real.starts_with(v));
+
+    let unique = |real: PathBuf| WikiLinkResolution {
+        path: Some(norm(&real)),
+        matches: Vec::new(),
+    };
+    let empty = || WikiLinkResolution {
+        path: None,
+        matches: Vec::new(),
+    };
+
+    // Beside the document first: a sibling note wins over a same-named one
+    // anywhere else, and for a document on a share this is the whole lookup.
+    for name in wikilink_names(&link) {
+        if let Some(real) = wikilink_join(&from_dir, &name, &scope) {
+            return Ok(unique(real));
+        }
+    }
+    if link.contains('/') {
+        // A path narrows the lookup: ever-shorter tails against the scope, so
+        // `[[backlog/B-051-x]]` finds `projects/demo/backlog/B-051-x.md` while
+        // a longer tail elsewhere still wins over a shorter one here — the
+        // same longest-tail rule the pasted-path resolver uses.
+        let segments: Vec<&str> = link.split('/').filter(|s| !s.is_empty()).collect();
+        for len in (1..segments.len()).rev() {
+            let tail = segments[segments.len() - len..].join("/");
+            for name in wikilink_names(&tail) {
+                if let Some(real) = wikilink_join(&scope, &name, &scope) {
+                    return Ok(unique(real));
+                }
+            }
+        }
+        return Ok(empty());
+    }
+    // A bare name at the scope's root is one probe, not a walk.
+    for name in wikilink_names(&link) {
+        if let Some(real) = wikilink_join(&scope, &name, &scope) {
+            return Ok(unique(real));
+        }
+    }
+    // Obsidian's vault-wide lookup by file name — local disk only. A document
+    // on a share never reaches here: walking a streamed share is what this
+    // module promises not to do, so such a link reports not-found and the
+    // preview points at Obsidian instead.
+    if let Some(vault) = vault.filter(|_| in_vault) {
+        let found = search_vault_for_name(&vault, &link, settings.docs_show_hidden);
+        if found.len() == 1 {
+            let only = found.into_iter().next().expect("one match");
+            return Ok(WikiLinkResolution {
+                path: Some(only.path),
+                matches: Vec::new(),
+            });
+        }
+        if !found.is_empty() {
+            return Ok(WikiLinkResolution {
+                path: None,
+                matches: found,
+            });
+        }
+    }
+    Ok(empty())
+}
+
+/// Resolves one `[[wikilink]]` under the same timeout as every other call in
+/// this module: a cold vault file must surface as an error, not a hung pane.
+pub fn guarded_resolve_wikilink(
+    settings: &Settings,
+    from: &str,
+    target: &str,
+) -> Result<WikiLinkResolution, String> {
+    let settings = settings.clone();
+    let from = from.to_string();
+    let target = target.to_string();
+    with_timeout(move || resolve_wikilink(&from, &target, &settings))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1167,5 +1435,148 @@ mod tests {
         assert!(resolve("", &[tree.norm()]).is_err());
         let err = resolve(r"Q:\nowhere\missing.md", &[tree.norm()]).unwrap_err();
         assert!(err.contains("matches nothing"), "{err}");
+    }
+
+    fn wikilink_settings(vault: &TempTree, roots: Vec<DocsRoot>) -> Settings {
+        let mut settings = settings_with_roots(roots);
+        settings.vault_path = Some(vault.norm());
+        settings
+    }
+
+    fn wikilink(settings: &Settings, from: &str, target: &str) -> WikiLinkResolution {
+        resolve_wikilink(from, target, settings).unwrap()
+    }
+
+    #[test]
+    fn wikilink_prefers_the_sibling_beside_the_document() {
+        let vault = TempTree::new("wiki-sibling");
+        let project = vault.path().join("projects").join("demo");
+        let elsewhere = vault.path().join("tasks");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        fs::write(project.join("note.md"), "n").unwrap();
+        fs::write(project.join("same.md"), "near").unwrap();
+        fs::write(elsewhere.join("same.md"), "far").unwrap();
+        let settings = wikilink_settings(&vault, Vec::new());
+        let from = norm(&project.join("note.md"));
+        // The sibling wins over the same-named note elsewhere in the vault.
+        let res = wikilink(&settings, &from, "same");
+        assert_eq!(
+            res.path.as_deref(),
+            Some(norm(&project.join("same.md")).as_str())
+        );
+        assert!(res.matches.is_empty());
+    }
+
+    #[test]
+    fn wikilink_finds_a_bare_name_anywhere_in_the_vault() {
+        let vault = TempTree::new("wiki-far");
+        let project = vault.path().join("projects").join("demo");
+        let tasks = vault.path().join("tasks");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&tasks).unwrap();
+        fs::write(project.join("note.md"), "n").unwrap();
+        fs::write(tasks.join("T-0715-20261010.md"), "t").unwrap();
+        let settings = wikilink_settings(&vault, Vec::new());
+        let res = wikilink(
+            &settings,
+            &norm(&project.join("note.md")),
+            "T-0715-20261010",
+        );
+        assert_eq!(
+            res.path.as_deref(),
+            Some(norm(&tasks.join("T-0715-20261010.md")).as_str())
+        );
+    }
+
+    #[test]
+    fn wikilink_reports_every_same_named_note_instead_of_guessing() {
+        let vault = TempTree::new("wiki-ambiguous");
+        let first = vault.path().join("projects").join("demo");
+        let second = vault.path().join("projects").join("other");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("note.md"), "n").unwrap();
+        fs::write(first.join("same.md"), "a").unwrap();
+        fs::write(second.join("same.md"), "b").unwrap();
+        let settings = wikilink_settings(&vault, Vec::new());
+        // From a document beside neither: the name is genuinely ambiguous.
+        let lonely = vault.path().join("lone.md");
+        fs::write(&lonely, "l").unwrap();
+        let res = wikilink(&settings, &norm(&lonely), "same");
+        assert!(res.path.is_none());
+        assert_eq!(res.matches.len(), 2);
+    }
+
+    #[test]
+    fn wikilink_resolves_a_folder_name_to_the_note_below_it() {
+        let vault = TempTree::new("wiki-path");
+        let project = vault.path().join("projects").join("demo");
+        let backlog = project.join("backlog").join("B-051-thing");
+        fs::create_dir_all(&backlog).unwrap();
+        fs::write(project.join("note.md"), "n").unwrap();
+        fs::write(backlog.join("B-051-thing.md"), "b").unwrap();
+        let settings = wikilink_settings(&vault, Vec::new());
+        let from = norm(&project.join("note.md"));
+        let res = wikilink(&settings, &from, "backlog/B-051-thing/B-051-thing");
+        assert_eq!(
+            res.path.as_deref(),
+            Some(norm(&backlog.join("B-051-thing.md")).as_str())
+        );
+    }
+
+    #[test]
+    fn wikilink_misses_openly_and_rejects_climbing_out() {
+        let vault = TempTree::new("wiki-miss");
+        let project = vault.path().join("projects").join("demo");
+        let outside = TempTree::new("wiki-outside");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("note.md"), "n").unwrap();
+        fs::write(outside.path().join("secret.md"), "s").unwrap();
+        let settings = wikilink_settings(&vault, Vec::new());
+        let from = norm(&project.join("note.md"));
+        let res = wikilink(&settings, &from, "no-such-note");
+        assert!(res.path.is_none() && res.matches.is_empty());
+        // A `..` climb that would land outside the vault resolves to nothing,
+        // not to the outside file — the join guard refuses the escape.
+        let climb = format!("../../../{}/secret", outside.norm().replace('/', "/"));
+        let res = wikilink(&settings, &from, &climb);
+        assert!(res.path.is_none() && res.matches.is_empty());
+    }
+
+    #[test]
+    fn wikilink_from_a_share_resolves_siblings_but_never_walks() {
+        let vault = TempTree::new("wiki-share-vault");
+        let share = TempTree::new("wiki-share-root");
+        fs::write(share.path().join("design.md"), "d").unwrap();
+        fs::write(share.path().join("sibling.md"), "s").unwrap();
+        fs::write(vault.path().join("vault-only.md"), "v").unwrap();
+        let settings = wikilink_settings(&vault, vec![root("D-001", &share.norm())]);
+        let from = norm(&share.path().join("design.md"));
+        // Same folder: one cheap probe, no walk.
+        let res = wikilink(&settings, &from, "sibling");
+        assert_eq!(
+            res.path.as_deref(),
+            Some(norm(&share.path().join("sibling.md")).as_str())
+        );
+        // The vault is never searched from a share document: a streamed share
+        // is not walked, and scopes do not leak into each other.
+        let res = wikilink(&settings, &from, "vault-only");
+        assert!(res.path.is_none() && res.matches.is_empty());
+    }
+
+    #[test]
+    fn wikilink_names_match_with_or_without_the_extension() {
+        assert!(wikilink_name_matches("spec.md", "spec"));
+        assert!(wikilink_name_matches("spec.md", "spec.md"));
+        assert!(wikilink_name_matches("SPEC.MD", "spec"));
+        assert!(wikilink_name_matches("notes.markdown", "notes"));
+        assert!(wikilink_name_matches("LICENSE", "LICENSE"));
+        // ...but an image is never a note by stem.
+        assert!(!wikilink_name_matches("shot.png", "shot"));
+        assert!(!wikilink_name_matches("data.csv", "data"));
+        // An explicit extension still exact-matches, like a relative link.
+        assert!(wikilink_name_matches("shot.png", "shot.png"));
+        assert!(!wikilink_name_matches("other.md", "spec"));
     }
 }

@@ -3,12 +3,16 @@ import {
   basename,
   dirOf,
   expandWikiEmbeds,
+  expandWikiLinks,
   isExternalSrc,
   normalizeSlashPath,
+  parseWikiHref,
+  parseWikiLink,
   resolveDocLink,
   resolveDocRelative,
   splitFrontmatter,
   toWindowsPath,
+  wikiHref,
 } from "./markdown";
 
 describe("expandWikiEmbeds", () => {
@@ -182,8 +186,7 @@ describe("splitFrontmatter", () => {
   });
 });
 
-describe("resolveDocLink", () => {
-  const doc = "G:/shared drives/team/notes/design.md";
+describe("resolveDocLink", () => {  const doc = "G:/shared drives/team/notes/design.md";
 
   it("resolves a link with full-width bars and Japanese in the name", () => {
     expect(resolveDocLink(doc, "開発プロセス｜予実ベロシティ更新方法.md")).toBe(
@@ -199,5 +202,98 @@ describe("resolveDocLink", () => {
     expect(resolveDocLink(doc, "https://example.com/a.md")).toBeNull();
     expect(resolveDocLink(doc, "#top")).toBeNull();
     expect(resolveDocLink(doc, "mailto:a@b.c")).toBeNull();
+  });
+});
+
+describe("parseWikiLink", () => {
+  it("splits the target from an alias", () => {
+    expect(parseWikiLink("B-051-thing")).toEqual({ target: "B-051-thing", label: "B-051-thing" });
+    expect(parseWikiLink("B-051-thing|the spec")).toEqual({
+      target: "B-051-thing",
+      label: "the spec",
+    });
+  });
+
+  it("drops a heading anchor from the target but keeps it in the label", () => {
+    expect(parseWikiLink("notes#Results")).toEqual({ target: "notes", label: "notes#Results" });
+    expect(parseWikiLink("notes#Results|outcomes")).toEqual({
+      target: "notes",
+      label: "outcomes",
+    });
+  });
+
+  it("keeps a folder path as the target", () => {
+    expect(parseWikiLink("backlog/B-051-x|item")).toEqual({
+      target: "backlog/B-051-x",
+      label: "item",
+    });
+  });
+
+  it("rejects an empty link, a bare alias and a bare heading", () => {
+    expect(parseWikiLink("")).toBeNull();
+    expect(parseWikiLink("   ")).toBeNull();
+    expect(parseWikiLink("|alias")).toBeNull();
+    expect(parseWikiLink("#heading")).toBeNull();
+  });
+});
+
+describe("wikiHref", () => {
+  it("round-trips a target with spaces and slashes", () => {
+    expect(parseWikiHref(wikiHref("backlog/B-051 my note"))).toBe("backlog/B-051 my note");
+  });
+
+  it("is null for ordinary links", () => {
+    expect(parseWikiHref("notes/a.md")).toBeNull();
+    expect(parseWikiHref("https://example.com")).toBeNull();
+  });
+
+  it("survives a stray percent sign that is not an escape", () => {
+    expect(parseWikiHref("wiki:100%.md")).toBe("100%.md");
+  });
+});
+
+describe("expandWikiLinks", () => {
+  it("rewrites a bare link into a wiki: link", () => {
+    expect(expandWikiLinks("see [[T-0715-20261010]] here")).toBe(
+      "see [T-0715-20261010](<wiki:T-0715-20261010>) here",
+    );
+  });
+
+  it("shows the alias and resolves the target", () => {
+    expect(expandWikiLinks("[[B-051-thing|the spec]]")).toBe(
+      "[the spec](<wiki:B-051-thing>)",
+    );
+  });
+
+  it("drops a heading anchor from the destination but not the label", () => {
+    expect(expandWikiLinks("[[notes#Results]]")).toBe("[notes#Results](<wiki:notes>)");
+  });
+
+  it("encodes spaces and keeps folder paths", () => {
+    expect(expandWikiLinks("[[my folder/my note]]")).toContain("wiki:my%20folder/my%20note");
+  });
+
+  it("leaves image embeds to expandWikiEmbeds", () => {
+    expect(expandWikiLinks("see ![[diagram.png]] here")).toBe("see ![[diagram.png]] here");
+  });
+
+  it("leaves a non-image embed alone — it is not a link", () => {
+    expect(expandWikiLinks("![[design notes]]")).toBe("![[design notes]]");
+  });
+
+  it("does not rewrite inside code spans or fenced blocks", () => {
+    expect(expandWikiLinks("write `[[a]]` to link")).toBe("write `[[a]]` to link");
+    const fenced = "before\n\n```md\n[[a]]\n```\n\nafter [[b]]";
+    expect(expandWikiLinks(fenced)).toBe(
+      "before\n\n```md\n[[a]]\n```\n\nafter [b](<wiki:b>)",
+    );
+  });
+
+  it("leaves an empty link alone", () => {
+    expect(expandWikiLinks("[[]] and [[  ]]")).toBe("[[]] and [[  ]]");
+  });
+
+  it("rewrites every link in a document", () => {
+    expect(expandWikiLinks("[[a]] and [[b|c]]")).toBe("[a](<wiki:a>) and [c](<wiki:b>)");
   });
 });

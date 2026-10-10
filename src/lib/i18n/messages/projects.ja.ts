@@ -72,6 +72,10 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.view.docs.resolveFailed": "このプロジェクトのフォルダが projects/ 配下にありません。",
   "projects.view.docs.linkOutsideHint":
     "そのリンクはこのプロジェクトのフォルダ外を指しているため、ここでは開けません — Obsidian で開いてください。",
+  "projects.view.docs.wikiNotFoundHint":
+    "[[{target}]] に一致するファイルは vault にありません — このノートを Obsidian で開いてたどってください。",
+  "projects.view.docs.wikiAmbiguousHint":
+    "[[{target}]] に一致するファイルが vault に {count} 件あります — このノートを Obsidian で開いて選んでください。",
   "projects.view.repositoriesHeading": "リポジトリ",
   "projects.view.noRepository": "リポジトリなし。",
   "projects.view.defaultLabel": "デフォルト",
