@@ -697,3 +697,148 @@ export function ringLayout(
     scale: k,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Group row layout (T-0708): groups side by side, laid out inside by rank.
+// For the architecture diagram's frames.
+// ---------------------------------------------------------------------------
+
+export interface GroupNodeInput {
+  id: string;
+  width: number;
+  height: number;
+  /** The frame this node belongs to, or `null` for none. A name missing from
+   * `options.groups` counts as none. */
+  group: string | null;
+}
+
+export interface GroupLayoutOptions {
+  /** The frames, left to right. The ungrouped nodes always come first. */
+  groups: string[];
+  /** Left edge of the first group. */
+  originX?: number;
+  /** Top edge of the first row. */
+  originY?: number;
+  /** Space between two groups (room for an arrow's vertical leg and label). */
+  groupGap?: number;
+  /** Row width past which the next group wraps onto a new row. */
+  wrapWidth?: number;
+  /** Space between two columns inside a group. */
+  columnGap?: number;
+  /** Space between two nodes stacked in one column of a group. */
+  slotGap?: number;
+  /** Space above and below the nodes of a group. */
+  rowPad?: number;
+  /** Least height of a group. */
+  minRowHeight?: number;
+}
+
+export interface GroupLayoutResult {
+  /** Centre of every node. */
+  nodes: Map<string, { cx: number; cy: number }>;
+  /** The groups, in placement order: ungrouped first, then `options.groups`.
+   * The ungrouped key is `""`. Empty groups keep a fixed minimal box. */
+  groups: { key: string; x: number; y: number; width: number; height: number }[];
+  /** Everything placed. */
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+export const GROUP_ROW_GAP = 96;
+export const GROUP_WRAP_WIDTH = 1600;
+export const EMPTY_GROUP_WIDTH = 160;
+export const EMPTY_GROUP_HEIGHT = 96;
+
+/**
+ * Places nodes group by group, left to right, wrapping onto a new row past
+ * `wrapWidth`.
+ *
+ * - **Inside a group** runs `layerLayout` with a single row: columns are the
+ *   ranks from the arrows whose both ends sit in the group, so an arrow
+ *   leaving the group never moves a node. The result depends only on the
+ *   input, so adding an arrow elsewhere never moves a node that was not
+ *   involved.
+ * - **Between groups** is one row of boxes `groupGap` apart; a group that
+ *   would pass `wrapWidth` starts a new row instead. A group with no members
+ *   keeps `EMPTY_GROUP_WIDTH` by `EMPTY_GROUP_HEIGHT`.
+ */
+export function groupRowLayout(
+  nodes: GroupNodeInput[],
+  edges: RankEdge[],
+  options: GroupLayoutOptions,
+): GroupLayoutResult {
+  const originX = options.originX ?? 0;
+  const originY = options.originY ?? 0;
+  const groupGap = options.groupGap ?? GROUP_ROW_GAP;
+  const wrapWidth = options.wrapWidth ?? GROUP_WRAP_WIDTH;
+  const known = new Set(options.groups);
+  const keyOf = (n: GroupNodeInput) => (n.group !== null && known.has(n.group) ? n.group : "");
+  // The ungrouped nodes come first; a listed group keeps its box even when
+  // empty (a frame with nothing in it yet), but no box is drawn for an empty
+  // ungrouped side.
+  const order = ["", ...options.groups.filter((g) => g !== "")];
+
+  const placed = new Map<string, { cx: number; cy: number }>();
+  const boxes: GroupLayoutResult["groups"] = [];
+  for (const key of order) {
+    const members = nodes.filter((n) => keyOf(n) === key);
+    const memberIds = new Set(members.map((n) => n.id));
+    if (members.length === 0) {
+      if (key === "") continue;
+      boxes.push({ key, x: 0, y: 0, width: EMPTY_GROUP_WIDTH, height: EMPTY_GROUP_HEIGHT });
+      continue;
+    }
+    const inside = edges.filter((e) => memberIds.has(e.from) && memberIds.has(e.to));
+    const local = layerLayout(
+      members.map((n) => ({ id: n.id, width: n.width, height: n.height, row: "" })),
+      inside,
+      {
+        rows: [""],
+        originX: 0,
+        originY: 0,
+        columnGap: options.columnGap,
+        slotGap: options.slotGap,
+        rowPad: options.rowPad,
+        minRowHeight: options.minRowHeight,
+      },
+    );
+    let width = 0;
+    let height = 0;
+    for (const col of local.columns) width = Math.max(width, col.x + col.width);
+    for (const row of local.rows) height = Math.max(height, row.y + row.height);
+    boxes.push({ key, x: 0, y: 0, width, height });
+    for (const [id, p] of local.nodes) placed.set(id, { cx: p.cx, cy: p.cy });
+  }
+
+  // Rows of boxes, left to right.
+  let x = originX;
+  let y = originY;
+  let rowHeight = 0;
+  for (const box of boxes) {
+    if (x > originX && x + box.width > originX + wrapWidth) {
+      x = originX;
+      y += rowHeight + groupGap;
+      rowHeight = 0;
+    }
+    const dx = x - box.x;
+    const dy = y - box.y;
+    box.x = x;
+    box.y = y;
+    x += box.width + groupGap;
+    rowHeight = Math.max(rowHeight, box.height);
+    // `layerLayout` ran at the origin, so every node shifts by the same (dx, dy).
+    for (const n of nodes.filter((m) => keyOf(m) === box.key)) {
+      const p = placed.get(n.id)!;
+      placed.set(n.id, { cx: p.cx + dx, cy: p.cy + dy });
+    }
+  }
+
+  let bounds = { x: originX, y: originY, width: 0, height: 0 };
+  if (boxes.length > 0) {
+    const x0 = Math.min(...boxes.map((b) => b.x));
+    const y0 = Math.min(...boxes.map((b) => b.y));
+    const x1 = Math.max(...boxes.map((b) => b.x + b.width));
+    const y1 = Math.max(...boxes.map((b) => b.y + b.height));
+    bounds = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  }
+  return { nodes: placed, groups: boxes, bounds };
+}

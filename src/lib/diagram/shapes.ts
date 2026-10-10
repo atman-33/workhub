@@ -413,12 +413,65 @@ export function speechBubbleOutline(box: Box, tailSide: BubbleSide): ShapeElemen
   return { tag: "path", attrs: { d: parts.join(" ") } };
 }
 
+/** Bumps around a cloud. */
+export const CLOUD_BUMPS = 8;
+/** Points sampling a cloud's outline (twelve per bump, so the polygon stays on the curve). */
+export const CLOUD_SAMPLES = 96;
+
+/**
+ * Ripple depth of a cloud of this size. Small next to the box, so the text
+ * still fits: the outline never leaves the box (see `cloudRadius`).
+ */
+export function cloudRipple(size: ShapeSize): number {
+  return Math.min(6, Math.min(size.width, size.height) / 12);
+}
+
+/**
+ * Radius of a cloud in direction `theta` (radians, `atan2(dy, dx)`) from its
+ * centre: an ellipse carving a ripple out of itself. The outline touches the
+ * box where the ripple crests and dips `2 * ripple` inside between crests, so
+ * it always stays in the box. A radius function is star-shaped by definition,
+ * and `contains` and `outline` share this one formula, so an arrow stops on
+ * the drawn line.
+ */
+export function cloudRadius(theta: number, size: ShapeSize): number {
+  const rx = size.width / 2;
+  const ry = size.height / 2;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const base = (rx * ry) / Math.sqrt(ry * ry * cos * cos + rx * rx * sin * sin);
+  const ripple = cloudRipple(size);
+  return base - ripple + ripple * Math.cos(CLOUD_BUMPS * theta);
+}
+
+/**
+ * A cloud: a wavy ellipse for an external service (T-0708). One `polygon` of
+ * `CLOUD_SAMPLES` points from `cloudRadius`; `contains` is the same radius,
+ * so the two cannot drift apart.
+ */
+const cloud: ShapeDef = {
+  id: "cloud",
+  contains: (dx, dy, s) => Math.hypot(dx, dy) <= cloudRadius(Math.atan2(dy, dx), s),
+  outline: (box) => {
+    const size = { width: box.width, height: box.height };
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const points: string[] = [];
+    for (let i = 0; i < CLOUD_SAMPLES; i++) {
+      const theta = (i * 2 * Math.PI) / CLOUD_SAMPLES;
+      const r = cloudRadius(theta, size);
+      points.push(`${round2(cx + r * Math.cos(theta))},${round2(cy + r * Math.sin(theta))}`);
+    }
+    return { tag: "polygon", attrs: { points: points.join(" ") } };
+  },
+};
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 const registry = new Map<string, ShapeDef>(
-  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine, hexagon, cylinder, screen, person].map((s) => [s.id, s]),
+  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine, hexagon, cylinder, screen, person, cloud].map((s) => [s.id, s]),
 );
 
 /** Adds (or replaces) a shape. */
