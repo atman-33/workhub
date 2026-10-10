@@ -16,8 +16,8 @@ import { FREE_DRAG_THRESHOLD_PX } from "@/components/diagram/use-free-drag";
 interface Options {
   /** Client (pointer event) coordinates to diagram coordinates. */
   toDiagram: (clientX: number, clientY: number) => { x: number; y: number };
-  /** Current camera zoom: the threshold is in screen pixels. */
-  zoom: number;
+  /** Current camera zoom (kept for callers; the threshold is in screen pixels). */
+  zoom?: number;
   /** A finished marquee: the normalized rectangle and whether Shift was held. */
   onMarquee: (rect: MarqueeRect, additive: boolean) => void;
   /** When true the gesture is ignored entirely (an AI edit holds the file). */
@@ -64,7 +64,9 @@ export function useMarquee({ toDiagram, zoom, onMarquee, disabled }: Options) {
       const p = press.current;
       if (!p) return;
       const travelled = Math.abs(e.clientX - p.startClient.x) + Math.abs(e.clientY - p.startClient.y);
-      if (!p.active && travelled * live.current.zoom < FREE_DRAG_THRESHOLD_PX) return;
+      // Client coordinates are already screen pixels, so the camera zoom does
+      // not enter the threshold.
+      if (!p.active && travelled < FREE_DRAG_THRESHOLD_PX) return;
       p.active = true;
       const at = live.current.toDiagram(e.clientX, e.clientY);
       p.current = normalizeRect(p.start, at);
