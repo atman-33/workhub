@@ -24,6 +24,7 @@ function task(id: string, status: Task["status"], depends_on: string[] = []): Ta
     depends_on,
     created: "2026-10-01",
     updated: "2026-10-01",
+    completed: "",
     file: `tasks/${id}.md`,
     body: "",
   };

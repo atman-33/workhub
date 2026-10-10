@@ -138,6 +138,7 @@ const KNOWN_KEYS = new Set([
   "archived",
   "created",
   "updated",
+  "completed",
 ]);
 
 function parseFrontmatter(front) {
@@ -221,6 +222,10 @@ function renderFrontmatter(t) {
   // Keys the CLI does not manage, in their original order and position
   // (between `archived` and `created`, matching the documented schema).
   const extraLines = t.extra?.length ? `${t.extra.join("\n")}\n` : "";
+  // `completed` is only written while it carries a time, like the app —
+  // otherwise every alternating write would churn pre-T-0727 files. It sits
+  // right after `updated`, the stamp it was taken with.
+  const completedLine = t.completed ? `completed: ${t.completed}\n` : "";
   return (
     `---\n` +
     `id: ${t.id}\n` +
@@ -238,6 +243,7 @@ function renderFrontmatter(t) {
     extraLines +
     `created: ${t.created}\n` +
     `updated: ${t.updated}\n` +
+    completedLine +
     `---\n`
   );
 }
@@ -264,6 +270,7 @@ function parseTaskFile(file) {
     extra,
     created: get("created"),
     updated: get("updated"),
+    completed: get("completed"),
     file: file.replaceAll("\\", "/"),
     body,
   };
@@ -320,6 +327,7 @@ function regenerateIndex(vault) {
     depends_on: depsOf(t),
     created: t.created,
     updated: t.updated,
+    completed: t.completed ?? "",
     file: t.file.startsWith(vaultPrefix)
       ? t.file.slice(vaultPrefix.length).replace(/^\//, "")
       : t.file,
@@ -361,6 +369,13 @@ function today() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** `YYYY-MM-DD HH:MM` in local time — the completion stamp (T-0727). */
+function nowDatetime() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ---------------------------------------------------------------------
@@ -514,10 +529,22 @@ function checkStartable(task, all, flags) {
 function applyUpdates(task, flags, all) {
   const editable = ["status", "assignee", "project", "backlog", "priority", "model", "due"];
   let changed = false;
+  const wasDone = task.status === "done";
   for (const key of editable) {
     if (flags[key] !== undefined) {
       task[key] = flags[key];
       changed = true;
+    }
+  }
+  // The completion stamp belongs to the transition, not the state — taken
+  // when `done` is entered, cleared when it is left, never touched otherwise.
+  // Mirrors `update_task` in src-tauri/src/tasks.rs.
+  if (flags.status !== undefined) {
+    const nowDone = task.status === "done";
+    if (nowDone && !wasDone && !task.completed) {
+      task.completed = nowDatetime();
+    } else if (!nowDone && wasDone) {
+      task.completed = "";
     }
   }
   if (flags["depends-on"] !== undefined) {
@@ -658,6 +685,9 @@ function cmdCreate(vault, flags) {
     ],
     created: now,
     updated: now,
+    // A new task starts with no completion time (see `create_task` in
+    // src-tauri/src/tasks.rs) — and `create` refuses `done` anyway.
+    completed: "",
     file: path.join(dir, `${id} ${sanitizeFilename(title)}.md`).replaceAll("\\", "/"),
     body,
   };
@@ -730,6 +760,8 @@ function cmdUpdate(vault, id, flags) {
 
 function cmdReport(vault, id) {
   const task = findTask(vault, id);
+  // Reporting leaves `done` behind, so the completion stamp goes with it.
+  if (task.status === "done") task.completed = "";
   task.status = "review";
   task.updated = today();
   writeTaskFile(task);

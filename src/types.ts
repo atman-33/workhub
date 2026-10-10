@@ -883,6 +883,10 @@ export interface Task {
   depends_on: string[];
   created: string;
   updated: string;
+  /** `YYYY-MM-DD HH:MM` (local time) the task's status last changed to `done`.
+   * Empty when the task is not done, or was finished before the stamp existed.
+   * Written by the backend on the transition itself, never edited by hand. */
+  completed: string;
   file: string;
   body: string;
 }

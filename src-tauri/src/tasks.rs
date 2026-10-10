@@ -255,8 +255,16 @@ fn render_frontmatter(t: &Task) -> String {
     } else {
         format!("depends_on: {}\n", render_tags(&t.depends_on))
     };
+    // Same policy once more: `completed` is only written while it carries a
+    // time, so every task file written before T-0727 stays byte-identical on
+    // round-trip. It sits right after `updated`, the stamp it was taken with.
+    let completed_line = if t.completed.is_empty() {
+        String::new()
+    } else {
+        format!("completed: {}\n", t.completed)
+    };
     format!(
-        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\n{}priority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}{}created: {}\nupdated: {}\n---\n",
+        "---\nid: {}\ntitle: {}\nstatus: {}\nassignee: {}\nproject: {}\n{}priority: {}\n{}{}due: {}\ntags: {}\n{}{}{}{}{}created: {}\nupdated: {}\n{}---\n",
         t.id,
         yaml_scalar(&t.title),
         t.status,
@@ -275,6 +283,7 @@ fn render_frontmatter(t: &Task) -> String {
         depends_line,
         t.created,
         t.updated,
+        completed_line,
     )
 }
 
@@ -333,6 +342,7 @@ fn parse_task_file(path: &Path) -> Result<Task, String> {
         depends_on: raw.depends_on,
         created: get("created"),
         updated: get("updated"),
+        completed: get("completed"),
         file: path.to_string_lossy().replace('\\', "/"),
         body,
     })
@@ -406,6 +416,39 @@ fn today() -> String {
     let days = (secs / 86_400) as i64;
     let (y, m, d) = civil_from_days(days);
     format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// `YYYY-MM-DD HH:MM` in local time, stamped when a task's `status` changes
+/// to `done` (T-0727). Local rather than UTC because the owner reads it
+/// against their own day. Windows answers this directly; elsewhere the date
+/// comes from [`civil_from_days`] and the clock from the epoch's remainder —
+/// the same UTC approximation [`today`] already accepts on those targets,
+/// which this app does not ship to.
+#[cfg(windows)]
+fn now_datetime() -> String {
+    // SAFETY: GetLocalTime reads the clock and returns by value; it takes no
+    // pointer from us and cannot fail.
+    let st = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}",
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute
+    )
+}
+
+#[cfg(not(windows))]
+fn now_datetime() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = (secs / 86_400) as i64;
+    let rem = (secs % 86_400) as u32;
+    let (y, m, d) = civil_from_days(days);
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02}",
+        rem / 3600,
+        (rem % 3600) / 60
+    )
 }
 
 /// Howard Hinnant's `civil_from_days`: days-since-epoch -> (year, month, day).
@@ -544,6 +587,10 @@ pub fn create_task(vault: &Path, input: CreateTaskInput) -> Result<Task, String>
         depends_on: normalize_deps(input.depends_on.unwrap_or_default()),
         created: now.clone(),
         updated: now,
+        // A new task starts with no completion time, even one created with
+        // `status: done`: the stamp records the moment of the transition, and
+        // creation is not one (see `update_task`).
+        completed: String::new(),
         file: file.to_string_lossy().replace('\\', "/"),
         body: input
             .body
@@ -656,7 +703,20 @@ pub fn update_task(vault: &Path, input: UpdateTaskInput) -> Result<Task, String>
         task.title = v;
     }
     if let Some(v) = input.status {
+        let was_done = task.status == "done";
+        let now_done = v == "done";
         task.status = v;
+        // The completion stamp belongs to the transition, not the state: it
+        // is taken when `done` is entered, cleared when it is left, and never
+        // touched otherwise — so saving a task that is already `done` keeps
+        // its existing value, and an old `done` task without one keeps none.
+        if now_done && !was_done {
+            if task.completed.is_empty() {
+                task.completed = now_datetime();
+            }
+        } else if !now_done && was_done {
+            task.completed.clear();
+        }
     }
     if let Some(v) = input.assignee {
         task.assignee = v;
@@ -821,6 +881,7 @@ struct IndexEntry<'a> {
     depends_on: &'a [String],
     created: &'a str,
     updated: &'a str,
+    completed: &'a str,
     file: String,
 }
 
@@ -850,6 +911,7 @@ pub fn regenerate_index(vault: &Path) -> Result<(), String> {
             depends_on: &t.depends_on,
             created: &t.created,
             updated: &t.updated,
+            completed: &t.completed,
             file: t
                 .file
                 .strip_prefix(&vault_prefix)
@@ -2232,6 +2294,7 @@ mod tests {
                     depends_on: vec![],
                     created: today(),
                     updated: today(),
+                    completed: String::new(),
                     file: t3_path.to_string_lossy().replace('\\', "/"),
                     body: String::new(),
                 })
@@ -2713,6 +2776,209 @@ mod tests {
         .unwrap();
         assert_eq!(renoted.blocked_since, today());
         assert_eq!(renoted.blocked_note, "still waiting");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// `completed: YYYY-MM-DD HH:MM` is stamped when `done` is entered and
+    /// cleared when it is left (T-0727).
+    #[test]
+    fn completed_is_stamped_on_done_and_cleared_after() {
+        let vault = temp_vault("completed");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "finish me".into(),
+                status: Some("todo".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(task.completed.is_empty());
+        assert!(
+            !fs::read_to_string(&task.file)
+                .unwrap()
+                .contains("completed:"),
+            "a task that was never done carries no line"
+        );
+
+        let done = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // `YYYY-MM-DD HH:MM`: 16 chars, with the separators where they belong.
+        assert_eq!(done.completed.len(), 16, "completed was {}", done.completed);
+        assert_eq!(&done.completed[4..5], "-");
+        assert_eq!(&done.completed[10..11], " ");
+        assert_eq!(&done.completed[13..14], ":");
+        let raw = fs::read_to_string(&done.file).unwrap();
+        assert!(
+            raw.contains(&format!(
+                "updated: {}\ncompleted: {}\n",
+                done.updated, done.completed
+            )),
+            "the stamp sits right after `updated`: {raw}"
+        );
+
+        // Saving a task that is already `done` keeps its existing value.
+        let redone = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(redone.completed, done.completed);
+
+        // Leaving `done` clears the stamp and drops the line.
+        let reopened = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("doing".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(reopened.completed.is_empty());
+        let raw = fs::read_to_string(&reopened.file).unwrap();
+        assert!(!raw.contains("completed:"), "raw frontmatter: {raw}");
+
+        // The index carries the stamp while done and empties with it.
+        let index: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(index_file(&vault)).unwrap()).unwrap();
+        assert_eq!(index[0]["completed"], "");
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn done_without_a_stamp_keeps_none_until_it_moves() {
+        let vault = temp_vault("completed-legacy");
+        let mut task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "old done".into(),
+                status: Some("todo".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Simulate a task finished before T-0727: `done` with no `completed:`.
+        task.status = "done".into();
+        write_task_file(&task).unwrap();
+
+        // A save that stays `done` must not invent a time.
+        let kept = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(kept.completed.is_empty());
+        assert!(
+            !fs::read_to_string(&kept.file)
+                .unwrap()
+                .contains("completed:"),
+            "no value was invented"
+        );
+
+        // Re-entering `done` after leaving stamps the moment, as usual.
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("doing".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let redone = update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(redone.completed.len(), 16);
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn completed_round_trips_and_a_no_op_save_changes_nothing() {
+        let vault = temp_vault("completed-roundtrip");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "stamped".into(),
+                status: Some("todo".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // A file carrying the field round-trips through parse and write.
+        let mut stamped = parse_task_file(&PathBuf::from(&task.file)).unwrap();
+        stamped.status = "done".into();
+        stamped.completed = "2026-02-03 04:05".into();
+        write_task_file(&stamped).unwrap();
+        let reparsed = parse_task_file(&PathBuf::from(&task.file)).unwrap();
+        assert_eq!(reparsed.status, "done");
+        assert_eq!(reparsed.completed, "2026-02-03 04:05");
+
+        // A no-op save of that file (its `updated` already is today) leaves
+        // every byte untouched, field included.
+        let before = fs::read(&task.file).unwrap();
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(fs::read(&task.file).unwrap(), before);
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn file_without_completed_is_untouched_by_a_no_op_save() {
+        let vault = temp_vault("completed-absent");
+        let task = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "plain".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // Pre-T-0727 shape: no `completed:` line, `updated` already today.
+        let before = fs::read(&task.file).unwrap();
+        assert!(!String::from_utf8_lossy(&before).contains("completed:"));
+
+        update_task(
+            &vault,
+            UpdateTaskInput {
+                id: task.id.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(fs::read(&task.file).unwrap(), before);
 
         fs::remove_dir_all(&vault).ok();
     }

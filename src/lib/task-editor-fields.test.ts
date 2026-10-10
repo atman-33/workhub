@@ -30,6 +30,7 @@ const TASK: Task = {
   depends_on: [],
   created: "2026-08-30",
   updated: "2026-08-30",
+  completed: "",
   file: "tasks/T-0001 A task.md",
   body: "## Description\n\nThe body.\n",
 };
