@@ -7,6 +7,7 @@ import { DiagramAiSettings } from "@/components/diagram/diagram-ai-settings";
 import { PanelToggle } from "@/components/diagram/panel-frame";
 import { FlowView } from "@/components/diagram/flow/flow-view";
 import { PfdView } from "@/components/diagram/pfd/pfd-view";
+import { AlgorithmView } from "@/components/diagram/algorithm/algorithm-view";
 import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -371,7 +372,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
       ),
     });
 
-  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd") => ({
+  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd" | "algorithm") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
@@ -426,7 +427,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
         </Select>
 
         <div className="flex items-center rounded-md border p-0.5">
-          {[ALL, ...CREATABLE_KINDS, "matrix2x2", "flow", "pfd"]
+          {[ALL, ...CREATABLE_KINDS, "matrix2x2", "flow", "pfd", "algorithm"]
             .filter((value, i, all) => all.indexOf(value) === i)
             .filter(
               (value) =>
@@ -565,6 +566,9 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
           </div>
           <div className={cn("h-full", kind === "pfd" ? "" : "hidden")}>
             <PfdView configVersion={configVersion} embedded={editorFor("pfd")} />
+          </div>
+          <div className={cn("h-full", kind === "algorithm" ? "" : "hidden")}>
+            <AlgorithmView configVersion={configVersion} embedded={editorFor("algorithm")} />
           </div>
           {!hasEditor(kind) && (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
