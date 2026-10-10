@@ -45,6 +45,13 @@ describe("copyFlowSteps", () => {
     const c = copyFlowSteps(docOf(), ["F-001", "F-002"]);
     expect(c.edges).toEqual([{ from: "F-001", to: "F-002", label: "ok" }]);
   });
+
+  it("drops the arrows to steps outside a multi-select", () => {
+    const c = copyFlowSteps(docOf(), ["F-002", "F-003"]);
+    expect(c.steps.map((s) => s.id)).toEqual(["F-002", "F-003"]);
+    // F-002 -> F-003 is inside; F-001 -> F-002 and F-003 -> F-004 stay behind.
+    expect(c.edges).toEqual([{ from: "F-002", to: "F-003" }]);
+  });
 });
 
 describe("pasteFlowSteps", () => {
@@ -83,6 +90,14 @@ describe("pasteFlowSteps", () => {
       { from: "F-005", to: "F-006", label: "ok" },
       { from: "F-006", to: "F-007" },
     ]);
+  });
+
+  it("keeps every pasted step in its own lane with its own offset", () => {
+    const doc = docOf();
+    const out = pasteFlowSteps(doc, copyFlowSteps(doc, ["F-002", "F-003"]), 1);
+    const [second, third] = out.ids.map((id) => out.doc.steps.find((s) => s.id === id)!);
+    expect(second).toMatchObject({ lane: "L-001", x: 300 + FLOW_PASTE_DX, y: -10 });
+    expect(third).toMatchObject({ lane: "L-002", x: 640 + FLOW_PASTE_DX, y: 0 });
   });
 
   it("leaves the original arrows, lanes and stickies alone", () => {

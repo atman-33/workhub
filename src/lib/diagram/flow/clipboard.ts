@@ -2,9 +2,9 @@ import { allocateIds, edgesWithin, remapEdges } from "../clipboard";
 import type { FlowDocModel, FlowEdge, FlowStep } from "./parse";
 
 /**
- * Copy and paste of flow steps (T-0688). The editor selects one step at a
- * time, so a copy carries no arrows today; the arrows between the selected
- * steps are still taken, so a multi-select would need no change here.
+ * Copy and paste of flow steps (T-0688, multi-select T-0716). A copy carries
+ * the given steps with the arrows between them (labels included); arrows to
+ * steps outside the selection are left behind, and stickies are never copied.
  */
 
 /** How far each paste moves a placed step along its lane, in pixels. */

@@ -48,6 +48,16 @@ describe("copyAlgorithmNodes", () => {
     expect(copyAlgorithmNodes(docOf(), ["A-001", "A-005"]).edges).toEqual([]);
   });
 
+  it("drops the arrows to nodes outside a multi-select", () => {
+    const c = copyAlgorithmNodes(docOf(), ["A-001", "A-004", "A-005"]);
+    expect(c.nodes.map((n) => n.id)).toEqual(["A-001", "A-004", "A-005"]);
+    // A-001 -> A-004 and A-004 -> A-005 are inside; A-005 -> A-009 stays behind.
+    expect(c.edges).toEqual([
+      { from: "A-001", to: "A-004" },
+      { from: "A-004", to: "A-005", label: "はい" },
+    ]);
+  });
+
   it("copies by value, so a later edit does not reach the clip", () => {
     const doc = docOf();
     const c = copyAlgorithmNodes(doc, ["A-004"]);
@@ -96,6 +106,16 @@ describe("pasteAlgorithmNodes", () => {
     expect(out.doc.edges.slice(0, 3)).toEqual(doc.edges);
     expect(out.doc.edges.slice(3)).toEqual([{ from: "A-010", to: "A-011", label: "はい" }]);
     expect(out.doc.stickies).toEqual(doc.stickies);
+  });
+
+  it("shifts every node of a multi-paste diagonally and keeps each kind", () => {
+    const doc = docOf();
+    const out = pasteAlgorithmNodes(doc, copyAlgorithmNodes(doc, ["A-001", "A-004"]), 2);
+    expect(out.ids).toEqual(["A-010", "A-011"]);
+    const [start, io] = out.ids.map((id) => out.doc.nodes.find((n) => n.id === id)!);
+    expect(start).toMatchObject({ kind: "start", x: 100 + 2 * ALGORITHM_PASTE_OFFSET });
+    expect(io).toMatchObject({ kind: "io", x: 300 + 2 * ALGORITHM_PASTE_OFFSET });
+    expect(out.doc.edges.slice(3)).toEqual([{ from: "A-010", to: "A-011" }]);
   });
 });
 

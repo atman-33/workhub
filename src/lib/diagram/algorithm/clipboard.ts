@@ -3,10 +3,10 @@ import type { AlgorithmDocModel, AlgorithmEdge, AlgorithmNode } from "./parse";
 
 /**
  * Copy and paste of program-flow nodes (T-0698, on the shared layer of
- * T-0688). The editor selects one node at a time, so a copy carries no arrows
- * today; the arrows between the selected nodes are still taken (labels
- * included), so a multi-select would need no change here. A copy keeps its kind
- * and takes the next free `A-` id.
+ * T-0688; multi-select T-0716). A copy carries the given nodes with the
+ * arrows between them (labels included); arrows to nodes outside the
+ * selection are left behind, and stickies are never copied. A copy keeps its
+ * kind and takes the next free `A-` id.
  */
 
 /** How far each paste moves a placed node, down and to the right, in pixels. */

@@ -27,11 +27,10 @@ import {
   connect,
   deleteEdge,
   deleteLane,
-  deleteStep,
   hasManualPositions,
   moveLane,
   moveStepTo,
-  nudgeStep,
+  moveStepsBy,
   patchEdge,
   patchLane,
   patchStep,
@@ -56,6 +55,7 @@ import {
   type Sticky,
 } from "@/lib/diagram/sticky";
 import { SidePanel } from "@/components/diagram/panel-frame";
+import { useMultiSelect } from "@/components/diagram/use-multi-select";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,11 @@ export function FlowView({ configVersion, embedded }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doc, setDoc] = useState<FlowDocModel | null>(null);
-  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  // Multi-select (T-0716): the ordered selection, last entry focused for the
+  // side panel. Edge and sticky selection stay single and exclusive.
+  const multi = useMultiSelect();
+  const selectedStepIds = multi.selected;
+  const selectedStepId = selectedStepIds[selectedStepIds.length - 1] ?? null;
   const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [editingEdgeKey, setEditingEdgeKey] = useState<string | null>(null);
@@ -276,7 +280,7 @@ export function FlowView({ configVersion, embedded }: Props) {
   // and is written first, so the load below cannot overwrite the mtime that
   // write is guarded by.
   useEffect(() => {
-    setSelectedStepId(null);
+    multi.clear();
     setSelectedEdgeKey(null);
     setEditingStepId(null);
     setEditingEdgeKey(null);
@@ -346,29 +350,62 @@ export function FlowView({ configVersion, embedded }: Props) {
 
   // ---- selection ------------------------------------------------------------
 
-  const selectStep = useCallback((id: string | null) => {
-    setSelectedStepId(id);
-    if (id) {
-      setSelectedEdgeKey(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /**
+   * A click on a step: plain replaces the selection, Shift toggles the step.
+   * A non-empty step selection clears the edge and sticky ones.
+   */
+  const selectStep = useCallback(
+    (id: string | null, additive = false) => {
+      if (id === null) multi.clear();
+      else if (additive) multi.toggle(id);
+      else multi.replace(id);
+      if (id !== null) {
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectEdge = useCallback((key: string | null) => {
-    setSelectedEdgeKey(key);
-    if (key) {
-      setSelectedStepId(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /** A marquee release on the canvas: the caught ids replace or join. */
+  const selectMarquee = useCallback(
+    (ids: readonly string[], additive: boolean) => {
+      multi.marquee(ids, additive);
+      if (ids.length || !additive) {
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectSticky = useCallback((id: string | null) => {
-    setSelectedStickyId(id);
-    if (id) {
-      setSelectedStepId(null);
-      setSelectedEdgeKey(null);
-    }
-  }, []);
+  const clearSelection = useCallback(() => {
+    multi.clear();
+    setSelectedEdgeKey(null);
+    setSelectedStickyId(null);
+  }, [multi]);
+
+  const selectEdge = useCallback(
+    (key: string | null) => {
+      setSelectedEdgeKey(key);
+      if (key) {
+        multi.clear();
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
+
+  const selectSticky = useCallback(
+    (id: string | null) => {
+      setSelectedStickyId(id);
+      if (id) {
+        multi.clear();
+        setSelectedEdgeKey(null);
+      }
+    },
+    [multi],
+  );
 
   // ---- step commands --------------------------------------------------------
 
@@ -393,6 +430,18 @@ export function FlowView({ configVersion, embedded }: Props) {
   const moveStep = useCallback(
     (id: string, cx: number, cy: number) => {
       if (doc && layout) mutate(moveStepTo(doc, layout, id, cx, cy));
+    },
+    [doc, layout, mutate],
+  );
+
+  /**
+   * A finished group drag (T-0716): every moved step keeps its lane and only
+   * gets a new `@` in one model update, so one undo step restores them all.
+   * Steps outside the move keep their positions untouched.
+   */
+  const moveSteps = useCallback(
+    (ids: readonly string[], dx: number, dy: number) => {
+      if (doc && layout) mutate(moveStepsBy(doc, layout, ids, dx, dy));
     },
     [doc, layout, mutate],
   );
@@ -429,14 +478,22 @@ export function FlowView({ configVersion, embedded }: Props) {
     beginEditing(added.id);
   }, [doc, selectedStep, mutate, beginEditing]);
 
-  const removeStep = useCallback(
-    (id: string) => {
-      if (!doc) return;
-      mutate(deleteStep(doc, id));
-      if (selectedStepId === id) setSelectedStepId(null);
-      if (editingStepId === id) setEditingStepId(null);
+  const removeSteps = useCallback(
+    (ids: readonly string[]) => {
+      if (!doc || !ids.length) return;
+      const gone = new Set(ids);
+      mutate({
+        ...doc,
+        steps: doc.steps.filter((s) => !gone.has(s.id)),
+        edges: doc.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to)),
+        stickies: doc.stickies.filter((s) => !gone.has(s.targetId)),
+      });
+      if (selectedStepId && gone.has(selectedStepId)) multi.clear();
+      else if (selectedStepIds.some((id) => gone.has(id)))
+        multi.setSelected(selectedStepIds.filter((id) => !gone.has(id)));
+      if (editingStepId && gone.has(editingStepId)) setEditingStepId(null);
     },
-    [doc, mutate, selectedStepId, editingStepId],
+    [doc, mutate, selectedStepId, selectedStepIds, multi, editingStepId],
   );
 
   /**
@@ -454,36 +511,37 @@ export function FlowView({ configVersion, embedded }: Props) {
       const fresh = freshId.current === id;
       if (fresh) freshId.current = null;
       if (!next && fresh) {
-        removeStep(id);
+        removeSteps([id]);
         return;
       }
       if (title !== null && next && next !== step.title) patchSelected(id, { title: next });
     },
-    [doc, removeStep, patchSelected],
+    [doc, removeSteps, patchSelected],
   );
 
-  // ---- copy and paste (T-0688) ----
+  // ---- copy and paste (T-0688, multi-select T-0716) ----
 
   const canPaste = useHasClip("flow", path);
 
-  const copySelected = useCallback(
-    (id: string) => {
+  /** Copies the given steps with the arrows inside them; Ctrl+C passes the whole selection. */
+  const copySteps = useCallback(
+    (ids: readonly string[]) => {
       if (!doc) return;
-      const clip = copyFlowSteps(doc, [id]);
+      const clip = copyFlowSteps(doc, ids);
       if (clip.steps.length) setClip("flow", path, clip);
     },
     [doc, path],
   );
 
-  /** Adds the copies a step away from the originals and selects the first. */
+  /** Adds the copies a step away from the originals and selects them all. */
   const addCopies = useCallback(
     (clip: FlowClip, round: number) => {
       if (!doc || !clip.steps.length) return;
       const out = pasteFlowSteps(doc, clip, round);
       mutate(out.doc);
-      selectStep(out.ids[0]);
+      multi.setSelected(out.ids);
     },
-    [doc, mutate, selectStep],
+    [doc, mutate, multi],
   );
 
   const pasteCopied = useCallback(() => {
@@ -671,21 +729,19 @@ export function FlowView({ configVersion, embedded }: Props) {
         pasteCopied();
         return;
       }
-      if (clipboardKey === "copy" && selectedStepId) {
+      if (clipboardKey === "copy" && selectedStepIds.length) {
         e.preventDefault();
-        copySelected(selectedStepId);
+        copySteps(selectedStepIds);
         return;
       }
       if (e.key === "Escape") {
-        setSelectedStepId(null);
-        setSelectedEdgeKey(null);
-        setSelectedStickyId(null);
+        clearSelection();
         return;
       }
       if (e.key === "Delete") {
         if (selectedStickyId) deleteSticky(selectedStickyId);
         else if (selectedEdgeKey) removeEdge(selectedEdgeKey);
-        else if (selectedStepId) removeStep(selectedStepId);
+        else if (selectedStepIds.length) removeSteps(selectedStepIds);
         else return;
         e.preventDefault();
         return;
@@ -697,12 +753,12 @@ export function FlowView({ configVersion, embedded }: Props) {
         e.preventDefault();
         return;
       }
-      if (selectedStepId && e.key.startsWith("Arrow")) {
+      if (selectedStepIds.length && e.key.startsWith("Arrow")) {
         e.preventDefault();
         const step = e.shiftKey ? NUDGE_BIG : NUDGE;
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-        mutate(nudgeStep(doc, layout, selectedStepId, dx, dy));
+        mutate(moveStepsBy(doc, layout, selectedStepIds, dx, dy));
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -714,15 +770,17 @@ export function FlowView({ configVersion, embedded }: Props) {
     editingEdgeKey,
     editingStickyId,
     selectedStepId,
+    selectedStepIds,
     selectedEdgeKey,
     selectedStickyId,
+    clearSelection,
     deleteSticky,
     removeEdge,
-    removeStep,
+    removeSteps,
     mutate,
     undo,
     redo,
-    copySelected,
+    copySteps,
     pasteCopied,
   ]);
 
@@ -821,6 +879,11 @@ export function FlowView({ configVersion, embedded }: Props) {
               <span className="text-[11px] text-muted-foreground">
                 {t("diagram.flow.stepCount", { count: doc.steps.length })}
               </span>
+              {selectedStepIds.length > 1 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {t("diagram.multi.selectedCount", { count: selectedStepIds.length })}
+                </span>
+              )}
               <Hint label={t("diagram.flow.addHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addStepAfter}>
                   <Plus className="size-3.5" />
@@ -880,7 +943,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                   stickies={visibleStickies}
                   layout={layout}
                   unassignedLabel={unassignedLabel}
-                  selectedStepId={selectedStepId}
+                  selectedStepIds={selectedStepIds}
                   selectedEdgeKey={selectedEdgeKey}
                   selectedStickyId={selectedStickyId}
                   editingStepId={editingStepId}
@@ -888,6 +951,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                   editingStickyId={editingStickyId}
                   fitToken={fitToken}
                   onSelectStep={selectStep}
+                  onSelectMarquee={selectMarquee}
                   onSelectEdge={selectEdge}
                   onSelectSticky={selectSticky}
                   onStartEditStep={setEditingStepId}
@@ -901,10 +965,11 @@ export function FlowView({ configVersion, embedded }: Props) {
                   onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
                   onMoveStep={moveStep}
+                  onMoveSteps={moveSteps}
                   onAddAt={addStepAt}
                   onConnect={connectSteps}
                   onReattach={reattachEdge}
-                  clipboard={{ canPaste, onCopy: copySelected, onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copySteps([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.flow.footerHint")}
@@ -930,7 +995,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchSelected(selectedStep.id, patch)}
                     onChangeLane={(lane) => changeLane(selectedStep.id, lane)}
-                    onDelete={() => removeStep(selectedStep.id)}
+                    onDelete={() => removeSteps([selectedStep.id])}
                   />
                 ) : selectedEdge ? (
                   <EdgeEditor

@@ -31,10 +31,7 @@ import {
   autoAlign,
   connect,
   deleteEdge,
-  deleteNode,
   hasManualPositions,
-  moveNodeTo,
-  nudgeNode,
   patchNode,
   reattach,
 } from "@/lib/diagram/algorithm/ops";
@@ -58,6 +55,7 @@ import {
   type Sticky,
 } from "@/lib/diagram/sticky";
 import { SidePanel } from "@/components/diagram/panel-frame";
+import { useMultiSelect } from "@/components/diagram/use-multi-select";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -148,7 +146,11 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doc, setDoc] = useState<AlgorithmDocModel | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Multi-select (T-0716): the ordered selection, last entry focused for the
+  // side panel. Edge and sticky selection stay single and exclusive.
+  const multi = useMultiSelect();
+  const selectedNodeIds = multi.selected;
+  const selectedNodeId = selectedNodeIds[selectedNodeIds.length - 1] ?? null;
   const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   // Node, arrow and sticky selection are mutually exclusive: Delete has to
@@ -298,7 +300,7 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
   // and is written first, so the load below cannot overwrite the mtime that
   // write is guarded by.
   useEffect(() => {
-    setSelectedNodeId(null);
+    multi.clear();
     setSelectedEdgeKey(null);
     setEditingNodeId(null);
     setSelectedStickyId(null);
@@ -367,29 +369,62 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
 
   // ---- selection ------------------------------------------------------------
 
-  const selectNode = useCallback((id: string | null) => {
-    setSelectedNodeId(id);
-    if (id) {
-      setSelectedEdgeKey(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /**
+   * A click on a node: plain replaces the selection, Shift toggles the node.
+   * A non-empty node selection clears the edge and sticky ones.
+   */
+  const selectNode = useCallback(
+    (id: string | null, additive = false) => {
+      if (id === null) multi.clear();
+      else if (additive) multi.toggle(id);
+      else multi.replace(id);
+      if (id !== null) {
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectEdge = useCallback((key: string | null) => {
-    setSelectedEdgeKey(key);
-    if (key) {
-      setSelectedNodeId(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /** A marquee release on the canvas: the caught ids replace or join. */
+  const selectMarquee = useCallback(
+    (ids: readonly string[], additive: boolean) => {
+      multi.marquee(ids, additive);
+      if (ids.length || !additive) {
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectSticky = useCallback((id: string | null) => {
-    setSelectedStickyId(id);
-    if (id) {
-      setSelectedNodeId(null);
-      setSelectedEdgeKey(null);
-    }
-  }, []);
+  const clearSelection = useCallback(() => {
+    multi.clear();
+    setSelectedEdgeKey(null);
+    setSelectedStickyId(null);
+  }, [multi]);
+
+  const selectEdge = useCallback(
+    (key: string | null) => {
+      setSelectedEdgeKey(key);
+      if (key) {
+        multi.clear();
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
+
+  const selectSticky = useCallback(
+    (id: string | null) => {
+      setSelectedStickyId(id);
+      if (id) {
+        multi.clear();
+        setSelectedEdgeKey(null);
+      }
+    },
+    [multi],
+  );
 
   // ---- node commands --------------------------------------------------------
 
@@ -400,9 +435,21 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
     [doc, mutate],
   );
 
-  const moveNode = useCallback(
-    (id: string, cx: number, cy: number) => {
-      if (doc) mutate(moveNodeTo(doc, id, cx, cy));
+  /**
+   * A finished drag, single or group (T-0716): every moved node gets its new
+   * `@` in one model update, so one undo step restores them all. Nodes outside
+   * the move keep their positions untouched.
+   */
+  const moveNodes = useCallback(
+    (moves: ReadonlyMap<string, { x: number; y: number }>) => {
+      if (!doc || !moves.size) return;
+      mutate({
+        ...doc,
+        nodes: doc.nodes.map((node) => {
+          const at = moves.get(node.id);
+          return at ? { ...node, x: Math.round(at.x), y: Math.round(at.y) } : node;
+        }),
+      });
     },
     [doc, mutate],
   );
@@ -443,14 +490,28 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
     beginEditing(added.id);
   }, [doc, selectedNode, palette, mutate, beginEditing]);
 
-  const removeNode = useCallback(
-    (id: string) => {
-      if (!doc) return;
-      mutate(deleteNode(doc, id));
-      if (selectedNodeId === id) setSelectedNodeId(null);
-      if (editingNodeId === id) setEditingNodeId(null);
+  /**
+   * Removes the given nodes with the arrows into and out of them and the
+   * stickies pinned to them (T-0716). `^start`/`^end` nodes follow the same
+   * rule as a single delete: there is no guard for them (`deleteNode` never
+   * had one), so a selection containing one deletes it like any other node.
+   */
+  const removeNodes = useCallback(
+    (ids: readonly string[]) => {
+      if (!doc || !ids.length) return;
+      const gone = new Set(ids);
+      mutate({
+        ...doc,
+        nodes: doc.nodes.filter((n) => !gone.has(n.id)),
+        edges: doc.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to)),
+        stickies: doc.stickies.filter((s) => !gone.has(s.targetId)),
+      });
+      if (selectedNodeId && gone.has(selectedNodeId)) multi.clear();
+      else if (selectedNodeIds.some((id) => gone.has(id)))
+        multi.setSelected(selectedNodeIds.filter((id) => !gone.has(id)));
+      if (editingNodeId && gone.has(editingNodeId)) setEditingNodeId(null);
     },
-    [doc, mutate, selectedNodeId, editingNodeId],
+    [doc, mutate, selectedNodeId, selectedNodeIds, multi, editingNodeId],
   );
 
   /**
@@ -468,36 +529,37 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
       const fresh = freshId.current === id;
       if (fresh) freshId.current = null;
       if (!next && fresh) {
-        removeNode(id);
+        removeNodes([id]);
         return;
       }
       if (title !== null && next && next !== node.title) patchSelected(id, { title: next });
     },
-    [doc, removeNode, patchSelected],
+    [doc, removeNodes, patchSelected],
   );
 
-  // ---- copy and paste (T-0688) ----
+  // ---- copy and paste (T-0688, multi-select T-0716) ----
 
   const canPaste = useHasClip("algorithm", path);
 
-  const copySelected = useCallback(
-    (id: string) => {
+  /** Copies the given nodes with the arrows inside them; Ctrl+C passes the whole selection. */
+  const copyNodes = useCallback(
+    (ids: readonly string[]) => {
       if (!doc) return;
-      const clip = copyAlgorithmNodes(doc, [id]);
+      const clip = copyAlgorithmNodes(doc, ids);
       if (clip.nodes.length) setClip("algorithm", path, clip);
     },
     [doc, path],
   );
 
-  /** Adds the copies a step away from the originals and selects the first. */
+  /** Adds the copies a step away from the originals and selects them all. */
   const addCopies = useCallback(
     (clip: AlgorithmClip, round: number) => {
       if (!doc || !clip.nodes.length) return;
       const out = pasteAlgorithmNodes(doc, clip, round);
       mutate(out.doc);
-      selectNode(out.ids[0]);
+      multi.setSelected(out.ids);
     },
-    [doc, mutate, selectNode],
+    [doc, mutate, multi],
   );
 
   const pasteCopied = useCallback(() => {
@@ -668,21 +730,19 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
         pasteCopied();
         return;
       }
-      if (clipboardKey === "copy" && selectedNodeId) {
+      if (clipboardKey === "copy" && selectedNodeIds.length) {
         e.preventDefault();
-        copySelected(selectedNodeId);
+        copyNodes(selectedNodeIds);
         return;
       }
       if (e.key === "Escape") {
-        setSelectedNodeId(null);
-        setSelectedEdgeKey(null);
-        setSelectedStickyId(null);
+        clearSelection();
         return;
       }
       if (e.key === "Delete") {
         if (selectedStickyId) deleteSticky(selectedStickyId);
         else if (selectedEdgeKey) removeEdge(selectedEdgeKey);
-        else if (selectedNodeId) removeNode(selectedNodeId);
+        else if (selectedNodeIds.length) removeNodes(selectedNodeIds);
         else return;
         e.preventDefault();
         return;
@@ -692,14 +752,17 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
         e.preventDefault();
         return;
       }
-      if (selectedNodeId && e.key.startsWith("Arrow")) {
+      if (selectedNodeIds.length && e.key.startsWith("Arrow")) {
         e.preventDefault();
-        const node = layout.byId.get(selectedNodeId);
-        if (!node) return;
         const step = e.shiftKey ? NUDGE_BIG : NUDGE;
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-        mutate(nudgeNode(doc, layout, selectedNodeId, dx, dy));
+        const moves = new Map<string, { x: number; y: number }>();
+        for (const id of selectedNodeIds) {
+          const node = layout.byId.get(id);
+          if (node) moves.set(id, { x: node.cx + dx, y: node.cy + dy });
+        }
+        moveNodes(moves);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -710,15 +773,18 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
     editingNodeId,
     editingStickyId,
     selectedNodeId,
+    selectedNodeIds,
     selectedEdgeKey,
     selectedStickyId,
+    clearSelection,
     deleteSticky,
     removeEdge,
-    removeNode,
+    removeNodes,
+    moveNodes,
     mutate,
     undo,
     redo,
-    copySelected,
+    copyNodes,
     pasteCopied,
   ]);
 
@@ -808,6 +874,11 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
               <span className="text-[11px] text-muted-foreground">
                 {t("diagram.algorithm.nodeCount", { count: doc.nodes.length })}
               </span>
+              {selectedNodeIds.length > 1 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {t("diagram.multi.selectedCount", { count: selectedNodeIds.length })}
+                </span>
+              )}
               {/* The symbol the next add (double-click, or + with nothing
                   selected) creates. */}
               <div className="flex items-center rounded-md border p-0.5">
@@ -885,13 +956,14 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
                   doc={doc}
                   stickies={visibleStickies}
                   layout={layout}
-                  selectedNodeId={selectedNodeId}
+                  selectedNodeIds={selectedNodeIds}
                   selectedEdgeKey={selectedEdgeKey}
                   selectedStickyId={selectedStickyId}
                   editingNodeId={editingNodeId}
                   editingStickyId={editingStickyId}
                   fitToken={fitToken}
                   onSelectNode={selectNode}
+                  onSelectMarquee={selectMarquee}
                   onSelectEdge={selectEdge}
                   onSelectSticky={selectSticky}
                   onStartEditNode={setEditingNodeId}
@@ -901,11 +973,11 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
                   onCommitStickyText={(id, text) => finishStickyEdit(id, text)}
                   onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
-                  onMoveNode={moveNode}
+                  onMoveNodes={moveNodes}
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
-                  clipboard={{ canPaste, onCopy: copySelected, onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.algorithm.footerHint")}
@@ -929,7 +1001,7 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
                     onChangeSticky={patchSticky}
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchSelected(selectedNode.id, patch)}
-                    onDelete={() => removeNode(selectedNode.id)}
+                    onDelete={() => removeNodes([selectedNode.id])}
                   />
                 ) : selectedEdge ? (
                   <EdgeEditor
