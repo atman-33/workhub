@@ -35,11 +35,12 @@ import {
   deleteFrame,
   deleteNode,
   hasManualPositions,
-  moveNodeTo,
+  moveFrame,
   nudgeNode,
   patchFrame,
   patchNode,
   reattach,
+  reparentByDrop,
   reverseEdge,
   setEdgeBidi,
   setNote,
@@ -63,7 +64,7 @@ import {
   type NodeKind,
 } from "@/lib/diagram/architecture/symbols";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
-import { NEW_STICKY_OFFSET, NEW_STICKY_STAGGER } from "@/lib/diagram/sticky";
+import { newStickyOffset } from "@/lib/diagram/architecture/sticky-spot";
 import {
   nextStickyId,
   stickiesOf,
@@ -441,9 +442,18 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
 
   const moveNode = useCallback(
     (id: string, cx: number, cy: number) => {
-      if (doc) mutate(moveNodeTo(doc, id, cx, cy));
+      // A drop may also move the block across a frame border.
+      if (doc && layout) mutate(reparentByDrop(doc, layout, id, cx, cy));
     },
-    [doc, mutate],
+    [doc, layout, mutate],
+  );
+
+  /** A finished frame drag: every member travels, in one undo entry. */
+  const moveFrameBy = useCallback(
+    (id: string, dx: number, dy: number) => {
+      if (doc && layout) mutate(moveFrame(doc, layout, id, dx, dy));
+    },
+    [doc, layout, mutate],
   );
 
   const beginEditing = useCallback(
@@ -457,11 +467,11 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
     [selectNode],
   );
 
-  /** Adds a block of the chosen symbol where the gesture dropped it (a double-click on empty canvas). */
+  /** Adds a block of the chosen symbol where the gesture dropped it (a double-click on empty canvas, in the frame under it when there is one). */
   const addNodeAt = useCallback(
-    (x: number, y: number) => {
+    (x: number, y: number, frameId: string | undefined) => {
       if (!doc) return;
-      const added = addNode(doc, { kind: palette, x, y });
+      const added = addNode(doc, { kind: palette, ...(frameId ? { frame: frameId } : {}), x, y });
       mutate(added.doc);
       beginEditing(added.id);
     },
@@ -702,13 +712,13 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
 
   const addSticky = useCallback(
     (targetId: string) => {
-      if (!doc) return;
+      if (!doc || !layout) return;
       const existing = stickiesOf(doc.stickies, targetId).length;
       const sticky: Sticky = {
         id: nextStickyId(doc.stickies),
         targetId,
-        dx: NEW_STICKY_OFFSET.dx + existing * NEW_STICKY_STAGGER.dx,
-        dy: NEW_STICKY_OFFSET.dy + existing * NEW_STICKY_STAGGER.dy,
+        // A frame's middle is its members: the sticky goes outside its upper right.
+        ...newStickyOffset(layout, targetId, existing),
         text: "",
       };
       // Adding a sticky while they are hidden would put it somewhere the user
@@ -719,7 +729,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
       // A new sticky is empty, so it opens straight into its editor.
       setEditingStickyId(sticky.id);
     },
-    [doc, mutate, selectSticky],
+    [doc, layout, mutate, selectSticky],
   );
 
   const deleteSticky = useCallback(
@@ -1040,6 +1050,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                   onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
                   onMoveNode={moveNode}
+                  onMoveFrame={moveFrameBy}
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}

@@ -84,8 +84,10 @@ interface Props {
   onMoveSticky: (id: string, dx: number, dy: number) => void;
   /** A finished block drag: where its centre was dropped. */
   onMoveNode: (id: string, cx: number, cy: number) => void;
-  /** A double-click on empty canvas: add a block centred here. */
-  onAddAt: (x: number, y: number) => void;
+  /** A finished frame drag: how far every member travelled. */
+  onMoveFrame: (id: string, dx: number, dy: number) => void;
+  /** A double-click on empty canvas: add a block centred here (in the frame under it, if any). */
+  onAddAt: (x: number, y: number, frameId: string | undefined) => void;
   onConnect: (from: string, to: string) => void;
   onReattach: (
     edge: { from: string; to: string; bidi: boolean },
@@ -164,6 +166,7 @@ export function ArchitectureCanvas({
   onCancelStickyEdit,
   onMoveSticky,
   onMoveNode,
+  onMoveFrame,
   onAddAt,
   onConnect,
   onReattach,
@@ -202,18 +205,41 @@ export function ArchitectureCanvas({
       swallowClick();
     },
   });
+  const frameFree = useFreeDrag({
+    toDiagram,
+    zoom: camera.zoom,
+    onEnd: (d) => {
+      onMoveFrame(d.id, d.dx, d.dy);
+      swallowClick();
+    },
+  });
 
   // While a block is dragged, the layout is recomputed with it at the pointer,
-  // so its arrows follow it live instead of jumping on release.
+  // so its arrows follow it live instead of jumping on release. While a frame
+  // is dragged every member is held at the pointer the same way, so the frame
+  // follows too.
   const dragging = nodeFree.drag?.active ? nodeFree.drag : null;
+  const frameDragging = !dragging && frameFree.drag?.active ? frameFree.drag : null;
   const layout = useMemo(() => {
-    if (!dragging) return base;
-    const node = base.byId.get(dragging.id);
-    if (!node) return base;
-    return layoutArchitecture(doc, stickies, {
-      pinned: { id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy },
-    });
-  }, [base, dragging, doc, stickies]);
+    if (dragging) {
+      const node = base.byId.get(dragging.id);
+      if (!node) return base;
+      return layoutArchitecture(doc, stickies, {
+        pinned: [{ id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy }],
+      });
+    }
+    if (frameDragging) {
+      const pins: { id: string; cx: number; cy: number }[] = [];
+      for (const n of doc.nodes) {
+        if (n.frame !== frameDragging.id) continue;
+        const laid = base.byId.get(n.id);
+        if (!laid) continue;
+        pins.push({ id: n.id, cx: laid.cx + frameDragging.dx, cy: laid.cy + frameDragging.dy });
+      }
+      return layoutArchitecture(doc, stickies, { pinned: pins });
+    }
+    return base;
+  }, [base, dragging, frameDragging, doc, stickies]);
 
   const edgeDrag = useEdgeDrag({
     toDiagram,
@@ -266,8 +292,8 @@ export function ArchitectureCanvas({
     onSelectSticky(null);
   };
 
-  const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
-  const handleNodes = edgeDrag.drag || dragging ? [] : [hoverId, selectedNodeId];
+  const hovered = hoverId && !dragging && !frameDragging ? (layout.byId.get(hoverId) ?? null) : null;
+  const handleNodes = edgeDrag.drag || dragging || frameDragging ? [] : [hoverId, selectedNodeId];
   // The arrow being re-attached draws pale: matched by its ends, since a
   // two-way arrow's key is not its written direction.
   const ghostFrom = edgeDrag.drag?.mode === "reattach" ? edgeDrag.drag.edge?.from : null;
@@ -276,12 +302,22 @@ export function ArchitectureCanvas({
   return (
     <DiagramSurface
       view={view}
-      grabbing={Boolean(nodeFree.drag) || Boolean(edgeDrag.drag)}
+      grabbing={Boolean(nodeFree.drag) || Boolean(frameFree.drag) || Boolean(edgeDrag.drag)}
       onBackgroundClick={clearSelection}
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
       onBackgroundDoubleClick={(e) => {
         const at = toDiagram(e.clientX, e.clientY);
-        onAddAt(at.x, at.y);
+        // The topmost frame under the pointer adopts the block; blocks answer
+        // the pointer themselves, so this is always an empty spot.
+        let frameId: string | undefined;
+        for (let i = layout.frames.length - 1; i >= 0; i--) {
+          const f = layout.frames[i];
+          if (at.x >= f.x && at.x <= f.x + f.width && at.y >= f.y && at.y <= f.y + f.height) {
+            frameId = f.id;
+            break;
+          }
+        }
+        onAddAt(at.x, at.y, frameId);
       }}
     >
       {layout.frames.map((frame) => (
@@ -292,6 +328,9 @@ export function ArchitectureCanvas({
             if (e.button !== 0) return;
             e.stopPropagation();
             onSelectFrame(frame.id);
+            // A press that travels becomes a frame drag (every member moves);
+            // a press that does not is a click, and only selects.
+            if (!editingFrameId) frameFree.start(e, frame.id);
           }}
           onDoubleClick={(e) => {
             e.stopPropagation();

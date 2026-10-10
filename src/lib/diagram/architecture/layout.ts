@@ -53,6 +53,25 @@ export const FRAME_PAD = 20;
 export const FRAME_HEADER = 28;
 export const FRAME_TITLE_FONT_SIZE = 12;
 
+/**
+ * The rectangle a frame is drawn with for these member boxes: their outer
+ * bounds plus the margin, with the header band on top. `null` when there are
+ * no members (an empty frame keeps its minimal box instead).
+ */
+export function frameRectOf(members: Box[]): Box | null {
+  if (members.length === 0) return null;
+  const x0 = Math.min(...members.map((n) => n.x));
+  const y0 = Math.min(...members.map((n) => n.y));
+  const x1 = Math.max(...members.map((n) => n.x + n.width));
+  const y1 = Math.max(...members.map((n) => n.y + n.height));
+  return {
+    x: x0 - FRAME_PAD,
+    y: y0 - FRAME_PAD - FRAME_HEADER,
+    width: x1 - x0 + 2 * FRAME_PAD,
+    height: y1 - y0 + 2 * FRAME_PAD + FRAME_HEADER,
+  };
+}
+
 export interface PositionedNode extends DiagramNode {
   title: string;
   /** Title split into the lines the shape renders. */
@@ -111,8 +130,9 @@ export interface ArchitectureLayout {
 }
 
 export interface ArchitectureLayoutOptions {
-  /** A block held at an exact spot - the one being dragged. */
-  pinned?: { id: string; cx: number; cy: number };
+  /** Blocks held at exact spots - the ones being dragged. Their frames and
+   * arrows follow. */
+  pinned?: { id: string; cx: number; cy: number }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +243,10 @@ export function layoutArchitecture(
     }
   }
   if (options.pinned) {
-    centres.set(options.pinned.id, { cx: options.pinned.cx, cy: options.pinned.cy });
-    pinnedIds.add(options.pinned.id);
+    for (const pin of options.pinned) {
+      centres.set(pin.id, { cx: pin.cx, cy: pin.cy });
+      pinnedIds.add(pin.id);
+    }
   }
 
   const nodes: PositionedNode[] = sized.map(({ node, width, height, lines, group }) => {
@@ -254,7 +276,8 @@ export function layoutArchitecture(
 
   const frames: PositionedFrame[] = doc.frames.map((frame) => {
     const members = nodes.filter((n) => n.frame === frame.id);
-    if (members.length === 0) {
+    const rect = frameRectOf(members);
+    if (!rect) {
       // An empty frame keeps the minimal box the group layout gave it.
       const box = grouped.groups.find((g) => g.key === frame.id)!;
       return {
@@ -268,19 +291,15 @@ export function layoutArchitecture(
         height: box.height,
       };
     }
-    const x0 = Math.min(...members.map((n) => n.x));
-    const y0 = Math.min(...members.map((n) => n.y));
-    const x1 = Math.max(...members.map((n) => n.x + n.width));
-    const y1 = Math.max(...members.map((n) => n.y + n.height));
     return {
       id: frame.id,
       title: frame.title,
       ...(frame.color ? { color: frame.color } : {}),
       ...(frame.note ? { note: frame.note } : {}),
-      x: x0 - FRAME_PAD,
-      y: y0 - FRAME_PAD - FRAME_HEADER,
-      width: x1 - x0 + 2 * FRAME_PAD,
-      height: y1 - y0 + 2 * FRAME_PAD + FRAME_HEADER,
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
     };
   });
   const frameById = new Map(frames.map((f) => [f.id, f]));

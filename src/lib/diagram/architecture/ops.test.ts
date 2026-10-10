@@ -8,10 +8,12 @@ import {
   deleteFrame,
   deleteNode,
   hasManualPositions,
+  moveFrame,
   moveNodeTo,
   patchFrame,
   patchNode,
   reattach,
+  reparentByDrop,
   reverseEdge,
   setEdgeBidi,
   setEdgeLabel,
@@ -19,6 +21,7 @@ import {
   setNodeKind,
   setNote,
 } from "./ops";
+import { layoutArchitecture } from "./layout";
 import { parseArchitecture, type ArchitectureDocModel } from "./parse";
 
 const NOTE = `---
@@ -158,8 +161,7 @@ title: t
     expect(moved.edges).toEqual([{ from: "C-001", to: "C-002", bidi: false, label: "Old" }]);
   });
 
-  it("labels, turns both ways, reverses one way and deletes", () => {
-    const doc = docOf();
+  it("labels, turns both ways, reverses one way and deletes", () => {    const doc = docOf();
     const labelled = setEdgeLabel(doc, { from: "C-001", to: "C-002", bidi: false }, "  New  ");
     expect(labelled.edges[0].label).toBe("New");
     const unlabelled = setEdgeLabel(labelled, { from: "C-001", to: "C-002", bidi: false }, "");
@@ -174,5 +176,100 @@ title: t
     expect(reverseEdge(bidi, { from: "C-001", to: "C-002", bidi: true })).toBe(bidi);
     const deleted = deleteEdge(doc, { from: "C-001", to: "C-002", bidi: false });
     expect(deleted.edges).toEqual([]);
+  });
+});
+
+const FRAMED = `---
+type: architecture
+title: t
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+- G-001 Left
+- G-002 Right
+
+## Nodes
+
+- C-001 A frame:G-001
+- C-002 B frame:G-001
+- C-003 C frame:G-002
+
+## Edges
+
+## Stickies
+`;
+
+describe("moveFrame (T-0711)", () => {
+  it("moves every member by the same distance, and nothing else", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const before = new Map([...layout.byId].map(([id, n]) => [id, [n.cx, n.cy]]));
+    const moved = moveFrame(doc, layout, "G-001", 10, -20);
+    for (const id of ["C-001", "C-002"]) {
+      const [cx, cy] = before.get(id)!;
+      expect(moved.nodes.find((n) => n.id === id)).toMatchObject({
+        x: Math.round(cx + 10),
+        y: Math.round(cy - 20),
+        frame: "G-001",
+      });
+    }
+    expect(moved.nodes.find((n) => n.id === "C-003")).toBe(doc.nodes[2]);
+    expect(moved.frames).toBe(doc.frames);
+  });
+
+  it("changes nothing for a frame with no members", () => {
+    const doc = parseArchitecture(FRAMED);
+    expect(moveFrame(doc, layoutArchitecture(doc), "G-009", 10, 10)).toBe(doc);
+  });
+});
+
+describe("reparentByDrop (T-0711)", () => {
+  it("joins the frame it is dropped in, and always moves", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const g2 = layout.frameById.get("G-002")!;
+    const out = reparentByDrop(doc, layout, "C-001", g2.x + g2.width / 2, g2.y + g2.height / 2);
+    const node = out.nodes.find((n) => n.id === "C-001")!;
+    expect(node.frame).toBe("G-002");
+    expect([node.x, node.y]).toEqual([
+      Math.round(g2.x + g2.width / 2),
+      Math.round(g2.y + g2.height / 2),
+    ]);
+  });
+
+  it("leaves its frame when dropped outside of it", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const g1 = layout.frameById.get("G-001")!;
+    const out = reparentByDrop(doc, layout, "C-001", g1.x - 100, g1.y - 100);
+    const node = out.nodes.find((n) => n.id === "C-001")!;
+    expect("frame" in node).toBe(false);
+    expect([node.x, node.y]).toEqual([Math.round(g1.x - 100), Math.round(g1.y - 100)]);
+  });
+
+  it("stays in its frame when dropped inside of it", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const g1 = layout.frameById.get("G-001")!;
+    const out = reparentByDrop(doc, layout, "C-001", g1.x + g1.width / 2, g1.y + g1.height / 2);
+    const node = out.nodes.find((n) => n.id === "C-001")!;
+    expect(node.frame).toBe("G-001");
+  });
+
+  it("never leaves a frame with no other member", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const out = reparentByDrop(doc, layout, "C-003", 3000, 3000);
+    const node = out.nodes.find((n) => n.id === "C-003")!;
+    expect(node.frame).toBe("G-002");
+    expect([node.x, node.y]).toEqual([3000, 3000]);
+  });
+
+  it("leaves an unknown block alone", () => {
+    const doc = parseArchitecture(FRAMED);
+    expect(reparentByDrop(doc, layoutArchitecture(doc), "C-009", 0, 0)).toBe(doc);
   });
 });
