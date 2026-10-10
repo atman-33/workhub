@@ -99,6 +99,14 @@ export interface LayerLayoutOptions {
   rowPad?: number;
   /** Least height of a row. */
   minRowHeight?: number;
+  /**
+   * Columns to use instead of the computed ones, for the nodes named here (T-0702:
+   * a data store sits in the column of the process that touches it). The value is
+   * the column number, rounded and at least 0; nodes not named, and ids that are
+   * not nodes, are ranked as always. The result's `rank` reports the column
+   * actually used. Without it nothing changes.
+   */
+  ranks?: ReadonlyMap<string, number>;
 }
 
 export interface LayeredNode {
@@ -149,6 +157,12 @@ export function layerLayout(
     nodes.map((n) => n.id),
     edges,
   );
+  if (options.ranks) {
+    for (const n of nodes) {
+      const given = options.ranks.get(n.id);
+      if (given !== undefined && Number.isFinite(given)) rank.set(n.id, Math.max(0, Math.round(given)));
+    }
+  }
   const rowOf = (n: LayerNodeInput) => (rowKeys.includes(n.row) ? n.row : rowKeys[0]);
 
   // Columns: as wide as their widest node.

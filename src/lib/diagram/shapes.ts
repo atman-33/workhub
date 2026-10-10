@@ -25,6 +25,15 @@ export interface ShapeElement {
   attrs: Record<string, string | number>;
 }
 
+/**
+ * What an outline is drawn for: the node's box, plus (for a `screen`) the
+ * heights of its dividing rules, measured down from the box's top edge. Every
+ * other shape ignores `rules`, so a plain `Box` is still a valid argument.
+ */
+export interface OutlineBox extends Box {
+  rules?: number[];
+}
+
 export interface ShapeDef {
   id: string;
   /**
@@ -35,7 +44,7 @@ export interface ShapeDef {
    */
   contains(dx: number, dy: number, size: ShapeSize): boolean;
   /** The outline, in diagram coordinates, for a node occupying `box`. */
-  outline(box: Box): ShapeElement;
+  outline(box: OutlineBox): ShapeElement;
 }
 
 /** Corner radius of the `rounded` shape. */
@@ -222,12 +231,120 @@ const subroutine: ShapeDef = {
   },
 };
 
+/** How far the top and bottom edges of a hexagon are pulled in from the sides. */
+export const HEXAGON_INSET = 14;
+
+/** Inset actually used for a hexagon of this size (never more than a quarter of the width). */
+export function hexagonInset(size: ShapeSize): number {
+  return Math.min(HEXAGON_INSET, size.width / 4);
+}
+
+/**
+ * A hexagon pointed at the left and right, flat on top and bottom: a trigger
+ * (T-0702). The side edges run from (+-(w/2 - k), +-h/2) to the points at
+ * (+-w/2, 0); `contains` and the polygon use the same six numbers. Convex.
+ */
+const hexagon: ShapeDef = {
+  id: "hexagon",
+  contains: (dx, dy, s) => {
+    const hh = s.height / 2;
+    if (Math.abs(dy) > hh) return false;
+    return Math.abs(dx) <= s.width / 2 - (hexagonInset(s) * Math.abs(dy)) / hh;
+  },
+  outline: (box) => {
+    const k = hexagonInset(box);
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    const cy = box.y + box.height / 2;
+    return {
+      tag: "polygon",
+      attrs: {
+        points: [
+          `${box.x + k},${box.y}`,
+          `${right - k},${box.y}`,
+          `${right},${cy}`,
+          `${right - k},${bottom}`,
+          `${box.x + k},${bottom}`,
+          `${box.x},${cy}`,
+        ].join(" "),
+      },
+    };
+  },
+};
+
+/** Largest vertical radius of a cylinder's lid. */
+export const CYLINDER_LID = 10;
+
+/** Vertical radius `e` of the lid ellipses of a cylinder of this size (a fifth of the height at most). */
+export function cylinderLid(size: ShapeSize): number {
+  return Math.min(CYLINDER_LID, size.height / 5);
+}
+
+/**
+ * A can: a rectangle capped by half ellipses above and below, with the front
+ * half of the lid's ellipse drawn across the top: a data store (T-0702).
+ * The silhouette is the rectangle plus the two half ellipses (convex), and
+ * `contains` is that silhouette; the front arc is an open sub-path with no
+ * area (as the lines of `subroutine` are), so it does not change the fill.
+ */
+const cylinder: ShapeDef = {
+  id: "cylinder",
+  contains: (dx, dy, s) => {
+    const hw = s.width / 2;
+    const hh = s.height / 2;
+    const e = cylinderLid(s);
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (ax > hw || ay > hh) return false;
+    if (ay <= hh - e) return true;
+    if (e <= 0) return true;
+    const qy = (ay - (hh - e)) / e;
+    return (ax * ax) / (hw * hw) + qy * qy <= 1;
+  },
+  outline: (box) => {
+    const e = cylinderLid(box);
+    const rx = round2(box.width / 2);
+    const left = box.x;
+    const right = box.x + box.width;
+    const top = box.y + e;
+    const bottom = box.y + box.height - e;
+    const d = [
+      `M ${left} ${top} A ${rx} ${e} 0 0 1 ${right} ${top} V ${bottom} A ${rx} ${e} 0 0 1 ${left} ${bottom} Z`,
+      `M ${left} ${top} A ${rx} ${e} 0 0 0 ${right} ${top}`,
+    ].join(" ");
+    return { tag: "path", attrs: { d } };
+  },
+};
+
+/**
+ * A square-cornered box with horizontal rules inside: a screen (T-0702). The
+ * rules (`box.rules`, distances from the top edge) separate the title band and
+ * the sections, and where they fall depends on what the screen holds, so the
+ * caller supplies them. One `path` draws frame and rules; the rules are open
+ * sub-paths with no area. A rule on or outside the frame is dropped. `contains`
+ * is the rectangle's, so an arrow stops on the frame.
+ */
+const screen: ShapeDef = {
+  id: "screen",
+  contains: (dx, dy, s) => Math.abs(dx) <= s.width / 2 && Math.abs(dy) <= s.height / 2,
+  outline: (box) => {
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    const parts = [`M ${box.x} ${box.y} H ${right} V ${bottom} H ${box.x} Z`];
+    for (const r of box.rules ?? []) {
+      if (!(r > 0 && r < box.height)) continue;
+      parts.push(`M ${box.x} ${round2(box.y + r)} H ${right}`);
+    }
+    return { tag: "path", attrs: { d: parts.join(" ") } };
+  },
+};
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 const registry = new Map<string, ShapeDef>(
-  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine].map((s) => [s.id, s]),
+  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine, hexagon, cylinder, screen].map((s) => [s.id, s]),
 );
 
 /** Adds (or replaces) a shape. */
