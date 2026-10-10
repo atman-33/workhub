@@ -29,7 +29,14 @@ use std::path::{Path, PathBuf};
 
 /// Every `type` the Diagrams tab lists. `schedule` and `mindmap` are the older
 /// kinds; the rest arrive with the diagram series (B-050).
-pub const KINDS: &[&str] = &["schedule", "mindmap", "matrix2x2", "flow", "pfd"];
+pub const KINDS: &[&str] = &[
+    "schedule",
+    "mindmap",
+    "matrix2x2",
+    "flow",
+    "pfd",
+    "algorithm",
+];
 
 /// How much of a file is read to find its frontmatter. A note whose
 /// frontmatter is longer than this is not a diagram this tab can list.
@@ -218,6 +225,15 @@ x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n
             "---\ntype: pfd\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
 ## Nodes\n\n- P-001 Process\n- D-001 Deliverable\n\n\
 ## Edges\n\n- P-001 -> D-001\n\n\
+## Memo\n\n"
+        ),
+        // A small working chart: the start and end terminals and one step
+        // between them, so a blank canvas has something to build on. The
+        // positions are left to the layout.
+        "algorithm" => format!(
+            "---\ntype: algorithm\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Nodes\n\n- A-001 Start ^start\n- A-002 Step\n- A-003 End ^end\n\n\
+## Edges\n\n- A-001 -> A-002\n- A-002 -> A-003\n\n\
 ## Memo\n\n"
         ),
         other => return Err(format!("unknown diagram type '{other}'")),
@@ -714,6 +730,34 @@ mod tests {
         assert!(body.contains("- D-001 Deliverable\n"));
         assert!(body.contains("- P-001 -> D-001\n"));
         // Written back as-is, it is still a valid diagram.
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn algorithm_skeleton_is_a_start_a_step_an_end_and_two_arrows() {
+        let vault = temp_vault("algorithm-skeleton");
+        let file = create_diagram(&vault, "demo", "algorithm", "Order", "", "").unwrap();
+        assert!(
+            file.path.ends_with("projects/0010-demo/diagrams/Order.md"),
+            "{}",
+            file.path
+        );
+        assert_eq!(file.kind, "algorithm");
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "algorithm");
+        assert_eq!(frontmatter_value(&front, "title"), "Order");
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Nodes") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        assert!(body.contains("- A-001 Start ^start\n"));
+        assert!(body.contains("- A-003 End ^end\n"));
+        assert!(body.contains("- A-001 -> A-002\n"));
+        assert!(body.contains("- A-002 -> A-003\n"));
+        // The scan finds it, and written back as-is it is still a diagram.
+        let listed = list_diagrams(&vault, Some("demo")).unwrap();
+        assert!(listed.iter().any(|d| d.kind == "algorithm"));
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();
     }

@@ -25,6 +25,7 @@ const RULE_OF: Record<(typeof DIAGRAM_KINDS)[number], string> = {
   matrix2x2: "diagrams.md",
   flow: "diagrams.md",
   pfd: "diagrams.md",
+  algorithm: "diagrams.md",
 };
 
 describe("diagram-edit skill", () => {

@@ -12,6 +12,7 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.kind.matrix2x2": "2x2 マトリクス",
   "diagram.kind.flow": "業務フロー",
   "diagram.kind.pfd": "PFD",
+  "diagram.kind.algorithm": "処理フロー",
   "diagram.list.empty": "図解はまだありません",
   "diagram.list.emptyFiltered": "この種類の図解はありません",
   "diagram.list.pickOne": "一覧から図解を選ぶか、新しく作成してください。",
