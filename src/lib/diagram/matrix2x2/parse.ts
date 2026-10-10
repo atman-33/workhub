@@ -34,8 +34,8 @@ import {
   nextId,
   setFrontmatterValue,
   setOrRemoveFrontmatterValue,
-  splitSections,
 } from "../note";
+import { replaceSections, sectionText, splitNote } from "../sections";
 import { formatStickySection, parseStickies, type Sticky } from "../sticky";
 
 export const ITEM_PREFIX = "M";
@@ -181,24 +181,24 @@ function parseItemLine(line: string): ParsedLine | null {
 export function parseMatrix(content: string, fallbackTitle = ""): MatrixDocModel {
   // Everything below is line-oriented and several patterns end in `(.*)$`,
   // which `\r` breaks - so the file's line ending is dealt with once, here.
-  const s = splitSections(toLf(content), "Items");
+  const note = splitNote(toLf(content));
   const labels = Object.fromEntries(
-    LABEL_FIELDS.map((field) => [field, frontmatterValue(s.frontmatter, LABEL_KEYS[field]).trim()]),
+    LABEL_FIELDS.map((field) => [field, frontmatterValue(note.frontmatter, LABEL_KEYS[field]).trim()]),
   ) as Record<LabelField, string>;
   const doc: MatrixDocModel = {
     ...labels,
-    title: frontmatterValue(s.frontmatter, "title") || fallbackTitle,
+    title: frontmatterValue(note.frontmatter, "title") || fallbackTitle,
     items: [],
     rawItems: [],
     mintedIds: false,
     stickies: [],
     rawStickies: [],
-    stickiesHidden: frontmatterValue(s.frontmatter, "stickies") === "hidden",
+    stickiesHidden: frontmatterValue(note.frontmatter, "stickies") === "hidden",
   };
 
   const notes = new Map<MatrixItem, string[]>();
   let open: MatrixItem | null = null;
-  for (const line of s.managed.split("\n")) {
+  for (const line of sectionText(note, "Items").split("\n")) {
     if (/^##\s+/.test(line)) continue; // the `## Items` heading itself
     if (!line.trim()) continue;
 
@@ -221,7 +221,7 @@ export function parseMatrix(content: string, fallbackTitle = ""): MatrixDocModel
   for (const [item, collected] of notes) item.note = collected.join("\n");
 
   assignMissingIds(doc);
-  const stickies = parseStickies(s.stickies);
+  const stickies = parseStickies(sectionText(note, "Stickies"));
   doc.stickies = stickies.stickies;
   doc.rawStickies = stickies.raw;
   if (stickies.minted) doc.mintedIds = true;
@@ -297,8 +297,8 @@ export function serializeMatrix(content: string, doc: MatrixDocModel, today: str
   // The file keeps the line ending it already had: this note is shared with
   // Obsidian, with git and with the user's own editor.
   const eol = detectEol(content);
-  const s = splitSections(toLf(content), "Items");
-  let frontmatter = setFrontmatterValue(s.frontmatter, "updated", today);
+  const note = splitNote(toLf(content));
+  let frontmatter = setFrontmatterValue(note.frontmatter, "updated", today);
   for (const field of LABEL_FIELDS) {
     const key = LABEL_KEYS[field];
     // A label that was not edited is left exactly as the file spells it (its
@@ -310,21 +310,11 @@ export function serializeMatrix(content: string, doc: MatrixDocModel, today: str
 
   const body = [...doc.items.flatMap(formatItem), ...doc.rawItems].join("\n");
   const items = body ? `## Items\n\n${body}\n\n` : "## Items\n\n";
-  const stickies = formatStickySection(doc.stickies, doc.rawStickies);
-
-  let { preamble, tail } = s;
-  if (!s.managed) {
-    // A note with no `## Items` yet: the section goes in before `## Memo`, not
-    // after it, or it would read as part of the memo.
-    const memo = /^##\s+Memo\s*$/m.exec(preamble);
-    if (memo) {
-      tail = preamble.slice(memo.index);
-      preamble = preamble.slice(0, memo.index);
-    }
-    // One blank line between what came before and the new section.
-    if (preamble && !preamble.endsWith("\n\n")) {
-      preamble += preamble.endsWith("\n") ? "\n" : "\n\n";
-    }
-  }
-  return withEol(`${frontmatter}${preamble}${items}${s.between}${stickies}${tail}`, eol);
+  // A note with no `## Items` yet gets the section before `## Memo` (not after
+  // it, or it would read as part of the memo): `replaceSections` places it.
+  const out = replaceSections({ ...note, frontmatter }, [
+    { name: "Items", text: items },
+    { name: "Stickies", text: formatStickySection(doc.stickies, doc.rawStickies) },
+  ]);
+  return withEol(out, eol);
 }
