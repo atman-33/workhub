@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import {
+  clipboardShortcut,
+  readClip,
+  setClip,
+  takePasteRound,
+  useHasClip,
+} from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
+import { copyPfdNodes, pastePfdNodes, type PfdClip } from "@/lib/diagram/pfd/clipboard";
 import { edgeKey } from "@/lib/diagram/node-edge";
 import { renderHtml, renderSvg } from "@/lib/diagram/pfd/export";
 import { layoutPfd } from "@/lib/diagram/pfd/layout";
@@ -444,6 +452,45 @@ export function PfdView({ configVersion, embedded }: Props) {
     [doc, removeNode, patchSelected],
   );
 
+  // ---- copy and paste (T-0688) ----
+
+  const canPaste = useHasClip("pfd", path);
+
+  const copySelected = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const clip = copyPfdNodes(doc, [id]);
+      if (clip.nodes.length) setClip("pfd", path, clip);
+    },
+    [doc, path],
+  );
+
+  /** Adds the copies a step away from the originals and selects the first. */
+  const addCopies = useCallback(
+    (clip: PfdClip, round: number) => {
+      if (!doc || !clip.nodes.length) return;
+      const out = pastePfdNodes(doc, clip, round);
+      mutate(out.doc);
+      selectNode(out.ids[0]);
+    },
+    [doc, mutate, selectNode],
+  );
+
+  const pasteCopied = useCallback(() => {
+    if (!doc || lockedRef.current) return;
+    const clip = readClip<PfdClip>("pfd", path);
+    if (!clip) return;
+    addCopies(clip.payload, takePasteRound("pfd", path));
+  }, [doc, path, addCopies]);
+
+  const duplicate = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      addCopies(copyPfdNodes(doc, [id]), 1);
+    },
+    [doc, addCopies],
+  );
+
   // ---- arrow commands -------------------------------------------------------
 
   const connectNodes = useCallback(
@@ -582,6 +629,17 @@ export function PfdView({ configVersion, embedded }: Props) {
         redo();
         return;
       }
+      const clipboardKey = clipboardShortcut(e);
+      if (clipboardKey === "paste") {
+        e.preventDefault();
+        pasteCopied();
+        return;
+      }
+      if (clipboardKey === "copy" && selectedNodeId) {
+        e.preventDefault();
+        copySelected(selectedNodeId);
+        return;
+      }
       if (e.key === "Escape") {
         setSelectedNodeId(null);
         setSelectedEdgeKey(null);
@@ -627,6 +685,8 @@ export function PfdView({ configVersion, embedded }: Props) {
     mutate,
     undo,
     redo,
+    copySelected,
+    pasteCopied,
   ]);
 
   // ---- export ---------------------------------------------------------------
@@ -812,6 +872,7 @@ export function PfdView({ configVersion, embedded }: Props) {
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
+                  clipboard={{ canPaste, onCopy: copySelected, onDuplicate: duplicate, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.pfd.footerHint")}

@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import {
+  clipboardShortcut,
+  readClip,
+  setClip,
+  takePasteRound,
+  useHasClip,
+} from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
+import { copyFlowSteps, pasteFlowSteps, type FlowClip } from "@/lib/diagram/flow/clipboard";
 import { renderHtml, renderSvg } from "@/lib/diagram/flow/export";
 import { layoutFlow } from "@/lib/diagram/flow/layout";
 import {
@@ -454,6 +462,45 @@ export function FlowView({ configVersion, embedded }: Props) {
     [doc, removeStep, patchSelected],
   );
 
+  // ---- copy and paste (T-0688) ----
+
+  const canPaste = useHasClip("flow", path);
+
+  const copySelected = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const clip = copyFlowSteps(doc, [id]);
+      if (clip.steps.length) setClip("flow", path, clip);
+    },
+    [doc, path],
+  );
+
+  /** Adds the copies a step away from the originals and selects the first. */
+  const addCopies = useCallback(
+    (clip: FlowClip, round: number) => {
+      if (!doc || !clip.steps.length) return;
+      const out = pasteFlowSteps(doc, clip, round);
+      mutate(out.doc);
+      selectStep(out.ids[0]);
+    },
+    [doc, mutate, selectStep],
+  );
+
+  const pasteCopied = useCallback(() => {
+    if (!doc || lockedRef.current) return;
+    const clip = readClip<FlowClip>("flow", path);
+    if (!clip) return;
+    addCopies(clip.payload, takePasteRound("flow", path));
+  }, [doc, path, addCopies]);
+
+  const duplicate = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      addCopies(copyFlowSteps(doc, [id]), 1);
+    },
+    [doc, addCopies],
+  );
+
   // ---- arrow commands -------------------------------------------------------
 
   const connectSteps = useCallback(
@@ -609,6 +656,17 @@ export function FlowView({ configVersion, embedded }: Props) {
         redo();
         return;
       }
+      const clipboardKey = clipboardShortcut(e);
+      if (clipboardKey === "paste") {
+        e.preventDefault();
+        pasteCopied();
+        return;
+      }
+      if (clipboardKey === "copy" && selectedStepId) {
+        e.preventDefault();
+        copySelected(selectedStepId);
+        return;
+      }
       if (e.key === "Escape") {
         setSelectedStepId(null);
         setSelectedEdgeKey(null);
@@ -655,6 +713,8 @@ export function FlowView({ configVersion, embedded }: Props) {
     mutate,
     undo,
     redo,
+    copySelected,
+    pasteCopied,
   ]);
 
   // ---- export ---------------------------------------------------------------
@@ -835,6 +895,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                   onAddAt={addStepAt}
                   onConnect={connectSteps}
                   onReattach={reattachEdge}
+                  clipboard={{ canPaste, onCopy: copySelected, onDuplicate: duplicate, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.flow.footerHint")}

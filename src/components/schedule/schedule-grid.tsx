@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ClipboardMenuItems, type CanvasClipboard } from "@/components/diagram/clipboard-menu";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -81,6 +82,8 @@ interface Props {
   onToggleNonWorking: (date: string) => void;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onMoveTaskDue: (taskId: string, date: string) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus (T-0688). */
+  clipboard: CanvasClipboard;
   /** Move the displayed window by whole weeks (Shift + wheel). */
   onPanWindow: (weeks: number) => void;
   /** Grow or shrink the displayed window by whole weeks (Ctrl + wheel). */
@@ -123,6 +126,7 @@ export function ScheduleGrid({
   onToggleNonWorking,
   onCreateItem,
   onMoveTaskDue,
+  clipboard,
   onPanWindow,
   onZoomWindow,
 }: Props) {
@@ -402,6 +406,7 @@ export function ScheduleGrid({
                         weekly={weekly}
                         isNonWorking={day.isNonWorking}
                         selection={selection}
+                        clipboard={clipboard}
                         onCreateItem={(kind, from, to) => {
                           setDrag(null);
                           onCreateItem(kind, from, to);
@@ -443,6 +448,7 @@ export function ScheduleGrid({
                   id={bar.item.id}
                   readOnly={readOnly}
                   onReorder={onReorderItem}
+                  clipboard={clipboard}
                 >
                 {bar.item.kind === "arrow" ? (
                   <ArrowSegment
@@ -521,6 +527,7 @@ export function ScheduleGrid({
                         id={point.id}
                         readOnly={readOnly}
                         onReorder={onReorderItem}
+                        clipboard={clipboard}
                       >
                       <Hint label={pointTooltip(point)}>
                         <div
@@ -654,12 +661,14 @@ function ReorderMenu({
   id,
   readOnly,
   onReorder,
+  clipboard,
   children,
 }: {
   items: ScheduleItem[];
   id: string;
   readOnly?: boolean;
   onReorder: (id: string, dir: MoveDirection) => void;
+  clipboard: CanvasClipboard;
   children: React.ReactNode;
 }) {
   const t = useT();
@@ -681,6 +690,13 @@ function ReorderMenu({
           <ChevronDown />
           {t("schedule.grid.moveDown")}
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ClipboardMenuItems
+          canPaste={clipboard.canPaste}
+          onCopy={() => clipboard.onCopy(id)}
+          onDuplicate={() => clipboard.onDuplicate(id)}
+          onPaste={clipboard.onPaste}
+        />
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -880,6 +896,7 @@ function DayMenuItems({
   weekly,
   isNonWorking,
   selection,
+  clipboard,
   onCreateItem,
   onToggleNonWorking,
 }: {
@@ -888,6 +905,7 @@ function DayMenuItems({
   weekly: boolean;
   isNonWorking: boolean;
   selection: { start: string; end: string } | null;
+  clipboard: CanvasClipboard;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onToggleNonWorking: (date: string) => void;
 }) {
@@ -932,6 +950,8 @@ function DayMenuItems({
       >
         {t("schedule.menu.addNote")}
       </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} readOnly={readOnly} />
       <ContextMenuSeparator />
       <ContextMenuItem
         disabled={readOnly || weekly}

@@ -37,8 +37,12 @@ export const diagramEn = {
   "diagram.delete.failed": "Could not delete the diagram: {error}",
   "diagram.soon": "This kind of diagram has no editor yet. The note is saved in the vault and can be edited as Markdown.",
   "diagram.openFile": "Open in explorer",
+  // ---- copy and paste (T-0688) ----
+  "diagram.clipboard.copy": "Copy",
+  "diagram.clipboard.paste": "Paste",
+  "diagram.clipboard.duplicate": "Duplicate",
   // ---- 2x2 matrix editor (T-0681) ----
-  "diagram.matrix.footerHint": "Drag an item to place it. Double-click the empty plot to add one. Right-drag pans, the wheel zooms.",
+  "diagram.matrix.footerHint": "Drag an item to place it. Double-click the empty plot to add one. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
   "diagram.matrix.fitHint": "Fit the matrix to the window",
   "diagram.matrix.addHint": "Add an item in the middle",
   "diagram.matrix.itemCount": "{count} items",
@@ -73,7 +77,7 @@ export const diagramEn = {
   "diagram.matrix.qBl": "Bottom left",
   "diagram.matrix.qBr": "Bottom right",
   // ---- business flow editor (T-0682) ----
-  "diagram.flow.footerHint": "Drag a step to move it; drop it on another lane to change its lane. Drag a round handle from a step onto another step to draw an arrow, or an end handle of a selected arrow to re-route it. Double-click a lane to add a step. Right-drag pans, the wheel zooms.",
+  "diagram.flow.footerHint": "Drag a step to move it; drop it on another lane to change its lane. Drag a round handle from a step onto another step to draw an arrow, or an end handle of a selected arrow to re-route it. Double-click a lane to add a step. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
   "diagram.flow.fitHint": "Fit the flow to the window",
   "diagram.flow.addHint": "Add a step (after the selected one)",
   "diagram.flow.stepCount": "{count} steps",
@@ -110,7 +114,7 @@ export const diagramEn = {
   "diagram.flow.autoAlign": "Auto-align",
   "diagram.flow.autoAlignHint": "Forget every position set by dragging; the layout places all the steps again",
   // ---- PFD editor (T-0683) ----
-  "diagram.pfd.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it. Drag a round handle from a node onto another node to draw an arrow (only a process to a deliverable and back), or an end handle of a selected arrow to re-route it. Right-drag pans, the wheel zooms.",
+  "diagram.pfd.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it. Drag a round handle from a node onto another node to draw an arrow (only a process to a deliverable and back), or an end handle of a selected arrow to re-route it. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
   "diagram.pfd.fitHint": "Fit the diagram to the window",
   "diagram.pfd.addHint": "Add a node: the next symbol after the selected one (joined to it), or the chosen symbol",
   "diagram.pfd.paletteHint": "Add {name} on double-click",

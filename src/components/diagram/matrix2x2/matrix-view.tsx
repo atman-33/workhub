@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import {
+  clipboardShortcut,
+  readClip,
+  setClip,
+  takePasteRound,
+  useHasClip,
+} from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
+import { copyMatrixItems, pasteMatrixItems } from "@/lib/diagram/matrix2x2/clipboard";
 import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
 import { layoutMatrix } from "@/lib/diagram/matrix2x2/layout";
 import {
@@ -403,6 +411,45 @@ export function MatrixView({ configVersion, embedded }: Props) {
     [doc, mutate],
   );
 
+  // ---- copy and paste (T-0688) ----
+
+  const canPaste = useHasClip("matrix2x2", path);
+
+  const copyItem = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const items = copyMatrixItems(doc, [id]);
+      if (items.length) setClip("matrix2x2", path, items);
+    },
+    [doc, path],
+  );
+
+  /** Adds copies of `items` a step away from the originals and selects the first. */
+  const addCopies = useCallback(
+    (items: MatrixItem[], round: number) => {
+      if (!doc || !items.length) return;
+      const out = pasteMatrixItems(doc, items, round);
+      mutate(out.doc);
+      selectItem(out.ids[0]);
+    },
+    [doc, mutate, selectItem],
+  );
+
+  const pasteItems = useCallback(() => {
+    if (!doc || lockedRef.current) return;
+    const clip = readClip<MatrixItem[]>("matrix2x2", path);
+    if (!clip) return;
+    addCopies(clip.payload, takePasteRound("matrix2x2", path));
+  }, [doc, path, addCopies]);
+
+  const duplicateItem = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      addCopies(copyMatrixItems(doc, [id]), 1);
+    },
+    [doc, addCopies],
+  );
+
   // ---- sticky commands --------------------------------------------------------
 
   const patchSticky = useCallback(
@@ -515,6 +562,17 @@ export function MatrixView({ configVersion, embedded }: Props) {
         redo();
         return;
       }
+      const clipboardKey = clipboardShortcut(e);
+      if (clipboardKey === "paste") {
+        e.preventDefault();
+        pasteItems();
+        return;
+      }
+      if (clipboardKey === "copy" && selectedId) {
+        e.preventDefault();
+        copyItem(selectedId);
+        return;
+      }
       if (e.key === "Escape") {
         setSelectedId(null);
         setSelectedStickyId(null);
@@ -559,6 +617,8 @@ export function MatrixView({ configVersion, embedded }: Props) {
     nudge,
     undo,
     redo,
+    copyItem,
+    pasteItems,
   ]);
 
   // ---- export ---------------------------------------------------------------
@@ -720,6 +780,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
                   onMoveItem={moveItem}
                   onAddAt={(x, y) => addItem({ x, y })}
+                  clipboard={{ canPaste, onCopy: copyItem, onDuplicate: duplicateItem, onPaste: pasteItems }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.matrix.footerHint")}
