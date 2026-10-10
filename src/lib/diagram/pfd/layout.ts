@@ -173,7 +173,16 @@ export function layoutPfd(
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
     if (!from || !to) continue;
-    const geometry = edgeGeometry(from, to, "curve");
+    const geometry = edgeGeometry(from, to, "curve", {
+      ...(edge.fromPort || edge.toPort
+        ? {
+            ports: {
+              ...(edge.fromPort ? { from: edge.fromPort } : {}),
+              ...(edge.toPort ? { to: edge.toPort } : {}),
+            },
+          }
+        : {}),
+    });
     if (!geometry) continue;
     edges.push({ key: edgeKey(edge), from: edge.from, to: edge.to, geometry });
   }

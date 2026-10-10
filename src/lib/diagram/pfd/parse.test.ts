@@ -268,3 +268,67 @@ describe("the symbol registry", () => {
     expect(nextNodeId(after.nodes, "R")).toBe("R-002");
   });
 });
+
+describe("edge ports (T-0718)", () => {
+  const PORTS = `---
+type: pfd
+title: t
+---
+
+## Nodes
+
+- P-001 A
+- D-001 B
+- D-002 C
+
+## Edges
+
+- P-001:E@0.5 -> D-001:W
+- P-001:N -> D-002
+
+## Stickies
+`;
+
+  it("reads pinned sides and ratios", () => {
+    const doc = parsePfd(PORTS);
+    expect(doc.edges).toEqual([
+      { from: "P-001", to: "D-001", fromPort: { side: "E", at: 0.5 }, toPort: { side: "W" } },
+      { from: "P-001", to: "D-002", fromPort: { side: "N" } },
+    ]);
+    expect(doc.rawEdges).toEqual([]);
+    expect(warningCount(doc)).toBe(0);
+  });
+
+  it("keeps an unknown side as a raw line, and ignores pins for identity", () => {
+    const doc = parsePfd(`---
+type: pfd
+title: t
+---
+
+## Nodes
+
+- P-001 A
+- D-001 B
+
+## Edges
+
+- P-001:X -> D-001
+- P-001:E -> D-001:W
+- P-001 -> D-001
+
+## Stickies
+`);
+    expect(doc.edges).toEqual([
+      { from: "P-001", to: "D-001", fromPort: { side: "E" }, toPort: { side: "W" } },
+    ]);
+    expect(doc.rawEdges).toEqual(["- P-001:X -> D-001"]);
+  });
+
+  it("writes pins back and reads them again", () => {
+    const doc = parsePfd(PORTS);
+    const out = serializePfd(PORTS, doc, "2026-10-10");
+    expect(out).toContain("- P-001:E@0.5 -> D-001:W");
+    expect(out).toContain("- P-001:N -> D-002");
+    expect(parsePfd(out).edges).toEqual(doc.edges);
+  });
+});

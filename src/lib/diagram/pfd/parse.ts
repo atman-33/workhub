@@ -21,12 +21,15 @@
  *     <optional continuation lines, indented - the node's note>
  *   ## Edges
  *   - P-001 -> D-001
+ *   - P-001:E@0.5 -> D-001:W   pinned ends: out the east side halfway down,
+ *     in the west side (an end without one is automatic)
  *
  * Which kind a node is comes from the prefix of its id (`symbols.ts`), so the
  * line looks the same for every symbol. `@x,y` is the node's centre in absolute
  * diagram pixels (negative allowed); a node with none is placed by the layout
  * and only gets one when the user drags it. An arrow has no id: `(from, to)` is
- * its identity, and two lines naming the same pair are one arrow.
+ * its identity, and two lines naming the same pair are one arrow (pins do not
+ * change that).
  */
 import { detectEol, toLf, withEol } from "../../note-eol";
 import { COLORS, type Color } from "../colors";
@@ -40,6 +43,8 @@ import {
 } from "../note";
 import { replaceSections, sectionText, splitNote } from "../sections";
 import { formatStickySection, parseStickies, type Sticky } from "../sticky";
+import { formatEdgeEnd, parseEdgeEnd } from "../edge-ports";
+import type { EdgePort } from "../node-edge";
 import { DEFAULT_PREFIX, isNodeId, mayConnect, prefixOf } from "./symbols";
 
 const INDENT = "  ";
@@ -62,6 +67,10 @@ export interface PfdNode {
 export interface PfdEdge {
   from: string;
   to: string;
+  /** Where the arrow leaves `from`. Absent means automatic. */
+  fromPort?: EdgePort;
+  /** Where the arrow enters `to`. Absent means automatic. */
+  toPort?: EdgePort;
 }
 
 export interface PfdDocModel {
@@ -88,7 +97,7 @@ export interface PfdDocModel {
 
 const NUMBER = String.raw`-?\d+(?:\.\d+)?`;
 const POSITION_RE = new RegExp(`^@(${NUMBER}),(${NUMBER})$`);
-const EDGE_RE = /^\s*-\s+([A-Za-z]{1,3}-\d+)\s*->\s*([A-Za-z]{1,3}-\d+)\s*$/;
+const EDGE_RE = /^\s*-\s+(\S+)\s*->\s*(\S+)\s*$/;
 
 function isColor(tok: string): boolean {
   return tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1));
@@ -143,7 +152,16 @@ function parseNodeLine(line: string): { node: PfdNode; hadId: boolean } | null {
 
 function parseEdgeLine(line: string): PfdEdge | null {
   const m = EDGE_RE.exec(line);
-  return m ? { from: m[1], to: m[2] } : null;
+  if (!m) return null;
+  const from = parseEdgeEnd(m[1]);
+  const to = parseEdgeEnd(m[2]);
+  if (!from || !to) return null;
+  return {
+    from: from.id,
+    to: to.id,
+    ...(from.port ? { fromPort: from.port } : {}),
+    ...(to.port ? { toPort: to.port } : {}),
+  };
 }
 
 /** Parses a PFD note. `fallbackTitle` (usually the file name) stands in when
@@ -284,7 +302,7 @@ export function formatNode(node: PfdNode): string[] {
 }
 
 export function formatEdge(edge: PfdEdge): string {
-  return `- ${edge.from} -> ${edge.to}`;
+  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} -> ${formatEdgeEnd(edge.to, edge.toPort)}`;
 }
 
 function sectionBody(name: string, lines: string[]): string {

@@ -6,7 +6,7 @@
  * `mayConnect` (the symbol registry's) only keeps an arrow off a node itself and
  * off ids this build has no symbol for; any two nodes may be joined.
  */
-import { connectEdges, reattachEdge } from "../node-edge";
+import { connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { PfdDocModel, PfdEdge, PfdNode } from "./parse";
 import { nextNodeId } from "./parse";
 import { mayConnect, prefixOf, symbolByPrefix } from "./symbols";
@@ -108,7 +108,9 @@ export function convertNodeKind(doc: PfdDocModel, id: string, prefix: string): C
     doc: {
       ...doc,
       nodes: doc.nodes.map((n) => (n.id === id ? { ...n, id: newId } : n)),
-      edges: doc.edges.map((e) => (touching.includes(e) ? { from: swap(e.from), to: swap(e.to) } : e)),
+      edges: doc.edges.map((e) =>
+        touching.includes(e) ? { ...e, from: swap(e.from), to: swap(e.to) } : e,
+      ),
       stickies: doc.stickies.map((s) => (s.targetId === id ? { ...s, targetId: newId } : s)),
     },
   };
@@ -116,22 +118,36 @@ export function convertNodeKind(doc: PfdDocModel, id: string, prefix: string): C
 
 // ---- arrows -------------------------------------------------------------------
 
-const newEdge = (from: string, to: string): PfdEdge => ({ from, to });
-
-/** Adds an arrow; the same model back when it would change nothing or the rule forbids it. */
-export function connect(doc: PfdDocModel, from: string, to: string): PfdDocModel {
-  const edges = connectEdges(doc.edges, from, to, newEdge, mayConnect);
+/** Adds an arrow; the same model back when it would change nothing or the rule forbids it. Pins the ends when `ports` names them. */
+export function connect(
+  doc: PfdDocModel,
+  from: string,
+  to: string,
+  ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+): PfdDocModel {
+  const make = (f: string, t: string): PfdEdge => ({
+    from: f,
+    to: t,
+    ...(ports.fromPort ? { fromPort: ports.fromPort } : {}),
+    ...(ports.toPort ? { toPort: ports.toPort } : {}),
+  });
+  const edges = connectEdges(doc.edges, from, to, make, mayConnect);
   return edges ? { ...doc, edges } : doc;
 }
 
-/** Moves one end of an arrow to another node; the same model back when nothing changes. */
+/**
+ * Moves one end of an arrow to another node; the same model back when nothing
+ * changes. `port` pins the moved end anew (`null` clears it back to automatic);
+ * without one the end keeps the pin it had.
+ */
 export function reattach(
   doc: PfdDocModel,
   edge: { from: string; to: string },
   end: "from" | "to",
   nodeId: string,
+  port?: EdgePort | null,
 ): PfdDocModel {
-  const edges = reattachEdge(doc.edges, edge, end, nodeId, mayConnect);
+  const edges = reattachEdge(doc.edges, edge, end, nodeId, mayConnect, port);
   return edges ? { ...doc, edges } : doc;
 }
 

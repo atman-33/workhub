@@ -38,7 +38,12 @@ describe("portOfDrop", () => {
   });
 
   it("breaks ties horizontal", () => {
-    expect(portOfDrop(b, { x: 200, y: 150 }).side).toBe("E");
+    expect(portOfDrop(b, { x: 250, y: 175 })).toEqual({ side: "E", at: 0.75 });
+  });
+
+  it("belongs to no side in the middle: the automatic end", () => {
+    expect(portOfDrop(b, { x: 200, y: 150 })).toBeUndefined();
+    expect(portOfDrop(b, { x: 205, y: 152 })).toBeUndefined();
   });
 });
 

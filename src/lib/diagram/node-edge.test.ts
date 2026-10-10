@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowAnyConnection,
   arrowHeadPoints,
   boundaryPoint,
   centerOf,
@@ -304,5 +305,51 @@ describe("connectEdges / reattachEdge", () => {
     expect(reattachEdge(edges, { from: "a", to: "b" }, "to", "b")).toBeNull();
     expect(reattachEdge(edges, { from: "a", to: "b" }, "to", "a")).toBeNull();
     expect(reattachEdge(edges, { from: "x", to: "y" }, "to", "a")).toBeNull();
+  });
+});
+
+describe("pinned ends (T-0712, T-0718)", () => {
+  it("runs a curve from port to port", () => {
+    const a = node("a", "rect", 50, 20);
+    const b = node("b", "rect", 350, 220);
+    const g = edgeGeometry(a, b, "curve", {
+      ports: { from: { side: "E" }, to: { side: "W" } },
+    })!;
+    expect(g.style).toBe("curve");
+    expect([g.start.x, g.start.y]).toEqual([100, 20]);
+    expect([g.end.x, g.end.y]).toEqual([300, 220]);
+    // Into the west side: pointing east, square on (the head follows the
+    // curve's own direction near the tip, as for every curve).
+    expect(Math.cos(g.headAngle)).toBeGreaterThan(0.99);
+    expect(Math.abs(Math.sin(g.headAngle))).toBeLessThan(0.1);
+  });
+
+  it("cuts only the free end of a half-pinned curve", () => {
+    const a = node("a", "rect", 50, 20);
+    const b = node("b", "rect", 350, 220);
+    const g = edgeGeometry(a, b, "curve", { ports: { from: { side: "E" } } })!;
+    expect([g.start.x, g.start.y]).toEqual([100, 20]);
+    expectOnBoundary(b, g.end);
+  });
+
+  it("reattaches with a pin, clears it, and keeps it otherwise", () => {
+    type E = DiagramEdge & { fromPort?: { side: string; at?: number }; toPort?: { side: string; at?: number } };
+    const edges: E[] = [{ from: "a", to: "b" }];
+    const moved = reattachEdge(edges, { from: "a", to: "b" }, "to", "c", allowAnyConnection, {
+      side: "N",
+      at: 0.25,
+    });
+    expect(moved).toEqual([{ from: "a", to: "c", toPort: { side: "N", at: 0.25 } }]);
+    const cleared = reattachEdge(
+      moved!,
+      { from: "a", to: "c" },
+      "to",
+      "c",
+      allowAnyConnection,
+      null,
+    );
+    expect(cleared).toEqual([{ from: "a", to: "c" }]);
+    const kept = reattachEdge(moved!, { from: "a", to: "c" }, "from", "a", allowAnyConnection);
+    expect(kept).toBeNull();
   });
 });

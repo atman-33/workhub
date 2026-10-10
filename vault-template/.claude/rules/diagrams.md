@@ -276,6 +276,12 @@ updated: 2026-10-10
   process or deliverable to deliverable. An arrow naming a node that does not
   exist is kept by the app as it is, listed as a warning and not drawn: do not
   write one.
+- **Pinned ends**: either end may name a side and a ratio, `- P-001:E@0.5 ->
+  D-001:W`. The sides are `N`/`E`/`S`/`W` (edges of the box); the ratio runs 0
+  to 1 along the side and defaults to the middle, so `:E` alone pins the middle
+  of the east side. The curve leaves and enters through those points; an end
+  without one is drawn as always. A pin that cannot be honoured is ignored,
+  never drawn through a node.
 - **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
   numbers, negatives allowed, y growing downward. **No `@` means "placed by the
   layout"**, in columns that follow the arrows (a node sits one column right of
