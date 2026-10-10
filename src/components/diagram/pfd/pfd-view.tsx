@@ -25,6 +25,7 @@ import {
   addNode,
   autoAlign,
   connect,
+  convertNodeKind,
   deleteEdge,
   deleteNode,
   hasManualPositions,
@@ -133,6 +134,8 @@ export function PfdView({ configVersion, embedded }: Props) {
   /** The symbol a double-click on empty canvas (and the + button, when nothing is selected) adds. */
   const [palette, setPalette] = useState(DEFAULT_PREFIX);
   const [status, setStatus] = useState("");
+  /** Why the last kind change of a node was refused; shown in that node's panel only. */
+  const [kindRefusal, setKindRefusal] = useState<{ id: string; message: string } | null>(null);
   const [fitToken, setFitToken] = useState(0);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -373,6 +376,39 @@ export function PfdView({ configVersion, embedded }: Props) {
       if (doc) mutate(patchNode(doc, id, patch));
     },
     [doc, mutate],
+  );
+
+  /**
+   * Switches a node between process and deliverable. That is a new id, so the
+   * selection (and an open title edit) moves with it; a refusal changes nothing
+   * and is explained in the panel.
+   */
+  const convertSelectedKind = useCallback(
+    (id: string, prefix: string) => {
+      if (!doc) return;
+      const r = convertNodeKind(doc, id, prefix);
+      if (!r.ok) {
+        const label = SYMBOLS.find((s) => s.prefix === prefix)?.label[locale] ?? prefix;
+        setKindRefusal({
+          id,
+          message:
+            r.reason === "same-kind-edges"
+              ? tStatic("diagram.pfd.kindRefused", {
+                  kind: label,
+                  edges: r.edges.map((e) => `${e.from} → ${e.to}`).join(", "),
+                })
+              : tStatic("diagram.pfd.kindUnknown"),
+        });
+        return;
+      }
+      setKindRefusal(null);
+      if (r.id === id) return;
+      mutate(r.doc);
+      setSelectedNodeId(r.id);
+      if (editingNodeId === id) setEditingNodeId(r.id);
+      if (freshId.current === id) freshId.current = r.id;
+    },
+    [doc, locale, mutate, editingNodeId],
   );
 
   const moveNode = useCallback(
@@ -896,6 +932,8 @@ export function PfdView({ configVersion, embedded }: Props) {
                     onChangeSticky={patchSticky}
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchSelected(selectedNode.id, patch)}
+                    onConvertKind={(prefix) => convertSelectedKind(selectedNode.id, prefix)}
+                    kindRefusal={kindRefusal?.id === selectedNode.id ? kindRefusal.message : null}
                     onDelete={() => removeNode(selectedNode.id)}
                   />
                 ) : selectedEdge ? (

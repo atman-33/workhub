@@ -95,7 +95,10 @@ registry in the app, not something a note can extend.
 - **Do not invent an id prefix.** Use the prefixes the rule lists. If the
   instruction needs a symbol the rule does not list, say so and ask which
   existing symbol to use; do not write a line the app would keep as unreadable.
-- **Never change an existing node's prefix** to change its kind.
+- **Never change an existing node's prefix** in place to change its kind. A kind
+  change is a new id plus re-pointed arrows and stickies, and only for a node whose
+  arrows would stay valid; follow the conversion paragraph of the pfd rule, and if
+  an arrow blocks it, change nothing and name the arrow.
 - **Never write an arrow between two nodes of the same kind**; the rule lists
   which kinds may be joined. Offer the nearest valid structure (for example a
   deliverable between two processes).

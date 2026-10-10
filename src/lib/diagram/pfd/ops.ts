@@ -9,7 +9,7 @@
 import { connectEdges, reattachEdge } from "../node-edge";
 import type { PfdDocModel, PfdEdge, PfdNode } from "./parse";
 import { nextNodeId } from "./parse";
-import { mayConnect } from "./symbols";
+import { mayConnect, prefixOf, symbolByPrefix } from "./symbols";
 
 /** `patch` laid over `base`; a key set to `undefined` is removed. */
 export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
@@ -78,6 +78,47 @@ export function autoAlign(doc: PfdDocModel): PfdDocModel {
 /** True when at least one node carries a position. */
 export function hasManualPositions(doc: PfdDocModel): boolean {
   return doc.nodes.some((n) => n.x !== undefined);
+}
+
+export type ConvertKindResult =
+  | { ok: true; doc: PfdDocModel; id: string }
+  | { ok: false; reason: "unknown" }
+  | { ok: false; reason: "same-kind-edges"; edges: PfdEdge[] };
+
+/**
+ * Turns a node into another symbol. The kind is the id's prefix, so this is a
+ * **new id** (the next free one of the target prefix; the old id is never
+ * reused): the node keeps its place in the list and everything else it carries,
+ * and the arrows' ends and the stickies' `node:` follow it.
+ *
+ * It is refused, with the document untouched, when an arrow of the node would
+ * then run between two nodes the connection rule does not join (today: two of
+ * one kind). The offending arrows come back so the UI can name them; none is
+ * ever dropped to make a conversion fit.
+ */
+export function convertNodeKind(doc: PfdDocModel, id: string, prefix: string): ConvertKindResult {
+  const node = doc.nodes.find((n) => n.id === id);
+  if (!node || !symbolByPrefix(prefix)) return { ok: false, reason: "unknown" };
+  if (prefixOf(id) === prefix) return { ok: true, doc, id };
+
+  const newId = nextNodeId(doc.nodes, prefix);
+  const touching = doc.edges.filter((e) => e.from === id || e.to === id);
+  const broken = touching.filter((e) =>
+    e.from === id ? !mayConnect(newId, e.to) : !mayConnect(e.from, newId),
+  );
+  if (broken.length) return { ok: false, reason: "same-kind-edges", edges: broken.map((e) => ({ ...e })) };
+
+  const swap = (x: string) => (x === id ? newId : x);
+  return {
+    ok: true,
+    id: newId,
+    doc: {
+      ...doc,
+      nodes: doc.nodes.map((n) => (n.id === id ? { ...n, id: newId } : n)),
+      edges: doc.edges.map((e) => (touching.includes(e) ? { from: swap(e.from), to: swap(e.to) } : e)),
+      stickies: doc.stickies.map((s) => (s.targetId === id ? { ...s, targetId: newId } : s)),
+    },
+  };
 }
 
 // ---- arrows -------------------------------------------------------------------
