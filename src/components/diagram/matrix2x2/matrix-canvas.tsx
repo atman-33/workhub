@@ -10,18 +10,21 @@ import { NoteTip } from "@/components/diagram/note-tip";
 import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
+import { useMarquee } from "@/components/diagram/use-marquee";
 import { COLOR_HEX } from "@/lib/diagram/colors";
+import { idsInRect, shiftPositions } from "@/lib/diagram/multi-select";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import {
   ITEM_FONT_SIZE,
   CROSS_STROKE_WIDTH,
+  PLOT,
   QUADRANT_LABEL_OPACITY,
   layoutMatrix,
   unitAt,
   type PositionedItem,
 } from "@/lib/diagram/matrix2x2/layout";
-import type { MatrixDocModel } from "@/lib/diagram/matrix2x2/parse";
+import { clampUnit, type MatrixDocModel } from "@/lib/diagram/matrix2x2/parse";
 import type { QuadrantKey } from "@/lib/diagram/matrix2x2/quadrant-notes";
 import { useT } from "@/lib/i18n";
 import { LINE_HEIGHT, NODE_PAD_X, textWidth } from "@/lib/diagram/text";
@@ -34,8 +37,11 @@ import { cn } from "@/lib/utils";
  * and owns exactly one piece of state the file does not: the camera. Which
  * item is selected and what the note contains belong to the view above.
  *
- * - **left-drag on an item moves it**; the new position is reported once, on
- *   release, and only for that item;
+ * - **left-drag on an item moves it**, alone or with the rest of the selection
+ *   (Shift+click grows the selection; dragging any selected item moves them
+ *   all, reported once on release so one undo step restores them);
+ * - **left-drag on empty plot draws a marquee** selecting every item it
+ *   touches (Shift held: added to the selection instead);
  * - **double-click on the plot adds an item** where it landed;
  * - **double-click on an item renames it** in place;
  * - **a click on a quadrant selects it**, for its note in the side panel; a
@@ -47,7 +53,8 @@ interface Props {
   doc: MatrixDocModel;
   /** Sticky notes to draw. Empty while the note hides them. */
   stickies: Sticky[];
-  selectedId: string | null;
+  /** The ordered selection; the ring is drawn on every entry. */
+  selectedIds: string[];
   selectedStickyId: string | null;
   /** The quadrant selected for its note; exclusive with an item or a sticky. */
   selectedQuadrant: QuadrantKey | null;
@@ -55,7 +62,10 @@ interface Props {
   editingStickyId: string | null;
   /** True while an AI edit holds the file: the canvas is look-only. */
   locked?: boolean;
-  onSelect: (id: string | null) => void;
+  /** A click on an item: plain replaces the selection, Shift toggles it. */
+  onSelect: (id: string | null, additive: boolean) => void;
+  /** A finished marquee: the caught ids replace the selection, or join it with Shift. */
+  onSelectMarquee: (ids: string[], additive: boolean) => void;
   onSelectSticky: (id: string | null) => void;
   onSelectQuadrant: (key: QuadrantKey | null) => void;
   onStartEdit: (id: string) => void;
@@ -66,8 +76,8 @@ interface Props {
   onCancelStickyEdit: () => void;
   /** A finished sticky drag: the new offset from its item's centre. */
   onMoveSticky: (id: string, dx: number, dy: number) => void;
-  /** A finished item drag: the new unit coordinates (rounded, in 0..1). */
-  onMoveItem: (id: string, x: number, y: number) => void;
+  /** A finished item drag: the new unit coordinates of every moved item. */
+  onMoveItems: (moves: ReadonlyMap<string, { x: number; y: number }>) => void;
   /** A double-click on the plot: add an item at these unit coordinates. */
   onAddAt: (x: number, y: number) => void;
   /** Copy, duplicate and paste, offered in the right-click menus. */
@@ -111,13 +121,14 @@ function NoteMarkGlyph({ box }: { box: { x: number; y: number; width: number; he
 export function MatrixCanvas({
   doc,
   stickies,
-  selectedId,
+  selectedIds,
   selectedStickyId,
   selectedQuadrant,
   editingId,
   editingStickyId,
   locked,
   onSelect,
+  onSelectMarquee,
   onSelectSticky,
   onSelectQuadrant,
   onStartEdit,
@@ -127,7 +138,7 @@ export function MatrixCanvas({
   onCommitStickyText,
   onCancelStickyEdit,
   onMoveSticky,
-  onMoveItem,
+  onMoveItems,
   onAddAt,
   clipboard,
   fitToken,
@@ -147,8 +158,20 @@ export function MatrixCanvas({
     toDiagram,
     zoom: camera.zoom,
     onEnd: (d) => {
-      const at = dragUnit(d.id, d.dx, d.dy);
-      if (at) onMoveItem(d.id, at.x, at.y);
+      const origins = groupOrigins.current;
+      const ids = [...origins.keys()];
+      if (ids.length) {
+        // Diagram pixels to unit coordinates (y runs upward, hence the flip).
+        const moves = shiftPositions(
+          origins,
+          ids,
+          d.dx / PLOT.width,
+          -d.dy / PLOT.height,
+          (x, y) => ({ x: clampUnit(x), y: clampUnit(y) }),
+        );
+        onMoveItems(moves);
+      }
+      groupOrigins.current = new Map();
       justDragged.current = true;
       setTimeout(() => {
         justDragged.current = false;
@@ -168,28 +191,41 @@ export function MatrixCanvas({
     },
   });
 
-  /** Unit coordinates an item would land on after being dragged by (dx, dy). */
-  function dragUnit(id: string, dx: number, dy: number) {
-    const item = base.byId.get(id);
-    if (!item) return null;
-    return unitAt(item.x + item.width / 2 + dx, item.y + item.height / 2 + dy);
-  }
+  const marquee = useMarquee({
+    toDiagram,
+    zoom: camera.zoom,
+    disabled: locked,
+    onMarquee: (rect, additive) => onSelectMarquee(idsInRect(base.items, rect), additive),
+  });
 
-  // While an item is dragged, the layout is recomputed with it at the pointer,
-  // so its stickies follow it live instead of jumping on release.
+  /** Unit origins of the drag's group, snapshotted when the press landed. */
+  const groupOrigins = useRef(new Map<string, { x: number; y: number }>());
+
+  // While items are dragged, the layout is recomputed with the whole group at
+  // the pointer, so their stickies follow live instead of jumping on release.
   const dragging = itemFree.drag?.active ? itemFree.drag : null;
   const layout = useMemo(() => {
     if (!dragging) return base;
-    const at = dragUnit(dragging.id, dragging.dx, dragging.dy);
-    if (!at) return base;
+    const origins = groupOrigins.current;
+    if (!origins.size) return base;
+    const moves = shiftPositions(
+      origins,
+      [...origins.keys()],
+      dragging.dx / PLOT.width,
+      -dragging.dy / PLOT.height,
+      (x, y) => ({ x: clampUnit(x), y: clampUnit(y) }),
+    );
     return layoutMatrix(
       {
         ...doc,
-        items: doc.items.map((i) => (i.id === dragging.id ? { ...i, x: at.x, y: at.y } : i)),
+        items: doc.items.map((i) => {
+          const at = moves.get(i.id);
+          return at ? { ...i, x: at.x, y: at.y } : i;
+        }),
       },
       stickies,
     );
-    // `dragUnit` reads `base`, which is already a dependency.
+    // `origins` is snapshotted per gesture, not per render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, dragging?.id, dragging?.dx, dragging?.dy, doc, stickies]);
 
@@ -208,9 +244,23 @@ export function MatrixCanvas({
 
   const startItemDrag = (e: React.PointerEvent, item: PositionedItem) => {
     if (e.button !== 0) return;
-    onSelect(item.id);
+    // Shift+click grows or shrinks the selection instead of dragging.
+    if (e.shiftKey) {
+      onSelect(item.id, true);
+      return;
+    }
+    // Dragging a selected item moves the whole group; anywhere else starts
+    // over with this item alone.
+    const ids = selectedIds.includes(item.id) ? selectedIds : [item.id];
+    if (!selectedIds.includes(item.id)) onSelect(item.id, false);
     if (locked || editingId) return;
     e.stopPropagation();
+    const origins = new Map<string, { x: number; y: number }>();
+    for (const id of ids) {
+      const at = base.byId.get(id);
+      if (at) origins.set(id, { x: at.fx, y: at.fy });
+    }
+    groupOrigins.current = origins;
     itemFree.start(e, item.id);
   };
   const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
@@ -228,13 +278,13 @@ export function MatrixCanvas({
     onAddAt(unit.x, unit.y);
   };
   const clearSelection = () => {
-    if (justDragged.current) return;
-    onSelect(null);
+    if (justDragged.current || marquee.consumeClick()) return;
+    onSelect(null, false);
     onSelectSticky(null);
     onSelectQuadrant(null);
   };
   const selectQuadrant = (key: QuadrantKey) => {
-    if (justDragged.current) return;
+    if (justDragged.current || marquee.consumeClick()) return;
     onSelectQuadrant(key);
   };
 
@@ -245,8 +295,9 @@ export function MatrixCanvas({
   return (
     <DiagramSurface
       view={view}
-      grabbing={Boolean(itemFree.drag)}
+      grabbing={Boolean(itemFree.drag) || Boolean(marquee.marquee)}
       onBackgroundClick={clearSelection}
+      onBackgroundPointerDown={marquee.onPointerDown}
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} readOnly={locked} />}
     >
       {/* Quadrants: the plot itself. Hit-testable so a double-click on them
@@ -372,7 +423,7 @@ export function MatrixCanvas({
               strokeWidth={1.5}
               strokeDasharray={item.placed ? undefined : "4 3"}
             />
-            {item.id === selectedId && (
+            {selectedIds.includes(item.id) && (
               <rect
                 x={x - 3}
                 y={item.y - 3}
@@ -422,6 +473,20 @@ export function MatrixCanvas({
           </NodeClipboardMenu>
         );
       })}
+
+      {/* The marquee in flight: everything it touches joins the selection on release. */}
+      {marquee.marquee && (
+        <rect
+          x={marquee.marquee.x0}
+          y={marquee.marquee.y0}
+          width={marquee.marquee.x1 - marquee.marquee.x0}
+          height={marquee.marquee.y1 - marquee.marquee.y0}
+          className="fill-ring/10 stroke-ring"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
+      )}
 
       {/* Note marks sit in the outer corners, in front of the items so an item
           dropped on one never hides that its quadrant has a note. */}

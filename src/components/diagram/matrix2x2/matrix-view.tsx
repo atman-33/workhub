@@ -45,6 +45,7 @@ import {
   type Sticky,
 } from "@/lib/diagram/sticky";
 import { SidePanel } from "@/components/diagram/panel-frame";
+import { useMultiSelect } from "@/components/diagram/use-multi-select";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -120,7 +121,11 @@ export function MatrixView({ configVersion, embedded }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doc, setDoc] = useState<MatrixDocModel | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Multi-select (T-0716): the ordered selection, last entry focused for the
+  // side panel. Sticky and quadrant selection stay single and exclusive.
+  const multi = useMultiSelect();
+  const selectedIds = multi.selected;
+  const selectedId = selectedIds[selectedIds.length - 1] ?? null;
   const [editingId, setEditingId] = useState<string | null>(null);
   // Sticky selection is kept apart from item selection, and the two are
   // mutually exclusive: Delete has to know which of the two it is deleting.
@@ -261,7 +266,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
   // and is written first, so the load below cannot overwrite the mtime that
   // write is guarded by.
   useEffect(() => {
-    setSelectedId(null);
+    multi.clear();
     setEditingId(null);
     setSelectedStickyId(null);
     setEditingStickyId(null);
@@ -333,29 +338,62 @@ export function MatrixView({ configVersion, embedded }: Props) {
 
   // ---- selection ------------------------------------------------------------
 
-  const selectItem = useCallback((id: string | null) => {
-    setSelectedId(id);
-    if (id) {
-      setSelectedStickyId(null);
-      setSelectedQuadrant(null);
-    }
-  }, []);
+  /**
+   * A click on an item: plain replaces the selection, Shift toggles the item.
+   * A non-empty item selection clears the sticky and quadrant ones.
+   */
+  const selectItem = useCallback(
+    (id: string | null, additive = false) => {
+      if (id === null) multi.clear();
+      else if (additive) multi.toggle(id);
+      else multi.replace(id);
+      if (id !== null) {
+        setSelectedStickyId(null);
+        setSelectedQuadrant(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectSticky = useCallback((id: string | null) => {
-    setSelectedStickyId(id);
-    if (id) {
-      setSelectedId(null);
-      setSelectedQuadrant(null);
-    }
-  }, []);
+  /** A marquee release on the canvas: the caught ids replace or join. */
+  const selectMarquee = useCallback(
+    (ids: readonly string[], additive: boolean) => {
+      multi.marquee(ids, additive);
+      if (ids.length || !additive) {
+        setSelectedStickyId(null);
+        setSelectedQuadrant(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectQuadrant = useCallback((key: QuadrantKey | null) => {
-    setSelectedQuadrant(key);
-    if (key) {
-      setSelectedId(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  const clearSelection = useCallback(() => {
+    multi.clear();
+    setSelectedStickyId(null);
+    setSelectedQuadrant(null);
+  }, [multi]);
+
+  const selectSticky = useCallback(
+    (id: string | null) => {
+      setSelectedStickyId(id);
+      if (id) {
+        multi.clear();
+        setSelectedQuadrant(null);
+      }
+    },
+    [multi],
+  );
+
+  const selectQuadrant = useCallback(
+    (key: QuadrantKey | null) => {
+      setSelectedQuadrant(key);
+      if (key) {
+        multi.clear();
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
   // ---- item commands --------------------------------------------------------
 
@@ -377,9 +415,21 @@ export function MatrixView({ configVersion, embedded }: Props) {
     [doc, mutate],
   );
 
-  const moveItem = useCallback(
-    (id: string, x: number, y: number) => patchItem(id, { x: clampUnit(x), y: clampUnit(y) }),
-    [patchItem],
+  /**
+   * A finished drag, single or group (T-0716): every moved item gets its new
+   * `@` in one model update, so one undo step restores them all. Items outside
+   * the move keep their positions untouched.
+   */
+  const moveItems = useCallback(
+    (moves: ReadonlyMap<string, { x: number; y: number }>) => {
+      if (!doc || !moves.size) return;
+      const items = doc.items.map((item) => {
+        const at = moves.get(item.id);
+        return at ? { ...item, x: clampUnit(at.x), y: clampUnit(at.y) } : item;
+      });
+      mutate({ ...doc, items });
+    },
+    [doc, mutate],
   );
 
   /** Adds an item, at unit coordinates when the gesture gave a spot. */
@@ -401,19 +451,21 @@ export function MatrixView({ configVersion, embedded }: Props) {
     [doc, mutate, selectItem],
   );
 
-  const deleteItem = useCallback(
-    (id: string) => {
-      if (!doc) return;
+  const deleteItems = useCallback(
+    (ids: readonly string[]) => {
+      if (!doc || !ids.length) return;
+      const gone = new Set(ids);
       mutate({
         ...doc,
-        items: doc.items.filter((item) => item.id !== id),
-        // Deleting an item deletes the stickies pinned to it.
-        stickies: doc.stickies.filter((sticky) => sticky.targetId !== id),
+        items: doc.items.filter((item) => !gone.has(item.id)),
+        // Deleting items deletes the stickies pinned to them.
+        stickies: doc.stickies.filter((sticky) => !gone.has(sticky.targetId)),
       });
-      if (selectedId === id) setSelectedId(null);
-      if (editingId === id) setEditingId(null);
+      if (selectedId && gone.has(selectedId)) multi.clear();
+      else if (selectedIds.some((id) => gone.has(id))) multi.setSelected(selectedIds.filter((id) => !gone.has(id)));
+      if (editingId && gone.has(editingId)) setEditingId(null);
     },
-    [doc, mutate, selectedId, editingId],
+    [doc, mutate, selectedId, selectedIds, multi, editingId],
   );
 
   /**
@@ -431,12 +483,12 @@ export function MatrixView({ configVersion, embedded }: Props) {
       const fresh = freshId.current === id;
       if (fresh) freshId.current = null;
       if (!next && fresh) {
-        deleteItem(id);
+        deleteItems([id]);
         return;
       }
       if (title !== null && next && next !== item.title) patchItem(id, { title: next });
     },
-    [doc, deleteItem, patchItem],
+    [doc, deleteItems, patchItem],
   );
 
   const setLabel = useCallback(
@@ -472,28 +524,29 @@ export function MatrixView({ configVersion, embedded }: Props) {
     [doc, apply, mutate],
   );
 
-  // ---- copy and paste (T-0688) ----
+  // ---- copy and paste (T-0688, multi-select T-0716) ----
 
   const canPaste = useHasClip("matrix2x2", path);
 
-  const copyItem = useCallback(
-    (id: string) => {
+  /** Copies the given items; Ctrl+C passes the whole selection. */
+  const copyItems = useCallback(
+    (ids: readonly string[]) => {
       if (!doc) return;
-      const items = copyMatrixItems(doc, [id]);
+      const items = copyMatrixItems(doc, ids);
       if (items.length) setClip("matrix2x2", path, items);
     },
     [doc, path],
   );
 
-  /** Adds copies of `items` a step away from the originals and selects the first. */
+  /** Adds copies of `items` a step away from the originals and selects them all. */
   const addCopies = useCallback(
     (items: MatrixItem[], round: number) => {
       if (!doc || !items.length) return;
       const out = pasteMatrixItems(doc, items, round);
       mutate(out.doc);
-      selectItem(out.ids[0]);
+      multi.setSelected(out.ids);
     },
-    [doc, mutate, selectItem],
+    [doc, mutate, multi],
   );
 
   const pasteItems = useCallback(() => {
@@ -587,15 +640,19 @@ export function MatrixView({ configVersion, embedded }: Props) {
 
   // ---- keyboard -------------------------------------------------------------
 
-  /** Moves the selected item by a step; an unplaced one starts from where it is drawn. */
+  /** Moves every selected item by a step; an unplaced one starts from where it is drawn. */
   const nudge = useCallback(
     (dx: number, dy: number) => {
-      if (!doc || !selectedId) return;
-      const laid = layoutMatrix(doc).byId.get(selectedId);
-      if (!laid) return;
-      moveItem(selectedId, laid.fx + dx, laid.fy + dy);
+      if (!doc || !selectedIds.length) return;
+      const laid = layoutMatrix(doc);
+      const moves = new Map<string, { x: number; y: number }>();
+      for (const id of selectedIds) {
+        const at = laid.byId.get(id);
+        if (at) moves.set(id, { x: at.fx + dx, y: at.fy + dy });
+      }
+      moveItems(moves);
     },
-    [doc, selectedId, moveItem],
+    [doc, selectedIds, moveItems],
   );
 
   /**
@@ -629,15 +686,13 @@ export function MatrixView({ configVersion, embedded }: Props) {
         pasteItems();
         return;
       }
-      if (clipboardKey === "copy" && selectedId) {
+      if (clipboardKey === "copy" && selectedIds.length) {
         e.preventDefault();
-        copyItem(selectedId);
+        copyItems(selectedIds);
         return;
       }
       if (e.key === "Escape") {
-        setSelectedId(null);
-        setSelectedStickyId(null);
-        setSelectedQuadrant(null);
+        clearSelection();
         return;
       }
       if (e.key === "Delete" && selectedStickyId) {
@@ -653,7 +708,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
       }
       if (e.key === "Delete") {
         e.preventDefault();
-        deleteItem(selectedId);
+        deleteItems(selectedIds);
         return;
       }
       if (e.key.startsWith("Arrow")) {
@@ -673,13 +728,15 @@ export function MatrixView({ configVersion, embedded }: Props) {
     editingId,
     editingStickyId,
     selectedId,
+    selectedIds,
     selectedStickyId,
-    deleteItem,
+    clearSelection,
+    deleteItems,
     deleteSticky,
     nudge,
     undo,
     redo,
-    copyItem,
+    copyItems,
     pasteItems,
   ]);
 
@@ -769,6 +826,11 @@ export function MatrixView({ configVersion, embedded }: Props) {
               <span className="text-[11px] text-muted-foreground">
                 {t("diagram.matrix.itemCount", { count: doc.items.length })}
               </span>
+              {selectedIds.length > 1 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {t("diagram.multi.selectedCount", { count: selectedIds.length })}
+                </span>
+              )}
               <Hint label={t("diagram.matrix.addHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addItem()}>
                   <Plus className="size-3.5" />
@@ -826,13 +888,14 @@ export function MatrixView({ configVersion, embedded }: Props) {
                 <MatrixCanvas
                   doc={doc}
                   stickies={visibleStickies}
-                  selectedId={selectedId}
+                  selectedIds={selectedIds}
                   selectedStickyId={selectedStickyId}
                   selectedQuadrant={selectedQuadrant}
                   editingId={editingId}
                   editingStickyId={editingStickyId}
                   fitToken={fitToken}
                   onSelect={selectItem}
+                  onSelectMarquee={selectMarquee}
                   onSelectSticky={selectSticky}
                   onSelectQuadrant={selectQuadrant}
                   onStartEdit={setEditingId}
@@ -842,9 +905,9 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   onCommitStickyText={(id, text) => finishStickyEdit(id, text)}
                   onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
-                  onMoveItem={moveItem}
+                  onMoveItems={moveItems}
                   onAddAt={(x, y) => addItem({ x, y })}
-                  clipboard={{ canPaste, onCopy: copyItem, onDuplicate: duplicateItem, onPaste: pasteItems }}
+                  clipboard={{ canPaste, onCopy: (id) => copyItems([id]), onDuplicate: duplicateItem, onPaste: pasteItems }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.matrix.footerHint")}
@@ -868,7 +931,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
                     onChangeSticky={patchSticky}
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchItem(selected.id, patch)}
-                    onDelete={() => deleteItem(selected.id)}
+                    onDelete={() => deleteItems([selected.id])}
                   />
                 ) : selectedQuadrant ? (
                   <QuadrantEditor

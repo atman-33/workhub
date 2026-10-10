@@ -25,6 +25,12 @@ interface Props {
   /** A click (or double-click) on the empty canvas, not on anything drawn. */
   onBackgroundClick?: (e: React.MouseEvent) => void;
   onBackgroundDoubleClick?: (e: React.MouseEvent) => void;
+  /**
+   * A press on the empty canvas, before it becomes a click or a drag (T-0716).
+   * The marquee gesture starts here; right-drag still pans (`panDrag` owns
+   * button 2 and runs alongside).
+   */
+  onBackgroundPointerDown?: (e: React.PointerEvent) => void;
   /** Shows a Fit button in the corner when given. */
   onFit?: () => void;
   fitLabel?: string;
@@ -49,6 +55,7 @@ export function DiagramSurface({
   grabbing,
   onBackgroundClick,
   onBackgroundDoubleClick,
+  onBackgroundPointerDown,
   onFit,
   fitLabel,
   overlay,
@@ -63,7 +70,10 @@ export function DiagramSurface({
         "relative min-h-0 flex-1 overflow-hidden bg-background",
         panDrag.panning || grabbing ? "cursor-grabbing" : "cursor-default",
       )}
-      onPointerDown={panDrag.onPointerDown}
+      onPointerDown={(e) => {
+        panDrag.onPointerDown(e);
+        if (e.button === 0 && isBackgroundTarget(e)) onBackgroundPointerDown?.(e);
+      }}
       onContextMenuCapture={panDrag.onContextMenuCapture}
       // A click on the empty canvas clears the selection, which is what makes
       // "press Escape or click away" work without a global handler.
