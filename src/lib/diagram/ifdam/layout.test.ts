@@ -531,3 +531,36 @@ describe("nodeTextY", () => {
     for (const n of g.nodes) expect(shapeOf(n.shape).id).toBe(n.shape);
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  it("starts and lands a pinned arrow exactly on its ports", () => {
+    const doc = parseIfdam(`---
+type: ifdam
+title: t
+---
+
+## Nodes
+
+- V-001 Screen ^screen
+  show: Item
+- V-002 Do it
+
+## Edges
+
+- V-001:E -> V-002:W
+
+## Stickies
+`);
+    const layout = layoutIfdam(doc);
+    const pinned = layout.edges.filter((e) => e.from === "V-001" && e.to === "V-002");
+    expect(pinned).toHaveLength(1);
+    const [edge] = pinned;
+    const from = layout.byId.get("V-001")!;
+    const to = layout.byId.get("V-002")!;
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([to.x, to.y + to.height / 2]);
+  });
+});

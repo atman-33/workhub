@@ -8,7 +8,7 @@
  * removed one line at a time and never regrouped. Any two different nodes may be
  * joined (`allowAnyConnection`).
  */
-import { allowAnyConnection, connectEdges, reattachEdge } from "../node-edge";
+import { allowAnyConnection, connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { IfdamLayout } from "./layout";
 import {
   nextNodeId,
@@ -267,22 +267,36 @@ export function setMemo(doc: IfdamDocModel, id: string, text: string): IfdamDocM
 
 // ---- arrows -------------------------------------------------------------------
 
-const newEdge = (from: string, to: string): IfdamEdge => ({ from, to });
-
-/** Adds an arrow; the same model back when it would change nothing. */
-export function connect(doc: IfdamDocModel, from: string, to: string): IfdamDocModel {
-  const edges = connectEdges(doc.edges, from, to, newEdge, allowAnyConnection);
+/** Adds an arrow; the same model back when it would change nothing. Pins the ends when `ports` names them. */
+export function connect(
+  doc: IfdamDocModel,
+  from: string,
+  to: string,
+  ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+): IfdamDocModel {
+  const make = (f: string, t: string): IfdamEdge => ({
+    from: f,
+    to: t,
+    ...(ports.fromPort ? { fromPort: ports.fromPort } : {}),
+    ...(ports.toPort ? { toPort: ports.toPort } : {}),
+  });
+  const edges = connectEdges(doc.edges, from, to, make, allowAnyConnection);
   return edges ? { ...doc, edges } : doc;
 }
 
-/** Moves one end of an arrow to another node; the same model back when nothing changes. */
+/**
+ * Moves one end of an arrow to another node; the same model back when nothing
+ * changes. `port` pins the moved end anew (`null` clears it back to automatic);
+ * without one the end keeps the pin it had.
+ */
 export function reattach(
   doc: IfdamDocModel,
   edge: { from: string; to: string },
   end: "from" | "to",
   nodeId: string,
+  port?: EdgePort | null,
 ): IfdamDocModel {
-  const edges = reattachEdge(doc.edges, edge, end, nodeId, allowAnyConnection);
+  const edges = reattachEdge(doc.edges, edge, end, nodeId, allowAnyConnection, port);
   return edges ? { ...doc, edges } : doc;
 }
 

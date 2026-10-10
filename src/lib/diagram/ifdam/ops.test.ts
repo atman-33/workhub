@@ -253,3 +253,41 @@ describe("arrows", () => {
     expect(deleteEdge(d, { from: "V-002", to: "V-003" }).edges).toHaveLength(2);
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  const NOTE = `---
+type: ifdam
+title: t
+---
+
+## Nodes
+
+- V-001 Screen ^screen
+  show: Item
+- V-002 Do it
+- V-003 Store ^store
+
+## Edges
+
+## Stickies
+`;
+
+  it("connects with pins, and reattaching pins the moved end anew", () => {
+    const doc = parseIfdam(NOTE);
+    const pinned = connect(doc, "V-001", "V-002", {
+      fromPort: { side: "E" },
+      toPort: { side: "W", at: 0.25 },
+    });
+    expect(pinned.edges).toEqual([
+      { from: "V-001", to: "V-002", fromPort: { side: "E" }, toPort: { side: "W", at: 0.25 } },
+    ]);
+    const moved = reattach(pinned, { from: "V-001", to: "V-002" }, "to", "V-003", {
+      side: "N",
+    });
+    expect(moved.edges).toEqual([
+      { from: "V-001", to: "V-003", fromPort: { side: "E" }, toPort: { side: "N" } },
+    ]);
+    const cleared = reattach(moved, { from: "V-001", to: "V-003" }, "to", "V-003", null);
+    expect(cleared.edges).toEqual([{ from: "V-001", to: "V-003", fromPort: { side: "E" } }]);
+  });
+});

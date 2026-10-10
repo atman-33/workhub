@@ -288,3 +288,38 @@ describe("boundaryPoint on a laid-out flow", () => {
     expect(p.x).toBeCloseTo(d.cx + d.width / 2, 3);
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  it("starts and lands a pinned arrow exactly on its ports", () => {
+    const doc = parseFlow(`---
+type: flow
+title: t
+---
+
+## Lanes
+
+- L-001 Team
+
+## Steps
+
+- F-001 First lane:L-001
+- F-002 Second lane:L-001
+
+## Edges
+
+- F-001:E -> F-002:W
+
+## Stickies
+`);
+    const layout = layoutFlow(doc);
+    expect(layout.edges).toHaveLength(1);
+    const [edge] = layout.edges;
+    const from = layout.byId.get("F-001")!;
+    const to = layout.byId.get("F-002")!;
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([to.x, to.y + to.height / 2]);
+  });
+});

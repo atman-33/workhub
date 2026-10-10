@@ -245,3 +245,34 @@ describe("nodeTextY", () => {
     expect(nodeTextY(d, 0)).toBeLessThan(d.cy + 13 * 0.36);
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  it("starts and lands a pinned arrow exactly on its ports", () => {
+    const doc = parseAlgorithm(`---
+type: algorithm
+title: t
+---
+
+## Nodes
+
+- A-001 Start ^start
+- A-002 Step
+
+## Edges
+
+- A-001:E -> A-002:W
+
+## Stickies
+`);
+    const layout = layoutAlgorithm(doc);
+    expect(layout.edges).toHaveLength(1);
+    const [edge] = layout.edges;
+    const from = layout.byId.get("A-001")!;
+    const to = layout.byId.get("A-002")!;
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([to.x, to.y + to.height / 2]);
+  });
+});

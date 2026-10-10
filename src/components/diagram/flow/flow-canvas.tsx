@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import { DropSpots, PortHandles, RubberBand } from "@/components/diagram/arrow-handles";
 import {
   ClipboardMenuItems,
   NodeClipboardMenu,
@@ -26,7 +26,7 @@ import {
   type PositionedStep,
 } from "@/lib/diagram/flow/layout";
 import type { FlowDocModel } from "@/lib/diagram/flow/parse";
-import { allowAnyConnection, hitNode, type ConnectionRule } from "@/lib/diagram/node-edge";
+import { allowAnyConnection, hitNode, portOfDrop, type ConnectionRule, type EdgePort } from "@/lib/diagram/node-edge";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import { textWidth } from "@/lib/diagram/text";
@@ -80,8 +80,17 @@ interface Props {
   onMoveStep: (id: string, cx: number, cy: number) => void;
   /** A double-click on a lane: add a step at this x and offset from the lane's middle. */
   onAddAt: (bandKey: string, x: number, y: number) => void;
-  onConnect: (from: string, to: string) => void;
-  onReattach: (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => void;
+  onConnect: (
+    from: string,
+    to: string,
+    ports?: { fromPort?: EdgePort; toPort?: EdgePort },
+  ) => void;
+  onReattach: (
+    edge: { from: string; to: string },
+    end: "from" | "to",
+    nodeId: string,
+    port: EdgePort | null,
+  ) => void;
   /** Copy, duplicate and paste, offered in the right-click menus. */
   clipboard: CanvasClipboard;
   /** Bumped by the view to re-fit (a new note, or the Fit button). */
@@ -134,6 +143,8 @@ export function FlowCanvas({
       justDragged.current = false;
     }, 0);
   };
+  /** The pinned exit side a port-handle drag carries, if any. */
+  const pendingPort = useRef<EdgePort | null>(null);
 
   const stepFree = useFreeDrag({
     toDiagram,
@@ -179,8 +190,23 @@ export function FlowCanvas({
       return d.end === "to" ? canConnect(d.anchorId, overId) : canConnect(overId, d.anchorId);
     },
     onDrop: (d, overId) => {
-      if (d.mode === "create") onConnect(d.anchorId, overId);
-      else if (d.edge && d.end) onReattach(d.edge, d.end, overId);
+      const over = layout.byId.get(overId);
+      if (!over) {
+        pendingPort.current = null;
+        return;
+      }
+      // The drop point decides the entering side wherever it lands on the
+      // step; the middle stays automatic.
+      const toPort = portOfDrop(over, d.pointer);
+      if (d.mode === "create") {
+        onConnect(d.anchorId, overId, {
+          ...(pendingPort.current ? { fromPort: pendingPort.current } : {}),
+          ...(toPort ? { toPort } : {}),
+        });
+        pendingPort.current = null;
+      } else if (d.edge && d.end) {
+        onReattach(d.edge, d.end, overId, toPort ?? null);
+      }
       swallowClick();
     },
   });
@@ -221,6 +247,11 @@ export function FlowCanvas({
 
   const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
   const handleSteps = edgeDrag.drag || dragging ? [] : [hoverId, selectedStepId];
+  // The steps a dragged arrow keeps and would land on, if any.
+  const dropTarget =
+    edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
+  const dragAnchor =
+    edgeDrag.drag?.anchorId ? (layout.byId.get(edgeDrag.drag.anchorId) ?? null) : null;
   const ghostKey =
     edgeDrag.drag?.mode === "reattach" && edgeDrag.drag.edge
       ? `${edgeDrag.drag.edge.from}->${edgeDrag.drag.edge.to}`
@@ -413,11 +444,12 @@ export function FlowCanvas({
               </text>
             )}
             {showHandles && !editing && (
-              <ArrowHandles
+              <PortHandles
                 node={step}
-                onStart={(e) => {
+                onStart={(e, side) => {
                   if (e.button !== 0) return;
                   e.stopPropagation();
+                  pendingPort.current = { side };
                   edgeDrag.startCreate(e, step.id);
                 }}
               />
@@ -428,6 +460,12 @@ export function FlowCanvas({
       })}
 
       {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
+      {dragAnchor && edgeDrag.drag && (
+        <DropSpots node={dragAnchor} pointer={edgeDrag.drag.pointer} />
+      )}
+      {dropTarget && edgeDrag.drag && (
+        <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
+      )}
 
       {/* Stickies are drawn last, so a note the user dropped over a step stays
           readable instead of disappearing under it. */}

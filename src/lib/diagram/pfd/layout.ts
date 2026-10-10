@@ -11,6 +11,7 @@
  * the node shapes and headed along the curve's own direction at the tip.
  */
 import type { Color } from "../colors";
+import { portsOption } from "../edge-ports";
 import { layerLayout } from "../graph-layout";
 import { edgeGeometry, edgeKey, type DiagramNode, type EdgeGeometry } from "../node-edge";
 import { documentWaveDepth } from "../shapes";
@@ -174,14 +175,7 @@ export function layoutPfd(
     const to = byId.get(edge.to);
     if (!from || !to) continue;
     const geometry = edgeGeometry(from, to, "curve", {
-      ...(edge.fromPort || edge.toPort
-        ? {
-            ports: {
-              ...(edge.fromPort ? { from: edge.fromPort } : {}),
-              ...(edge.toPort ? { to: edge.toPort } : {}),
-            },
-          }
-        : {}),
+      ...portsOption(edge),
     });
     if (!geometry) continue;
     edges.push({ key: edgeKey(edge), from: edge.from, to: edge.to, geometry });

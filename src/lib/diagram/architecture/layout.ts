@@ -19,13 +19,13 @@
  * note and not drawn, and no arrow ever joins a frame.
  */
 import type { Color } from "../colors";
+import { portsOption } from "../edge-ports";
 import { groupRowLayout } from "../graph-layout";
 import {
   edgeGeometry,
   startHeadAngle,
   type DiagramNode,
   type EdgeGeometry,
-  type EdgePort,
   type Segment,
 } from "../node-edge";
 import { cylinderLid, PERSON_ICON_HEIGHT } from "../shapes";
@@ -311,14 +311,11 @@ export function layoutArchitecture(
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
     if (!from || !to) continue;
-    const ports: { from?: EdgePort; to?: EdgePort } = {};
-    if (edge.fromPort) ports.from = edge.fromPort;
-    if (edge.toPort) ports.to = edge.toPort;
     const geometry = edgeGeometry(from, to, "orthogonal", {
       flow: "free",
       obstacles: nodes.filter((n) => n !== from && n !== to),
       used,
-      ...(edge.fromPort || edge.toPort ? { ports } : {}),
+      ...portsOption(edge),
     });
     if (!geometry) continue; // a block joined to itself is kept, not drawn
     geometry.points.slice(1).forEach((q, i) => used.push({ a: geometry.points[i], b: q }));

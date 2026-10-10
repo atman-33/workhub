@@ -18,6 +18,7 @@
  * branch.
  */
 import type { Color } from "../colors";
+import { portsOption } from "../edge-ports";
 import { rankColumnLayout } from "../graph-layout";
 import {
   edgeGeometry,
@@ -203,6 +204,7 @@ export function layoutAlgorithm(
       obstacles: nodes.filter((n) => n.id !== from.id && n.id !== to.id),
       used,
       ...(from.kind === "decision" ? { labelOffset: DECISION_LABEL_OFFSET } : {}),
+      ...portsOption(edge),
     });
     if (!geometry) continue; // an arrow from a node to itself is kept, not drawn
     for (let k = 1; k < geometry.points.length; k++) {

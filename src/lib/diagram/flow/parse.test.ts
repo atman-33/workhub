@@ -238,3 +238,51 @@ not a list item
     expect(save(hidden, (d) => ({ ...d, stickiesHidden: false }))).not.toContain("stickies:");
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  const PORTS = `---
+type: flow
+title: t
+---
+
+## Lanes
+
+- L-001 Team
+
+## Steps
+
+- F-001 First lane:L-001
+- F-002 Second lane:L-001
+- F-003 Third lane:L-001
+
+## Edges
+
+- F-001:E@0.5 -> F-002:W "Go"
+- F-002:N -> F-003
+
+## Stickies
+`;
+
+  it("reads pinned sides and ratios", () => {
+    const doc = parseFlow(PORTS);
+    expect(doc.edges).toEqual([
+      {
+        from: "F-001",
+        to: "F-002",
+        label: "Go",
+        fromPort: { side: "E", at: 0.5 },
+        toPort: { side: "W" },
+      },
+      { from: "F-002", to: "F-003", fromPort: { side: "N" } },
+    ]);
+    expect(doc.rawEdges).toEqual([]);
+  });
+
+  it("ignores pins for identity and writes them back", () => {
+    const doc = parseFlow(PORTS);
+    const out = serializeFlow(PORTS, doc, "2026-10-10");
+    expect(out).toContain('- F-001:E@0.5 -> F-002:W "Go"');
+    expect(out).toContain("- F-002:N -> F-003");
+    expect(parseFlow(out).edges).toEqual(doc.edges);
+  });
+});

@@ -7,7 +7,7 @@
  * decision makes the new node its next exit, and so on. Any two different nodes
  * may be joined (`allowAnyConnection`), and a decision has no limit on its exits.
  */
-import { allowAnyConnection, connectEdges, reattachEdge } from "../node-edge";
+import { allowAnyConnection, connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { AlgorithmLayout } from "./layout";
 import {
   nextNodeId,
@@ -135,22 +135,36 @@ export function hasManualPositions(doc: AlgorithmDocModel): boolean {
 
 // ---- arrows -------------------------------------------------------------------
 
-const newEdge = (from: string, to: string): AlgorithmEdge => ({ from, to });
-
-/** Adds an arrow; the same model back when it would change nothing. */
-export function connect(doc: AlgorithmDocModel, from: string, to: string): AlgorithmDocModel {
-  const edges = connectEdges(doc.edges, from, to, newEdge, allowAnyConnection);
+/** Adds an arrow; the same model back when it would change nothing. Pins the ends when `ports` names them. */
+export function connect(
+  doc: AlgorithmDocModel,
+  from: string,
+  to: string,
+  ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+): AlgorithmDocModel {
+  const make = (f: string, t: string): AlgorithmEdge => ({
+    from: f,
+    to: t,
+    ...(ports.fromPort ? { fromPort: ports.fromPort } : {}),
+    ...(ports.toPort ? { toPort: ports.toPort } : {}),
+  });
+  const edges = connectEdges(doc.edges, from, to, make, allowAnyConnection);
   return edges ? { ...doc, edges } : doc;
 }
 
-/** Moves one end of an arrow to another node; the same model back when nothing changes. */
+/**
+ * Moves one end of an arrow to another node; the same model back when nothing
+ * changes. `port` pins the moved end anew (`null` clears it back to automatic);
+ * without one the end keeps the pin it had.
+ */
 export function reattach(
   doc: AlgorithmDocModel,
   edge: { from: string; to: string },
   end: "from" | "to",
   nodeId: string,
+  port?: EdgePort | null,
 ): AlgorithmDocModel {
-  const edges = reattachEdge(doc.edges, edge, end, nodeId, allowAnyConnection);
+  const edges = reattachEdge(doc.edges, edge, end, nodeId, allowAnyConnection, port);
   return edges ? { ...doc, edges } : doc;
 }
 

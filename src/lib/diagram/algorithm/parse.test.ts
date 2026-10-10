@@ -253,3 +253,47 @@ not a list item
     expect(out).toContain("- A-001 a -> b (x) | y: z\n");
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  const PORTS = `---
+type: algorithm
+title: t
+---
+
+## Nodes
+
+- A-001 Start ^start
+- A-002 Step
+- A-003 End ^end
+
+## Edges
+
+- A-001:E@0.5 -> A-002:W "Go"
+- A-002:N -> A-003
+
+## Stickies
+`;
+
+  it("reads pinned sides and ratios", () => {
+    const doc = parseAlgorithm(PORTS);
+    expect(doc.edges).toEqual([
+      {
+        from: "A-001",
+        to: "A-002",
+        label: "Go",
+        fromPort: { side: "E", at: 0.5 },
+        toPort: { side: "W" },
+      },
+      { from: "A-002", to: "A-003", fromPort: { side: "N" } },
+    ]);
+    expect(doc.rawEdges).toEqual([]);
+  });
+
+  it("ignores pins for identity and writes them back", () => {
+    const doc = parseAlgorithm(`${PORTS}\n`);
+    const out = serializeAlgorithm(PORTS, doc, "2026-10-10");
+    expect(out).toContain('- A-001:E@0.5 -> A-002:W "Go"');
+    expect(out).toContain("- A-002:N -> A-003");
+    expect(parseAlgorithm(out).edges).toEqual(doc.edges);
+  });
+});

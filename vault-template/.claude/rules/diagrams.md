@@ -201,6 +201,12 @@ updated: 2026-10-09
   `(from, to)` is the identity, so two lines for the same pair are one arrow (the
   app keeps the first label). An arrow naming a step that does not exist is kept
   by the app as it is and listed as a warning.
+- **Pinned ends**: either end may name a side and a ratio, `- F-001:E@0.5 ->
+  F-002:W ["label"]`. The sides are `N`/`E`/`S`/`W` (edges of the box); the ratio
+  runs 0 to 1 along the side and defaults to the middle, so `:E` alone pins the
+  middle of the east side. The arrow leaves and enters through those points and
+  the middle stays automatic; an end without one is routed as always. A pin that
+  cannot be honoured is ignored, never drawn through a step.
 - **Layout is automatic**: columns follow the flow (a step sits one column right
   of the furthest step that flows into it) and rows are the lanes. An arrow that
   goes back to an earlier step is drawn as a loop under the boxes and does not
@@ -370,6 +376,12 @@ updated: 2026-10-10
   case). An arrow naming a node that does not exist is kept by the app as it is,
   listed as a warning and not drawn: do not write one. An arrow from a node to
   itself is kept and not drawn.
+- **Pinned ends**: either end may name a side and a ratio, `- A-001:E@0.5 ->
+  A-002:W ["label"]`. The sides are `N`/`E`/`S`/`W` (edges of the box); the ratio
+  runs 0 to 1 along the side and defaults to the middle, so `:E` alone pins the
+  middle of the east side. The arrow leaves and enters through those points and
+  the middle stays automatic; an end without one is routed as always. A pin that
+  cannot be honoured is ignored, never drawn through a node.
 - **Layout is automatic, and the order you write the arrows in matters.** A node
   sits one row below the furthest node that flows into it. A node's **first**
   exit (its first arrow in `## Edges`) continues straight down, so write the main
@@ -485,7 +497,12 @@ updated: 2026-10-10
   identity and two lines for one pair are one arrow (the app keeps the first
   label). Any two different nodes may be joined; there is no connection rule. The
   usual flow is screen -> trigger -> process -> message (or screen) -> screen.
-  **The direction to or from a data store says how it is used**: process -> store
+- **Pinned ends**: either end may name a side and a ratio, `- V-001:E@0.5 ->
+  V-002:W ["label"]`. The sides are `N`/`E`/`S`/`W` (edges of the box); the ratio
+  runs 0 to 1 along the side and defaults to the middle, so `:E` alone pins the
+  middle of the east side. The arrow leaves and enters through those points and
+  the middle stays automatic; an end without one is routed as always. A pin that
+  cannot be honoured is ignored, never drawn through a node.  **The direction to or from a data store says how it is used**: process -> store
   writes, store -> process reads; write both when it does both (they are drawn on
   one line with a head at each end, so give such arrows no label). Label the exits
   of a process only when they differ ("成功" / "失敗"). An arrow naming a node that
