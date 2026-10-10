@@ -7,7 +7,7 @@ paths:
 # Diagram notes
 
 A **diagram** is a note under `projects/<NNNN-slug>/` whose frontmatter `type`
-is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd` or `algorithm`. The app's
+is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd`, `algorithm` or `ifdam`. The app's
 **Diagrams** tab lists them all and opens the editor for the note's `type`.
 Each kind's own format is below (Schedule and Mindmap keep their own rules,
 `schedules.md` and `mindmaps.md`; read the one for the note's `type`).
@@ -39,7 +39,7 @@ New projects start with none of these folders; create the one a diagram needs.
   matrix's optional `## Quadrants` is one of them), then an optional
   `## Stickies`, then `## Memo`. **Never edit `## Memo`**, and leave
   sections you do not recognise where they are.
-- Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, `A-001`, ...) that is **never
+- Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, `A-001`, `V-001`, ...) that is **never
   changed or reused**. An element typed without one is given one by the app.
 - A line is `- <id> <title> [tokens]`: whitespace-separated tokens such as
   `#<color>` and `task:<task-id>` are pulled out, the rest is the title. Extra
@@ -386,4 +386,128 @@ updated: 2026-10-10
 - **Adding a symbol (for the app's developers, not for note edits)**: add one
   entry `{ kind, mark, shape, label }` to `SYMBOLS` in
   `src/lib/diagram/algorithm/symbols.ts` (and the shape to
+  `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.
+
+## ifdam
+
+An IFDAM diagram (shown as "IFDAM 図" / "IFDAM"): **one feature of an app**, drawn
+as the **screens** the user sees, the **triggers** (what the user does on a
+screen), the **processes** the app runs, the **data stores** they read and write
+and the **messages** they show. A screen is a box that holds its contents:
+what it shows, what the user enters, what the user can press. Not a program flow
+(`algorithm`: the steps inside one function) and not a PFD (`pfd`: work and
+deliverables). Self-contained - everything an edit needs is here.
+
+```markdown
+---
+type: ifdam
+title: Todo の登録
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Nodes
+
+- V-001 Todo 一覧 ^screen
+  show: 登録済みの Todo の一覧
+  show: 件数
+  input: 検索語
+  action: 「追加」ボタン
+- V-002 「追加」ボタンをクリック ^trigger
+- V-003 Todo 追加 ^screen @560,200
+  show: 入力フォームの見出し
+  input: タイトル（必須）
+  input: 期限
+  action: 「登録」ボタン
+  action: 「キャンセル」ボタン
+  登録に成功したら一覧へ戻る。
+- V-004 「登録」ボタンをクリック ^trigger
+- V-005 Todo を登録する task:T-0100
+- V-006 Todo ^store
+- V-007 「登録しました」を表示する ^message
+- V-008 一覧を取得する
+
+## Edges
+
+- V-001 -> V-002
+- V-002 -> V-003
+- V-003 -> V-004
+- V-004 -> V-005
+- V-005 -> V-006
+- V-005 -> V-007
+- V-007 -> V-008
+- V-006 -> V-008
+- V-008 -> V-001
+
+## Stickies
+
+- S-001 node:V-005 @40,-30 #red 重複チェックは未定
+```
+
+- **Frontmatter**: as for every diagram; `stickies: hidden` is the only other key.
+  **Sections** in this order: `## Nodes`, `## Edges`, then the optional
+  `## Stickies` and `## Memo`. There are no lanes.
+- **Node**: `- V-NNN <title> [^mark] [task:<id>] [#color] [@x,y]`, then optional
+  indented continuation lines. Tokens may come in any order; the title is what is
+  left, on one line. Ids are `V-` plus the highest number in the file plus one;
+  never change or reuse one.
+- **`^mark` says what the element is**; no mark is a process (`^process` also
+  reads). `^screen` a screen (a box with sections), `^trigger` a trigger (a
+  hexagon), `^store` a data store (a cylinder), `^message` a message (a rounded
+  box); a process is an oval. One mark per node. A `^word` that is not in this list
+  is not a mark: it stays in the title. **Name them by what they are**: a trigger
+  is something that happens ("「追加」ボタンをクリック", "画面を開く"), a process a verb
+  phrase ("Todo を登録する"), a data store a noun ("Todo"), a message the text
+  shown ("「登録しました」を表示する"), a screen its name ("Todo 一覧").
+- **A screen's contents are its continuation lines**, one item per line, each
+  starting with a key: `show: <text>` for what the screen shows, `input: <text>` for
+  what the user enters, `action: <text>` for what the user can press or choose.
+  The keys are exactly `show:` `input:` `action:` (lower case, whatever language
+  the text is in). **Write one item per line and a key on every line**; do not
+  nest bullets, do not put several items on one line, do not write a heading line
+  for a section. Add an item by adding a line; the app draws the sections in the
+  order show, input, action whatever order the lines are in, and draws only the
+  sections that have items. **Keep the lines in the order they are in**: never
+  regroup or sort them. A continuation line with no key (or with a key and no text)
+  is the node's **memo**, shown on hover; it is not drawn in the box.
+- **Items belong to the screen.** Do not repeat an item in the trigger that
+  follows it: the button is an `action:` of the screen, "「追加」ボタンをクリック" is
+  the trigger that happens when it is pressed. `show:` `input:` `action:` under a
+  node that is not a `^screen` are plain memo text and are not drawn as items;
+  changing a screen to another kind (or back) never deletes a line.
+- **Arrow**: `- V-NNN -> V-NNN ["label"]`, no id; the pair `(from, to)` is the
+  identity and two lines for one pair are one arrow (the app keeps the first
+  label). Any two different nodes may be joined; there is no connection rule. The
+  usual flow is screen -> trigger -> process -> message (or screen) -> screen.
+  **The direction to or from a data store says how it is used**: process -> store
+  writes, store -> process reads; write both when it does both (they are drawn on
+  one line with a head at each end, so give such arrows no label). Label the exits
+  of a process only when they differ ("成功" / "失敗"). An arrow naming a node that
+  does not exist is kept by the app as it is, listed as a warning and not drawn:
+  do not write one. An arrow from a node to itself is kept and not drawn.
+- **Layout is automatic and runs left to right.** A node sits one column right of
+  the furthest node that flows into it (the arrows that touch a data store do not
+  count). A **data store sits below, in the column of the first node that has an
+  arrow to or from it** (the first such arrow in `## Edges`), so write that arrow
+  first; more stores for the same node stack under it in the order written. An
+  arrow that goes back to the left (the loop back to the list screen) is drawn
+  under the whole diagram. **Write the entry screen first, then the nodes in
+  flow order, then the arrows**, ending with the arrow back to the entry screen
+  when there is a loop. Do not invent positions.
+- **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
+  numbers, negatives allowed, y growing downward. **No `@` means "placed by the
+  layout"**: when you add a node leave the `@` off, and never rewrite another
+  node's position. The app writes `@` only on the node the user dragged; removing
+  every `@` is its "auto-align".
+- **Changing a node's kind** is changing its `^mark` (the id stays).
+- **`## Stickies`** pins a note to a node: `node:V-NNN` (the key is `node:` in
+  every kind). Not to arrows. Delete a node and delete its arrows and stickies.
+- **Keep what you do not understand.** A line under `## Nodes` or `## Edges`
+  that is not a list item (a `show: x` at column 0, for one), or starts with
+  another kind's id (`F-001`, `P-001`, `A-001`, `N-001`), is kept by the app as
+  it is and listed as a warning; leave it alone, and a sticky whose `node:` names
+  no node too. Never edit `## Memo`.
+- **Adding an element (for the app's developers, not for note edits)**: add one
+  entry `{ kind, mark, shape, label, next }` to `SYMBOLS` in
+  `src/lib/diagram/ifdam/symbols.ts` (and the shape to
   `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.
