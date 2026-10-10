@@ -393,6 +393,12 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
+        <PanelToggle
+          side="left"
+          open={panelOpen("left")}
+          disabled={!kind}
+          onToggle={() => kind && setPanelOpen(kind, "left", !panelOpen("left"))}
+        />
         <Select
           value={project || ALL}
           onValueChange={(v) => {
@@ -469,6 +475,14 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
               <Sparkles className="size-3.5" />
             </Button>
           </Hint>
+          <PanelToggle
+            side="right"
+            open={!kind || isPanelOpen(hiddenPanels, kind, "right")}
+            disabled={!kind || !hasEditor(kind)}
+            onToggle={() =>
+              kind && setPanelOpen(kind, "right", !isPanelOpen(hiddenPanels, kind, "right"))
+            }
+          />
         </div>
       </div>
 
@@ -530,17 +544,6 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
                 })
               )}
             </aside>
-          )}
-          {kind && (
-            <PanelToggle
-              side="left"
-              open={panelOpen("left")}
-              onToggle={() => setPanelOpen(kind, "left", !panelOpen("left"))}
-              className={cn(
-                "absolute top-2",
-                panelOpen("left") ? "left-full -translate-x-1/2" : "left-0",
-              )}
-            />
           )}
         </div>
 
