@@ -162,12 +162,72 @@ const documentShape: ShapeDef = {
   },
 };
 
+/** How far the top and bottom edges of a parallelogram are shifted: the lean. */
+export const PARALLELOGRAM_SLANT = 14;
+
+/** Slant actually used for a shape of this size (never more than a quarter of the width). */
+export function parallelogramSlant(size: ShapeSize): number {
+  return Math.min(PARALLELOGRAM_SLANT, size.width / 4);
+}
+
+/**
+ * A parallelogram leaning right (the top edge shifted right of the bottom one):
+ * input and output of a program flow (T-0697). Convex, so star-shaped about its
+ * centre. The side edges are straight lines from (-w/2 + k, -h/2) to
+ * (-w/2, h/2) on the left and (w/2, -h/2) to (w/2 - k, h/2) on the right.
+ */
+const parallelogram: ShapeDef = {
+  id: "parallelogram",
+  contains: (dx, dy, s) => {
+    if (Math.abs(dy) > s.height / 2) return false;
+    const k = parallelogramSlant(s);
+    const t = dy / s.height; // -0.5 at the top, 0.5 at the bottom
+    return dx >= -s.width / 2 + k * (0.5 - t) && dx <= s.width / 2 - k * (0.5 + t);
+  },
+  outline: (box) => {
+    const k = parallelogramSlant(box);
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    return {
+      tag: "polygon",
+      attrs: {
+        points: `${box.x + k},${box.y} ${right},${box.y} ${right - k},${bottom} ${box.x},${bottom}`,
+      },
+    };
+  },
+};
+
+/** Distance of the two inner vertical lines of a subroutine from its sides. */
+export const SUBROUTINE_INSET = 10;
+
+/**
+ * A rectangle with a vertical line inside each side: a predefined process
+ * (T-0697). One `path` draws the frame and both lines; the lines are open
+ * sub-paths with no area, so the fill is the plain rectangle. `contains` is the
+ * rectangle's, so an arrow stops on the outer frame.
+ */
+const subroutine: ShapeDef = {
+  id: "subroutine",
+  contains: (dx, dy, s) => Math.abs(dx) <= s.width / 2 && Math.abs(dy) <= s.height / 2,
+  outline: (box) => {
+    const inset = Math.min(SUBROUTINE_INSET, box.width / 4);
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    const d = [
+      `M ${box.x} ${box.y} H ${right} V ${bottom} H ${box.x} Z`,
+      `M ${box.x + inset} ${box.y} V ${bottom}`,
+      `M ${right - inset} ${box.y} V ${bottom}`,
+    ].join(" ");
+    return { tag: "path", attrs: { d } };
+  },
+};
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 const registry = new Map<string, ShapeDef>(
-  [rect, rounded, pill, diamond, ellipse, documentShape].map((s) => [s.id, s]),
+  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine].map((s) => [s.id, s]),
 );
 
 /** Adds (or replaces) a shape. */

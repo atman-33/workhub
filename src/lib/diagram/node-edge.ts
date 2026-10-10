@@ -129,12 +129,28 @@ export interface EdgeOptions {
   /** Segments of arrows already routed. A new route keeps off them where it
    * can, so arrows that share a gap do not lie on top of one another. */
   used?: Segment[];
+  /**
+   * Which way the chart runs. `"right"` (the default) is the horizontal chart of
+   * the business flow and the PFD; `"down"` is the vertical one of the program
+   * flow (T-0697), whose orthogonal arrows come from `verticalRoute`. Only
+   * orthogonal arrows care.
+   */
+  flow?: "right" | "down";
+  /**
+   * Put the label (`mid`) this far along the line from its start instead of at
+   * its middle, never past the end of the first segment. The program flow uses
+   * it for the arrows leaving a decision, so the label sits next to the branch
+   * and not on a corner.
+   */
+  labelOffset?: number;
 }
 
 /** Distance a loop keeps below the nodes it goes around. */
 export const DETOUR_MARGIN = 28;
 /** Spacing between the alternative lines a route may take. */
 const LANE_STEP = 12;
+/** Cost of a route segment running through a box (`routeCost`). */
+const OBSTACLE_COST = 1000;
 /** Least free space between two boxes for a route to run through the gap. */
 const MIN_GAP = 16;
 /** A route keeps this far from a box it is not joined to. */
@@ -240,7 +256,7 @@ function overlaps(a: Segment, b: Segment): boolean {
 function routeCost(points: Point[], options: EdgeOptions): number {
   let cost = 0;
   for (const seg of segmentsOf(points)) {
-    for (const box of options.obstacles ?? []) if (hitsBox(seg, box)) cost += 1000;
+    for (const box of options.obstacles ?? []) if (hitsBox(seg, box)) cost += OBSTACLE_COST;
     for (const other of options.used ?? []) if (overlaps(seg, other)) cost += 10;
   }
   return cost;
@@ -326,7 +342,8 @@ function orthogonalGeometry(
   to: DiagramNode,
   options: EdgeOptions,
 ): EdgeGeometry {
-  const route = orthogonalRoute(from, to, options);
+  const route =
+    options.flow === "down" ? verticalRoute(from, to, options) : orthogonalRoute(from, to, options);
   const start = boundaryPoint(from, route[1]);
   const end = boundaryPoint(to, route[route.length - 2]);
   const points = [start, ...route.slice(1, -1), end];
@@ -338,8 +355,87 @@ function orthogonalGeometry(
     start,
     end,
     headAngle: Math.atan2(end.y - last.y, end.x - last.x),
-    mid: polylineMidpoint(points),
+    mid:
+      options.labelOffset !== undefined
+        ? pointAlongFirstSegment(points, options.labelOffset)
+        : polylineMidpoint(points),
   };
+}
+
+/** The point `offset` along the first segment of a polyline, held to that segment. */
+function pointAlongFirstSegment(points: Point[], offset: number): Point {
+  const length = dist(points[0], points[1]);
+  if (length === 0) return points[0];
+  const k = Math.min(Math.max(offset, 0), length) / length;
+  return {
+    x: points[0].x + (points[1].x - points[0].x) * k,
+    y: points[0].y + (points[1].y - points[0].y) * k,
+  };
+}
+
+/**
+ * The corner points of an orthogonal route for a chart that runs downward
+ * (T-0697), centre to centre like `orthogonalRoute`; the leg out of and into a
+ * node is cut to its outline by `boundaryPoint`, so the first and last
+ * segments decide which side of a shape (a diamond's vertex, a parallelogram's
+ * slanted edge) an arrow uses. Candidates, best first:
+ *
+ * - `to` below `from`: a straight drop when they share a column; else an L
+ *   (out of the side, across to the target's column, down into its top); else
+ *   a Z (down, across in the gap above the target, down). The cheapest of
+ *   these wins, the earliest on a tie;
+ * - when all of those would run through a box (a skip arrow past the main
+ *   line), or `to` is not below `from` (a loop's return arrow): the right-hand
+ *   lane - out of the right side, across to a line past the rightmost box in
+ *   between, along it, and back left into the right side of `to`. The line
+ *   starts `DETOUR_MARGIN` out and moves outward in `LANE_STEP` steps to dodge
+ *   other arrows;
+ * - boxes side by side with no vertical gap (hand-placed): the horizontal
+ *   router's route.
+ */
+export function verticalRoute(from: Box, to: Box, options: EdgeOptions = {}): Point[] {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const gapBelow = to.y - (from.y + from.height);
+  const gapAbove = from.y - (to.y + to.height);
+
+  if (gapBelow >= MIN_GAP) {
+    const direct: Point[][] = [];
+    if (Math.abs(a.x - b.x) < 0.5) {
+      direct.push([a, b]);
+    } else {
+      direct.push([a, { x: b.x, y: a.y }, b]);
+      const top = from.y + from.height;
+      const preferred = to.y - Math.min(gapBelow / 2, 24);
+      for (const y of around(preferred, top + 8, to.y - 8)) {
+        direct.push([a, { x: a.x, y }, { x: b.x, y }, b]);
+      }
+    }
+    const best = cheapest(direct, options);
+    if (routeCost(best, options) < OBSTACLE_COST) return best;
+    return cheapest([best, ...laneRoutes(from, to, options)], options);
+  }
+  if (gapAbove >= MIN_GAP) {
+    return cheapest(laneRoutes(from, to, options), options);
+  }
+  return orthogonalRoute(from, to, options);
+}
+
+/** The routes around the right-hand side, innermost line first. */
+function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const top = Math.min(from.y, to.y);
+  const bottom = Math.max(from.y + from.height, to.y + to.height);
+  let right = Math.max(from.x + from.width, to.x + to.width);
+  for (const box of options.obstacles ?? []) {
+    if (box.y < bottom && box.y + box.height > top) right = Math.max(right, box.x + box.width);
+  }
+  const base = right + DETOUR_MARGIN;
+  return Array.from({ length: 9 }, (_, k) => {
+    const x = base + k * LANE_STEP;
+    return [a, { x, y: a.y }, { x, y: b.y }, b];
+  });
 }
 
 // ---- curves -----------------------------------------------------------------
