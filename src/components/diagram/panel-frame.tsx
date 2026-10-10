@@ -1,7 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { usePanelRef } from "react-resizable-panels";
-import { Check, ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
@@ -38,22 +46,25 @@ export function PanelFrame({ children }: { children: ReactNode }) {
   return <div className="shrink-0 space-y-3 border-b p-3 text-xs">{children}</div>;
 }
 
-/** The small tab on the border of a side panel that hides or shows it (T-0686).
- * `side` is the side the panel is on: open, the arrow points at the edge it
- * will fold toward; hidden, back at the canvas. */
+/** The icon button that hides or shows a side panel (T-0691). It sits in the
+ * Diagrams tab's strip, the left panel's at the far left and the right panel's
+ * at the far right, so nothing reaches into the canvas. The glyph is the
+ * "toggle sidebar" rectangle with a divider near `side`'s edge: the closed
+ * variant carries a chevron toward where the panel will open. */
 export function PanelToggle({
   side,
   open,
+  disabled,
   onToggle,
-  className,
 }: {
   side: "left" | "right";
   open: boolean;
+  disabled?: boolean;
   onToggle: () => void;
-  className?: string;
 }) {
   const t = useT();
-  const Icon = (side === "right") === open ? ChevronRight : ChevronLeft;
+  const Icon =
+    side === "left" ? (open ? PanelLeftClose : PanelLeftOpen) : open ? PanelRightClose : PanelRightOpen;
   const label =
     side === "left"
       ? open
@@ -63,27 +74,26 @@ export function PanelToggle({
         ? t("diagram.panel.hideRight")
         : t("diagram.panel.showRight");
   return (
-    <Hint label={label}>
-      <button
+    <Hint label={label} disabled={disabled}>
+      <Button
         type="button"
+        size="icon"
+        variant={open ? "secondary" : "ghost"}
+        className="size-7"
         aria-label={label}
-        // The divider underneath starts a drag on press; this is a click.
-        onPointerDown={(e) => e.stopPropagation()}
+        aria-pressed={open}
+        disabled={disabled}
         onClick={onToggle}
-        className={cn(
-          "z-20 flex h-10 w-3.5 items-center justify-center rounded-sm border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground",
-          className,
-        )}
       >
-        <Icon className="size-3" />
-      </button>
+        <Icon className="size-4" />
+      </Button>
     </Hint>
   );
 }
 
 /**
  * The right-hand column of an editor view: a divider and a panel that can be
- * hidden (T-0686). `open` comes from the vault settings; dragging the divider
+ * hidden (T-0686); the button that brings it back is in the Diagrams strip. `open` comes from the vault settings; dragging the divider
  * to nothing reports back through `onOpenChange`, so the two never disagree.
  *
  * The panel stays mounted while hidden and is collapsed through the panel
@@ -118,17 +128,7 @@ export function SidePanel({
   }, [open, panel]);
   return (
     <>
-      <ResizableHandle className="overflow-visible">
-        <PanelToggle
-          side="right"
-          open={open}
-          onToggle={() => onOpenChange(!open)}
-          className={cn(
-            "absolute top-2",
-            open ? "left-1/2 -translate-x-1/2" : "right-0",
-          )}
-        />
-      </ResizableHandle>
+      <ResizableHandle />
       <ResizablePanel
         id={id}
         panelRef={panel}
