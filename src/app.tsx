@@ -308,14 +308,15 @@ export default function App() {
   // Cross-tab focus: the Projects tab hands another tab a project slug (or a
   // repository path) to select. Carried with a counter rather than the value
   // alone so that asking for the *same* project twice still re-focuses it —
-  // the receiving view may have been navigated away from in between.
-  const [focus, setFocus] = useState<{ tab: Tab; value: string; n: number } | null>(null);
-  const focusOn = useCallback((target: ProjectTarget, value: string) => {
-    setFocus((prev) => ({ tab: target, value, n: (prev?.n ?? 0) + 1 }));
+  // the receiving view may have been navigated away from in between. `path`
+  // selects one note inside the tab (a diagram note for the Diagrams tab).
+  const [focus, setFocus] = useState<{ tab: Tab; value: string; path?: string; n: number } | null>(null);
+  const focusOn = useCallback((target: ProjectTarget, value: string, path?: string) => {
+    setFocus((prev) => ({ tab: target, value, path, n: (prev?.n ?? 0) + 1 }));
     setTab(target);
   }, []);
   const focusFor = (t: Tab) =>
-    focus && focus.tab === t ? { value: focus.value, n: focus.n } : undefined;
+    focus && focus.tab === t ? { value: focus.value, path: focus.path, n: focus.n } : undefined;
   // When the tab strip is scrolled (narrow windows), a tab selected from
   // elsewhere — the Projects view's cross-tab focus, the music control — can sit
   // outside the visible slice. Pull it back into view on every change.
