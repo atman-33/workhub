@@ -273,3 +273,74 @@ describe("reparentByDrop (T-0711)", () => {
     expect(reparentByDrop(doc, layoutArchitecture(doc), "C-009", 0, 0)).toBe(doc);
   });
 });
+
+describe("edge ports (T-0712)", () => {
+  it("connects with pins, and reverses them with their ends", () => {
+    const doc = parseArchitecture(FRAMED);
+    const pinned = connect(doc, "C-001", "C-003", false, {
+      fromPort: { side: "E", at: 0.5 },
+      toPort: { side: "W" },
+    });
+    expect(pinned.edges).toHaveLength(1);
+    expect(pinned.edges[0]).toMatchObject({
+      fromPort: { side: "E", at: 0.5 },
+      toPort: { side: "W" },
+    });
+    const reversed = reverseEdge(pinned, { from: "C-001", to: "C-003", bidi: false });
+    expect(reversed.edges[0]).toMatchObject({
+      from: "C-003",
+      to: "C-001",
+      fromPort: { side: "W" },
+      toPort: { side: "E", at: 0.5 },
+    });
+  });
+
+  it("reattaching pins the moved end anew, and keeps pins otherwise", () => {
+    const doc = parseArchitecture(`---
+type: architecture
+title: t
+---
+
+## Frames
+
+## Nodes
+
+- C-001 A
+- C-002 B
+- C-003 C
+
+## Edges
+
+- C-001:E -> C-002:W
+
+## Stickies
+`);
+    const moved = reattach(
+      doc,
+      { from: "C-001", to: "C-002", bidi: false },
+      "to",
+      "C-003",
+      { side: "N", at: 0.25 },
+    );
+    expect(moved.edges).toEqual([
+      {
+        from: "C-001",
+        to: "C-003",
+        bidi: false,
+        fromPort: { side: "E" },
+        toPort: { side: "N", at: 0.25 },
+      },
+    ]);
+    // Without a new pin the moved end keeps the pin it had.
+    const kept = reattach(doc, { from: "C-001", to: "C-002", bidi: false }, "to", "C-003");
+    expect(kept.edges).toEqual([
+      {
+        from: "C-001",
+        to: "C-003",
+        bidi: false,
+        fromPort: { side: "E" },
+        toPort: { side: "W" },
+      },
+    ]);
+  });
+});

@@ -262,7 +262,7 @@ export const diagramEn = {
   "diagram.usecase.noPeople": "No people yet. Add one with + in the toolbar; it is joined to the system and placed around it.",
   "diagram.usecase.autoAlign": "Auto-align",
   "diagram.usecase.autoAlignHint": "Forget every position set by dragging; the layout places all the nodes again",
-  "diagram.architecture.footerHint": "Double-click empty canvas to add the chosen element, a block to rename it, a frame's header to rename the frame. Drag a block to move it (its position is pinned). Drag a block's round handle onto another block to draw an arrow, and drag an end handle of the selected arrow to re-attach it. Click a frame to select it. Ctrl+C / Ctrl+V or right-click to copy and paste. Right-drag to pan, wheel to zoom.",
+  "diagram.architecture.footerHint": "Double-click empty canvas to add the chosen element, a block to rename it, a frame's header to rename the frame. Drag a block to move it (its position is pinned). Drag a block's round handle onto another block to draw an arrow: it leaves from the handle's side and enters on the nearest side where it lands. Drag an end handle of the selected arrow to re-attach it. Click a frame to select it. Ctrl+C / Ctrl+V or right-click to copy and paste. Right-drag to pan, wheel to zoom.",
   "diagram.architecture.fitHint": "Fit the diagram to the view",
   "diagram.architecture.addHint": "Add the chosen element after the selected block, in its frame and joined to it",
   "diagram.architecture.paletteHint": "Double-click adds a {name}",

@@ -144,6 +144,12 @@ export interface EdgeOptions {
    * and not on a corner.
    */
   labelOffset?: number;
+  /**
+   * Pinned ends of the arrow (T-0712). Only `flow: "free"` arrows care: the
+   * route leaves and enters through these points, and the middle stays
+   * automatic. An end without one is routed as always.
+   */
+  ports?: { from?: EdgePort; to?: EdgePort };
 }
 
 /** Distance a loop keeps below the nodes it goes around. */
@@ -343,6 +349,9 @@ function orthogonalGeometry(
   to: DiagramNode,
   options: EdgeOptions,
 ): EdgeGeometry {
+  if (options.flow === "free" && (options.ports?.from || options.ports?.to)) {
+    return portGeometry(from, to, options);
+  }
   const route =
     options.flow === "down"
       ? verticalRoute(from, to, options)
@@ -367,8 +376,38 @@ function orthogonalGeometry(
   };
 }
 
-/** The point `offset` along the first segment of a polyline, held to that segment. */
-function pointAlongFirstSegment(points: Point[], offset: number): Point {
+/**
+ * An orthogonal arrow with pinned ends: the route goes through `portRoute`,
+ * and a pinned end starts or lands exactly on its port instead of where the
+ * centre line would cut the outline. A free end is cut as always.
+ */
+function portGeometry(
+  from: DiagramNode,
+  to: DiagramNode,
+  options: EdgeOptions,
+): EdgeGeometry {
+  const fromPort = options.ports?.from;
+  const toPort = options.ports?.to;
+  const route = portRoute(from, fromPort, to, toPort, options);
+  const start = fromPort ? route[0] : boundaryPoint(from, route[1]);
+  const end = toPort ? route[route.length - 1] : boundaryPoint(to, route[route.length - 2]);
+  const points = [start, ...route.slice(1, -1), end];
+  const last = points[points.length - 2];
+  return {
+    style: "orthogonal",
+    d: polylinePath(points),
+    points,
+    start,
+    end,
+    headAngle: Math.atan2(end.y - last.y, end.x - last.x),
+    mid:
+      options.labelOffset !== undefined
+        ? pointAlongFirstSegment(points, options.labelOffset)
+        : polylineMidpoint(points),
+  };
+}
+
+/** The point `offset` along the first segment of a polyline, held to that segment. */function pointAlongFirstSegment(points: Point[], offset: number): Point {
   const length = dist(points[0], points[1]);
   if (length === 0) return points[0];
   const k = Math.min(Math.max(offset, 0), length) / length;
@@ -574,7 +613,8 @@ function outerBandRoutes(from: Box, to: Box): Point[][] {
 }
 
 /** The routes around the right-hand side, innermost line first. */
-function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {  const a = centerOf(from);
+function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {
+  const a = centerOf(from);
   const b = centerOf(to);
   const top = Math.min(from.y, to.y);
   const bottom = Math.max(from.y + from.height, to.y + to.height);
@@ -587,6 +627,142 @@ function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {  cons
     const x = base + k * LANE_STEP;
     return [a, { x, y: a.y }, { x, y: b.y }, b];
   });
+}
+
+// ---------------------------------------------------------------------------
+// ports (T-0712): pinned ends of an arrow
+// ---------------------------------------------------------------------------
+
+/** A side of a node's box. */
+export type PortSide = "N" | "E" | "S" | "W";
+
+/**
+ * Where an arrow leaves or enters a node. `at` runs along the side from 0 to
+ * 1 (top to bottom for `E`/`W`, left to right for `N`/`S`); absent means the
+ * middle. Values outside 0..1 are clamped.
+ */
+export interface EdgePort {
+  side: PortSide;
+  at?: number;
+}
+
+function clampPortAt(at: number | undefined): number {
+  if (at === undefined || !Number.isFinite(at)) return 0.5;
+  return Math.min(1, Math.max(0, at));
+}
+
+/**
+ * The point of `port` on the box's edge. Exact on straight edges; a few pixels
+ * off the drawn outline near the ends of curved shapes, which pin their text
+ * to the box anyway.
+ */
+export function portPoint(box: Box, port: EdgePort): Point {
+  const at = clampPortAt(port.at);
+  switch (port.side) {
+    case "E":
+      return { x: box.x + box.width, y: box.y + box.height * at };
+    case "W":
+      return { x: box.x, y: box.y + box.height * at };
+    case "N":
+      return { x: box.x + box.width * at, y: box.y };
+    case "S":
+      return { x: box.x + box.width * at, y: box.y + box.height };
+  }
+}
+
+/**
+ * Which side of `box` the point `p` belongs to, and where along it (0..1,
+ * rounded to two places). The axis the point lies further along wins; ties go
+ * horizontal. Used when an arrow end is dropped onto a node.
+ */
+export function portOfDrop(box: Box, p: Point): EdgePort {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const nx = box.width === 0 ? 0 : (p.x - cx) / (box.width / 2);
+  const ny = box.height === 0 ? 0 : (p.y - cy) / (box.height / 2);
+  if (Math.abs(nx) >= Math.abs(ny)) {
+    const at = box.height === 0 ? 0.5 : (p.y - box.y) / box.height;
+    return { side: nx >= 0 ? "E" : "W", at: round(clampPortAt(at)) };
+  }
+  const at = box.width === 0 ? 0.5 : (p.x - box.x) / box.width;
+  return { side: ny >= 0 ? "S" : "N", at: round(clampPortAt(at)) };
+}
+
+/** Vertical lines a port route may run on: around the middle, then the outer bands. */
+function portXLines(from: Box, to: Box): number[] {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const mid = (a.x + b.x) / 2;
+  const left = Math.min(from.x, to.x);
+  const right = Math.max(from.x + from.width, to.x + to.width);
+  const out = [mid];
+  for (let k = 1; k <= 8; k++) {
+    out.push(mid - k * LANE_STEP, mid + k * LANE_STEP);
+  }
+  for (let k = 0; k < 9; k++) {
+    out.push(right + DETOUR_MARGIN + k * LANE_STEP, left - DETOUR_MARGIN - k * LANE_STEP);
+  }
+  return out;
+}
+
+/** Horizontal lines a port route may run on: around the middle, then the outer bands. */
+function portYLines(from: Box, to: Box): number[] {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const mid = (a.y + b.y) / 2;
+  const top = Math.min(from.y, to.y);
+  const bottom = Math.max(from.y + from.height, to.y + to.height);
+  const out = [mid];
+  for (let k = 1; k <= 8; k++) {
+    out.push(mid - k * LANE_STEP, mid + k * LANE_STEP);
+  }
+  for (let k = 0; k < 9; k++) {
+    out.push(bottom + DETOUR_MARGIN + k * LANE_STEP, top - DETOUR_MARGIN - k * LANE_STEP);
+  }
+  return out;
+}
+
+const legIsH = (port: EdgePort | undefined) => !port || port.side === "E" || port.side === "W";
+const legIsV = (port: EdgePort | undefined) => !port || port.side === "N" || port.side === "S";
+
+/**
+ * The corner points of an orthogonal route between pinned ends (T-0712),
+ * centre to centre for the free ends. Only the exit and entry directions
+ * (the ports' normals) are fixed; the middle runs on gap lines and outer
+ * bands like `freeRoute`, cheapest wins. With no ports anywhere this is
+ * `freeRoute`. When every constrained candidate runs through a box but the
+ * free route does not, the free route wins instead of a penetration - a hint
+ * that cannot be honoured is ignored, never drawn through a node.
+ */
+export function portRoute(
+  from: Box,
+  fromPort: EdgePort | undefined,
+  to: Box,
+  toPort: EdgePort | undefined,
+  options: EdgeOptions = {},
+): Point[] {
+  if (!fromPort && !toPort) return freeRoute(from, to, options);
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const p0 = fromPort ? portPoint(from, fromPort) : a;
+  const p1 = toPort ? portPoint(to, toPort) : b;
+  const candidates: Point[][] = [];
+  if (legIsH(fromPort) && legIsH(toPort)) {
+    for (const x of portXLines(from, to)) candidates.push([p0, { x, y: p0.y }, { x, y: p1.y }, p1]);
+  }
+  if (legIsV(fromPort) && legIsV(toPort)) {
+    for (const y of portYLines(from, to)) candidates.push([p0, { x: p0.x, y }, { x: p1.x, y }, p1]);
+  }
+  // The L corners: horizontal then vertical, and vertical then horizontal.
+  if (legIsH(fromPort) && legIsV(toPort)) candidates.push([p0, { x: p1.x, y: p0.y }, p1]);
+  if (legIsV(fromPort) && legIsH(toPort)) candidates.push([p0, { x: p0.x, y: p1.y }, p1]);
+  if (candidates.length === 0) return freeRoute(from, to, options);
+  const best = cheapest(candidates, options);
+  if (routeCost(best, options) >= OBSTACLE_COST) {
+    const auto = freeRoute(from, to, options);
+    if (routeCost(auto, options) < routeCost(best, options)) return auto;
+  }
+  return best;
 }
 
 // ---- curves -----------------------------------------------------------------
