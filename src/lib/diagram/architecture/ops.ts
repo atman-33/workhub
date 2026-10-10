@@ -190,6 +190,30 @@ export function moveNodeTo(
   return patchNode(doc, id, { x: Math.round(cx), y: Math.round(cy) });
 }
 
+/**
+ * Drops several blocks at their new centres after a group drag (T-0716). Every
+ * moved block gets its `@` in the one model update, so one undo step restores
+ * them all; blocks outside the move keep their exact model objects, so a block
+ * the groups place never gains a position from a drag it was not part of.
+ * Only the centres move: unlike a lone drop (`reparentByDrop`) a group drag
+ * never rewrites `frame:` membership - the frames follow their members instead
+ * (their rectangles are derived from the member boxes on every layout). Every
+ * arrow, memo and sticky stays untouched.
+ */
+export function moveNodesTo(
+  doc: ArchitectureDocModel,
+  moves: ReadonlyMap<string, { x: number; y: number }>,
+): ArchitectureDocModel {
+  let touched = false;
+  const nodes = doc.nodes.map((n) => {
+    const at = moves.get(n.id);
+    if (!at) return n;
+    touched = true;
+    return { ...n, x: Math.round(at.x), y: Math.round(at.y) };
+  });
+  return touched ? { ...doc, nodes } : doc;
+}
+
 /** Moves a block by a step of the keyboard, from where it is drawn now (written as a `@`). */
 export function nudgeNode(
   doc: ArchitectureDocModel,

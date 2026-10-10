@@ -10,6 +10,7 @@ import {
   hasManualPositions,
   moveFrame,
   moveNodeTo,
+  moveNodesTo,
   patchFrame,
   patchNode,
   reattach,
@@ -22,7 +23,7 @@ import {
   setNote,
 } from "./ops";
 import { layoutArchitecture } from "./layout";
-import { parseArchitecture, type ArchitectureDocModel } from "./parse";
+import { parseArchitecture, serializeArchitecture, type ArchitectureDocModel } from "./parse";
 
 const NOTE = `---
 type: architecture
@@ -119,6 +120,80 @@ describe("blocks", () => {
     expect(hasManualPositions(docOf())).toBe(false);
     const aligned = autoAlign(moved);
     expect(hasManualPositions(aligned)).toBe(false);
+  });
+});
+
+describe("moveNodesTo (T-0716 group drag)", () => {
+  it("moves every given block to its new centre in one update", () => {
+    const d = docOf();
+    const moved = moveNodesTo(
+      d,
+      new Map([
+        ["C-001", { x: 300.4, y: 200.6 }],
+        ["C-002", { x: 100, y: 100 }],
+      ]),
+    );
+    expect(moved.nodes[0]).toMatchObject({ x: 300, y: 201, frame: "G-001" });
+    expect(moved.nodes[1]).toMatchObject({ x: 100, y: 100 });
+    // Blocks outside the move keep their exact model objects: a block the
+    // groups place never gains a `@` from a drag it was not part of.
+    expect(moved.edges).toBe(d.edges);
+    expect(moved.stickies).toBe(d.stickies);
+    expect(moved.frames).toBe(d.frames);
+  });
+
+  it("never rewrites frame membership, even inside another frame's rectangle", () => {
+    const doc = parseArchitecture(FRAMED);
+    const layout = layoutArchitecture(doc);
+    const g2 = layout.frameById.get("G-002")!;
+    const moved = moveNodesTo(
+      doc,
+      new Map([["C-001", { x: g2.x + g2.width / 2, y: g2.y + g2.height / 2 }]]),
+    );
+    // A lone drop here would join G-002 (`reparentByDrop`); the group drag
+    // keeps the block where it was a member of, and the frame follows instead.
+    const node = moved.nodes.find((n) => n.id === "C-001")!;
+    expect(node.frame).toBe("G-001");
+    expect([node.x, node.y]).toEqual([
+      Math.round(g2.x + g2.width / 2),
+      Math.round(g2.y + g2.height / 2),
+    ]);
+    const relaid = layoutArchitecture(moved);
+    // The frame follows: its rectangle still wraps the moved member.
+    const g1 = relaid.frameById.get("G-001")!;
+    const member = relaid.byId.get("C-001")!;
+    expect(g1.x).toBeLessThanOrEqual(member.x);
+    expect(g1.y).toBeLessThanOrEqual(member.y);
+    expect(g1.x + g1.width).toBeGreaterThanOrEqual(member.x + member.width);
+    expect(g1.y + g1.height).toBeGreaterThanOrEqual(member.y + member.height);
+  });
+
+  it("frames follow the moved members on the next layout", () => {
+    const doc = parseArchitecture(FRAMED);
+    const before = layoutArchitecture(doc).frameById.get("G-001")!;
+    const moved = moveNodesTo(doc, new Map([["C-001", { x: 900, y: 700 }]]));
+    const after = layoutArchitecture(moved).frameById.get("G-001")!;
+    // The same members, so the frame's size only re-derives; its corner
+    // travelled with the moved block instead of staying behind.
+    expect([after.x, after.y]).not.toEqual([before.x, before.y]);
+    expect(after.x).toBeLessThan(900);
+    expect(after.y).toBeLessThan(700);
+  });
+
+  it("writes only the moved blocks' `@`, and keeps kinds, memos and arrows", () => {
+    const d = docOf();
+    const moved = moveNodesTo(d, new Map([["C-001", { x: 10, y: 10 }]]));
+    expect(moved.nodes[0]).toMatchObject({ kind: "block", frame: "G-001" });
+    const out = serializeArchitecture(NOTE, moved, "2026-10-11");
+    expect(out).toContain("C-001 Screen frame:G-001 @10,10");
+    expect(out).toContain("- C-002 API\n");
+    expect(out).toContain('- C-001 -> C-002 "Calls"');
+  });
+
+  it("returns the same model for an empty move or unknown ids only", () => {
+    const d = docOf();
+    expect(moveNodesTo(d, new Map())).toBe(d);
+    expect(moveNodesTo(d, new Map([["C-009", { x: 1, y: 1 }]]))).toBe(d);
   });
 });
 
