@@ -18,7 +18,7 @@ import {
 } from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { copyPfdNodes, pastePfdNodes, type PfdClip } from "@/lib/diagram/pfd/clipboard";
-import { edgeKey } from "@/lib/diagram/node-edge";
+import { edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { renderHtml, renderSvg } from "@/lib/diagram/pfd/export";
 import { layoutPfd } from "@/lib/diagram/pfd/layout";
 import {
@@ -520,9 +520,13 @@ export function PfdView({ configVersion, embedded }: Props) {
   // ---- arrow commands -------------------------------------------------------
 
   const connectNodes = useCallback(
-    (from: string, to: string) => {
+    (
+      from: string,
+      to: string,
+      ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+    ) => {
       if (!doc) return;
-      const next = connect(doc, from, to);
+      const next = connect(doc, from, to, ports);
       mutate(next);
       if (next !== doc) selectEdge(edgeKey({ from, to }));
     },
@@ -530,9 +534,14 @@ export function PfdView({ configVersion, embedded }: Props) {
   );
 
   const reattachEdge = useCallback(
-    (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => {
+    (
+      edge: { from: string; to: string },
+      end: "from" | "to",
+      nodeId: string,
+      port: EdgePort | null,
+    ) => {
       if (!doc) return;
-      const next = reattach(doc, edge, end, nodeId);
+      const next = reattach(doc, edge, end, nodeId, port);
       mutate(next);
       if (next === doc) return;
       selectEdge(

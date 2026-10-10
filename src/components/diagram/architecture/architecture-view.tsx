@@ -662,7 +662,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
       edge: { from: string; to: string; bidi: boolean },
       end: "from" | "to",
       nodeId: string,
-      port: EdgePort,
+      port: EdgePort | null,
     ) => {
       if (!doc) return;
       const next = reattach(doc, edge, end, nodeId, port);

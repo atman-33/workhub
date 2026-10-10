@@ -39,7 +39,8 @@
  */
 import { detectEol, toLf, withEol } from "../../note-eol";
 import { COLORS, type Color } from "../colors";
-import { edgeKey, type EdgePort, type PortSide } from "../node-edge";
+import { formatEdgeEnd, parseEdgeEnd } from "../edge-ports";
+import { edgeKey, type EdgePort } from "../node-edge";
 import {
   formatId,
   frontmatterValue,
@@ -172,8 +173,6 @@ const NUMBER = String.raw`-?\d+(?:\.\d+)?`;
 const POSITION_RE = new RegExp(`^@(${NUMBER}),(${NUMBER})$`);
 const FRAME_REF_RE = /^frame:(.+)$/;
 const ICON_RE = /^icon:(.+)$/;
-/** `C-004`, `C-004:E`, `C-004:E@0.5`: an id with an optional pinned side and ratio. */
-const END_RE = /^([A-Za-z]{1,3}-\d+)((?::([NESW]))(?:@(\d+(?:\.\d+)?))?)?$/;
 const EDGE_RE = /^\s*-\s+(\S+)\s*(--|->|<->)\s*(\S+)\s*(?:"(.*)")?\s*$/;
 
 function isColor(tok: string): boolean {
@@ -281,18 +280,6 @@ function parseNodeLine(line: string): { node: ArchitectureNode; hadId: boolean }
       ...(x !== undefined && y !== undefined ? { x, y } : {}),
     },
   };
-}
-
-function parseEdgeEnd(token: string): { id: string; port?: EdgePort } | null {
-  const m = END_RE.exec(token);
-  if (!m) return null;
-  const port = m[2]
-    ? {
-        side: m[3] as PortSide,
-        ...(m[4] !== undefined ? { at: Math.min(1, Math.max(0, Number(m[4]))) } : {}),
-      }
-    : undefined;
-  return { id: m[1], ...(port ? { port } : {}) };
 }
 
 function parseEdgeLine(line: string): ArchitectureEdge | null {
@@ -513,16 +500,6 @@ export function formatNode(node: ArchitectureNode): string[] {
     for (const line of note.split("\n")) out.push(`${INDENT}${line}`);
   }
   return out;
-}
-
-/** Renders one end of an edge: its id with its pinned side and ratio, if any. */
-export function formatEdgeEnd(id: string, port: EdgePort | undefined): string {
-  if (!port) return id;
-  const at =
-    port.at === undefined
-      ? ""
-      : `@${Number(port.at.toFixed(2))}`;
-  return `${id}:${port.side}${at}`;
 }
 
 export function formatEdge(edge: ArchitectureEdge): string {

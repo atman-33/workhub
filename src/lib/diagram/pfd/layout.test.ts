@@ -321,3 +321,39 @@ describe("ops", () => {
     expect(autoAlign(doc).nodes.map((n) => n.title)).toEqual(doc.nodes.map((n) => n.title));
   });
 });
+
+describe("edge ports (T-0718)", () => {
+  const PORTED = parsePfd(`---
+type: pfd
+title: t
+---
+
+## Nodes
+
+- P-001 A
+- D-001 B
+
+## Edges
+
+- P-001:E -> D-001:W
+
+## Stickies
+`);
+
+  it("starts and lands a pinned curve exactly on its ports", () => {
+    const layout = layoutPfd(PORTED);
+    expect(layout.edges).toHaveLength(1);
+    const [edge] = layout.edges;
+    expect(edge.geometry.style).toBe("curve");
+    const from = layout.byId.get("P-001")!;
+    const to = layout.byId.get("D-001")!;
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([
+      to.x,
+      to.y + to.height / 2,
+    ]);
+  });
+});

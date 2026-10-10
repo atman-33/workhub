@@ -131,7 +131,7 @@ export const diagramEn = {
   "diagram.flow.autoAlign": "Auto-align",
   "diagram.flow.autoAlignHint": "Forget every position set by dragging; the layout places all the steps again",
   // ---- PFD editor (T-0683) ----
-  "diagram.pfd.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it. Drag a round handle from a node onto another node to draw an arrow (only a process to a deliverable and back), or an end handle of a selected arrow to re-route it. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
+  "diagram.pfd.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it. Drag a round handle from a node onto another node to draw an arrow (only a process to a deliverable and back), or an end handle of a selected arrow to re-route it. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms. Round handles come one per side: an arrow leaves from the handle's side and enters on the nearest side where it lands (the middle stays automatic, saved as `P-001:E@0.5`).",
   "diagram.pfd.fitHint": "Fit the diagram to the window",
   "diagram.pfd.addHint": "Add a node: the next symbol after the selected one (joined to it), or the chosen symbol",
   "diagram.pfd.paletteHint": "Add {name} on double-click",

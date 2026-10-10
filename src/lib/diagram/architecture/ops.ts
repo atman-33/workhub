@@ -334,15 +334,15 @@ export function connect(
  * Moves one end of an arrow to another block; the same model back when nothing
  * changes. When the new pair is already joined the moved arrow merges into it:
  * the existing one stays, taking the moved one's label only if it has none
- * (and keeping its own pins). `port` pins the moved end anew; without one the
- * end keeps the pin it had.
+ * (and keeping its own pins). `port` pins the moved end anew (`null` clears it
+ * back to automatic); without one the end keeps the pin it had.
  */
 export function reattach(
   doc: ArchitectureDocModel,
   edge: { from: string; to: string; bidi: boolean },
   end: "from" | "to",
   nodeId: string,
-  port?: EdgePort,
+  port?: EdgePort | null,
 ): ArchitectureDocModel {
   const current = findEdge(doc.edges, edge);
   if (!current) return doc;
@@ -351,7 +351,11 @@ export function reattach(
   if (from === current.from && to === current.to) {
     if (port === undefined) return doc;
     const had = end === "from" ? current.fromPort : current.toPort;
-    if (had?.side === port.side && (had.at ?? 0.5) === (port.at ?? 0.5)) return doc;
+    const same =
+      port === null
+        ? had === undefined
+        : had?.side === port.side && (had.at ?? 0.5) === (port.at ?? 0.5);
+    if (same) return doc;
   }
   if (from === to) return doc;
   const ids = new Set(doc.nodes.map((n) => n.id));
@@ -373,8 +377,13 @@ export function reattach(
       if (e !== current) return e;
       const next = { ...e, from, to };
       if (port !== undefined) {
-        if (end === "from") next.fromPort = port;
-        else next.toPort = port;
+        if (end === "from") {
+          if (port === null) delete next.fromPort;
+          else next.fromPort = port;
+        } else {
+          if (port === null) delete next.toPort;
+          else next.toPort = port;
+        }
       }
       return next;
     }),

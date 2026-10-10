@@ -176,7 +176,7 @@ export function edgeGeometry(
 ): EdgeGeometry | null {
   if (from.id === to.id) return null;
   if (style === "orthogonal") return orthogonalGeometry(from, to, options);
-  if (style === "curve") return curveGeometry(from, to) ?? straightGeometry(from, to);
+  if (style === "curve") return curveGeometry(from, to, options.ports) ?? straightGeometry(from, to);
   return straightGeometry(from, to);
 }
 
@@ -655,6 +655,9 @@ export interface EdgePort {
   at?: number;
 }
 
+/** Normalized distance under which a drop counts as the middle (automatic). */
+export const PORT_CENTER = 0.4;
+
 function clampPortAt(at: number | undefined): number {
   if (at === undefined || !Number.isFinite(at)) return 0.5;
   return Math.min(1, Math.max(0, at));
@@ -682,13 +685,15 @@ export function portPoint(box: Box, port: EdgePort): Point {
 /**
  * Which side of `box` the point `p` belongs to, and where along it (0..1,
  * rounded to two places). The axis the point lies further along wins; ties go
- * horizontal. Used when an arrow end is dropped onto a node.
+ * horizontal. A drop in the middle of the box (`PORT_CENTER`) belongs to no
+ * side: `undefined`, the automatic end.
  */
-export function portOfDrop(box: Box, p: Point): EdgePort {
+export function portOfDrop(box: Box, p: Point): EdgePort | undefined {
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const nx = box.width === 0 ? 0 : (p.x - cx) / (box.width / 2);
   const ny = box.height === 0 ? 0 : (p.y - cy) / (box.height / 2);
+  if (Math.abs(nx) < PORT_CENTER && Math.abs(ny) < PORT_CENTER) return undefined;
   if (Math.abs(nx) >= Math.abs(ny)) {
     const at = box.height === 0 ? 0.5 : (p.y - box.y) / box.height;
     return { side: nx >= 0 ? "E" : "W", at: round(clampPortAt(at)) };
@@ -791,6 +796,13 @@ function lerp(a: Point, b: Point, t: number): Point {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
+/** Unit vector from `a` toward `b` (or east when they coincide). */
+function normPoint(a: Point, b: Point): Point {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len === 0) return { x: 1, y: 0 };
+  return { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+}
+
 /** De Casteljau split at `t`. */
 function splitBezier(b: Bezier, t: number): [Bezier, Bezier] {
   const p01 = lerp(b[0], b[1], t);
@@ -813,40 +825,89 @@ function subBezier(b: Bezier, t0: number, t1: number): Bezier {
   return tail;
 }
 
+/** Unit vector of a port side's outward normal. */
+function sideNormal(side: PortSide): Point {
+  switch (side) {
+    case "E":
+      return { x: 1, y: 0 };
+    case "W":
+      return { x: -1, y: 0 };
+    case "N":
+      return { x: 0, y: -1 };
+    case "S":
+      return { x: 0, y: 1 };
+  }
+}
+
 /**
  * An S-shaped cubic from centre to centre, cut where it leaves the first node
  * and enters the second (the same `contains` bisection as a straight arrow,
  * run along the curve), with the head along the end tangent. `null` when the
  * nodes sit so close that the curve never clears them.
+ *
+ * With pinned ends the curve runs from port to port instead, leaving and
+ * entering along the ports' normals; a free end is cut as always and a pinned
+ * one stays exactly on its port.
  */
-function curveGeometry(from: DiagramNode, to: DiagramNode): EdgeGeometry | null {
+function curveGeometry(
+  from: DiagramNode,
+  to: DiagramNode,
+  ports?: { from?: EdgePort; to?: EdgePort },
+): EdgeGeometry | null {
   const a = centerOf(from);
   const b = centerOf(to);
-  const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
-  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const curve: Bezier = horizontal
-    ? [a, { x: mid.x, y: a.y }, { x: mid.x, y: b.y }, b]
-    : [a, { x: a.x, y: mid.y }, { x: b.x, y: mid.y }, b];
+  let curve: Bezier;
+  if (ports?.from || ports?.to) {
+    // From port to port: leave and enter along the ports' normals, so the
+    // heads sit square on the pinned sides.
+    const p0 = ports.from ? portPoint(from, ports.from) : a;
+    const p1 = ports.to ? portPoint(to, ports.to) : b;
+    const length = Math.max(Math.hypot(p1.x - p0.x, p1.y - p0.y), 1);
+    const t0 = ports.from ? sideNormal(ports.from.side) : normPoint(p0, p1);
+    // The end tangent is the travel direction: into the node, against the
+    // outward normal of a pinned entry side.
+    const t1 = ports.to
+      ? { x: -sideNormal(ports.to.side).x, y: -sideNormal(ports.to.side).y }
+      : normPoint(p0, p1);
+    curve = [
+      p0,
+      { x: p0.x + (t0.x * length) / 3, y: p0.y + (t0.y * length) / 3 },
+      { x: p1.x - (t1.x * length) / 3, y: p1.y - (t1.y * length) / 3 },
+      p1,
+    ];
+  } else {
+    const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    curve = horizontal
+      ? [a, { x: mid.x, y: a.y }, { x: mid.x, y: b.y }, b]
+      : [a, { x: a.x, y: mid.y }, { x: b.x, y: mid.y }, b];
+  }
 
   const inside = (node: DiagramNode, p: Point) => nodeContains(node, p);
   if (inside(from, bezierAt(curve, 0.5)) || inside(to, bezierAt(curve, 0.5))) return null;
 
-  let lo = 0;
-  let hi = 0.5;
-  for (let i = 0; i < BOUNDARY_ITERATIONS; i++) {
-    const m = (lo + hi) / 2;
-    if (inside(from, bezierAt(curve, m))) lo = m;
-    else hi = m;
+  let t0 = 0;
+  if (!ports?.from) {
+    let lo = 0;
+    let hi = 0.5;
+    for (let i = 0; i < BOUNDARY_ITERATIONS; i++) {
+      const m = (lo + hi) / 2;
+      if (inside(from, bezierAt(curve, m))) lo = m;
+      else hi = m;
+    }
+    t0 = (lo + hi) / 2;
   }
-  const t0 = (lo + hi) / 2;
-  lo = 0.5;
-  hi = 1;
-  for (let i = 0; i < BOUNDARY_ITERATIONS; i++) {
-    const m = (lo + hi) / 2;
-    if (inside(to, bezierAt(curve, m))) hi = m;
-    else lo = m;
+  let t1 = 1;
+  if (!ports?.to) {
+    let lo = 0.5;
+    let hi = 1;
+    for (let i = 0; i < BOUNDARY_ITERATIONS; i++) {
+      const m = (lo + hi) / 2;
+      if (inside(to, bezierAt(curve, m))) hi = m;
+      else lo = m;
+    }
+    t1 = (lo + hi) / 2;
   }
-  const t1 = (lo + hi) / 2;
   if (t1 <= t0) return null;
 
   const cut = subBezier(curve, t0, t1);
@@ -931,6 +992,9 @@ export function connectEdges<E extends DiagramEdge>(
  * Moves one end of an arrow to another node. When the new pair already has an
  * arrow, the moved one merges into it (the existing arrow keeps its label,
  * unless it has none). Returns `null` when nothing changes.
+ *
+ * `port` pins the moved end anew: an `EdgePort` sets it, `null` clears it back
+ * to automatic, and `undefined` (the default) keeps the pin the end had.
  */
 export function reattachEdge<E extends DiagramEdge>(
   edges: E[],
@@ -938,12 +1002,20 @@ export function reattachEdge<E extends DiagramEdge>(
   end: "from" | "to",
   nodeId: string,
   rule: ConnectionRule = allowAnyConnection,
+  port?: EdgePort | null,
 ): E[] | null {
   const current = edges.find((e) => e.from === edge.from && e.to === edge.to);
   if (!current) return null;
   const from = end === "from" ? nodeId : current.from;
   const to = end === "to" ? nodeId : current.to;
-  if (from === current.from && to === current.to) return null;
+  if (from === current.from && to === current.to) {
+    if (port === undefined) return null;
+    const had = (end === "from" ? (current as PortedEdge).fromPort : (current as PortedEdge).toPort) ?? undefined;
+    const same =
+      port === null ? had === undefined : had?.side === port.side && (had.at ?? 0.5) === (port.at ?? 0.5);
+    if (same) return null;
+    return edges.map((e) => (e === current ? withPort(e, end, port) : e));
+  }
   if (from === to || !rule(from, to)) return null;
   const twin = edges.find((e) => e !== current && e.from === from && e.to === to);
   if (twin) {
@@ -953,5 +1025,28 @@ export function reattachEdge<E extends DiagramEdge>(
         e === twin && !e.label && current.label ? { ...e, label: current.label } : e,
       );
   }
-  return edges.map((e) => (e === current ? { ...e, from, to } : e));
+  return edges.map((e) => {
+    if (e !== current) return e;
+    const next = { ...e, from, to };
+    return port === undefined ? next : withPort(next, end, port);
+  });
+}
+
+/** An edge that may carry pinned ends. */
+export interface PortedEdge {
+  fromPort?: EdgePort;
+  toPort?: EdgePort;
+}
+
+/** Returns the edge with the moved end's pin set, cleared (`null`), or kept. */
+function withPort<E extends DiagramEdge>(
+  edge: E,
+  end: "from" | "to",
+  port: EdgePort | null,
+): E {
+  const next = { ...edge } as E & PortedEdge;
+  const key = end === "from" ? "fromPort" : "toPort";
+  if (port === null) delete next[key];
+  else next[key] = port;
+  return next;
 }

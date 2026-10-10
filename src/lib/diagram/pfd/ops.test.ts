@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertNodeKind } from "./ops";
+import { connect, convertNodeKind, reattach } from "./ops";
 import { parsePfd, serializePfd, type PfdDocModel } from "./parse";
 
 const HEAD = `---
@@ -166,5 +166,42 @@ keep
     expect(out).toContain("- P-001 -> X-001");
     expect(out).toContain("- P-001 -> P-001");
     expect(out.slice(out.indexOf("## Notes"))).toBe(src.slice(src.indexOf("## Notes")));
+  });
+});
+
+describe("edge ports (T-0718)", () => {
+  it("connects with pins, and keeps them through a kind switch", () => {
+    const doc = parsePfd(NOTE);
+    const pinned = connect(doc, "D-001", "D-002", { toPort: { side: "W", at: 0.25 } });
+    expect(pinned.edges.at(-1)).toMatchObject({
+      from: "D-001",
+      to: "D-002",
+      toPort: { side: "W", at: 0.25 },
+    });
+    const switched = convertNodeKind(pinned, "D-002", "P");
+    expect(switched.ok).toBe(true);
+    if (!switched.ok) return;
+    const edge = switched.doc.edges.find((e) => e.to === switched.id)!;
+    expect(edge.from).toBe("D-001");
+    expect(edge.toPort).toEqual({ side: "W", at: 0.25 });
+  });
+
+  it("reattaching pins the moved end anew, and clears it back to automatic", () => {
+    const doc = parsePfd(NOTE);
+    const pinned = connect(doc, "P-002", "D-002", { fromPort: { side: "E" } });
+    const moved = reattach(pinned, { from: "P-002", to: "D-002" }, "to", "D-001", {
+      side: "N",
+      at: 0.25,
+    });
+    expect(moved.edges.at(-1)).toMatchObject({
+      from: "P-002",
+      to: "D-001",
+      fromPort: { side: "E" },
+      toPort: { side: "N", at: 0.25 },
+    });
+    const cleared = reattach(moved, { from: "P-002", to: "D-001" }, "to", "D-001", null);
+    const edge = cleared.edges.find((e) => e.from === "P-002" && e.to === "D-001")!;
+    expect(edge.fromPort).toEqual({ side: "E" });
+    expect("toPort" in edge).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RubberBand } from "@/components/diagram/arrow-handles";
+import { DropSpots, PortHandles, RubberBand } from "@/components/diagram/arrow-handles";
 import {
   ClipboardMenuItems,
   NodeClipboardMenu,
@@ -15,14 +15,10 @@ import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import { COLOR_HEX } from "@/lib/diagram/colors";
-import { HANDLE_RADIUS } from "@/components/diagram/edge-arrow";
 import {
-  boundaryPoint,
   hitNode,
   portOfDrop,
   type EdgePort,
-  type Point,
-  type PortSide,
 } from "@/lib/diagram/node-edge";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
@@ -105,7 +101,7 @@ interface Props {
     edge: { from: string; to: string; bidi: boolean },
     end: "from" | "to",
     nodeId: string,
-    port: EdgePort,
+    port: EdgePort | null,
   ) => void;
   /** Copy, duplicate and paste, offered in the right-click menus. */
   clipboard: CanvasClipboard;
@@ -149,68 +145,6 @@ function FrameShape({ frame, selected }: { frame: PositionedFrame; selected: boo
           strokeWidth={2}
         />
       )}
-    </g>
-  );
-}
-
-/** The four round handles on the sides of a block, each naming its side;
- * pressing one starts an arrow pinned to that side. */
-function PortHandles({
-  node,
-  onStart,
-}: {
-  node: PositionedNode;
-  onStart: (e: React.PointerEvent, side: PortSide) => void;
-}) {
-  const c = { x: node.x + node.width / 2, y: node.y + node.height / 2 };
-  const far = 4000;
-  const spots: { side: PortSide; p: Point }[] = [
-    { side: "E", p: boundaryPoint(node, { x: c.x + far, y: c.y }) },
-    { side: "W", p: boundaryPoint(node, { x: c.x - far, y: c.y }) },
-    { side: "N", p: boundaryPoint(node, { x: c.x, y: c.y - far }) },
-    { side: "S", p: boundaryPoint(node, { x: c.x, y: c.y + far }) },
-  ];
-  return (
-    <>
-      {spots.map(({ side, p }) => (
-        <circle
-          key={side}
-          cx={p.x}
-          cy={p.y}
-          r={HANDLE_RADIUS}
-          className="cursor-crosshair fill-background stroke-ring"
-          strokeWidth={1.5}
-          onPointerDown={(e) => onStart(e, side)}
-        />
-      ))}
-    </>
-  );
-}
-
-/** Where the dragged arrow would land: the four sides of the node under the
- * pointer, display only, with the nearest side filled. */
-function DropSpots({ node, pointer }: { node: PositionedNode; pointer: Point }) {
-  const c = { x: node.x + node.width / 2, y: node.y + node.height / 2 };
-  const far = 4000;
-  const spots: { side: PortSide; p: Point }[] = [
-    { side: "E", p: boundaryPoint(node, { x: c.x + far, y: c.y }) },
-    { side: "W", p: boundaryPoint(node, { x: c.x - far, y: c.y }) },
-    { side: "N", p: boundaryPoint(node, { x: c.x, y: c.y - far }) },
-    { side: "S", p: boundaryPoint(node, { x: c.x, y: c.y + far }) },
-  ];
-  const near = portOfDrop(node, pointer).side;
-  return (
-    <g pointerEvents="none">
-      {spots.map(({ side, p }) => (
-        <circle
-          key={side}
-          cx={p.x}
-          cy={p.y}
-          r={side === near ? 6 : 4}
-          className={cn("stroke-ring", side === near ? "fill-ring" : "fill-background")}
-          strokeWidth={1.5}
-        />
-      ))}
     </g>
   );
 }
@@ -329,12 +263,13 @@ export function ArchitectureCanvas({
         pendingPort.current = null;
         return;
       }
-      // The drop point decides the entering side wherever it lands on the node.
+      // The drop point decides the entering side wherever it lands on the node;
+      // the middle stays automatic.
       const toPort = portOfDrop(over, d.pointer);
       if (d.mode === "create") {
         onConnect(d.anchorId, overId, {
           ...(pendingPort.current ? { fromPort: pendingPort.current } : {}),
-          toPort,
+          ...(toPort ? { toPort } : {}),
         });
         pendingPort.current = null;
       } else if (d.edge && d.end) {
@@ -345,7 +280,7 @@ export function ArchitectureCanvas({
           { from: d.edge.from, to: d.edge.to, bidi: full?.bidi ?? false },
           d.end,
           overId,
-          toPort,
+          toPort ?? null,
         );
       }
       swallowClick();
