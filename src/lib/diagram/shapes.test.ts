@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { boundaryPoint, centerOf, nodeContains, type DiagramNode, type Point } from "./node-edge";
 import {
   BUBBLE_TAIL,
-  CLOUD_BUMPS,
+  CLOUD_LOBES,
   CLOUD_SAMPLES,
   CYLINDER_LID,
   HEXAGON_INSET,
@@ -10,8 +10,8 @@ import {
   PERSON_ICON_HEIGHT,
   PERSON_ICON_WIDTH,
   SUBROUTINE_INSET,
+  cloudDepth,
   cloudRadius,
-  cloudRipple,
   cylinderLid,
   hexagonInset,
   shapeOf,
@@ -478,7 +478,7 @@ describe("cloud (T-0708)", () => {
   it("is registered: a polygon of samples from one radius function", () => {
     const n = node("cloud", 180, 90);
     expect(shapeOf("cloud").id).toBe("cloud");
-    expect(CLOUD_BUMPS).toBe(8);
+    expect(CLOUD_LOBES).toBe(8);
     const pts = cloudPoints(n);
     expect(pts).toHaveLength(CLOUD_SAMPLES);
     const c = centerOf(n);
@@ -556,8 +556,8 @@ describe("cloud (T-0708)", () => {
     expect(boundaryPoint(n, { x: c.x, y: c.y + 500 }).y).toBeCloseTo(n.y + n.height, 1);
   });
 
-  it("keeps the ripple small on a narrow shape", () => {
-    expect(cloudRipple({ width: 40, height: 200 })).toBeCloseTo(40 / 12, 5);
+  it("keeps the valleys small on a narrow shape", () => {
+    expect(cloudDepth({ width: 40, height: 200 })).toBeCloseTo(4, 5);
     const n = node("cloud", 40, 200);
     expect(nodeContains(n, centerOf(n))).toBe(true);
     expect(cloudPoints(n)).toHaveLength(CLOUD_SAMPLES);

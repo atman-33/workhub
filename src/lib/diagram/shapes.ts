@@ -413,26 +413,29 @@ export function speechBubbleOutline(box: Box, tailSide: BubbleSide): ShapeElemen
   return { tag: "path", attrs: { d: parts.join(" ") } };
 }
 
-/** Bumps around a cloud. */
-export const CLOUD_BUMPS = 8;
-/** Points sampling a cloud's outline (twelve per bump, so the polygon stays on the curve). */
+/** Rounded lobes around a cloud. */
+export const CLOUD_LOBES = 8;
+/** Points sampling a cloud's outline (twelve per lobe, so the polygon stays on the curve). */
 export const CLOUD_SAMPLES = 96;
+/** How full the lobes are: 1 is a sine, smaller fattens them toward arcs. */
+export const CLOUD_LOBE_FULLNESS = 0.8;
 
 /**
- * Ripple depth of a cloud of this size. Small next to the box, so the text
+ * Depth of a cloud's valleys for this size. Small next to the box, so the text
  * still fits: the outline never leaves the box (see `cloudRadius`).
  */
-export function cloudRipple(size: ShapeSize): number {
-  return Math.min(6, Math.min(size.width, size.height) / 12);
+export function cloudDepth(size: ShapeSize): number {
+  return Math.min(8, Math.min(size.width, size.height) / 10);
 }
 
 /**
  * Radius of a cloud in direction `theta` (radians, `atan2(dy, dx)`) from its
- * centre: an ellipse carving a ripple out of itself. The outline touches the
- * box where the ripple crests and dips `2 * ripple` inside between crests, so
- * it always stays in the box. A radius function is star-shaped by definition,
- * and `contains` and `outline` share this one formula, so an arrow stops on
- * the drawn line.
+ * centre: an ellipse with rounded lobes bulging out of it, pinched between
+ * them - the scalloped outline of overlapping circles. The outline touches
+ * the box at the lobe crests (one on each axis) and dips `depth` inside in
+ * the valleys, so it always stays in the box. A radius function is
+ * star-shaped by definition, and `contains` and `outline` share this one
+ * formula, so an arrow stops on the drawn line.
  */
 export function cloudRadius(theta: number, size: ShapeSize): number {
   const rx = size.width / 2;
@@ -440,12 +443,13 @@ export function cloudRadius(theta: number, size: ShapeSize): number {
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
   const base = (rx * ry) / Math.sqrt(ry * ry * cos * cos + rx * rx * sin * sin);
-  const ripple = cloudRipple(size);
-  return base - ripple + ripple * Math.cos(CLOUD_BUMPS * theta);
+  const depth = cloudDepth(size);
+  const lobe = Math.pow(Math.abs(Math.cos((CLOUD_LOBES * theta) / 2)), CLOUD_LOBE_FULLNESS);
+  return base - depth + depth * lobe;
 }
 
 /**
- * A cloud: a wavy ellipse for an external service (T-0708). One `polygon` of
+ * A cloud: a scalloped ellipse for an external service. One `polygon` of
  * `CLOUD_SAMPLES` points from `cloudRadius`; `contains` is the same radius,
  * so the two cannot drift apart.
  */
