@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { FolderPlus, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FolderPlus, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { DiagramAiPanel } from "@/components/diagram/diagram-ai-panel";
 import { DiagramAiSettings } from "@/components/diagram/diagram-ai-settings";
@@ -46,6 +46,16 @@ import {
   isDiagramKind,
   type DiagramKind,
 } from "@/lib/diagram-kinds";
+import {
+  ALL_KINDS,
+  chipGroups,
+  isCollapsed,
+  listedFiles,
+  sectionsOf,
+  updatedDay,
+  withCollapsed,
+  type ListSort,
+} from "@/lib/diagram-list";
 import { isPanelOpen, withPanelOpen, type PanelSide } from "@/lib/diagram-panels";
 import { useT } from "@/lib/i18n";
 import type { TabFocus } from "@/lib/tab-focus";
@@ -57,14 +67,15 @@ import type { BacklogItem, Config, DiagramEditRun, DiagramFile } from "@/types";
 
 const VIEW_ID = "diagrams";
 const KIND_FILTER_KEY = "diagrams.kindFilter";
-const ALL = "__all__";
+const ALL = ALL_KINDS;
 const NEW_PROJECT = "__new__";
 /** Same default window as the Schedule tab: six weeks from today. */
 const DEFAULT_RANGE_DAYS = 6 * 7 - 1;
 
 function readKindFilter(): string {
   try {
-    return localStorage.getItem(KIND_FILTER_KEY) ?? ALL;
+    const saved = localStorage.getItem(KIND_FILTER_KEY) ?? ALL;
+    return saved === ALL || isDiagramKind(saved) ? saved : ALL;
   } catch {
     return ALL;
   }
@@ -232,10 +243,19 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
     if (projectsLoaded && project && !projects.includes(project)) setProject("");
   }, [projectsLoaded, projects, project]);
 
+  const listSort: ListSort = config?.settings.diagram_list_sort ?? "updated";
+  const collapsedKinds = config?.settings.diagram_collapsed_kinds ?? [];
+  // The notes in the order the list shows them: grouped by kind under All, one
+  // kind flat otherwise (T-0701).
   const visible = useMemo(
-    () => files.filter((f) => kindFilter === ALL || f.kind === kindFilter),
-    [files, kindFilter],
+    () => listedFiles(files, kindFilter, listSort),
+    [files, kindFilter, listSort],
   );
+  const sections = useMemo(
+    () => (kindFilter === ALL ? sectionsOf(files, listSort) : []),
+    [files, kindFilter, listSort],
+  );
+  const chips = useMemo(() => chipGroups(files, kindFilter), [files, kindFilter]);
   const current = files.find((f) => f.path === path) ?? null;
 
   // Keep the open note while the listing still holds it; otherwise open the
@@ -391,6 +411,55 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
     },
   });
 
+  const renderRow = (file: DiagramFile) => {
+    const fileKind = isDiagramKind(file.kind) ? file.kind : null;
+    const Icon = fileKind ? KIND_ICON[fileKind] : Pencil;
+    const item = backlogOfScope(file.scope);
+    const editable = hasEditor(file.kind);
+    return (
+      <ContextMenu key={file.path}>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            onClick={() => setPath(file.path)}
+            className={cn(
+              "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+              file.path === path
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            <Icon className="mt-0.5 size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-foreground">{file.title}</span>
+              <span className="block truncate text-[10px]">
+                {[!project && file.project, item, updatedDay(file.updated)]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </span>
+          </button>
+        </ContextMenuTrigger>
+        {editable && (
+          <ContextMenuContent className="w-44">
+            <ContextMenuItem disabled={aiRunning} onClick={() => setRenaming(file)}>
+              <Pencil className="size-4" />
+              {t("diagram.list.rename")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              variant="destructive"
+              disabled={aiRunning}
+              onClick={() => setDeleting(file)}
+            >
+              <Trash2 className="size-4" />
+              {t("diagram.list.delete")}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        )}
+      </ContextMenu>
+    );
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5">
@@ -427,25 +496,32 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
         </Select>
 
         <div className="flex items-center rounded-md border p-0.5">
-          {[ALL, ...CREATABLE_KINDS, "matrix2x2", "flow", "pfd", "algorithm"]
-            .filter((value, i, all) => all.indexOf(value) === i)
-            .filter(
-              (value) =>
-                value === ALL ||
-                CREATABLE_KINDS.includes(value as DiagramKind) ||
-                files.some((f) => f.kind === value),
-            )
-            .map((value) => (
-              <Button
-                key={value}
-                size="sm"
-                variant={kindFilter === value ? "secondary" : "ghost"}
-                className="h-6 px-2 text-xs"
-                onClick={() => setKindFilter(value)}
-              >
-                {value === ALL ? t("diagram.filter.all") : t(KIND_LABEL_KEY[value as DiagramKind])}
-              </Button>
-            ))}
+          <Button
+            size="sm"
+            variant={kindFilter === ALL ? "secondary" : "ghost"}
+            className="h-6 gap-1 px-2 text-xs"
+            onClick={() => setKindFilter(ALL)}
+          >
+            {t("diagram.filter.all")}
+            <span className="tabular-nums text-muted-foreground">{files.length}</span>
+          </Button>
+          {chips.map((group) => (
+            <div key={group.id} className="flex items-center">
+              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              {group.chips.map(({ kind: chipKind, count }) => (
+                <Button
+                  key={chipKind}
+                  size="sm"
+                  variant={kindFilter === chipKind ? "secondary" : "ghost"}
+                  className="h-6 gap-1 px-2 text-xs"
+                  onClick={() => setKindFilter(chipKind)}
+                >
+                  {t(KIND_LABEL_KEY[chipKind])}
+                  <span className="tabular-nums text-muted-foreground">{count}</span>
+                </Button>
+              ))}
+            </div>
+          ))}
         </div>
 
         <Hint label={t("diagram.newHint")}>
@@ -496,53 +572,58 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
                   {files.length === 0 ? t("diagram.list.empty") : t("diagram.list.emptyFiltered")}
                 </p>
               ) : (
-                visible.map((file) => {
-                  const fileKind = isDiagramKind(file.kind) ? file.kind : null;
-                  const Icon = fileKind ? KIND_ICON[fileKind] : Pencil;
-                  const item = backlogOfScope(file.scope);
-                  const editable = hasEditor(file.kind);
-                  return (
-                    <ContextMenu key={file.path}>
-                      <ContextMenuTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setPath(file.path)}
-                          className={cn(
-                            "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
-                            file.path === path
-                              ? "bg-accent text-accent-foreground"
-                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                          )}
-                        >
-                          <Icon className="mt-0.5 size-3.5 shrink-0" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium text-foreground">{file.title}</span>
-                            <span className="block truncate text-[10px]">
-                              {!project && `${file.project} · `}
-                              {item || t("diagram.list.scopeProject")}
-                            </span>
-                          </span>
-                        </button>
-                      </ContextMenuTrigger>
-                      {editable && (
-                        <ContextMenuContent className="w-44">
-                          <ContextMenuItem disabled={aiRunning} onClick={() => setRenaming(file)}>
-                            <Pencil className="size-4" />
-                            {t("diagram.list.rename")}
-                          </ContextMenuItem>
-                          <ContextMenuItem
-                            variant="destructive"
-                            disabled={aiRunning}
-                            onClick={() => setDeleting(file)}
-                          >
-                            <Trash2 className="size-4" />
-                            {t("diagram.list.delete")}
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      )}
-                    </ContextMenu>
-                  );
-                })
+                <>
+                  <div
+                    className="mb-1 flex items-center gap-1 px-1"
+                    title={t("diagram.list.sortHint")}
+                  >
+                    {(["updated", "name"] as const).map((value) => (
+                      <Button
+                        key={value}
+                        size="sm"
+                        variant={listSort === value ? "secondary" : "ghost"}
+                        className="h-5 px-1.5 text-[10px]"
+                        onClick={() => void patchSettings({ diagram_list_sort: value })}
+                      >
+                        {value === "updated" ? t("diagram.list.sortUpdated") : t("diagram.list.sortName")}
+                      </Button>
+                    ))}
+                  </div>
+                  {kindFilter === ALL
+                    ? sections.map((section) => {
+                        const SectionIcon = KIND_ICON[section.kind];
+                        const folded = isCollapsed(collapsedKinds, section.kind);
+                        const Chevron = folded ? ChevronRight : ChevronDown;
+                        return (
+                          <div key={section.kind} className="mb-1">
+                            <button
+                              type="button"
+                              aria-expanded={!folded}
+                              aria-label={t("diagram.list.toggleGroup", {
+                                kind: t(KIND_LABEL_KEY[section.kind]),
+                              })}
+                              onClick={() =>
+                                void patchSettings({
+                                  diagram_collapsed_kinds: withCollapsed(
+                                    collapsedKinds,
+                                    section.kind,
+                                    !folded,
+                                  ),
+                                })
+                              }
+                              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] font-semibold text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                            >
+                              <Chevron className="size-3 shrink-0" />
+                              <SectionIcon className="size-3 shrink-0" />
+                              <span className="min-w-0 flex-1 truncate">{t(KIND_LABEL_KEY[section.kind])}</span>
+                              <span className="tabular-nums font-normal">{section.files.length}</span>
+                            </button>
+                            {!folded && section.files.map(renderRow)}
+                          </div>
+                        );
+                      })
+                    : visible.map(renderRow)}
+                </>
               )}
             </aside>
           )}

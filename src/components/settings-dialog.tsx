@@ -105,6 +105,8 @@ const DEFAULTS: Settings = {
   hidden_tabs: [],
   // Managed from the Diagrams tab itself (T-0686).
   diagram_hidden_panels: [],
+  diagram_collapsed_kinds: [],
+  diagram_list_sort: "updated",
   response_language_inject: true,
   custom_prompt: "",
   prompt_copy_multiline: true,

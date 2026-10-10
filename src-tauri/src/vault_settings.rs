@@ -59,6 +59,10 @@ const VAULT_SCOPED: &[&str] = &[
     // Which side panels of each diagram kind are hidden (T-0686): a layout
     // preference like the tab bar above.
     "diagram_hidden_panels",
+    // Which kind groups of the Diagrams list are collapsed and how a group is
+    // ordered (T-0701): the same kind of layout preference.
+    "diagram_collapsed_kinds",
+    "diagram_list_sort",
     // The agent that edits any kind of diagram (T-0685). The former
     // `schedule_*` / `mindmap_*` keys are deliberately not aliased: they are
     // not read, and the next save drops them.
