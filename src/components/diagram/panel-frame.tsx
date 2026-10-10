@@ -221,18 +221,20 @@ export function NoteField({
   value,
   placeholder,
   disabled,
+  rows = 3,
   onChange,
 }: {
   value: string;
   placeholder: string;
   disabled?: boolean;
+  rows?: number;
   onChange: (value: string) => void;
 }) {
   return (
     <Textarea
       value={value}
       placeholder={placeholder}
-      rows={3}
+      rows={rows}
       disabled={disabled}
       className="resize-none text-xs"
       onChange={(e) => onChange(e.target.value)}

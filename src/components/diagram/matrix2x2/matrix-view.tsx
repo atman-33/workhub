@@ -4,6 +4,7 @@ import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
 import { MatrixCanvas } from "@/components/diagram/matrix2x2/matrix-canvas";
 import { ItemEditor } from "@/components/diagram/matrix2x2/item-editor";
 import { LabelsEditor } from "@/components/diagram/matrix2x2/labels-editor";
+import { QuadrantEditor } from "@/components/diagram/matrix2x2/quadrant-editor";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -30,6 +31,11 @@ import {
   type MatrixDocModel,
   type MatrixItem,
 } from "@/lib/diagram/matrix2x2/parse";
+import {
+  shouldCoalesce,
+  type LastNoteEdit,
+  type QuadrantKey,
+} from "@/lib/diagram/matrix2x2/quadrant-notes";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
 import {
   NEW_STICKY_OFFSET,
@@ -70,6 +76,13 @@ const UNDO_LIMIT = 50;
 const SIDEBAR_DEFAULT_PCT = 26;
 /** A stable empty array, so "no stickies" does not re-lay the canvas out on every render. */
 const EMPTY_STICKIES: Sticky[] = [];
+/** The label field that holds each quadrant's name. */
+const QUADRANT_LABEL_FIELD: Record<QuadrantKey, LabelField> = {
+  tl: "qTl",
+  tr: "qTr",
+  bl: "qBl",
+  br: "qBr",
+};
 /** Arrow-key nudge of the selected item, in unit coordinates. */
 const NUDGE = 0.01;
 const NUDGE_BIG = 0.05;
@@ -113,12 +126,16 @@ export function MatrixView({ configVersion, embedded }: Props) {
   // mutually exclusive: Delete has to know which of the two it is deleting.
   const [selectedStickyId, setSelectedStickyId] = useState<string | null>(null);
   const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
+  // A quadrant selected for its note (T-0692): exclusive with the two above.
+  const [selectedQuadrant, setSelectedQuadrant] = useState<QuadrantKey | null>(null);
   const [status, setStatus] = useState("");
   const [fitToken, setFitToken] = useState(0);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const undoStack = useRef<MatrixDocModel[]>([]);
   const redoStack = useRef<MatrixDocModel[]>([]);
+  /** The last quadrant-note keystroke, so a run of them is one undo step. */
+  const lastNoteEdit = useRef<LastNoteEdit | null>(null);
   // The raw file text and the mtime it was read at: serialization needs the
   // original bytes to preserve `## Memo` and unmanaged frontmatter, and the
   // mtime is what makes the next write conflict-safe.
@@ -184,6 +201,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
       // stack would otherwise let Ctrl+Z "undo" someone else's edit.
       undoStack.current = [];
       redoStack.current = [];
+      lastNoteEdit.current = null;
       setDoc(parseMatrix(read.content, fallbackTitle.current));
       if (fit) setFitToken((n) => n + 1);
     },
@@ -247,6 +265,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
     setEditingId(null);
     setSelectedStickyId(null);
     setEditingStickyId(null);
+    setSelectedQuadrant(null);
     freshId.current = null;
     void (async () => {
       await flushing.current;
@@ -290,6 +309,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
       undoStack.current.push(doc);
       if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
       redoStack.current = [];
+      lastNoteEdit.current = null;
       apply(next);
     },
     [doc, apply],
@@ -299,6 +319,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
     const prev = undoStack.current.pop();
     if (!prev || !doc) return;
     redoStack.current.push(doc);
+    lastNoteEdit.current = null;
     apply(prev);
   }, [doc, apply]);
 
@@ -306,6 +327,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
     const next = redoStack.current.pop();
     if (!next || !doc) return;
     undoStack.current.push(doc);
+    lastNoteEdit.current = null;
     apply(next);
   }, [doc, apply]);
 
@@ -313,12 +335,26 @@ export function MatrixView({ configVersion, embedded }: Props) {
 
   const selectItem = useCallback((id: string | null) => {
     setSelectedId(id);
-    if (id) setSelectedStickyId(null);
+    if (id) {
+      setSelectedStickyId(null);
+      setSelectedQuadrant(null);
+    }
   }, []);
 
   const selectSticky = useCallback((id: string | null) => {
     setSelectedStickyId(id);
-    if (id) setSelectedId(null);
+    if (id) {
+      setSelectedId(null);
+      setSelectedQuadrant(null);
+    }
+  }, []);
+
+  const selectQuadrant = useCallback((key: QuadrantKey | null) => {
+    setSelectedQuadrant(key);
+    if (key) {
+      setSelectedId(null);
+      setSelectedStickyId(null);
+    }
   }, []);
 
   // ---- item commands --------------------------------------------------------
@@ -409,6 +445,31 @@ export function MatrixView({ configVersion, embedded }: Props) {
       mutate({ ...doc, [field]: value });
     },
     [doc, mutate],
+  );
+
+  // ---- quadrant notes (T-0692) ----
+
+  /**
+   * Edits a quadrant's note. The note is kept as typed (trailing spaces
+   * included, or typing a word then a space would eat the space); the file
+   * writer normalizes it. A run of edits to one quadrant is one undo step, so
+   * Ctrl+Z takes back a passage rather than a keystroke.
+   */
+  const setQuadrantNote = useCallback(
+    (key: QuadrantKey, text: string) => {
+      if (!doc || lockedRef.current) return;
+      if (text === doc.quadrantNotes[key]) return;
+      const next = { ...doc, quadrantNotes: { ...doc.quadrantNotes, [key]: text } };
+      const now = Date.now();
+      if (shouldCoalesce(key, lastNoteEdit.current, now) && undoStack.current.length) {
+        redoStack.current = [];
+        apply(next);
+      } else {
+        mutate(next);
+      }
+      lastNoteEdit.current = { key, at: now };
+    },
+    [doc, apply, mutate],
   );
 
   // ---- copy and paste (T-0688) ----
@@ -576,6 +637,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
       if (e.key === "Escape") {
         setSelectedId(null);
         setSelectedStickyId(null);
+        setSelectedQuadrant(null);
         return;
       }
       if (e.key === "Delete" && selectedStickyId) {
@@ -766,11 +828,13 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   stickies={visibleStickies}
                   selectedId={selectedId}
                   selectedStickyId={selectedStickyId}
+                  selectedQuadrant={selectedQuadrant}
                   editingId={editingId}
                   editingStickyId={editingStickyId}
                   fitToken={fitToken}
                   onSelect={selectItem}
                   onSelectSticky={selectSticky}
+                  onSelectQuadrant={selectQuadrant}
                   onStartEdit={setEditingId}
                   onCommitEdit={(id, title) => finishEdit(id, title)}
                   onCancelEdit={() => editingId && finishEdit(editingId, null)}
@@ -805,6 +869,18 @@ export function MatrixView({ configVersion, embedded }: Props) {
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchItem(selected.id, patch)}
                     onDelete={() => deleteItem(selected.id)}
+                  />
+                ) : selectedQuadrant ? (
+                  <QuadrantEditor
+                    quadrant={selectedQuadrant}
+                    name={doc[QUADRANT_LABEL_FIELD[selectedQuadrant]]}
+                    note={doc.quadrantNotes[selectedQuadrant]}
+                    onChangeName={(name) => setLabel(QUADRANT_LABEL_FIELD[selectedQuadrant], name)}
+                    onChangeNote={(note) => setQuadrantNote(selectedQuadrant, note)}
+                    onClearNote={() =>
+                      doc &&
+                      mutate({ ...doc, quadrantNotes: { ...doc.quadrantNotes, [selectedQuadrant]: "" } })
+                    }
                   />
                 ) : (
                   <LabelsEditor labels={doc} onChange={setLabel} />

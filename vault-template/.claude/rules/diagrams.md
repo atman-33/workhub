@@ -35,8 +35,9 @@ New projects start with none of these folders; create the one a diagram needs.
 ## What every diagram shares
 
 - Flat frontmatter: `type`, `title`, `created`, `updated` (set `updated` when
-  you change the note), plus the kind's own keys. Managed sections, then an
-  optional `## Stickies`, then `## Memo`. **Never edit `## Memo`**, and leave
+  you change the note), plus the kind's own keys. Managed sections (a 2x2
+  matrix's optional `## Quadrants` is one of them), then an optional
+  `## Stickies`, then `## Memo`. **Never edit `## Memo`**, and leave
   sections you do not recognise where they are.
 - Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, ...) that is **never
   changed or reused**. An element typed without one is given one by the app.
@@ -82,6 +83,13 @@ q_br: やらない
   メモ行。hover で出る。
 - M-003 まだ置いていない項目
 
+## Quadrants
+
+- q_tl 先にやる前に、前提を確認する。
+  二行目。
+  - 入れ子の箇条書きもそのまま
+- q_br やらない理由: 効果が薄い
+
 ## Stickies
 
 - S-001 node:M-002 @40,-20 #red 要確認
@@ -109,6 +117,22 @@ q_br: やらない
   `@`; never rewrite the others' positions.
 - **Title** is every token left once `@x,y`, `#color` and `task:` are taken
   out (a malformed `@` stays in it); keep it to one line.
+- **`## Quadrants`** (optional, right after `## Items`) holds one note per
+  quadrant - what the quadrant means and how to respond to it, longer than the
+  one-line `q_tl` name. An entry is `- q_tl <first line>` at column 0, the key
+  being the frontmatter's own (`q_tl` `q_tr` `q_bl` `q_br`), then the rest of
+  the note on indented lines (two spaces). Unlike an item's note, those lines
+  may be blank (a paragraph break) or start with `- ` (a nested bullet); only a
+  column-0 `- q_xx` opens a new entry. The note belongs to the position, not to
+  the name, so renaming `q_tl` never moves it. Write at most one entry per
+  quadrant, in the order tl, tr, bl, br; leave out a quadrant with no note and
+  the whole heading when there is none - add it only with the first note.
+  Change only the quadrants the instruction is about. It is not `## Memo`, and
+  it is not the `q_tl` name in the frontmatter: those stay as they are. A line
+  under it that is not a known entry (an unknown key, a second entry for the
+  same quadrant, un-indented text) is kept by the app and listed as a warning;
+  leave it alone. The app shows a small mark in a quadrant that has a note and
+  the note on hover; the exported image does not carry it.
 - **`## Stickies`** pins a note to an item: `node:M-NNN` names the item (the key
   is `node:` in every kind). The offset is from the item's centre to the
   sticky's top-left corner in pixels. Delete an item and delete its stickies.

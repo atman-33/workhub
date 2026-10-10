@@ -72,6 +72,12 @@ and everything below still applies.
   element you delete goes with it. `stickies: hidden` in the frontmatter is the
   user's display setting - leave it, and say so if you add a sticky to a note
   that hides them. Schedules have no stickies.
+- **Quadrant notes** (a 2x2 matrix's optional `## Quadrants`, right after
+  `## Items`): one note per quadrant, keyed by position (`q_tl` `q_tr` `q_bl`
+  `q_br`, the same keys as the quadrant names in the frontmatter, which are a
+  different thing). The format is in `diagrams.md`. Touch only the quadrants the
+  instruction is about, add the heading only with the first note, and leave a
+  line you cannot place where it is.
 - **Display settings are not content.** Frontmatter keys such as `node_width`,
   `stickies`, `node_ids` or an axis label belong to the user; change one only
   when the instruction is about it.

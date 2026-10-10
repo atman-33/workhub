@@ -42,7 +42,7 @@ export const diagramEn = {
   "diagram.clipboard.paste": "Paste",
   "diagram.clipboard.duplicate": "Duplicate",
   // ---- 2x2 matrix editor (T-0681) ----
-  "diagram.matrix.footerHint": "Drag an item to place it. Double-click the empty plot to add one. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
+  "diagram.matrix.footerHint": "Drag an item to place it. Double-click the empty plot to add one. Click a quadrant to write a note for it. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
   "diagram.matrix.fitHint": "Fit the matrix to the window",
   "diagram.matrix.addHint": "Add an item in the middle",
   "diagram.matrix.itemCount": "{count} items",
@@ -76,6 +76,13 @@ export const diagramEn = {
   "diagram.matrix.qTr": "Top right",
   "diagram.matrix.qBl": "Bottom left",
   "diagram.matrix.qBr": "Bottom right",
+  // ---- quadrant notes (T-0692) ----
+  "diagram.matrix.quadrantTitle": "{position} quadrant",
+  "diagram.matrix.quadrantNamePlaceholder": "Quadrant name (empty = not drawn)",
+  "diagram.matrix.quadrantNotePlaceholder": "What this quadrant means, and how to respond to it",
+  "diagram.matrix.quadrantNoteHint": "A working note for this quadrant. Blank lines and bullets are kept. It is not part of the exported image.",
+  "diagram.matrix.quadrantNoteClearHint": "Delete this quadrant's note",
+  "diagram.matrix.quadrantNoteMark": "This quadrant has a note",
   // ---- business flow editor (T-0682) ----
   "diagram.flow.footerHint": "Drag a step to move it; drop it on another lane to change its lane. Drag a round handle from a step onto another step to draw an arrow, or an end handle of a selected arrow to re-route it. Double-click a lane to add a step. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms.",
   "diagram.flow.fitHint": "Fit the flow to the window",

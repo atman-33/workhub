@@ -7,7 +7,7 @@
  * - Anything the grammar does not recognize is **kept, not dropped**. A line
  *   under `## Items` that is not a readable item (not a list item, or one with
  *   an id of another kind) survives as a raw line and is written back verbatim.
- * - Only `## Items` and `## Stickies` are rewritten. The rest of the
+ * - Only `## Items`, `## Quadrants` and `## Stickies` are rewritten. The rest of the
  *   frontmatter, `## Memo` and every unknown section are copied byte-for-byte.
  *
  * The grammar:
@@ -37,6 +37,14 @@ import {
 } from "../note";
 import { replaceSections, sectionText, splitNote } from "../sections";
 import { formatStickySection, parseStickies, type Sticky } from "../sticky";
+import {
+  emptyQuadrantNotes,
+  formatQuadrantSection,
+  parseQuadrants,
+  type QuadrantNotes,
+} from "./quadrant-notes";
+
+export { QUADRANT_KEYS, type QuadrantKey, type QuadrantNotes } from "./quadrant-notes";
 
 export const ITEM_PREFIX = "M";
 const ITEM_ID_RE = /^M-\d+$/;
@@ -82,6 +90,10 @@ export interface MatrixDocModel extends Record<LabelField, string> {
   items: MatrixItem[];
   /** Lines under `## Items` the grammar did not recognize, kept verbatim. */
   rawItems: string[];
+  /** Notes of the four quadrants from `## Quadrants`, empty when there is none. */
+  quadrantNotes: QuadrantNotes;
+  /** Lines under `## Quadrants` the grammar did not recognize, kept verbatim. */
+  rawQuadrants: string[];
   /** True when parsing had to mint at least one id. */
   mintedIds: boolean;
   /** Sticky notes from `## Stickies`, in file order. */
@@ -190,6 +202,8 @@ export function parseMatrix(content: string, fallbackTitle = ""): MatrixDocModel
     title: frontmatterValue(note.frontmatter, "title") || fallbackTitle,
     items: [],
     rawItems: [],
+    quadrantNotes: emptyQuadrantNotes(),
+    rawQuadrants: [],
     mintedIds: false,
     stickies: [],
     rawStickies: [],
@@ -221,6 +235,9 @@ export function parseMatrix(content: string, fallbackTitle = ""): MatrixDocModel
   for (const [item, collected] of notes) item.note = collected.join("\n");
 
   assignMissingIds(doc);
+  const quadrants = parseQuadrants(sectionText(note, "Quadrants"));
+  doc.quadrantNotes = quadrants.notes;
+  doc.rawQuadrants = quadrants.raw;
   const stickies = parseStickies(sectionText(note, "Stickies"));
   doc.stickies = stickies.stickies;
   doc.rawStickies = stickies.raw;
@@ -256,10 +273,10 @@ export function findItem(items: MatrixItem[], id: string): MatrixItem | null {
 }
 
 /** How many lines the note keeps but the editor cannot show: unreadable item
- * lines, and stickies whose item is gone. */
+ * lines, unreadable `## Quadrants` lines, and stickies whose item is gone. */
 export function warningCount(doc: MatrixDocModel): number {
   const ids = new Set(doc.items.map((i) => i.id));
-  return doc.rawItems.length + doc.stickies.filter((s) => !ids.has(s.targetId)).length;
+  return doc.rawItems.length + doc.rawQuadrants.length + doc.stickies.filter((s) => !ids.has(s.targetId)).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +331,7 @@ export function serializeMatrix(content: string, doc: MatrixDocModel, today: str
   // it, or it would read as part of the memo): `replaceSections` places it.
   const out = replaceSections({ ...note, frontmatter }, [
     { name: "Items", text: items },
+    { name: "Quadrants", text: formatQuadrantSection(doc.quadrantNotes, doc.rawQuadrants) },
     { name: "Stickies", text: formatStickySection(doc.stickies, doc.rawStickies) },
   ]);
   return withEol(out, eol);

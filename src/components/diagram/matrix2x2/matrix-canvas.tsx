@@ -22,6 +22,8 @@ import {
   type PositionedItem,
 } from "@/lib/diagram/matrix2x2/layout";
 import type { MatrixDocModel } from "@/lib/diagram/matrix2x2/parse";
+import type { QuadrantKey } from "@/lib/diagram/matrix2x2/quadrant-notes";
+import { useT } from "@/lib/i18n";
 import { LINE_HEIGHT, NODE_PAD_X, textWidth } from "@/lib/diagram/text";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,9 @@ import { cn } from "@/lib/utils";
  *   release, and only for that item;
  * - **double-click on the plot adds an item** where it landed;
  * - **double-click on an item renames it** in place;
+ * - **a click on a quadrant selects it**, for its note in the side panel; a
+ *   quadrant with a note carries a small mark in its outer corner, and resting
+ *   the pointer on the mark shows the note (T-0692);
  * - right-drag pans and the wheel zooms (the shared camera).
  */
 interface Props {
@@ -44,12 +49,15 @@ interface Props {
   stickies: Sticky[];
   selectedId: string | null;
   selectedStickyId: string | null;
+  /** The quadrant selected for its note; exclusive with an item or a sticky. */
+  selectedQuadrant: QuadrantKey | null;
   editingId: string | null;
   editingStickyId: string | null;
   /** True while an AI edit holds the file: the canvas is look-only. */
   locked?: boolean;
   onSelect: (id: string | null) => void;
   onSelectSticky: (id: string | null) => void;
+  onSelectQuadrant: (key: QuadrantKey | null) => void;
   onStartEdit: (id: string) => void;
   onCommitEdit: (id: string, title: string) => void;
   onCancelEdit: () => void;
@@ -68,16 +76,50 @@ interface Props {
   fitToken: number;
 }
 
+/** Lines of a quadrant note the hover tip shows; the rest is in the side panel. */
+const QUADRANT_TIP_MAX_LINES = 12;
+
+/** The note mark: a small page with a folded corner and three text lines. */
+function NoteMarkGlyph({ box }: { box: { x: number; y: number; width: number; height: number } }) {
+  const { x, y, width: w, height: h } = box;
+  const fold = 4;
+  return (
+    <>
+      {/* A transparent plate, so the whole mark takes the pointer. */}
+      <rect x={x} y={y} width={w} height={h} fill="transparent" />
+      <path
+        d={`M${x + 1} ${y + 1} H${x + w - 1 - fold} L${x + w - 1} ${y + 1 + fold} V${y + h - 1} H${x + 1} Z`}
+        className="fill-card stroke-muted-foreground"
+        strokeWidth={1.2}
+        strokeLinejoin="round"
+      />
+      {[0.4, 0.62, 0.84].map((f) => (
+        <line
+          key={f}
+          x1={x + 3.5}
+          x2={x + w - 3.5}
+          y1={y + h * f}
+          y2={y + h * f}
+          className="stroke-muted-foreground"
+          strokeWidth={1}
+        />
+      ))}
+    </>
+  );
+}
+
 export function MatrixCanvas({
   doc,
   stickies,
   selectedId,
   selectedStickyId,
+  selectedQuadrant,
   editingId,
   editingStickyId,
   locked,
   onSelect,
   onSelectSticky,
+  onSelectQuadrant,
   onStartEdit,
   onCommitEdit,
   onCancelEdit,
@@ -90,10 +132,12 @@ export function MatrixCanvas({
   clipboard,
   fitToken,
 }: Props) {
+  const t = useT();
   const base = useMemo(() => layoutMatrix(doc, stickies), [doc, stickies]);
   const view = useCamera({ bounds: base.bounds, fitToken });
   const { camera, toDiagram } = view;
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [hoverMark, setHoverMark] = useState<QuadrantKey | null>(null);
   const [draft, setDraft] = useState("");
   // A drag that ends over empty canvas is followed by a click that would clear
   // the selection it just made; this swallows that one click.
@@ -187,9 +231,16 @@ export function MatrixCanvas({
     if (justDragged.current) return;
     onSelect(null);
     onSelectSticky(null);
+    onSelectQuadrant(null);
+  };
+  const selectQuadrant = (key: QuadrantKey) => {
+    if (justDragged.current) return;
+    onSelectQuadrant(key);
   };
 
   const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
+  const hoveredMark =
+    hoverMark && !dragging ? (layout.quadrants.find((q) => q.key === hoverMark && q.noteMark) ?? null) : null;
 
   return (
     <DiagramSurface
@@ -199,7 +250,8 @@ export function MatrixCanvas({
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} readOnly={locked} />}
     >
       {/* Quadrants: the plot itself. Hit-testable so a double-click on them
-          adds an item, and a click on them clears the selection. */}
+          adds an item, and a click on them selects the quadrant (its note
+          is edited in the side panel). */}
       {layout.quadrants.map((q) => (
         <rect
           key={q.key}
@@ -209,10 +261,28 @@ export function MatrixCanvas({
           height={q.height}
           className="fill-muted-foreground/5 stroke-border"
           strokeWidth={1}
-          onClick={clearSelection}
+          onClick={() => selectQuadrant(q.key)}
           onDoubleClick={addAt}
         />
       ))}
+      {/* The selected quadrant: a faint fill and an inner ring. Deaf to the
+          pointer, so the rect underneath keeps the clicks. */}
+      {layout.quadrants
+        .filter((q) => q.key === selectedQuadrant)
+        .map((q) => (
+          <rect
+            key={`${q.key}-selected`}
+            x={q.x + 2}
+            y={q.y + 2}
+            width={q.width - 4}
+            height={q.height - 4}
+            rx={4}
+            fill="none"
+            className="fill-ring/10 stroke-ring"
+            strokeWidth={2}
+            pointerEvents="none"
+          />
+        ))}
       {/* The central cross: the boundary between the quadrants, stronger than the grid. */}
       {layout.cross.map((l, i) => (
         <line
@@ -353,6 +423,28 @@ export function MatrixCanvas({
         );
       })}
 
+      {/* Note marks sit in the outer corners, in front of the items so an item
+          dropped on one never hides that its quadrant has a note. */}
+      {layout.quadrants.map((q) =>
+        q.noteMark ? (
+          <g
+            key={`${q.key}-mark`}
+            className="cursor-pointer"
+            opacity={0.6}
+            onPointerEnter={() => setHoverMark(q.key)}
+            onPointerLeave={() => setHoverMark((h) => (h === q.key ? null : h))}
+            onClick={(e) => {
+              e.stopPropagation();
+              selectQuadrant(q.key);
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <title>{t("diagram.matrix.quadrantNoteMark")}</title>
+            <NoteMarkGlyph box={q.noteMark} />
+          </g>
+        ) : null,
+      )}
+
       {/* Stickies are drawn last, so a note the user dropped over an item
           stays readable instead of disappearing under it. */}
       {layout.stickies.map((sticky) => (
@@ -373,6 +465,15 @@ export function MatrixCanvas({
       ))}
 
       {hovered?.note && !editingItem && <NoteTip box={hovered} note={hovered.note} />}
+      {hoveredMark?.noteMark && (
+        <NoteTip
+          box={hoveredMark.noteMark}
+          note={doc.quadrantNotes[hoveredMark.key]}
+          placement={hoveredMark.key === "bl" || hoveredMark.key === "br" ? "above" : "below"}
+          align={hoveredMark.key === "tl" || hoveredMark.key === "bl" ? "start" : "end"}
+          maxLines={QUADRANT_TIP_MAX_LINES}
+        />
+      )}
     </DiagramSurface>
   );
 }
