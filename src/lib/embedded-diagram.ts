@@ -30,4 +30,8 @@ export interface EmbeddedDiagram {
    * from disk even if the file watcher's event was missed or the mtime did
    * not change. */
   reloadToken: number;
+  /** Whether this kind's right-hand panel is shown (T-0686). The host owns it
+   * because it is stored in the vault settings, per kind. */
+  sidePanelOpen: boolean;
+  onSidePanelOpenChange: (open: boolean) => void;
 }

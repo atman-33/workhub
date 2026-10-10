@@ -370,6 +370,12 @@ pub struct Settings {
     /// `tab_order`.
     #[serde(default)]
     pub hidden_tabs: Vec<String>,
+    /// Side panels of the Diagrams tab the owner hid (T-0686), as
+    /// `<kind>:<left|right>` entries (`flow:right`). A panel is open unless it
+    /// is listed. Vault-scoped, like `tab_order`: how the owner lays out their
+    /// work, the same on a second PC.
+    #[serde(default)]
+    pub diagram_hidden_panels: Vec<String>,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -565,6 +571,7 @@ impl Default for Settings {
             ui_locale: default_ui_locale(),
             tab_order: Vec::new(),
             hidden_tabs: Vec::new(),
+            diagram_hidden_panels: Vec::new(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
             notices_read: Vec::new(),

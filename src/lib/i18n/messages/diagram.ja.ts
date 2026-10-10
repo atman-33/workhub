@@ -148,6 +148,10 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.aiPanel.stalled":
     "少し時間がかかっています。実行ログは `_ai/logs/diagram-edit/` にあります。",
   "diagram.aiPanel.history": "履歴",
+  "diagram.panel.hideLeft": "図解の一覧を隠す",
+  "diagram.panel.showLeft": "図解の一覧を表示",
+  "diagram.panel.hideRight": "サイドパネルを隠す",
+  "diagram.panel.showRight": "サイドパネルを表示",
   "diagram.aiPanel.toggleHint": "この図を AI で編集",
   "diagram.aiPanel.settingsHint": "AI 編集の設定",
   "diagram.aiPanel.lockedHint": "AI 編集を実行中です",

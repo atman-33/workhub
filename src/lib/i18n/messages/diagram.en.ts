@@ -146,6 +146,10 @@ export const diagramEn = {
   "diagram.aiPanel.stalled":
     "This is taking a while. The run log is under `_ai/logs/diagram-edit/`.",
   "diagram.aiPanel.history": "History",
+  "diagram.panel.hideLeft": "Hide the diagram list",
+  "diagram.panel.showLeft": "Show the diagram list",
+  "diagram.panel.hideRight": "Hide the side panel",
+  "diagram.panel.showRight": "Show the side panel",
   "diagram.aiPanel.toggleHint": "Edit this diagram with AI",
   "diagram.aiPanel.settingsHint": "AI edit settings",
   "diagram.aiPanel.lockedHint": "An AI edit is running",

@@ -103,6 +103,8 @@ const DEFAULTS: Settings = {
   // Managed from the tab bar itself (right-click / drag), not from this dialog (T-0684).
   tab_order: [],
   hidden_tabs: [],
+  // Managed from the Diagrams tab itself (T-0686).
+  diagram_hidden_panels: [],
   response_language_inject: true,
   custom_prompt: "",
   prompt_copy_multiline: true,

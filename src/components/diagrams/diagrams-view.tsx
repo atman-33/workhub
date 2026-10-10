@@ -4,6 +4,7 @@ import { FolderPlus, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { DiagramAiPanel } from "@/components/diagram/diagram-ai-panel";
 import { DiagramAiSettings } from "@/components/diagram/diagram-ai-settings";
+import { PanelToggle } from "@/components/diagram/panel-frame";
 import { FlowView } from "@/components/diagram/flow/flow-view";
 import { PfdView } from "@/components/diagram/pfd/pfd-view";
 import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
@@ -44,6 +45,7 @@ import {
   isDiagramKind,
   type DiagramKind,
 } from "@/lib/diagram-kinds";
+import { isPanelOpen, withPanelOpen, type PanelSide } from "@/lib/diagram-panels";
 import { useT } from "@/lib/i18n";
 import type { TabFocus } from "@/lib/tab-focus";
 import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
@@ -355,12 +357,28 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
       .catch((e) => setError(String(e)));
   };
 
+  // Side panels hide per kind of diagram (T-0686). With no note open there is
+  // no kind, and the list stays shown: nothing else could bring it back.
+  const hiddenPanels = config?.settings.diagram_hidden_panels ?? [];
+  const panelOpen = (side: PanelSide) => !kind || isPanelOpen(hiddenPanels, kind, side);
+  const setPanelOpen = (which: DiagramKind, side: PanelSide, open: boolean) =>
+    void patchSettings({
+      diagram_hidden_panels: withPanelOpen(
+        config?.settings.diagram_hidden_panels ?? [],
+        which,
+        side,
+        open,
+      ),
+    });
+
   const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
     locked: aiRunning,
     reloadToken,
+    sidePanelOpen: isPanelOpen(hiddenPanels, which, "right"),
+    onSidePanelOpenChange: (open: boolean) => setPanelOpen(which, "right", open),
     registerFlush: (flush: (() => Promise<void>) | null) => {
       flushers.current[which] = flush;
     },
@@ -455,61 +473,76 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-56 shrink-0 overflow-y-auto border-r p-1.5">
-          {visible.length === 0 ? (
-            <p className="px-2 py-3 text-xs text-muted-foreground">
-              {files.length === 0 ? t("diagram.list.empty") : t("diagram.list.emptyFiltered")}
-            </p>
-          ) : (
-            visible.map((file) => {
-              const fileKind = isDiagramKind(file.kind) ? file.kind : null;
-              const Icon = fileKind ? KIND_ICON[fileKind] : Pencil;
-              const item = backlogOfScope(file.scope);
-              const editable = hasEditor(file.kind);
-              return (
-                <ContextMenu key={file.path}>
-                  <ContextMenuTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => setPath(file.path)}
-                      className={cn(
-                        "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
-                        file.path === path
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+        <div className="relative shrink-0">
+          {panelOpen("left") && (
+            <aside className="h-full w-56 overflow-y-auto border-r p-1.5">
+              {visible.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-muted-foreground">
+                  {files.length === 0 ? t("diagram.list.empty") : t("diagram.list.emptyFiltered")}
+                </p>
+              ) : (
+                visible.map((file) => {
+                  const fileKind = isDiagramKind(file.kind) ? file.kind : null;
+                  const Icon = fileKind ? KIND_ICON[fileKind] : Pencil;
+                  const item = backlogOfScope(file.scope);
+                  const editable = hasEditor(file.kind);
+                  return (
+                    <ContextMenu key={file.path}>
+                      <ContextMenuTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setPath(file.path)}
+                          className={cn(
+                            "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                            file.path === path
+                              ? "bg-accent text-accent-foreground"
+                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                          )}
+                        >
+                          <Icon className="mt-0.5 size-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-foreground">{file.title}</span>
+                            <span className="block truncate text-[10px]">
+                              {!project && `${file.project} · `}
+                              {item || t("diagram.list.scopeProject")}
+                            </span>
+                          </span>
+                        </button>
+                      </ContextMenuTrigger>
+                      {editable && (
+                        <ContextMenuContent className="w-44">
+                          <ContextMenuItem disabled={aiRunning} onClick={() => setRenaming(file)}>
+                            <Pencil className="size-4" />
+                            {t("diagram.list.rename")}
+                          </ContextMenuItem>
+                          <ContextMenuItem
+                            variant="destructive"
+                            disabled={aiRunning}
+                            onClick={() => setDeleting(file)}
+                          >
+                            <Trash2 className="size-4" />
+                            {t("diagram.list.delete")}
+                          </ContextMenuItem>
+                        </ContextMenuContent>
                       )}
-                    >
-                      <Icon className="mt-0.5 size-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-foreground">{file.title}</span>
-                        <span className="block truncate text-[10px]">
-                          {!project && `${file.project} · `}
-                          {item || t("diagram.list.scopeProject")}
-                        </span>
-                      </span>
-                    </button>
-                  </ContextMenuTrigger>
-                  {editable && (
-                    <ContextMenuContent className="w-44">
-                      <ContextMenuItem disabled={aiRunning} onClick={() => setRenaming(file)}>
-                        <Pencil className="size-4" />
-                        {t("diagram.list.rename")}
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        disabled={aiRunning}
-                        onClick={() => setDeleting(file)}
-                      >
-                        <Trash2 className="size-4" />
-                        {t("diagram.list.delete")}
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  )}
-                </ContextMenu>
-              );
-            })
+                    </ContextMenu>
+                  );
+                })
+              )}
+            </aside>
           )}
-        </aside>
+          {kind && (
+            <PanelToggle
+              side="left"
+              open={panelOpen("left")}
+              onToggle={() => setPanelOpen(kind, "left", !panelOpen("left"))}
+              className={cn(
+                "absolute top-2",
+                panelOpen("left") ? "left-full -translate-x-1/2" : "left-0",
+              )}
+            />
+          )}
+        </div>
 
         <div className="relative min-w-0 flex-1">
           {/* Every editor stays mounted so a pending save is never lost to a

@@ -87,8 +87,6 @@ export const scheduleJa: Partial<Record<MessageKey, string>> = {
   "schedule.view.presetHint": "ウィンドウ開始から{weeks}週間を表示",
   "schedule.view.reloadHint": "このスケジュールをディスクから再読み込み",
   "schedule.view.exportHint": "単一ファイルの HTML を出力",
-  "schedule.view.showSidebarHint": "サイドパネルを表示",
-  "schedule.view.hideSidebarHint": "サイドパネルを隠す",
   "schedule.view.deleteHint": "このスケジュールをゴミ箱に移動",
   "schedule.view.noProjectsTitle": "プロジェクトがまだありません",
   "schedule.view.noProjectsDescription":

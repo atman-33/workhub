@@ -6,14 +6,11 @@ import {
   Download,
   FolderPlus,
   GanttChart,
-  PanelRightClose,
-  PanelRightOpen,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { usePanelRef } from "react-resizable-panels";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
 import { ItemEditor } from "@/components/schedule/item-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -24,11 +21,11 @@ import { TimelineGrid } from "@/components/schedule/timeline-grid";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Hint } from "@/components/ui/hint";
+import { SidePanel } from "@/components/diagram/panel-frame";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
@@ -166,14 +163,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   const [renameTitle, setRenameTitle] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [mode, setMode] = useState<ViewMode>("calendar");
-  // Session-only: the calendar reads better at full width when reviewing or
-  // before an export, but that is a preference for a moment, not for a
-  // machine, so it is deliberately not persisted to settings.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // The side panel stays mounted and is collapsed through the panel group's own
-  // API, which remembers the width it was dragged to across a collapse/expand
-  // round trip — so no width has to be tracked here.
-  const sidebarPanel = usePanelRef();
   // Document snapshots for Ctrl+Z / Ctrl+Shift+Z. In memory only: undo is for
   // "that drag went somewhere I didn't mean", not for history — the file's git
   // backup and the AI-edit snapshot cover the durable cases.
@@ -1141,29 +1130,6 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
             onPatch={(patch) => void patchSettings(patch)}
           />
           <Hint
-            label={
-              sidebarCollapsed ? t("schedule.view.showSidebarHint") : t("schedule.view.hideSidebarHint")
-            }
-            disabled={!path}
-          >
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => {
-                if (sidebarCollapsed) sidebarPanel.current?.expand();
-                else sidebarPanel.current?.collapse();
-              }}
-              disabled={!path}
-            >
-              {sidebarCollapsed ? (
-                <PanelRightOpen className="size-3.5" />
-              ) : (
-                <PanelRightClose className="size-3.5" />
-              )}
-            </Button>
-          </Hint>
-          <Hint
             label={aiRunning ? t("schedule.view.aiRunningHint") : t("schedule.view.deleteHint")}
             disabled={!path || aiRunning}
           >
@@ -1308,18 +1274,14 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
             recomputes its layout when the number of panels changes, so taking
             this one away to hide it risks collapsing the calendar beside it —
             the same trap the Mindmap tab hit in the T-0188 follow-up. Hiding
-            it is the panel group's own collapse instead. */}
-        <ResizableHandle />
-        <ResizablePanel
+            it is the panel group's own collapse instead (`SidePanel`). */}
+        <SidePanel
           id="sidebar"
-          panelRef={sidebarPanel}
+          open={embedded?.sidePanelOpen ?? true}
+          onOpenChange={(open) => embedded?.onSidePanelOpenChange(open)}
           defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
           minSize="15%"
           maxSize="45%"
-          collapsible
-          collapsedSize={0}
-          onResize={(size) => setSidebarCollapsed(size.asPercentage === 0)}
-          className="min-h-0 min-w-0"
         >
           <aside className="flex h-full flex-col overflow-y-auto">
             {selected && doc && (
@@ -1341,7 +1303,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
               </p>
             )}
           </aside>
-        </ResizablePanel>
+        </SidePanel>
       </ResizablePanelGroup>
 
       <ProjectCreateDialog
