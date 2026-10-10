@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ClipboardMenuItems,
+  NodeClipboardMenu,
+  type CanvasClipboard,
+} from "@/components/diagram/clipboard-menu";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -76,6 +81,8 @@ interface Props {
   onSelectItem: (item: ScheduleItem | null) => void;
   onToggleNonWorking: (date: string) => void;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus (T-0688). */
+  clipboard: CanvasClipboard;
   /** Move the displayed window by whole weeks (Shift + wheel). */
   onPanWindow: (weeks: number) => void;
   /** Move the displayed window by days — what a right-drag pans with, since
@@ -116,11 +123,20 @@ export function TimelineGrid({
   onSelectItem,
   onToggleNonWorking,
   onCreateItem,
+  clipboard,
   onPanWindow,
   onPanWindowDays,
   onZoomWindow,
 }: Props) {
   const tr = useT();
+  /** The right-click menu of one element. */
+  const itemMenu = (id: string) => ({
+    canPaste: clipboard.canPaste,
+    readOnly,
+    onCopy: () => clipboard.onCopy(id),
+    onDuplicate: () => clipboard.onDuplicate(id),
+    onPaste: clipboard.onPaste,
+  });
   const [drag, setDrag] = useState<Drag>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   /** The axis itself — what a client x position is measured against. */
@@ -390,8 +406,9 @@ export function TimelineGrid({
                   />
                 )}
 
-                {layout.bars.map((bar) =>
-                  bar.item.kind === "arrow" ? (
+                {layout.bars.map((bar) => (
+                  <NodeClipboardMenu key={bar.item.id} {...itemMenu(bar.item.id)}>
+                  {bar.item.kind === "arrow" ? (
                     <TimelineArrow
                       key={bar.item.id}
                       bar={bar}
@@ -438,12 +455,14 @@ export function TimelineGrid({
                       )}
                       </div>
                     </Hint>
-                  ),
-                )}
+                  )}
+                  </NodeClipboardMenu>
+                ))}
 
                 {/* Milestones and notes below the bands, on their own lanes so
                     a long label never sits on top of a phase. */}
                 {layout.points.map((point) => (
+                  <NodeClipboardMenu key={point.item.id} {...itemMenu(point.item.id)}>
                   <TimelinePointMarker
                     key={point.item.id}
                     item={point.item}
@@ -454,6 +473,7 @@ export function TimelineGrid({
                     onDrag={beginItemDrag}
                     onPress={endItemPress}
                   />
+                  </NodeClipboardMenu>
                 ))}
               </div>
             </ContextMenuTrigger>
@@ -461,6 +481,7 @@ export function TimelineGrid({
               <TimelineMenuItems
                 readOnly={readOnly}
                 selection={selection}
+                clipboard={clipboard}
                 weekly={
                   selection ? isWeeklyNonWorking(selection.start, doc.nonWorking) : false
                 }
@@ -679,21 +700,30 @@ function TimelineMenuItems({
   readOnly,
   selection,
   weekly,
+  clipboard,
   onCreateItem,
   onToggleNonWorking,
 }: {
   readOnly?: boolean;
   selection: { start: string; end: string } | null;
   weekly: boolean;
+  clipboard: CanvasClipboard;
   onCreateItem: (kind: ItemKind, start: string, end: string) => void;
   onToggleNonWorking: (date: string) => void;
 }) {
   const t = useT();
+  const paste = (
+    <ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} readOnly={readOnly} />
+  );
   if (!selection) {
     return (
-      <ContextMenuLabel className="text-[11px] font-normal text-muted-foreground">
-        {t("schedule.timeline.selectFirst")}
-      </ContextMenuLabel>
+      <>
+        <ContextMenuLabel className="text-[11px] font-normal text-muted-foreground">
+          {t("schedule.timeline.selectFirst")}
+        </ContextMenuLabel>
+        <ContextMenuSeparator />
+        {paste}
+      </>
     );
   }
   const spansDays = selection.start !== selection.end;
@@ -726,6 +756,8 @@ function TimelineMenuItems({
       >
         {t("schedule.menu.addNote")}
       </ContextMenuItem>
+      <ContextMenuSeparator />
+      {paste}
       <ContextMenuSeparator />
       <ContextMenuItem disabled={readOnly || weekly} onSelect={() => onToggleNonWorking(selection.start)}>
         {weekly

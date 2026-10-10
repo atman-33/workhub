@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import {
+  ClipboardMenuItems,
+  NodeClipboardMenu,
+  type CanvasClipboard,
+} from "@/components/diagram/clipboard-menu";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
 import { EdgeArrow } from "@/components/diagram/edge-arrow";
 import { NodeInput } from "@/components/diagram/node-input";
@@ -69,6 +74,8 @@ interface Props {
   onAddAt: (x: number, y: number) => void;
   onConnect: (from: string, to: string) => void;
   onReattach: (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus. */
+  clipboard: CanvasClipboard;
   /** Bumped by the view to re-fit (a new note, or the Fit button). */
   fitToken: number;
 }
@@ -96,6 +103,7 @@ export function PfdCanvas({
   onAddAt,
   onConnect,
   onReattach,
+  clipboard,
   fitToken,
 }: Props) {
   const view = useCamera({ bounds: base.bounds, fitToken });
@@ -198,6 +206,7 @@ export function PfdCanvas({
       view={view}
       grabbing={Boolean(nodeFree.drag) || Boolean(edgeDrag.drag)}
       onBackgroundClick={clearSelection}
+      menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
       onBackgroundDoubleClick={(e) => {
         const at = toDiagram(e.clientX, e.clientY);
         onAddAt(at.x, at.y);
@@ -225,8 +234,15 @@ export function PfdCanvas({
         const isTarget = edgeDrag.drag?.overId === node.id;
         const showHandles = handleNodes.includes(node.id);
         return (
-          <g
+          <NodeClipboardMenu
             key={node.id}
+            svg
+            canPaste={clipboard.canPaste}
+            onCopy={() => clipboard.onCopy(node.id)}
+            onDuplicate={() => clipboard.onDuplicate(node.id)}
+            onPaste={clipboard.onPaste}
+          >
+          <g
             opacity={isDragged ? 0.85 : 1}
             className="cursor-pointer"
             onPointerDown={(e) => startNodeDrag(e, node)}
@@ -305,6 +321,7 @@ export function PfdCanvas({
               />
             )}
           </g>
+          </NodeClipboardMenu>
         );
       })}
 

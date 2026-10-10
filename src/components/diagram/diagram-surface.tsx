@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Hint } from "@/components/ui/hint";
 import type { CameraView } from "@/components/diagram/use-camera";
 import { cn } from "@/lib/utils";
@@ -24,6 +29,12 @@ interface Props {
   onFit?: () => void;
   fitLabel?: string;
   overlay?: ReactNode;
+  /**
+   * Rows for the right-click menu of the empty canvas (T-0688). A right-drag
+   * still pans; the menu opens only on a right-click that stayed put. Omit for
+   * no menu.
+   */
+  menu?: ReactNode;
   children: ReactNode;
 }
 
@@ -41,10 +52,11 @@ export function DiagramSurface({
   onFit,
   fitLabel,
   overlay,
+  menu,
   children,
 }: Props) {
   const { wrapRef, camera, panDrag } = view;
-  return (
+  const surface = (
     <div
       ref={wrapRef}
       className={cn(
@@ -82,5 +94,12 @@ export function DiagramSurface({
         {Math.round(camera.zoom * 100)}%
       </div>
     </div>
+  );
+  if (!menu) return surface;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{surface}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-40">{menu}</ContextMenuContent>
+    </ContextMenu>
   );
 }

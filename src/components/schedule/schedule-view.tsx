@@ -65,6 +65,8 @@ import {
   type ScheduleDocModel,
   type ScheduleItem,
 } from "@/lib/schedule/parse";
+import { clipboardShortcut, readClip, setClip, takePasteRound, useHasClip } from "@/lib/diagram/clipboard";
+import { copyScheduleItem, pasteScheduleItem } from "@/lib/schedule/clipboard";
 import { moveItem, type MoveDirection } from "@/lib/schedule/reorder";
 import type { Config, ScheduleFile, Task } from "@/types";
 
@@ -562,6 +564,45 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
     [doc, mutate],
   );
 
+  // ---- copy and paste (T-0688) ----
+
+  const canPaste = useHasClip("schedule", path);
+
+  const copyItem = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const item = copyScheduleItem(doc.items, id);
+      if (item) setClip("schedule", path, item);
+    },
+    [doc, path],
+  );
+
+  const addCopy = useCallback(
+    (item: ScheduleItem, round: number) => {
+      if (!doc) return;
+      const out = pasteScheduleItem(doc.items, item, round);
+      mutate({ ...doc, items: out.items });
+      setSelectedId(out.id);
+    },
+    [doc, mutate],
+  );
+
+  const pasteItem = useCallback(() => {
+    if (!doc || aiRunning) return;
+    const clip = readClip<ScheduleItem>("schedule", path);
+    if (!clip) return;
+    addCopy(clip.payload, takePasteRound("schedule", path));
+  }, [doc, aiRunning, path, addCopy]);
+
+  const duplicateItem = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const item = copyScheduleItem(doc.items, id);
+      if (item) addCopy(item, 1);
+    },
+    [doc, addCopy],
+  );
+
   /**
    * The selected element, read out of the document rather than remembered.
    *
@@ -699,6 +740,17 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
         redo();
         return;
       }
+      const clipboardKey = clipboardShortcut(e);
+      if (clipboardKey === "paste") {
+        e.preventDefault();
+        pasteItem();
+        return;
+      }
+      if (clipboardKey === "copy" && selected) {
+        e.preventDefault();
+        copyItem(selected.id);
+        return;
+      }
       if (e.key === "Escape") {
         setSelectedId(null);
         return;
@@ -739,7 +791,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selected, doc, aiRunning, undo, redo, mutate, patchItem, reorderItem]);
+  }, [selected, doc, aiRunning, undo, redo, mutate, patchItem, reorderItem, copyItem, pasteItem]);
 
   /**
    * The displayed window: moved by whole weeks, grown or shrunk from its end,
@@ -1187,6 +1239,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
                 onSelectItem={(item) => setSelectedId(item?.id ?? null)}
                 onToggleNonWorking={(date) => toggleNonWorking(date)}
                 onCreateItem={(kind, from, to) => createItem(kind, from, to)}
+                clipboard={{ canPaste, onCopy: copyItem, onDuplicate: duplicateItem, onPaste: pasteItem }}
                 onPanWindow={panBy}
                 onPanWindowDays={panDaysBy}
                 onZoomWindow={zoomBy}
@@ -1225,6 +1278,7 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
                 onReorderItem={reorderItem}
                 onToggleNonWorking={(date) => toggleNonWorking(date)}
                 onCreateItem={(kind, from, to) => createItem(kind, from, to)}
+                clipboard={{ canPaste, onCopy: copyItem, onDuplicate: duplicateItem, onPaste: pasteItem }}
                 onMoveTaskDue={(taskId, date) => {
                   void api.updateTask(vaultPath, { id: taskId, due: date }).then(() => {
                     void api.listTasks(vaultPath).then(setTasks);

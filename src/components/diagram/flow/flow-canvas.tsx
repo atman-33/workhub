@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import {
+  ClipboardMenuItems,
+  NodeClipboardMenu,
+  type CanvasClipboard,
+} from "@/components/diagram/clipboard-menu";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
 import { EdgeArrow } from "@/components/diagram/edge-arrow";
 import { NodeInput } from "@/components/diagram/node-input";
@@ -77,6 +82,8 @@ interface Props {
   onAddAt: (bandKey: string, x: number, y: number) => void;
   onConnect: (from: string, to: string) => void;
   onReattach: (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus. */
+  clipboard: CanvasClipboard;
   /** Bumped by the view to re-fit (a new note, or the Fit button). */
   fitToken: number;
 }
@@ -110,6 +117,7 @@ export function FlowCanvas({
   onAddAt,
   onConnect,
   onReattach,
+  clipboard,
   fitToken,
 }: Props) {
   const view = useCamera({ bounds: base.bounds, fitToken });
@@ -223,6 +231,7 @@ export function FlowCanvas({
       view={view}
       grabbing={Boolean(stepFree.drag) || Boolean(edgeDrag.drag)}
       onBackgroundClick={clearSelection}
+      menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
     >
       {layout.bands.map((band) => {
         const header = bandHeaderText(band);
@@ -327,8 +336,15 @@ export function FlowCanvas({
         const isTarget = edgeDrag.drag?.overId === step.id;
         const showHandles = handleSteps.includes(step.id);
         return (
-          <g
+          <NodeClipboardMenu
             key={step.id}
+            svg
+            canPaste={clipboard.canPaste}
+            onCopy={() => clipboard.onCopy(step.id)}
+            onDuplicate={() => clipboard.onDuplicate(step.id)}
+            onPaste={clipboard.onPaste}
+          >
+          <g
             opacity={isDragged ? 0.85 : 1}
             className="cursor-pointer"
             onPointerDown={(e) => startStepDrag(e, step)}
@@ -407,6 +423,7 @@ export function FlowCanvas({
               />
             )}
           </g>
+          </NodeClipboardMenu>
         );
       })}
 

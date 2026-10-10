@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ClipboardMenuItems,
+  NodeClipboardMenu,
+  type CanvasClipboard,
+} from "@/components/diagram/clipboard-menu";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
 import { NodeInput } from "@/components/diagram/node-input";
 import { NoteTip } from "@/components/diagram/note-tip";
@@ -57,6 +62,8 @@ interface Props {
   onMoveItem: (id: string, x: number, y: number) => void;
   /** A double-click on the plot: add an item at these unit coordinates. */
   onAddAt: (x: number, y: number) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus. */
+  clipboard: CanvasClipboard;
   /** Bumped by the view to re-fit (a new note, or the Fit button). */
   fitToken: number;
 }
@@ -80,6 +87,7 @@ export function MatrixCanvas({
   onMoveSticky,
   onMoveItem,
   onAddAt,
+  clipboard,
   fitToken,
 }: Props) {
   const base = useMemo(() => layoutMatrix(doc, stickies), [doc, stickies]);
@@ -188,6 +196,7 @@ export function MatrixCanvas({
       view={view}
       grabbing={Boolean(itemFree.drag)}
       onBackgroundClick={clearSelection}
+      menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} readOnly={locked} />}
     >
       {/* Quadrants: the plot itself. Hit-testable so a double-click on them
           adds an item, and a click on them clears the selection. */}
@@ -262,8 +271,16 @@ export function MatrixCanvas({
         const stroke = item.color ? COLOR_HEX[item.color] : undefined;
         const isDragged = dragging?.id === item.id;
         return (
-          <g
+          <NodeClipboardMenu
             key={item.id}
+            svg
+            canPaste={clipboard.canPaste}
+            readOnly={locked}
+            onCopy={() => clipboard.onCopy(item.id)}
+            onDuplicate={() => clipboard.onDuplicate(item.id)}
+            onPaste={clipboard.onPaste}
+          >
+          <g
             opacity={isDragged ? 0.85 : 1}
             className="cursor-pointer"
             onPointerDown={(e) => startItemDrag(e, item)}
@@ -332,6 +349,7 @@ export function MatrixCanvas({
               </text>
             )}
           </g>
+          </NodeClipboardMenu>
         );
       })}
 

@@ -47,7 +47,9 @@ import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { t as tStatic, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import { clipboardShortcut, readClip, setClip, useHasClip } from "@/lib/diagram/clipboard";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
+import { copyMindmapNode, pasteMindmapNode } from "@/lib/mindmap/clipboard";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
 import { toMermaidBlock } from "@/lib/mindmap/mermaid";
 import {
@@ -776,6 +778,52 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
     [doc, mutate],
   );
 
+  // ---- copy and paste (T-0688) ----
+
+  const canPaste = useHasClip("mindmap", path);
+
+  const copyNode = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const node = copyMindmapNode(doc.roots, id);
+      if (node) setClip("mindmap", path, node);
+    },
+    [doc, path],
+  );
+
+  /** Puts a copy of `node` (fresh ids all through) in the tree and selects it. */
+  const insertCopy = useCallback(
+    (node: MindmapNode, targetId: string | null, as: "child" | "sibling") => {
+      if (!doc) return;
+      const out = pasteMindmapNode(doc.roots, node, targetId, as);
+      if (!out) return;
+      mutate({ ...doc, roots: out.roots });
+      setSelectedId(out.id);
+    },
+    [doc, mutate],
+  );
+
+  /** Pastes under `targetId`, else under the selected node, else under the first root. */
+  const pasteNode = useCallback(
+    (targetId?: string) => {
+      if (!doc || aiRunning) return;
+      const clip = readClip<MindmapNode>("mindmap", path);
+      if (!clip) return;
+      insertCopy(clip.payload, targetId ?? selectedId ?? doc.roots[0]?.id ?? null, "child");
+    },
+    [doc, aiRunning, path, selectedId, insertCopy],
+  );
+
+  /** A copy right after the node, as its sibling. */
+  const duplicateNode = useCallback(
+    (id: string) => {
+      if (!doc) return;
+      const node = copyMindmapNode(doc.roots, id);
+      if (node) insertCopy(node, id, "sibling");
+    },
+    [doc, insertCopy],
+  );
+
   const deleteNode = useCallback(
     (id: string) => {
       if (!doc) return;
@@ -958,9 +1006,18 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
         case "delete":
           deleteNode(node.id);
           return;
+        case "copy":
+          copyNode(node.id);
+          return;
+        case "duplicate":
+          duplicateNode(node.id);
+          return;
+        case "paste":
+          pasteNode(node.id);
+          return;
       }
     },
-    [structuralMove, addNode, toggleCollapse, deleteNode],
+    [structuralMove, addNode, toggleCollapse, deleteNode, copyNode, duplicateNode, pasteNode],
   );
 
   /** Arrow-key navigation: parent, first child, or the sibling either way. */
@@ -1015,6 +1072,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+      const clipboardKey = clipboardShortcut(e);
+      if (clipboardKey === "paste") {
+        e.preventDefault();
+        pasteNode();
+        return;
+      }
+      if (clipboardKey === "copy" && selectedId) {
+        e.preventDefault();
+        copyNode(selectedId);
         return;
       }
       if (e.key === "Escape") {
@@ -1091,6 +1159,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
     structuralMove,
     undo,
     redo,
+    copyNode,
+    pasteNode,
   ]);
 
   // ---- file commands ------------------------------------------------------
@@ -1584,6 +1654,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
                 onChipAction={chipAction}
                 abilitiesOf={nodeAbilities}
                 onNodeAction={nodeAction}
+                canPaste={canPaste}
+                onPaste={() => pasteNode()}
                 quickAttrsOf={quickAttrsFor}
                 onQuickAttr={quickAttr}
               />

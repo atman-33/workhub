@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
+import { ClipboardMenuItems } from "@/components/diagram/clipboard-menu";
 import { DiagramSurface } from "@/components/diagram/diagram-surface";
 import { NodeInput } from "@/components/diagram/node-input";
 import { StickyPaper } from "@/components/diagram/sticky-paper";
@@ -109,6 +110,9 @@ interface Props {
   abilitiesOf: (id: string) => NodeAbilities;
   /** A command chosen from a node's own right-click menu. */
   onNodeAction: (action: NodeAction, node: PositionedNode) => void;
+  /** Whether something copied from this map can be pasted, and the paste for the empty canvas. */
+  canPaste: boolean;
+  onPaste: () => void;
   /** The map's attribute vocabulary, marked up for one node. */
   quickAttrsOf: (node: PositionedNode) => QuickAttrGroup[];
   /** One value put on or taken off a node from its menu. */
@@ -164,6 +168,8 @@ export function MindmapCanvas({
   onChipAction,
   abilitiesOf,
   onNodeAction,
+  canPaste,
+  onPaste,
   quickAttrsOf,
   onQuickAttr,
   fitToken,
@@ -338,6 +344,7 @@ export function MindmapCanvas({
     <DiagramSurface
       view={view}
       grabbing={Boolean(drag)}
+      menu={<ClipboardMenuItems onPaste={onPaste} canPaste={canPaste} readOnly={locked} />}
       // A click on the empty canvas clears the selection, which is what makes
       // "press Escape or click away" work without a global handler.
       onBackgroundClick={() => {
@@ -385,6 +392,7 @@ export function MindmapCanvas({
           onChipAction={onChipAction}
           abilities={abilitiesOf(node.id)}
           onNodeAction={onNodeAction}
+          canPaste={canPaste}
           quickAttrs={quickAttrsOf(node)}
           onQuickAttr={onQuickAttr}
         />
@@ -472,6 +480,9 @@ export type NodeAction =
   | "addChild"
   | "addSibling"
   | "toggleCollapse"
+  | "copy"
+  | "duplicate"
+  | "paste"
   | "delete";
 
 /** Which of the four structural moves are open to a node right now. */
@@ -506,6 +517,7 @@ interface NodeProps {
   /** Which structural moves are open to this node, for greying the menu. */
   abilities: NodeAbilities;
   onNodeAction: (action: NodeAction, node: PositionedNode) => void;
+  canPaste: boolean;
   /** The map's vocabulary, marked up for this node. */
   quickAttrs: QuickAttrGroup[];
   onQuickAttr: (node: PositionedNode, key: string, value: string) => void;
@@ -531,6 +543,7 @@ function NodeBox({
   onChipAction,
   abilities,
   onNodeAction,
+  canPaste,
   quickAttrs,
   onQuickAttr,
 }: NodeProps) {
@@ -757,6 +770,9 @@ function NodeBox({
   if (locked) return box;
 
   return (
+    // The canvas has a menu of its own (paste); a right-click on a node must
+    // open only the node's.
+    <g onContextMenu={(e) => e.stopPropagation()}>
     <ContextMenu>
       <ContextMenuTrigger asChild>{box}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
@@ -801,6 +817,23 @@ function NodeBox({
           label={t("mindmap.canvas.addSibling")}
           hint="Enter"
           onSelect={() => onNodeAction("addSibling", node)}
+        />
+        <ContextMenuSeparator />
+        <MenuAction
+          label={t("diagram.clipboard.copy")}
+          hint="Ctrl+C"
+          onSelect={() => onNodeAction("copy", node)}
+        />
+        <MenuAction
+          label={t("diagram.clipboard.duplicate")}
+          disabled={locked}
+          onSelect={() => onNodeAction("duplicate", node)}
+        />
+        <MenuAction
+          label={t("diagram.clipboard.paste")}
+          hint="Ctrl+V"
+          disabled={locked || !canPaste}
+          onSelect={() => onNodeAction("paste", node)}
         />
         {quickAttrs.length > 0 && (
           <>
@@ -851,6 +884,7 @@ function NodeBox({
         />
       </ContextMenuContent>
     </ContextMenu>
+    </g>
   );
 }
 
