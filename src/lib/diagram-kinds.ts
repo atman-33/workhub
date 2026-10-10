@@ -1,4 +1,4 @@
-import { AppWindow, CalendarRange, GitBranch, Grid2x2, Network, Users, Waypoints, Workflow } from "lucide-react";
+import { AppWindow, Boxes, CalendarRange, GitBranch, Grid2x2, Network, Users, Waypoints, Workflow } from "lucide-react";
 import type { ComponentType } from "react";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -12,13 +12,13 @@ import type { MessageKey } from "@/lib/i18n";
  * owner's eye expects it. To add a kind: put it in its group here, give it a
  * label and an icon below (the types force both), and add it to `KINDS` in
  * `src-tauri/src/diagram.rs`. The `system` group holds the use case, architecture and IFDAM
- * diagrams (in that order); the architecture diagram is not here yet. The use
- * case diagram is listed but not creatable until its editor lands.
+ * diagrams (in that order). The architecture diagram is listed but not
+ * creatable until its editor lands (T-0710).
  */
 export const KIND_GROUPS = [
   { id: "plan", labelKey: "diagram.group.plan", kinds: ["schedule", "mindmap", "matrix2x2"] },
   { id: "process", labelKey: "diagram.group.process", kinds: ["pfd", "flow", "algorithm"] },
-  { id: "system", labelKey: "diagram.group.system", kinds: ["usecase", "ifdam"] },
+  { id: "system", labelKey: "diagram.group.system", kinds: ["usecase", "architecture", "ifdam"] },
 ] as const satisfies readonly { id: string; labelKey: MessageKey; kinds: readonly string[] }[];
 
 export type DiagramKind = (typeof KIND_GROUPS)[number]["kinds"][number];
@@ -54,6 +54,7 @@ export const KIND_LABEL_KEY: Record<DiagramKind, MessageKey> = {
   pfd: "diagram.kind.pfd",
   algorithm: "diagram.kind.algorithm",
   usecase: "diagram.kind.usecase",
+  architecture: "diagram.kind.architecture",
   ifdam: "diagram.kind.ifdam",
 };
 
@@ -65,6 +66,7 @@ export const KIND_ICON: Record<DiagramKind, ComponentType<{ className?: string }
   pfd: Waypoints,
   algorithm: GitBranch,
   usecase: Users,
+  architecture: Boxes,
   ifdam: AppWindow,
 };
 

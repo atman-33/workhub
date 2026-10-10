@@ -37,6 +37,7 @@ pub const KINDS: &[&str] = &[
     "pfd",
     "algorithm",
     "usecase",
+    "architecture",
     "ifdam",
 ];
 
@@ -245,6 +246,16 @@ x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n
             "---\ntype: usecase\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
 ## Nodes\n\n- U-001 System ^system\n- U-002 Person\n  Do something\n  Do something else\n\n\
 ## Edges\n\n- U-002 -- U-001\n\n\
+## Memo\n\n"
+        ),
+        // Two frames with two blocks each, joined across the frame border, plus
+        // a database and a cloud service outside. The positions are left to
+        // the group layout.
+        "architecture" => format!(
+            "---\ntype: architecture\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Frames\n\n- G-001 Client #blue\n- G-002 Server #green\n\n\
+## Nodes\n\n- C-001 Screen frame:G-001\n- C-002 API frame:G-002\n- C-003 DB frame:G-002 ^db\n- C-004 Mailer ^cloud\n\n\
+## Edges\n\n- C-001 -> C-002\n- C-002 <-> C-003 \"HTTPS\"\n- C-002 -> C-004\n\n\
 ## Memo\n\n"
         ),
         // The smallest working figure: a screen with one item in each of its
@@ -809,6 +820,38 @@ mod tests {
         // The scan finds it, and written back as-is it is still a diagram.
         let listed = list_diagrams(&vault, Some("demo")).unwrap();
         assert!(listed.iter().any(|d| d.kind == "usecase"));
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn architecture_skeleton_is_two_frames_four_blocks_and_three_arrows() {
+        let vault = temp_vault("architecture-skeleton");
+        let file = create_diagram(&vault, "demo", "architecture", "Booking", "", "").unwrap();
+        assert!(
+            file.path
+                .ends_with("projects/0010-demo/diagrams/Booking.md"),
+            "{}",
+            file.path
+        );
+        assert_eq!(file.kind, "architecture");
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "architecture");
+        assert_eq!(frontmatter_value(&front, "title"), "Booking");
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Frames") < at("## Nodes"));
+        assert!(at("## Nodes") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        assert!(body.contains("- G-001 Client #blue\n"));
+        assert!(body.contains("- G-002 Server #green\n"));
+        assert!(body.contains("- C-001 Screen frame:G-001\n"));
+        assert!(body.contains("- C-003 DB frame:G-002 ^db\n"));
+        assert!(body.contains("- C-001 -> C-002\n"));
+        assert!(body.contains("- C-002 <-> C-003 \"HTTPS\"\n"));
+        // The scan finds it, and written back as-is it is still a diagram.
+        let listed = list_diagrams(&vault, Some("demo")).unwrap();
+        assert!(listed.iter().any(|d| d.kind == "architecture"));
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();
     }

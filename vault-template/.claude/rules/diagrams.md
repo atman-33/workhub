@@ -7,7 +7,7 @@ paths:
 # Diagram notes
 
 A **diagram** is a note under `projects/<NNNN-slug>/` whose frontmatter `type`
-is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd`, `algorithm`, `ifdam` or `usecase`. The app's
+is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd`, `algorithm`, `usecase`, `architecture` or `ifdam`. The app's
 **Diagrams** tab lists them all and opens the editor for the note's `type`.
 Each kind's own format is below (Schedule and Mindmap keep their own rules,
 `schedules.md` and `mindmaps.md`; read the one for the note's `type`).
@@ -606,3 +606,108 @@ updated: 2026-10-10
 - **Adding a symbol (for the app's developers, not for note edits)**: add one
   entry to `SYMBOLS` in `src/lib/diagram/usecase/symbols.ts` (and the shape to
   `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.
+
+## architecture
+
+An architecture diagram (shown as "アーキテクチャ図" / "Architecture"): **blocks
+in frames, joined by arrows** - where the parts of a system live and how they
+call each other. A simple block picture, not UML: there are no ports, no
+interfaces and no deployment nodes. Self-contained - everything an edit needs
+is here.
+
+```markdown
+---
+type: architecture
+title: 予約システムの構成
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+- G-001 クライアント側 #blue
+- G-002 サーバ側 #green
+
+## Nodes
+
+- C-001 利用者 ^user
+- C-002 予約画面 frame:G-001
+  予約の空き状況を見る。hover で出るメモ。
+- C-003 入力チェック frame:G-001 ^round
+- C-004 予約 API frame:G-002 task:T-0100
+- C-005 予約 DB frame:G-002 ^db @640,260
+- C-006 メール配信サービス ^cloud
+
+## Edges
+
+- C-001 -> C-002 "操作"
+- C-002 -> C-003
+- C-003 <-> C-004 "HTTPS"
+- C-004 -> C-005 "保存"
+- C-004 -> C-006 "通知"
+
+## Stickies
+
+- S-001 node:G-002 @40,-30 #amber この方式は何を使う？
+```
+
+- **Frontmatter**: as for every diagram; `stickies: hidden` is the only other
+  key. **Sections** in this order: `## Frames`, `## Nodes`, `## Edges`, then the
+  optional `## Stickies` and `## Memo`.
+- **Frame**: `- G-NNN <title> [#color]`, then optional indented lines (a memo
+  shown on hover). A frame has no position and no size of its own: it is drawn
+  around its members, with a margin and a header band carrying its title. An
+  empty frame keeps a fixed minimal box. Deleting a frame leaves its members
+  where they are, outside every frame. A frame's own `frame:G-NNN` is reserved
+  for nested frames: keep it and write it back, but do not draw nesting.
+- **Node**: `- C-NNN <title> [frame:G-NNN] [^round|^db|^user|^cloud|^block]
+  [icon:<name>] [task:<id>] [#color] [@x,y]`, then optional indented lines (a
+  memo shown on hover). Tokens may come in any order; the title is what is
+  left, on one line. Ids are the highest `C-` in the file plus one; never change
+  or reuse one.
+- **What a block is comes from its mark**: **no mark** (or `^block`) is a
+  **plain block** (a rectangle), `^round` a **rounded block**, `^db` a
+  **database** (a cylinder), `^user` a **person** (head and shoulders, the name
+  under it), `^cloud` a **cloud service** (a wavy ellipse). An unknown `^word`
+  is part of the title. **Changing a block's kind** is changing its mark; the
+  id stays and so does its note. `icon:<name>` is reserved for later icons:
+  keep it and write it back, but draw no icon.
+- **Membership is one `frame:G-NNN` on the block's line.** A block with none, or
+  one naming a frame that is not there, sits outside every frame; the reference
+  is kept as written. To put a block in a frame, write the reference - never a
+  position. People (`^user`) and cloud services (`^cloud`) usually sit outside
+  the frames.
+- **Edge**: `- <a> -> <b> ["label"]` is a one-way arrow, `- <a> <-> <b>
+  ["label"]` a two-way one with a head at each end. Edges have no id. **`A ->
+  B` and `B -> A` are two arrows**; any other second line for the same pair is
+  kept by the app as it is and listed as a warning. The label says what flows
+  or how it is called ("HTTPS", "保存"); point it from the caller to the
+  called. An edge naming a block that does not exist is kept as it is, listed
+  as a warning and not drawn: do not write one. An edge from a block to itself
+  is kept and not drawn. No arrow ever joins a frame.
+- **Layout is automatic**: the blocks outside every frame come first, then the
+  frames in the order written, left to right (wrapping onto a new row past a
+  fixed width). Inside a frame the blocks stand in columns from the arrows
+  whose both ends sit in the frame; an arrow leaving the frame never moves a
+  block. So **write the frames in a meaningful order** (client side, then
+  server side) and the blocks in flow order. Do not invent positions.
+- **`@x,y`** pins a block by hand: its centre in absolute diagram pixels, whole
+  numbers, negatives allowed, y growing downward - never relative to a frame,
+  which has no position. **No `@` means "placed by the groups"**: when you add
+  a block leave the `@` off, and never rewrite another block's position. The
+  app writes `@` only on the block the user dragged (dragging a frame writes it
+  on every member); removing every `@` is its "auto-align".
+- **`## Stickies`** pins a note to a block or a frame: `node:C-NNN` or
+  `node:G-NNN` (the key is `node:` in every kind). Not to arrows. Delete a
+  block and delete its arrows and stickies; delete a frame and delete only the
+  stickies pinned to it.
+- **Keep what you do not understand.** A line under a managed section that is
+  not a list item, or starts with another kind's id (`F-001`, `P-001`, `A-001`,
+  `U-001`), is kept by the app as it is and listed as a warning; leave it
+  alone, and a sticky whose `node:` names no block or frame too. Never edit
+  `## Memo`.
+- **Adding a symbol (for the app's developers, not for note edits)**: add one
+  entry to `SYMBOLS` in `src/lib/diagram/architecture/symbols.ts` (and the
+  shape to `src/lib/diagram/shapes.ts` when none fits); the line grammar does
+  not change.
+
