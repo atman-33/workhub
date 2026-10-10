@@ -7,7 +7,7 @@ paths:
 # Diagram notes
 
 A **diagram** is a note under `projects/<NNNN-slug>/` whose frontmatter `type`
-is one of `schedule`, `mindmap`, `matrix2x2`, `flow` or `pfd`. The app's
+is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd` or `algorithm`. The app's
 **Diagrams** tab lists them all and opens the editor for the note's `type`.
 Each kind's own format is below (Schedule and Mindmap keep their own rules,
 `schedules.md` and `mindmaps.md`; read the one for the note's `type`).
@@ -39,7 +39,7 @@ New projects start with none of these folders; create the one a diagram needs.
   matrix's optional `## Quadrants` is one of them), then an optional
   `## Stickies`, then `## Memo`. **Never edit `## Memo`**, and leave
   sections you do not recognise where they are.
-- Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, ...) that is **never
+- Every element has an id (`N-001`, `M-001`, `F-001`, `P-001`, `A-001`, ...) that is **never
   changed or reused**. An element typed without one is given one by the app.
 - A line is `- <id> <title> [tokens]`: whitespace-separated tokens such as
   `#<color>` and `task:<task-id>` are pulled out, the rest is the title. Extra
@@ -299,3 +299,91 @@ updated: 2026-10-10
   prefixes an arrow from it may reach (and add its prefix to the `next` of the
   symbols that may lead to it). The line grammar does not change; then list the
   new prefix in this section.
+
+## algorithm
+
+A program flow chart (an algorithm, a function, a batch): **nodes** joined by
+arrows, drawn top to bottom. Not a business flow (`flow`: people and swimlanes)
+and not a PFD (`pfd`: work and deliverables). Self-contained - everything an edit
+needs is here.
+
+```markdown
+---
+type: algorithm
+title: 注文の在庫引当
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Nodes
+
+- A-001 引当開始 ^start
+- A-002 注文を読み込む ^io
+- A-003 在庫あり? ^decision
+- A-004 在庫を引き当てる ^sub task:T-0100
+  メモ行。hover で出る。
+- A-005 入荷を待つ #amber
+- A-006 結果を返す ^io @220,560
+- A-007 終了 ^end
+
+## Edges
+
+- A-001 -> A-002
+- A-002 -> A-003
+- A-003 -> A-004 "はい"
+- A-003 -> A-005 "いいえ"
+- A-004 -> A-006
+- A-006 -> A-007
+- A-005 -> A-002 "入荷後に再試行"
+
+## Stickies
+
+- S-001 node:A-003 @40,-30 #red 在庫の定義を確認
+```
+
+- **Frontmatter**: as for every diagram; `stickies: hidden` is the only other key
+  in use. `direction:` is reserved (a later release may offer a horizontal
+  chart): do not write it, and leave it alone if it is there. **Sections** in
+  this order: `## Nodes`, `## Edges`, then the optional `## Stickies` and
+  `## Memo`. There are no lanes.
+- **Node**: `- A-NNN <title> [^mark] [task:<id>] [#color] [@x,y]`, then optional
+  indented lines (its note, shown on hover). Tokens may come in any order; the
+  title is what is left, on one line. Ids are `A-` plus the highest number in the
+  file plus one; never change or reuse one.
+- **`^mark` decides the shape**; no mark is a process (a box; `^process` also
+  reads). `^start` and `^end` rounded terminals, `^decision` a diamond, `^io`
+  input/output (a parallelogram), `^sub` a predefined process (a box with inner
+  rules - a call to a function or a sub-flow), `^doc` a document. One mark per
+  node. A `^word` that is not in this list is not a mark: it stays in the title.
+  Name a process with a verb phrase, a decision with a question ("在庫あり?"), and
+  use one `^start` and as many `^end` as needed.
+- **Arrow**: `- A-NNN -> A-NNN ["label"]`, no id; the pair `(from, to)` is the
+  identity and two lines for one pair are one arrow (the app keeps the first
+  label). Any two different nodes may be joined, and a decision may have any
+  number of exits. **Label the exits of a decision** ("はい" / "いいえ", or the
+  case). An arrow naming a node that does not exist is kept by the app as it is,
+  listed as a warning and not drawn: do not write one. An arrow from a node to
+  itself is kept and not drawn.
+- **Layout is automatic, and the order you write the arrows in matters.** A node
+  sits one row below the furthest node that flows into it. A node's **first**
+  exit (its first arrow in `## Edges`) continues straight down, so write the main
+  path first; the second exit goes to a new column on the right, the third to one
+  on the left, and so on. An arrow that goes back to an earlier node (a loop) is
+  drawn round the right side and moves no row. Write nodes in flow order and the
+  arrows after them; do not invent positions.
+- **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
+  numbers, negatives allowed, y growing downward. **No `@` means "placed by the
+  layout"**: when you add a node leave the `@` off, and never rewrite another
+  node's position. The app writes `@` only on the node the user dragged;
+  removing every `@` is its "auto-align".
+- **Changing a node's kind** is changing its `^mark` (the id stays).
+- **`## Stickies`** pins a note to a node: `node:A-NNN` (the key is `node:` in
+  every kind). Not to arrows. Delete a node and delete its arrows and stickies.
+- **Keep what you do not understand.** A line under `## Nodes` or `## Edges`
+  that is not a list item, or starts with another kind's id (`F-001`, `P-001`,
+  `N-001`), is kept by the app as it is and listed as a warning; leave it alone,
+  and a sticky whose `node:` names no node too. Never edit `## Memo`.
+- **Adding a symbol (for the app's developers, not for note edits)**: add one
+  entry `{ kind, mark, shape, label }` to `SYMBOLS` in
+  `src/lib/diagram/algorithm/symbols.ts` (and the shape to
+  `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.

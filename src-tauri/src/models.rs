@@ -229,7 +229,7 @@ pub struct Settings {
     #[serde(default)]
     pub tidy: TidySettings,
     /// Agent CLI used for AI diagram edits (every kind: schedule, mindmap,
-    /// matrix2x2, flow, pfd): "claude-code" | "opencode". Unified in T-0685
+    /// matrix2x2, flow, pfd, algorithm): "claude-code" | "opencode". Unified in T-0685
     /// from the former `schedule_*` / `mindmap_*` triples, which are not read.
     #[serde(default = "default_schedule_assignee")]
     pub diagram_assignee: String,

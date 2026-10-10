@@ -1,6 +1,6 @@
 ---
 name: diagram-edit
-description: Edit a workhub diagram note (schedule, mindmap, matrix2x2, flow or pfd) from a natural-language instruction - add, rename, move, group, recolour or link its elements, and annotate them with sticky notes. Reads the note's frontmatter `type` and follows that kind's rule file. Use when asked to restructure or adjust a diagram, or when the workhub app launches a diagram edit.
+description: Edit a workhub diagram note (schedule, mindmap, matrix2x2, flow, pfd or algorithm) from a natural-language instruction - add, rename, move, group, recolour or link its elements, and annotate them with sticky notes. Reads the note's frontmatter `type` and follows that kind's rule file. Use when asked to restructure or adjust a diagram, or when the workhub app launches a diagram edit.
 argument-hint: "<diagram-file-path> <instruction>"
 ---
 
@@ -26,12 +26,12 @@ repeat it.** Read the note, then its rule, before changing a line:
    |---|---|
    | `schedule` | `schedules.md` |
    | `mindmap` | `mindmaps.md` |
-   | `matrix2x2`, `flow`, `pfd` | `diagrams.md` - the shared section and the section named after the type |
+   | `matrix2x2`, `flow`, `pfd`, `algorithm` | `diagrams.md` - the shared section and the section named after the type |
 
    The rule normally loads on its own when you read a note under `diagrams/`,
    `schedules/` or `mindmaps/`; a note inside a backlog item does not always
    trigger it, so open the file yourself when it did not appear.
-3. A `type` that is none of those five, or a file with no `type` outside
+3. A `type` that is none of those six, or a file with no `type` outside
    `schedules/` and `mindmaps/`, is not a diagram: say so and change nothing.
 
 A kind added to the app later works the same way: its rule names its format,

@@ -1,7 +1,7 @@
 //! Headless agent edits of a diagram note (T-0091, T-0188, unified in T-0685).
 //!
 //! One runner for every kind of diagram (schedule, mindmap, matrix2x2, flow,
-//! pfd): the run takes a path and nothing else, because the `diagram-edit`
+//! pfd, algorithm): the run takes a path and nothing else, because the `diagram-edit`
 //! skill reads the note's frontmatter `type` and follows that kind's rule file.
 //! A new kind therefore needs no change here.
 //!

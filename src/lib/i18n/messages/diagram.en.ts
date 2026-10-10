@@ -10,6 +10,7 @@ export const diagramEn = {
   "diagram.kind.matrix2x2": "2x2 matrix",
   "diagram.kind.flow": "Business flow",
   "diagram.kind.pfd": "PFD",
+  "diagram.kind.algorithm": "Program flow",
   "diagram.list.empty": "No diagrams yet",
   "diagram.list.emptyFiltered": "No diagrams of this kind",
   "diagram.list.pickOne": "Pick a diagram from the list, or create one.",

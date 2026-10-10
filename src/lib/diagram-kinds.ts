@@ -1,4 +1,4 @@
-import { CalendarRange, Grid2x2, Network, Waypoints, Workflow } from "lucide-react";
+import { CalendarRange, GitBranch, Grid2x2, Network, Waypoints, Workflow } from "lucide-react";
 import type { ComponentType } from "react";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -6,14 +6,16 @@ import type { MessageKey } from "@/lib/i18n";
  * The kinds of diagram the Diagrams tab lists (T-0680). The value is the
  * note's frontmatter `type`.
  */
-export const DIAGRAM_KINDS = ["schedule", "mindmap", "matrix2x2", "flow", "pfd"] as const;
+export const DIAGRAM_KINDS = ["schedule", "mindmap", "matrix2x2", "flow", "pfd", "algorithm"] as const;
 export type DiagramKind = (typeof DIAGRAM_KINDS)[number];
 
 /**
  * The kinds the New dialog offers. A kind joins this list when its editor
  * lands (2x2 in T-0681, business flow in T-0682, PFD in T-0683); until then a
  * note of that kind can still be listed, but nobody is invited to make one
- * that has no editor.
+ * that has no editor. The program flow (`algorithm`, T-0698) is the case in
+ * point: its model and format exist, its editor is T-0699, and it joins this
+ * list there.
  */
 export const CREATABLE_KINDS: readonly DiagramKind[] = ["schedule", "mindmap", "matrix2x2", "flow", "pfd"];
 
@@ -28,6 +30,7 @@ export const KIND_LABEL_KEY: Record<DiagramKind, MessageKey> = {
   matrix2x2: "diagram.kind.matrix2x2",
   flow: "diagram.kind.flow",
   pfd: "diagram.kind.pfd",
+  algorithm: "diagram.kind.algorithm",
 };
 
 export const KIND_ICON: Record<DiagramKind, ComponentType<{ className?: string }>> = {
@@ -36,6 +39,7 @@ export const KIND_ICON: Record<DiagramKind, ComponentType<{ className?: string }
   matrix2x2: Grid2x2,
   flow: Workflow,
   pfd: Waypoints,
+  algorithm: GitBranch,
 };
 
 export function isDiagramKind(value: string): value is DiagramKind {
