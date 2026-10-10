@@ -376,6 +376,14 @@ pub struct Settings {
     /// work, the same on a second PC.
     #[serde(default)]
     pub diagram_hidden_panels: Vec<String>,
+    /// Kinds whose group header is collapsed in the Diagrams tab list
+    /// (T-0701), by kind key (`flow`). Vault-scoped, like the panels above.
+    #[serde(default)]
+    pub diagram_collapsed_kinds: Vec<String>,
+    /// How the Diagrams tab list orders notes within a group (T-0701):
+    /// `updated` (newest first) or `name`. Vault-scoped.
+    #[serde(default = "default_diagram_list_sort")]
+    pub diagram_list_sort: String,
 }
 
 /// Config for the built-in vault-tidy routine. The scheduler decides *whether*
@@ -506,6 +514,9 @@ fn default_claude_desktop_mode() -> String {
 fn default_schedule_assignee() -> String {
     "claude-code".into()
 }
+fn default_diagram_list_sort() -> String {
+    "updated".into()
+}
 fn default_ui_locale() -> String {
     "en".into()
 }
@@ -572,6 +583,8 @@ impl Default for Settings {
             tab_order: Vec::new(),
             hidden_tabs: Vec::new(),
             diagram_hidden_panels: Vec::new(),
+            diagram_collapsed_kinds: Vec::new(),
+            diagram_list_sort: default_diagram_list_sort(),
             recurring: Vec::new(),
             docs_roots: Vec::new(),
             notices_read: Vec::new(),

@@ -160,6 +160,12 @@ export interface Settings {
   /** Diagrams-tab side panels the owner hid, as `<kind>:<left|right>` entries
    * (T-0686). A panel is open unless listed. Vault-scoped. */
   diagram_hidden_panels: string[];
+  /** Kinds whose group header in the Diagrams list is collapsed (T-0701), by
+   * kind key. Vault-scoped. */
+  diagram_collapsed_kinds: string[];
+  /** Order of notes within a Diagrams list group (T-0701): newest first or by
+   * name. Vault-scoped. */
+  diagram_list_sort: "updated" | "name";
   /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
    * local-time calendar arithmetic; the backend only persists them. */
   recurring: RecurringRule[];
