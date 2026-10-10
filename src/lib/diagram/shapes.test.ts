@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { boundaryPoint, centerOf, nodeContains, type DiagramNode, type Point } from "./node-edge";
 import {
   BUBBLE_TAIL,
+  CLOUD_BUMPS,
+  CLOUD_SAMPLES,
   CYLINDER_LID,
   HEXAGON_INSET,
   PARALLELOGRAM_SLANT,
   PERSON_ICON_HEIGHT,
   PERSON_ICON_WIDTH,
   SUBROUTINE_INSET,
+  cloudRadius,
+  cloudRipple,
   cylinderLid,
   hexagonInset,
   shapeOf,
@@ -456,5 +460,106 @@ describe("speechBubbleOutline (T-0705)", () => {
     const m = d.match(/H (-?[\d.]+) L (-?[\d.]+) -8 L (-?[\d.]+) 0/)!;
     expect(Number(m[1])).toBeGreaterThanOrEqual(6);
     expect(Number(m[3])).toBeLessThanOrEqual(24);
+  });
+});
+
+describe("cloud (T-0708)", () => {
+  const cloudPoints = (n: DiagramNode): Point[] => {
+    const el = shapeOf(n.shape).outline(n);
+    expect(el.tag).toBe("polygon");
+    return String(el.attrs.points)
+      .split(" ")
+      .map((pair) => {
+        const [x, y] = pair.split(",").map(Number);
+        return { x, y };
+      });
+  };
+
+  it("is registered: a polygon of samples from one radius function", () => {
+    const n = node("cloud", 180, 90);
+    expect(shapeOf("cloud").id).toBe("cloud");
+    expect(CLOUD_BUMPS).toBe(8);
+    const pts = cloudPoints(n);
+    expect(pts).toHaveLength(CLOUD_SAMPLES);
+    const c = centerOf(n);
+    for (const p of pts) {
+      const theta = Math.atan2(p.y - c.y, p.x - c.x);
+      expect(Math.hypot(p.x - c.x, p.y - c.y)).toBeCloseTo(
+        cloudRadius(theta, { width: n.width, height: n.height }),
+        1,
+      );
+    }
+  });
+
+  it("never leaves its box: the ripple only carves inward", () => {
+    for (const [w, h] of [
+      [180, 90],
+      [112, 52],
+      [300, 60],
+    ]) {
+      const n = node("cloud", w, h);
+      for (const p of cloudPoints(n)) {
+        expect(p.x).toBeGreaterThanOrEqual(n.x - 0.01);
+        expect(p.x).toBeLessThanOrEqual(n.x + n.width + 0.01);
+        expect(p.y).toBeGreaterThanOrEqual(n.y - 0.01);
+        expect(p.y).toBeLessThanOrEqual(n.y + n.height + 0.01);
+      }
+    }
+  });
+
+  it("contains its centre and the crests, not the corners of the box", () => {
+    const n = node("cloud", 180, 90);
+    const c = centerOf(n);
+    expect(nodeContains(n, c)).toBe(true);
+    // A crest touches each side's middle (the ripple is 0 there).
+    expect(nodeContains(n, { x: n.x + n.width - 0.5, y: c.y })).toBe(true);
+    expect(nodeContains(n, { x: c.x, y: n.y + 0.5 })).toBe(true);
+    expect(nodeContains(n, { x: n.x + 1, y: n.y + 1 })).toBe(false);
+    expect(nodeContains(n, { x: n.x + n.width - 1, y: n.y + n.height - 1 })).toBe(false);
+  });
+
+  it("puts every arrow end point on the drawn outline", () => {
+    const n = node("cloud", 180, 90);
+    const pts = cloudPoints(n);
+    const c = centerOf(n);
+    for (const angle of ANGLES) {
+      const p = boundaryPoint(n, { x: c.x + Math.cos(angle) * 1000, y: c.y + Math.sin(angle) * 1000 });
+      const d = Math.min(...pts.map((a, i) => distanceToSegment(p, a, pts[(i + 1) % pts.length])));
+      expect(d).toBeLessThan(1);
+    }
+  });
+
+  it("is star-shaped: every ray from the centre leaves once", () => {
+    const n = node("cloud", 180, 90);
+    const c = centerOf(n);
+    for (const angle of ANGLES) {
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      let crossings = 0;
+      let inside = true; // the centre
+      for (let t = 2; t <= 200; t += 2) {
+        const now = nodeContains(n, { x: c.x + ux * t, y: c.y + uy * t });
+        if (inside && !now) crossings++;
+        if (!inside && now) crossings += 10; // back in: not star-shaped
+        inside = now;
+      }
+      expect(crossings).toBe(1);
+    }
+  });
+
+  it("reaches the box edge straight out in the four directions", () => {
+    const n = node("cloud", 180, 90);
+    const c = centerOf(n);
+    expect(boundaryPoint(n, { x: c.x + 500, y: c.y }).x).toBeCloseTo(n.x + n.width, 1);
+    expect(boundaryPoint(n, { x: c.x - 500, y: c.y }).x).toBeCloseTo(n.x, 1);
+    expect(boundaryPoint(n, { x: c.x, y: c.y - 500 }).y).toBeCloseTo(n.y, 1);
+    expect(boundaryPoint(n, { x: c.x, y: c.y + 500 }).y).toBeCloseTo(n.y + n.height, 1);
+  });
+
+  it("keeps the ripple small on a narrow shape", () => {
+    expect(cloudRipple({ width: 40, height: 200 })).toBeCloseTo(40 / 12, 5);
+    const n = node("cloud", 40, 200);
+    expect(nodeContains(n, centerOf(n))).toBe(true);
+    expect(cloudPoints(n)).toHaveLength(CLOUD_SAMPLES);
   });
 });

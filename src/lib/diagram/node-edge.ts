@@ -132,10 +132,11 @@ export interface EdgeOptions {
   /**
    * Which way the chart runs. `"right"` (the default) is the horizontal chart of
    * the business flow and the PFD; `"down"` is the vertical one of the program
-   * flow (T-0697), whose orthogonal arrows come from `verticalRoute`. Only
-   * orthogonal arrows care.
+   * flow (T-0697), whose orthogonal arrows come from `verticalRoute`; `"free"`
+   * is the architecture diagram (T-0708), whose arrows leave in any direction
+   * and come from `freeRoute`. Only orthogonal arrows care.
    */
-  flow?: "right" | "down";
+  flow?: "right" | "down" | "free";
   /**
    * Put the label (`mid`) this far along the line from its start instead of at
    * its middle, never past the end of the first segment. The program flow uses
@@ -343,7 +344,11 @@ function orthogonalGeometry(
   options: EdgeOptions,
 ): EdgeGeometry {
   const route =
-    options.flow === "down" ? verticalRoute(from, to, options) : orthogonalRoute(from, to, options);
+    options.flow === "down"
+      ? verticalRoute(from, to, options)
+      : options.flow === "free"
+        ? freeRoute(from, to, options)
+        : orthogonalRoute(from, to, options);
   const start = boundaryPoint(from, route[1]);
   const end = boundaryPoint(to, route[route.length - 2]);
   const points = [start, ...route.slice(1, -1), end];
@@ -421,9 +426,155 @@ export function verticalRoute(from: Box, to: Box, options: EdgeOptions = {}): Po
   return orthogonalRoute(from, to, options);
 }
 
-/** The routes around the right-hand side, innermost line first. */
-function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {
+/**
+ * The corner points of an orthogonal route for a chart whose arrows leave in
+ * any direction (T-0708), centre to centre like `orthogonalRoute`. Candidates,
+ * best first:
+ *
+ * - **Across**: out of one side, along a vertical line in the gap, into one
+ *   side - `orthogonalRoute`'s rightward leg mirrored to the left;
+ * - **Up and down**: the same turned a quarter (out of the top or bottom edge,
+ *   along a horizontal line in the gap, into the bottom or top edge);
+ * - the axis the centres differ more along goes first; a level pair takes the
+ *   straight line;
+ * - when the best of those would run through a box (or the nodes overlap), an
+ *   outer band around both nodes, innermost line first on each of the four
+ *   sides (`laneRoutes` is the right-hand band alone).
+ *
+ * The earliest candidate wins a tie, so without obstacles or used segments the
+ * route is the preferred axis through the middle of the gap. `flow: "right"`
+ * and `flow: "down"` never reach this function, so their routes do not move.
+ */
+export function freeRoute(from: Box, to: Box, options: EdgeOptions = {}): Point[] {
   const a = centerOf(from);
+  const b = centerOf(to);
+  const acrossFirst = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+  const horizontal = horizontalFreeRoute(from, to, options);
+  const vertical = verticalFreeRoute(from, to, options);
+  const ordered: Point[][] = [];
+  if (acrossFirst) {
+    if (horizontal) ordered.push(horizontal);
+    if (vertical) ordered.push(vertical);
+  } else {
+    if (vertical) ordered.push(vertical);
+    if (horizontal) ordered.push(horizontal);
+  }
+  if (ordered.length > 0) {
+    const best = cheapest(ordered, options);
+    if (routeCost(best, options) === 0) return best;
+    return cheapest([best, ...outerBandRoutes(from, to)], options);
+  }
+  return cheapest(outerBandRoutes(from, to), options);
+}
+
+/**
+ * The direction a head on the START of a route points: `points[0] -> points[1]`
+ * turned around. A bidirectional arrow's far head needs it; `EdgeGeometry`
+ * only carries the near one (`headAngle`).
+ */
+export function startHeadAngle(points: Point[]): number {
+  return Math.atan2(points[0].y - points[1].y, points[0].x - points[1].x);
+}
+
+/** Out of one side, down or up a line in the gap, into one side. `null` when
+ * neither side has room. */
+function horizontalFreeRoute(from: Box, to: Box, options: EdgeOptions): Point[] | null {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const gapRight = to.x - (from.x + from.width);
+  const gapLeft = from.x - (to.x + to.width);
+  const candidates: Point[][] = [];
+  const sides: ("right" | "left")[] = b.x >= a.x ? ["right", "left"] : ["left", "right"];
+  for (const side of sides) {
+    const gap = side === "right" ? gapRight : gapLeft;
+    if (gap < MIN_GAP) continue;
+    if (a.y === b.y) {
+      candidates.push([a, b]);
+      // A head-on pair (A -> B and B -> A) shares this line: the parallels a
+      // lane each side keep the second off the first (`used`), nearest first.
+      candidates.push([
+        a,
+        { x: a.x, y: a.y + LANE_STEP },
+        { x: b.x, y: b.y + LANE_STEP },
+        b,
+      ]);
+      candidates.push([
+        a,
+        { x: a.x, y: a.y - LANE_STEP },
+        { x: b.x, y: b.y - LANE_STEP },
+        b,
+      ]);
+      continue;
+    }
+    const edge = side === "right" ? from.x + from.width : to.x + to.width;
+    const far = side === "right" ? to.x : from.x;
+    const xs = around(edge + gap / 2, edge + 8, far - 8);
+    candidates.push(...xs.map((x) => [a, { x, y: a.y }, { x, y: b.y }, b]));
+  }
+  return candidates.length > 0 ? cheapest(candidates, options) : null;
+}
+
+/** Out of the top or bottom edge, across a line in the gap, into an edge. `null`
+ * when neither has room. */
+function verticalFreeRoute(from: Box, to: Box, options: EdgeOptions): Point[] | null {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const gapBelow = to.y - (from.y + from.height);
+  const gapAbove = from.y - (to.y + to.height);
+  const candidates: Point[][] = [];
+  const sides: ("below" | "above")[] = b.y >= a.y ? ["below", "above"] : ["above", "below"];
+  for (const side of sides) {
+    const gap = side === "below" ? gapBelow : gapAbove;
+    if (gap < MIN_GAP) continue;
+    if (a.x === b.x) {
+      candidates.push([a, b]);
+      // As above, one lane each side for the head-on pair.
+      candidates.push([
+        a,
+        { x: a.x + LANE_STEP, y: a.y },
+        { x: b.x + LANE_STEP, y: b.y },
+        b,
+      ]);
+      candidates.push([
+        a,
+        { x: a.x - LANE_STEP, y: a.y },
+        { x: b.x - LANE_STEP, y: b.y },
+        b,
+      ]);
+      continue;
+    }
+    const edge = side === "below" ? from.y + from.height : to.y + to.height;
+    const far = side === "below" ? to.y : from.y;
+    const ys = around(edge + gap / 2, edge + 8, far - 8);
+    candidates.push(...ys.map((y) => [a, { x: a.x, y }, { x: b.x, y }, b]));
+  }
+  return candidates.length > 0 ? cheapest(candidates, options) : null;
+}
+
+/** Bands around both nodes, innermost line first: right, left, below, above. */
+function outerBandRoutes(from: Box, to: Box): Point[][] {
+  const a = centerOf(from);
+  const b = centerOf(to);
+  const left = Math.min(from.x, to.x);
+  const right = Math.max(from.x + from.width, to.x + to.width);
+  const top = Math.min(from.y, to.y);
+  const bottom = Math.max(from.y + from.height, to.y + to.height);
+  const out: Point[][] = [];
+  for (let k = 0; k < 9; k++) {
+    const x = right + DETOUR_MARGIN + k * LANE_STEP;
+    out.push([a, { x, y: a.y }, { x, y: b.y }, b]);
+    const xl = left - DETOUR_MARGIN - k * LANE_STEP;
+    out.push([a, { x: xl, y: a.y }, { x: xl, y: b.y }, b]);
+    const y = bottom + DETOUR_MARGIN + k * LANE_STEP;
+    out.push([a, { x: a.x, y }, { x: b.x, y }, b]);
+    const yt = top - DETOUR_MARGIN - k * LANE_STEP;
+    out.push([a, { x: a.x, y: yt }, { x: b.x, y: yt }, b]);
+  }
+  return out;
+}
+
+/** The routes around the right-hand side, innermost line first. */
+function laneRoutes(from: Box, to: Box, options: EdgeOptions): Point[][] {  const a = centerOf(from);
   const b = centerOf(to);
   const top = Math.min(from.y, to.y);
   const bottom = Math.max(from.y + from.height, to.y + to.height);
