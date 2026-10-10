@@ -53,8 +53,10 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.clipboard.copy": "コピー",
   "diagram.clipboard.paste": "ペースト",
   "diagram.clipboard.duplicate": "複製",
+  // ---- 複数選択 (T-0716) ----
+  "diagram.multi.selectedCount": "{count} 件を選択中",
   // ---- 2x2 マトリクスのエディタ (T-0681) ----
-  "diagram.matrix.footerHint": "項目をドラッグして配置します。何もない所をダブルクリックで項目を追加。象限をクリックするとその象限のメモを書けます。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールで拡大縮小。",
+  "diagram.matrix.footerHint": "項目をドラッグして配置します。何もない所をダブルクリックで項目を追加。象限をクリックするとその象限のメモを書けます。何もない所を左ドラッグすると矩形選択、Shift+クリックで追加・解除。選択中の項目はまとめてドラッグで動き、Delete でまとめて削除します。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールで拡大縮小。",
   "diagram.matrix.fitHint": "マトリクス全体をウィンドウに合わせる",
   "diagram.matrix.addHint": "中央に項目を追加",
   "diagram.matrix.itemCount": "項目 {count} 件",
@@ -133,7 +135,7 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.flow.autoAlign": "自動整列",
   "diagram.flow.autoAlignHint": "ドラッグで付けた位置をすべて忘れ、レイアウトに任せ直す",
   // ---- PFD editor (T-0683) ----
-  "diagram.pfd.footerHint": "何もない所をダブルクリックで選んだ記号を追加、ノードをダブルクリックで名前を編集。ノードをドラッグして動かす。ノードの丸いハンドルを別のノードへドラッグすると矢印を引け（プロセスから成果物、成果物からプロセスのみ）、選んだ矢印の端のハンドルをドラッグすると付け替えられる。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールでズーム。 丸いハンドルは側ごとに分かれ、ハンドルの側から出て、落とした先の近い側（中央は自動）に入る。出入り口は `P-001:E@0.5` の形で保存される。",
+  "diagram.pfd.footerHint": "何もない所をダブルクリックで選んだ記号を追加、ノードをダブルクリックで名前を編集。ノードをドラッグして動かす。何もない所を左ドラッグすると矩形選択、Shift+クリックで追加・解除。選択中のノードはまとめてドラッグで動き、Delete でまとめて削除します。ノードの丸いハンドルを別のノードへドラッグすると矢印を引け（プロセスから成果物、成果物からプロセスのみ）、選んだ矢印の端のハンドルをドラッグすると付け替えられる。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールでズーム。 丸いハンドルは側ごとに分かれ、ハンドルの側から出て、落とした先の近い側（中央は自動）に入る。出入り口は `P-001:E@0.5` の形で保存される。",
   "diagram.pfd.fitHint": "図を画面に合わせる",
   "diagram.pfd.addHint": "ノードを追加（選択中のノードの次の記号をつないで追加。なければ選んだ記号）",
   "diagram.pfd.paletteHint": "ダブルクリックで{name}を追加",

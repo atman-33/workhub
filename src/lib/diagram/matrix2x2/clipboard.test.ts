@@ -41,6 +41,11 @@ describe("copyMatrixItems", () => {
   it("ignores ids that are not in the document", () => {
     expect(copyMatrixItems(docOf(), ["M-099"])).toEqual([]);
   });
+
+  it("snapshots several items at once, in note order", () => {
+    const items = copyMatrixItems(docOf(), ["M-005", "M-001"]);
+    expect(items.map((i) => i.id)).toEqual(["M-001", "M-005"]);
+  });
 });
 
 describe("pasteMatrixItems", () => {
@@ -82,6 +87,15 @@ describe("pasteMatrixItems", () => {
     const copy = find(out.doc, out.ids[0]);
     expect(copy.x).toBeUndefined();
     expect(copy.y).toBeUndefined();
+  });
+
+  it("pastes several items at once under fresh ids", () => {
+    const doc = docOf();
+    const out = pasteMatrixItems(doc, copyMatrixItems(doc, ["M-001", "M-005"]), 1);
+    expect(out.ids).toEqual(["M-006", "M-007"]);
+    expect(out.doc.items.map((i) => i.id)).toEqual(["M-001", "M-002", "M-005", "M-006", "M-007"]);
+    expect(find(out.doc, "M-006").x).toBeCloseTo(0.23, 5);
+    expect(find(out.doc, "M-007").x).toBeCloseTo(0.96, 5);
   });
 
   it("does not touch the original, the stickies or the memo", () => {
