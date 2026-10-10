@@ -69,6 +69,92 @@ function isEmbeddableImage(path: string): boolean {
 }
 
 /**
+ * A parsed `[[wikilink]]` (T-0726): the file part the backend resolves, and
+ * the text the reader clicks.
+ *
+ * `[[name]]` → both `name`; `[[name|alias]]` shows `alias`;
+ * `[[name#heading]]` and `[[folder/name]]` keep working the way Obsidian
+ * reads them — the `#heading` only scrolls within the note, and the preview
+ * opens whole documents, so it is dropped for the lookup but kept for the
+ * label, which defaults to the link as written.
+ */
+export interface WikiLinkParts {
+  target: string;
+  label: string;
+}
+
+export function parseWikiLink(inner: string): WikiLinkParts | null {
+  const text = inner.trim();
+  if (!text) return null;
+  const bar = text.indexOf("|");
+  const main = (bar < 0 ? text : text.slice(0, bar)).trim();
+  const alias = bar < 0 ? "" : text.slice(bar + 1).trim();
+  if (!main) return null;
+  const hash = main.indexOf("#");
+  const target = (hash < 0 ? main : main.slice(0, hash)).trim();
+  if (!target) return null;
+  return { target, label: alias || text };
+}
+
+/**
+ * Encodes a wikilink target as the destination of the CommonMark link
+ * `expandWikiLinks` writes. A scheme of its own (`wiki:`, percent-encoded)
+ * rather than a relative path: the name is unresolvable until the backend —
+ * the one place that can search the vault — is asked, which happens on click,
+ * not on render.
+ */
+export function wikiHref(target: string): string {
+  // Slashes stay bare so a `folder/name` still reads as a path; everything
+  // else that would break a link destination is percent-encoded.
+  return `wiki:${target.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/** Reads back what `wikiHref` wrote, or `null` for any other link. */
+export function parseWikiHref(href: string): string | null {
+  if (!/^wiki:/i.test(href.trim())) return null;
+  const encoded = href.trim().slice("wiki:".length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    // A stray `%` that is not an escape — take the target as typed.
+    return encoded;
+  }
+}
+
+/**
+ * Rewrites Obsidian's `[[wikilink]]` document links into CommonMark links.
+ *
+ * `[[name]]` → `[name](<wiki:name>)`, `[[name|alias]]` → `[alias](<wiki:name>)`.
+ * The destination is wrapped in angle brackets because targets routinely
+ * contain spaces; the label escapes its brackets so an alias cannot break out
+ * of the link.
+ *
+ * Image and document embeds (`![[…]]`) are left alone — `expandWikiEmbeds`
+ * owns those — as is anything inside code spans and fenced blocks, by way of
+ * `mapOutsideCode`. An unresolvable link still becomes a link: clicking it is
+ * what asks the backend, and a link with no answer shows the Obsidian hint
+ * rather than failing the read.
+ */
+export function expandWikiLinks(markdown: string): string {
+  return mapOutsideCode(markdown, (text) =>
+    text.replace(
+      /\[\[([^\][\n]+?)\]\]/g,
+      (whole, inner, offset: number, full: string) => {
+        // An embed marker, handled (or deliberately left) by expandWikiEmbeds.
+        if (offset > 0 && full[offset - 1] === "!") return whole;
+        const parts = parseWikiLink(String(inner));
+        if (!parts) return whole;
+        const label = parts.label
+          .replace(/\\/g, "\\\\")
+          .replace(/\[/g, "\\[")
+          .replace(/\]/g, "\\]");
+        return `[${label}](<${wikiHref(parts.target)}>)`;
+      },
+    ),
+  );
+}
+
+/**
  * Applies `fn` to the parts of `markdown` that are not code.
  *
  * Fenced blocks (``` / ~~~) and inline code spans are passed through

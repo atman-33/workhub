@@ -76,6 +76,9 @@ export const docsJa: Partial<Record<MessageKey, string>> = {
   "docs.preview.showFileHint": "このファイルをエクスプローラーで表示",
   "docs.preview.reading": "読み込み中…",
   "docs.preview.empty": "このドキュメントは空です。",
+  "docs.preview.wikiNotFound": "[[{target}]] に一致するファイルは vault・このフォルダ内にありません。",
+  "docs.preview.wikiAmbiguous":
+    "[[{target}]] に一致するファイルが {count} 件あるため、プレビューでは開けません。",
 
   "docs.rootsBar.addFolderTitle": "ドキュメントフォルダを追加",
   "docs.rootsBar.pickFolder": "フォルダを選択",

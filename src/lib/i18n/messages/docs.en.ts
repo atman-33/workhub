@@ -74,6 +74,9 @@ export const docsEn = {
   "docs.preview.showFileHint": "Show this file in Explorer",
   "docs.preview.reading": "Reading…",
   "docs.preview.empty": "This document is empty.",
+  "docs.preview.wikiNotFound": "[[{target}]] matches no file under the vault or this folder.",
+  "docs.preview.wikiAmbiguous":
+    "[[{target}]] matches {count} files, so the preview cannot pick one.",
 
   "docs.rootsBar.addFolderTitle": "Add a document folder",
   "docs.rootsBar.pickFolder": "Pick a folder",

@@ -69,6 +69,10 @@ export const projectsEn = {
   "projects.view.docs.resolveFailed": "This project has no folder under projects/.",
   "projects.view.docs.linkOutsideHint":
     "That link leaves this project's folder, so the pane cannot follow it — open it in Obsidian instead.",
+  "projects.view.docs.wikiNotFoundHint":
+    "[[{target}]] matches no file in the vault — open this note in Obsidian to follow it.",
+  "projects.view.docs.wikiAmbiguousHint":
+    "[[{target}]] matches {count} files in the vault — open this note in Obsidian to pick one.",
   "projects.view.repositoriesHeading": "Repositories",
   "projects.view.noRepository": "No repository.",
   "projects.view.defaultLabel": "default",

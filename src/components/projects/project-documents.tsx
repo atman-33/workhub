@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, BookOpen, RefreshCw } from "lucide-react";
-import { DocsPreview } from "@/components/docs/docs-preview";
+import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
@@ -26,7 +26,10 @@ import { cn } from "@/lib/utils";
  * Read-only throughout: editing stays in Obsidian, which is why every
  * document carries an "Open in Obsidian" action. Links that leave the project
  * folder are not followed in the pane — a banner points at Obsidian instead —
- * so an unresolvable link shows a hint rather than a broken view.
+ * so an unresolvable link shows a hint rather than a broken view. A
+ * `[[wikilink]]` that resolves to one file in the folder is followed like any
+ * other link (T-0726); one with no single answer gets the same banner, aimed
+ * at the note itself, where Obsidian can follow it.
  *
  * The parent mounts this per project (`key={slug}`), so the selected document
  * cannot leak across projects: switching project remounts the pane with no
@@ -38,6 +41,9 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
   const [groups, setGroups] = useState<ProjectDocGroup[]>([]);
   const [selected, setSelected] = useState("");
   const [linkHint, setLinkHint] = useState("");
+  // A `[[wikilink]]` click with no single file to open (T-0726): the link as
+  // written, and how many files answer to it (0 when none does).
+  const [wikiHint, setWikiHint] = useState<{ target: string; count: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
@@ -46,6 +52,7 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
     setLoading(true);
     setError("");
     setLinkHint("");
+    setWikiHint(null);
     try {
       const resolved = await api.resolveProjectDir(vaultPath, slug);
       if (!resolved) {
@@ -90,10 +97,19 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
   const openDoc = (target: string) => {
     if (dir && isWithinRoot(dir, target)) {
       setLinkHint("");
+      setWikiHint(null);
       setSelected(target);
     } else {
+      setWikiHint(null);
       setLinkHint(target);
     }
+  };
+
+  /** A `[[wikilink]]` click with no single file to open (T-0726): the banner
+   * offers the open note itself in Obsidian, where the link can be followed. */
+  const openUnresolvedWiki = (info: UnresolvedWikiLink) => {
+    setLinkHint("");
+    setWikiHint({ target: info.target, count: info.candidates.length });
   };
 
   return (
@@ -149,6 +165,7 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
                             type="button"
                             onClick={() => {
                               setLinkHint("");
+                              setWikiHint(null);
                               setSelected(file.path);
                             }}
                             className="min-w-0 flex-1 truncate px-2 py-1 text-left text-xs hover:underline"
@@ -188,6 +205,7 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
                     aria-label={t("projects.view.docs.backToList")}
                     onClick={() => {
                       setLinkHint("");
+                      setWikiHint(null);
                       setSelected("");
                     }}
                   >
@@ -223,12 +241,34 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
                   </Button>
                 </div>
               )}
+              {wikiHint && (
+                <div className="flex items-center gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate">
+                    {wikiHint.count > 0
+                      ? t("projects.view.docs.wikiAmbiguousHint", {
+                          target: wikiHint.target,
+                          count: wikiHint.count,
+                        })
+                      : t("projects.view.docs.wikiNotFoundHint", { target: wikiHint.target })}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 shrink-0 gap-1 text-[11px]"
+                    onClick={() => openInObsidian(selected)}
+                  >
+                    <BookOpen className="size-3" />
+                    {t("projects.view.docs.openInObsidian")}
+                  </Button>
+                </div>
+              )}
               <div className="min-h-0 flex-1">
                 <DocsPreview
                   path={selected}
                   refreshToken={refreshToken}
                   onError={setError}
                   onOpenDoc={openDoc}
+                  onUnresolvedWikiLink={openUnresolvedWiki}
                 />
               </div>
             </>

@@ -275,6 +275,20 @@ export interface DocsEntry {
   modified: number;
 }
 
+/** One file answering to a `[[wikilink]]` when more than one does. */
+export interface WikiLinkMatch {
+  /** Absolute path, forward slashes — the id passed back to the backend. */
+  path: string;
+}
+
+/** How a `[[wikilink]]` resolved (T-0726): exactly one file, several, or none. */
+export interface WikiLinkResolution {
+  /** The one file answering to the link; null when it is ambiguous or missing. */
+  path: string | null;
+  /** Every candidate when the name is ambiguous; empty otherwise. */
+  matches: WikiLinkMatch[];
+}
+
 /** One candidate when the Docs tab resolves a pasted path (T-0362). */
 export interface DocsOpenPathMatch {
   /** Absolute path, forward slashes — the id passed back to the backend. */

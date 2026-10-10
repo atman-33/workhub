@@ -504,8 +504,10 @@ interface MarkdownProps {
   sourceLineOffset?: number;
   /**
    * Follows a link that points at a file rather than at the web (T-0647): a
-   * relative `[x](a｜b.md)` written in the document. Without it such a link
-   * goes to the OS opener like any other, which cannot resolve it.
+   * relative `[x](a｜b.md)` written in the document, or a `[[wikilink]]`
+   * `expandWikiLinks` rewrote to a `wiki:` destination (T-0726). Without it
+   * such a link goes to the OS opener like any other, which cannot resolve
+   * it — except a `wiki:` link, which reads as plain text instead.
    */
   onOpenLink?: (href: string) => void;
   /**
@@ -580,8 +582,16 @@ export function Markdown({
         return <div {...props}>{children}</div>;
       },
       a({ href, children, ...props }) {
+        // A `[[wikilink]]` `expandWikiLinks` rewrote (T-0726): the name is
+        // unresolvable until the backend — the one place that can search the
+        // vault — is asked, so it goes to `onOpenLink` like a file link does.
+        // Without one there is nothing to ask; plain text, never an `openUrl`
+        // to a scheme the OS does not know.
+        const trimmed = (href ?? "").trim();
+        const wiki = /^wiki:/i.test(trimmed);
+        if (wiki && !onOpenLink) return <span>{children}</span>;
         // A link to a file of the share: no scheme and not a bare `#fragment`.
-        const local = !!href && !/^([a-z][a-z0-9+.-]+:|#)/i.test(href.trim());
+        const local = !!href && (!/^([a-z][a-z0-9+.-]+:|#)/i.test(trimmed) || wiki);
         const anchor = (
           <a
             {...props}

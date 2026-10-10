@@ -18,6 +18,8 @@ import { useT } from "@/lib/i18n";
 import {
   basename,
   expandWikiEmbeds,
+  expandWikiLinks,
+  parseWikiHref,
   resolveDocLink,
   resolveDocRelative,
   toWindowsPath,
@@ -28,7 +30,7 @@ import { previewKindForPath } from "@/lib/docs/preview-kind";
 import { frontmatterOffset } from "@/lib/docs/rehype-line";
 import { PREVIEW_ZOOM, parsePreviewZoom, stepPreviewZoom } from "@/lib/docs/zoom";
 import { cn } from "@/lib/utils";
-import type { DocsFigure } from "@/types";
+import type { DocsFigure, WikiLinkResolution } from "@/types";
 
 interface Props {
   /** Absolute path of the document to render; "" when nothing is selected. */
@@ -54,6 +56,21 @@ interface Props {
    * viewer window has no listing to move within — the file goes to the OS.
    */
   onOpenDoc?: (path: string) => void;
+  /**
+   * A `[[wikilink]]` click with no single file to open (T-0726): the name is
+   * ambiguous or missing. Absent — the Docs tab has no Obsidian to point
+   * at — the pane reports it as an error itself.
+   */
+  onUnresolvedWikiLink?: (info: UnresolvedWikiLink) => void;
+}
+
+/**
+ * A `[[wikilink]]` click the backend could not pin to one file (T-0726): the
+ * link as written, and every file answering to it (empty when none does).
+ */
+export interface UnresolvedWikiLink {
+  target: string;
+  candidates: string[];
 }
 
 /**
@@ -132,6 +149,7 @@ export function DocsPreview({
   standalone,
   notes,
   onOpenDoc,
+  onUnresolvedWikiLink,
 }: Props) {
   const t = useT();
   const [content, setContent] = useState("");
@@ -190,15 +208,16 @@ export function DocsPreview({
   const text = kind === "text";
 
   // Frontmatter is lifted out before the renderer sees it, and Obsidian's
-  // `![[file]]` embeds are rewritten, since neither is CommonMark.
-  // Anything with no kind of its own is read as Markdown, which is what the
-  // pane has always done with a path it was handed and did not recognise.
+  // `![[file]]` embeds and `[[wikilink]]` document links are rewritten, since
+  // neither is CommonMark. Anything with no kind of its own is read as
+  // Markdown, which is what the pane has always done with a path it was
+  // handed and did not recognise.
   const { frontmatter, markdown, lineOffset } = useMemo(() => {
     if (html || text) return { frontmatter: "", markdown: "", lineOffset: 0 };
     const split = splitFrontmatter(content);
     return {
       frontmatter: split.frontmatter,
-      markdown: expandWikiEmbeds(split.body),
+      markdown: expandWikiLinks(expandWikiEmbeds(split.body)),
       // What a note's `data-line` is shifted by to name a line of the file
       // rather than of the body the renderer sees.
       lineOffset: frontmatterOffset(content, split.body),
@@ -243,22 +262,75 @@ export function DocsPreview({
     [cache, cacheKey, path, remoteImages],
   );
 
+  // One backend lookup per link per document (T-0726): a note full of
+  // `[[links]]` resolves each once no matter how often it re-renders. Keyed
+  // by the document, so moving on leaves no stale answer behind.
+  const [wikiCache] = useState(() => new Map<string, Promise<WikiLinkResolution | null>>());
+
+  const resolveWiki = useCallback(
+    (target: string): Promise<WikiLinkResolution | null> => {
+      const key = `${path}||${target}`;
+      let pending = wikiCache.get(key);
+      if (!pending) {
+        pending = api.docsResolveWikiLink(path, target).catch(() => null);
+        wikiCache.set(key, pending);
+      }
+      return pending;
+    },
+    [path, wikiCache],
+  );
+
   const onOpenLink = useCallback(
     (href: string) => {
+      // A `[[wikilink]]`: ask the backend, the one place that can look a bare
+      // name up across the vault (T-0726). One file opens exactly like a
+      // relative link — through `onOpenDoc`, so the caller's scope still
+      // applies; anything else is guidance, never a guess.
+      const wiki = parseWikiHref(href);
+      if (wiki !== null) {
+        const target = wiki;
+        void resolveWiki(target).then((res) => {
+          if (res?.path) {
+            if (onOpenDoc) onOpenDoc(res.path);
+            else void api.docsOpenExternal(res.path).catch((e) => onError(String(e)));
+          } else if (onUnresolvedWikiLink) {
+            onUnresolvedWikiLink({
+              target,
+              candidates: res?.matches.map((m) => m.path) ?? [],
+            });
+          } else if (res && res.matches.length > 0) {
+            onError(t("docs.preview.wikiAmbiguous", { target, count: res.matches.length }));
+          } else {
+            onError(t("docs.preview.wikiNotFound", { target }));
+          }
+        });
+        return;
+      }
       const target = resolveDocLink(path, href);
       if (!target) return;
       if (onOpenDoc) onOpenDoc(target);
       else void api.docsOpenExternal(target).catch((e) => onError(String(e)));
     },
-    [path, onOpenDoc, onError],
+    [path, onOpenDoc, onError, onUnresolvedWikiLink, resolveWiki, t],
   );
 
   const onCopyLink = useCallback(
     (href: string) => {
+      // "Copy path" on a `[[wikilink]]` copies the file it answers to — when
+      // it answers to exactly one. Anything else copies nothing rather than a
+      // `wiki:` address nothing outside the app can follow.
+      const wiki = parseWikiHref(href);
+      if (wiki !== null) {
+        void resolveWiki(wiki).then((res) => {
+          if (res?.path)
+            void writeText(toWindowsPath(res.path)).catch((e) => onError(String(e)));
+        });
+        return;
+      }
       const target = resolveDocLink(path, href);
       if (target) void writeText(toWindowsPath(target)).catch((e) => onError(String(e)));
     },
-    [path, onError],
+    [path, onError, resolveWiki],
   );
 
   const onOpenFigure = useCallback((figure: DocsFigure) => openFigure(figure, onError), [onError]);

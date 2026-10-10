@@ -1352,6 +1352,26 @@ pub async fn docs_resolve_open_path(
     .map_err(|e| e.to_string())?
 }
 
+/// Resolves an Obsidian `[[wikilink]]` written in the document `from` (T-0726).
+///
+/// `target` is the link's file part: the frontend splits off the `|alias` and
+/// the `#heading` before calling. A bare name is looked up across the vault by
+/// file name (Obsidian's rule); a `folder/name` narrows it to a path. Anything
+/// the backend cannot pin to exactly one file comes back as an empty or an
+/// ambiguous resolution — never a guess — and the frontend points at Obsidian
+/// instead. Every returned path already passed the containment guard.
+#[tauri::command]
+pub async fn docs_resolve_wikilink(
+    from: String,
+    target: String,
+) -> Result<docs::WikiLinkResolution, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        docs::guarded_resolve_wikilink(&storage::load().settings, &from, &target)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// The PlantUML server the Docs tab renders diagrams with; "" when rendering
 /// is off (the default).
 /// The starred folders and files, in the order the Shortcuts section shows
