@@ -178,6 +178,19 @@ describe("edgeGeometry", () => {
     expect(g2.points[1].y).toBeGreaterThan(g.points[1].y);
   });
 
+  it("routes a loop back over both boxes when nothing below is viable", () => {
+    const a = node("a", "rect", 400, 0);
+    const b = node("b", "rect", 100, 0);
+    // A box fills every lane below the two boxes.
+    const blocker = { x: 0, y: 40, width: 600, height: 200 };
+    const route = orthogonalRoute(a, b, { obstacles: [blocker] });
+    expect(route).toHaveLength(4);
+    expect(route[1].y).toBeLessThan(-20); // above the top edges
+    const g = edgeGeometry(a, b, "orthogonal", { obstacles: [blocker] })!;
+    expect(g.end.y).toBeCloseTo(-20, 3); // enters from the top
+    expect(g.headAngle).toBeCloseTo(Math.PI / 2, 6); // pointing down
+  });
+
   it("moves the vertical leg out of the way of a box in the gap", () => {
     const a = node("a", "rect", 0, 0);
     const b = node("b", "rect", 500, 200);

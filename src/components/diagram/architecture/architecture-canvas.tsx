@@ -187,6 +187,34 @@ function PortHandles({
   );
 }
 
+/** Where the dragged arrow would land: the four sides of the node under the
+ * pointer, display only, with the nearest side filled. */
+function DropSpots({ node, pointer }: { node: PositionedNode; pointer: Point }) {
+  const c = { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+  const far = 4000;
+  const spots: { side: PortSide; p: Point }[] = [
+    { side: "E", p: boundaryPoint(node, { x: c.x + far, y: c.y }) },
+    { side: "W", p: boundaryPoint(node, { x: c.x - far, y: c.y }) },
+    { side: "N", p: boundaryPoint(node, { x: c.x, y: c.y - far }) },
+    { side: "S", p: boundaryPoint(node, { x: c.x, y: c.y + far }) },
+  ];
+  const near = portOfDrop(node, pointer).side;
+  return (
+    <g pointerEvents="none">
+      {spots.map(({ side, p }) => (
+        <circle
+          key={side}
+          cx={p.x}
+          cy={p.y}
+          r={side === near ? 6 : 4}
+          className={cn("stroke-ring", side === near ? "fill-ring" : "fill-background")}
+          strokeWidth={1.5}
+        />
+      ))}
+    </g>
+  );
+}
+
 export function ArchitectureCanvas({
   doc,
   stickies,
@@ -356,6 +384,9 @@ export function ArchitectureCanvas({
 
   const hovered = hoverId && !dragging && !frameDragging ? (layout.byId.get(hoverId) ?? null) : null;
   const handleNodes = edgeDrag.drag || dragging || frameDragging ? [] : [hoverId, selectedNodeId];
+  // The node a dragged arrow would land on, if any.
+  const dropTarget =
+    edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
   // The arrow being re-attached draws pale: matched by its ends, since a
   // two-way arrow's key is not its written direction.
   const ghostFrom = edgeDrag.drag?.mode === "reattach" ? edgeDrag.drag.edge?.from : null;
@@ -547,6 +578,9 @@ export function ArchitectureCanvas({
       })}
 
       {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
+      {dropTarget && edgeDrag.drag && (
+        <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
+      )}
 
       {/* Stickies are drawn last, so a note the user dropped over a node stays
           readable instead of disappearing under it. */}
