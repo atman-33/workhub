@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CREATABLE_KINDS, DIAGRAM_KINDS, KIND_GROUPS } from "./diagram-kinds";
+import { CREATABLE_KINDS, DIAGRAM_KINDS, hasEditor, KIND_GROUPS } from "./diagram-kinds";
 import {
   ALL_KINDS,
   chipGroups,
@@ -22,9 +22,11 @@ describe("kind definition", () => {
     expect(DIAGRAM_KINDS).toEqual(["schedule", "mindmap", "matrix2x2", "pfd", "flow", "algorithm", "ifdam"]);
   });
 
-  it("lists IFDAM in the system group but does not offer it until its editor lands (T-0704)", () => {
+  it("lists IFDAM in the system group and offers it, last among the creatable kinds (T-0704)", () => {
     expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds).toEqual(["ifdam"]);
-    expect(CREATABLE_KINDS).not.toContain("ifdam");
+    expect(CREATABLE_KINDS).toContain("ifdam");
+    expect(CREATABLE_KINDS[CREATABLE_KINDS.length - 1]).toBe("ifdam");
+    expect(hasEditor("ifdam")).toBe(true);
   });
 
   it("lists each kind in exactly one group", () => {
