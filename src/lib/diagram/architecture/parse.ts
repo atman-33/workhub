@@ -23,6 +23,8 @@
  *   ## Edges
  *   - C-001 -> C-002 ["label"]      one way, head at the second end
  *   - C-001 <-> C-003 ["label"]     both ways, a head at each end
+ *   - C-004:E@0.5 -> C-006:W ["label"]   pinned ends: out the east side
+ *     halfway down, in the west side (an end without one is automatic)
  *
  * A block with no `^` is a plain block. `frame:G-001` puts the block in that
  * frame; a block with none, or one naming a frame that is not there, sits
@@ -37,7 +39,7 @@
  */
 import { detectEol, toLf, withEol } from "../../note-eol";
 import { COLORS, type Color } from "../colors";
-import { edgeKey } from "../node-edge";
+import { edgeKey, type EdgePort, type PortSide } from "../node-edge";
 import {
   formatId,
   frontmatterValue,
@@ -98,6 +100,10 @@ export interface ArchitectureEdge {
   /** `<->`: a head at each end. False for `->`. */
   bidi: boolean;
   label?: string;
+  /** Where the arrow leaves `from`. Absent means automatic. */
+  fromPort?: EdgePort;
+  /** Where the arrow enters `to`. Absent means automatic. */
+  toPort?: EdgePort;
 }
 
 export interface ArchitectureDocModel {
@@ -166,8 +172,9 @@ const NUMBER = String.raw`-?\d+(?:\.\d+)?`;
 const POSITION_RE = new RegExp(`^@(${NUMBER}),(${NUMBER})$`);
 const FRAME_REF_RE = /^frame:(.+)$/;
 const ICON_RE = /^icon:(.+)$/;
-const EDGE_RE =
-  /^\s*-\s+([A-Za-z]{1,3}-\d+)\s*(--|->|<->)\s*([A-Za-z]{1,3}-\d+)\s*(?:"(.*)")?\s*$/;
+/** `C-004`, `C-004:E`, `C-004:E@0.5`: an id with an optional pinned side and ratio. */
+const END_RE = /^([A-Za-z]{1,3}-\d+)((?::([NESW]))(?:@(\d+(?:\.\d+)?))?)?$/;
+const EDGE_RE = /^\s*-\s+(\S+)\s*(--|->|<->)\s*(\S+)\s*(?:"(.*)")?\s*$/;
 
 function isColor(tok: string): boolean {
   return tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1));
@@ -276,11 +283,33 @@ function parseNodeLine(line: string): { node: ArchitectureNode; hadId: boolean }
   };
 }
 
+function parseEdgeEnd(token: string): { id: string; port?: EdgePort } | null {
+  const m = END_RE.exec(token);
+  if (!m) return null;
+  const port = m[2]
+    ? {
+        side: m[3] as PortSide,
+        ...(m[4] !== undefined ? { at: Math.min(1, Math.max(0, Number(m[4]))) } : {}),
+      }
+    : undefined;
+  return { id: m[1], ...(port ? { port } : {}) };
+}
+
 function parseEdgeLine(line: string): ArchitectureEdge | null {
   const m = EDGE_RE.exec(line);
   if (!m || m[2] === "--") return null;
+  const from = parseEdgeEnd(m[1]);
+  const to = parseEdgeEnd(m[3]);
+  if (!from || !to) return null;
   const label = (m[4] ?? "").trim();
-  return { from: m[1], to: m[3], bidi: m[2] === "<->", ...(label ? { label } : {}) };
+  return {
+    from: from.id,
+    to: to.id,
+    bidi: m[2] === "<->",
+    ...(label ? { label } : {}),
+    ...(from.port ? { fromPort: from.port } : {}),
+    ...(to.port ? { toPort: to.port } : {}),
+  };
 }
 
 /** Gives every id-less frame or node an id, and repairs duplicates. Returns
@@ -486,10 +515,20 @@ export function formatNode(node: ArchitectureNode): string[] {
   return out;
 }
 
+/** Renders one end of an edge: its id with its pinned side and ratio, if any. */
+export function formatEdgeEnd(id: string, port: EdgePort | undefined): string {
+  if (!port) return id;
+  const at =
+    port.at === undefined
+      ? ""
+      : `@${Number(port.at.toFixed(2))}`;
+  return `${id}:${port.side}${at}`;
+}
+
 export function formatEdge(edge: ArchitectureEdge): string {
   // The label sits between quotes; a quote inside it could not be read back.
   const label = (edge.label ?? "").replace(/\s+/g, " ").replace(/"/g, "'").trim();
-  return `- ${edge.from} ${edge.bidi ? "<->" : "->"} ${edge.to}${label ? ` "${label}"` : ""}`;
+  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} ${edge.bidi ? "<->" : "->"} ${formatEdgeEnd(edge.to, edge.toPort)}${label ? ` "${label}"` : ""}`;
 }
 
 function sectionBody(name: string, lines: string[]): string {

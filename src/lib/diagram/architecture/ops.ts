@@ -11,6 +11,7 @@
  */
 import type { ArchitectureLayout } from "./layout";
 import { frameRectOf } from "./layout";
+import type { EdgePort } from "../node-edge";
 import {
   findEdge,
   findFrame,
@@ -302,36 +303,56 @@ export function reparentByDrop(
 /**
  * Adds an arrow from `from` to `to` (`bidi` for `<->`); the same model back
  * when the pair is already joined, or it is a block to itself, or an end does
- * not exist.
+ * not exist. Pins the ends when `ports` names them.
  */
 export function connect(
   doc: ArchitectureDocModel,
   from: string,
   to: string,
   bidi = false,
+  ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
 ): ArchitectureDocModel {
   if (from === to || findEdge(doc.edges, { from, to, bidi })) return doc;
   const ids = new Set(doc.nodes.map((n) => n.id));
   if (!ids.has(from) || !ids.has(to)) return doc;
-  return { ...doc, edges: [...doc.edges, { from, to, bidi }] };
+  return {
+    ...doc,
+    edges: [
+      ...doc.edges,
+      {
+        from,
+        to,
+        bidi,
+        ...(ports.fromPort ? { fromPort: ports.fromPort } : {}),
+        ...(ports.toPort ? { toPort: ports.toPort } : {}),
+      },
+    ],
+  };
 }
 
 /**
  * Moves one end of an arrow to another block; the same model back when nothing
  * changes. When the new pair is already joined the moved arrow merges into it:
- * the existing one stays, taking the moved one's label only if it has none.
+ * the existing one stays, taking the moved one's label only if it has none
+ * (and keeping its own pins). `port` pins the moved end anew; without one the
+ * end keeps the pin it had.
  */
 export function reattach(
   doc: ArchitectureDocModel,
   edge: { from: string; to: string; bidi: boolean },
   end: "from" | "to",
   nodeId: string,
+  port?: EdgePort,
 ): ArchitectureDocModel {
   const current = findEdge(doc.edges, edge);
   if (!current) return doc;
   const from = end === "from" ? nodeId : current.from;
   const to = end === "to" ? nodeId : current.to;
-  if (from === current.from && to === current.to) return doc;
+  if (from === current.from && to === current.to) {
+    if (port === undefined) return doc;
+    const had = end === "from" ? current.fromPort : current.toPort;
+    if (had?.side === port.side && (had.at ?? 0.5) === (port.at ?? 0.5)) return doc;
+  }
   if (from === to) return doc;
   const ids = new Set(doc.nodes.map((n) => n.id));
   if (!ids.has(from) || !ids.has(to)) return doc;
@@ -346,7 +367,18 @@ export function reattach(
         .map((e) => (e === twin && !e.label && current.label ? { ...e, label: current.label } : e)),
     };
   }
-  return { ...doc, edges: doc.edges.map((e) => (e === current ? { ...e, from, to } : e)) };
+  return {
+    ...doc,
+    edges: doc.edges.map((e) => {
+      if (e !== current) return e;
+      const next = { ...e, from, to };
+      if (port !== undefined) {
+        if (end === "from") next.fromPort = port;
+        else next.toPort = port;
+      }
+      return next;
+    }),
+  };
 }
 
 function patchEdge(
@@ -383,15 +415,21 @@ export function setEdgeBidi(
   return patchEdge(doc, edge, { bidi });
 }
 
-/** Swaps the two ends, so a one-way arrow points the other way. A `<->` reads
- * the same either way round, so reversing one changes nothing. */
+/** Swaps the two ends, so a one-way arrow points the other way. The pins travel
+ * with their ends. A `<->` reads the same either way round, so reversing one
+ * changes nothing. */
 export function reverseEdge(
   doc: ArchitectureDocModel,
   edge: { from: string; to: string; bidi: boolean },
 ): ArchitectureDocModel {
   const current = findEdge(doc.edges, edge);
   if (!current || current.bidi) return doc;
-  return patchEdge(doc, edge, { from: current.to, to: current.from });
+  return patchEdge(doc, edge, {
+    from: current.to,
+    to: current.from,
+    fromPort: current.toPort,
+    toPort: current.fromPort,
+  });
 }
 
 export function deleteEdge(

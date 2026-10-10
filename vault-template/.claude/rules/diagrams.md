@@ -685,6 +685,13 @@ updated: 2026-10-10
   called. An edge naming a block that does not exist is kept as it is, listed
   as a warning and not drawn: do not write one. An edge from a block to itself
   is kept and not drawn. No arrow ever joins a frame.
+- **Pinned ends**: either end may name a side and a ratio, `- C-004:E@0.5 ->
+  C-006:W "通知"`. The sides are `N`/`E`/`S`/`W` (edges of the box); the ratio
+  runs 0 to 1 along the side (`E` top to bottom, `N` left to right) and defaults
+  to the middle, so `:E` alone pins the middle of the east side. The arrow
+  leaves and enters through those points and the middle stays automatic; an end
+  without one is routed as always. A pin that cannot be honoured is ignored,
+  never drawn through a block.
 - **Layout is automatic**: the blocks outside every frame come first, then the
   frames in the order written, left to right (wrapping onto a new row past a
   fixed width). Inside a frame the blocks stand in columns from the arrows

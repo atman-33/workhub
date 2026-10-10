@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import { RubberBand } from "@/components/diagram/arrow-handles";
 import {
   ClipboardMenuItems,
   NodeClipboardMenu,
@@ -15,7 +15,15 @@ import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import { COLOR_HEX } from "@/lib/diagram/colors";
-import { hitNode } from "@/lib/diagram/node-edge";
+import { HANDLE_RADIUS } from "@/components/diagram/edge-arrow";
+import {
+  boundaryPoint,
+  hitNode,
+  portOfDrop,
+  type EdgePort,
+  type Point,
+  type PortSide,
+} from "@/lib/diagram/node-edge";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import {
@@ -88,11 +96,16 @@ interface Props {
   onMoveFrame: (id: string, dx: number, dy: number) => void;
   /** A double-click on empty canvas: add a block centred here (in the frame under it, if any). */
   onAddAt: (x: number, y: number, frameId: string | undefined) => void;
-  onConnect: (from: string, to: string) => void;
+  onConnect: (
+    from: string,
+    to: string,
+    ports?: { fromPort?: EdgePort; toPort?: EdgePort },
+  ) => void;
   onReattach: (
     edge: { from: string; to: string; bidi: boolean },
     end: "from" | "to",
     nodeId: string,
+    port: EdgePort,
   ) => void;
   /** Copy, duplicate and paste, offered in the right-click menus. */
   clipboard: CanvasClipboard;
@@ -140,6 +153,40 @@ function FrameShape({ frame, selected }: { frame: PositionedFrame; selected: boo
   );
 }
 
+/** The four round handles on the sides of a block, each naming its side;
+ * pressing one starts an arrow pinned to that side. */
+function PortHandles({
+  node,
+  onStart,
+}: {
+  node: PositionedNode;
+  onStart: (e: React.PointerEvent, side: PortSide) => void;
+}) {
+  const c = { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+  const far = 4000;
+  const spots: { side: PortSide; p: Point }[] = [
+    { side: "E", p: boundaryPoint(node, { x: c.x + far, y: c.y }) },
+    { side: "W", p: boundaryPoint(node, { x: c.x - far, y: c.y }) },
+    { side: "N", p: boundaryPoint(node, { x: c.x, y: c.y - far }) },
+    { side: "S", p: boundaryPoint(node, { x: c.x, y: c.y + far }) },
+  ];
+  return (
+    <>
+      {spots.map(({ side, p }) => (
+        <circle
+          key={side}
+          cx={p.x}
+          cy={p.y}
+          r={HANDLE_RADIUS}
+          className="cursor-crosshair fill-background stroke-ring"
+          strokeWidth={1.5}
+          onPointerDown={(e) => onStart(e, side)}
+        />
+      ))}
+    </>
+  );
+}
+
 export function ArchitectureCanvas({
   doc,
   stickies,
@@ -180,6 +227,8 @@ export function ArchitectureCanvas({
   // A drag that ends over empty canvas is followed by a click that would clear
   // the selection it just made; this swallows that one click.
   const justDragged = useRef(false);
+  /** The pinned exit side a port-handle drag carries, if any. */
+  const pendingPort = useRef<EdgePort | null>(null);
   const swallowClick = () => {
     justDragged.current = true;
     setTimeout(() => {
@@ -247,8 +296,20 @@ export function ArchitectureCanvas({
     // Any block but the arrow's own anchor lights up (no connection rules, and never a frame).
     canJoin: (d, overId) => overId !== d.anchorId,
     onDrop: (d, overId) => {
-      if (d.mode === "create") onConnect(d.anchorId, overId);
-      else if (d.edge && d.end) {
+      const over = layout.byId.get(overId);
+      if (!over) {
+        pendingPort.current = null;
+        return;
+      }
+      // The drop point decides the entering side wherever it lands on the node.
+      const toPort = portOfDrop(over, d.pointer);
+      if (d.mode === "create") {
+        onConnect(d.anchorId, overId, {
+          ...(pendingPort.current ? { fromPort: pendingPort.current } : {}),
+          toPort,
+        });
+        pendingPort.current = null;
+      } else if (d.edge && d.end) {
         // The drag only carries the ends; the direction flag is read back from
         // the note (a two-way arrow is stored as written).
         const full = doc.edges.find((e) => e.from === d.edge!.from && e.to === d.edge!.to);
@@ -256,6 +317,7 @@ export function ArchitectureCanvas({
           { from: d.edge.from, to: d.edge.to, bidi: full?.bidi ?? false },
           d.end,
           overId,
+          toPort,
         );
       }
       swallowClick();
@@ -469,11 +531,12 @@ export function ArchitectureCanvas({
                 </text>
               )}
               {showHandles && !editing && (
-                <ArrowHandles
+                <PortHandles
                   node={node}
-                  onStart={(e) => {
+                  onStart={(e, side) => {
                     if (e.button !== 0) return;
                     e.stopPropagation();
+                    pendingPort.current = { side };
                     edgeDrag.startCreate(e, node.id);
                   }}
                 />

@@ -174,3 +174,73 @@ describe("architecture clipboard", () => {
     expect(pasted.doc.edges).toContainEqual({ from: "C-007", to: "C-008", bidi: false });
   });
 });
+
+describe("edge ports (T-0712)", () => {
+  const PORTED = `---
+type: architecture
+title: t
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+## Nodes
+
+- C-001 Left
+- C-002 Right
+
+## Edges
+
+- C-001:E -> C-002:W "Pinned"
+- C-001 -> C-002
+
+## Stickies
+`;
+
+  it("starts and lands a pinned arrow exactly on its ports", () => {
+    // One pair is one edge: the second line is raw, so only the pinned one draws.
+    const doc = parseArchitecture(PORTED);
+    expect(doc.edges).toHaveLength(1);
+    const layout = layoutArchitecture(doc);
+    expect(layout.edges).toHaveLength(1);
+    const [edge] = layout.edges;
+    const from = layout.byId.get("C-001")!;
+    const to = layout.byId.get("C-002")!;
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([to.x, to.y + to.height / 2]);
+  });
+
+  it("routes a free end as always beside a pinned one", () => {
+    const doc = parseArchitecture(`---
+type: architecture
+title: t
+---
+
+## Frames
+
+## Nodes
+
+- C-001 Left
+- C-002 Right
+
+## Edges
+
+- C-001:E -> C-002
+
+## Stickies
+`);
+    const layout = layoutArchitecture(doc);
+    const [edge] = layout.edges;
+    const from = layout.byId.get("C-001")!;
+    // Level pair, pinned exit: straight across from the east side.
+    expect([edge.geometry.start.x, edge.geometry.start.y]).toEqual([
+      from.x + from.width,
+      from.y + from.height / 2,
+    ]);
+    expect(edge.geometry.points.length).toBeGreaterThanOrEqual(2);
+  });
+});
