@@ -384,9 +384,11 @@ export function ArchitectureCanvas({
 
   const hovered = hoverId && !dragging && !frameDragging ? (layout.byId.get(hoverId) ?? null) : null;
   const handleNodes = edgeDrag.drag || dragging || frameDragging ? [] : [hoverId, selectedNodeId];
-  // The node a dragged arrow would land on, if any.
+  // The node a dragged arrow would land on, if any, and the node it keeps.
   const dropTarget =
     edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
+  const dragAnchor =
+    edgeDrag.drag?.anchorId ? (layout.byId.get(edgeDrag.drag.anchorId) ?? null) : null;
   // The arrow being re-attached draws pale: matched by its ends, since a
   // two-way arrow's key is not its written direction.
   const ghostFrom = edgeDrag.drag?.mode === "reattach" ? edgeDrag.drag.edge?.from : null;
@@ -578,6 +580,9 @@ export function ArchitectureCanvas({
       })}
 
       {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
+      {dragAnchor && edgeDrag.drag && (
+        <DropSpots node={dragAnchor} pointer={edgeDrag.drag.pointer} />
+      )}
       {dropTarget && edgeDrag.drag && (
         <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
       )}
