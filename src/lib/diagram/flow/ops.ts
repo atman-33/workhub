@@ -122,6 +122,31 @@ export function nudgeStep(
   });
 }
 
+/**
+ * Moves several steps by one delta, for a group drag or group nudge (T-0716).
+ *
+ * A single-step drag may move the step into another lane on drop
+ * (`moveStepTo` rewrites `lane:`), but a group drag never does: silently
+ * rewriting the lane of every step the marquee caught would scatter the group
+ * across lanes on a slightly diagonal drag, and the file would gain a `lane:`
+ * on steps the user never meant to reassign. So each step keeps its lane and
+ * only its `@x,y` moves, clamped to its own band exactly like `nudgeStep`
+ * (folding over the ids with the pre-move layout as the origin, so one call is
+ * one model update and one undo step). A diagonal group drag that would push a
+ * step into another band leaves that step pressed against its own band's edge
+ * instead — the picture on screen keeps matching the file, which stays valid
+ * per the diagrams rules (`lane:` untouched, `@x,y` only on moved steps).
+ */
+export function moveStepsBy(
+  doc: FlowDocModel,
+  layout: FlowLayout,
+  ids: readonly string[],
+  dx: number,
+  dy: number,
+): FlowDocModel {
+  return ids.reduce((moved, id) => nudgeStep(moved, layout, id, dx, dy), doc);
+}
+
 /** "Auto-align": removes every `@`, handing all positions back to the layout. */
 export function autoAlign(doc: FlowDocModel): FlowDocModel {
   return {

@@ -14,6 +14,7 @@ import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
+import { useMarquee } from "@/components/diagram/use-marquee";
 import { COLOR_HEX } from "@/lib/diagram/colors";
 import {
   bandHeaderText,
@@ -27,6 +28,8 @@ import {
 } from "@/lib/diagram/flow/layout";
 import type { FlowDocModel } from "@/lib/diagram/flow/parse";
 import { allowAnyConnection, hitNode, portOfDrop, type ConnectionRule, type EdgePort } from "@/lib/diagram/node-edge";
+import { idsInRect } from "@/lib/diagram/multi-select";
+import { moveStepsBy } from "@/lib/diagram/flow/ops";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import { textWidth } from "@/lib/diagram/text";
@@ -40,8 +43,13 @@ import { cn } from "@/lib/utils";
  * transient hover and the gestures in flight). What is selected and what the
  * note contains belong to the view above.
  *
- * - **left-drag on a step moves it**; released over another lane it joins that
- *   lane. Reported once, on release, for that step only;
+ * - **left-drag on a step moves it**, alone or with the rest of the selection
+ *   (Shift+click grows the selection; dragging any selected step moves them
+ *   all, reported once on release so one undo step restores them). A lone
+ *   step released over another lane joins that lane; a group drag never
+ *   changes lanes: every step keeps its own, only `@x,y` moves;
+ * - **left-drag on empty canvas draws a marquee** selecting every step it
+ *   touches (Shift held: added to the selection instead);
  * - **a handle on a hovered step** drags out a new arrow onto another step;
  * - **the end handles of a selected arrow** re-attach that end to another step;
  * - **double-click on a lane adds a step** there, on a step or an arrow
@@ -55,14 +63,18 @@ interface Props {
   /** The layout of `doc` as it stands (the view needs it for edits too). */
   layout: FlowLayout;
   unassignedLabel: string;
-  selectedStepId: string | null;
+  /** The ordered selection; the ring is drawn on every entry. */
+  selectedStepIds: string[];
   selectedEdgeKey: string | null;
   selectedStickyId: string | null;
   editingStepId: string | null;
   editingEdgeKey: string | null;
   editingStickyId: string | null;
   canConnect?: ConnectionRule;
-  onSelectStep: (id: string | null) => void;
+  /** A click on a step: plain replaces the selection, Shift toggles it. */
+  onSelectStep: (id: string | null, additive: boolean) => void;
+  /** A finished marquee: the caught ids replace the selection, or join it with Shift. */
+  onSelectMarquee: (ids: string[], additive: boolean) => void;
   onSelectEdge: (key: string | null) => void;
   onSelectSticky: (id: string | null) => void;
   onStartEditStep: (id: string) => void;
@@ -76,8 +88,10 @@ interface Props {
   onCancelStickyEdit: () => void;
   /** A finished sticky drag: the new offset from its step's centre. */
   onMoveSticky: (id: string, dx: number, dy: number) => void;
-  /** A finished step drag: where its centre was dropped. */
+  /** A finished lone-step drag: where its centre was dropped (may join another lane). */
   onMoveStep: (id: string, cx: number, cy: number) => void;
+  /** A finished group drag: the ids and their shared travel (lanes kept). */
+  onMoveSteps: (ids: readonly string[], dx: number, dy: number) => void;
   /** A double-click on a lane: add a step at this x and offset from the lane's middle. */
   onAddAt: (bandKey: string, x: number, y: number) => void;
   onConnect: (
@@ -102,7 +116,7 @@ export function FlowCanvas({
   stickies,
   layout: base,
   unassignedLabel,
-  selectedStepId,
+  selectedStepIds,
   selectedEdgeKey,
   selectedStickyId,
   editingStepId,
@@ -110,6 +124,7 @@ export function FlowCanvas({
   editingStickyId,
   canConnect = allowAnyConnection,
   onSelectStep,
+  onSelectMarquee,
   onSelectEdge,
   onSelectSticky,
   onStartEditStep,
@@ -123,6 +138,7 @@ export function FlowCanvas({
   onCancelStickyEdit,
   onMoveSticky,
   onMoveStep,
+  onMoveSteps,
   onAddAt,
   onConnect,
   onReattach,
@@ -150,8 +166,17 @@ export function FlowCanvas({
     toDiagram,
     zoom: camera.zoom,
     onEnd: (d) => {
-      const step = base.byId.get(d.id);
-      if (step) onMoveStep(d.id, step.cx + d.dx, step.cy + d.dy);
+      const ids = [...groupIds.current];
+      groupIds.current = [];
+      if (!ids.length) return;
+      if (ids.length === 1) {
+        // A lone step keeps the old drop: released over another lane it joins
+        // that lane (`moveStepTo` rewrites `lane:`).
+        const step = base.byId.get(d.id);
+        if (step) onMoveStep(d.id, step.cx + d.dx, step.cy + d.dy);
+      } else {
+        onMoveSteps(ids, d.dx, d.dy);
+      }
       swallowClick();
     },
   });
@@ -165,21 +190,42 @@ export function FlowCanvas({
     },
   });
 
-  // While a step is dragged, the layout is recomputed with it at the pointer,
-  // so its arrows and stickies follow it live instead of jumping on release.
+  const marquee = useMarquee({
+    toDiagram,
+    zoom: camera.zoom,
+    onMarquee: (rect, additive) => onSelectMarquee(idsInRect(base.steps, rect), additive),
+  });
+
+  /** The drag's group, snapshotted when the press landed. */
+  const groupIds = useRef<string[]>([]);
+
+  // While steps are dragged, the layout is recomputed with the drag applied,
+  // so their arrows and stickies follow live instead of jumping on release.
+  // A lone step is pinned raw (it may be joining another lane); a group moves
+  // with every lane kept (see `moveStepsBy`).
   const dragging = stepFree.drag?.active ? stepFree.drag : null;
   const layout = useMemo(() => {
     if (!dragging) return base;
-    const step = base.byId.get(dragging.id);
-    if (!step) return base;
-    return layoutFlow(doc, stickies, {
+    const ids = groupIds.current;
+    if (!ids.length) return base;
+    if (ids.length === 1) {
+      const step = base.byId.get(dragging.id);
+      if (!step) return base;
+      return layoutFlow(doc, stickies, {
+        unassignedLabel,
+        pinned: { id: dragging.id, cx: step.cx + dragging.dx, cy: step.cy + dragging.dy },
+      });
+    }
+    return layoutFlow(moveStepsBy(doc, base, ids, dragging.dx, dragging.dy), stickies, {
       unassignedLabel,
-      pinned: { id: dragging.id, cx: step.cx + dragging.dx, cy: step.cy + dragging.dy },
     });
   }, [base, dragging, doc, stickies, unassignedLabel]);
-  const dropBand = dragging
-    ? layout.bandAt(layout.byId.get(dragging.id)?.cy ?? 0).key
-    : null;
+  // A group drag keeps every lane, so no band is a drop target; only a lone
+  // step lights up the lane it would join.
+  const dropBand =
+    dragging && groupIds.current.length < 2
+      ? layout.bandAt(layout.byId.get(dragging.id)?.cy ?? 0).key
+      : null;
 
   const edgeDrag = useEdgeDrag({
     toDiagram,
@@ -227,9 +273,18 @@ export function FlowCanvas({
 
   const startStepDrag = (e: React.PointerEvent, step: PositionedStep) => {
     if (e.button !== 0) return;
-    onSelectStep(step.id);
+    // Shift+click grows or shrinks the selection instead of dragging.
+    if (e.shiftKey) {
+      onSelectStep(step.id, true);
+      return;
+    }
+    // Dragging a selected step moves the whole group; anywhere else starts
+    // over with this step alone.
+    const ids = selectedStepIds.includes(step.id) ? selectedStepIds : [step.id];
+    if (!selectedStepIds.includes(step.id)) onSelectStep(step.id, false);
     if (editingStepId) return;
     e.stopPropagation();
+    groupIds.current = [...ids];
     stepFree.start(e, step.id);
   };
   const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
@@ -239,14 +294,15 @@ export function FlowCanvas({
     stickyFree.start(e, sticky.id);
   };
   const clearSelection = () => {
-    if (justDragged.current) return;
-    onSelectStep(null);
+    if (justDragged.current || marquee.consumeClick()) return;
+    onSelectStep(null, false);
     onSelectEdge(null);
     onSelectSticky(null);
   };
 
   const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
-  const handleSteps = edgeDrag.drag || dragging ? [] : [hoverId, selectedStepId];
+  const focusedStepId = selectedStepIds[selectedStepIds.length - 1] ?? null;
+  const handleSteps = edgeDrag.drag || dragging ? [] : [hoverId, focusedStepId];
   // The steps a dragged arrow keeps and would land on, if any.
   const dropTarget =
     edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
@@ -260,8 +316,9 @@ export function FlowCanvas({
   return (
     <DiagramSurface
       view={view}
-      grabbing={Boolean(stepFree.drag) || Boolean(edgeDrag.drag)}
+      grabbing={Boolean(stepFree.drag) || Boolean(edgeDrag.drag) || Boolean(marquee.marquee)}
       onBackgroundClick={clearSelection}
+      onBackgroundPointerDown={marquee.onPointerDown}
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
     >
       {layout.bands.map((band) => {
@@ -393,7 +450,7 @@ export function FlowCanvas({
               stroke={stroke}
               strokeWidth={1.5}
             />
-            {(step.id === selectedStepId || isTarget) && (
+            {(selectedStepIds.includes(step.id) || isTarget) && (
               <ShapeOutline
                 shape={step.shape}
                 box={step}
@@ -401,7 +458,7 @@ export function FlowCanvas({
                 fill="none"
                 className="stroke-ring"
                 strokeWidth={2}
-                strokeDasharray={isTarget && step.id !== selectedStepId ? "4 3" : undefined}
+                strokeDasharray={isTarget && !selectedStepIds.includes(step.id) ? "4 3" : undefined}
               />
             )}
             {editing ? (
@@ -465,6 +522,20 @@ export function FlowCanvas({
       )}
       {dropTarget && edgeDrag.drag && (
         <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
+      )}
+
+      {/* The marquee in flight: everything it touches joins the selection on release. */}
+      {marquee.marquee && (
+        <rect
+          x={marquee.marquee.x0}
+          y={marquee.marquee.y0}
+          width={marquee.marquee.x1 - marquee.marquee.x0}
+          height={marquee.marquee.y1 - marquee.marquee.y0}
+          className="fill-ring/10 stroke-ring"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
       )}
 
       {/* Stickies are drawn last, so a note the user dropped over a step stays

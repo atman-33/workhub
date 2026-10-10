@@ -96,7 +96,7 @@ export const diagramEn = {
   "diagram.matrix.quadrantNoteClearHint": "Delete this quadrant's note",
   "diagram.matrix.quadrantNoteMark": "This quadrant has a note",
   // ---- business flow editor (T-0682) ----
-  "diagram.flow.footerHint": "Drag a step to move it; drop it on another lane to change its lane. Drag a round handle from a step onto another step to draw an arrow, or an end handle of a selected arrow to re-route it. Double-click a lane to add a step. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms. Round handles come one per side: an arrow leaves from the handle's side and enters on the nearest side where it lands (the middle stays automatic, saved as `F-001:E@0.5`).",
+  "diagram.flow.footerHint": "Drag a step to move it; drop a lone step on another lane to change its lane (a group drag keeps every lane). Left-drag empty canvas for a marquee selection, Shift+click to grow or shrink it; dragging a selected step moves them all, Delete removes them. Drag a round handle from a step onto another step to draw an arrow, or an end handle of a selected arrow to re-route it. Double-click a lane to add a step. Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms. Round handles come one per side: an arrow leaves from the handle's side and enters on the nearest side where it lands (the middle stays automatic, saved as `F-001:E@0.5`).",
   "diagram.flow.fitHint": "Fit the flow to the window",
   "diagram.flow.addHint": "Add a step (after the selected one)",
   "diagram.flow.stepCount": "{count} steps",
@@ -163,7 +163,7 @@ export const diagramEn = {
   "diagram.pfd.autoAlign": "Auto-align",
   "diagram.pfd.autoAlignHint": "Forget every position set by dragging; the layout places all the nodes again",
   // ---- Program flow editor (T-0699) ----
-  "diagram.algorithm.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it (it keeps that position). Drag a round handle from a node onto another node to draw an arrow, or an end handle of a selected arrow to re-route it. Select an arrow to label it (Yes / No buttons in the side panel). Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms. Round handles come one per side: an arrow leaves from the handle's side and enters on the nearest side where it lands (the middle stays automatic, saved as `A-001:E@0.5`).",
+  "diagram.algorithm.footerHint": "Double-click empty canvas to add the chosen symbol; double-click a node to rename it. Drag a node to move it (it keeps that position). Left-drag empty canvas for a marquee selection, Shift+click to grow or shrink it; dragging a selected node moves them all, Delete removes them. Drag a round handle from a node onto another node to draw an arrow, or an end handle of a selected arrow to re-route it. Select an arrow to label it (Yes / No buttons in the side panel). Ctrl+C / Ctrl+V or right-click copies and pastes. Right-drag pans, the wheel zooms. Round handles come one per side: an arrow leaves from the handle's side and enters on the nearest side where it lands (the middle stays automatic, saved as `A-001:E@0.5`).",
   "diagram.algorithm.fitHint": "Fit the diagram to the window",
   "diagram.algorithm.addHint": "Add a process after the selected node (joined to it; after a decision it becomes the next exit), or the chosen symbol when nothing is selected",
   "diagram.algorithm.paletteHint": "Add {name} on double-click",
