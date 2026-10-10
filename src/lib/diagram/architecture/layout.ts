@@ -22,7 +22,6 @@ import type { Color } from "../colors";
 import { groupRowLayout } from "../graph-layout";
 import {
   edgeGeometry,
-  edgeKey,
   startHeadAngle,
   type DiagramNode,
   type EdgeGeometry,
@@ -33,6 +32,7 @@ import { boundsOfBoxes, placeSticky, type Box, type PositionedSticky } from "../
 import type { Sticky } from "../sticky";
 import { LINE_HEIGHT, NODE_PAD_X, textWidth, wrapTitle } from "../text";
 import type { ArchitectureEdge, ArchitectureFrame, ArchitectureNode } from "./parse";
+import { edgeKeyOf } from "./parse";
 import { shapeOfKind, symbolOfKind } from "./symbols";
 
 export const NODE_FONT_SIZE = 13;
@@ -299,9 +299,7 @@ export function layoutArchitecture(
     if (!geometry) continue; // a block joined to itself is kept, not drawn
     geometry.points.slice(1).forEach((q, i) => used.push({ a: geometry.points[i], b: q }));
     const positioned: PositionedEdge = {
-      key: edge.bidi
-        ? [edge.from, edge.to].sort().join("<>") + "<>"
-        : edgeKey(edge),
+      key: edgeKeyOf(edge),
       from: edge.from,
       to: edge.to,
       ...(edge.label ? { label: edge.label } : {}),

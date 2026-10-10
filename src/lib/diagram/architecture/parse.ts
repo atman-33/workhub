@@ -37,6 +37,7 @@
  */
 import { detectEol, toLf, withEol } from "../../note-eol";
 import { COLORS, type Color } from "../colors";
+import { edgeKey } from "../node-edge";
 import {
   formatId,
   frontmatterValue,
@@ -147,6 +148,14 @@ export function findEdge(
   ref: { from: string; to: string; bidi: boolean },
 ): ArchitectureEdge | undefined {
   return edges.find((e) => sameEdge(e, ref));
+}
+
+/**
+ * The key the canvas and the view select an edge by: the ordered pair for
+ * `->`, the sorted pair for `<->` (which reads the same either way round).
+ */
+export function edgeKeyOf(edge: { from: string; to: string; bidi: boolean }): string {
+  return edge.bidi ? [...[edge.from, edge.to]].sort().join("<>") + "<>" : edgeKey(edge);
 }
 
 // ---------------------------------------------------------------------------
