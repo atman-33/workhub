@@ -36,6 +36,7 @@ pub const KINDS: &[&str] = &[
     "flow",
     "pfd",
     "algorithm",
+    "ifdam",
 ];
 
 /// How much of a file is read to find its frontmatter. A note whose
@@ -234,6 +235,17 @@ x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n
             "---\ntype: algorithm\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
 ## Nodes\n\n- A-001 Start ^start\n- A-002 Step\n- A-003 End ^end\n\n\
 ## Edges\n\n- A-001 -> A-002\n- A-002 -> A-003\n\n\
+## Memo\n\n"
+        ),
+        // The smallest working figure: a screen with one item in each of its
+        // sections, the trigger on it, the process behind it and a data store the
+        // process writes to. Items are continuation lines, one per line. The
+        // positions are left to the layout.
+        "ifdam" => format!(
+            "---\ntype: ifdam\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Nodes\n\n- V-001 Screen ^screen\n  show: Item to show\n  input: Item to enter\n  action: Button\n\
+- V-002 Click the button ^trigger\n- V-003 Process\n- V-004 Data ^store\n\n\
+## Edges\n\n- V-001 -> V-002\n- V-002 -> V-003\n- V-003 -> V-004\n\n\
 ## Memo\n\n"
         ),
         other => return Err(format!("unknown diagram type '{other}'")),
@@ -758,6 +770,39 @@ mod tests {
         // The scan finds it, and written back as-is it is still a diagram.
         let listed = list_diagrams(&vault, Some("demo")).unwrap();
         assert!(listed.iter().any(|d| d.kind == "algorithm"));
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn ifdam_skeleton_is_a_screen_with_its_sections_a_trigger_a_process_and_a_store() {
+        let vault = temp_vault("ifdam-skeleton");
+        let file = create_diagram(&vault, "demo", "ifdam", "Order", "", "").unwrap();
+        assert!(
+            file.path.ends_with("projects/0010-demo/diagrams/Order.md"),
+            "{}",
+            file.path
+        );
+        assert_eq!(file.kind, "ifdam");
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "ifdam");
+        assert_eq!(frontmatter_value(&front, "title"), "Order");
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Nodes") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        // The screen's items follow its line, one per line, in the order of the sections.
+        assert!(body.contains(
+            "- V-001 Screen ^screen\n  show: Item to show\n  input: Item to enter\n  action: Button\n- V-002 Click the button ^trigger\n"
+        ));
+        assert!(body.contains("- V-003 Process\n"));
+        assert!(body.contains("- V-004 Data ^store\n"));
+        assert!(body.contains("- V-001 -> V-002\n"));
+        assert!(body.contains("- V-002 -> V-003\n"));
+        assert!(body.contains("- V-003 -> V-004\n"));
+        // The scan finds it, and written back as-is it is still a diagram.
+        let listed = list_diagrams(&vault, Some("demo")).unwrap();
+        assert!(listed.iter().any(|d| d.kind == "ifdam"));
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();
     }

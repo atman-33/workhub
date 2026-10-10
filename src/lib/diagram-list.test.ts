@@ -19,7 +19,12 @@ function file(kind: string, title: string, updated = "2026-10-01", project = "p"
 describe("kind definition", () => {
   it("orders the groups and kinds as the owner confirmed", () => {
     expect(KIND_GROUPS.map((g) => g.id)).toEqual(["plan", "process", "system"]);
-    expect(DIAGRAM_KINDS).toEqual(["schedule", "mindmap", "matrix2x2", "pfd", "flow", "algorithm"]);
+    expect(DIAGRAM_KINDS).toEqual(["schedule", "mindmap", "matrix2x2", "pfd", "flow", "algorithm", "ifdam"]);
+  });
+
+  it("lists IFDAM in the system group but does not offer it until its editor lands (T-0704)", () => {
+    expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds).toEqual(["ifdam"]);
+    expect(CREATABLE_KINDS).not.toContain("ifdam");
   });
 
   it("lists each kind in exactly one group", () => {
