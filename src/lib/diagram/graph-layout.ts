@@ -203,3 +203,151 @@ export function layerLayout(
   }
   return { rank, back, nodes: placed, rows, columns };
 }
+
+// ---------------------------------------------------------------------------
+// vertical layout (T-0697): rows are ranks, columns are branches
+// ---------------------------------------------------------------------------
+
+export interface ColumnNodeInput {
+  id: string;
+  width: number;
+  height: number;
+}
+
+export interface ColumnLayoutOptions {
+  /** Left edge of the leftmost column. */
+  originX?: number;
+  /** Top edge of the first row. */
+  originY?: number;
+  /** Space between two columns. */
+  columnGap?: number;
+  /** Space between two rows. */
+  rowGap?: number;
+}
+
+export interface ColumnPlacedNode {
+  /** Row: the node's rank. */
+  rank: number;
+  /** Branch column: 0 is the main line; new ones are 1, -1, 2, -2, ... as they appear. */
+  column: number;
+  /** Centre. */
+  cx: number;
+  cy: number;
+}
+
+export interface ColumnLayoutResult {
+  rank: Map<string, number>;
+  back: boolean[];
+  nodes: Map<string, ColumnPlacedNode>;
+  /** Rows, top to bottom, with their top edge and height. */
+  rows: { rank: number; y: number; height: number }[];
+  /** Columns, left to right, with their left edge and width. */
+  columns: { column: number; x: number; width: number }[];
+}
+
+export const COLUMN_LAYOUT_COLUMN_GAP = 72;
+export const COLUMN_LAYOUT_ROW_GAP = 48;
+
+/**
+ * Places nodes top to bottom by rank, with branches in side columns, for a
+ * program flow chart (T-0697). `layerLayout` is untouched: this is the
+ * vertical counterpart, not a mode of it.
+ *
+ * - **Row** = the node's rank (`rankNodes`: longest path, loops ignored). A row
+ *   is as tall as its tallest node, plus `rowGap` between rows.
+ * - **Column**: nodes nothing flows into are roots, taken in input order; each
+ *   walks depth first along its arrows in the order they were written, never
+ *   along a loop's return arrow. A root starts a column (the first at 0, the
+ *   next ones at the right end). Of the not yet placed children of a node, the
+ *   first stays in the parent's column (the main line runs straight down),
+ *   the second opens a new column at the right end, the third one at the left
+ *   end, the fourth at the right again, and so on. A child that is already
+ *   placed (a merge) stays where it is. A column is never reused, and in one
+ *   column every node follows the one before it by a forward arrow, so two
+ *   nodes never share a row and a column.
+ * - **Coordinates**: a column is as wide as its widest node; the columns run
+ *   left to right by column number, `columnGap` apart.
+ *
+ * Only the input decides the result. A node pinned by hand (`@x,y`) is not
+ * handled here: the caller overlays it, and the others keep their places.
+ */
+export function rankColumnLayout(
+  nodes: ColumnNodeInput[],
+  edges: RankEdge[],
+  options: ColumnLayoutOptions = {},
+): ColumnLayoutResult {
+  const originX = options.originX ?? 0;
+  const originY = options.originY ?? 0;
+  const columnGap = options.columnGap ?? COLUMN_LAYOUT_COLUMN_GAP;
+  const rowGap = options.rowGap ?? COLUMN_LAYOUT_ROW_GAP;
+
+  const ids = nodes.map((n) => n.id);
+  const { rank, back } = rankNodes(ids, edges);
+
+  // Forward arrows between known, distinct nodes, in written order.
+  const known = new Set(ids);
+  const children = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const hasParent = new Set<string>();
+  edges.forEach((e, i) => {
+    if (back[i] || e.from === e.to || !known.has(e.from) || !known.has(e.to)) return;
+    children.get(e.from)!.push(e.to);
+    hasParent.add(e.to);
+  });
+
+  const column = new Map<string, number>();
+  let minColumn = 0;
+  let maxColumn = -1;
+  const newRight = () => ++maxColumn;
+  const newLeft = () => --minColumn;
+  const visit = (id: string) => {
+    let opened = 0;
+    for (const child of children.get(id) ?? []) {
+      if (column.has(child)) continue;
+      if (opened === 0) column.set(child, column.get(id)!);
+      else if (opened % 2 === 1) column.set(child, newRight());
+      else column.set(child, newLeft());
+      opened++;
+      visit(child);
+    }
+  };
+  const start = (id: string) => {
+    if (column.has(id)) return;
+    column.set(id, newRight());
+    visit(id);
+  };
+  for (const id of ids) if (!hasParent.has(id)) start(id);
+  for (const id of ids) start(id); // unreachable leftovers, defensively
+
+  const columnKeys = [...new Set(column.values())].sort((a, b) => a - b);
+  const width = (key: number) =>
+    Math.max(0, ...nodes.filter((n) => column.get(n.id) === key).map((n) => n.width));
+  const columns: ColumnLayoutResult["columns"] = [];
+  let x = originX;
+  for (const key of columnKeys) {
+    const w = width(key);
+    columns.push({ column: key, x, width: w });
+    x += w + columnGap;
+  }
+
+  const maxRank = Math.max(-1, ...ids.map((id) => rank.get(id) ?? 0));
+  const rows: ColumnLayoutResult["rows"] = [];
+  let y = originY;
+  for (let r = 0; r <= maxRank; r++) {
+    const height = Math.max(0, ...nodes.filter((n) => rank.get(n.id) === r).map((n) => n.height));
+    rows.push({ rank: r, y, height });
+    y += height + rowGap;
+  }
+
+  const placed = new Map<string, ColumnPlacedNode>();
+  for (const n of nodes) {
+    const col = columns.find((c) => c.column === column.get(n.id))!;
+    const row = rows[rank.get(n.id) ?? 0];
+    placed.set(n.id, {
+      rank: row.rank,
+      column: col.column,
+      cx: col.x + col.width / 2,
+      cy: row.y + row.height / 2,
+    });
+  }
+  return { rank, back, nodes: placed, rows, columns };
+}
