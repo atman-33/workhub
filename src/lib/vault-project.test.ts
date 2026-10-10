@@ -78,6 +78,7 @@ function task(over: Partial<Task> = {}): Task {
     tags: [],
     created: "2026-08-01",
     updated: "2026-08-01",
+    completed: "",
     file: "C:/vault/tasks/T-0001 a task.md",
     body: "",
     archived: false,

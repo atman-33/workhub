@@ -973,6 +973,13 @@ pub struct Task {
     pub depends_on: Vec<String>,
     pub created: String,
     pub updated: String,
+    /// `YYYY-MM-DD HH:MM` (local time) the task's `status` last changed to
+    /// `done`. Empty when the task is not done, or was done before T-0727
+    /// without a recorded time. Written by `update_task` on the transition
+    /// itself — never invented afterwards — and cleared when the status moves
+    /// away from `done` again.
+    #[serde(default)]
+    pub completed: String,
     /// Absolute path to the task's Markdown file (forward slashes).
     pub file: String,
     /// Full body text after the closing frontmatter delimiter, verbatim.

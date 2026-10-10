@@ -50,6 +50,11 @@ depends_on: [T-0012, T-0034]
                     # clears by itself when they are done. A loop is refused
 created: 2026-07-10
 updated: 2026-07-10
+completed: 2026-07-12 15:04
+                     # optional; when the status last changed to `done`
+                     # (`YYYY-MM-DD HH:MM`, local time). Empty/absent while
+                     # not done. Written by the app on the transition itself
+                     # — never set it by hand
 ```
 
 Body sections, in document order:
