@@ -36,6 +36,8 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.view.statusSavingAlias": "略称を保存中…",
   "projects.view.description": "説明",
   "projects.view.descriptionPlaceholder": "このプロジェクトの簡単な説明",
+  "projects.view.descriptionTruncatedHint":
+    "README からの抜粋です — 全文は下の「README を開く」で確認できます。",
   "projects.view.save": "保存",
   "projects.view.cancel": "キャンセル",
   "projects.view.statusLabel": "ステータス: {status}",

@@ -33,6 +33,8 @@ export const projectsEn = {
   "projects.view.statusSavingAlias": "Saving alias…",
   "projects.view.description": "Description",
   "projects.view.descriptionPlaceholder": "A short description of this project",
+  "projects.view.descriptionTruncatedHint":
+    "Shortened from the README — use “Open README” below for the full text.",
   "projects.view.save": "Save",
   "projects.view.cancel": "Cancel",
   "projects.view.statusLabel": "status: {status}",
