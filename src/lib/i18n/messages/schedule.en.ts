@@ -85,8 +85,6 @@ export const scheduleEn = {
   "schedule.view.presetHint": "Show {weeks} weeks from the window start",
   "schedule.view.reloadHint": "Reload this schedule from disk",
   "schedule.view.exportHint": "Export a single-file HTML page",
-  "schedule.view.showSidebarHint": "Show the side panel",
-  "schedule.view.hideSidebarHint": "Hide the side panel",
   "schedule.view.deleteHint": "Move this schedule to the trash",
   "schedule.view.noProjectsTitle": "No projects yet",
   "schedule.view.noProjectsDescription":

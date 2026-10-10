@@ -157,6 +157,9 @@ export interface Settings {
   /** Top-bar tabs the owner hid (T-0684). Still reachable via Ctrl+K.
    * Vault-scoped. */
   hidden_tabs: string[];
+  /** Diagrams-tab side panels the owner hid, as `<kind>:<left|right>` entries
+   * (T-0686). A panel is open unless listed. Vault-scoped. */
+  diagram_hidden_panels: string[];
   /** Recurring task rules (T-0110). Evaluated in the frontend, which owns the
    * local-time calendar arithmetic; the backend only persists them. */
   recurring: RecurringRule[];

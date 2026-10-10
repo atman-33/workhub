@@ -6,7 +6,7 @@ import { ItemEditor } from "@/components/diagram/matrix2x2/item-editor";
 import { LabelsEditor } from "@/components/diagram/matrix2x2/labels-editor";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
@@ -30,6 +30,7 @@ import {
   stickiesOf,
   type Sticky,
 } from "@/lib/diagram/sticky";
+import { SidePanel } from "@/components/diagram/panel-frame";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -725,16 +726,11 @@ export function MatrixView({ configVersion, embedded }: Props) {
                 </div>
               </div>
             </ResizablePanel>
-            <ResizableHandle />
-            {/* Rendered unconditionally, even with nothing selected:
-                `react-resizable-panels` recomputes its layout when the number
-                of panels changes, and taking this one away mid-session
-                collapsed the canvas (the same trap the Mindmap tab hit). */}
-            <ResizablePanel
+            <SidePanel
               id="matrix-side"
+              open={embedded.sidePanelOpen}
+              onOpenChange={embedded.onSidePanelOpenChange}
               defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
-              minSize="16%"
-              className="min-h-0"
             >
               <div className="flex h-full min-h-0 flex-col overflow-y-auto">
                 {selected ? (
@@ -753,7 +749,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   <LabelsEditor labels={doc} onChange={setLabel} />
                 )}
               </div>
-            </ResizablePanel>
+            </SidePanel>
           </ResizablePanelGroup>
         </>
       )}

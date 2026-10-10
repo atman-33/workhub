@@ -25,10 +25,10 @@ import { NodeEditor } from "@/components/mindmap/node-editor";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { SidePanel } from "@/components/diagram/panel-frame";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { Input } from "@/components/ui/input";
 import {
-  ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
@@ -1592,17 +1592,11 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
               </div>
             </div>
           </ResizablePanel>
-          <ResizableHandle />
-          {/* Rendered unconditionally, even when it has nothing to show.
-              `react-resizable-panels` recomputes its layout when the number of
-              panels changes, and taking this one away mid-session collapsed the
-              canvas panel to zero height — the map simply vanished on a click
-              that cleared the selection (T-0188 follow-up). */}
-          <ResizablePanel
+          <SidePanel
             id="mindmap-side"
+            open={embedded?.sidePanelOpen ?? true}
+            onOpenChange={(open) => embedded?.onSidePanelOpenChange(open)}
             defaultSize={`${SIDEBAR_DEFAULT_PCT}%`}
-            minSize="16%"
-            className="min-h-0"
           >
             <div className="flex h-full min-h-0 flex-col overflow-y-auto">
               {selected ? (
@@ -1630,7 +1624,7 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
                 </p>
               )}
             </div>
-          </ResizablePanel>
+          </SidePanel>
         </ResizablePanelGroup>
       )}
 
