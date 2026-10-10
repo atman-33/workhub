@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Sticky } from "../sticky";
 import { STICKY_WIDTH } from "../sticky-layout";
 import {
+  NOTE_MARK_INSET,
+  NOTE_MARK_SIZE,
   PLOT,
   QUADRANT_FONT_SIZE,
   defaultUnit,
@@ -197,5 +199,55 @@ describe("stickies", () => {
 
   it("draws no sticky when the caller passes none (hidden setting)", () => {
     expect(layoutMatrix(doc(["- M-001 a"]), []).stickies).toHaveLength(0);
+  });
+});
+
+describe("quadrant note marks", () => {
+  const noted = (quadrants: string) =>
+    parseMatrix(
+      `---\ntype: matrix2x2\n---\n\n## Items\n\n- M-001 a @0.5,0.5\n\n## Quadrants\n\n${quadrants}`,
+    );
+
+  it("gives a mark only to the quadrants that have a note", () => {
+    const layout = layoutMatrix(noted("- q_tr 何か\n- q_bl   \n"));
+    const by = Object.fromEntries(layout.quadrants.map((q) => [q.key, q]));
+    expect(by.tr.noteMark).toBeDefined();
+    expect(by.tl.noteMark).toBeUndefined();
+    expect(by.bl.noteMark).toBeUndefined();
+    expect(by.br.noteMark).toBeUndefined();
+  });
+
+  it("puts the mark in the outer corner of its quadrant", () => {
+    const layout = layoutMatrix(noted("- q_tl a\n- q_tr b\n- q_bl c\n- q_br d\n"));
+    const by = Object.fromEntries(layout.quadrants.map((q) => [q.key, q]));
+    const m = (k: string) => by[k].noteMark!;
+    expect(m("tl")).toEqual({
+      x: PLOT.x + NOTE_MARK_INSET,
+      y: PLOT.y + NOTE_MARK_INSET,
+      width: NOTE_MARK_SIZE,
+      height: NOTE_MARK_SIZE,
+    });
+    expect(m("tr").x + m("tr").width).toBe(PLOT.x + PLOT.width - NOTE_MARK_INSET);
+    expect(m("tr").y).toBe(PLOT.y + NOTE_MARK_INSET);
+    expect(m("bl").x).toBe(PLOT.x + NOTE_MARK_INSET);
+    expect(m("bl").y + m("bl").height).toBe(PLOT.y + PLOT.height - NOTE_MARK_INSET);
+    expect(m("br").x + m("br").width).toBe(PLOT.x + PLOT.width - NOTE_MARK_INSET);
+    expect(m("br").y + m("br").height).toBe(PLOT.y + PLOT.height - NOTE_MARK_INSET);
+    for (const q of layout.quadrants) {
+      const k = q.noteMark!;
+      expect(k.x).toBeGreaterThanOrEqual(q.x);
+      expect(k.x + k.width).toBeLessThanOrEqual(q.x + q.width);
+      expect(k.y).toBeGreaterThanOrEqual(q.y);
+      expect(k.y + k.height).toBeLessThanOrEqual(q.y + q.height);
+    }
+  });
+
+  it("does not change the bounds or the other geometry", () => {
+    const a = layoutMatrix(noted("- q_tl a\n- q_br d\n"));
+    const b = layoutMatrix(noted(""));
+    expect(a.bounds).toEqual(b.bounds);
+    expect(a.items).toEqual(b.items);
+    const strip = (l: typeof a) => l.quadrants.map(({ noteMark: _mark, ...q }) => q);
+    expect(strip(a)).toEqual(strip(b));
   });
 });

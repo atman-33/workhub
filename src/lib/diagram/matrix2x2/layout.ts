@@ -15,7 +15,10 @@ import {
 } from "../sticky-layout";
 import type { Sticky } from "../sticky";
 import { LINE_HEIGHT, NODE_PAD_X, textWidth, wrapTitle } from "../text";
+import type { QuadrantKey } from "./quadrant-notes";
 import { clampUnit, type LabelField, type MatrixItem } from "./parse";
+
+export type { QuadrantKey };
 
 /** The plot rectangle, in diagram pixels. */
 export const PLOT: Box = { x: 0, y: 0, width: 720, height: 520 };
@@ -39,7 +42,12 @@ export const QUADRANT_LABEL_OPACITY = 0.12;
 /** Stroke width of the central cross lines. */
 export const CROSS_STROKE_WIDTH = 2;
 
-export type QuadrantKey = "tl" | "tr" | "bl" | "br";
+/** Side of the note mark a quadrant with a note carries, and its distance from the plot corner. */
+export const NOTE_MARK_SIZE = 14;
+export const NOTE_MARK_INSET = 10;
+
+/** The box of a quadrant's note mark, top-left origin. */
+export type NoteMark = Box;
 
 export interface PositionedQuadrant {
   key: QuadrantKey;
@@ -53,6 +61,8 @@ export interface PositionedQuadrant {
   textY: number;
   /** The label's font size, shrunk from `QUADRANT_FONT_SIZE` to fit the quadrant. */
   fontSize: number;
+  /** The mark of a quadrant that has a note, in its outer corner. Absent without a note. Never exported. */
+  noteMark?: NoteMark;
 }
 
 /** A straight line of the plot's central cross. */
@@ -178,7 +188,10 @@ export function quadrantFontSize(label: string, width: number): number {
   return Math.max(QUADRANT_MIN_FONT_SIZE, Math.floor((QUADRANT_FONT_SIZE * avail) / natural));
 }
 
-function quadrantsOf(labels: MatrixLabels): PositionedQuadrant[] {
+function quadrantsOf(
+  labels: MatrixLabels,
+  notes: Partial<Record<QuadrantKey, string>>,
+): PositionedQuadrant[] {
   const w = PLOT.width / 2;
   const h = PLOT.height / 2;
   const at = (
@@ -188,6 +201,15 @@ function quadrantsOf(labels: MatrixLabels): PositionedQuadrant[] {
     row: 0 | 1,
   ): PositionedQuadrant => {
     const fontSize = quadrantFontSize(label, w);
+    const x = PLOT.x + col * w;
+    const y = PLOT.y + row * h;
+    // The outer corner: top-left for tl, bottom-right for br, and so on.
+    const mark: NoteMark = {
+      x: col === 0 ? x + NOTE_MARK_INSET : x + w - NOTE_MARK_INSET - NOTE_MARK_SIZE,
+      y: row === 0 ? y + NOTE_MARK_INSET : y + h - NOTE_MARK_INSET - NOTE_MARK_SIZE,
+      width: NOTE_MARK_SIZE,
+      height: NOTE_MARK_SIZE,
+    };
     return {
       key,
       label,
@@ -199,6 +221,7 @@ function quadrantsOf(labels: MatrixLabels): PositionedQuadrant[] {
       // The baseline that puts the glyphs' visual middle on the quadrant's centre.
       textY: PLOT.y + row * h + h / 2 + fontSize * 0.35,
       fontSize,
+      ...((notes[key] ?? "").trim() ? { noteMark: mark } : {}),
     };
   };
   return [
@@ -267,7 +290,7 @@ function axisTextBox(a: AxisText): Box {
 }
 
 export function layoutMatrix(
-  doc: { items: MatrixItem[] } & MatrixLabels,
+  doc: { items: MatrixItem[]; quadrantNotes?: Partial<Record<QuadrantKey, string>> } & MatrixLabels,
   stickies: Sticky[] = [],
 ): MatrixLayout {
   const items = doc.items.map((item, index) => {
@@ -284,7 +307,7 @@ export function layoutMatrix(
     .map((sticky) => placeSticky(sticky, byId.get(sticky.targetId)))
     .filter((s): s is PositionedSticky => s !== null);
 
-  const quadrants = quadrantsOf(doc);
+  const quadrants = quadrantsOf(doc, doc.quadrantNotes ?? {});
   const axisTexts = axisTextsOf(doc);
   // The plot is always in frame - an empty matrix still shows its grid - and
   // so are the axis names and anything dropped outside it.

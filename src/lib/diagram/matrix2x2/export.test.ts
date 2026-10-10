@@ -79,6 +79,14 @@ describe("renderSvg", () => {
     expect(svg.indexOf("先にやる")).toBeLessThan(svg.indexOf(">a</text>"));
   });
 
+  it("does not draw quadrant notes or their marks", () => {
+    const src = "---\ntype: matrix2x2\nq_tl: 先にやる\n---\n\n## Items\n\n- M-001 a @0.25,0.25\n";
+    const noted = parseMatrix(`${src}\n## Quadrants\n\n- q_tl 作業メモ\n  二行目\n- q_br 別のメモ\n`);
+    const plain = parseMatrix(src);
+    expect(renderSvg(noted)).toBe(renderSvg(plain));
+    expect(renderSvg(noted)).not.toContain("作業メモ");
+  });
+
   it("sizes the image to the drawing, margin included", () => {
     const svg = renderSvg(doc);
     const layout = layoutMatrix(doc);

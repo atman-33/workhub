@@ -44,7 +44,7 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.clipboard.paste": "ペースト",
   "diagram.clipboard.duplicate": "複製",
   // ---- 2x2 マトリクスのエディタ (T-0681) ----
-  "diagram.matrix.footerHint": "項目をドラッグして配置します。何もない所をダブルクリックで項目を追加。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールで拡大縮小。",
+  "diagram.matrix.footerHint": "項目をドラッグして配置します。何もない所をダブルクリックで項目を追加。象限をクリックするとその象限のメモを書けます。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールで拡大縮小。",
   "diagram.matrix.fitHint": "マトリクス全体をウィンドウに合わせる",
   "diagram.matrix.addHint": "中央に項目を追加",
   "diagram.matrix.itemCount": "項目 {count} 件",
@@ -78,6 +78,13 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.matrix.qTr": "右上",
   "diagram.matrix.qBl": "左下",
   "diagram.matrix.qBr": "右下",
+  // ---- 象限メモ (T-0692) ----
+  "diagram.matrix.quadrantTitle": "{position}の象限",
+  "diagram.matrix.quadrantNamePlaceholder": "象限の名前（空なら描かない）",
+  "diagram.matrix.quadrantNotePlaceholder": "この象限が何を意味するか、どう対応するか",
+  "diagram.matrix.quadrantNoteHint": "この象限の作業メモ。空行や箇条書きもそのまま残ります。書き出した画像には載りません。",
+  "diagram.matrix.quadrantNoteClearHint": "この象限のメモを消す",
+  "diagram.matrix.quadrantNoteMark": "この象限にはメモがあります",
   // ---- 業務フローのエディタ (T-0682) ----
   "diagram.flow.footerHint": "ステップをドラッグして動かす（別のレーンへ落とすとレーンが変わる）。ステップの丸いハンドルを別のステップへドラッグすると矢印を引け、選んだ矢印の端のハンドルをドラッグすると付け替えられる。レーンをダブルクリックでステップを追加。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールでズーム。",
   "diagram.flow.fitHint": "フローを画面に合わせる",

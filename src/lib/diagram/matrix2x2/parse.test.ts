@@ -255,6 +255,12 @@ describe("serializeMatrix", () => {
     expect(out.endsWith("## Memo\n\nmine\n")).toBe(true);
   });
 
+  it("leaves a ## Stickies that sits before ## Items where it is", () => {
+    const content =
+      "---\ntype: matrix2x2\nupdated: 2026-10-10\n---\n\n## Stickies\n\n- S-001 node:M-001 @1,1 #red x\n\n## Items\n\n- M-001 a\n\n## Memo\n\nm\n";
+    expect(save(content)).toBe(content);
+  });
+
   it("keeps the file's line endings", () => {
     const crlf = NOTE.replace(/\n/g, "\r\n");
     const out = save(crlf);
