@@ -322,12 +322,21 @@ export function orthogonalRoute(from: Box, to: Box, options: EdgeOptions = {}): 
     );
   }
   if (gapLeft >= MIN_GAP) {
+    // Under both nodes first, as always; over them only when nothing below
+    // is viable, so a free lane below keeps the old route exactly.
     const base = Math.max(from.y + from.height, to.y + to.height) + DETOUR_MARGIN;
-    const ys = Array.from({ length: 9 }, (_, k) => base + k * LANE_STEP);
-    return cheapest(
-      ys.map((y) => [a, { x: a.x, y }, { x: b.x, y }, b]),
-      options,
-    );
+    const under = Array.from({ length: 9 }, (_, k) => {
+      const y = base + k * LANE_STEP;
+      return [a, { x: a.x, y }, { x: b.x, y }, b];
+    });
+    const bestBelow = cheapest(under, options);
+    if (routeCost(bestBelow, options) < OBSTACLE_COST) return bestBelow;
+    const top = Math.min(from.y, to.y) - DETOUR_MARGIN;
+    const over = Array.from({ length: 9 }, (_, k) => {
+      const y = top - k * LANE_STEP;
+      return [a, { x: a.x, y }, { x: b.x, y }, b];
+    });
+    return cheapest([bestBelow, ...over], options);
   }
   const gapBelow = to.y - (from.y + from.height);
   const gapAbove = from.y - (to.y + to.height);
