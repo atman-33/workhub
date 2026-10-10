@@ -18,6 +18,7 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { ProjectDocuments } from "@/components/projects/project-documents";
 import { ProjectList } from "@/components/projects/project-list";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,9 @@ export function ProjectsView({
   // Persisted per machine (T-0278) — this is how the owner likes to look at
   // the list, not anything about the vault's content.
   const [sortMode, setSortMode] = useState<ProjectSortMode>(() => readProjectSortMode());
+  // Which slice of the detail pane is showing (T-0714). Kept across projects
+  // — the pane itself is remounted per project, so no document leaks over.
+  const [pane, setPane] = useState<"overview" | "documents">("overview");
 
   const vaultPath = config?.settings.vault_path ?? null;
   const repos = config?.projects ?? [];
@@ -680,6 +684,42 @@ export function ProjectsView({
                 </Button>
               </div>
 
+              {/* Overview / Documents / Backlog (T-0714). Backlog is only a
+                disabled slot here — T-0715 owns it. The switcher stays above
+                the pane, so a reader with a document open gets back to the
+                overview with one click. */}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant={pane === "overview" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("overview")}
+                >
+                  {t("projects.view.overviewTab")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={pane === "documents" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("documents")}
+                >
+                  {t("projects.view.documentsTab")}
+                </Button>
+                <Hint label={t("projects.view.backlogComingSoon")}>
+                  <Button size="sm" variant="ghost" className="h-7" disabled>
+                    {t("projects.view.backlogTab")}
+                  </Button>
+                </Hint>
+              </div>
+
+              {pane === "documents" ? (
+                <ProjectDocuments
+                  key={current.slug}
+                  vaultPath={vaultPath}
+                  slug={current.slug}
+                />
+              ) : (
+                <>
               <section className="space-y-1.5">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground">
                   {t("projects.view.repositoriesHeading")}
@@ -921,6 +961,8 @@ export function ProjectsView({
                   </>
                 )}
               </section>
+                </>
+              )}
             </div>
           )}
         </ResizablePanel>

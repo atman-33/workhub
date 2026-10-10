@@ -26,10 +26,13 @@
 //! ## The containment guard
 //!
 //! These commands take a path from the webview and read it, so every entry
-//! point resolves that path against the *registered roots* read from the
-//! config (never from the caller) and refuses anything outside them. Both
-//! sides are canonicalized first, which is also what closes the symlink
-//! escape. See `resolve_within_roots`.
+//! point resolves that path against an allow-list read from the config (never
+//! from the caller) and refuses anything outside it: the *registered roots*
+//! plus the configured vault itself (T-0714 — the Projects tab reads a
+//! project's shared documents through these same commands, without
+//! registering the vault as a document root). Both sides are canonicalized
+//! first, which is also what closes the symlink escape. See
+//! `resolve_within_roots`.
 
 use crate::b64;
 use crate::models::{DocsRoot, Settings};
@@ -191,20 +194,34 @@ pub fn resolve_within_roots(target: &str, roots: &[String]) -> Result<PathBuf, S
         Ok(real)
     } else {
         Err(format!(
-            "{target} is outside every registered document root"
+            "{target} is outside every registered document root and the vault"
         ))
     }
 }
 
-/// The paths of all registered roots — the allow-list the guard is evaluated
-/// against. Read from the config, never from the caller.
+/// The paths the guard allows reads from: every registered root, plus the
+/// configured vault itself (T-0714).
+///
+/// The Projects tab reads a project's shared documents through the same
+/// `docs_*` commands and the same `DocsPreview` as the Docs tab, without
+/// registering the vault as a document root — a project folder inside the
+/// vault is readable, anything outside the vault (and the roots) is not.
+/// Read-only either way: this module exposes no write command, and the two
+/// launch paths (`guarded_open_external`, `guarded_reveal`) only hand an
+/// already-guarded path to the OS.
 pub fn allowed_roots(settings: &Settings) -> Vec<String> {
-    settings
+    let mut roots: Vec<String> = settings
         .docs_roots
         .iter()
         .map(|r| r.path.clone())
         .filter(|p| !p.trim().is_empty())
-        .collect()
+        .collect();
+    if let Some(vault) = settings.vault_path.as_deref() {
+        if !vault.trim().is_empty() {
+            roots.push(vault.to_string());
+        }
+    }
+    roots
 }
 
 /// True for a name the tree hides: Windows' desktop.ini clutter always, and
@@ -886,8 +903,105 @@ mod tests {
     fn the_allow_list_is_exactly_the_registered_paths() {
         let settings = settings_with_roots(vec![root("D-001", "G:/team"), root("D-002", "  ")]);
         // A root with a blank path contributes nothing rather than matching
-        // everything, which is what an empty prefix would do.
+        // everything, which is what an empty prefix would do. No vault is
+        // configured here, so nothing else joins the list either.
         assert_eq!(allowed_roots(&settings), vec!["G:/team".to_string()]);
+    }
+
+    /// The vault joins the allow-list without being registered as a document
+    /// root (T-0714): the Projects tab reads `projects/<slug>/` through the
+    /// same `docs_*` commands the Docs tab uses.
+    fn settings_with_vault(vault: &str) -> Settings {
+        let mut settings = settings_with_roots(Vec::new());
+        settings.vault_path = Some(vault.to_string());
+        settings
+    }
+
+    #[test]
+    fn a_project_file_is_readable_without_a_registered_root() {
+        let vault = TempTree::new("vault-readable");
+        let project = vault.path().join("projects").join("demo");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("README.md"), "# Demo\n").unwrap();
+        let settings = settings_with_vault(&vault.norm());
+        let target = norm(&project.join("README.md"));
+        assert_eq!(guarded_read_doc(&settings, &target).unwrap(), "# Demo\n");
+        let names: Vec<String> = guarded_list_dir(&settings, &norm(&project))
+            .unwrap()
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        assert_eq!(names, vec!["README.md".to_string()]);
+    }
+
+    #[test]
+    fn the_vault_guard_refuses_a_dotdot_escape() {
+        let vault = TempTree::new("vault-escape");
+        let elsewhere = TempTree::new("vault-escape-out");
+        let project = vault.path().join("projects").join("demo");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(elsewhere.path().join("outside.md"), "o").unwrap();
+        let settings = settings_with_vault(&vault.norm());
+        // Starts inside the project folder but climbs out of the vault into a
+        // sibling directory: the string prefix would pass, canonicalization is
+        // what catches it.
+        let sibling = elsewhere
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let target = norm(
+            &project
+                .join("..")
+                .join("..")
+                .join("..")
+                .join(sibling)
+                .join("outside.md"),
+        );
+        let err = guarded_read_doc(&settings, &target).unwrap_err();
+        assert!(
+            err.contains("outside every registered document root"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_vault_guard_refuses_a_path_outside_the_vault() {
+        let vault = TempTree::new("vault-outside");
+        let elsewhere = TempTree::new("vault-elsewhere");
+        fs::write(elsewhere.path().join("secret.md"), "s").unwrap();
+        let settings = settings_with_vault(&vault.norm());
+        let target = norm(&elsewhere.path().join("secret.md"));
+        let err = guarded_read_doc(&settings, &target).unwrap_err();
+        assert!(
+            err.contains("outside every registered document root"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_vault_guard_refuses_a_symlink_escape() {
+        let vault = TempTree::new("vault-link");
+        let elsewhere = TempTree::new("vault-link-target");
+        fs::write(elsewhere.path().join("secret.md"), "s").unwrap();
+        let link = vault.path().join("sneaky");
+        #[cfg(windows)]
+        let made = std::os::windows::fs::symlink_dir(elsewhere.path(), &link).is_ok();
+        #[cfg(not(windows))]
+        let made = std::os::unix::fs::symlink(elsewhere.path(), &link).is_ok();
+        if !made {
+            // Making a link needs a privilege this machine may not grant;
+            // without one there is no escape to test.
+            return;
+        }
+        let settings = settings_with_vault(&vault.norm());
+        let target = norm(&link.join("secret.md"));
+        let err = guarded_read_doc(&settings, &target).unwrap_err();
+        assert!(
+            err.contains("outside every registered document root"),
+            "{err}"
+        );
     }
 
     #[test]
