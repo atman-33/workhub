@@ -388,17 +388,7 @@ export function PfdView({ configVersion, embedded }: Props) {
       if (!doc) return;
       const r = convertNodeKind(doc, id, prefix);
       if (!r.ok) {
-        const label = SYMBOLS.find((s) => s.prefix === prefix)?.label[locale] ?? prefix;
-        setKindRefusal({
-          id,
-          message:
-            r.reason === "same-kind-edges"
-              ? tStatic("diagram.pfd.kindRefused", {
-                  kind: label,
-                  edges: r.edges.map((e) => `${e.from} → ${e.to}`).join(", "),
-                })
-              : tStatic("diagram.pfd.kindUnknown"),
-        });
+        setKindRefusal({ id, message: tStatic("diagram.pfd.kindUnknown") });
         return;
       }
       setKindRefusal(null);

@@ -3,8 +3,8 @@
  *
  * A node's kind is decided by the prefix of its id: `P-001` is a process,
  * `D-001` a deliverable. The registry is the whole definition of a symbol - its
- * prefix, a name, the shape it is drawn with and the prefixes an arrow may run
- * on to - and nothing else in the parser, layout, canvas or export names a
+ * prefix, a name, the shape it is drawn with and the prefix an arrow usually
+ * runs on to - and nothing else in the parser, layout, canvas or export names a
  * particular symbol. So **adding a symbol is adding one entry to `SYMBOLS`**
  * (and its shape to `shapes.ts` when no existing one fits); the file format,
  * the line grammar, does not change.
@@ -25,8 +25,8 @@ export interface PfdSymbol {
   /** What the editor calls the symbol, per language. */
   label: Record<Locale, string>;
   /**
-   * Prefixes an arrow from this symbol may go to - the connection rule. An
-   * arrow the rule forbids is kept in the note but not drawn, and warned about.
+   * Prefixes an arrow from this symbol usually goes to; the first is what "add
+   * after this node" creates. A hint only: an arrow may join any two nodes.
    */
   next: string[];
 }
@@ -72,12 +72,10 @@ export function isNodeId(id: string): boolean {
   return symbolOf(id) !== undefined;
 }
 
-/** True when the connection rule lets an arrow run from `from` to `to` (node ids). */
+/** True when an arrow may run from `from` to `to`: two different nodes of this
+ * build, of any kinds (P->P and D->D are drawn like P->D). */
 export function mayConnect(from: string, to: string): boolean {
-  if (from === to) return false;
-  const a = symbolOf(from);
-  const b = symbolOf(to);
-  return Boolean(a && b && a.next.includes(b.prefix));
+  return from !== to && isNodeId(from) && isNodeId(to);
 }
 
 /** The first symbol an arrow from `id` may reach: what "add after this node" adds. */

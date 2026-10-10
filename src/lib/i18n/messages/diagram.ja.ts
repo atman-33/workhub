@@ -137,7 +137,6 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.pfd.nodeNotePlaceholder": "メモ（ホバーで表示）",
   "diagram.pfd.kindLabel": "種類",
   "diagram.pfd.kindHint": "種類を変えると新しい ID になります。矢印と付箋は新しい ID に付け替わります。",
-  "diagram.pfd.kindRefused": "{kind}に変更できません。次の矢印が同じ種類のノード同士をつなぐことになります（{edges}）。先に矢印を削除するか付け替えてください。",
   "diagram.pfd.kindUnknown": "そのノードまたは種類は存在しません。",
   "diagram.pfd.deleteNodeHint": "このノードと、つながる矢印・付箋を削除",
   "diagram.pfd.edgeHint": "矢印の端の丸いハンドルをドラッグすると、別のノードへ付け替えられます。",

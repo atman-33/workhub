@@ -96,12 +96,11 @@ registry in the app, not something a note can extend.
   instruction needs a symbol the rule does not list, say so and ask which
   existing symbol to use; do not write a line the app would keep as unreadable.
 - **Never change an existing node's prefix** in place to change its kind. A kind
-  change is a new id plus re-pointed arrows and stickies, and only for a node whose
-  arrows would stay valid; follow the conversion paragraph of the pfd rule, and if
-  an arrow blocks it, change nothing and name the arrow.
-- **Never write an arrow between two nodes of the same kind**; the rule lists
-  which kinds may be joined. Offer the nearest valid structure (for example a
-  deliverable between two processes).
+  change is a new id plus re-pointed arrows and stickies; follow the conversion
+  paragraph of the pfd rule.
+- **An arrow may join any two nodes**, same kind included (process to process,
+  deliverable to deliverable); write one when the instruction asks for it. Never
+  write an arrow naming a node that does not exist.
 
 ## When the instruction cannot be satisfied
 

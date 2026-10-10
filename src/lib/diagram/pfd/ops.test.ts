@@ -43,17 +43,15 @@ const NOTE = `${HEAD}
 `;
 
 describe("convertNodeKind", () => {
-  it("refuses when an arrow would join two nodes of one kind, and names it", () => {
-    const before = parsePfd(NOTE);
-    const r = convertNodeKind(before, "D-001", "P");
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    if (r.reason !== "same-kind-edges") throw new Error("wrong reason");
-    expect(r.edges).toEqual([
-      { from: "P-001", to: "D-001" },
-      { from: "D-001", to: "P-002" },
+  it("converts a node that has arrows, even when they then join two nodes of one kind", () => {
+    const d = parsePfd(NOTE);
+    const r = convertNodeKind(d, "D-001", "P");
+    if (!r.ok) throw new Error("refused");
+    expect(r.id).toBe("P-003");
+    expect(r.doc.edges).toEqual([
+      { from: "P-001", to: "P-003" },
+      { from: "P-003", to: "P-002" },
     ]);
-    expect(before).toEqual(parsePfd(NOTE)); // nothing changed, no arrow dropped
   });
 
   it("converts a node that has no arrows and takes a fresh id of the new prefix", () => {
@@ -91,9 +89,7 @@ describe("convertNodeKind", () => {
     });
   });
 
-  it("re-points arrows and stickies when the conversion makes every arrow valid", () => {
-    // A model holding a same-kind arrow (a parsed note never does): turning P-002
-    // into a deliverable repairs it, and both ends follow the new id.
+  it("re-points arrows and stickies: both ends follow the new id", () => {
     const d: PfdDocModel = {
       ...parsePfd(`${HEAD}\n## Nodes\n\n- P-001 a\n- P-002 b @1,2\n- D-001 c\n`),
       edges: [

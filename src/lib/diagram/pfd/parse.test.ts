@@ -145,7 +145,7 @@ not a list item
     expect(warningCount(parsePfd(out))).toBe(7);
   });
 
-  it("keeps an arrow between two nodes of the same kind, warns, and does not draw it", () => {
+  it("reads an arrow between two nodes of the same kind like any other", () => {
     const text = `## Nodes
 
 - P-001 a
@@ -163,10 +163,12 @@ not a list item
     const doc = parsePfd(text);
     expect(doc.edges).toEqual([
       { from: "P-001", to: "D-001" },
+      { from: "P-001", to: "P-002" },
+      { from: "D-001", to: "D-002" },
       { from: "D-002", to: "P-002" },
     ]);
-    expect(doc.rawEdges).toEqual(["- P-001 -> P-002", "- D-001 -> D-002"]);
-    expect(warningCount(doc)).toBe(2);
+    expect(doc.rawEdges).toEqual([]);
+    expect(warningCount(doc)).toBe(0);
     const out = save(text);
     expect(out).toContain("- P-001 -> P-002\n");
     expect(out).toContain("- D-001 -> D-002\n");
@@ -225,14 +227,14 @@ describe("the symbol registry", () => {
     added.length = 0;
   });
 
-  it("knows the process and the deliverable and lets them follow each other only", () => {
+  it("knows the process and the deliverable and lets any two different nodes connect", () => {
     expect(symbolOf("P-001")?.name).toBe("process");
     expect(symbolOf("D-004")?.name).toBe("deliverable");
     expect(symbolOf("X-001")).toBeUndefined();
     expect(mayConnect("P-001", "D-001")).toBe(true);
     expect(mayConnect("D-001", "P-001")).toBe(true);
-    expect(mayConnect("P-001", "P-002")).toBe(false);
-    expect(mayConnect("D-001", "D-002")).toBe(false);
+    expect(mayConnect("P-001", "P-002")).toBe(true);
+    expect(mayConnect("D-001", "D-002")).toBe(true);
     expect(mayConnect("P-001", "X-001")).toBe(false);
     expect(mayConnect("P-001", "P-001")).toBe(false);
   });
@@ -254,9 +256,13 @@ describe("the symbol registry", () => {
     const after = parsePfd(text);
     expect(after.nodes.map((n) => n.id)).toEqual(["P-001", "R-001"]);
     expect(findNode(after.nodes, "R-001")).toMatchObject({ x: 10, y: 20, note: "メモ" });
-    // The rule is the entry's own: R -> P is allowed, P -> R is not (P.next is ["D"]).
-    expect(after.edges).toEqual([{ from: "R-001", to: "P-001" }]);
-    expect(after.rawEdges).toEqual(["- P-001 -> R-001"]);
+    // Before, both arrows named an unknown node and were kept raw; now both are real.
+    expect(before.rawEdges).toHaveLength(2);
+    expect(after.edges).toEqual([
+      { from: "R-001", to: "P-001" },
+      { from: "P-001", to: "R-001" },
+    ]);
+    expect(after.rawEdges).toEqual([]);
     // The round trip is stable, and numbering is per prefix.
     expect(save(text)).toBe(serializePfd(text, after, "2026-10-10"));
     expect(nextNodeId(after.nodes, "R")).toBe("R-002");

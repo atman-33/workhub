@@ -37,8 +37,8 @@ describe("pfd export", () => {
     expect(svg).toContain("開発の流れ");
     expect((svg.match(/<ellipse /g) ?? []).length).toBe(2); // the two processes
     expect((svg.match(/<path d="M [^"]* Z" fill="#ffffff"/g) ?? []).length).toBe(2); // the two documents
-    // 3 drawn arrows (the same-kind one is not drawn) with a head each.
-    expect((svg.match(/stroke="#4b5563"/g) ?? []).length).toBe(3);
+    // 4 drawn arrows (the same-kind one too) with a head each.
+    expect((svg.match(/stroke="#4b5563"/g) ?? []).length).toBe(4);
     expect(svg).toContain("T-0100");
   });
 

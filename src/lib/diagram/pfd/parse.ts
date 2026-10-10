@@ -7,8 +7,7 @@
  * - Anything the grammar does not recognize is **kept, not dropped**. A line
  *   under `## Nodes` or `## Edges` that cannot be read as an element of this
  *   build (not a list item, an id whose prefix is not in the symbol registry,
- *   an arrow naming a node that is not there, an arrow the connection rule
- *   forbids) survives as a raw line and is written back verbatim; the editor
+ *   an arrow naming a node that is not there) survives as a raw line and is written back verbatim; the editor
  *   lists it as a warning.
  * - Only `## Nodes`, `## Edges` and `## Stickies` are rewritten. The rest of
  *   the frontmatter, `## Memo` and every unknown section are copied
@@ -187,8 +186,8 @@ export function parsePfd(content: string, fallbackTitle = ""): PfdDocModel {
 
   if (assignMissingIds(doc.nodes)) doc.mintedIds = true;
 
-  // An arrow is real only between two nodes that exist and that the connection
-  // rule lets meet; any other is kept as the line it was. Two lines for one
+  // An arrow is real only between two nodes that exist (of any kinds); any
+  // other is kept as the line it was. Two lines for one
   // pair are one arrow.
   const ids = new Set(doc.nodes.map((n) => n.id));
   for (const line of bodyLines(sectionText(note, "Edges"))) {
