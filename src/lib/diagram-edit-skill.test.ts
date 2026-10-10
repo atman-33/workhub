@@ -27,6 +27,7 @@ const RULE_OF: Record<(typeof DIAGRAM_KINDS)[number], string> = {
   pfd: "diagrams.md",
   algorithm: "diagrams.md",
   usecase: "diagrams.md",
+  architecture: "diagrams.md",
   ifdam: "diagrams.md",
 };
 
