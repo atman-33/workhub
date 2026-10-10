@@ -239,7 +239,15 @@ updated: 2026-10-10
   **deliverable** (a document shape with a wavy bottom edge; name it with a noun -
   "要件定義書"). Numbers run per prefix: the highest `P-` in the file plus one for
   the next process, likewise for `D-`. Never change or reuse an id, and never
-  turn a `P-` into a `D-` by editing the prefix - make a new node.
+  turn a `P-` into a `D-` by editing the prefix. **Changing a node's kind** (what
+  the editor's Kind selector does) means a new id: take the highest id of the other
+  prefix plus one, put the node's line (title, tokens, note, `@x,y`) under it in
+  the same place, rewrite every arrow end and every sticky `node:` that named the
+  old id, and retire the old id. Do it only when no arrow of the node would end
+  up between two nodes of one kind - every arrow joins a process to a deliverable,
+  so in practice only a node with no arrows converts. Otherwise change nothing,
+  name the arrows in the way, and let the owner remove or re-route them; never
+  delete an arrow to make a conversion fit.
 - **Arrow**: `- <from> -> <to>`, no label, no id; the pair `(from, to)` is the
   identity and two lines for one pair are one arrow. **Only a process to a
   deliverable and a deliverable to a process are allowed** (a process makes or

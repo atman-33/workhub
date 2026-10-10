@@ -8,8 +8,15 @@ import {
   TitleField,
 } from "@/components/diagram/panel-frame";
 import { StickyList } from "@/components/diagram/sticky-list";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { PfdNode } from "@/lib/diagram/pfd/parse";
-import { symbolOf } from "@/lib/diagram/pfd/symbols";
+import { prefixOf, SYMBOLS, symbolOf } from "@/lib/diagram/pfd/symbols";
 import type { Sticky } from "@/lib/diagram/sticky";
 import { useLocale, useT } from "@/lib/i18n";
 import type { Task } from "@/types";
@@ -32,6 +39,10 @@ interface Props {
   onChangeSticky: (id: string, patch: Partial<Sticky>) => void;
   onDeleteSticky: (id: string) => void;
   onChange: (patch: Partial<PfdNode>) => void;
+  /** Switch the node to the symbol with this prefix (a new id; may be refused). */
+  onConvertKind: (prefix: string) => void;
+  /** Why the last switch was refused, when it was. */
+  kindRefusal: string | null;
   onDelete: () => void;
 }
 
@@ -44,6 +55,8 @@ export function NodeEditor({
   onChangeSticky,
   onDeleteSticky,
   onChange,
+  onConvertKind,
+  kindRefusal,
   onDelete,
 }: Props) {
   const t = useT();
@@ -70,6 +83,26 @@ export function NodeEditor({
         placeholder={t("diagram.pfd.nodeTitlePlaceholder")}
         onChange={(title) => onChange({ title })}
       />
+      <div className="space-y-1">
+        <Select value={prefixOf(node.id)} onValueChange={onConvertKind}>
+          <SelectTrigger className="h-7 text-xs" aria-label={t("diagram.pfd.kindLabel")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SYMBOLS.map((s) => (
+              <SelectItem key={s.prefix} value={s.prefix}>
+                {s.label[locale]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">{t("diagram.pfd.kindHint")}</p>
+        {kindRefusal && (
+          <p role="alert" className="text-[11px] text-destructive">
+            {kindRefusal}
+          </p>
+        )}
+      </div>
       <NoteField
         value={node.note ?? ""}
         placeholder={t("diagram.pfd.nodeNotePlaceholder")}
