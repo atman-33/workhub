@@ -1,0 +1,50 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": 0,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 0.54
+            },
+            "relativeScale": 0.54,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 199,
+              "height": 228
+            },
+            "_parent": null,
+            "text": "<p>テスト</p>",
+            "style": "{\"fs\":0,\"fsa\":1,\"ffn\":\"Noto Sans\",\"ta\":\"c\",\"tav\":\"m\",\"taw\":0,\"tah\":0,\"lh\":1.36,\"sbc\":16775070}",
+            "ns:author": {
+              "id": "3074457347823878357",
+              "enabled": false
+            }
+          },
+          "type": "sticker"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "3458764686716095102",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}

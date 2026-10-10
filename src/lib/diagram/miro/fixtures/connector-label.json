@@ -1,0 +1,128 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": -291.9010739479563,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 379.7949393378907,
+              "height": 205.20970408252305
+            },
+            "_parent": null,
+            "text": "",
+            "style": "{\"st\":3,\"ss\":2,\"sc\":1710618,\"bc\":-1,\"bo\":1,\"brc\":1710618,\"brw\":2,\"bro\":1,\"brs\":2,\"ffn\":\"Noto Sans\",\"tc\":1710618,\"tsc\":1,\"ta\":\"c\",\"tav\":\"m\",\"fs\":51,\"b\":null,\"i\":null,\"u\":null,\"s\":null,\"bsc\":1,\"VER\":2.1,\"hl\":null,\"brr\":0}",
+            "shape": "3"
+          },
+          "type": "shape"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "3458764686716200074",
+        "meta": {}
+      },
+      {
+        "widgetData": {
+          "json": {
+            "_position": {
+              "offsetPx": {
+                "x": 291.9010739479563,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 379.7949393378907,
+              "height": 205.20970408252305
+            },
+            "_parent": null,
+            "text": "",
+            "style": "{\"st\":3,\"ss\":2,\"sc\":1710618,\"bc\":-1,\"bo\":1,\"brc\":1710618,\"brw\":2,\"bro\":1,\"brs\":2,\"ffn\":\"Noto Sans\",\"tc\":1710618,\"tsc\":1,\"ta\":\"c\",\"tav\":\"m\",\"fs\":51,\"b\":null,\"i\":null,\"u\":null,\"s\":null,\"bsc\":1,\"VER\":2.1,\"hl\":null,\"brr\":0}",
+            "shape": "3"
+          },
+          "type": "shape"
+        },
+        "type": 14,
+        "id": 1,
+        "initialId": "3458764686716200226",
+        "meta": {}
+      },
+      {
+        "widgetData": {
+          "json": {
+            "points": [],
+            "primary": {
+              "point": {
+                "x": 1,
+                "y": 0.5
+              },
+              "positionType": 0,
+              "widgetIndex": 0
+            },
+            "secondary": {
+              "point": {
+                "x": 0,
+                "y": 0.5
+              },
+              "positionType": 0,
+              "widgetIndex": 1
+            },
+            "_position": null,
+            "_parent": null,
+            "style": "{\"lc\":3355443,\"ls\":2,\"t\":2,\"lt\":1,\"a_start\":0,\"a_end\":9,\"VER\":2,\"jump\":0}",
+            "line": {
+              "captions": [
+                {
+                  "id": "0aeixr92:00001",
+                  "text": "<p>はい</p>",
+                  "fontSize": 14,
+                  "width": 29,
+                  "position": {
+                    "x": 0.5038034761502713,
+                    "y": 0.5
+                  },
+                  "rotated": false,
+                  "color": 3355443
+                }
+              ]
+            }
+          },
+          "type": "line"
+        },
+        "type": 14,
+        "id": 2,
+        "initialId": "3458764686716200268",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}

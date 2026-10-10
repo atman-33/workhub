@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
 import { EdgeEditor } from "@/components/diagram/pfd/edge-editor";
 import { NodeEditor } from "@/components/diagram/pfd/node-editor";
 import { OverviewPanel } from "@/components/diagram/pfd/overview-panel";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { copyPfdNodes, pastePfdNodes, type PfdClip } from "@/lib/diagram/pfd/clipboard";
+import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
+import { pfdToMiro } from "@/lib/diagram/miro/adapters/pfd";
 import { edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { renderHtml, renderSvg } from "@/lib/diagram/pfd/export";
 import { layoutPfd } from "@/lib/diagram/pfd/layout";
@@ -839,6 +841,22 @@ export function PfdView({ configVersion, embedded }: Props) {
     }
   }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
+  /**
+   * Copies the diagram for Miro (T-0720): the layout already on screen -
+   * with only the visible stickies - becomes a `miro-data-v1` payload on the
+   * clipboard, ready to paste on a Miro board. Whether the Tauri WebView2
+   * accepts the HTML flavour is unverified; a failure surfaces its reason.
+   */
+  const copyForMiro = useCallback(async () => {
+    if (!doc || !layout) return;
+    const result = await copyToMiro(pfdToMiro(layout));
+    setStatus(
+      result.ok
+        ? tStatic("diagram.pfd.miroCopied")
+        : tStatic("diagram.pfd.miroCopyFailed", { error: result.error }),
+    );
+  }, [doc, layout]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -937,6 +955,16 @@ export function PfdView({ configVersion, embedded }: Props) {
               <Hint label={t("diagram.pfd.exportPngHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportPng}>
                   <Image className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.pfd.copyToMiroHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyForMiro()}
+                >
+                  <ClipboardCopy className="size-3.5" />
                 </Button>
               </Hint>
             </div>
