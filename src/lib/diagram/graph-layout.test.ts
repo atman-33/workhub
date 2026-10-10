@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { layerLayout, rankNodes } from "./graph-layout";
+import {
+  layerLayout,
+  rankNodes,
+  ringBubbleSide,
+  ringClearance,
+  ringLayout,
+  ringTailSide,
+  type RingBox,
+} from "./graph-layout";
 
 const edge = (from: string, to: string) => ({ from, to });
 
@@ -189,3 +197,255 @@ describe("layerLayout ranks (T-0702)", () => {
   });
 });
 
+describe("ringLayout", () => {
+  const SYS = { id: "s1", width: 200, height: 120 };
+  const SYS2 = { id: "s2", width: 160, height: 100 };
+  const person = (i: number, lines = 2) => ({
+    id: `p${i}`,
+    width: 88 + (i % 3) * 20,
+    height: 70 + (i % 2) * 14,
+    bubble: { width: 100 + (i % 4) * 25, height: 24 + lines * 16 + (i % 3) * 8 },
+  });
+  /** Every other item is an external service: a plain box with no bubble. */
+  const mixed = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      i % 3 === 2 ? { id: `e${i}`, width: 120, height: 48 } : person(i, 1 + (i % 5)),
+    );
+
+  function cellsAndBoxes(r: ReturnType<typeof ringLayout>, systems: { id: string; width: number; height: number }[], items: ReturnType<typeof mixed>) {
+    const box = (id: string, w: number, h: number): RingBox => {
+      const c = r.nodes.get(id)!;
+      return { x: c.cx - w / 2, y: c.cy - h / 2, width: w, height: h };
+    };
+    const sys = systems.map((s) => box(s.id, s.width, s.height));
+    const cells = items.map((it) => {
+      const b = box(it.id, it.width, it.height);
+      const bub = r.bubbles.get(it.id);
+      if (!bub) return b;
+      const x = Math.min(b.x, bub.x);
+      const y = Math.min(b.y, bub.y);
+      return {
+        x,
+        y,
+        width: Math.max(b.x + b.width, bub.x + bub.width) - x,
+        height: Math.max(b.y + b.height, bub.y + bub.height) - y,
+      };
+    });
+    return { sys, cells };
+  }
+
+  for (const nSystems of [0, 1, 2]) {
+    const systems = [SYS, SYS2].slice(0, nSystems);
+    it(`never overlaps, with ${nSystems} system(s), 1 to 12 items`, () => {
+      for (let n = 1; n <= 12; n++) {
+        const items = mixed(n);
+        const r = ringLayout(systems, items);
+        const { sys, cells } = cellsAndBoxes(r, systems, items);
+        for (let i = 0; i < cells.length; i++) {
+          for (const s of sys) expect(ringClearance(cells[i], s)).toBeGreaterThanOrEqual(32 - 0.05);
+          for (let j = i + 1; j < cells.length; j++) {
+            expect(ringClearance(cells[i], cells[j])).toBeGreaterThanOrEqual(24 - 0.05);
+          }
+        }
+        for (let i = 0; i < sys.length; i++) {
+          for (let j = i + 1; j < sys.length; j++) expect(ringClearance(sys[i], sys[j])).toBeGreaterThanOrEqual(48 - 0.05);
+        }
+      }
+    });
+  }
+
+  it("is deterministic and leaves its input alone", () => {
+    const items = mixed(9);
+    const before = JSON.stringify(items);
+    const a = ringLayout([SYS, SYS2], items);
+    const b = ringLayout([SYS, SYS2], items);
+    expect(JSON.stringify([...a.nodes, ...a.bubbles, a.bounds])).toBe(JSON.stringify([...b.nodes, ...b.bubbles, b.bounds]));
+    expect(JSON.stringify(items)).toBe(before);
+  });
+
+  it("puts the drawing's top left at the origin (bubbles included)", () => {
+    for (let n = 0; n <= 12; n++) {
+      const r = ringLayout([SYS], mixed(n));
+      expect(r.bounds.x).toBeCloseTo(40, 1);
+      expect(r.bounds.y).toBeCloseTo(40, 1);
+    }
+    const moved = ringLayout([SYS], mixed(4), { originX: 0, originY: 10 });
+    expect(moved.bounds.x).toBeCloseTo(0, 1);
+    expect(moved.bounds.y).toBeCloseTo(10, 1);
+  });
+
+  it("lays systems out in a row in file order, centre lines level", () => {
+    const r = ringLayout([SYS, SYS2], mixed(4));
+    const a = r.nodes.get("s1")!;
+    const b = r.nodes.get("s2")!;
+    expect(a.cy).toBe(b.cy);
+    expect(b.cx - SYS2.width / 2 - (a.cx + SYS.width / 2)).toBeCloseTo(48, 1);
+    expect(r.center.x).toBeCloseTo((a.cx - SYS.width / 2 + b.cx + SYS2.width / 2) / 2, 1);
+  });
+
+  it("starts at 12 o'clock and runs clockwise in file order", () => {
+    const items = Array.from({ length: 4 }, (_, i) => ({ id: `x${i}`, width: 80, height: 40 }));
+    const r = ringLayout([SYS], items);
+    const c = r.center;
+    const at = items.map((it) => r.nodes.get(it.id)!);
+    expect(at[0].cx).toBeCloseTo(c.x, 1);
+    expect(at[0].cy).toBeLessThan(c.y);
+    expect(at[1].cx).toBeGreaterThan(c.x);
+    expect(at[1].cy).toBeCloseTo(c.y, 1);
+    expect(at[2].cx).toBeCloseTo(c.x, 1);
+    expect(at[2].cy).toBeGreaterThan(c.y);
+    expect(at[3].cx).toBeLessThan(c.x);
+    // On an ellipse of aspect 1.4 : 1.
+    expect((at[1].cx - c.x) / (c.y - at[0].cy)).toBeCloseTo(1.4, 1);
+  });
+
+  it("is mirror symmetric for 2, 4 and 6 items", () => {
+    for (const n of [2, 4, 6]) {
+      const items = Array.from({ length: n }, (_, i) => ({ id: `x${i}`, width: 80, height: 40 }));
+      const r = ringLayout([SYS], items);
+      for (const it of items) {
+        const p = r.nodes.get(it.id)!;
+        const mirrored = [...r.nodes.values()].some(
+          (q) => Math.abs(q.cx - (2 * r.center.x - p.cx)) < 0.05 && Math.abs(q.cy - p.cy) < 0.05,
+        );
+        expect(mirrored).toBe(true);
+      }
+    }
+  });
+
+  it("grows the ring when the cells are crowded, and keeps it small when they are not", () => {
+    const small = ringLayout([SYS], [{ id: "x0", width: 60, height: 30 }]);
+    const crowded = ringLayout([SYS], Array.from({ length: 12 }, (_, i) => ({ id: `x${i}`, width: 120, height: 70 })));
+    expect(crowded.rx).toBeGreaterThan(small.rx);
+    expect(crowded.scale).toBeGreaterThan(1);
+    expect(small.scale).toBe(1);
+  });
+
+  it("puts every bubble outside the ring, on the side the person leans to", () => {
+    for (const n of [1, 2, 3, 5, 6, 7, 12]) {
+      const items = Array.from({ length: n }, (_, i) => person(i));
+      const r = ringLayout([SYS], items);
+      for (const it of items) {
+        const p = r.nodes.get(it.id)!;
+        const b = r.bubbles.get(it.id)!;
+        expect(b.side).toBe(ringBubbleSide(p.cx - r.center.x, p.cy - r.center.y));
+        expect(b.tailSide).toBe(ringTailSide(b.side));
+        const box = { x: p.cx - it.width / 2, y: p.cy - it.height / 2, width: it.width, height: it.height };
+        const gap = ringClearance(box, b);
+        expect(gap).toBeCloseTo(14, 1);
+        if (b.side === "left") expect(b.x + b.width).toBeCloseTo(box.x - 14, 1);
+        if (b.side === "right") expect(b.x).toBeCloseTo(box.x + box.width + 14, 1);
+        if (b.side === "top") expect(b.y + b.height).toBeCloseTo(box.y - 14, 1);
+        if (b.side === "bottom") expect(b.y).toBeCloseTo(box.y + box.height + 14, 1);
+      }
+    }
+  });
+
+  it("gives an external service or an empty bubble no bubble", () => {
+    const r = ringLayout([SYS], [
+      { id: "e", width: 120, height: 48 },
+      { id: "z", width: 88, height: 70, bubble: { width: 0, height: 0 } },
+    ]);
+    expect(r.bubbles.size).toBe(0);
+  });
+
+  it("handles no items, and no systems with no items", () => {
+    const only = ringLayout([SYS], []);
+    expect(only.nodes.get("s1")).toEqual({ cx: 140, cy: 100 });
+    expect(only.bounds).toEqual({ x: 40, y: 40, width: 200, height: 120 });
+    expect(only.rx).toBe(0);
+    const empty = ringLayout([], []);
+    expect(empty.nodes.size).toBe(0);
+    expect(empty.bounds).toEqual({ x: 40, y: 40, width: 0, height: 0 });
+  });
+
+  it("places a pinned item where it was pinned, decides its bubble side again, and leaves the others", () => {
+    const items = Array.from({ length: 4 }, (_, i) => person(i));
+    const base = ringLayout([SYS], items);
+    const pinned = ringLayout([SYS], items, { pinned: new Map([["p0", { cx: 900, cy: 400 }]]) });
+    expect(pinned.nodes.get("p0")).toEqual({ cx: 900, cy: 400 });
+    expect(pinned.bubbles.get("p0")!.side).toBe("right");
+    for (const id of ["s1", "p1", "p2", "p3"]) expect(pinned.nodes.get(id)).toEqual(base.nodes.get(id));
+    const top = ringLayout([SYS], items, { pinned: new Map([["p1", { cx: 140, cy: -300 }]]) });
+    expect(top.bubbles.get("p1")!.side).toBe("top");
+  });
+
+  // Golden: one system 200x120, people 88x70 with a 120x60 bubble each.
+  const golden = (n: number) =>
+    ringLayout(
+      [{ id: "s", width: 200, height: 120 }],
+      Array.from({ length: n }, (_, i) => ({ id: `p${i}`, width: 88, height: 70, bubble: { width: 120, height: 60 } })),
+    );
+  const dump = (r: ReturnType<typeof ringLayout>) => ({
+    nodes: [...r.nodes].map(([id, c]) => [id, c.cx, c.cy]),
+    bubbles: [...r.bubbles].map(([id, b]) => [id, b.side, b.x, b.y]),
+    bounds: r.bounds,
+    rx: r.rx,
+    ry: r.ry,
+  });
+
+  it("golden: 1 person", () => {
+    expect(dump(golden(1))).toEqual({
+      nodes: [["s", 140, 342], ["p0", 140, 149]],
+      bubbles: [["p0", "top", 80, 40]],
+      bounds: { x: 40, y: 40, width: 200, height: 362 },
+      rx: 270.2,
+      ry: 193,
+    });
+  });
+
+  it("golden: 2 people", () => {
+    expect(dump(golden(2))).toEqual({
+      nodes: [["s", 140, 342], ["p0", 140, 149], ["p1", 140, 535]],
+      bubbles: [["p0", "top", 80, 40], ["p1", "bottom", 80, 584]],
+      bounds: { x: 40, y: 40, width: 200, height: 604 },
+      rx: 270.2,
+      ry: 193,
+    });
+  });
+
+  it("golden: 3 people", () => {
+    expect(dump(golden(3))).toEqual({
+      nodes: [["s", 479.54, 364.71], ["p0", 479.54, 149], ["p1", 741.08, 472.57], ["p2", 218, 472.57]],
+      bubbles: [["p0", "top", 419.54, 40], ["p1", "right", 799.08, 442.57], ["p2", "left", 40, 442.57]],
+      bounds: { x: 40, y: 40, width: 879.08, height: 467.57 },
+      rx: 302,
+      ry: 215.71,
+    });
+  });
+
+  it("golden: 6 people", () => {
+    expect(dump(golden(6))).toEqual({
+      nodes: [
+        ["s", 479.54, 364.71],
+        ["p0", 479.54, 149],
+        ["p1", 741.08, 256.86],
+        ["p2", 741.08, 472.57],
+        ["p3", 479.54, 580.43],
+        ["p4", 218, 472.57],
+        ["p5", 218, 256.86],
+      ],
+      bubbles: [
+        ["p0", "top", 419.54, 40],
+        ["p1", "right", 799.08, 226.86],
+        ["p2", "right", 799.08, 442.57],
+        ["p3", "bottom", 419.54, 629.43],
+        ["p4", "left", 40, 442.57],
+        ["p5", "left", 40, 226.86],
+      ],
+      bounds: { x: 40, y: 40, width: 879.08, height: 649.43 },
+      rx: 302,
+      ry: 215.71,
+    });
+  });
+
+  it("golden: a pinned person among 3", () => {
+    const r = ringLayout(
+      [{ id: "s", width: 200, height: 120 }],
+      Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, width: 88, height: 70, bubble: { width: 120, height: 60 } })),
+      { pinned: new Map([["p1", { cx: 100, cy: 700 }]]) },
+    );
+    expect(r.nodes.get("p1")).toEqual({ cx: 100, cy: 700 });
+    expect(r.bubbles.get("p1")).toMatchObject({ side: "left", x: -78, y: 670 });
+  });
+});

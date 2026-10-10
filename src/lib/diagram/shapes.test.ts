@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { boundaryPoint, centerOf, nodeContains, type DiagramNode, type Point } from "./node-edge";
 import {
+  BUBBLE_TAIL,
   CYLINDER_LID,
   HEXAGON_INSET,
   PARALLELOGRAM_SLANT,
+  PERSON_ICON_HEIGHT,
+  PERSON_ICON_WIDTH,
   SUBROUTINE_INSET,
   cylinderLid,
   hexagonInset,
   shapeOf,
+  speechBubbleOutline,
+  type BubbleSide,
 } from "./shapes";
 
 const node = (shape: string, width = 120, height = 48): DiagramNode => ({
@@ -324,5 +329,132 @@ describe("screen (T-0702)", () => {
         Math.abs(p.y - (n.y + n.height)) < 0.01;
       expect(onFrame).toBe(true);
     }
+  });
+});
+
+describe("person (T-0705)", () => {
+  const personNode = (width = 88, height = 70): DiagramNode => node("person", width, height);
+
+  it("contains the whole box (a rectangle), icon or not", () => {
+    const def = shapeOf("person");
+    const size = { width: 100, height: 80 };
+    expect(def.contains(0, 0, size)).toBe(true);
+    expect(def.contains(50, 40, size)).toBe(true);
+    expect(def.contains(-50, -40, size)).toBe(true);
+    expect(def.contains(-50, 40, size)).toBe(true);
+    expect(def.contains(50.01, 0, size)).toBe(false);
+    expect(def.contains(0, -40.01, size)).toBe(false);
+    // The bottom corners are on the name, not on the icon.
+    expect(def.contains(45, 38, size)).toBe(true);
+  });
+
+  it("stops arrows on the box edge in every direction", () => {
+    const n = personNode(120, 90);
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * 2 * Math.PI;
+      const p = boundaryPoint(n, { x: centerOf(n).x + 400 * Math.cos(a), y: centerOf(n).y + 400 * Math.sin(a) });
+      const onFrame =
+        Math.abs(p.x - n.x) < 0.01 ||
+        Math.abs(p.x - (n.x + n.width)) < 0.01 ||
+        Math.abs(p.y - n.y) < 0.01 ||
+        Math.abs(p.y - (n.y + n.height)) < 0.01;
+      expect(onFrame).toBe(true);
+    }
+  });
+
+  it("outlines the icon only: one path in the top 44px, as wide as the icon, centred", () => {
+    const n = personNode(140, 90);
+    const el = shapeOf("person").outline(n);
+    expect(el.tag).toBe("path");
+    const d = String(el.attrs.d);
+    const nums = [...d.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    expect(d.startsWith("M ")).toBe(true);
+    // Absolute commands only (M, A, Z): the numbers alternate rx ry rot flags x y.
+    const points: Point[] = [];
+    const tokens = d.split(/\s+(?=[MAZ])/);
+    for (const t of tokens) {
+      const v = t.trim().split(/\s+/);
+      if (v[0] === "M") points.push({ x: Number(v[1]), y: Number(v[2]) });
+      if (v[0] === "A") points.push({ x: Number(v[6]), y: Number(v[7]) });
+    }
+    expect(nums.length).toBeGreaterThan(8);
+    for (const p of points) {
+      expect(p.y).toBeGreaterThanOrEqual(n.y);
+      expect(p.y).toBeLessThanOrEqual(n.y + PERSON_ICON_HEIGHT);
+      expect(Math.abs(p.x - (n.x + n.width / 2))).toBeLessThanOrEqual(PERSON_ICON_WIDTH / 2 + 0.01);
+    }
+    // Well inside the box: nothing near the bottom edge or the sides, where the name goes.
+    const ys = points.map((p) => p.y);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(n.y + 44);
+    expect(Math.max(...ys)).toBeLessThan(n.y + n.height);
+  });
+
+  it("keeps the icon the same size whatever the name's width", () => {
+    const widths = [88, 200].map((w) => {
+      const n = personNode(w, 70);
+      const xs = [...String(shapeOf("person").outline(n).attrs.d).matchAll(/M (-?[\d.]+) /g)].map((m) => Number(m[1]) - n.x - w / 2);
+      return xs;
+    });
+    expect(widths[0]).toEqual(widths[1]);
+  });
+});
+
+describe("speechBubbleOutline (T-0705)", () => {
+  const box = { x: 100, y: 50, width: 120, height: 60 };
+  const sides: BubbleSide[] = ["left", "right", "top", "bottom"];
+
+  it("is ONE closed path: a single sub-path ending in Z", () => {
+    for (const side of sides) {
+      const el = speechBubbleOutline(box, side);
+      expect(el.tag).toBe("path");
+      const d = String(el.attrs.d);
+      expect(d.match(/M/g)).toHaveLength(1);
+      expect(d.match(/Z/g)).toHaveLength(1);
+      expect(d.trim().endsWith("Z")).toBe(true);
+    }
+  });
+
+  it("has its tail tip 8px out of the box, centred, on the named side only", () => {
+    const tip = {
+      left: "L 92 80",
+      right: "L 228 80",
+      top: "L 160 42",
+      bottom: "L 160 118",
+    };
+    for (const side of sides) {
+      const d = String(speechBubbleOutline(box, side).attrs.d);
+      expect(d).toContain(tip[side]);
+      expect(d.match(/ L /g)).toHaveLength(2); // the tail's two sloping edges, nothing else
+      expect(BUBBLE_TAIL).toBe(8);
+    }
+  });
+
+  it("reaches no further than the tail's tip outside the box", () => {
+    for (const side of sides) {
+      const d = String(speechBubbleOutline(box, side).attrs.d);
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const t of d.split(/\s+(?=[MHVLAZ])/)) {
+        const v = t.trim().split(/\s+/);
+        if (v[0] === "M" || v[0] === "L") (xs.push(Number(v[1])), ys.push(Number(v[2])));
+        if (v[0] === "H") xs.push(Number(v[1]));
+        if (v[0] === "V") ys.push(Number(v[1]));
+        if (v[0] === "A") (xs.push(Number(v[6])), ys.push(Number(v[7])));
+      }
+      const out = {
+        left: box.x - Math.min(...xs),
+        right: Math.max(...xs) - (box.x + box.width),
+        top: box.y - Math.min(...ys),
+        bottom: Math.max(...ys) - (box.y + box.height),
+      };
+      for (const s of sides) expect(out[s]).toBeCloseTo(s === side ? BUBBLE_TAIL : 0, 5);
+    }
+  });
+
+  it("keeps the tail off the rounded corners of a small box", () => {
+    const d = String(speechBubbleOutline({ x: 0, y: 0, width: 30, height: 20 }, "top").attrs.d);
+    const m = d.match(/H (-?[\d.]+) L (-?[\d.]+) -8 L (-?[\d.]+) 0/)!;
+    expect(Number(m[1])).toBeGreaterThanOrEqual(6);
+    expect(Number(m[3])).toBeLessThanOrEqual(24);
   });
 });
