@@ -11,13 +11,18 @@ export type DiagramKind = (typeof DIAGRAM_KINDS)[number];
 
 /**
  * The kinds the New dialog offers. A kind joins this list when its editor
- * lands (2x2 in T-0681, business flow in T-0682, PFD in T-0683); until then a
- * note of that kind can still be listed, but nobody is invited to make one
- * that has no editor. The program flow (`algorithm`, T-0698) is the case in
- * point: its model and format exist, its editor is T-0699, and it joins this
- * list there.
+ * lands (2x2 in T-0681, business flow in T-0682, PFD in T-0683, program flow
+ * in T-0699); until then a note of that kind can still be listed, but nobody
+ * is invited to make one that has no editor.
  */
-export const CREATABLE_KINDS: readonly DiagramKind[] = ["schedule", "mindmap", "matrix2x2", "flow", "pfd"];
+export const CREATABLE_KINDS: readonly DiagramKind[] = [
+  "schedule",
+  "mindmap",
+  "matrix2x2",
+  "flow",
+  "pfd",
+  "algorithm",
+];
 
 /** The kinds that have an editor, and so can be renamed and deleted from the list. */
 export function hasEditor(kind: string): boolean {
