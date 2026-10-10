@@ -339,12 +339,86 @@ const screen: ShapeDef = {
   },
 };
 
+/** Height of a person's icon (head and shoulders), at the top of its box. */
+export const PERSON_ICON_HEIGHT = 44;
+/** Width of a person's icon; the name below it is wider or as wide as this. */
+export const PERSON_ICON_WIDTH = 32;
+const PERSON_HEAD_RADIUS = 10;
+const PERSON_SHOULDER_HEIGHT = 18;
+
+/**
+ * A person (T-0705, the actor of the use case diagram): head and shoulders at
+ * the top of the node's box, the name written below by the kind. The box is
+ * the whole node (icon plus name), so `contains` is the rectangle and an arrow
+ * stops on the box edge whatever width the name gives it; `outline` draws only
+ * the icon, one `path` (a head circle and a half-ellipse of shoulders). A
+ * rectangle is star-shaped, so `boundaryPoint` needs no change.
+ */
+const person: ShapeDef = {
+  id: "person",
+  contains: (dx, dy, s) => Math.abs(dx) <= s.width / 2 && Math.abs(dy) <= s.height / 2,
+  outline: (box) => {
+    const cx = round2(box.x + box.width / 2);
+    const top = box.y;
+    const r = PERSON_HEAD_RADIUS;
+    const headY = round2(top + r + 1);
+    const base = round2(top + PERSON_ICON_HEIGHT);
+    const half = PERSON_ICON_WIDTH / 2;
+    const d = [
+      `M ${round2(cx - r)} ${headY} A ${r} ${r} 0 1 0 ${round2(cx + r)} ${headY} A ${r} ${r} 0 1 0 ${round2(cx - r)} ${headY} Z`,
+      `M ${round2(cx - half)} ${base} A ${half} ${PERSON_SHOULDER_HEIGHT} 0 0 1 ${round2(cx + half)} ${base} Z`,
+    ].join(" ");
+    return { tag: "path", attrs: { d } };
+  },
+};
+
+/** Which side of a bubble's box carries its tail (the side facing the person). */
+export type BubbleSide = "left" | "right" | "top" | "bottom";
+
+/** How far a speech bubble's tail sticks out of the box. */
+export const BUBBLE_TAIL = 8;
+/** Half the width of the tail where it leaves the box. */
+export const BUBBLE_TAIL_HALF_BASE = 6;
+/** Corner radius of a speech bubble. */
+export const BUBBLE_RADIUS = 6;
+
+/**
+ * A speech bubble as ONE closed `path`: a rounded rectangle (`box`) with a
+ * triangular tail on `tailSide`, centred on that side (kept clear of the
+ * rounded corners when the side is long enough) and pointing 8px out of the
+ * box. The tail lies outside `box`; it is part of the same sub-path, so a fill
+ * and a stroke treat bubble and tail as one shape. Drawn clockwise from the
+ * top edge.
+ */
+export function speechBubbleOutline(box: Box, tailSide: BubbleSide): ShapeElement {
+  const r = Math.min(BUBBLE_RADIUS, box.width / 2, box.height / 2);
+  const t = BUBBLE_TAIL;
+  const b = BUBBLE_TAIL_HALF_BASE;
+  const { x, y, width: w, height: h } = box;
+  const right = x + w;
+  const bottom = y + h;
+  const mid = (start: number, len: number) =>
+    start + Math.min(Math.max(len / 2, r + b), Math.max(len / 2, len - r - b));
+  const cx = mid(x, w);
+  const cy = mid(y, h);
+  const parts = [`M ${round2(x + r)} ${round2(y)}`];
+  if (tailSide === "top") parts.push(`H ${round2(cx - b)} L ${round2(cx)} ${round2(y - t)} L ${round2(cx + b)} ${round2(y)}`);
+  parts.push(`H ${round2(right - r)} A ${round2(r)} ${round2(r)} 0 0 1 ${round2(right)} ${round2(y + r)}`);
+  if (tailSide === "right") parts.push(`V ${round2(cy - b)} L ${round2(right + t)} ${round2(cy)} L ${round2(right)} ${round2(cy + b)}`);
+  parts.push(`V ${round2(bottom - r)} A ${round2(r)} ${round2(r)} 0 0 1 ${round2(right - r)} ${round2(bottom)}`);
+  if (tailSide === "bottom") parts.push(`H ${round2(cx + b)} L ${round2(cx)} ${round2(bottom + t)} L ${round2(cx - b)} ${round2(bottom)}`);
+  parts.push(`H ${round2(x + r)} A ${round2(r)} ${round2(r)} 0 0 1 ${round2(x)} ${round2(bottom - r)}`);
+  if (tailSide === "left") parts.push(`V ${round2(cy + b)} L ${round2(x - t)} ${round2(cy)} L ${round2(x)} ${round2(cy - b)}`);
+  parts.push(`V ${round2(y + r)} A ${round2(r)} ${round2(r)} 0 0 1 ${round2(x + r)} ${round2(y)} Z`);
+  return { tag: "path", attrs: { d: parts.join(" ") } };
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 const registry = new Map<string, ShapeDef>(
-  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine, hexagon, cylinder, screen].map((s) => [s.id, s]),
+  [rect, rounded, pill, diamond, ellipse, documentShape, parallelogram, subroutine, hexagon, cylinder, screen, person].map((s) => [s.id, s]),
 );
 
 /** Adds (or replaces) a shape. */
