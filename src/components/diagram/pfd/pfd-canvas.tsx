@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
  * - **left-drag on a node moves it**; reported once, on release, for that node
  *   only (it is the only node that gets a `@`);
  * - **a handle on a hovered node** drags out a new arrow onto another node, and
- *   only a node the symbol registry lets that arrow reach is highlighted;
+ *   any other node is highlighted as a target;
  * - **the end handles of a selected arrow** re-attach that end the same way;
  * - **double-click on empty canvas adds a node** of the chosen symbol there; on
  *   a node or an arrow it renames it;
@@ -154,7 +154,7 @@ export function PfdCanvas({
   const edgeDrag = useEdgeDrag({
     toDiagram,
     nodeAt: (p) => hitNode(layout.nodes, p)?.id ?? null,
-    // Only what the symbol registry lets this arrow reach lights up.
+    // Any node but the arrow's own anchor lights up.
     canJoin: (d, overId) => {
       if (overId === d.anchorId) return false;
       if (d.mode === "create") return mayConnect(d.anchorId, overId);

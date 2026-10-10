@@ -187,6 +187,32 @@ describe("layoutPfd", () => {
     expect(layout.byId.get("P-001")!.placed).toBe(false);
   });
 
+  it("lays out same-kind arrows and loops by flow without hanging", () => {
+    const d = parsePfd(`## Nodes
+
+- P-001 a
+- P-002 b
+- P-003 c
+- D-001 d
+- D-002 e
+
+## Edges
+
+- P-001 -> P-002
+- P-002 -> P-003
+- P-003 -> P-001
+- D-001 -> D-002
+- P-003 -> D-001
+`);
+    const layout = layoutPfd(d);
+    const x = (id: string) => layout.byId.get(id)!.cx;
+    expect(layout.edges).toHaveLength(5);
+    expect(x("P-001")).toBeLessThan(x("P-002"));
+    expect(x("P-002")).toBeLessThan(x("P-003"));
+    expect(x("D-001")).toBeLessThan(x("D-002"));
+    for (const n of layout.nodes) expect(Number.isFinite(n.cx) && Number.isFinite(n.cy)).toBe(true);
+  });
+
   it("puts a node with @x,y exactly there, negatives included", () => {
     const layout = layoutPfd(doc);
     const far = layout.byId.get("P-003")!;
@@ -265,13 +291,18 @@ describe("ops", () => {
     expect(b.doc.nodes[b.doc.nodes.length - 1]).toMatchObject({ x: 10, y: -4 });
   });
 
-  it("connects only a process to a deliverable and back", () => {
-    expect(connect(doc, "P-001", "P-002")).toBe(doc);
-    expect(connect(doc, "D-001", "D-002")).toBe(doc);
+  it("connects any two different nodes, same kind included, once per pair", () => {
+    expect(connect(doc, "P-001", "P-002").edges).toContainEqual({ from: "P-001", to: "P-002" });
+    expect(connect(doc, "D-001", "D-002").edges).toContainEqual({ from: "D-001", to: "D-002" });
     expect(connect(doc, "P-001", "D-001")).toBe(doc); // already there
+    expect(connect(doc, "P-001", "P-001")).toBe(doc); // not to itself
+    expect(connect(doc, "P-001", "X-001")).toBe(doc); // not to an unknown id
     const next = connect(doc, "P-003", "D-001");
     expect(next.edges).toContainEqual({ from: "P-003", to: "D-001" });
-    expect(reattach(doc, { from: "P-001", to: "D-001" }, "to", "P-002")).toBe(doc);
+    expect(reattach(doc, { from: "P-001", to: "D-001" }, "to", "P-002").edges).toContainEqual({
+      from: "P-001",
+      to: "P-002",
+    });
     expect(
       reattach(doc, { from: "P-001", to: "D-001" }, "to", "D-002").edges,
     ).toContainEqual({ from: "P-001", to: "D-002" });

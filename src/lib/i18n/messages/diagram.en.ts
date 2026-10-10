@@ -135,7 +135,6 @@ export const diagramEn = {
   "diagram.pfd.nodeNotePlaceholder": "Note (shown on hover)",
   "diagram.pfd.kindLabel": "Kind",
   "diagram.pfd.kindHint": "Changing the kind gives the node a new id; its arrows and sticky notes follow.",
-  "diagram.pfd.kindRefused": "Cannot change to {kind}: these arrows would join two nodes of the same kind ({edges}). Remove or re-route them first.",
   "diagram.pfd.kindUnknown": "That node or kind no longer exists.",
   "diagram.pfd.deleteNodeHint": "Delete this node, its arrows and its sticky notes",
   "diagram.pfd.edgeHint": "Drag the round handles at the ends of the arrow to attach it to other nodes.",

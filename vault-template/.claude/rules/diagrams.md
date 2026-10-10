@@ -243,17 +243,15 @@ updated: 2026-10-10
   the editor's Kind selector does) means a new id: take the highest id of the other
   prefix plus one, put the node's line (title, tokens, note, `@x,y`) under it in
   the same place, rewrite every arrow end and every sticky `node:` that named the
-  old id, and retire the old id. Do it only when no arrow of the node would end
-  up between two nodes of one kind - every arrow joins a process to a deliverable,
-  so in practice only a node with no arrows converts. Otherwise change nothing,
-  name the arrows in the way, and let the owner remove or re-route them; never
-  delete an arrow to make a conversion fit.
+  old id, and retire the old id. A node with arrows converts like any other:
+  the arrows just follow the new id, whatever kinds they then join.
 - **Arrow**: `- <from> -> <to>`, no label, no id; the pair `(from, to)` is the
-  identity and two lines for one pair are one arrow. **Only a process to a
-  deliverable and a deliverable to a process are allowed** (a process makes or
-  reads a deliverable; a deliverable feeds the next process). An arrow between two
-  nodes of the same kind, or naming a node that does not exist, is kept by the app
-  as it is, listed as a warning and not drawn: do not write one.
+  identity and two lines for one pair are one arrow. **An arrow may join any two
+  nodes**: process to deliverable and back (the usual flow: a process makes or
+  reads a deliverable, a deliverable feeds the next process), and also process to
+  process or deliverable to deliverable. An arrow naming a node that does not
+  exist is kept by the app as it is, listed as a warning and not drawn: do not
+  write one.
 - **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
   numbers, negatives allowed, y growing downward. **No `@` means "placed by the
   layout"**, in columns that follow the arrows (a node sits one column right of

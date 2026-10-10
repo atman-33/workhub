@@ -3,8 +3,8 @@
  *
  * The view holds the undo stack and the debounced write; everything that
  * decides *what* an edit does lives here, so it can be tested without a DOM.
- * The connection rule is the symbol registry's (`mayConnect`), applied to every
- * arrow the editor draws or re-routes.
+ * `mayConnect` (the symbol registry's) only keeps an arrow off a node itself and
+ * off ids this build has no symbol for; any two nodes may be joined.
  */
 import { connectEdges, reattachEdge } from "../node-edge";
 import type { PfdDocModel, PfdEdge, PfdNode } from "./parse";
@@ -82,8 +82,7 @@ export function hasManualPositions(doc: PfdDocModel): boolean {
 
 export type ConvertKindResult =
   | { ok: true; doc: PfdDocModel; id: string }
-  | { ok: false; reason: "unknown" }
-  | { ok: false; reason: "same-kind-edges"; edges: PfdEdge[] };
+  | { ok: false; reason: "unknown" };
 
 /**
  * Turns a node into another symbol. The kind is the id's prefix, so this is a
@@ -91,10 +90,8 @@ export type ConvertKindResult =
  * reused): the node keeps its place in the list and everything else it carries,
  * and the arrows' ends and the stickies' `node:` follow it.
  *
- * It is refused, with the document untouched, when an arrow of the node would
- * then run between two nodes the connection rule does not join (today: two of
- * one kind). The offending arrows come back so the UI can name them; none is
- * ever dropped to make a conversion fit.
+ * Only an unknown node or prefix is refused (`unknown`); arrows never stop a
+ * conversion, since any two nodes may be joined.
  */
 export function convertNodeKind(doc: PfdDocModel, id: string, prefix: string): ConvertKindResult {
   const node = doc.nodes.find((n) => n.id === id);
@@ -103,10 +100,6 @@ export function convertNodeKind(doc: PfdDocModel, id: string, prefix: string): C
 
   const newId = nextNodeId(doc.nodes, prefix);
   const touching = doc.edges.filter((e) => e.from === id || e.to === id);
-  const broken = touching.filter((e) =>
-    e.from === id ? !mayConnect(newId, e.to) : !mayConnect(e.from, newId),
-  );
-  if (broken.length) return { ok: false, reason: "same-kind-edges", edges: broken.map((e) => ({ ...e })) };
 
   const swap = (x: string) => (x === id ? newId : x);
   return {
