@@ -9,9 +9,9 @@
  */
 import { COLOR_HEX } from "../colors";
 import {
-  AXIS_FONT_SIZE,
   ITEM_FONT_SIZE,
-  QUADRANT_FONT_SIZE,
+  CROSS_STROKE_WIDTH,
+  QUADRANT_LABEL_OPACITY,
   layoutMatrix,
   type AxisText,
   type MatrixLayout,
@@ -33,6 +33,7 @@ import type { Sticky } from "../sticky";
 import type { MatrixItem } from "./parse";
 
 const GRID = "#d1d5db";
+const CROSS = "#6b7280";
 const QUADRANT_FILL = "#f9fafb";
 
 function renderPlot(layout: MatrixLayout): string {
@@ -47,17 +48,26 @@ function renderPlot(layout: MatrixLayout): string {
     .filter((q) => q.label.trim())
     .map(
       (q) =>
-        `<text x="${q.textX}" y="${q.textY}" text-anchor="${q.anchor}" ` +
-        `font-size="${QUADRANT_FONT_SIZE}" font-weight="600" fill="${MUTED}">${esc(q.label)}</text>`,
+        `<text x="${q.textX}" y="${q.textY}" text-anchor="middle" ` +
+        `font-size="${q.fontSize}" font-weight="700" fill="${MUTED}" ` +
+        `fill-opacity="${QUADRANT_LABEL_OPACITY}">${esc(q.label)}</text>`,
     )
     .join("");
-  return quadrants + labels;
+  const cross = layout.cross
+    .map(
+      (l) =>
+        `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" ` +
+        `stroke="${CROSS}" stroke-width="${CROSS_STROKE_WIDTH}" />`,
+    )
+    .join("");
+  // Order matters: the rectangles, the cross, then the faint names, so the items drawn after cover all three.
+  return quadrants + cross + labels;
 }
 
 function renderAxisText(a: AxisText): string {
   const transform = a.rotate ? ` transform="rotate(-90 ${a.x} ${a.y})"` : "";
   return (
-    `<text x="${a.x}" y="${a.y}" text-anchor="${a.anchor}" font-size="${AXIS_FONT_SIZE}"` +
+    `<text x="${a.x}" y="${a.y}" text-anchor="${a.anchor}" font-size="${a.fontSize}"` +
     `${a.strong ? ' font-weight="600"' : ""} fill="${a.strong ? INK : MUTED}"${transform}>${esc(a.text)}</text>`
   );
 }

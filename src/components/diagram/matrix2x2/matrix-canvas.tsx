@@ -9,9 +9,9 @@ import { COLOR_HEX } from "@/lib/diagram/colors";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import {
-  AXIS_FONT_SIZE,
   ITEM_FONT_SIZE,
-  QUADRANT_FONT_SIZE,
+  CROSS_STROKE_WIDTH,
+  QUADRANT_LABEL_OPACITY,
   layoutMatrix,
   unitAt,
   type PositionedItem,
@@ -204,6 +204,21 @@ export function MatrixCanvas({
           onDoubleClick={addAt}
         />
       ))}
+      {/* The central cross: the boundary between the quadrants, stronger than the grid. */}
+      {layout.cross.map((l, i) => (
+        <line
+          key={i}
+          x1={l.x1}
+          y1={l.y1}
+          x2={l.x2}
+          y2={l.y2}
+          className="stroke-muted-foreground"
+          strokeWidth={CROSS_STROKE_WIDTH}
+          pointerEvents="none"
+        />
+      ))}
+      {/* Quadrant names are a watermark: big, very faint, behind the items and
+          deaf to the pointer so they never hinder placing or adding one. */}
       {layout.quadrants
         .filter((q) => q.label.trim())
         .map((q) => (
@@ -211,9 +226,10 @@ export function MatrixCanvas({
             key={`${q.key}-label`}
             x={q.textX}
             y={q.textY}
-            textAnchor={q.anchor}
-            fontSize={QUADRANT_FONT_SIZE}
-            fontWeight={600}
+            textAnchor="middle"
+            fontSize={q.fontSize}
+            fontWeight={700}
+            fillOpacity={QUADRANT_LABEL_OPACITY}
             className="fill-muted-foreground select-none"
             pointerEvents="none"
           >
@@ -226,7 +242,7 @@ export function MatrixCanvas({
           x={a.x}
           y={a.y}
           textAnchor={a.anchor}
-          fontSize={AXIS_FONT_SIZE}
+          fontSize={a.fontSize}
           fontWeight={a.strong ? 600 : 400}
           transform={a.rotate ? `rotate(-90 ${a.x} ${a.y})` : undefined}
           className={cn("select-none", a.strong ? "fill-foreground" : "fill-muted-foreground")}
