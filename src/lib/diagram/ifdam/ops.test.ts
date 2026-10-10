@@ -10,6 +10,7 @@ import {
   deleteNode,
   hasManualPositions,
   moveNodeTo,
+  moveNodesTo,
   nudgeNode,
   patchNode,
   reattach,
@@ -112,6 +113,46 @@ describe("nodes", () => {
     d = nudgeNode(doc(), layout, "V-002", 8, -8);
     expect(d.nodes[1]).toMatchObject({ x: Math.round(at.cx + 8), y: Math.round(at.cy - 8) });
     expect(nudgeNode(doc(), layout, "V-404", 1, 1).nodes).toEqual(doc().nodes);
+  });
+});
+
+describe("moveNodesTo (T-0716 group drag)", () => {
+  it("moves every given node to its new centre in one update", () => {
+    const d = doc();
+    const moved = moveNodesTo(
+      d,
+      new Map([
+        ["V-001", { x: 100.4, y: 200.6 }],
+        ["V-004", { x: 300, y: 400 }],
+      ]),
+    );
+    expect(moved.nodes[0]).toMatchObject({ x: 100, y: 201 });
+    expect(moved.nodes[3]).toMatchObject({ x: 300, y: 400 });
+    // Nodes outside the move keep their exact model objects: an auto-placed
+    // node never gains a `@` from a drag it was not part of.
+    expect(moved.nodes[1]).toBe(d.nodes[1]);
+    expect(moved.nodes[2]).toBe(d.nodes[2]);
+    expect(moved.edges).toBe(d.edges);
+    expect(moved.stickies).toBe(d.stickies);
+  });
+
+  it("leaves a screen's continuation lines and memo exactly as written", () => {
+    const d = doc();
+    const moved = moveNodesTo(d, new Map([["V-001", { x: 10, y: 10 }]]));
+    expect(moved.nodes[0].lines).toEqual(d.nodes[0].lines);
+    expect(linesOf(moved, "V-001")).toEqual(linesOf(d, "V-001"));
+    expect(serializeIfdam(NOTE, moved, "2026-10-11")).toContain("- V-001 一覧 ^screen @10,10\n");
+  });
+
+  it("moves a data store by its absolute `@`, like any other node", () => {
+    const moved = moveNodesTo(doc(), new Map([["V-004", { x: 500, y: 100 }]]));
+    expect(moved.nodes[3]).toMatchObject({ kind: "store", x: 500, y: 100 });
+  });
+
+  it("returns the same model for an empty move or unknown ids only", () => {
+    const d = doc();
+    expect(moveNodesTo(d, new Map())).toBe(d);
+    expect(moveNodesTo(d, new Map([["V-009", { x: 1, y: 1 }]]))).toBe(d);
   });
 });
 

@@ -14,7 +14,9 @@ import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
+import { useMarquee } from "@/components/diagram/use-marquee";
 import { COLOR_HEX } from "@/lib/diagram/colors";
+import { idsInRect, shiftPositions } from "@/lib/diagram/multi-select";
 import { hitNode, portOfDrop, type EdgePort } from "@/lib/diagram/node-edge";
 import {
   EDGE_LABEL_FONT_SIZE,
@@ -45,8 +47,11 @@ import { cn } from "@/lib/utils";
  * transient hover and the gestures in flight). What is selected and what the
  * note contains belong to the view above.
  *
- * - **left-drag on a node moves it**; reported once, on release, for that node
- *   only (it is the only node that gets a `@`);
+ * - **left-drag on a node moves it**, alone or with the rest of the selection
+ *   (Shift+click grows the selection; dragging any selected node moves them
+ *   all, reported once on release so one undo step restores them);
+ * - **left-drag on empty canvas draws a marquee** selecting every node it
+ *   touches (Shift held: added to the selection instead);
  * - **a handle on a hovered node** drags out a new arrow onto another node, and
  *   any other node is highlighted as a target;
  * - **the end handles of a selected arrow** re-attach that end the same way;
@@ -61,12 +66,16 @@ interface Props {
   stickies: Sticky[];
   /** The layout of `doc` as it stands (the view needs it for edits too). */
   layout: IfdamLayout;
-  selectedNodeId: string | null;
+  /** The ordered selection; the ring is drawn on every entry. */
+  selectedNodeIds: string[];
   selectedEdgeKey: string | null;
   selectedStickyId: string | null;
   editingNodeId: string | null;
   editingStickyId: string | null;
-  onSelectNode: (id: string | null) => void;
+  /** A click on a node: plain replaces the selection, Shift toggles it. */
+  onSelectNode: (id: string | null, additive: boolean) => void;
+  /** A finished marquee: the caught ids replace the selection, or join it with Shift. */
+  onSelectMarquee: (ids: string[], additive: boolean) => void;
   onSelectEdge: (key: string | null) => void;
   onSelectSticky: (id: string | null) => void;
   onStartEditNode: (id: string) => void;
@@ -77,8 +86,8 @@ interface Props {
   onCancelStickyEdit: () => void;
   /** A finished sticky drag: the new offset from its node's centre. */
   onMoveSticky: (id: string, dx: number, dy: number) => void;
-  /** A finished node drag: where its centre was dropped. */
-  onMoveNode: (id: string, cx: number, cy: number) => void;
+  /** A finished node drag: the new centres of every moved node. */
+  onMoveNodes: (moves: ReadonlyMap<string, { x: number; y: number }>) => void;
   /** A double-click on empty canvas: add a node centred here. */
   onAddAt: (x: number, y: number) => void;
   onConnect: (
@@ -102,12 +111,13 @@ export function IfdamCanvas({
   doc,
   stickies,
   layout: base,
-  selectedNodeId,
+  selectedNodeIds,
   selectedEdgeKey,
   selectedStickyId,
   editingNodeId,
   editingStickyId,
   onSelectNode,
+  onSelectMarquee,
   onSelectEdge,
   onSelectSticky,
   onStartEditNode,
@@ -117,7 +127,7 @@ export function IfdamCanvas({
   onCommitStickyText,
   onCancelStickyEdit,
   onMoveSticky,
-  onMoveNode,
+  onMoveNodes,
   onAddAt,
   onConnect,
   onReattach,
@@ -152,8 +162,14 @@ export function IfdamCanvas({
     toDiagram,
     zoom: camera.zoom,
     onEnd: (d) => {
-      const node = base.byId.get(d.id);
-      if (node) onMoveNode(d.id, node.cx + d.dx, node.cy + d.dy);
+      const origins = groupOrigins.current;
+      const ids = [...origins.keys()];
+      if (ids.length) {
+        onMoveNodes(
+          shiftPositions(origins, ids, d.dx, d.dy, (x, y) => ({ x: Math.round(x), y: Math.round(y) })),
+        );
+      }
+      groupOrigins.current = new Map();
       swallowClick();
     },
   });
@@ -167,16 +183,43 @@ export function IfdamCanvas({
     },
   });
 
-  // While a node is dragged, the layout is recomputed with it at the pointer,
-  // so its arrows and stickies follow it live instead of jumping on release.
+  const marquee = useMarquee({
+    toDiagram,
+    zoom: camera.zoom,
+    onMarquee: (rect, additive) => onSelectMarquee(idsInRect(base.nodes, rect), additive),
+  });
+
+  /** Centres of the drag's group, snapshotted when the press landed. */
+  const groupOrigins = useRef(new Map<string, { x: number; y: number }>());
+
+  // While nodes are dragged, the layout is recomputed with the whole group at
+  // the pointer, so their arrows and stickies follow live instead of jumping
+  // on release. The moved nodes are laid over the document as `@` positions -
+  // the layout reads those directly, so loops and router detours route round
+  // several moved nodes at once, and a screen's continuation lines travel with
+  // its node untouched.
   const dragging = nodeFree.drag?.active ? nodeFree.drag : null;
   const layout = useMemo(() => {
     if (!dragging) return base;
-    const node = base.byId.get(dragging.id);
-    if (!node) return base;
-    return layoutIfdam(doc, stickies, {
-      pinned: { id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy },
-    });
+    const origins = groupOrigins.current;
+    if (!origins.size) return base;
+    const moves = shiftPositions(
+      origins,
+      [...origins.keys()],
+      dragging.dx,
+      dragging.dy,
+      (x, y) => ({ x: Math.round(x), y: Math.round(y) }),
+    );
+    return layoutIfdam(
+      {
+        ...doc,
+        nodes: doc.nodes.map((n) => {
+          const at = moves.get(n.id);
+          return at ? { ...n, x: at.x, y: at.y } : n;
+        }),
+      },
+      stickies,
+    );
   }, [base, dragging, doc, stickies]);
 
   const edgeDrag = useEdgeDrag({
@@ -215,9 +258,23 @@ export function IfdamCanvas({
 
   const startNodeDrag = (e: React.PointerEvent, node: PositionedNode) => {
     if (e.button !== 0) return;
-    onSelectNode(node.id);
+    // Shift+click grows or shrinks the selection instead of dragging.
+    if (e.shiftKey) {
+      onSelectNode(node.id, true);
+      return;
+    }
+    // Dragging a selected node moves the whole group; anywhere else starts
+    // over with this node alone.
+    const ids = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id];
+    if (!selectedNodeIds.includes(node.id)) onSelectNode(node.id, false);
     if (editingNodeId) return;
     e.stopPropagation();
+    const origins = new Map<string, { x: number; y: number }>();
+    for (const id of ids) {
+      const at = base.byId.get(id);
+      if (at) origins.set(id, { x: at.cx, y: at.cy });
+    }
+    groupOrigins.current = origins;
     nodeFree.start(e, node.id);
   };
   const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
@@ -227,14 +284,15 @@ export function IfdamCanvas({
     stickyFree.start(e, sticky.id);
   };
   const clearSelection = () => {
-    if (justDragged.current) return;
-    onSelectNode(null);
+    if (justDragged.current || marquee.consumeClick()) return;
+    onSelectNode(null, false);
     onSelectEdge(null);
     onSelectSticky(null);
   };
 
   const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
-  const handleNodes = edgeDrag.drag || dragging ? [] : [hoverId, selectedNodeId];
+  const focusedNodeId = selectedNodeIds[selectedNodeIds.length - 1] ?? null;
+  const handleNodes = edgeDrag.drag || dragging ? [] : [hoverId, focusedNodeId];
   // The nodes a dragged arrow keeps and would land on, if any.
   const dropTarget =
     edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
@@ -248,8 +306,9 @@ export function IfdamCanvas({
   return (
     <DiagramSurface
       view={view}
-      grabbing={Boolean(nodeFree.drag) || Boolean(edgeDrag.drag)}
+      grabbing={Boolean(nodeFree.drag) || Boolean(edgeDrag.drag) || Boolean(marquee.marquee)}
       onBackgroundClick={clearSelection}
+      onBackgroundPointerDown={marquee.onPointerDown}
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
       onBackgroundDoubleClick={(e) => {
         const at = toDiagram(e.clientX, e.clientY);
@@ -320,7 +379,7 @@ export function IfdamCanvas({
                 fillOpacity={node.color ? 0.2 : undefined}
               />
             )}
-            {(node.id === selectedNodeId || isTarget) && (
+            {(selectedNodeIds.includes(node.id) || isTarget) && (
               <ShapeOutline
                 shape={node.shape}
                 box={node}
@@ -328,7 +387,7 @@ export function IfdamCanvas({
                 fill="none"
                 className="stroke-ring"
                 strokeWidth={2}
-                strokeDasharray={isTarget && node.id !== selectedNodeId ? "4 3" : undefined}
+                strokeDasharray={isTarget && !selectedNodeIds.includes(node.id) ? "4 3" : undefined}
               />
             )}
             {editing ? (
@@ -450,6 +509,20 @@ export function IfdamCanvas({
           </NodeClipboardMenu>
         );
       })}
+
+      {/* The marquee in flight: everything it touches joins the selection on release. */}
+      {marquee.marquee && (
+        <rect
+          x={marquee.marquee.x0}
+          y={marquee.marquee.y0}
+          width={marquee.marquee.x1 - marquee.marquee.x0}
+          height={marquee.marquee.y1 - marquee.marquee.y0}
+          className="fill-ring/10 stroke-ring"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
+      )}
 
       {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
       {dragAnchor && edgeDrag.drag && (
