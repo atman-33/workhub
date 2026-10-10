@@ -9,6 +9,7 @@ import { FlowView } from "@/components/diagram/flow/flow-view";
 import { PfdView } from "@/components/diagram/pfd/pfd-view";
 import { AlgorithmView } from "@/components/diagram/algorithm/algorithm-view";
 import { IfdamView } from "@/components/diagram/ifdam/ifdam-view";
+import { UsecaseView } from "@/components/diagram/usecase/usecase-view";
 import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -42,6 +43,7 @@ import {
   CREATABLE_KINDS,
   KIND_ICON,
   KIND_LABEL_KEY,
+  SIMPLE_KINDS,
   backlogOfScope,
   hasEditor,
   isDiagramKind,
@@ -393,7 +395,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
       ),
     });
 
-  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd" | "algorithm" | "ifdam") => ({
+  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd" | "algorithm" | "usecase" | "ifdam") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
@@ -652,6 +654,9 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
           <div className={cn("h-full", kind === "algorithm" ? "" : "hidden")}>
             <AlgorithmView configVersion={configVersion} embedded={editorFor("algorithm")} />
           </div>
+          <div className={cn("h-full", kind === "usecase" ? "" : "hidden")}>
+            <UsecaseView configVersion={configVersion} embedded={editorFor("usecase")} />
+          </div>
           <div className={cn("h-full", kind === "ifdam" ? "" : "hidden")}>
             <IfdamView configVersion={configVersion} embedded={editorFor("ifdam")} />
           </div>
@@ -883,6 +888,7 @@ function CreateDiagramDialog({
                 {CREATABLE_KINDS.map((value) => (
                   <SelectItem key={value} value={value}>
                     {t(KIND_LABEL_KEY[value])}
+                    {SIMPLE_KINDS.includes(value) && ` (${t("diagram.create.simple")})`}
                   </SelectItem>
                 ))}
               </SelectContent>

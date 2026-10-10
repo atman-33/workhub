@@ -12,6 +12,7 @@
  */
 import type { UsecaseLayout } from "./layout";
 import {
+  actionsOf,
   findEdge,
   nextNodeId,
   samePair,
@@ -252,4 +253,30 @@ export function deleteEdge(
   const current = findEdge(doc.edges, edge);
   if (!current) return doc;
   return { ...doc, edges: doc.edges.filter((e) => e !== current) };
+}
+
+// ---- a person's actions ---------------------------------------------------------
+
+/** Appends one action (a line of the note). Blank text changes nothing. */
+export function addAction(doc: UsecaseDocModel, id: string, text: string): UsecaseDocModel {
+  const item = text.replace(/\s+/g, " ").trim();
+  const node = doc.nodes.find((n) => n.id === id);
+  if (!node || !item) return doc;
+  return setNote(doc, id, [...actionsOf(node), item].join("\n"));
+}
+
+/**
+ * Replaces the action at `index` (counted the way `actionsOf` lists them); blank
+ * text deletes it. An index out of range or an unchanged text changes nothing.
+ */
+export function setAction(doc: UsecaseDocModel, id: string, index: number, text: string): UsecaseDocModel {
+  const node = doc.nodes.find((n) => n.id === id);
+  if (!node) return doc;
+  const items = actionsOf(node);
+  if (index < 0 || index >= items.length) return doc;
+  const item = text.replace(/\s+/g, " ").trim();
+  if (item === items[index]) return doc;
+  if (item) items[index] = item;
+  else items.splice(index, 1);
+  return setNote(doc, id, items.join("\n"));
 }

@@ -65,7 +65,7 @@ export function DraftInput({
     <Input
       value={draft}
       placeholder={placeholder}
-      data-ifdam-item={itemAttr}
+      data-draft-item={itemAttr}
       className="h-7 text-xs"
       onChange={(e) => {
         skipBlur.current = false;

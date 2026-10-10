@@ -35,8 +35,11 @@ export const DIAGRAM_KINDS: readonly DiagramKind[] = KIND_GROUPS.flatMap(
  * is invited to make one that has no editor. Listed in display order.
  */
 export const CREATABLE_KINDS: readonly DiagramKind[] = DIAGRAM_KINDS.filter((k) =>
-  ["schedule", "mindmap", "matrix2x2", "flow", "pfd", "algorithm", "ifdam"].includes(k),
+  ["schedule", "mindmap", "matrix2x2", "flow", "pfd", "algorithm", "usecase", "ifdam"].includes(k),
 );
+
+/** Kinds offered as a simplified version: the creation dialog adds a short hint to their name. */
+export const SIMPLE_KINDS: readonly DiagramKind[] = ["usecase"];
 
 /** The kinds that have an editor, and so can be renamed and deleted from the list. */
 export function hasEditor(kind: string): boolean {
