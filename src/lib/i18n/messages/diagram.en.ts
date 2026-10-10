@@ -11,6 +11,7 @@ export const diagramEn = {
   "diagram.kind.flow": "Business flow",
   "diagram.kind.pfd": "PFD",
   "diagram.kind.algorithm": "Program flow",
+  "diagram.kind.usecase": "Use case",
   "diagram.kind.ifdam": "IFDAM",
   "diagram.list.empty": "No diagrams yet",
   "diagram.list.emptyFiltered": "No diagrams of this kind",

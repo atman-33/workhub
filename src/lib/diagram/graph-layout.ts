@@ -446,7 +446,6 @@ export const RING_CELL_GAP = 24;
 export const RING_SYSTEM_CLEARANCE = 32;
 export const RING_BUBBLE_GAP = 14;
 export const RING_ASPECT = 1.4;
-const RING_MARGIN = 24;
 const RING_GROWTH = 1.08;
 const RING_MAX_STEPS = 40;
 
@@ -526,7 +525,8 @@ const ringRound = (n: number) => Math.round(n * 100) / 100;
  * - **Ring order**: the items in input order; item `i` of `n` sits at angle
  *   `-90deg + 360deg * i / n`, from 12 o'clock clockwise.
  * - **Ring size**: an ellipse `aspect : 1`. It starts at the size that lets
- *   the largest cell clear the systems and grows 8% at a time (at most 40
+ *   the largest box (bubbles do not count: they sit on the outer side) clear
+ *   the systems by `systemClearance` and grows 8% at a time (at most 40
  *   times) until every two cells are `cellGap` apart and every cell is
  *   `systemClearance` from every system. A cell is an item's box together
  *   with its bubble, so neither overlaps another person, another bubble or a
@@ -574,17 +574,20 @@ export function ringLayout(
     return hasBubble(it) ? ringUnion(box, ringBubbleBox(box, it.bubble!, side, bubbleGap)) : box;
   };
 
-  // Smallest ring: the largest cell clears the systems.
+  // Smallest ring: the largest person clears the systems by `systemClearance`. A
+  // bubble sits on the outer side, so it never narrows the gap to the middle and
+  // does not belong in this estimate (T-0706: counting it left a person with a
+  // big bubble a hundred pixels from the system); the loop below grows the ring
+  // when a bubble does crowd a neighbour.
   let maxHW = 0;
   let maxHH = 0;
-  items.forEach((it, i) => {
-    const c = cellOf(it, sideOf(i), 0, 0);
-    maxHW = Math.max(maxHW, c.width / 2 + Math.abs(c.x + c.width / 2));
-    maxHH = Math.max(maxHH, c.height / 2 + Math.abs(c.y + c.height / 2));
-  });
+  for (const it of items) {
+    maxHW = Math.max(maxHW, it.width / 2);
+    maxHH = Math.max(maxHH, it.height / 2);
+  }
   const rx0 = Math.max(
-    rowWidth / 2 + maxHW + RING_MARGIN,
-    aspect * (rowHeight / 2 + maxHH + RING_MARGIN),
+    rowWidth / 2 + maxHW + sysClear,
+    aspect * (rowHeight / 2 + maxHH + sysClear),
   );
   const ry0 = rx0 / aspect;
 
