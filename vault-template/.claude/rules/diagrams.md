@@ -93,7 +93,7 @@ q_br: やらない
   end `x_high`), the vertical axis (`y_axis`, its bottom end `y_low`, its top
   end `y_high`) and the four quadrants (`q_tl` top left, `q_tr` top right,
   `q_bl` bottom left, `q_br` bottom right). An empty or absent label is simply
-  not drawn. With the axes above, the top left is "low effort / high impact".
+  not drawn. The end labels sit outside the plot at the middle of each edge (`x_low` left, `x_high` right, `y_high` top, `y_low` bottom); the axis names are small, below the right end and along the top of the left edge; the quadrant names are a faint watermark in each quadrant centre. With the axes above, the top left is "low effort / high impact".
 - **`## Items`** holds one line per item: `- M-NNN <title> [@x,y] [#color]
   [task:T-xxxx]`, then optional indented lines (the item's note). Ids are
   `M-` plus three digits or more, taken as the highest in the file plus one;

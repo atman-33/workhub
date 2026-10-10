@@ -3,6 +3,7 @@ import type { Sticky } from "../sticky";
 import { STICKY_WIDTH } from "../sticky-layout";
 import {
   PLOT,
+  QUADRANT_FONT_SIZE,
   defaultUnit,
   layoutMatrix,
   pointOf,
@@ -90,6 +91,54 @@ describe("layoutMatrix", () => {
     expect(some.quadrants.find((q) => q.key === "br")!.label).toBe("");
   });
 
+  it("puts each end label at the middle of its edge, outside the plot", () => {
+    const all = "x_low: 低\nx_high: 高\ny_high: 上\ny_low: 下\nx_axis: 工数\ny_axis: 効果\n";
+    const texts = new Map(layoutMatrix(doc([], all)).axisTexts.map((a) => [a.id, a]));
+    const cx = PLOT.x + PLOT.width / 2;
+    const cy = PLOT.y + PLOT.height / 2;
+    const left = texts.get("x_low")!;
+    expect(left.x).toBeLessThan(PLOT.x);
+    expect(left.anchor).toBe("end");
+    expect(Math.abs(left.y - cy)).toBeLessThan(12);
+    const right = texts.get("x_high")!;
+    expect(right.x).toBeGreaterThan(PLOT.x + PLOT.width);
+    expect(right.anchor).toBe("start");
+    expect(Math.abs(right.y - cy)).toBeLessThan(12);
+    const top = texts.get("y_high")!;
+    expect(top.y).toBeLessThan(PLOT.y);
+    expect([top.x, top.anchor]).toEqual([cx, "middle"]);
+    const bottom = texts.get("y_low")!;
+    expect(bottom.y).toBeGreaterThan(PLOT.y + PLOT.height);
+    expect([bottom.x, bottom.anchor]).toEqual([cx, "middle"]);
+    // The axis names are small and sit clear of the end labels.
+    expect(texts.get("x_axis")!.fontSize).toBeLessThan(left.fontSize);
+    expect(texts.get("x_axis")!.y).toBeGreaterThan(bottom.y);
+    expect(texts.get("y_axis")!.rotate).toBe(true);
+    expect(texts.get("y_axis")!.y).toBe(PLOT.y);
+  });
+
+  it("draws a cross through the plot's centre", () => {
+    const { cross } = layoutMatrix(doc([]));
+    expect(cross).toEqual([
+      { x1: PLOT.x + PLOT.width / 2, y1: PLOT.y, x2: PLOT.x + PLOT.width / 2, y2: PLOT.y + PLOT.height },
+      { x1: PLOT.x, y1: PLOT.y + PLOT.height / 2, x2: PLOT.x + PLOT.width, y2: PLOT.y + PLOT.height / 2 },
+    ]);
+  });
+
+  it("centres each quadrant name in its quadrant, large, shrinking only to fit", () => {
+    const layout = layoutMatrix(
+      doc([], "q_tl: 先\nq_br: 非常に長い象限の名前がここに入ります、収まる大きさまで縮む\n"),
+    );
+    const tl = layout.quadrants.find((q) => q.key === "tl")!;
+    expect(tl.textX).toBe(tl.x + tl.width / 2);
+    expect(tl.textY).toBeGreaterThan(tl.y + tl.height / 2);
+    expect(tl.textY).toBeLessThan(tl.y + tl.height);
+    expect(tl.fontSize).toBe(QUADRANT_FONT_SIZE);
+    expect(QUADRANT_FONT_SIZE).toBeGreaterThanOrEqual(13 * 3);
+    const br = layout.quadrants.find((q) => q.key === "br")!;
+    expect(br.fontSize).toBeLessThan(QUADRANT_FONT_SIZE);
+  });
+
   it("frames the plot even when the matrix is empty", () => {
     const layout = layoutMatrix(doc([]));
     expect(layout.bounds.width).toBeGreaterThanOrEqual(PLOT.width);
@@ -102,6 +151,8 @@ describe("layoutMatrix", () => {
     const named = layoutMatrix(doc([], "y_axis: 効果\nx_axis: 工数\n"));
     expect(named.bounds.x).toBeLessThan(PLOT.x);
     expect(named.bounds.y + named.bounds.height).toBeGreaterThan(PLOT.y + PLOT.height);
+    const top = layoutMatrix(doc([], "y_high: 大\n"));
+    expect(top.bounds.y).toBeLessThan(PLOT.y);
   });
 });
 

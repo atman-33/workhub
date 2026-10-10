@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderHtml, renderSvg } from "./export";
-import { layoutMatrix } from "./layout";
+import { QUADRANT_FONT_SIZE, QUADRANT_LABEL_OPACITY, layoutMatrix } from "./layout";
 import { parseMatrix } from "./parse";
 
 const NOTE = `---
@@ -68,6 +68,15 @@ describe("renderSvg", () => {
     for (const q of layout.quadrants) {
       expect(svg).toContain(`<rect x="${q.x}" y="${q.y}" width="${q.width}" height="${q.height}"`);
     }
+  });
+
+  it("draws quadrant names as faint centred watermarks before the items", () => {
+    const named = parseMatrix("---\ntype: matrix2x2\nq_tl: 先にやる\n---\n\n## Items\n\n- M-001 a @0.25,0.25\n");
+    const svg = renderSvg(named);
+    expect(svg).toContain(`text-anchor="middle" font-size="${QUADRANT_FONT_SIZE}" font-weight="700"`);
+    expect(svg).toContain(`fill-opacity="${QUADRANT_LABEL_OPACITY}"`);
+    expect(svg).toContain("<line ");
+    expect(svg.indexOf("先にやる")).toBeLessThan(svg.indexOf(">a</text>"));
   });
 
   it("sizes the image to the drawing, margin included", () => {

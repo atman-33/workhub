@@ -26,7 +26,18 @@ export const ITEM_MIN_WIDTH = 56;
 /** Wrap width of an item's title; the box grows to its text up to this. */
 export const ITEM_MAX_WIDTH = 190;
 export const AXIS_FONT_SIZE = 12;
-export const QUADRANT_FONT_SIZE = 13;
+/** The axis names (`x_axis` / `y_axis`): small, so they never compete with the end labels. */
+export const AXIS_NAME_FONT_SIZE = 11;
+/** Gap between the plot edge and an end label. */
+const AXIS_GAP = 12;
+/** The largest a quadrant name is drawn; a longer name shrinks to fit its quadrant. */
+export const QUADRANT_FONT_SIZE = 44;
+/** The smallest a quadrant name shrinks to before it is left to overflow. */
+const QUADRANT_MIN_FONT_SIZE = 16;
+/** Opacity of the quadrant names: a watermark that never hinders placing nodes. A fixed constant, not a setting. */
+export const QUADRANT_LABEL_OPACITY = 0.12;
+/** Stroke width of the central cross lines. */
+export const CROSS_STROKE_WIDTH = 2;
 
 export type QuadrantKey = "tl" | "tr" | "bl" | "br";
 
@@ -37,10 +48,19 @@ export interface PositionedQuadrant {
   y: number;
   width: number;
   height: number;
-  /** Where the label is drawn, and which way it anchors. */
+  /** Where the label is drawn: its horizontal centre and its baseline. */
   textX: number;
   textY: number;
-  anchor: "start" | "end";
+  /** The label's font size, shrunk from `QUADRANT_FONT_SIZE` to fit the quadrant. */
+  fontSize: number;
+}
+
+/** A straight line of the plot's central cross. */
+export interface CrossLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 /** A piece of axis text. `rotate` draws it quarter-turned, reading upward. */
@@ -51,8 +71,9 @@ export interface AxisText {
   y: number;
   anchor: "start" | "middle" | "end";
   rotate: boolean;
-  /** The axis name, drawn heavier than the end names. */
+  /** The axis name, drawn heavier (and smaller) than the end names. */
   strong: boolean;
+  fontSize: number;
 }
 
 export interface PositionedItem {
@@ -78,6 +99,8 @@ export interface PositionedItem {
 export interface MatrixLayout {
   plot: Box;
   quadrants: PositionedQuadrant[];
+  /** The vertical and horizontal lines through the plot's centre. */
+  cross: CrossLine[];
   axisTexts: AxisText[];
   items: PositionedItem[];
   /** Sticky notes, empty when the note hides them. */
@@ -147,26 +170,37 @@ function measureItem(item: MatrixItem, fx: number, fy: number, placed: boolean):
   };
 }
 
+/** Font size of a quadrant name: as large as allowed while it fits the quadrant's width. */
+export function quadrantFontSize(label: string, width: number): number {
+  const avail = width - 24;
+  const natural = textWidth(label, QUADRANT_FONT_SIZE);
+  if (natural <= avail) return QUADRANT_FONT_SIZE;
+  return Math.max(QUADRANT_MIN_FONT_SIZE, Math.floor((QUADRANT_FONT_SIZE * avail) / natural));
+}
+
 function quadrantsOf(labels: MatrixLabels): PositionedQuadrant[] {
   const w = PLOT.width / 2;
   const h = PLOT.height / 2;
-  const inset = 12;
   const at = (
     key: QuadrantKey,
     label: string,
     col: 0 | 1,
     row: 0 | 1,
-  ): PositionedQuadrant => ({
-    key,
-    label,
-    x: PLOT.x + col * w,
-    y: PLOT.y + row * h,
-    width: w,
-    height: h,
-    textX: col === 0 ? PLOT.x + inset : PLOT.x + PLOT.width - inset,
-    textY: row === 0 ? PLOT.y + inset + QUADRANT_FONT_SIZE : PLOT.y + PLOT.height - inset,
-    anchor: col === 0 ? "start" : "end",
-  });
+  ): PositionedQuadrant => {
+    const fontSize = quadrantFontSize(label, w);
+    return {
+      key,
+      label,
+      x: PLOT.x + col * w,
+      y: PLOT.y + row * h,
+      width: w,
+      height: h,
+      textX: PLOT.x + col * w + w / 2,
+      // The baseline that puts the glyphs' visual middle on the quadrant's centre.
+      textY: PLOT.y + row * h + h / 2 + fontSize * 0.35,
+      fontSize,
+    };
+  };
   return [
     at("tl", labels.qTl, 0, 0),
     at("tr", labels.qTr, 1, 0),
@@ -175,48 +209,47 @@ function quadrantsOf(labels: MatrixLabels): PositionedQuadrant[] {
   ];
 }
 
+function crossOf(): CrossLine[] {
+  const cx = PLOT.x + PLOT.width / 2;
+  const cy = PLOT.y + PLOT.height / 2;
+  return [
+    { x1: cx, y1: PLOT.y, x2: cx, y2: PLOT.y + PLOT.height },
+    { x1: PLOT.x, y1: cy, x2: PLOT.x + PLOT.width, y2: cy },
+  ];
+}
+
+/**
+ * The end labels sit at the middle of each edge, outside the plot, like a cross
+ * axis diagram; the axis names are small and tucked in a corner where no end
+ * label can reach (below the plot's right end, along the left edge's top).
+ */
 function axisTextsOf(labels: MatrixLabels): AxisText[] {
-  const belowY = PLOT.y + PLOT.height + 18;
-  const leftX = PLOT.x - 10;
+  const cx = PLOT.x + PLOT.width / 2;
+  const cy = PLOT.y + PLOT.height / 2;
+  const right = PLOT.x + PLOT.width;
+  const bottom = PLOT.y + PLOT.height;
+  const end = (
+    id: AxisText["id"],
+    text: string,
+    x: number,
+    y: number,
+    anchor: AxisText["anchor"],
+  ): AxisText => ({ id, text, x, y, anchor, rotate: false, strong: false, fontSize: AXIS_FONT_SIZE });
+  const name = (
+    id: AxisText["id"],
+    text: string,
+    x: number,
+    y: number,
+    anchor: AxisText["anchor"],
+    rotate: boolean,
+  ): AxisText => ({ id, text, x, y, anchor, rotate, strong: true, fontSize: AXIS_NAME_FONT_SIZE });
   const all: AxisText[] = [
-    { id: "x_low", text: labels.xLow, x: PLOT.x, y: belowY, anchor: "start", rotate: false, strong: false },
-    {
-      id: "x_axis",
-      text: labels.xAxis,
-      x: PLOT.x + PLOT.width / 2,
-      y: belowY,
-      anchor: "middle",
-      rotate: false,
-      strong: true,
-    },
-    {
-      id: "x_high",
-      text: labels.xHigh,
-      x: PLOT.x + PLOT.width,
-      y: belowY,
-      anchor: "end",
-      rotate: false,
-      strong: false,
-    },
-    { id: "y_high", text: labels.yHigh, x: leftX, y: PLOT.y + 12, anchor: "end", rotate: false, strong: false },
-    {
-      id: "y_axis",
-      text: labels.yAxis,
-      x: PLOT.x - 34,
-      y: PLOT.y + PLOT.height / 2,
-      anchor: "middle",
-      rotate: true,
-      strong: true,
-    },
-    {
-      id: "y_low",
-      text: labels.yLow,
-      x: leftX,
-      y: PLOT.y + PLOT.height,
-      anchor: "end",
-      rotate: false,
-      strong: false,
-    },
+    end("x_low", labels.xLow, PLOT.x - AXIS_GAP, cy + AXIS_FONT_SIZE * 0.35, "end"),
+    end("x_high", labels.xHigh, right + AXIS_GAP, cy + AXIS_FONT_SIZE * 0.35, "start"),
+    end("y_high", labels.yHigh, cx, PLOT.y - AXIS_GAP, "middle"),
+    end("y_low", labels.yLow, cx, bottom + AXIS_GAP + AXIS_FONT_SIZE, "middle"),
+    name("x_axis", labels.xAxis, right, bottom + AXIS_GAP + AXIS_NAME_FONT_SIZE + 22, "end", false),
+    name("y_axis", labels.yAxis, PLOT.x - AXIS_GAP, PLOT.y, "end", true),
   ];
   // An empty label is not drawn at all.
   return all.filter((a) => a.text.trim());
@@ -224,10 +257,11 @@ function axisTextsOf(labels: MatrixLabels): AxisText[] {
 
 /** The box a piece of axis text covers, for the bounds. */
 function axisTextBox(a: AxisText): Box {
-  const w = textWidth(a.text, AXIS_FONT_SIZE);
-  const up = AXIS_FONT_SIZE;
-  const down = AXIS_FONT_SIZE * 0.3;
-  if (a.rotate) return { x: a.x - up, y: a.y - w / 2, width: up + down, height: w };
+  const w = textWidth(a.text, a.fontSize);
+  const up = a.fontSize;
+  const down = a.fontSize * 0.3;
+  // Rotated text reads upward and, anchored at its end, hangs below its point.
+  if (a.rotate) return { x: a.x - up, y: a.y, width: up + down, height: w };
   const x = a.anchor === "start" ? a.x : a.anchor === "end" ? a.x - w : a.x - w / 2;
   return { x, y: a.y - up, width: w, height: up + down };
 }
@@ -255,5 +289,5 @@ export function layoutMatrix(
   // The plot is always in frame - an empty matrix still shows its grid - and
   // so are the axis names and anything dropped outside it.
   const bounds = boundsOfBoxes([PLOT, ...axisTexts.map(axisTextBox), ...items, ...placedStickies]);
-  return { plot: PLOT, quadrants, axisTexts, items, stickies: placedStickies, bounds, byId };
+  return { plot: PLOT, quadrants, cross: crossOf(), axisTexts, items, stickies: placedStickies, bounds, byId };
 }
