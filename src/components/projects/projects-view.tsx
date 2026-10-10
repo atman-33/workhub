@@ -38,6 +38,11 @@ import {
 import { api, timeAgo } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import {
+  DESCRIPTION_MAX_HEIGHT_PX,
+  clampAutoGrowHeight,
+  isTruncatedExcerpt,
+} from "@/lib/project-description";
+import {
   TASK_STATUSES,
   buildProjectFixPrompt,
   buildSharedSpaceSurveyPrompt,
@@ -217,6 +222,18 @@ export function ProjectsView({
     setEditName(current.name);
     setEditSummary(current.summary);
   }, [current?.slug, current?.name, current?.summary]);
+  // The Description field holds one line of frontmatter or a cut-off README
+  // excerpt, never the whole README — so it grows with its content up to a
+  // ceiling, past which it scrolls instead (T-0713).
+  const summaryRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = summaryRef.current;
+    if (!el || !current || current.archived) return;
+    el.style.height = "auto";
+    el.style.height = `${clampAutoGrowHeight(el.scrollHeight)}px`;
+    el.style.overflowY =
+      el.scrollHeight > DESCRIPTION_MAX_HEIGHT_PX ? "auto" : "hidden";
+  }, [editSummary, current?.slug, current?.archived]);
   useEffect(() => {
     if (!current) return;
     setEditAlias(current.alias);
@@ -423,7 +440,10 @@ export function ProjectsView({
       )}
 
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel id="projects-list" defaultSize="34%" minSize="22%" className="min-h-0">
+        {/* Pixel floors, not percentages: a percentage minimum grows with the
+          window and wastes space on wide screens, while these stay put
+          (T-0713). The default split is unchanged. */}
+        <ResizablePanel id="projects-list" defaultSize="34%" minSize="200px" className="min-h-0">
           <div className="h-full overflow-y-auto">
             {visible.length === 0 && (
               <p className="p-4 text-sm text-muted-foreground">
@@ -465,7 +485,7 @@ export function ProjectsView({
           </div>
         </ResizablePanel>
         <ResizableHandle />
-        <ResizablePanel id="projects-detail" defaultSize="66%" minSize="40%" className="min-h-0">
+        <ResizablePanel id="projects-detail" defaultSize="66%" minSize="320px" className="min-h-0">
           {!current ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {t("projects.view.selectProject")}
@@ -477,7 +497,16 @@ export function ProjectsView({
                   <>
                     <h2 className="text-base font-semibold">{current.name}</h2>
                     {current.summary && (
-                      <p className="mt-2 text-sm">{current.summary}</p>
+                      <p
+                        className="mt-2 text-sm"
+                        title={
+                          isTruncatedExcerpt(current.summary)
+                            ? t("projects.view.descriptionTruncatedHint")
+                            : undefined
+                        }
+                      >
+                        {current.summary}
+                      </p>
                     )}
                   </>
                 ) : (
@@ -498,11 +527,22 @@ export function ProjectsView({
                         {t("projects.view.description")}
                       </span>
                       <Textarea
+                        ref={summaryRef}
                         value={editSummary}
                         placeholder={t("projects.view.descriptionPlaceholder")}
-                        className="min-h-16 text-sm"
+                        title={
+                          isTruncatedExcerpt(editSummary)
+                            ? t("projects.view.descriptionTruncatedHint")
+                            : undefined
+                        }
+                        className="max-h-48 resize-none overflow-y-auto text-sm"
                         onChange={(e) => setEditSummary(e.target.value)}
                       />
+                      {isTruncatedExcerpt(editSummary) && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          {t("projects.view.descriptionTruncatedHint")}
+                        </span>
+                      )}
                     </label>
                     <div className="mt-2 flex items-center gap-2">
                       <Button
