@@ -1,0 +1,446 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import {
+  ClipboardMenuItems,
+  NodeClipboardMenu,
+  type CanvasClipboard,
+} from "@/components/diagram/clipboard-menu";
+import { DiagramSurface } from "@/components/diagram/diagram-surface";
+import { EdgeArrow } from "@/components/diagram/edge-arrow";
+import { NodeInput } from "@/components/diagram/node-input";
+import { ShapeOutline } from "@/components/diagram/node-shape";
+import { NoteTip } from "@/components/diagram/note-tip";
+import { StickyPaper } from "@/components/diagram/sticky-paper";
+import { useCamera } from "@/components/diagram/use-camera";
+import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
+import { useFreeDrag } from "@/components/diagram/use-free-drag";
+import { COLOR_HEX } from "@/lib/diagram/colors";
+import { hitNode } from "@/lib/diagram/node-edge";
+import {
+  EDGE_LABEL_FONT_SIZE,
+  ITEM_LINE_HEIGHT,
+  layoutIfdam,
+  NODE_FONT_SIZE,
+  nodeTextY,
+  SCREEN_BULLET_WIDTH,
+  SCREEN_CAPTION_FONT_SIZE,
+  SCREEN_ITEM_FONT_SIZE,
+  SCREEN_PAD_X,
+  SCREEN_TITLE_FONT_SIZE,
+  TITLE_LINE_HEIGHT,
+  type IfdamLayout,
+  type PositionedNode,
+} from "@/lib/diagram/ifdam/layout";
+import type { IfdamDocModel } from "@/lib/diagram/ifdam/parse";
+import { useT } from "@/lib/i18n";
+import type { Sticky } from "@/lib/diagram/sticky";
+import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
+import { cn } from "@/lib/utils";
+
+/**
+ * The IFDAM canvas (T-0704), copied from the program-flow canvas.
+ *
+ * Draws `layoutIfdam`'s output as SVG - the same geometry the exports render -
+ * and owns exactly one piece of state the file does not: the camera (plus the
+ * transient hover and the gestures in flight). What is selected and what the
+ * note contains belong to the view above.
+ *
+ * - **left-drag on a node moves it**; reported once, on release, for that node
+ *   only (it is the only node that gets a `@`);
+ * - **a handle on a hovered node** drags out a new arrow onto another node, and
+ *   any other node is highlighted as a target;
+ * - **the end handles of a selected arrow** re-attach that end the same way;
+ * - **double-click on empty canvas adds a node** of the chosen symbol there; on
+ *   a node it renames it, on an arrow it selects it (the label is set in the
+ *   side panel);
+ * - right-drag pans and the wheel zooms (the shared camera).
+ */
+interface Props {
+  doc: IfdamDocModel;
+  /** Sticky notes to draw. Empty while the note hides them. */
+  stickies: Sticky[];
+  /** The layout of `doc` as it stands (the view needs it for edits too). */
+  layout: IfdamLayout;
+  selectedNodeId: string | null;
+  selectedEdgeKey: string | null;
+  selectedStickyId: string | null;
+  editingNodeId: string | null;
+  editingStickyId: string | null;
+  onSelectNode: (id: string | null) => void;
+  onSelectEdge: (key: string | null) => void;
+  onSelectSticky: (id: string | null) => void;
+  onStartEditNode: (id: string) => void;
+  onCommitNodeTitle: (id: string, title: string) => void;
+  onCancelNodeEdit: () => void;
+  onStartEditSticky: (id: string) => void;
+  onCommitStickyText: (id: string, text: string) => void;
+  onCancelStickyEdit: () => void;
+  /** A finished sticky drag: the new offset from its node's centre. */
+  onMoveSticky: (id: string, dx: number, dy: number) => void;
+  /** A finished node drag: where its centre was dropped. */
+  onMoveNode: (id: string, cx: number, cy: number) => void;
+  /** A double-click on empty canvas: add a node centred here. */
+  onAddAt: (x: number, y: number) => void;
+  onConnect: (from: string, to: string) => void;
+  onReattach: (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => void;
+  /** Copy, duplicate and paste, offered in the right-click menus. */
+  clipboard: CanvasClipboard;
+  /** Bumped by the view to re-fit (a new note, or the Fit button). */
+  fitToken: number;
+}
+
+export function IfdamCanvas({
+  doc,
+  stickies,
+  layout: base,
+  selectedNodeId,
+  selectedEdgeKey,
+  selectedStickyId,
+  editingNodeId,
+  editingStickyId,
+  onSelectNode,
+  onSelectEdge,
+  onSelectSticky,
+  onStartEditNode,
+  onCommitNodeTitle,
+  onCancelNodeEdit,
+  onStartEditSticky,
+  onCommitStickyText,
+  onCancelStickyEdit,
+  onMoveSticky,
+  onMoveNode,
+  onAddAt,
+  onConnect,
+  onReattach,
+  clipboard,
+  fitToken,
+}: Props) {
+  const t = useT();
+  // A screen's section names, in the display language; the file does not carry them.
+  const captions = {
+    show: t("diagram.ifdam.section.show"),
+    input: t("diagram.ifdam.section.input"),
+    action: t("diagram.ifdam.section.action"),
+  };
+  const view = useCamera({ bounds: base.bounds, fitToken });
+  const { camera, toDiagram } = view;
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  // A drag that ends over empty canvas is followed by a click that would clear
+  // the selection it just made; this swallows that one click.
+  const justDragged = useRef(false);
+  const swallowClick = () => {
+    justDragged.current = true;
+    setTimeout(() => {
+      justDragged.current = false;
+    }, 0);
+  };
+
+  const nodeFree = useFreeDrag({
+    toDiagram,
+    zoom: camera.zoom,
+    onEnd: (d) => {
+      const node = base.byId.get(d.id);
+      if (node) onMoveNode(d.id, node.cx + d.dx, node.cy + d.dy);
+      swallowClick();
+    },
+  });
+  const stickyFree = useFreeDrag({
+    toDiagram,
+    zoom: camera.zoom,
+    onEnd: (d) => {
+      const source = stickies.find((s) => s.id === d.id);
+      if (source) onMoveSticky(d.id, Math.round(source.dx + d.dx), Math.round(source.dy + d.dy));
+      swallowClick();
+    },
+  });
+
+  // While a node is dragged, the layout is recomputed with it at the pointer,
+  // so its arrows and stickies follow it live instead of jumping on release.
+  const dragging = nodeFree.drag?.active ? nodeFree.drag : null;
+  const layout = useMemo(() => {
+    if (!dragging) return base;
+    const node = base.byId.get(dragging.id);
+    if (!node) return base;
+    return layoutIfdam(doc, stickies, {
+      pinned: { id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy },
+    });
+  }, [base, dragging, doc, stickies]);
+
+  const edgeDrag = useEdgeDrag({
+    toDiagram,
+    nodeAt: (p) => hitNode(layout.nodes, p)?.id ?? null,
+    // Any node but the arrow's own anchor lights up (no connection rules).
+    canJoin: (d, overId) => overId !== d.anchorId,
+    onDrop: (d, overId) => {
+      if (d.mode === "create") onConnect(d.anchorId, overId);
+      else if (d.edge && d.end) onReattach(d.edge, d.end, overId);
+      swallowClick();
+    },
+  });
+
+  // Re-seeded when the rename target changes, not when the layout does - the
+  // layout changes on every keystroke via the draft itself.
+  useEffect(() => {
+    setDraft(editingNodeId ? (base.byId.get(editingNodeId)?.title ?? "") : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingNodeId]);
+
+  const startNodeDrag = (e: React.PointerEvent, node: PositionedNode) => {
+    if (e.button !== 0) return;
+    onSelectNode(node.id);
+    if (editingNodeId) return;
+    e.stopPropagation();
+    nodeFree.start(e, node.id);
+  };
+  const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
+    if (editingStickyId) return;
+    e.stopPropagation();
+    if (!stickies.some((s) => s.id === sticky.id)) return;
+    stickyFree.start(e, sticky.id);
+  };
+  const clearSelection = () => {
+    if (justDragged.current) return;
+    onSelectNode(null);
+    onSelectEdge(null);
+    onSelectSticky(null);
+  };
+
+  const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
+  const handleNodes = edgeDrag.drag || dragging ? [] : [hoverId, selectedNodeId];
+  const ghostKey =
+    edgeDrag.drag?.mode === "reattach" && edgeDrag.drag.edge
+      ? `${edgeDrag.drag.edge.from}->${edgeDrag.drag.edge.to}`
+      : null;
+
+  return (
+    <DiagramSurface
+      view={view}
+      grabbing={Boolean(nodeFree.drag) || Boolean(edgeDrag.drag)}
+      onBackgroundClick={clearSelection}
+      menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
+      onBackgroundDoubleClick={(e) => {
+        const at = toDiagram(e.clientX, e.clientY);
+        onAddAt(at.x, at.y);
+      }}
+    >
+      {layout.edges.map((edge) => (
+        <EdgeArrow
+          key={edge.key}
+          geometry={edge.geometry}
+          {...(edge.label ? { label: edge.label } : {})}
+          {...(edge.labelBox ? { labelBox: edge.labelBox } : {})}
+          labelFontSize={EDGE_LABEL_FONT_SIZE}
+          selected={edge.key === selectedEdgeKey}
+          faded={edge.key === ghostKey}
+          onSelect={() => onSelectEdge(edge.key)}
+          onStartLabelEdit={() => onSelectEdge(edge.key)}
+          onEndPointerDown={(e, end) =>
+            edgeDrag.startReattach(e, { from: edge.from, to: edge.to }, end)
+          }
+        />
+      ))}
+
+      {layout.nodes.map((node) => {
+        const editing = node.id === editingNodeId;
+        const stroke = node.color ? COLOR_HEX[node.color] : undefined;
+        const isDragged = dragging?.id === node.id;
+        const isTarget = edgeDrag.drag?.overId === node.id;
+        const showHandles = handleNodes.includes(node.id);
+        return (
+          <NodeClipboardMenu
+            key={node.id}
+            svg
+            canPaste={clipboard.canPaste}
+            onCopy={() => clipboard.onCopy(node.id)}
+            onDuplicate={() => clipboard.onDuplicate(node.id)}
+            onPaste={clipboard.onPaste}
+          >
+          <g
+            opacity={isDragged ? 0.85 : 1}
+            className="cursor-pointer"
+            onPointerDown={(e) => startNodeDrag(e, node)}
+            onPointerEnter={() => setHoverId(node.id)}
+            onPointerLeave={() => setHoverId((h) => (h === node.id ? null : h))}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onStartEditNode(node.id);
+            }}
+          >
+            <ShapeOutline
+              shape={node.shape}
+              box={node}
+              rules={node.rules}
+              className={cn("fill-card", !stroke && "stroke-border")}
+              stroke={stroke}
+              strokeWidth={1.5}
+            />
+            {/* A screen: a light band behind the title, then the sections - the
+                same drawing as the exports' renderScreen. */}
+            {node.kind === "screen" && node.band > 0 && (
+              <rect
+                x={node.x + 1}
+                y={node.y + 1}
+                width={node.width - 2}
+                height={node.band - 1}
+                className={node.color ? undefined : "fill-muted"}
+                fill={node.color ? COLOR_HEX[node.color] : undefined}
+                fillOpacity={node.color ? 0.2 : undefined}
+              />
+            )}
+            {(node.id === selectedNodeId || isTarget) && (
+              <ShapeOutline
+                shape={node.shape}
+                box={node}
+                grow={3}
+                fill="none"
+                className="stroke-ring"
+                strokeWidth={2}
+                strokeDasharray={isTarget && node.id !== selectedNodeId ? "4 3" : undefined}
+              />
+            )}
+            {editing ? (
+              node.kind === "screen" ? (
+                <foreignObject
+                  x={node.x + 4}
+                  y={node.y + node.titleTop - 4}
+                  width={node.width - 8}
+                  height={TITLE_LINE_HEIGHT + 8}
+                >
+                  <NodeInput
+                    value={draft}
+                    onChange={setDraft}
+                    onCommit={(value) => onCommitNodeTitle(node.id, value)}
+                    onCancel={onCancelNodeEdit}
+                  />
+                </foreignObject>
+              ) : (
+                <foreignObject
+                  x={node.cx - Math.max(node.width, 140) / 2}
+                  y={node.cy - 14}
+                  width={Math.max(node.width, 140)}
+                  height={28}
+                >
+                  <NodeInput
+                    value={draft}
+                    onChange={setDraft}
+                    onCommit={(value) => onCommitNodeTitle(node.id, value)}
+                    onCancel={onCancelNodeEdit}
+                  />
+                </foreignObject>
+              )
+            ) : node.kind === "screen" ? (
+              node.lines.map((line, i) => (
+                <text
+                  key={`${node.id}-${i}`}
+                  x={node.x + SCREEN_PAD_X}
+                  y={nodeTextY(node, i)}
+                  fontSize={SCREEN_TITLE_FONT_SIZE}
+                  fontWeight={600}
+                  className="fill-foreground select-none"
+                >
+                  {line}
+                </text>
+              ))
+            ) : (
+              node.lines.map((line, i) => (
+                <text
+                  key={`${node.id}-${i}`}
+                  x={node.cx}
+                  y={nodeTextY(node, i)}
+                  textAnchor="middle"
+                  fontSize={NODE_FONT_SIZE}
+                  className="fill-foreground select-none"
+                >
+                  {line}
+                </text>
+              ))
+            )}
+            {node.kind === "screen" &&
+              node.sections.map((section) => (
+                <g key={`${node.id}-${section.key}`}>
+                  <text
+                    x={node.x + SCREEN_PAD_X}
+                    y={node.y + section.captionY}
+                    fontSize={SCREEN_CAPTION_FONT_SIZE}
+                    className="fill-muted-foreground select-none"
+                  >
+                    {captions[section.key]}
+                  </text>
+                  {section.items.map((item, n) => (
+                    <g key={n}>
+                      <text
+                        x={node.x + SCREEN_PAD_X}
+                        y={node.y + item.y}
+                        fontSize={SCREEN_ITEM_FONT_SIZE}
+                        className="fill-foreground select-none"
+                      >
+                        ・
+                      </text>
+                      {item.lines.map((line, i) => (
+                        <text
+                          key={i}
+                          x={node.x + SCREEN_PAD_X + SCREEN_BULLET_WIDTH}
+                          y={node.y + item.y + i * ITEM_LINE_HEIGHT}
+                          fontSize={SCREEN_ITEM_FONT_SIZE}
+                          className="fill-foreground select-none"
+                        >
+                          {line}
+                        </text>
+                      ))}
+                    </g>
+                  ))}
+                </g>
+              ))}
+            {node.task && !editing && (
+              <text
+                x={node.cx}
+                y={node.y - 5}
+                textAnchor="middle"
+                fontSize={10}
+                className="fill-muted-foreground font-mono select-none"
+              >
+                {node.task}
+              </text>
+            )}
+            {showHandles && !editing && (
+              <ArrowHandles
+                node={node}
+                onStart={(e) => {
+                  if (e.button !== 0) return;
+                  e.stopPropagation();
+                  edgeDrag.startCreate(e, node.id);
+                }}
+              />
+            )}
+          </g>
+          </NodeClipboardMenu>
+        );
+      })}
+
+      {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
+
+      {/* Stickies are drawn last, so a note the user dropped over a node stays
+          readable instead of disappearing under it. */}
+      {layout.stickies.map((sticky) => (
+        <StickyPaper
+          key={sticky.id}
+          sticky={sticky}
+          offsetX={stickyFree.drag?.active && stickyFree.drag.id === sticky.id ? stickyFree.drag.dx : 0}
+          offsetY={stickyFree.drag?.active && stickyFree.drag.id === sticky.id ? stickyFree.drag.dy : 0}
+          selected={sticky.id === selectedStickyId}
+          editing={sticky.id === editingStickyId}
+          onSelect={onSelectSticky}
+          onStartEdit={onStartEditSticky}
+          onCommit={onCommitStickyText}
+          onCancel={onCancelStickyEdit}
+          onDragStart={startStickyDrag}
+        />
+      ))}
+
+      {hovered?.note && !editingNodeId && !edgeDrag.drag && (
+        <NoteTip box={hovered} note={hovered.note} />
+      )}
+    </DiagramSurface>
+  );
+}
