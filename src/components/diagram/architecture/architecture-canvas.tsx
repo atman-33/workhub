@@ -14,12 +14,14 @@ import { StickyPaper } from "@/components/diagram/sticky-paper";
 import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
+import { useMarquee } from "@/components/diagram/use-marquee";
 import { COLOR_HEX } from "@/lib/diagram/colors";
 import {
   hitNode,
   portOfDrop,
   type EdgePort,
 } from "@/lib/diagram/node-edge";
+import { idsInRect, shiftPositions } from "@/lib/diagram/multi-select";
 import type { Sticky } from "@/lib/diagram/sticky";
 import type { PositionedSticky } from "@/lib/diagram/sticky-layout";
 import {
@@ -45,11 +47,17 @@ import { cn } from "@/lib/utils";
  * what the note contains belong to the view above.
  *
  * - **frames are background**: a frame is drawn under the arrows, clicked to
- *   select, double-clicked on its header to rename. Dragging a frame (moving
- *   every member) is later work (T-0711): a frame answers the pointer with
- *   selection only;
- * - **left-drag on a block moves it**; reported once, on release, for that
- *   block only (it is the only block that gets a `@`);
+ *   select, double-clicked on its header to rename. Dragging a frame's header
+ *   moves every member; a frame is never a marquee node - the marquee tests
+ *   block boxes only, and a press on a frame never arms it (frames answer the
+ *   pointer with selection and stop the press there);
+ * - **left-drag on a block moves it**, alone or with the rest of the selection
+ *   (Shift+click grows the selection; dragging any selected block moves them
+ *   all, reported once on release so one undo step restores them). A lone drop
+ *   may move the block across a frame border; a group drag keeps every
+ *   membership and the frames stretch and shrink after it instead;
+ * - **left-drag on empty canvas draws a marquee** selecting every block it
+ *   touches (Shift held: added to the selection instead);
  * - **a handle on a hovered block** drags out a new arrow onto another block,
  *   and any other block is highlighted as a target. Arrows never join frames;
  * - **the end handles of a selected arrow** re-attach that end the same way;
@@ -64,14 +72,18 @@ interface Props {
   stickies: Sticky[];
   /** The layout of `doc` as it stands (the view needs it for edits too). */
   layout: ArchitectureLayout;
-  selectedNodeId: string | null;
+  /** The ordered selection; the ring is drawn on every entry. */
+  selectedNodeIds: string[];
   selectedFrameId: string | null;
   selectedEdgeKey: string | null;
   selectedStickyId: string | null;
   editingNodeId: string | null;
   editingFrameId: string | null;
   editingStickyId: string | null;
-  onSelectNode: (id: string | null) => void;
+  /** A click on a block: plain replaces the selection, Shift toggles it. */
+  onSelectNode: (id: string | null, additive: boolean) => void;
+  /** A finished marquee: the caught ids replace the selection, or join it with Shift. */
+  onSelectMarquee: (ids: string[], additive: boolean) => void;
   onSelectFrame: (id: string | null) => void;
   onSelectEdge: (key: string | null) => void;
   onSelectSticky: (id: string | null) => void;
@@ -86,8 +98,10 @@ interface Props {
   onCancelStickyEdit: () => void;
   /** A finished sticky drag: the new offset from its target's centre. */
   onMoveSticky: (id: string, dx: number, dy: number) => void;
-  /** A finished block drag: where its centre was dropped. */
+  /** A finished lone-block drag: where its centre was dropped (may join another frame). */
   onMoveNode: (id: string, cx: number, cy: number) => void;
+  /** A finished group drag: the new centres of every moved block (frames kept). */
+  onMoveNodes: (moves: ReadonlyMap<string, { x: number; y: number }>) => void;
   /** A finished frame drag: how far every member travelled. */
   onMoveFrame: (id: string, dx: number, dy: number) => void;
   /** A double-click on empty canvas: add a block centred here (in the frame under it, if any). */
@@ -153,7 +167,7 @@ export function ArchitectureCanvas({
   doc,
   stickies,
   layout: base,
-  selectedNodeId,
+  selectedNodeIds,
   selectedFrameId,
   selectedEdgeKey,
   selectedStickyId,
@@ -161,6 +175,7 @@ export function ArchitectureCanvas({
   editingFrameId,
   editingStickyId,
   onSelectNode,
+  onSelectMarquee,
   onSelectFrame,
   onSelectEdge,
   onSelectSticky,
@@ -175,6 +190,7 @@ export function ArchitectureCanvas({
   onCancelStickyEdit,
   onMoveSticky,
   onMoveNode,
+  onMoveNodes,
   onMoveFrame,
   onAddAt,
   onConnect,
@@ -202,8 +218,23 @@ export function ArchitectureCanvas({
     toDiagram,
     zoom: camera.zoom,
     onEnd: (d) => {
-      const node = base.byId.get(d.id);
-      if (node) onMoveNode(d.id, node.cx + d.dx, node.cy + d.dy);
+      const origins = groupOrigins.current;
+      groupOrigins.current = new Map();
+      const ids = [...origins.keys()];
+      if (!ids.length) return;
+      if (ids.length === 1) {
+        // A lone block keeps the old drop: released over another frame it
+        // joins that frame (`reparentByDrop` rewrites `frame:`).
+        const node = base.byId.get(d.id);
+        if (node) onMoveNode(d.id, node.cx + d.dx, node.cy + d.dy);
+      } else {
+        onMoveNodes(
+          shiftPositions(origins, ids, d.dx, d.dy, (x, y) => ({
+            x: Math.round(x),
+            y: Math.round(y),
+          })),
+        );
+      }
       swallowClick();
     },
   });
@@ -225,19 +256,53 @@ export function ArchitectureCanvas({
     },
   });
 
-  // While a block is dragged, the layout is recomputed with it at the pointer,
-  // so its arrows follow it live instead of jumping on release. While a frame
-  // is dragged every member is held at the pointer the same way, so the frame
-  // follows too.
+  const marquee = useMarquee({
+    toDiagram,
+    zoom: camera.zoom,
+    // Blocks only: frames are never nodes, so a marquee over a frame catches
+    // its members but never the frame itself - and a press on a frame header
+    // never reaches the background to arm the marquee at all.
+    onMarquee: (rect, additive) => onSelectMarquee(idsInRect(base.nodes, rect), additive),
+  });
+
+  /** Centres of the drag's group, snapshotted when the press landed. */
+  const groupOrigins = useRef(new Map<string, { x: number; y: number }>());
+
+  // While blocks are dragged, the layout is recomputed with the whole group
+  // at the pointer, so their arrows follow live and the frames stretch and
+  // shrink around them instead of jumping on release. A lone block is pinned
+  // raw (it may be joining another frame); a group moves with every
+  // membership kept (see `moveNodesTo`).
   const dragging = nodeFree.drag?.active ? nodeFree.drag : null;
   const frameDragging = !dragging && frameFree.drag?.active ? frameFree.drag : null;
   const layout = useMemo(() => {
     if (dragging) {
-      const node = base.byId.get(dragging.id);
-      if (!node) return base;
-      return layoutArchitecture(doc, stickies, {
-        pinned: [{ id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy }],
-      });
+      const ids = [...groupOrigins.current.keys()];
+      if (!ids.length) return base;
+      if (ids.length === 1) {
+        const node = base.byId.get(dragging.id);
+        if (!node) return base;
+        return layoutArchitecture(doc, stickies, {
+          pinned: [{ id: dragging.id, cx: node.cx + dragging.dx, cy: node.cy + dragging.dy }],
+        });
+      }
+      const moves = shiftPositions(
+        groupOrigins.current,
+        ids,
+        dragging.dx,
+        dragging.dy,
+        (x, y) => ({ x: Math.round(x), y: Math.round(y) }),
+      );
+      return layoutArchitecture(
+        {
+          ...doc,
+          nodes: doc.nodes.map((n) => {
+            const at = moves.get(n.id);
+            return at ? { ...n, x: at.x, y: at.y } : n;
+          }),
+        },
+        stickies,
+      );
     }
     if (frameDragging) {
       const pins: { id: string; cx: number; cy: number }[] = [];
@@ -298,9 +363,23 @@ export function ArchitectureCanvas({
 
   const startNodeDrag = (e: React.PointerEvent, node: PositionedNode) => {
     if (e.button !== 0) return;
-    onSelectNode(node.id);
+    // Shift+click grows or shrinks the selection instead of dragging.
+    if (e.shiftKey) {
+      onSelectNode(node.id, true);
+      return;
+    }
+    // Dragging a selected block moves the whole group; anywhere else starts
+    // over with this block alone.
+    const ids = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id];
+    if (!selectedNodeIds.includes(node.id)) onSelectNode(node.id, false);
     if (editingNodeId) return;
     e.stopPropagation();
+    const origins = new Map<string, { x: number; y: number }>();
+    for (const id of ids) {
+      const at = base.byId.get(id);
+      if (at) origins.set(id, { x: at.cx, y: at.cy });
+    }
+    groupOrigins.current = origins;
     nodeFree.start(e, node.id);
   };
   const startStickyDrag = (e: React.PointerEvent, sticky: PositionedSticky) => {
@@ -310,15 +389,16 @@ export function ArchitectureCanvas({
     stickyFree.start(e, sticky.id);
   };
   const clearSelection = () => {
-    if (justDragged.current) return;
-    onSelectNode(null);
+    if (justDragged.current || marquee.consumeClick()) return;
+    onSelectNode(null, false);
     onSelectFrame(null);
     onSelectEdge(null);
     onSelectSticky(null);
   };
 
   const hovered = hoverId && !dragging && !frameDragging ? (layout.byId.get(hoverId) ?? null) : null;
-  const handleNodes = edgeDrag.drag || dragging || frameDragging ? [] : [hoverId, selectedNodeId];
+  const focusedNodeId = selectedNodeIds[selectedNodeIds.length - 1] ?? null;
+  const handleNodes = edgeDrag.drag || dragging || frameDragging ? [] : [hoverId, focusedNodeId];
   // The node a dragged arrow would land on, if any, and the node it keeps.
   const dropTarget =
     edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
@@ -332,8 +412,9 @@ export function ArchitectureCanvas({
   return (
     <DiagramSurface
       view={view}
-      grabbing={Boolean(nodeFree.drag) || Boolean(frameFree.drag) || Boolean(edgeDrag.drag)}
+      grabbing={Boolean(nodeFree.drag) || Boolean(frameFree.drag) || Boolean(edgeDrag.drag) || Boolean(marquee.marquee)}
       onBackgroundClick={clearSelection}
+      onBackgroundPointerDown={marquee.onPointerDown}
       menu={<ClipboardMenuItems onPaste={clipboard.onPaste} canPaste={clipboard.canPaste} />}
       onBackgroundDoubleClick={(e) => {
         const at = toDiagram(e.clientX, e.clientY);
@@ -446,7 +527,7 @@ export function ArchitectureCanvas({
                 stroke={stroke}
                 strokeWidth={node.strokeWidth}
               />
-              {(node.id === selectedNodeId || isTarget) && (
+              {(selectedNodeIds.includes(node.id) || isTarget) && (
                 <ShapeOutline
                   shape={node.shape}
                   box={node}
@@ -454,7 +535,7 @@ export function ArchitectureCanvas({
                   fill="none"
                   className="stroke-ring"
                   strokeWidth={2}
-                  strokeDasharray={isTarget && node.id !== selectedNodeId ? "4 3" : undefined}
+                  strokeDasharray={isTarget && !selectedNodeIds.includes(node.id) ? "4 3" : undefined}
                 />
               )}
               {editing ? (
@@ -520,6 +601,20 @@ export function ArchitectureCanvas({
       )}
       {dropTarget && edgeDrag.drag && (
         <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
+      )}
+
+      {/* The marquee in flight: every block it touches joins the selection on release. */}
+      {marquee.marquee && (
+        <rect
+          x={marquee.marquee.x0}
+          y={marquee.marquee.y0}
+          width={marquee.marquee.x1 - marquee.marquee.x0}
+          height={marquee.marquee.y1 - marquee.marquee.y0}
+          className="fill-ring/10 stroke-ring"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
       )}
 
       {/* Stickies are drawn last, so a note the user dropped over a node stays

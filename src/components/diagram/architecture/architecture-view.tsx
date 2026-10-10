@@ -33,10 +33,9 @@ import {
   connect,
   deleteEdge,
   deleteFrame,
-  deleteNode,
   hasManualPositions,
   moveFrame,
-  nudgeNode,
+  moveNodesTo,
   patchFrame,
   patchNode,
   reattach,
@@ -72,6 +71,7 @@ import {
   type Sticky,
 } from "@/lib/diagram/sticky";
 import { SidePanel } from "@/components/diagram/panel-frame";
+import { useMultiSelect } from "@/components/diagram/use-multi-select";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -168,7 +168,11 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [doc, setDoc] = useState<ArchitectureDocModel | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Multi-select (T-0716): the ordered selection, last entry focused for the
+  // side panel. Frames stay single-selected: they are never marquee nodes.
+  const multi = useMultiSelect();
+  const selectedNodeIds = multi.selected;
+  const selectedNodeId = selectedNodeIds[selectedNodeIds.length - 1] ?? null;
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
@@ -325,7 +329,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
   // and is written first, so the load below cannot overwrite the mtime that
   // write is guarded by.
   useEffect(() => {
-    setSelectedNodeId(null);
+    multi.clear();
     setSelectedFrameId(null);
     setSelectedEdgeKey(null);
     setEditingNodeId(null);
@@ -396,41 +400,79 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
 
   // ---- selection ------------------------------------------------------------
 
-  const selectNode = useCallback((id: string | null) => {
-    setSelectedNodeId(id);
-    if (id) {
-      setSelectedFrameId(null);
-      setSelectedEdgeKey(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /**
+   * A click on a block: plain replaces the selection, Shift toggles the
+   * block. A non-empty block selection clears the frame, edge and sticky ones.
+   */
+  const selectNode = useCallback(
+    (id: string | null, additive = false) => {
+      if (id === null) multi.clear();
+      else if (additive) multi.toggle(id);
+      else multi.replace(id);
+      if (id !== null) {
+        setSelectedFrameId(null);
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectFrame = useCallback((id: string | null) => {
-    setSelectedFrameId(id);
-    if (id) {
-      setSelectedNodeId(null);
-      setSelectedEdgeKey(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  /** A marquee release on the canvas: the caught ids replace or join. */
+  const selectMarquee = useCallback(
+    (ids: readonly string[], additive: boolean) => {
+      multi.marquee(ids, additive);
+      if (ids.length || !additive) {
+        setSelectedFrameId(null);
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
 
-  const selectEdge = useCallback((key: string | null) => {
-    setSelectedEdgeKey(key);
-    if (key) {
-      setSelectedNodeId(null);
-      setSelectedFrameId(null);
-      setSelectedStickyId(null);
-    }
-  }, []);
+  const clearSelection = useCallback(() => {
+    multi.clear();
+    setSelectedFrameId(null);
+    setSelectedEdgeKey(null);
+    setSelectedStickyId(null);
+  }, [multi]);
 
-  const selectSticky = useCallback((id: string | null) => {
-    setSelectedStickyId(id);
-    if (id) {
-      setSelectedNodeId(null);
-      setSelectedFrameId(null);
-      setSelectedEdgeKey(null);
-    }
-  }, []);
+  const selectFrame = useCallback(
+    (id: string | null) => {
+      setSelectedFrameId(id);
+      if (id) {
+        multi.clear();
+        setSelectedEdgeKey(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
+
+  const selectEdge = useCallback(
+    (key: string | null) => {
+      setSelectedEdgeKey(key);
+      if (key) {
+        multi.clear();
+        setSelectedFrameId(null);
+        setSelectedStickyId(null);
+      }
+    },
+    [multi],
+  );
+
+  const selectSticky = useCallback(
+    (id: string | null) => {
+      setSelectedStickyId(id);
+      if (id) {
+        multi.clear();
+        setSelectedFrameId(null);
+        setSelectedEdgeKey(null);
+      }
+    },
+    [multi],
+  );
 
   // ---- block commands -------------------------------------------------------
 
@@ -443,10 +485,22 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
 
   const moveNode = useCallback(
     (id: string, cx: number, cy: number) => {
-      // A drop may also move the block across a frame border.
+      // A lone drop may also move the block across a frame border.
       if (doc && layout) mutate(reparentByDrop(doc, layout, id, cx, cy));
     },
     [doc, layout, mutate],
+  );
+
+  /**
+   * A finished group drag (T-0716): every moved block keeps its frame and only
+   * its `@` moves, in one undo entry; the frames follow on the next layout.
+   */
+  const moveNodes = useCallback(
+    (moves: ReadonlyMap<string, { x: number; y: number }>) => {
+      if (!doc || !moves.size) return;
+      mutate(moveNodesTo(doc, moves));
+    },
+    [doc, mutate],
   );
 
   /** A finished frame drag: every member travels, in one undo entry. */
@@ -490,14 +544,28 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
     beginEditing(added.id);
   }, [doc, selectedNodeId, palette, mutate, beginEditing]);
 
-  const removeNode = useCallback(
-    (id: string) => {
-      if (!doc) return;
-      mutate(deleteNode(doc, id));
-      if (selectedNodeId === id) setSelectedNodeId(null);
-      if (editingNodeId === id) setEditingNodeId(null);
+  /**
+   * Removes blocks with the arrows into and out of them and the stickies
+   * pinned to them - the same as the single-block delete, for any number of
+   * blocks at once. Frames are never touched: a frame that loses its last
+   * member stays as an empty frame, exactly as after a single delete.
+   */
+  const removeNodes = useCallback(
+    (ids: readonly string[]) => {
+      if (!doc || !ids.length) return;
+      const gone = new Set(ids);
+      mutate({
+        ...doc,
+        nodes: doc.nodes.filter((n) => !gone.has(n.id)),
+        edges: doc.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to)),
+        stickies: doc.stickies.filter((s) => !gone.has(s.targetId)),
+      });
+      if (selectedNodeId && gone.has(selectedNodeId)) multi.clear();
+      else if (selectedNodeIds.some((id) => gone.has(id)))
+        multi.setSelected(selectedNodeIds.filter((id) => !gone.has(id)));
+      if (editingNodeId && gone.has(editingNodeId)) setEditingNodeId(null);
     },
-    [doc, mutate, selectedNodeId, editingNodeId],
+    [doc, mutate, selectedNodeId, selectedNodeIds, multi, editingNodeId],
   );
 
   /**
@@ -515,12 +583,12 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
       const fresh = freshId.current === id;
       if (fresh) freshId.current = null;
       if (!next && fresh) {
-        removeNode(id);
+        removeNodes([id]);
         return;
       }
       if (title !== null && next && next !== node.title) patchSelected(id, { title: next });
     },
-    [doc, removeNode, patchSelected],
+    [doc, removeNodes, patchSelected],
   );
 
   const changeMemo = useCallback(
@@ -602,28 +670,29 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
     [doc, mutate],
   );
 
-  // ---- copy and paste (T-0688) ----
+  // ---- copy and paste (T-0688, multi-select T-0716) ----
 
   const canPaste = useHasClip("architecture", path);
 
-  const copySelected = useCallback(
-    (id: string) => {
+  /** Copies the given blocks with the arrows inside them; Ctrl+C passes the whole selection. */
+  const copyNodes = useCallback(
+    (ids: readonly string[]) => {
       if (!doc) return;
-      const clip = copyArchitectureNodes(doc, [id]);
+      const clip = copyArchitectureNodes(doc, ids);
       if (clip.nodes.length) setClip("architecture", path, clip);
     },
     [doc, path],
   );
 
-  /** Adds the copies a step away from the originals and selects the first. */
+  /** Adds the copies a step away from the originals and selects them all. */
   const addCopies = useCallback(
     (clip: ArchitectureClip, round: number) => {
       if (!doc || !clip.nodes.length) return;
       const out = pasteArchitectureNodes(doc, clip, round);
       mutate(out.doc);
-      selectNode(out.ids[0]);
+      multi.setSelected(out.ids);
     },
-    [doc, mutate, selectNode],
+    [doc, mutate, multi],
   );
 
   const pasteCopied = useCallback(() => {
@@ -809,22 +878,19 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
         pasteCopied();
         return;
       }
-      if (clipboardKey === "copy" && selectedNodeId) {
+      if (clipboardKey === "copy" && selectedNodeIds.length) {
         e.preventDefault();
-        copySelected(selectedNodeId);
+        copyNodes(selectedNodeIds);
         return;
       }
       if (e.key === "Escape") {
-        setSelectedNodeId(null);
-        setSelectedFrameId(null);
-        setSelectedEdgeKey(null);
-        setSelectedStickyId(null);
+        clearSelection();
         return;
       }
       if (e.key === "Delete") {
         if (selectedStickyId) deleteSticky(selectedStickyId);
         else if (selectedEdgeKey) removeEdge(selectedEdgeKey);
-        else if (selectedNodeId) removeNode(selectedNodeId);
+        else if (selectedNodeIds.length) removeNodes(selectedNodeIds);
         else if (selectedFrameId) removeFrame(selectedFrameId);
         else return;
         e.preventDefault();
@@ -835,14 +901,17 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
         e.preventDefault();
         return;
       }
-      if (selectedNodeId && e.key.startsWith("Arrow")) {
+      if (selectedNodeIds.length && e.key.startsWith("Arrow")) {
         e.preventDefault();
-        const node = layout.byId.get(selectedNodeId);
-        if (!node) return;
         const step = e.shiftKey ? NUDGE_BIG : NUDGE;
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-        mutate(nudgeNode(doc, layout, selectedNodeId, dx, dy));
+        const moves = new Map<string, { x: number; y: number }>();
+        for (const id of selectedNodeIds) {
+          const node = layout.byId.get(id);
+          if (node) moves.set(id, { x: node.cx + dx, y: node.cy + dy });
+        }
+        moveNodes(moves);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -854,17 +923,20 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
     editingFrameId,
     editingStickyId,
     selectedNodeId,
+    selectedNodeIds,
     selectedFrameId,
     selectedEdgeKey,
     selectedStickyId,
+    clearSelection,
     deleteSticky,
     removeEdge,
-    removeNode,
+    removeNodes,
+    moveNodes,
     removeFrame,
     mutate,
     undo,
     redo,
-    copySelected,
+    copyNodes,
     pasteCopied,
   ]);
 
@@ -961,6 +1033,11 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
               <span className="text-[11px] text-muted-foreground">
                 {t("diagram.architecture.nodeCount", { count: doc.nodes.length })}
               </span>
+              {selectedNodeIds.length > 1 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {t("diagram.multi.selectedCount", { count: selectedNodeIds.length })}
+                </span>
+              )}
               {/* The symbol the next add (double-click, or + with nothing
                   selected) creates. */}
               <div className="flex items-center rounded-md border p-0.5">
@@ -1038,7 +1115,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                   doc={doc}
                   stickies={visibleStickies}
                   layout={layout}
-                  selectedNodeId={selectedNodeId}
+                  selectedNodeIds={selectedNodeIds}
                   selectedFrameId={selectedFrameId}
                   selectedEdgeKey={selectedEdgeKey}
                   selectedStickyId={selectedStickyId}
@@ -1046,6 +1123,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                   editingFrameId={editingFrameId}
                   editingStickyId={editingStickyId}
                   onSelectNode={selectNode}
+                  onSelectMarquee={selectMarquee}
                   onSelectFrame={selectFrame}
                   onSelectEdge={selectEdge}
                   onSelectSticky={selectSticky}
@@ -1060,12 +1138,13 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                   onCancelStickyEdit={() => editingStickyId && finishStickyEdit(editingStickyId, null)}
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
                   onMoveNode={moveNode}
+                  onMoveNodes={moveNodes}
                   onMoveFrame={moveFrameBy}
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
                   fitToken={fitToken}
-                  clipboard={{ canPaste, onCopy: copySelected, onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.architecture.footerHint")}
@@ -1091,7 +1170,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                     onDeleteSticky={deleteSticky}
                     onChange={(patch) => patchSelected(selectedNode.id, patch)}
                     onChangeMemo={(text) => changeMemo(selectedNode.id, text)}
-                    onDelete={() => removeNode(selectedNode.id)}
+                    onDelete={() => removeNodes([selectedNode.id])}
                   />
                 ) : selectedFrame ? (
                   <FrameEditor
