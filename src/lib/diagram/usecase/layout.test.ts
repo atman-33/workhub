@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ringBubbleSide, ringClearance } from "../graph-layout";
+import { idsInRect, normalizeRect } from "../multi-select";
 import { BUBBLE_TAIL, speechBubbleOutline } from "../shapes";
 import { boundsOfBoxes } from "../sticky-layout";
 import {
@@ -309,5 +310,45 @@ describe("golden", () => {
     expect(pos["U-003"][1]).toBeGreaterThan(pos["U-001"][1]);
     expect(l.bubbleOf.get("U-002")!.side).toBe("top");
     expect(l.bubbleOf.get("U-003")!.side).toBe("bottom");
+  });
+});
+
+describe("marquee selection (T-0716)", () => {
+  it("catches node boxes only: a bubble alone never selects its person", () => {
+    const l = layoutUsecase(doc);
+    const person = l.byId.get("U-002")!;
+    const bubble = l.bubbleOf.get("U-002")!;
+    expect(bubble).toBeDefined();
+    // The whole person box: caught.
+    expect(
+      idsInRect(
+        l.nodes,
+        normalizeRect({ x: person.x - 4, y: person.y - 4 }, { x: person.x + person.width + 4, y: person.y + person.height + 4 }),
+      ),
+    ).toContain("U-002");
+    // A rectangle over the bubble that avoids the person box catches nothing:
+    // bubbles are derived decoration, like stickies, and are never selected
+    // or moved on their own. The ring puts the bubble clear of its person, so
+    // the bubble's own box is such a rectangle.
+    expect(
+      bubble.x + bubble.width <= person.x ||
+        bubble.x >= person.x + person.width ||
+        bubble.y + bubble.height <= person.y ||
+        bubble.y >= person.y + person.height,
+    ).toBe(true);
+    expect(
+      idsInRect(
+        l.nodes,
+        normalizeRect({ x: bubble.x, y: bubble.y }, { x: bubble.x + bubble.width, y: bubble.y + bubble.height }),
+      ),
+    ).not.toContain("U-002");
+  });
+
+  it("catches systems and external services by their boxes", () => {
+    const l = layoutUsecase(doc);
+    const system = l.byId.get("U-001")!;
+    expect(
+      idsInRect(l.nodes, normalizeRect({ x: system.cx - 10, y: system.cy - 10 }, { x: system.cx + 10, y: system.cy + 10 })),
+    ).toEqual(["U-001"]);
   });
 });

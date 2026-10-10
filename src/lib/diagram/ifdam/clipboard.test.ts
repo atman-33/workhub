@@ -51,6 +51,13 @@ describe("copyIfdamNodes", () => {
     expect(c.edges).toEqual([{ from: "V-001", to: "V-004", label: "はい" }]);
   });
 
+  it("drops the arrows to nodes outside a multi-select", () => {
+    const c = copyIfdamNodes(docOf(), ["V-001", "V-004", "V-009"]);
+    expect(c.nodes.map((n) => n.id)).toEqual(["V-001", "V-004", "V-009"]);
+    // V-001 -> V-004 is inside; V-004 -> V-005 stays behind with V-005.
+    expect(c.edges).toEqual([{ from: "V-001", to: "V-004", label: "はい" }]);
+  });
+
   it("is a snapshot: later edits to the document do not change it", () => {
     const d = docOf();
     const c = copyIfdamNodes(d, ["V-001"]);
@@ -97,6 +104,13 @@ describe("pasteIfdamNodes", () => {
     expect(out).toContain(
       "- V-010 一覧 ^screen @132,232\n  show: 一覧\n  input: 検索語\n  show: 件数\n  メモ\n  action: 追加\n",
     );
+  });
+
+  it("never copies stickies, and leaves the source document's edges alone", () => {
+    const d = docOf();
+    const { doc } = pasteIfdamNodes(d, copyIfdamNodes(d, ["V-001", "V-004"]), 1);
+    expect(doc.stickies).toEqual(d.stickies);
+    expect(doc.edges.slice(0, 2)).toEqual(d.edges);
   });
 });
 

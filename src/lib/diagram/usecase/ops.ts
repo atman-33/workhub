@@ -131,6 +131,31 @@ export function moveNodeTo(
   return patchNode(doc, id, { x: Math.round(cx), y: Math.round(cy) });
 }
 
+/**
+ * Drops several nodes at their new centres after a group drag (T-0716). Every
+ * moved node gets its `@` in the one model update, so one undo step restores
+ * them all; nodes outside the move keep their exact model objects, so a node
+ * the ring places never gains a position from a drag it was not part of.
+ * Only the centres move: a person's actions, every memo, every line and every
+ * sticky stay untouched. A `^system` moves like any other node, on its own:
+ * the model has no containment - a system never owns the people and services
+ * around it - so lines to nodes outside the move stay where they are, exactly
+ * as a single-node drag leaves them.
+ */
+export function moveNodesTo(
+  doc: UsecaseDocModel,
+  moves: ReadonlyMap<string, { x: number; y: number }>,
+): UsecaseDocModel {
+  let touched = false;
+  const nodes = doc.nodes.map((n) => {
+    const at = moves.get(n.id);
+    if (!at) return n;
+    touched = true;
+    return { ...n, x: Math.round(at.x), y: Math.round(at.y) };
+  });
+  return touched ? { ...doc, nodes } : doc;
+}
+
 /** Moves a node by a step of the keyboard, from where it is drawn now (written as a `@`). */
 export function nudgeNode(
   doc: UsecaseDocModel,

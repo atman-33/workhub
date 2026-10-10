@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nodeContains, type Point } from "../node-edge";
+import { idsInRect, normalizeRect } from "../multi-select";
 import { cylinderLid, shapeOf } from "../shapes";
 import {
   layoutIfdam,
@@ -562,5 +563,45 @@ title: t
       from.y + from.height / 2,
     ]);
     expect([edge.geometry.end.x, edge.geometry.end.y]).toEqual([to.x, to.y + to.height / 2]);
+  });
+});
+
+describe("marquee selection (T-0716)", () => {
+  const MARQUEE = `---
+type: ifdam
+title: t
+---
+
+## Nodes
+
+- V-001 一覧 ^screen @100,200
+  show: 一覧
+- V-002 押す ^trigger @400,200
+- V-003 登録する @700,200
+
+## Edges
+
+## Stickies
+`;
+
+  it("catches the node boxes a rectangle touches, screens with sections included", () => {
+    const layout = layoutIfdam(parseIfdam(MARQUEE));
+    const left = layout.byId.get("V-001")!;
+    const right = layout.byId.get("V-003")!;
+    // A rectangle over the left two boxes only.
+    expect(
+      idsInRect(layout.nodes, normalizeRect({ x: left.x - 10, y: left.y - 10 }, { x: 450, y: 400 })),
+    ).toEqual(["V-001", "V-002"]);
+    // A sliver touching the right box still catches it.
+    expect(
+      idsInRect(
+        layout.nodes,
+        normalizeRect({ x: right.x + right.width - 1, y: right.y }, { x: right.x + 500, y: right.y + 10 }),
+      ),
+    ).toEqual(["V-003"]);
+    // Empty canvas catches nothing.
+    expect(idsInRect(layout.nodes, normalizeRect({ x: 2000, y: 2000 }, { x: 2100, y: 2100 }))).toEqual(
+      [],
+    );
   });
 });

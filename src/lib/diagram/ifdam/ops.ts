@@ -133,6 +133,30 @@ export function moveNodeTo(
   return patchNode(doc, id, { x: Math.round(cx), y: Math.round(cy) });
 }
 
+/**
+ * Drops several nodes at their new centres after a group drag (T-0716). Every
+ * moved node gets its `@` in the one model update, so one undo step restores
+ * them all; nodes outside the move keep their exact model objects, so an
+ * auto-placed node never gains a position from a drag it was not part of.
+ * Only the centres move: a screen's continuation lines, its memo, every arrow
+ * and every sticky stay untouched. A data store moves like any other node, by
+ * its absolute `@` - the layout rule that hangs it under its process only
+ * places stores that were never moved.
+ */
+export function moveNodesTo(
+  doc: IfdamDocModel,
+  moves: ReadonlyMap<string, { x: number; y: number }>,
+): IfdamDocModel {
+  let touched = false;
+  const nodes = doc.nodes.map((n) => {
+    const at = moves.get(n.id);
+    if (!at) return n;
+    touched = true;
+    return { ...n, x: Math.round(at.x), y: Math.round(at.y) };
+  });
+  return touched ? { ...doc, nodes } : doc;
+}
+
 /** Moves a node by a step of the keyboard, from where it is drawn now (written as a `@`). */
 export function nudgeNode(
   doc: IfdamDocModel,

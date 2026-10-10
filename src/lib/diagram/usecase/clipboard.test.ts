@@ -51,6 +51,22 @@ describe("copyUsecaseNodes", () => {
     expect(copyUsecaseNodes(docOf(), ["U-004", "U-009"]).edges).toEqual([]);
   });
 
+  it("keeps the internal lines of both kinds, `--` and `->`, in a multi-select", () => {
+    const c = copyUsecaseNodes(docOf(), ["U-004", "U-001", "U-009"]);
+    expect(c.nodes.map((n) => n.id)).toEqual(["U-001", "U-004", "U-009"]);
+    expect(c.edges).toEqual([
+      { from: "U-004", to: "U-001", arrow: false },
+      { from: "U-001", to: "U-009", arrow: false },
+    ]);
+  });
+
+  it("drops the lines to nodes outside a multi-select", () => {
+    const c = copyUsecaseNodes(docOf(), ["U-004", "U-005", "U-009"]);
+    expect(c.nodes.map((n) => n.id)).toEqual(["U-004", "U-005", "U-009"]);
+    // U-004 -- U-001, U-005 -> U-001 and U-001 -- U-009 all stay behind with U-001.
+    expect(c.edges).toEqual([]);
+  });
+
   it("copies by value, so a later edit does not reach the clip", () => {
     const doc = docOf();
     const c = copyUsecaseNodes(doc, ["U-004"]);

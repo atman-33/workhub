@@ -10,6 +10,7 @@ import {
   deleteNode,
   hasManualPositions,
   moveNodeTo,
+  moveNodesTo,
   nudgeNode,
   patchNode,
   reattach,
@@ -119,6 +120,56 @@ describe("nodes", () => {
     expect(hasManualPositions(doc)).toBe(true);
     const cleared = autoAlign(doc);
     expect(hasManualPositions(cleared)).toBe(false);
+  });
+});
+
+describe("moveNodesTo (T-0716 group drag)", () => {
+  it("moves every given node to its new centre in one update", () => {
+    const d = docOf();
+    const moved = moveNodesTo(
+      d,
+      new Map([
+        ["U-001", { x: 300.4, y: 200.6 }],
+        ["U-002", { x: 100, y: 100 }],
+      ]),
+    );
+    expect(moved.nodes[0]).toMatchObject({ x: 300, y: 201 });
+    expect(moved.nodes[1]).toMatchObject({ x: 100, y: 100 });
+    // Nodes outside the move keep their exact model objects: a node the ring
+    // places never gains a `@` from a drag it was not part of.
+    expect(moved.nodes[2]).toBe(d.nodes[2]);
+    expect(moved.nodes[3]).toBe(d.nodes[3]);
+    expect(moved.edges).toBe(d.edges);
+    expect(moved.stickies).toBe(d.stickies);
+  });
+
+  it("moves a system on its own: nothing is contained, so nobody follows", () => {
+    const d = docOf();
+    const moved = moveNodesTo(d, new Map([["U-001", { x: 400, y: 300 }]]));
+    expect(moved.nodes[0]).toMatchObject({ kind: "system", x: 400, y: 300 });
+    // The people and services around it stay exactly where they were.
+    expect(moved.nodes.slice(1)).toEqual(d.nodes.slice(1));
+  });
+
+  it("keeps a person's actions, and writes only the moved nodes' `@`", () => {
+    const d = docOf();
+    const moved = moveNodesTo(
+      d,
+      new Map([
+        ["U-002", { x: 10, y: 10 }],
+        ["U-004", { x: 20, y: 20 }],
+      ]),
+    );
+    expect(actionsOf(moved.nodes[1])).toEqual(["見る"]);
+    const out = serializeUsecase(NOTE, moved, "2026-10-11");
+    expect(out).toContain("- U-002 客 @10,10\n");
+    expect(out).toContain("- U-004 決済 ^ext @20,20\n");
+  });
+
+  it("returns the same model for an empty move or unknown ids only", () => {
+    const d = docOf();
+    expect(moveNodesTo(d, new Map())).toBe(d);
+    expect(moveNodesTo(d, new Map([["U-009", { x: 1, y: 1 }]]))).toBe(d);
   });
 });
 
