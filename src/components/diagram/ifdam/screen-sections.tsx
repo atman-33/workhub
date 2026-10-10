@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { DraftInput } from "@/components/diagram/ifdam/draft-field";
+import { DraftInput } from "@/components/diagram/draft-field";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,7 @@ interface Props {
 function focusNext(container: HTMLElement | null, current: HTMLElement, key: SectionKey) {
   if (!container) return;
   const fields = Array.from(
-    container.querySelectorAll<HTMLInputElement>(`[data-ifdam-item^="${key}:"]`),
+    container.querySelectorAll<HTMLInputElement>(`[data-draft-item^="${key}:"]`),
   );
   const next = fields[fields.indexOf(current as HTMLInputElement) + 1];
   next?.focus();
@@ -63,7 +63,7 @@ function AddField({
       <Input
         value={text}
         placeholder={placeholder}
-        data-ifdam-item={itemAttr}
+        data-draft-item={itemAttr}
         className="h-7 flex-1 text-xs"
         onChange={(e) => {
           skipBlur.current = false;

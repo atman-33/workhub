@@ -15,6 +15,7 @@ export function EdgeArrow({
   label,
   labelBox,
   labelFontSize,
+  head = true,
   selected,
   faded,
   onSelect,
@@ -25,6 +26,8 @@ export function EdgeArrow({
   label?: string;
   labelBox?: Box;
   labelFontSize: number;
+  /** Draw the arrowhead. `false` is a plain line (the use case diagram's `--`). */
+  head?: boolean;
   selected: boolean;
   /** Drawn pale: the arrow is being re-attached and its old shape is a ghost. */
   faded?: boolean;
@@ -51,12 +54,14 @@ export function EdgeArrow({
         strokeWidth={selected ? 2.5 : 1.5}
         className={cn("pointer-events-none", selected ? "stroke-ring" : "stroke-muted-foreground")}
       />
-      <path
-        d={arrowHeadPath(geometry.end, geometry.headAngle)}
-        strokeWidth={1}
-        strokeLinejoin="round"
-        className={cn("pointer-events-none", selected ? "fill-ring stroke-ring" : "fill-muted-foreground stroke-muted-foreground")}
-      />
+      {head && (
+        <path
+          d={arrowHeadPath(geometry.end, geometry.headAngle)}
+          strokeWidth={1}
+          strokeLinejoin="round"
+          className={cn("pointer-events-none", selected ? "fill-ring stroke-ring" : "fill-muted-foreground stroke-muted-foreground")}
+        />
+      )}
       {label && labelBox && (
         <g
           className="cursor-pointer"

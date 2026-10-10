@@ -7,7 +7,7 @@ import {
   TitleField,
 } from "@/components/diagram/panel-frame";
 import { DraftTextarea } from "@/components/diagram/draft-field";
-import { ScreenSections } from "@/components/diagram/ifdam/screen-sections";
+import { ActionList } from "@/components/diagram/usecase/action-list";
 import { StickyList } from "@/components/diagram/sticky-list";
 import {
   Select,
@@ -16,21 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { memoOf, type IfdamNode, type SectionKey } from "@/lib/diagram/ifdam/parse";
-import { NODE_KINDS, symbolOfKind, type NodeKind } from "@/lib/diagram/ifdam/symbols";
 import type { Sticky } from "@/lib/diagram/sticky";
+import type { UsecaseNode } from "@/lib/diagram/usecase/parse";
+import { NODE_KINDS, symbolOfKind, type NodeKind } from "@/lib/diagram/usecase/symbols";
 import { useLocale, useT } from "@/lib/i18n";
 import type { Task } from "@/types";
 
 /**
  * Edit panel for the selected node: title, kind (from the symbol registry),
- * colour, linked task, the memo and the stickies pinned to it. A screen also
- * gets its three section editors (display / input / operation items). The id
- * is shown, never edited; the id does not fix the kind, so changing the kind
- * keeps the id (and the lines: see `patchNode`).
+ * colour, linked task, the note and the stickies pinned to it. For a person the
+ * note is their list of actions (one field per item: the speech bubble), for
+ * anything else a memo shown on hover. The id is shown, never edited; changing
+ * the kind keeps the id and the note (see `setNodeKind`).
  */
 interface Props {
-  node: IfdamNode;
+  node: UsecaseNode;
   tasks: Task[];
   /** The sticky notes pinned to this node. */
   stickies: Sticky[];
@@ -38,9 +38,9 @@ interface Props {
   onAddSticky: () => void;
   onChangeSticky: (id: string, patch: Partial<Sticky>) => void;
   onDeleteSticky: (id: string) => void;
-  onChange: (patch: Partial<IfdamNode>) => void;
-  onAddItem: (key: SectionKey, text: string) => void;
-  onSetItem: (key: SectionKey, index: number, text: string) => void;
+  onChange: (patch: Partial<UsecaseNode>) => void;
+  onAddAction: (text: string) => void;
+  onSetAction: (index: number, text: string) => void;
   onChangeMemo: (text: string) => void;
   onDelete: () => void;
 }
@@ -54,39 +54,40 @@ export function NodeEditor({
   onChangeSticky,
   onDeleteSticky,
   onChange,
-  onAddItem,
-  onSetItem,
+  onAddAction,
+  onSetAction,
   onChangeMemo,
   onDelete,
 }: Props) {
   const t = useT();
   const locale = useLocale();
   const placed = node.x !== undefined && node.y !== undefined;
+  const person = symbolOfKind(node.kind).bubble;
 
   return (
     <PanelFrame>
       <IdHeader
         id={node.id}
-        copyHint={t("diagram.ifdam.copyIdHint")}
+        copyHint={t("diagram.usecase.copyIdHint")}
         aside={
           placed && (
             <span className="font-mono text-[11px] text-muted-foreground">
-              {t("diagram.ifdam.position", { x: node.x!, y: node.y! })}
+              {t("diagram.usecase.position", { x: node.x!, y: node.y! })}
             </span>
           )
         }
       />
       {!placed && (
-        <p className="text-[11px] text-muted-foreground">{t("diagram.ifdam.autoPlaced")}</p>
+        <p className="text-[11px] text-muted-foreground">{t("diagram.usecase.autoPlaced")}</p>
       )}
 
       <TitleField
         value={node.title}
-        placeholder={t("diagram.ifdam.nodeTitlePlaceholder")}
+        placeholder={t("diagram.usecase.nodeTitlePlaceholder")}
         onChange={(title) => onChange({ title })}
       />
       <Select value={node.kind} onValueChange={(v) => onChange({ kind: v as NodeKind })}>
-        <SelectTrigger className="h-7 text-xs" aria-label={t("diagram.ifdam.kindLabel")}>
+        <SelectTrigger className="h-7 text-xs" aria-label={t("diagram.usecase.kindLabel")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -97,15 +98,16 @@ export function NodeEditor({
           ))}
         </SelectContent>
       </Select>
-      {node.kind === "screen" && (
-        <ScreenSections key={node.id} node={node} onAdd={onAddItem} onSet={onSetItem} />
+      {person ? (
+        <ActionList key={node.id} node={node} onAdd={onAddAction} onSet={onSetAction} />
+      ) : (
+        <DraftTextarea
+          key={node.id}
+          value={node.note ?? ""}
+          placeholder={t("diagram.usecase.nodeNotePlaceholder")}
+          onCommit={onChangeMemo}
+        />
       )}
-      <DraftTextarea
-        key={node.id}
-        value={memoOf(node)}
-        placeholder={t("diagram.ifdam.nodeNotePlaceholder")}
-        onCommit={onChangeMemo}
-      />
       <ColorSwatches value={node.color} onChange={(color) => onChange({ color })} />
       <TaskSelect value={node.task} tasks={tasks} onChange={(task) => onChange({ task })} />
 
@@ -118,7 +120,7 @@ export function NodeEditor({
       />
 
       <div className="flex flex-wrap gap-1.5">
-        <DeleteButton hint={t("diagram.ifdam.deleteNodeHint")} onClick={onDelete} />
+        <DeleteButton hint={t("diagram.usecase.deleteNodeHint")} onClick={onDelete} />
       </div>
     </PanelFrame>
   );

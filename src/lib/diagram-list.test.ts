@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CREATABLE_KINDS, DIAGRAM_KINDS, hasEditor, KIND_GROUPS } from "./diagram-kinds";
+import { CREATABLE_KINDS, DIAGRAM_KINDS, hasEditor, KIND_GROUPS, SIMPLE_KINDS } from "./diagram-kinds";
 import {
   ALL_KINDS,
   chipGroups,
@@ -29,10 +29,12 @@ describe("kind definition", () => {
     expect(hasEditor("ifdam")).toBe(true);
   });
 
-  it("lists the use case diagram first in the system group but does not offer it until its editor lands (T-0706)", () => {
+  it("offers the use case diagram, first in the system group, with a simple-version hint (T-0707)", () => {
     expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds[0]).toBe("usecase");
-    expect(CREATABLE_KINDS).not.toContain("usecase");
-    expect(hasEditor("usecase")).toBe(false);
+    expect(CREATABLE_KINDS).toContain("usecase");
+    expect(CREATABLE_KINDS.indexOf("usecase")).toBe(CREATABLE_KINDS.indexOf("ifdam") - 1);
+    expect(hasEditor("usecase")).toBe(true);
+    expect(SIMPLE_KINDS).toEqual(["usecase"]);
   });
 
   it("lists each kind in exactly one group", () => {
