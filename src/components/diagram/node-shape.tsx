@@ -6,16 +6,21 @@ import type { Box } from "@/lib/diagram/sticky-layout";
  * A node's outline, drawn from the shape registry: the same numbers the export
  * serializes, so the screen and the file cannot disagree about a shape.
  * `grow` pads the box (a selection ring is the same shape a little larger).
+ * `rules` (a screen's dividing lines, from the top edge) is passed to the
+ * shape; with `grow` the rules would drift off the frame, so a ring is drawn
+ * without them.
  */
 export function ShapeOutline({
   shape,
   box,
   grow = 0,
+  rules,
   ...props
 }: {
   shape: string;
   box: Box;
   grow?: number;
+  rules?: number[];
 } & Omit<SVGProps<SVGElement>, "ref">) {
   const padded: Box = {
     x: box.x - grow,
@@ -23,6 +28,6 @@ export function ShapeOutline({
     width: box.width + grow * 2,
     height: box.height + grow * 2,
   };
-  const el = shapeOf(shape).outline(padded);
+  const el = shapeOf(shape).outline(grow === 0 && rules ? { ...padded, rules } : padded);
   return createElement(el.tag, { ...el.attrs, ...props });
 }

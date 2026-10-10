@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { boundaryPoint, centerOf, nodeContains, type DiagramNode, type Point } from "./node-edge";
-import { PARALLELOGRAM_SLANT, SUBROUTINE_INSET, shapeOf } from "./shapes";
+import {
+  CYLINDER_LID,
+  HEXAGON_INSET,
+  PARALLELOGRAM_SLANT,
+  SUBROUTINE_INSET,
+  cylinderLid,
+  hexagonInset,
+  shapeOf,
+} from "./shapes";
 
 const node = (shape: string, width = 120, height = 48): DiagramNode => ({
   id: "n",
@@ -126,5 +134,195 @@ describe("subroutine", () => {
     // the inset shrinks to a quarter of the width, so the lines never cross
     expect(d).toContain(`M ${n.x + 6} ${n.y} V ${n.y + n.height}`);
     expect(d).toContain(`M ${n.x + n.width - 6} ${n.y} V ${n.y + n.height}`);
+  });
+});
+
+describe("hexagon (T-0702)", () => {
+  it("is registered, pointed left and right, flat top and bottom", () => {
+    const n = node("hexagon");
+    expect(shapeOf("hexagon").id).toBe("hexagon");
+    const k = HEXAGON_INSET;
+    expect(polygonPoints(n)).toEqual([
+      { x: 140 + k, y: 76 },
+      { x: 260 - k, y: 76 },
+      { x: 260, y: 100 },
+      { x: 260 - k, y: 124 },
+      { x: 140 + k, y: 124 },
+      { x: 140, y: 100 },
+    ]);
+  });
+
+  it("contains its centre and the points, not the cut corners", () => {
+    const n = node("hexagon");
+    const c = centerOf(n);
+    expect(nodeContains(n, c)).toBe(true);
+    expect(nodeContains(n, { x: n.x + 0.5, y: c.y })).toBe(true);
+    expect(nodeContains(n, { x: n.x + 1, y: n.y + 1 })).toBe(false);
+    expect(nodeContains(n, { x: n.x + n.width - 1, y: n.y + n.height - 1 })).toBe(false);
+    expect(nodeContains(n, { x: c.x, y: n.y - 1 })).toBe(false);
+    expect(nodeContains(n, { x: n.x - 1, y: c.y })).toBe(false);
+  });
+
+  it("puts arrow endpoints on the drawn outline, in every direction and size", () => {
+    for (const [w, h] of [
+      [120, 48],
+      [60, 40],
+      [24, 40],
+    ]) {
+      const n = node("hexagon", w, h);
+      const pts = polygonPoints(n);
+      for (const a of ANGLES) {
+        const c = centerOf(n);
+        const far = { x: c.x + Math.cos(a) * 1000, y: c.y + Math.sin(a) * 1000 };
+        const p = boundaryPoint(n, far);
+        const d = Math.min(...pts.map((q, i) => distanceToSegment(p, q, pts[(i + 1) % pts.length])));
+        expect(d).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it("limits the inset to a quarter of the width", () => {
+    expect(hexagonInset({ width: 20, height: 40 })).toBe(5);
+    expect(hexagonInset({ width: 200, height: 40 })).toBe(HEXAGON_INSET);
+  });
+});
+
+/** Commands of a path `d` (single letters M L H V A Z), each with its numbers. */
+function pathCommands(d: string): { cmd: string; args: number[] }[] {
+  return [...d.matchAll(/([MLHVAZ])([^MLHVAZ]*)/g)].map((m) => ({
+    cmd: m[1],
+    args: m[2].trim() === "" ? [] : m[2].trim().split(/\s+/).map(Number),
+  }));
+}
+
+describe("cylinder (T-0702)", () => {
+  const dOf = (n: DiagramNode) => String(shapeOf(n.shape).outline(n).attrs.d);
+
+  it("is registered; the outline is a closed silhouette plus the lid's front arc", () => {
+    const n = node("cylinder", 120, 60);
+    expect(shapeOf("cylinder").id).toBe("cylinder");
+    const e = cylinderLid(n);
+    expect(e).toBe(CYLINDER_LID);
+    const cmds = pathCommands(dOf(n));
+    // body: top arc, right side, bottom arc, close; then the open front arc
+    expect(cmds.map((c) => c.cmd)).toEqual(["M", "A", "V", "A", "Z", "M", "A"]);
+    expect(cmds[0].args).toEqual([n.x, n.y + e]);
+    expect(cmds[1].args).toEqual([60, e, 0, 0, 1, n.x + n.width, n.y + e]);
+    expect(cmds[2].args).toEqual([n.y + n.height - e]);
+    expect(cmds[3].args).toEqual([60, e, 0, 0, 1, n.x, n.y + n.height - e]);
+    // the front arc runs the other way round, through the lower half of the lid
+    expect(cmds[5].args).toEqual([n.x, n.y + e]);
+    expect(cmds[6].args).toEqual([60, e, 0, 0, 0, n.x + n.width, n.y + e]);
+  });
+
+  it("contains the rounded lids, not the corners they cut", () => {
+    const n = node("cylinder", 120, 60);
+    const c = centerOf(n);
+    expect(nodeContains(n, c)).toBe(true);
+    expect(nodeContains(n, { x: c.x, y: n.y + 0.5 })).toBe(true);
+    expect(nodeContains(n, { x: c.x, y: n.y - 0.5 })).toBe(false);
+    expect(nodeContains(n, { x: n.x + 1, y: n.y + 1 })).toBe(false);
+    expect(nodeContains(n, { x: n.x + 1, y: n.y + CYLINDER_LID + 1 })).toBe(true);
+    expect(nodeContains(n, { x: n.x + n.width - 1, y: n.y + n.height - 1 })).toBe(false);
+  });
+
+  it("puts arrow endpoints on the silhouette (straight sides and lid arcs)", () => {
+    for (const [w, h] of [
+      [120, 60],
+      [100, 30],
+      [80, 120],
+    ]) {
+      const n = node("cylinder", w, h);
+      const e = cylinderLid(n);
+      const cy = n.y + n.height / 2;
+      const cx = n.x + n.width / 2;
+      let onArc = 0;
+      for (const a of ANGLES) {
+        const c = centerOf(n);
+        const p = boundaryPoint(n, { x: c.x + Math.cos(a) * 1000, y: c.y + Math.sin(a) * 1000 });
+        const ay = Math.abs(p.y - cy);
+        if (ay <= n.height / 2 - e + 0.01) {
+          expect(Math.abs(Math.abs(p.x - cx) - n.width / 2)).toBeLessThan(0.01);
+        } else {
+          // on the lid's ellipse, with the radii the path carries
+          const qy = (ay - (n.height / 2 - e)) / e;
+          const qx = (p.x - cx) / (n.width / 2);
+          expect(Math.abs(qx * qx + qy * qy - 1)).toBeLessThan(0.01);
+          onArc++;
+        }
+      }
+      expect(onArc).toBeGreaterThan(0);
+    }
+  });
+
+  it("reaches the apex of the lid straight above and below", () => {
+    const n = node("cylinder", 120, 60);
+    const c = centerOf(n);
+    expect(boundaryPoint(n, { x: c.x, y: c.y - 500 }).y).toBeCloseTo(n.y, 1);
+    expect(boundaryPoint(n, { x: c.x, y: c.y + 500 }).y).toBeCloseTo(n.y + n.height, 1);
+  });
+
+  it("shrinks the lid for a low node", () => {
+    expect(cylinderLid({ width: 100, height: 30 })).toBe(6);
+  });
+});
+
+describe("screen (T-0702)", () => {
+  const outline = (n: DiagramNode, rules?: number[]) =>
+    shapeOf("screen").outline({ x: n.x, y: n.y, width: n.width, height: n.height, rules });
+
+  it("is registered and contains its box exactly", () => {
+    const n = node("screen", 200, 100);
+    expect(shapeOf("screen").id).toBe("screen");
+    expect(nodeContains(n, { x: n.x + 1, y: n.y + 1 })).toBe(true);
+    expect(nodeContains(n, { x: n.x + n.width - 1, y: n.y + n.height - 1 })).toBe(true);
+    expect(nodeContains(n, { x: n.x - 1, y: n.y + 10 })).toBe(false);
+    expect(nodeContains(n, { x: n.x + 10, y: n.y + n.height + 1 })).toBe(false);
+  });
+
+  it("draws the frame alone without rules", () => {
+    const n = node("screen", 200, 100);
+    const el = outline(n);
+    expect(el.tag).toBe("path");
+    expect(pathCommands(String(el.attrs.d)).map((c) => c.cmd)).toEqual(["M", "H", "V", "H", "Z"]);
+  });
+
+  it("adds one horizontal line per rule, at the distance from the top edge", () => {
+    const n = node("screen", 200, 100);
+    const cmds = pathCommands(String(outline(n, [24, 61.5]).attrs.d));
+    expect(cmds.slice(5)).toEqual([
+      { cmd: "M", args: [n.x, n.y + 24] },
+      { cmd: "H", args: [n.x + n.width] },
+      { cmd: "M", args: [n.x, n.y + 61.5] },
+      { cmd: "H", args: [n.x + n.width] },
+    ]);
+  });
+
+  it("drops rules on or outside the frame", () => {
+    const n = node("screen", 200, 100);
+    const d = String(outline(n, [0, -5, 100, 140, Number.NaN]).attrs.d);
+    expect(pathCommands(d)).toHaveLength(5);
+  });
+
+  it("is ignored by the other shapes", () => {
+    const n = node("rect");
+    const box = { x: n.x, y: n.y, width: n.width, height: n.height };
+    for (const id of ["rect", "rounded", "pill", "diamond", "ellipse", "document", "hexagon", "cylinder", "subroutine"]) {
+      expect(shapeOf(id).outline({ ...box, rules: [10, 20] })).toEqual(shapeOf(id).outline(box));
+    }
+  });
+
+  it("puts arrow endpoints on the frame, where the rules also end", () => {
+    const n = node("screen", 200, 100);
+    for (const a of ANGLES) {
+      const c = centerOf(n);
+      const p = boundaryPoint(n, { x: c.x + Math.cos(a) * 1000, y: c.y + Math.sin(a) * 1000 });
+      const onFrame =
+        Math.abs(p.x - n.x) < 0.01 ||
+        Math.abs(p.x - (n.x + n.width)) < 0.01 ||
+        Math.abs(p.y - n.y) < 0.01 ||
+        Math.abs(p.y - (n.y + n.height)) < 0.01;
+      expect(onFrame).toBe(true);
+    }
   });
 });

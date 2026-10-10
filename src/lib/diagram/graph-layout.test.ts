@@ -112,3 +112,80 @@ describe("layerLayout", () => {
     expect(after.nodes.get("b")).toEqual(before.nodes.get("b"));
   });
 });
+
+describe("layerLayout ranks (T-0702)", () => {
+  const box = (id: string, row: string, width = 100, height = 40) => ({ id, row, width, height });
+  const rows = ["main", "store"];
+
+  it("puts a store directly below its process (golden)", () => {
+    const nodes = [box("screen", "main"), box("trigger", "main"), box("proc", "main"), box("db", "store")];
+    // the store's own arrows are left out of the ranking, as the IFDAM layout does
+    const edges = [edge("screen", "trigger"), edge("trigger", "proc")];
+    const r = layerLayout(nodes, edges, {
+      rows,
+      columnGap: 50,
+      slotGap: 10,
+      rowPad: 10,
+      minRowHeight: 60,
+      ranks: new Map([["db", 2]]),
+    });
+    expect(r.rank.get("db")).toBe(2);
+    expect(r.columns.map((c) => [c.rank, c.x, c.width])).toEqual([
+      [0, 0, 100],
+      [1, 150, 100],
+      [2, 300, 100],
+    ]);
+    expect(r.rows.map((x) => [x.key, x.y, x.height])).toEqual([
+      ["main", 0, 60],
+      ["store", 60, 60],
+    ]);
+    expect(r.nodes.get("screen")).toMatchObject({ cx: 50, cy: 30, rank: 0, row: "main" });
+    expect(r.nodes.get("trigger")).toMatchObject({ cx: 200, cy: 30, rank: 1 });
+    expect(r.nodes.get("proc")).toMatchObject({ cx: 350, cy: 30, rank: 2 });
+    expect(r.nodes.get("db")).toMatchObject({ cx: 350, cy: 90, rank: 2, row: "store" });
+  });
+
+  it("stacks two stores of one column in written order", () => {
+    const nodes = [box("a", "main"), box("p", "main"), box("d1", "store"), box("d2", "store")];
+    const r = layerLayout(nodes, [edge("a", "p")], {
+      rows,
+      slotGap: 10,
+      ranks: new Map([
+        ["d1", 1],
+        ["d2", 1],
+      ]),
+    });
+    const d1 = r.nodes.get("d1")!;
+    const d2 = r.nodes.get("d2")!;
+    expect(d1.cx).toBe(r.nodes.get("p")!.cx);
+    expect(d2.cx).toBe(d1.cx);
+    expect(d2.cy - d1.cy).toBe(50);
+  });
+
+  it("changes nothing without ranks, with an empty map, or for unknown ids", () => {
+    const nodes = [box("a", "main"), box("b", "main"), box("c", "store")];
+    const edges = [edge("a", "b")];
+    const plain = layerLayout(nodes, edges, { rows });
+    for (const ranks of [new Map<string, number>(), new Map([["ghost", 4]])]) {
+      const r = layerLayout(nodes, edges, { rows, ranks });
+      expect(r.columns).toEqual(plain.columns);
+      expect([...r.nodes]).toEqual([...plain.nodes]);
+      expect([...r.rank]).toEqual([...plain.rank]);
+    }
+  });
+
+  it("can move a node that has arrows, rounds, and never goes below 0", () => {
+    const nodes = [box("a", "main"), box("b", "main")];
+    const r = layerLayout(nodes, [edge("a", "b")], {
+      rows,
+      ranks: new Map([
+        ["a", -3],
+        ["b", 2.6],
+      ]),
+    });
+    expect(r.rank.get("a")).toBe(0);
+    expect(r.rank.get("b")).toBe(3);
+    expect(r.columns).toHaveLength(4);
+  });
+});
+
