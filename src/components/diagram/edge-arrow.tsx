@@ -16,6 +16,8 @@ export function EdgeArrow({
   labelBox,
   labelFontSize,
   head = true,
+  startHead = false,
+  startAngle = 0,
   selected,
   faded,
   onSelect,
@@ -28,6 +30,10 @@ export function EdgeArrow({
   labelFontSize: number;
   /** Draw the arrowhead. `false` is a plain line (the use case diagram's `--`). */
   head?: boolean;
+  /** Draw a second head at the line's start (a two-way arrow). */
+  startHead?: boolean;
+  /** Direction the start head points, in radians (`atan2(dy, dx)`). */
+  startAngle?: number;
   selected: boolean;
   /** Drawn pale: the arrow is being re-attached and its old shape is a ghost. */
   faded?: boolean;
@@ -57,6 +63,14 @@ export function EdgeArrow({
       {head && (
         <path
           d={arrowHeadPath(geometry.end, geometry.headAngle)}
+          strokeWidth={1}
+          strokeLinejoin="round"
+          className={cn("pointer-events-none", selected ? "fill-ring stroke-ring" : "fill-muted-foreground stroke-muted-foreground")}
+        />
+      )}
+      {startHead && (
+        <path
+          d={arrowHeadPath(geometry.start, startAngle)}
           strokeWidth={1}
           strokeLinejoin="round"
           className={cn("pointer-events-none", selected ? "fill-ring stroke-ring" : "fill-muted-foreground stroke-muted-foreground")}

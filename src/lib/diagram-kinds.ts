@@ -31,11 +31,11 @@ export const DIAGRAM_KINDS: readonly DiagramKind[] = KIND_GROUPS.flatMap(
 /**
  * The kinds the New dialog offers. A kind joins this list when its editor
  * lands (2x2 in T-0681, business flow in T-0682, PFD in T-0683, program flow
- * in T-0699, IFDAM in T-0704); until then a note of that kind can still be listed, but nobody
+ * in T-0699, IFDAM in T-0704, use case in T-0707, architecture in T-0710); until then a note of that kind can still be listed, but nobody
  * is invited to make one that has no editor. Listed in display order.
  */
 export const CREATABLE_KINDS: readonly DiagramKind[] = DIAGRAM_KINDS.filter((k) =>
-  ["schedule", "mindmap", "matrix2x2", "flow", "pfd", "algorithm", "usecase", "ifdam"].includes(k),
+  ["schedule", "mindmap", "matrix2x2", "flow", "pfd", "algorithm", "usecase", "architecture", "ifdam"].includes(k),
 );
 
 /** Kinds offered as a simplified version: the creation dialog adds a short hint to their name. */

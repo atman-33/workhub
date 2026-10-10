@@ -116,6 +116,22 @@ export function addNode(
   return { doc: { ...doc, nodes: [...doc.nodes, node] }, id: node.id };
 }
 
+/**
+ * Adds a block after `anchorId` - the editor's `+`: in the same frame, joined
+ * to the anchor by a one-way arrow, and unplaced (the groups put it). With no
+ * anchor to find the block is added alone.
+ */
+export function addNodeAfter(
+  doc: ArchitectureDocModel,
+  anchorId: string | undefined,
+  init: Omit<NewNode, "x" | "y" | "frame"> = {},
+): { doc: ArchitectureDocModel; id: string } {
+  const anchor = doc.nodes.find((n) => n.id === anchorId);
+  const added = addNode(doc, anchor?.frame ? { ...init, frame: anchor.frame } : init);
+  if (!anchor) return added;
+  return { doc: connect(added.doc, anchor.id, added.id), id: added.id };
+}
+
 export function patchNode(
   doc: ArchitectureDocModel,
   id: string,

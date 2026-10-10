@@ -8,6 +8,7 @@ import { PanelToggle } from "@/components/diagram/panel-frame";
 import { FlowView } from "@/components/diagram/flow/flow-view";
 import { PfdView } from "@/components/diagram/pfd/pfd-view";
 import { AlgorithmView } from "@/components/diagram/algorithm/algorithm-view";
+import { ArchitectureView } from "@/components/diagram/architecture/architecture-view";
 import { IfdamView } from "@/components/diagram/ifdam/ifdam-view";
 import { UsecaseView } from "@/components/diagram/usecase/usecase-view";
 import { MatrixView } from "@/components/diagram/matrix2x2/matrix-view";
@@ -395,7 +396,7 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
       ),
     });
 
-  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd" | "algorithm" | "usecase" | "ifdam") => ({
+  const editorFor = (which: "schedule" | "mindmap" | "matrix2x2" | "flow" | "pfd" | "algorithm" | "usecase" | "architecture" | "ifdam") => ({
     project: current?.project ?? project,
     path: kind === which ? path : "",
     title: current?.title ?? "",
@@ -656,6 +657,9 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
           </div>
           <div className={cn("h-full", kind === "usecase" ? "" : "hidden")}>
             <UsecaseView configVersion={configVersion} embedded={editorFor("usecase")} />
+          </div>
+          <div className={cn("h-full", kind === "architecture" ? "" : "hidden")}>
+            <ArchitectureView configVersion={configVersion} embedded={editorFor("architecture")} />
           </div>
           <div className={cn("h-full", kind === "ifdam" ? "" : "hidden")}>
             <IfdamView configVersion={configVersion} embedded={editorFor("ifdam")} />

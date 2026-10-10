@@ -32,15 +32,16 @@ describe("kind definition", () => {
   it("offers the use case diagram, first in the system group, with a simple-version hint (T-0707)", () => {
     expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds[0]).toBe("usecase");
     expect(CREATABLE_KINDS).toContain("usecase");
-    expect(CREATABLE_KINDS.indexOf("usecase")).toBe(CREATABLE_KINDS.indexOf("ifdam") - 1);
+    expect(CREATABLE_KINDS.indexOf("usecase")).toBe(CREATABLE_KINDS.indexOf("architecture") - 1);
     expect(hasEditor("usecase")).toBe(true);
     expect(SIMPLE_KINDS).toEqual(["usecase"]);
   });
 
-  it("lists the architecture diagram between use case and IFDAM but does not offer it until its editor lands (T-0709)", () => {
+  it("offers the architecture diagram between use case and IFDAM (T-0710)", () => {
     expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds[1]).toBe("architecture");
-    expect(CREATABLE_KINDS).not.toContain("architecture");
-    expect(hasEditor("architecture")).toBe(false);
+    expect(CREATABLE_KINDS).toContain("architecture");
+    expect(CREATABLE_KINDS.indexOf("architecture")).toBe(CREATABLE_KINDS.indexOf("ifdam") - 1);
+    expect(hasEditor("architecture")).toBe(true);
   });
 
   it("lists each kind in exactly one group", () => {
