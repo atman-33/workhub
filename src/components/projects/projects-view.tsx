@@ -18,6 +18,7 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { ProjectBacklog } from "@/components/projects/project-backlog";
 import { ProjectDocuments } from "@/components/projects/project-documents";
 import { ProjectList } from "@/components/projects/project-list";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
@@ -95,8 +96,9 @@ interface Props {
   /** Whether the Projects tab is the visible one; gates the reload on focus. */
   active: boolean;
   /** Opens another tab focused on this project (or, for `repos`, on the
-   * repository path it is linked to). */
-  onNavigate: (target: ProjectTarget, value: string) => void;
+   * repository path it is linked to). `path` selects one diagram note inside
+   * the Diagrams tab (T-0715); every other target ignores it. */
+  onNavigate: (target: ProjectTarget, value: string, path?: string) => void;
   /** Called after this view creates, archives or restores a project, so the
    * project pickers in the other tabs reload. The watcher's
    * `projects-changed` event reports the same thing for writers outside the
@@ -127,9 +129,10 @@ export function ProjectsView({
   // Persisted per machine (T-0278) — this is how the owner likes to look at
   // the list, not anything about the vault's content.
   const [sortMode, setSortMode] = useState<ProjectSortMode>(() => readProjectSortMode());
-  // Which slice of the detail pane is showing (T-0714). Kept across projects
-  // — the pane itself is remounted per project, so no document leaks over.
-  const [pane, setPane] = useState<"overview" | "documents">("overview");
+  // Which slice of the detail pane is showing (T-0714, backlog in T-0715).
+  // Kept across projects — the panes themselves are remounted per project,
+  // so no document leaks over.
+  const [pane, setPane] = useState<"overview" | "documents" | "backlog">("overview");
 
   const vaultPath = config?.settings.vault_path ?? null;
   const repos = config?.projects ?? [];
@@ -684,10 +687,9 @@ export function ProjectsView({
                 </Button>
               </div>
 
-              {/* Overview / Documents / Backlog (T-0714). Backlog is only a
-                disabled slot here — T-0715 owns it. The switcher stays above
-                the pane, so a reader with a document open gets back to the
-                overview with one click. */}
+              {/* Overview / Documents / Backlog (T-0714, backlog in T-0715).
+                The switcher stays above the pane, so a reader with a document
+                open gets back to the overview with one click. */}
               <div className="flex items-center gap-1">
                 <Button
                   size="sm"
@@ -705,11 +707,14 @@ export function ProjectsView({
                 >
                   {t("projects.view.documentsTab")}
                 </Button>
-                <Hint label={t("projects.view.backlogComingSoon")}>
-                  <Button size="sm" variant="ghost" className="h-7" disabled>
-                    {t("projects.view.backlogTab")}
-                  </Button>
-                </Hint>
+                <Button
+                  size="sm"
+                  variant={pane === "backlog" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("backlog")}
+                >
+                  {t("projects.view.backlogTab")}
+                </Button>
               </div>
 
               {pane === "documents" ? (
@@ -717,6 +722,15 @@ export function ProjectsView({
                   key={current.slug}
                   vaultPath={vaultPath}
                   slug={current.slug}
+                />
+              ) : pane === "backlog" ? (
+                <ProjectBacklog
+                  key={current.slug}
+                  vaultPath={vaultPath}
+                  slug={current.slug}
+                  fallbackDir={current.path}
+                  tasks={tasks}
+                  onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
                 />
               ) : (
                 <>

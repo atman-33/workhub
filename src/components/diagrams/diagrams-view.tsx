@@ -161,14 +161,23 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
 
   // A project handed over by the Projects tab. Keyed on the request counter so
   // a parent re-render never re-applies it over a project picked here since.
+  // `focus.path` (T-0715) selects one diagram note — the Backlog pane's "Open
+  // in Diagrams tab" — once the listing arrives, since it loads after the
+  // project is set.
   const focusN = focus?.n ?? 0;
   const focusProject = focus?.value ?? "";
+  const focusPath = focus?.path ?? "";
   useEffect(() => {
     if (focusN > 0 && focusProject) {
       setProject(focusProject);
-      setPath("");
+      if (!focusPath) setPath("");
     }
-  }, [focusN, focusProject]);
+  }, [focusN, focusProject, focusPath]);
+  useEffect(() => {
+    if (focusN > 0 && focusPath && filesLoaded && files.some((f) => f.path === focusPath)) {
+      setPath(focusPath);
+    }
+  }, [focusN, focusPath, filesLoaded, files]);
 
   // A listing that fails is usually a folder that moved while it was read (an
   // archive is a move); one retry lets it settle before falling back to empty.

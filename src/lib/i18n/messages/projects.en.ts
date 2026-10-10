@@ -49,7 +49,17 @@ export const projectsEn = {
   "projects.view.overviewTab": "Overview",
   "projects.view.documentsTab": "Documents",
   "projects.view.backlogTab": "Backlog",
-  "projects.view.backlogComingSoon": "Backlog browsing arrives with the next change — editing stays in Obsidian meanwhile.",
+  "projects.view.backlog.loading": "Reading backlog…",
+  "projects.view.backlog.noItems":
+    "No backlog items yet — B-NNN folders under backlog/ show up here.",
+  "projects.view.backlog.pickFile":
+    "Pick an item, then a file, to read it. Editing stays in Obsidian.",
+  "projects.view.backlog.filterLabel": "Status",
+  "projects.view.backlog.filterAll": "All",
+  "projects.view.backlog.filesEmpty": "No readable files in this item.",
+  "projects.view.backlog.openInDiagrams": "Open in Diagrams tab",
+  "projects.view.backlog.diagramHint":
+    "Diagrams are only listed here for now — they render in the Diagrams tab.",
   "projects.view.docs.loading": "Reading documents…",
   "projects.view.docs.noDocuments":
     "No readable documents yet — README.md, prd.md and the notes under dev-notes/ and shared/ show up here.",

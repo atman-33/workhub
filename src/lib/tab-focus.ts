@@ -12,4 +12,10 @@ export interface TabFocus {
   value: string;
   /** Incremented per request; the receiving effect keys on it. */
   n: number;
+  /**
+   * One note inside the tab to select — a diagram note's absolute path for
+   * the Diagrams tab (T-0715). Absent, the tab keeps its project-level
+   * behaviour (select the project, keep or clear the open note).
+   */
+  path?: string;
 }

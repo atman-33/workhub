@@ -52,7 +52,17 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.view.overviewTab": "概要",
   "projects.view.documentsTab": "ドキュメント",
   "projects.view.backlogTab": "バックログ",
-  "projects.view.backlogComingSoon": "バックログの閲覧は次の変更で対応します — 編集は引き続き Obsidian で行ってください。",
+  "projects.view.backlog.loading": "バックログを読み込み中…",
+  "projects.view.backlog.noItems":
+    "バックログ項目はまだありません — backlog/ 配下の B-NNN フォルダがここに表示されます。",
+  "projects.view.backlog.pickFile":
+    "項目とファイルを選ぶと読めます。編集は Obsidian で行ってください。",
+  "projects.view.backlog.filterLabel": "ステータス",
+  "projects.view.backlog.filterAll": "すべて",
+  "projects.view.backlog.filesEmpty": "この項目に読めるファイルはありません。",
+  "projects.view.backlog.openInDiagrams": "図解タブで開く",
+  "projects.view.backlog.diagramHint":
+    "図解はここでは一覧表示のみです — 描画は図解タブで行います。",
   "projects.view.docs.loading": "ドキュメントを読み込み中…",
   "projects.view.docs.noDocuments":
     "読めるドキュメントはまだありません — README.md、prd.md、dev-notes/ や shared/ 配下のノートがここに表示されます。",
