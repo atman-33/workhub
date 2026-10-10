@@ -19,14 +19,20 @@ function file(kind: string, title: string, updated = "2026-10-01", project = "p"
 describe("kind definition", () => {
   it("orders the groups and kinds as the owner confirmed", () => {
     expect(KIND_GROUPS.map((g) => g.id)).toEqual(["plan", "process", "system"]);
-    expect(DIAGRAM_KINDS).toEqual(["schedule", "mindmap", "matrix2x2", "pfd", "flow", "algorithm", "ifdam"]);
+    expect(DIAGRAM_KINDS).toEqual(["schedule", "mindmap", "matrix2x2", "pfd", "flow", "algorithm", "usecase", "ifdam"]);
   });
 
   it("lists IFDAM in the system group and offers it, last among the creatable kinds (T-0704)", () => {
-    expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds).toEqual(["ifdam"]);
+    expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds).toEqual(["usecase", "ifdam"]);
     expect(CREATABLE_KINDS).toContain("ifdam");
     expect(CREATABLE_KINDS[CREATABLE_KINDS.length - 1]).toBe("ifdam");
     expect(hasEditor("ifdam")).toBe(true);
+  });
+
+  it("lists the use case diagram first in the system group but does not offer it until its editor lands (T-0706)", () => {
+    expect(KIND_GROUPS.find((g) => g.id === "system")?.kinds[0]).toBe("usecase");
+    expect(CREATABLE_KINDS).not.toContain("usecase");
+    expect(hasEditor("usecase")).toBe(false);
   });
 
   it("lists each kind in exactly one group", () => {

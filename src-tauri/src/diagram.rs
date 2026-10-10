@@ -36,6 +36,7 @@ pub const KINDS: &[&str] = &[
     "flow",
     "pfd",
     "algorithm",
+    "usecase",
     "ifdam",
 ];
 
@@ -235,6 +236,15 @@ x_axis:\nx_low:\nx_high:\ny_axis:\ny_low:\ny_high:\nq_tl:\nq_tr:\nq_bl:\nq_br:\n
             "---\ntype: algorithm\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
 ## Nodes\n\n- A-001 Start ^start\n- A-002 Step\n- A-003 End ^end\n\n\
 ## Edges\n\n- A-001 -> A-002\n- A-002 -> A-003\n\n\
+## Memo\n\n"
+        ),
+        // One system in the middle, a person with two things to do (the lines
+        // under a person are its speech bubble) and the line between them. The
+        // positions are left to the ring layout.
+        "usecase" => format!(
+            "---\ntype: usecase\ntitle: {title}\ncreated: {now}\nupdated: {now}\n---\n\n\
+## Nodes\n\n- U-001 System ^system\n- U-002 Person\n  Do something\n  Do something else\n\n\
+## Edges\n\n- U-002 -- U-001\n\n\
 ## Memo\n\n"
         ),
         // The smallest working figure: a screen with one item in each of its
@@ -770,6 +780,35 @@ mod tests {
         // The scan finds it, and written back as-is it is still a diagram.
         let listed = list_diagrams(&vault, Some("demo")).unwrap();
         assert!(listed.iter().any(|d| d.kind == "algorithm"));
+        assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn usecase_skeleton_is_a_system_a_person_with_two_actions_and_a_line() {
+        let vault = temp_vault("usecase-skeleton");
+        let file = create_diagram(&vault, "demo", "usecase", "Booking", "", "").unwrap();
+        assert!(
+            file.path
+                .ends_with("projects/0010-demo/diagrams/Booking.md"),
+            "{}",
+            file.path
+        );
+        assert_eq!(file.kind, "usecase");
+        let doc = read_diagram(Path::new(&file.path)).unwrap();
+        let (front, body) = split_frontmatter(&doc.content).unwrap();
+        assert_eq!(frontmatter_value(&front, "type"), "usecase");
+        assert_eq!(frontmatter_value(&front, "title"), "Booking");
+        let at = |h: &str| body.find(h).unwrap_or_else(|| panic!("missing {h}"));
+        assert!(at("## Nodes") < at("## Edges"));
+        assert!(at("## Edges") < at("## Memo"));
+        assert!(body.contains("- U-001 System ^system\n"));
+        // A person has no mark; its indented lines are what it does.
+        assert!(body.contains("- U-002 Person\n  Do something\n  Do something else\n"));
+        assert!(body.contains("- U-002 -- U-001\n"));
+        // The scan finds it, and written back as-is it is still a diagram.
+        let listed = list_diagrams(&vault, Some("demo")).unwrap();
+        assert!(listed.iter().any(|d| d.kind == "usecase"));
         assert!(write_diagram(Path::new(&file.path), &doc.content, doc.mtime).is_ok());
         fs::remove_dir_all(&vault).ok();
     }

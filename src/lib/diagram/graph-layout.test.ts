@@ -386,56 +386,56 @@ describe("ringLayout", () => {
 
   it("golden: 1 person", () => {
     expect(dump(golden(1))).toEqual({
-      nodes: [["s", 140, 342], ["p0", 140, 149]],
+      nodes: [["s", 140, 276], ["p0", 140, 149]],
       bubbles: [["p0", "top", 80, 40]],
-      bounds: { x: 40, y: 40, width: 200, height: 362 },
-      rx: 270.2,
-      ry: 193,
+      bounds: { x: 40, y: 40, width: 200, height: 296 },
+      rx: 177.8,
+      ry: 127,
     });
   });
 
   it("golden: 2 people", () => {
     expect(dump(golden(2))).toEqual({
-      nodes: [["s", 140, 342], ["p0", 140, 149], ["p1", 140, 535]],
-      bubbles: [["p0", "top", 80, 40], ["p1", "bottom", 80, 584]],
-      bounds: { x: 40, y: 40, width: 200, height: 604 },
-      rx: 270.2,
-      ry: 193,
+      nodes: [["s", 140, 276], ["p0", 140, 149], ["p1", 140, 403]],
+      bubbles: [["p0", "top", 80, 40], ["p1", "bottom", 80, 452]],
+      bounds: { x: 40, y: 40, width: 200, height: 472 },
+      rx: 177.8,
+      ry: 127,
     });
   });
 
   it("golden: 3 people", () => {
     expect(dump(golden(3))).toEqual({
-      nodes: [["s", 479.54, 364.71], ["p0", 479.54, 149], ["p1", 741.08, 472.57], ["p2", 218, 472.57]],
-      bubbles: [["p0", "top", 419.54, 40], ["p1", "right", 799.08, 442.57], ["p2", "left", 40, 442.57]],
-      bounds: { x: 40, y: 40, width: 879.08, height: 467.57 },
-      rx: 302,
-      ry: 215.71,
+      nodes: [["s", 397.6, 297.13], ["p0", 397.6, 149], ["p1", 577.2, 371.2], ["p2", 218, 371.2]],
+      bubbles: [["p0", "top", 337.6, 40], ["p1", "right", 635.2, 341.2], ["p2", "left", 40, 341.2]],
+      bounds: { x: 40, y: 40, width: 715.2, height: 366.2 },
+      rx: 207.39,
+      ry: 148.13,
     });
   });
 
   it("golden: 6 people", () => {
     expect(dump(golden(6))).toEqual({
       nodes: [
-        ["s", 479.54, 364.71],
-        ["p0", 479.54, 149],
-        ["p1", 741.08, 256.86],
-        ["p2", 741.08, 472.57],
-        ["p3", 479.54, 580.43],
-        ["p4", 218, 472.57],
-        ["p5", 218, 256.86],
+        ["s", 397.6, 297.13],
+        ["p0", 397.6, 149],
+        ["p1", 577.2, 223.07],
+        ["p2", 577.2, 371.2],
+        ["p3", 397.6, 445.27],
+        ["p4", 218, 371.2],
+        ["p5", 218, 223.07],
       ],
       bubbles: [
-        ["p0", "top", 419.54, 40],
-        ["p1", "right", 799.08, 226.86],
-        ["p2", "right", 799.08, 442.57],
-        ["p3", "bottom", 419.54, 629.43],
-        ["p4", "left", 40, 442.57],
-        ["p5", "left", 40, 226.86],
+        ["p0", "top", 337.6, 40],
+        ["p1", "right", 635.2, 193.07],
+        ["p2", "right", 635.2, 341.2],
+        ["p3", "bottom", 337.6, 494.27],
+        ["p4", "left", 40, 341.2],
+        ["p5", "left", 40, 193.07],
       ],
-      bounds: { x: 40, y: 40, width: 879.08, height: 649.43 },
-      rx: 302,
-      ry: 215.71,
+      bounds: { x: 40, y: 40, width: 715.2, height: 514.27 },
+      rx: 207.39,
+      ry: 148.13,
     });
   });
 
@@ -443,9 +443,21 @@ describe("ringLayout", () => {
     const r = ringLayout(
       [{ id: "s", width: 200, height: 120 }],
       Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, width: 88, height: 70, bubble: { width: 120, height: 60 } })),
-      { pinned: new Map([["p1", { cx: 100, cy: 700 }]]) },
+      { pinned: new Map([["p1", { cx: 100, cy: 300 }]]) },
     );
-    expect(r.nodes.get("p1")).toEqual({ cx: 100, cy: 700 });
-    expect(r.bubbles.get("p1")).toMatchObject({ side: "left", x: -78, y: 670 });
+    expect(r.nodes.get("p1")).toEqual({ cx: 100, cy: 300 });
+    expect(r.bubbles.get("p1")).toMatchObject({ side: "left", x: -78, y: 270 });
+  });
+
+  it("does not widen the ring for a big bubble: a person with a 200x150 bubble sits as close to the system as one without (T-0706)", () => {
+    const sys = { id: "s", width: 200, height: 120 };
+    const plain = ringLayout([sys], [{ id: "p", width: 88, height: 70 }]);
+    const big = ringLayout([sys], [{ id: "p", width: 88, height: 70, bubble: { width: 200, height: 150 } }]);
+    // Same distance from the system's centre to the person (the bubble is on the far side).
+    const gap = (r: ReturnType<typeof ringLayout>) => r.nodes.get("s")!.cy - r.nodes.get("p")!.cy;
+    expect(gap(big)).toBe(gap(plain));
+    // ... and the person is within one growth step of the minimum clearance (32px) from the system.
+    expect(gap(big) - 60 - 35).toBeLessThanOrEqual(32 * 1.08 + 1);
+    expect(big.scale).toBe(1);
   });
 });

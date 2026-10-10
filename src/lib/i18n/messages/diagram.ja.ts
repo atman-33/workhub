@@ -13,6 +13,7 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.kind.flow": "業務フロー",
   "diagram.kind.pfd": "PFD",
   "diagram.kind.algorithm": "処理フロー",
+  "diagram.kind.usecase": "ユースケース図",
   "diagram.kind.ifdam": "IFDAM 図",
   "diagram.list.empty": "図解はまだありません",
   "diagram.list.emptyFiltered": "この種類の図解はありません",

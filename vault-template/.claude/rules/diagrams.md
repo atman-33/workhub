@@ -7,7 +7,7 @@ paths:
 # Diagram notes
 
 A **diagram** is a note under `projects/<NNNN-slug>/` whose frontmatter `type`
-is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd`, `algorithm` or `ifdam`. The app's
+is one of `schedule`, `mindmap`, `matrix2x2`, `flow`, `pfd`, `algorithm`, `ifdam` or `usecase`. The app's
 **Diagrams** tab lists them all and opens the editor for the note's `type`.
 Each kind's own format is below (Schedule and Mindmap keep their own rules,
 `schedules.md` and `mindmaps.md`; read the one for the note's `type`).
@@ -510,4 +510,99 @@ updated: 2026-10-10
 - **Adding an element (for the app's developers, not for note edits)**: add one
   entry `{ kind, mark, shape, label, next }` to `SYMBOLS` in
   `src/lib/diagram/ifdam/symbols.ts` (and the shape to
+  `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.
+
+## usecase
+
+A use case diagram (shown as "ユースケース図" / "Use case"): **the system, the
+people around it and the external services it talks to**, and what each person
+does. A simple system context picture, not UML: there are no ovals, no
+include/extend and no order. Self-contained - everything an edit needs is here.
+
+```markdown
+---
+type: usecase
+title: 施設予約システム
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Nodes
+
+- U-001 予約システム ^system
+  施設の予約と空き状況を管理する。hover で出るメモ。
+- U-002 窓口担当者 #blue
+  施設の空き状況を見る
+  予約を代理で登録する
+- U-003 利用者 #green
+  空き状況を調べる
+  予約を申し込む
+- U-004 施設管理者 @90,60
+  施設と開館日を登録する
+- U-005 決済サービス ^ext task:T-0100
+
+## Edges
+
+- U-002 -- U-001
+- U-003 -- U-001
+- U-004 -- U-001
+- U-001 -> U-005 "決済を依頼"
+
+## Stickies
+
+- S-001 node:U-003 @40,-30 #red オンライン予約は後回し
+```
+
+- **Frontmatter**: as for every diagram; `stickies: hidden` is the only other
+  key. **Sections** in this order: `## Nodes`, `## Edges`, then the optional
+  `## Stickies` and `## Memo`.
+- **Node**: `- U-NNN <title> [^system|^ext] [task:<id>] [#color] [@x,y]`, then
+  optional indented lines. Tokens may come in any order; the title is what is
+  left, on one line. Ids are the highest `U-` in the file plus one; never change
+  or reuse one.
+- **What a node is comes from its mark**: **no mark** is a **person** (a user or
+  a role - `^person` is also read, but do not write it), `^system` the **system**
+  (a big box with a thick border), `^ext` an **external service** (a box with a
+  dashed border). An unknown `^word` is part of the title. **Changing a node's
+  kind** is changing its mark; the id stays and so does its note.
+- **The indented lines mean different things by kind.** Under a **person** each
+  line is **one thing the person does**, drawn as an always-visible speech bubble
+  beside the person; the app adds the bullet, so **never write `-` or `・` in
+  front of it**. Write each as a short verb phrase on one line ("空き状況を見る"),
+  and split a long one into two items. No lines means no bubble. Under a
+  **system** or an **external service** the lines are a memo shown on hover (not
+  a bubble). A sticky is a free comment on any node and is a different thing from
+  both.
+- **Edge**: `- <a> -- <b> ["label"]` is a line with no arrow (the default);
+  `- <a> -> <b> ["label"]` is an arrow with its head at `<b>` - use it only when
+  who asks whom, or which way the data goes, matters. Edges have no id. **A pair
+  of nodes has one edge, whichever way round: `A -- B` and `B -- A` are the same
+  relation, and so are `A -- B` and `A -> B`.** Write each pair once; the app
+  keeps the first line of a pair and keeps a later one as a raw line with a
+  warning. Any two different nodes may be joined (person to person, service to
+  service too). The usual picture is a line from each person to the system they
+  use, and from the system to each external service it calls. An edge naming a
+  node that does not exist is kept by the app as it is, listed as a warning and
+  not drawn: do not write one. An edge from a node to itself is kept and not
+  drawn.
+- **Layout is automatic**: the systems sit in a row in the middle (several are
+  allowed) and **everything else on a ring around them, in the order written**,
+  from 12 o'clock clockwise. So **write people in a meaningful order** (users,
+  then operators, then administrators) and the external services **last**, where
+  they gather on the ring. Adding a node shifts every angle; that is expected.
+  A speech bubble goes on the outer side of its person and follows it. Do not
+  invent positions.
+- **`@x,y`** pins a node by hand: its centre in absolute diagram pixels, whole
+  numbers, negatives allowed, y growing downward. **No `@` means "placed by the
+  ring"**: when you add a node leave the `@` off, and never rewrite another
+  node's position. The app writes `@` only on the node the user dragged; removing
+  every `@` is its "auto-align". A bubble has no position of its own.
+- **`## Stickies`** pins a note to a node: `node:U-NNN` (the key is `node:` in
+  every kind). Not to edges. Delete a node and delete its edges and stickies.
+- **Keep what you do not understand.** A line under `## Nodes` or `## Edges`
+  that is not a list item, or starts with another kind's id (`F-001`, `P-001`,
+  `A-001`, `V-001`), is kept by the app as it is and listed as a warning; leave
+  it alone, and a sticky whose `node:` names no node too. Never edit `## Memo`.
+- **Adding a symbol (for the app's developers, not for note edits)**: add one
+  entry to `SYMBOLS` in `src/lib/diagram/usecase/symbols.ts` (and the shape to
   `src/lib/diagram/shapes.ts` when none fits); the line grammar does not change.
