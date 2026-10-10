@@ -46,7 +46,7 @@ import {
   type FlowDocModel,
   type FlowStep,
 } from "@/lib/diagram/flow/parse";
-import { edgeKey } from "@/lib/diagram/node-edge";
+import { allowAnyConnection, edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
 import {
   NEW_STICKY_OFFSET,
@@ -504,9 +504,13 @@ export function FlowView({ configVersion, embedded }: Props) {
   // ---- arrow commands -------------------------------------------------------
 
   const connectSteps = useCallback(
-    (from: string, to: string) => {
+    (
+      from: string,
+      to: string,
+      ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+    ) => {
       if (!doc) return;
-      const next = connect(doc, from, to);
+      const next = connect(doc, from, to, allowAnyConnection, ports);
       mutate(next);
       if (next !== doc) selectEdge(edgeKey({ from, to }));
     },
@@ -514,9 +518,14 @@ export function FlowView({ configVersion, embedded }: Props) {
   );
 
   const reattachEdge = useCallback(
-    (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => {
+    (
+      edge: { from: string; to: string },
+      end: "from" | "to",
+      nodeId: string,
+      port: EdgePort | null,
+    ) => {
       if (!doc) return;
-      const next = reattach(doc, edge, end, nodeId);
+      const next = reattach(doc, edge, end, nodeId, allowAnyConnection, port);
       mutate(next);
       if (next === doc) return;
       selectEdge(

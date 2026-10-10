@@ -9,6 +9,7 @@
  * box where the app did.
  */
 import type { Color } from "../colors";
+import { portsOption } from "../edge-ports";
 import { layerLayout, LAYER_MIN_ROW_HEIGHT } from "../graph-layout";
 import {
   edgeGeometry,
@@ -254,6 +255,7 @@ export function layoutFlow(
     const geometry = edgeGeometry(from, to, "orthogonal", {
       obstacles: steps.filter((s) => s.id !== from.id && s.id !== to.id),
       used,
+      ...portsOption(edge),
     });
     if (!geometry) continue; // an arrow from a step to itself is kept, not drawn
     for (let k = 1; k < geometry.points.length; k++) {

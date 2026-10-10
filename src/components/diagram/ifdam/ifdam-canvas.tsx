@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowHandles, RubberBand } from "@/components/diagram/arrow-handles";
+import { DropSpots, PortHandles, RubberBand } from "@/components/diagram/arrow-handles";
 import {
   ClipboardMenuItems,
   NodeClipboardMenu,
@@ -15,7 +15,7 @@ import { useCamera } from "@/components/diagram/use-camera";
 import { useEdgeDrag } from "@/components/diagram/use-edge-drag";
 import { useFreeDrag } from "@/components/diagram/use-free-drag";
 import { COLOR_HEX } from "@/lib/diagram/colors";
-import { hitNode } from "@/lib/diagram/node-edge";
+import { hitNode, portOfDrop, type EdgePort } from "@/lib/diagram/node-edge";
 import {
   EDGE_LABEL_FONT_SIZE,
   ITEM_LINE_HEIGHT,
@@ -81,8 +81,17 @@ interface Props {
   onMoveNode: (id: string, cx: number, cy: number) => void;
   /** A double-click on empty canvas: add a node centred here. */
   onAddAt: (x: number, y: number) => void;
-  onConnect: (from: string, to: string) => void;
-  onReattach: (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => void;
+  onConnect: (
+    from: string,
+    to: string,
+    ports?: { fromPort?: EdgePort; toPort?: EdgePort },
+  ) => void;
+  onReattach: (
+    edge: { from: string; to: string },
+    end: "from" | "to",
+    nodeId: string,
+    port: EdgePort | null,
+  ) => void;
   /** Copy, duplicate and paste, offered in the right-click menus. */
   clipboard: CanvasClipboard;
   /** Bumped by the view to re-fit (a new note, or the Fit button). */
@@ -136,6 +145,9 @@ export function IfdamCanvas({
     }, 0);
   };
 
+  /** The pinned exit side a port-handle drag carries, if any. */
+  const pendingPort = useRef<EdgePort | null>(null);
+
   const nodeFree = useFreeDrag({
     toDiagram,
     zoom: camera.zoom,
@@ -173,8 +185,23 @@ export function IfdamCanvas({
     // Any node but the arrow's own anchor lights up (no connection rules).
     canJoin: (d, overId) => overId !== d.anchorId,
     onDrop: (d, overId) => {
-      if (d.mode === "create") onConnect(d.anchorId, overId);
-      else if (d.edge && d.end) onReattach(d.edge, d.end, overId);
+      const over = layout.byId.get(overId);
+      if (!over) {
+        pendingPort.current = null;
+        return;
+      }
+      // The drop point decides the entering side wherever it lands on the
+      // node; the middle stays automatic.
+      const toPort = portOfDrop(over, d.pointer);
+      if (d.mode === "create") {
+        onConnect(d.anchorId, overId, {
+          ...(pendingPort.current ? { fromPort: pendingPort.current } : {}),
+          ...(toPort ? { toPort } : {}),
+        });
+        pendingPort.current = null;
+      } else if (d.edge && d.end) {
+        onReattach(d.edge, d.end, overId, toPort ?? null);
+      }
       swallowClick();
     },
   });
@@ -208,6 +235,11 @@ export function IfdamCanvas({
 
   const hovered = hoverId && !dragging ? (layout.byId.get(hoverId) ?? null) : null;
   const handleNodes = edgeDrag.drag || dragging ? [] : [hoverId, selectedNodeId];
+  // The nodes a dragged arrow keeps and would land on, if any.
+  const dropTarget =
+    edgeDrag.drag?.overId ? (layout.byId.get(edgeDrag.drag.overId) ?? null) : null;
+  const dragAnchor =
+    edgeDrag.drag?.anchorId ? (layout.byId.get(edgeDrag.drag.anchorId) ?? null) : null;
   const ghostKey =
     edgeDrag.drag?.mode === "reattach" && edgeDrag.drag.edge
       ? `${edgeDrag.drag.edge.from}->${edgeDrag.drag.edge.to}`
@@ -404,11 +436,12 @@ export function IfdamCanvas({
               </text>
             )}
             {showHandles && !editing && (
-              <ArrowHandles
+              <PortHandles
                 node={node}
-                onStart={(e) => {
+                onStart={(e, side) => {
                   if (e.button !== 0) return;
                   e.stopPropagation();
+                  pendingPort.current = { side };
                   edgeDrag.startCreate(e, node.id);
                 }}
               />
@@ -419,6 +452,12 @@ export function IfdamCanvas({
       })}
 
       {edgeDrag.drag && <RubberBand drag={edgeDrag.drag} byId={layout.byId} />}
+      {dragAnchor && edgeDrag.drag && (
+        <DropSpots node={dragAnchor} pointer={edgeDrag.drag.pointer} />
+      )}
+      {dropTarget && edgeDrag.drag && (
+        <DropSpots node={dropTarget} pointer={edgeDrag.drag.pointer} />
+      )}
 
       {/* Stickies are drawn last, so a note the user dropped over a node stays
           readable instead of disappearing under it. */}

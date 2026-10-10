@@ -24,6 +24,7 @@
  * supplies it.
  */
 import type { Color } from "../colors";
+import { portsOption } from "../edge-ports";
 import { layerLayout, rankNodes } from "../graph-layout";
 import {
   DETOUR_MARGIN,
@@ -439,6 +440,15 @@ export function layoutIfdam(
     const to = byId.get(doc.edges[i].to);
     if (!from || !to) continue;
     const others = nodes.filter((n) => n.id !== from.id && n.id !== to.id);
+    // A pinned arrow skips the detours: it leaves and enters through its
+    // ports, and the middle stays automatic.
+    if (doc.edges[i].fromPort || doc.edges[i].toPort) {
+      lay(
+        i,
+        edgeGeometry(from, to, "orthogonal", { obstacles: others, used, ...portsOption(doc.edges[i]) }),
+      );
+      continue;
+    }
     // An arrow whose straight line would run through a box (a process to the
     // second of two stores under it; the first box of three in a row to the
     // third) goes round instead.
@@ -460,6 +470,14 @@ export function layoutIfdam(
   loops.forEach((i, lane) => {
     const from = byId.get(doc.edges[i].from)!;
     const to = byId.get(doc.edges[i].to)!;
+    if (doc.edges[i].fromPort || doc.edges[i].toPort) {
+      const others = nodes.filter((n) => n.id !== from.id && n.id !== to.id);
+      lay(
+        i,
+        edgeGeometry(from, to, "orthogonal", { obstacles: others, used, ...portsOption(doc.edges[i]) }),
+      );
+      return;
+    }
     lay(i, loopGeometry(from, to, nodes, used, floor + DETOUR_MARGIN + lane * LANE_STEP));
   });
   const edges = slots.filter((e): e is PositionedEdge => e !== null);

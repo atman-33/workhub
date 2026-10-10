@@ -358,7 +358,9 @@ function orthogonalGeometry(
   to: DiagramNode,
   options: EdgeOptions,
 ): EdgeGeometry {
-  if (options.flow === "free" && (options.ports?.from || options.ports?.to)) {
+  // A pinned end wins over the chart's flow: the route goes through the
+  // ports, whatever direction the chart runs.
+  if (options.ports?.from || options.ports?.to) {
     return portGeometry(from, to, options);
   }
   const route =

@@ -223,3 +223,40 @@ describe("through the file", () => {
     expect(parseAlgorithm(out).edges.at(-1)).toEqual({ from: "A-009", to: "A-010", label: "常に" });
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  const NOTE = `---
+type: algorithm
+title: t
+---
+
+## Nodes
+
+- A-001 Start ^start
+- A-002 Step
+- A-003 End ^end
+
+## Edges
+
+## Stickies
+`;
+
+  it("connects with pins, and reattaching pins the moved end anew", () => {
+    const doc = parseAlgorithm(NOTE);
+    const pinned = connect(doc, "A-001", "A-002", {
+      fromPort: { side: "E" },
+      toPort: { side: "W", at: 0.25 },
+    });
+    expect(pinned.edges).toEqual([
+      { from: "A-001", to: "A-002", fromPort: { side: "E" }, toPort: { side: "W", at: 0.25 } },
+    ]);
+    const moved = reattach(pinned, { from: "A-001", to: "A-002" }, "to", "A-003", {
+      side: "N",
+    });
+    expect(moved.edges).toEqual([
+      { from: "A-001", to: "A-003", fromPort: { side: "E" }, toPort: { side: "N" } },
+    ]);
+    const cleared = reattach(moved, { from: "A-001", to: "A-003" }, "to", "A-003", null);
+    expect(cleared.edges).toEqual([{ from: "A-001", to: "A-003", fromPort: { side: "E" } }]);
+  });
+});

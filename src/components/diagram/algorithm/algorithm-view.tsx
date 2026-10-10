@@ -48,7 +48,7 @@ import {
   type AlgorithmNode,
 } from "@/lib/diagram/algorithm/parse";
 import { DEFAULT_KIND, SYMBOLS, type NodeKind } from "@/lib/diagram/algorithm/symbols";
-import { edgeKey } from "@/lib/diagram/node-edge";
+import { edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
 import {
   NEW_STICKY_OFFSET,
@@ -518,9 +518,13 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
   // ---- arrow commands -------------------------------------------------------
 
   const connectNodes = useCallback(
-    (from: string, to: string) => {
+    (
+      from: string,
+      to: string,
+      ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
+    ) => {
       if (!doc) return;
-      const next = connect(doc, from, to);
+      const next = connect(doc, from, to, ports);
       mutate(next);
       if (next !== doc) selectEdge(edgeKey({ from, to }));
     },
@@ -528,9 +532,14 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
   );
 
   const reattachEdge = useCallback(
-    (edge: { from: string; to: string }, end: "from" | "to", nodeId: string) => {
+    (
+      edge: { from: string; to: string },
+      end: "from" | "to",
+      nodeId: string,
+      port: EdgePort | null,
+    ) => {
       if (!doc) return;
-      const next = reattach(doc, edge, end, nodeId);
+      const next = reattach(doc, edge, end, nodeId, port);
       mutate(next);
       if (next === doc) return;
       selectEdge(

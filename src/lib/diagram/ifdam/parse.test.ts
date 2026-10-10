@@ -268,3 +268,42 @@ m
     expect(out).toContain("## Edges");
   });
 });
+
+describe("edge ports (T-0719)", () => {
+  const PORTS = `---
+type: ifdam
+title: t
+---
+
+## Nodes
+
+- V-001 Screen ^screen
+  show: Item
+- V-002 Do it
+- V-003 Store ^store
+
+## Edges
+
+- V-001:E@0.5 -> V-002:W
+- V-002:N -> V-003
+
+## Stickies
+`;
+
+  it("reads pinned sides and ratios", () => {
+    const doc = parseIfdam(PORTS);
+    expect(doc.edges).toEqual([
+      { from: "V-001", to: "V-002", fromPort: { side: "E", at: 0.5 }, toPort: { side: "W" } },
+      { from: "V-002", to: "V-003", fromPort: { side: "N" } },
+    ]);
+    expect(doc.rawEdges).toEqual([]);
+  });
+
+  it("ignores pins for identity and writes them back", () => {
+    const doc = parseIfdam(PORTS);
+    const out = serializeIfdam(PORTS, doc, "2026-10-10");
+    expect(out).toContain("- V-001:E@0.5 -> V-002:W");
+    expect(out).toContain("- V-002:N -> V-003");
+    expect(parseIfdam(out).edges).toEqual(doc.edges);
+  });
+});

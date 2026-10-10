@@ -7,7 +7,7 @@
  * routed as always. Parsing and writing live here so every kind that pins
  * ends reads the same lines; what a pin *does* is geometry (`node-edge.ts`).
  */
-import type { EdgePort, PortSide } from "./node-edge";
+import type { EdgeOptions, EdgePort, PortSide } from "./node-edge";
 
 const END_RE = /^([A-Za-z]{1,3}-\d+)((?::([NESW]))(?:@(\d+(?:\.\d+)?))?)?$/;
 
@@ -28,4 +28,19 @@ export function parseEdgeEnd(token: string): { id: string; port?: EdgePort } | n
 export function formatEdgeEnd(id: string, port: EdgePort | undefined): string {
   if (!port) return id;
   return `${id}:${port.side}${port.at === undefined ? "" : `@${Number(port.at.toFixed(2))}`}`;
+}
+
+/**
+ * `{ ports }` for an edge geometry call, or `{}` when the edge is automatic.
+ * Every kind's layout spreads this into its router options.
+ */
+export function portsOption(edge: {
+  fromPort?: EdgePort;
+  toPort?: EdgePort;
+}): Pick<EdgeOptions, "ports"> {
+  if (!edge.fromPort && !edge.toPort) return {};
+  const ports: { from?: EdgePort; to?: EdgePort } = {};
+  if (edge.fromPort) ports.from = edge.fromPort;
+  if (edge.toPort) ports.to = edge.toPort;
+  return { ports };
 }

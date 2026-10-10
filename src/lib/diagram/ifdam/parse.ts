@@ -45,6 +45,8 @@ import {
 } from "../note";
 import { replaceSections, sectionText, splitNote } from "../sections";
 import { formatStickySection, parseStickies, type Sticky } from "../sticky";
+import { formatEdgeEnd, parseEdgeEnd } from "../edge-ports";
+import type { EdgePort } from "../node-edge";
 import { DEFAULT_KIND, markOfKind, symbolOfMark, type NodeKind } from "./symbols";
 
 export const NODE_PREFIX = "V";
@@ -86,6 +88,10 @@ export interface IfdamEdge {
   from: string;
   to: string;
   label?: string;
+  /** Where the arrow leaves `from`. Absent means automatic. */
+  fromPort?: EdgePort;
+  /** Where the arrow enters `to`. Absent means automatic. */
+  toPort?: EdgePort;
 }
 
 export interface IfdamDocModel {
@@ -147,7 +153,7 @@ export function memoOf(node: IfdamNode): string {
 
 const NUMBER = String.raw`-?\d+(?:\.\d+)?`;
 const POSITION_RE = new RegExp(`^@(${NUMBER}),(${NUMBER})$`);
-const EDGE_RE = /^\s*-\s+([A-Za-z]{1,3}-\d+)\s*->\s*([A-Za-z]{1,3}-\d+)\s*(?:"(.*)")?\s*$/;
+const EDGE_RE = /^\s*-\s+(\S+)\s*->\s*(\S+)\s*(?:"(.*)")?\s*$/;
 
 function isColor(tok: string): boolean {
   return tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1));
@@ -209,8 +215,17 @@ function parseNodeLine(line: string): { node: IfdamNode; hadId: boolean } | null
 function parseEdgeLine(line: string): IfdamEdge | null {
   const m = EDGE_RE.exec(line);
   if (!m) return null;
+  const from = parseEdgeEnd(m[1]);
+  const to = parseEdgeEnd(m[2]);
+  if (!from || !to) return null;
   const label = (m[3] ?? "").trim();
-  return { from: m[1], to: m[2], ...(label ? { label } : {}) };
+  return {
+    from: from.id,
+    to: to.id,
+    ...(label ? { label } : {}),
+    ...(from.port ? { fromPort: from.port } : {}),
+    ...(to.port ? { toPort: to.port } : {}),
+  };
 }
 
 /** Parses an IFDAM note. `fallbackTitle` (usually the file name) stands in
@@ -354,7 +369,7 @@ export function formatNode(node: IfdamNode): string[] {
 export function formatEdge(edge: IfdamEdge): string {
   // The label sits between quotes; a quote inside it could not be read back.
   const label = (edge.label ?? "").replace(/\s+/g, " ").replace(/"/g, "'").trim();
-  return `- ${edge.from} -> ${edge.to}${label ? ` "${label}"` : ""}`;
+  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} -> ${formatEdgeEnd(edge.to, edge.toPort)}${label ? ` "${label}"` : ""}`;
 }
 
 function sectionBody(name: string, lines: string[]): string {

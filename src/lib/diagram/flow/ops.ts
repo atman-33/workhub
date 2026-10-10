@@ -10,6 +10,7 @@ import {
   connectEdges,
   reattachEdge,
   type ConnectionRule,
+  type EdgePort,
   allowAnyConnection,
 } from "../node-edge";
 import { bandKeyOf, maxOffset, UNASSIGNED, type FlowLayout } from "./layout";
@@ -181,28 +182,38 @@ export function stepsInLane(doc: FlowDocModel, id: string): number {
 
 // ---- arrows -------------------------------------------------------------------
 
-const newEdge = (from: string, to: string): FlowEdge => ({ from, to });
-
-/** Adds an arrow; the same model back when it would change nothing. */
+/** Adds an arrow; the same model back when it would change nothing. Pins the ends when `ports` names them. */
 export function connect(
   doc: FlowDocModel,
   from: string,
   to: string,
   rule: ConnectionRule = allowAnyConnection,
+  ports: { fromPort?: EdgePort; toPort?: EdgePort } = {},
 ): FlowDocModel {
-  const edges = connectEdges(doc.edges, from, to, newEdge, rule);
+  const make = (f: string, t: string): FlowEdge => ({
+    from: f,
+    to: t,
+    ...(ports.fromPort ? { fromPort: ports.fromPort } : {}),
+    ...(ports.toPort ? { toPort: ports.toPort } : {}),
+  });
+  const edges = connectEdges(doc.edges, from, to, make, rule);
   return edges ? { ...doc, edges } : doc;
 }
 
-/** Moves one end of an arrow to another step; the same model back when nothing changes. */
+/**
+ * Moves one end of an arrow to another step; the same model back when nothing
+ * changes. `port` pins the moved end anew (`null` clears it back to automatic);
+ * without one the end keeps the pin it had.
+ */
 export function reattach(
   doc: FlowDocModel,
   edge: { from: string; to: string },
   end: "from" | "to",
   nodeId: string,
   rule: ConnectionRule = allowAnyConnection,
+  port?: EdgePort | null,
 ): FlowDocModel {
-  const edges = reattachEdge(doc.edges, edge, end, nodeId, rule);
+  const edges = reattachEdge(doc.edges, edge, end, nodeId, rule, port);
   return edges ? { ...doc, edges } : doc;
 }
 
