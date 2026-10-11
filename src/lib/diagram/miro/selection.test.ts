@@ -7,7 +7,7 @@ import { layoutFlow } from "../flow/layout";
 import { parseFlow } from "../flow/parse";
 import { encodePayload } from "./encode";
 import { algorithmToMiro } from "./adapters/algorithm";
-import { architectureFrameKey, architectureToMiro } from "./adapters/architecture";
+import { architectureFrameKey, architectureFrameLabelKey, architectureToMiro } from "./adapters/architecture";
 import { flowLaneKey, flowLaneLabelKey, flowToMiro } from "./adapters/flow";
 import { filterMiroSceneForSelection } from "./selection";
 
@@ -15,7 +15,8 @@ import { filterMiroSceneForSelection } from "./selection";
  * The selection filter on real sample models (T-0725 part B): only selected
  * shapes survive, connectors need both ends selected, layout stickies are
  * left out, frames survive only with a selected member, flow lane rectangles
- * survive only with a selected step (with their labels), and the survivor is
+ * and architecture frame rectangles survive only with a selected member (with
+ * their labels), and the survivor is
  * recentred. The whole-diagram adapters are untouched.
  */
 
@@ -199,15 +200,62 @@ describe("filterMiroSceneForSelection", () => {
     expect(filtered.connectors.map((c) => c.key)).toEqual(["F-002->F-003"]);
   });
 
-  it("keeps architecture frames with a selected member and drops empty ones", () => {
+  it("keeps architecture frame rectangles with a selected member and drops the rest", () => {
     const scene = architectureToMiro(layoutArchitecture(architectureDoc, architectureDoc.stickies));
+    const rectBefore = scene.shapes.find((s) => s.key === architectureFrameKey("G-002"))!;
+    const blockBefore = scene.shapes.find((s) => s.key === "C-003")!;
     const filtered = filterMiroSceneForSelection(scene, ["C-003", "C-004"]);
-    expect(filtered.shapes.map((s) => s.key)).toEqual(["C-003", "C-004"]);
-    expect(filtered.frames.map((f) => f.key)).toEqual([architectureFrameKey("G-002")]);
+    // The blocks stay top-level, and their frame rectangle comes first (behind
+    // them), with its label; the other frame is gone, and no Miro frame is
+    // ever involved.
+    expect(filtered.frames).toEqual([]);
+    expect(filtered.shapes.map((s) => s.key)).toEqual([
+      architectureFrameKey("G-002"),
+      "C-003",
+      "C-004",
+    ]);
+    expect(filtered.texts.map((t) => t.key)).toEqual([architectureFrameLabelKey("G-002")]);
+    expect(filtered.texts[0].text).toBe("Server");
     expect(filtered.connectors.map((c) => c.key)).toEqual(["C-003->C-004"]);
     for (const shape of filtered.shapes) {
-      expect(shape.frame).toBe(architectureFrameKey("G-002"));
+      expect(shape.frame).toBeUndefined();
     }
+    expect(
+      filtered.shapes.filter((s) => s.key.startsWith("C-")).map((s) => s.lane),
+    ).toEqual([architectureFrameKey("G-002"), architectureFrameKey("G-002")]);
+    // The rectangle keeps its full geometry (not shrunk to the selection) and
+    // the blocks keep their offsets from it: everything shifts by one delta.
+    const rectAfter = filtered.shapes[0];
+    const blockAfter = filtered.shapes.find((s) => s.key === "C-003")!;
+    expect(rectAfter.width).toBeCloseTo(rectBefore.width, 9);
+    expect(rectAfter.height).toBeCloseTo(rectBefore.height, 9);
+    expect(blockAfter.cx - rectAfter.cx).toBeCloseTo(blockBefore.cx - rectBefore.cx, 9);
+    expect(blockAfter.cy - rectAfter.cy).toBeCloseTo(blockBefore.cy - rectBefore.cy, 9);
+    // The independence survives encoding: rectangles then blocks, all
+    // top-level, then the label as a text.
+    const payload = encodePayload(filtered);
+    expect(payload.data.objects.map((o) => o.widgetData.type)).toEqual([
+      "shape",
+      "shape",
+      "shape",
+      "text",
+      "line",
+    ]);
+    for (const object of payload.data.objects.filter((o) => o.widgetData.type === "shape")) {
+      const json = object.widgetData.json as { _parent: null; _position: { schema: string } };
+      expect(json._parent).toBeNull();
+      expect(json._position.schema).toBe("canvasOffsetPx");
+    }
+  });
+
+  it("keeps no frame rectangle for an ungrouped architecture block", () => {
+    const scene = architectureToMiro(layoutArchitecture(architectureDoc, architectureDoc.stickies));
+    const filtered = filterMiroSceneForSelection(scene, ["C-001"]);
+    expect(filtered.frames).toEqual([]);
+    expect(filtered.shapes.map((s) => s.key)).toEqual(["C-001"]);
+    expect(filtered.texts).toEqual([]);
+    // The arrow to the unselected block drops.
+    expect(filtered.connectors).toEqual([]);
   });
 
   it("recentres the survivors on the origin without moving them apart", () => {

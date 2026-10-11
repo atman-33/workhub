@@ -68,20 +68,24 @@ export interface MiroShapeNode {
    * adapter sets it for a system, whose outline is thick on the canvas. */
   borderWidth?: number;
   /**
-   * Key of the frame that owns this figure (an architecture frame); absent
-   * means a top-level figure. The encoder writes `_parent` and a
-   * `parentOffsetPx` position for it, so the child moves with its frame on the
-   * board. Stickies and free texts never carry one: they stay independent.
+   * Key of the frame that owns this figure; absent means a top-level figure.
+   * The encoder writes `_parent` and a `parentOffsetPx` position for it, so
+   * the child moves with its frame on the board. No current adapter sets one
+   * (flow lanes became background rectangles in T-0733, architecture frames
+   * in T-0735); the path stays so older scenes, the encoder and the decoder
+   * keep working. Stickies and free texts never carry one: they stay
+   * independent.
    */
   frame?: string;
   /**
-   * Key of the flow lane-background rectangle this step belongs to (a scene
-   * key from `adapters/flow.ts`); absent means the step is in no lane. This
-   * is selection grouping only, never parenting: the encoder ignores it, so
-   * the step pastes as a top-level figure with a `canvasOffsetPx` position
-   * and stays freely movable on the board, while the right-click selection
-   * copy keeps the lane rectangles that hold a selected step (T-0733). An
-   * architecture member uses `frame` instead, never this.
+   * Key of the background rectangle this figure belongs to: a flow lane (a
+   * scene key from `adapters/flow.ts`) or an architecture frame (a scene key
+   * from `adapters/architecture.ts`); absent means the figure stands in no
+   * group. This is selection grouping only, never parenting: the encoder
+   * ignores it, so the figure pastes as a top-level figure with a
+   * `canvasOffsetPx` position and stays freely movable on the board, while
+   * the right-click selection copy keeps the rectangles that hold a selected
+   * figure (T-0733 for lanes, T-0735 for frames).
    */
   lane?: string;
 }
@@ -108,7 +112,9 @@ export interface MiroTextNode {
   text: string;
 }
 
-/** A frame holding other elements (lanes and architecture frames in later adapters). */
+/** A frame holding other elements. No current adapter emits one (flow lanes
+ * stopped in T-0733, architecture frames in T-0735); the node and its encoder
+ * path stay so older scenes keep working. */
 export interface MiroFrameNode {
   kind: "frame";
   key: string;

@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { STICKY_FILL_HEX } from "../../colors";
+import { COLOR_HEX, STICKY_FILL_HEX } from "../../colors";
 import { layoutArchitecture, type ArchitectureLayout } from "../../architecture/layout";
 import { parseArchitecture } from "../../architecture/parse";
 import { hexToMiroRgb } from "../palette";
 import { encodePayload } from "../encode";
-import { architectureFrameKey, architectureShapeToMiro, architectureToMiro } from "./architecture";
+import {
+  architectureFrameKey,
+  architectureFrameLabelKey,
+  architectureShapeToMiro,
+  architectureToMiro,
+} from "./architecture";
 
 /**
- * The architecture adapter on a real sample model: each frame becomes a Miro
- * frame at the rectangle the layout drew, every block inside one becomes that
- * frame's child (offsets from the frame's top-left), blocks map to figures by
- * kind, `<->` arrows carry both heads, labels survive, and stickies stay
- * independent - even one pinned to a frame. All recentered so the drawing's
- * middle lands on the origin.
+ * The architecture adapter on a real sample model: each frame becomes a
+ * background rectangle stacked in scene order (not a Miro frame, so blocks
+ * stay freely movable), every block is an independent top-level figure in
+ * absolute coordinates, the frame names become free texts at their
+ * rectangles' top-left, `<->` arrows carry both heads, labels survive, and
+ * stickies stay independent - even one pinned to a frame. All recentered so
+ * the drawing's middle lands on the origin.
  */
 const doc = parseArchitecture(
   `---
@@ -58,7 +64,11 @@ function layoutWithStickies(): ArchitectureLayout {
 describe("architectureToMiro", () => {
   it("maps blocks by kind, with people and clouds as provisional rectangles", () => {
     const scene = architectureToMiro(layoutWithStickies());
+    // Frame rectangles come first (so they paste behind), then the blocks.
     expect(scene.shapes.map((s) => s.key)).toEqual([
+      architectureFrameKey("G-001"),
+      architectureFrameKey("G-002"),
+      architectureFrameKey("G-003"),
       "C-001",
       "C-002",
       "C-003",
@@ -66,7 +76,7 @@ describe("architectureToMiro", () => {
       "C-005",
       "C-006",
     ]);
-    expect(scene.shapes.map((s) => s.shape)).toEqual([
+    expect(scene.shapes.slice(3).map((s) => s.shape)).toEqual([
       "rect",
       "rect",
       "round",
@@ -74,31 +84,70 @@ describe("architectureToMiro", () => {
       "cylinder",
       "rect",
     ]);
+    expect(scene.shapes.slice(0, 3).map((s) => s.shape)).toEqual(["rect", "rect", "rect"]);
   });
 
-  it("makes one frame per layout rectangle, empty frames included", () => {
+  it("makes one background rectangle per layout rectangle, empty frames included", () => {
     const layout = layoutWithStickies();
     const scene = architectureToMiro(layout);
-    expect(scene.frames.map((f) => f.key)).toEqual([
+    // No frames: members are plain rectangles, so Miro never owns the blocks.
+    expect(scene.frames).toEqual([]);
+    const rects = scene.shapes.slice(0, 3);
+    expect(rects.map((s) => s.key)).toEqual([
       architectureFrameKey("G-001"),
       architectureFrameKey("G-002"),
       architectureFrameKey("G-003"),
     ]);
-    expect(scene.frames.map((f) => f.title)).toEqual(["Client", "Server", "Empty"]);
-    // The frames sit where the layout drew them, recentered.
+    for (const rect of rects) {
+      expect(rect.shape).toBe("rect");
+      // A visual guide only: no text of its own (the name is a free text),
+      // no parent link.
+      expect(rect.text).toBe("");
+      expect(rect.frame).toBeUndefined();
+      expect(rect.lane).toBeUndefined();
+    }
+    // The rectangles sit where the layout drew them, recentered - the empty
+    // frame keeps the minimal box the layout gave it.
     const centreX = layout.bounds.x + layout.bounds.width / 2;
     const centreY = layout.bounds.y + layout.bounds.height / 2;
     layout.frames.forEach((frame, i) => {
-      const out = scene.frames[i];
+      const out = rects[i];
       expect(out.cx).toBeCloseTo(frame.x + frame.width / 2 - centreX, 9);
       expect(out.cy).toBeCloseTo(frame.y + frame.height / 2 - centreY, 9);
       expect(out.width).toBeCloseTo(frame.width, 9);
       expect(out.height).toBeCloseTo(frame.height, 9);
     });
+    // A plain frame keeps the default border.
+    expect(rects.map((r) => r.border)).toEqual([null, null, null]);
   });
 
-  it("parents members to their frame with offsets from the frame's top-left", () => {
-    const scene = architectureToMiro(layoutWithStickies());
+  it("names each frame with a free text at its rectangle's top-left", () => {
+    const layout = layoutWithStickies();
+    const scene = architectureToMiro(layout);
+    expect(scene.texts.map((t) => t.key)).toEqual([
+      architectureFrameLabelKey("G-001"),
+      architectureFrameLabelKey("G-002"),
+      architectureFrameLabelKey("G-003"),
+    ]);
+    expect(scene.texts.map((t) => t.text)).toEqual(["Client", "Server", "Empty"]);
+    const rects = scene.shapes.slice(0, 3);
+    scene.texts.forEach((label, i) => {
+      const rect = rects[i];
+      const left = rect.cx - rect.width / 2;
+      const top = rect.cy - rect.height / 2;
+      // Inside the rectangle, near its top-left corner.
+      expect(label.cx - label.width / 2).toBeGreaterThanOrEqual(left);
+      expect(label.cx - label.width / 2).toBeLessThan(left + rect.width / 2);
+      expect(label.cy - label.height / 2).toBeGreaterThanOrEqual(top);
+      expect(label.cy - label.height / 2).toBeLessThan(top + rect.height / 2);
+    });
+  });
+
+  it("leaves every block parentless in absolute coordinates, grouped by frame", () => {
+    const layout = layoutWithStickies();
+    const scene = architectureToMiro(layout);
+    const blocks = scene.shapes.slice(3);
+    expect(blocks).toHaveLength(6);
     const frameOf = new Map([
       ["C-001", undefined],
       ["C-002", architectureFrameKey("G-001")],
@@ -107,15 +156,21 @@ describe("architectureToMiro", () => {
       ["C-005", architectureFrameKey("G-002")],
       ["C-006", undefined],
     ]);
-    for (const shape of scene.shapes) expect(shape.frame).toBe(frameOf.get(shape.key));
-    // The linkage survives encoding: children point at their frame's id, come
-    // after it in the objects array, and carry frame-relative offsets.
+    for (const shape of blocks) {
+      // No frame link: the block is a free figure. The `lane` link is grouping
+      // only (the encoder ignores it) for the selection copy.
+      expect(shape.frame).toBeUndefined();
+      expect(shape.lane).toBe(frameOf.get(shape.key));
+    }
+    // The independence survives encoding: frame rectangles and blocks all
+    // write `_parent: null` with canvas offsets, rectangles before blocks so
+    // they land behind them, and the frame labels follow as texts.
     const payload = encodePayload(scene);
     const objects = payload.data.objects;
     expect(objects.map((o) => o.widgetData.type)).toEqual([
-      "frame",
-      "frame",
-      "frame",
+      "shape",
+      "shape",
+      "shape",
       "shape",
       "shape",
       "shape",
@@ -123,29 +178,32 @@ describe("architectureToMiro", () => {
       "shape",
       "shape",
       "sticker",
+      "text",
+      "text",
+      "text",
       "line",
       "line",
       "line",
       "line",
       "line",
     ]);
-    const frameId = new Map(scene.frames.map((f, i) => [f.key, i]));
-    scene.shapes.forEach((shape, i) => {
-      const json = objects[3 + i].widgetData.json as {
-        _parent: { index: number } | null;
-        _position: { offsetPx: { x: number; y: number }; schema: string; containerType?: string };
+    const rects = scene.shapes.slice(0, 3);
+    objects.slice(0, 9).forEach((object, i) => {
+      const shape = scene.shapes[i];
+      const json = object.widgetData.json as {
+        _parent: null;
+        _position: { offsetPx: { x: number; y: number }; schema: string };
       };
-      if (shape.frame === undefined) {
-        expect(json._parent).toBeNull();
-        expect(json._position.schema).toBe("canvasOffsetPx");
-        return;
+      expect(json._parent).toBeNull();
+      expect(json._position.schema).toBe("canvasOffsetPx");
+      expect(json._position.offsetPx.x).toBeCloseTo(shape.cx, 9);
+      expect(json._position.offsetPx.y).toBeCloseTo(shape.cy, 9);
+      if (i >= 3 && shape.lane !== undefined) {
+        // Each grouped block sits inside its frame's rectangle.
+        const rect = rects.find((r) => r.key === shape.lane)!;
+        expect(shape.cx).toBeGreaterThanOrEqual(rect.cx - rect.width / 2);
+        expect(shape.cx).toBeLessThanOrEqual(rect.cx + rect.width / 2);
       }
-      const frame = scene.frames.find((f) => f.key === shape.frame)!;
-      expect(json._parent).toEqual({ index: frameId.get(shape.frame!) });
-      expect(json._position.schema).toBe("parentOffsetPx");
-      expect(json._position.containerType).toBe("FRAME");
-      expect(json._position.offsetPx.x).toBeCloseTo(shape.cx - (frame.cx - frame.width / 2), 9);
-      expect(json._position.offsetPx.y).toBeCloseTo(shape.cy - (frame.cy - frame.height / 2), 9);
     });
   });
 
@@ -220,6 +278,69 @@ describe("architectureToMiro", () => {
     };
     expect(json._parent).toBeNull();
     expect(json._position.schema).toBe("canvasOffsetPx");
+  });
+
+  it("paints a frame colour as its rectangle's border", () => {
+    const colored = parseArchitecture(
+      `---
+type: architecture
+title: t
+---
+
+## Frames
+
+- G-001 Store #blue
+
+## Nodes
+
+- C-001 Box frame:G-001
+
+## Edges
+`,
+      "t",
+    );
+    const scene = architectureToMiro(layoutArchitecture(colored, colored.stickies));
+    expect(scene.frames).toEqual([]);
+    expect(scene.shapes.map((s) => s.key)).toEqual([architectureFrameKey("G-001"), "C-001"]);
+    expect(scene.shapes[0].border).toBe(hexToMiroRgb(COLOR_HEX.blue));
+    expect(scene.texts.map((t) => t.text)).toEqual(["Store"]);
+    expect(scene.shapes[1].lane).toBe(architectureFrameKey("G-001"));
+    expect(scene.shapes[1].frame).toBeUndefined();
+  });
+
+  it("wraps a frameless diagram in no rectangle: every block stays top-level", () => {
+    const frameless = parseArchitecture(
+      `---
+type: architecture
+title: t
+---
+
+## Nodes
+
+- C-001 Box
+- C-002 Screen
+
+## Edges
+
+- C-001 -> C-002
+`,
+      "t",
+    );
+    const scene = architectureToMiro(layoutArchitecture(frameless, frameless.stickies));
+    expect(scene.frames).toEqual([]);
+    expect(scene.texts).toEqual([]);
+    expect(scene.shapes).toHaveLength(2);
+    for (const shape of scene.shapes) {
+      expect(shape.frame).toBeUndefined();
+      expect(shape.lane).toBeUndefined();
+    }
+    const objects = encodePayload(scene).data.objects;
+    expect(objects.map((o) => o.widgetData.type)).toEqual(["shape", "shape", "line"]);
+    for (const object of objects.filter((o) => o.widgetData.type === "shape")) {
+      const json = object.widgetData.json as { _parent: null; _position: { schema: string } };
+      expect(json._parent).toBeNull();
+      expect(json._position.schema).toBe("canvasOffsetPx");
+    }
   });
 
   it("lays out nothing as an empty scene", () => {

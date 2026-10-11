@@ -20,37 +20,39 @@
  *   so a selected coloured item survives exactly like a selected rectangle;
  * - free texts and free-floating lines are diagram chrome (matrix axes, axis
  *   and quadrant labels) rather than nodes, so they are always left out -
- *   except a flow lane label (`<laneKey>:label`, see `adapters/flow.ts`),
- *   which survives with its lane so the kept rectangle keeps its name;
+ *   except a background label (`<rectKey>:label`, see `adapters/flow.ts` and
+ *   `adapters/architecture.ts`), which survives with its rectangle so the
+ *   kept rectangle keeps its name;
  * - frames survive only when at least one kept shape names them (a frame with
  *   no selected member is dropped); a kept shape whose frame was dropped is
  *   defensively lifted to top level so the encoder never sees a dangling
  *   parent, and every kept frame keeps its full geometry (not shrunk to its
  *   selected members);
- * - flow lane-background rectangles (T-0733) are independent shapes, not
- *   frames, but get the same keep rule through the step's `lane` link: a lane
- *   rectangle survives only when at least one kept step names it (a lane with
- *   no selected step is dropped). Like frames, lanes keep their full geometry
- *   and stay out of the bounding box: a lane is typically larger than the
- *   selected steps inside it, and centring on the lane would push the
- *   selection off-centre. Lanes paste before the steps (behind them), as the
- *   adapter ordered them.
+ * - background rectangles (flow lanes since T-0733, architecture frames since
+ *   T-0735) are independent shapes, not frames, but get the same keep rule
+ *   through the member's `lane` link: a rectangle survives only when at least
+ *   one kept member names it (one with no selected member is dropped). Like
+ *   frames, rectangles keep their full geometry and stay out of the bounding
+ *   box: a rectangle is typically larger than the selected members inside it,
+ *   and centring on it would push the selection off-centre. Rectangles paste
+ *   before the members (behind them), as the adapter ordered them.
  *
  * The kept elements are then recentred so their bounding-box centre lands on
  * the origin - the same convention the adapters use for the whole diagram -
- * keeping every relative offset intact. Frames and lanes are shifted with the
- * selection but excluded from the bounding box, as documented above.
+ * keeping every relative offset intact. Frames and background rectangles are
+ * shifted with the selection but excluded from the bounding box, as documented
+ * above.
  *
  * An empty selection is a no-op: the input scene is returned unchanged.
  */
 
 import type { MiroScene } from "./model";
 
-/** Suffix of a flow lane label's scene key on its lane's key: `<laneKey>`
- * plus this names the free text at the lane's top-left (`adapters/flow.ts`
- * owns the convention; it is mirrored here so the shared helper needs no
- * adapter import). */
-const FLOW_LANE_LABEL_SUFFIX = ":label";
+/** Suffix of a background label's scene key on its rectangle's key:
+ * `<rectKey>` plus this names the free text at the rectangle's top-left
+ * (`adapters/flow.ts` and `adapters/architecture.ts` own the convention; it
+ * is mirrored here so the shared helper needs no adapter import). */
+const GROUP_LABEL_SUFFIX = ":label";
 
 /** A Miro scene holding nothing, for selections that keep no node. */
 function emptyFilteredScene(): MiroScene {
@@ -66,16 +68,17 @@ export function filterMiroSceneForSelection(
   if (sel.size === 0) return scene;
 
   const selectedShapes = scene.shapes.filter((s) => sel.has(s.key));
-  // Lane rectangles their steps name, even though the rectangles themselves
-  // are never selected (only diagram nodes are). A selected shape that shares
-  // a lane rectangle's key counts as background, not as a node.
-  const keptLaneKeys = new Set<string>();
+  // Background rectangles their members name, even though the rectangles
+  // themselves are never selected (only diagram nodes are). A selected shape
+  // that shares a background rectangle's key counts as background, not as a
+  // node.
+  const keptGroupKeys = new Set<string>();
   for (const shape of selectedShapes) {
-    if (shape.lane !== undefined) keptLaneKeys.add(shape.lane);
+    if (shape.lane !== undefined) keptGroupKeys.add(shape.lane);
   }
-  const lanes = scene.shapes.filter((s) => keptLaneKeys.has(s.key));
-  const laneKeys = new Set(lanes.map((l) => l.key));
-  const shapes = selectedShapes.filter((s) => !laneKeys.has(s.key));
+  const backgrounds = scene.shapes.filter((s) => keptGroupKeys.has(s.key));
+  const backgroundKeys = new Set(backgrounds.map((l) => l.key));
+  const shapes = selectedShapes.filter((s) => !backgroundKeys.has(s.key));
   const stickers = scene.stickers.filter((s) => sel.has(s.key));
   const connectors = scene.connectors.filter((c) => sel.has(c.from.key) && sel.has(c.to.key));
 
@@ -92,19 +95,20 @@ export function filterMiroSceneForSelection(
       ? { ...shape, frame: undefined }
       : shape,
   );
-  // A surviving lane's label goes with it; every other free text stays
+  // A surviving rectangle's label goes with it; every other free text stays
   // dropped, as before.
   const texts = scene.texts.filter(
     (t) =>
-      t.key.endsWith(FLOW_LANE_LABEL_SUFFIX) &&
-      keptLaneKeys.has(t.key.slice(0, -FLOW_LANE_LABEL_SUFFIX.length)),
+      t.key.endsWith(GROUP_LABEL_SUFFIX) &&
+      keptGroupKeys.has(t.key.slice(0, -GROUP_LABEL_SUFFIX.length)),
   );
 
   if (relinked.length === 0 && stickers.length === 0) return emptyFilteredScene();
 
   // Bounding box of the selection: shape extents plus sticker centres (a
   // sticker's Miro size is fixed, while its layout size is gone - its centre
-  // is the honest remainder). Frames and lanes stay out, as documented above.
+  // is the honest remainder). Frames and background rectangles stay out, as
+  // documented above.
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -124,14 +128,14 @@ export function filterMiroSceneForSelection(
   const centreX = (minX + maxX) / 2;
   const centreY = (minY + maxY) / 2;
   if (!Number.isFinite(centreX) || !Number.isFinite(centreY)) {
-    return { shapes: [...lanes, ...relinked], stickers, texts, frames, connectors };
+    return { shapes: [...backgrounds, ...relinked], stickers, texts, frames, connectors };
   }
 
   const shiftX = (x: number) => x - centreX;
   const shiftY = (y: number) => y - centreY;
   return {
-    // Lanes first, so they paste behind the steps, as the adapter ordered them.
-    shapes: [...lanes, ...relinked].map((s) => ({ ...s, cx: shiftX(s.cx), cy: shiftY(s.cy) })),
+    // Backgrounds first, so they paste behind the members, as the adapter ordered them.
+    shapes: [...backgrounds, ...relinked].map((s) => ({ ...s, cx: shiftX(s.cx), cy: shiftY(s.cy) })),
     stickers: stickers.map((s) => ({ ...s, cx: shiftX(s.cx), cy: shiftY(s.cy) })),
     texts: texts.map((t) => ({ ...t, cx: shiftX(t.cx), cy: shiftY(t.cy) })),
     frames: frames.map((f) => ({ ...f, cx: shiftX(f.cx), cy: shiftY(f.cy) })),
