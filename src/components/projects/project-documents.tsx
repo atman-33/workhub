@@ -113,8 +113,8 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
   };
 
   return (
-    <section aria-label={t("projects.view.documentsTab")} className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
+    <section aria-label={t("projects.view.documentsTab")} className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">
           {t("projects.view.documentsTab")}
         </h3>
@@ -129,12 +129,13 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
           {t("projects.view.refresh")}
         </Button>
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      {/* Fixed height with internal scroll: the detail pane scrolls itself,
-        so an unbounded preview here would push the list off screen. The list
-        keeps a fixed width beside the preview; picking another document, or
-        the Overview tab above, is how the reader moves on. */}
-      <div className="flex h-[28rem] min-h-0 overflow-hidden rounded-md border">
+      {error && <p className="shrink-0 text-xs text-destructive">{error}</p>}
+      {/* Fills the detail pane's remaining height (T-0737): the parent body
+        gives this section its height, and the list/preview split takes the
+        rest with its own internal scroll. The list keeps a fixed width beside
+        the preview; picking another document, or the Overview tab above, is
+        how the reader moves on. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
         <div className="w-60 shrink-0 overflow-y-auto border-r">
           {loading && groups.length === 0 ? (
             <p className="p-2 text-xs text-muted-foreground">{t("projects.view.docs.loading")}</p>

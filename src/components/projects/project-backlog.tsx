@@ -253,8 +253,8 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
       : Shapes;
 
   return (
-    <section aria-label={t("projects.view.backlogTab")} className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
+    <section aria-label={t("projects.view.backlogTab")} className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">
           {t("projects.view.backlogTab")}
         </h3>
@@ -290,10 +290,11 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
           </Button>
         </div>
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      {/* Same fixed-height split as the Documents pane: the detail pane scrolls
-        itself, so an unbounded preview here would push the list off screen. */}
-      <div className="flex h-[28rem] min-h-0 overflow-hidden rounded-md border">
+      {error && <p className="shrink-0 text-xs text-destructive">{error}</p>}
+      {/* Same fill-the-height split as the Documents pane (T-0737): the
+        parent body gives this section its height, so the preview no longer
+        pushes the list off screen. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
         <div className="w-60 shrink-0 overflow-y-auto border-r">
           {loading && items.length === 0 ? (
             <p className="p-2 text-xs text-muted-foreground">{t("projects.view.backlog.loading")}</p>

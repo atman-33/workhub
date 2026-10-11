@@ -242,7 +242,10 @@ export function ProjectsView({
     el.style.height = `${clampAutoGrowHeight(el.scrollHeight)}px`;
     el.style.overflowY =
       el.scrollHeight > DESCRIPTION_MAX_HEIGHT_PX ? "auto" : "hidden";
-  }, [editSummary, current?.slug, current?.archived]);
+    // `pane` matters because the Description editor lives in the Overview
+    // pane (T-0737): switching back from another tab remounts the textarea,
+    // and without this the restored height collapses to a single line.
+  }, [editSummary, pane, current?.slug, current?.archived]);
   useEffect(() => {
     if (!current) return;
     setEditAlias(current.alias);
@@ -500,26 +503,162 @@ export function ProjectsView({
               {t("projects.view.selectProject")}
             </div>
           ) : (
-            <div className="h-full space-y-4 overflow-y-auto p-4">
-              <div>
-                {current.archived ? (
-                  <>
-                    <h2 className="text-base font-semibold">{current.name}</h2>
-                    {current.summary && (
-                      <p
-                        className="mt-2 text-sm"
-                        title={
-                          isTruncatedExcerpt(current.summary)
-                            ? t("projects.view.descriptionTruncatedHint")
-                            : undefined
-                        }
-                      >
-                        {current.summary}
-                      </p>
+            <div className="flex h-full min-h-0 flex-col">
+              {/* Fixed header (T-0737): the name (read-only here — editing
+                lives in the Overview pane below), the status and update time,
+                and the navigation buttons. It stays visible while the body
+                scrolls, and wraps instead of breaking on narrow widths. */}
+              <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2">
+                <h2 className="mr-1 min-w-0 truncate text-base font-semibold">
+                  {current.name}
+                </h2>
+                {current.status && (
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {t("projects.view.statusLabel", { status: current.status })}
+                  </span>
+                )}
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {t("projects.view.updatedLabel", {
+                    time: current.updated ? timeAgo(current.updated) : "—",
+                  })}
+                </span>
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5"
+                    onClick={() => {
+                      if (hasReadme) void api.openInObsidian(`${current.path}/README.md`);
+                      else void api.openExplorer(current.path);
+                    }}
+                  >
+                    <FolderOpen className="size-3.5" />
+                    {hasReadme ? t("projects.view.openReadme") : t("projects.view.openFolder")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5"
+                    onClick={() => onNavigate("tasks", current.slug)}
+                  >
+                    <ListTodo className="size-3.5" />
+                    {t("projects.view.tasksButton")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5"
+                    onClick={() => onNavigate("diagrams", current.slug)}
+                  >
+                    <Shapes className="size-3.5" />
+                    {t("projects.view.diagramsButton")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5"
+                    disabled={!defaultRepo}
+                    onClick={() => defaultRepo && onNavigate("repos", defaultRepo.path)}
+                  >
+                    <GitBranch className="size-3.5" />
+                    {t("projects.view.repoButton")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={current.archived ? "outline" : "ghost"}
+                    className="h-7 gap-1.5"
+                    onClick={() => setArchiveOpen(true)}
+                  >
+                    {current.archived ? (
+                      <>
+                        <ArchiveRestore className="size-3.5" />
+                        {t("projects.view.restore")}
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="size-3.5" />
+                        {t("projects.view.archive")}
+                      </>
                     )}
-                  </>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Overview / Documents / Backlog (T-0714, backlog in T-0715).
+                The switcher sits directly under the header, so it stays
+                visible no matter how far the body has scrolled. */}
+              <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1">
+                <Button
+                  size="sm"
+                  variant={pane === "overview" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("overview")}
+                >
+                  {t("projects.view.overviewTab")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={pane === "documents" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("documents")}
+                >
+                  {t("projects.view.documentsTab")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={pane === "backlog" ? "secondary" : "ghost"}
+                  className="h-7"
+                  onClick={() => setPane("backlog")}
+                >
+                  {t("projects.view.backlogTab")}
+                </Button>
+              </div>
+
+              {/* The only scrolling region: Overview scrolls as a page, while
+                Documents / Backlog scroll inside themselves (T-0737). */}
+              <div
+                className={cn(
+                  "min-h-0 flex-1 p-4",
+                  pane === "overview" ? "overflow-y-auto" : "overflow-hidden",
+                )}
+              >
+                {pane === "documents" ? (
+                  <ProjectDocuments
+                    key={current.slug}
+                    vaultPath={vaultPath}
+                    slug={current.slug}
+                  />
+                ) : pane === "backlog" ? (
+                  <ProjectBacklog
+                    key={current.slug}
+                    vaultPath={vaultPath}
+                    slug={current.slug}
+                    fallbackDir={current.path}
+                    tasks={tasks}
+                    onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
+                  />
                 ) : (
-                  <>
+                  <div className="space-y-4">
+                    {/* The heading already shows in the fixed header above, so
+                      an archived project shows its description here with no
+                      editing fields, as before. */}
+                    {current.archived ? (
+                      <>
+                        {current.summary && (
+                          <p
+                            className="text-sm"
+                            title={
+                              isTruncatedExcerpt(current.summary)
+                                ? t("projects.view.descriptionTruncatedHint")
+                                : undefined
+                            }
+                          >
+                            {current.summary}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
                     <label className="block space-y-1">
                       <span className="text-xs text-muted-foreground">{t("projects.view.name")}</span>
                       <Input
@@ -616,126 +755,6 @@ export function ProjectsView({
                 <p className="mt-2 font-mono text-[11px] text-muted-foreground">
                   {current.path}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  {current.status && (
-                    <span>{t("projects.view.statusLabel", { status: current.status })}</span>
-                  )}
-                  <span>
-                    {t("projects.view.updatedLabel", {
-                      time: current.updated ? timeAgo(current.updated) : "—",
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1.5"
-                  onClick={() => {
-                    if (hasReadme) void api.openInObsidian(`${current.path}/README.md`);
-                    else void api.openExplorer(current.path);
-                  }}
-                >
-                  <FolderOpen className="size-3.5" />
-                  {hasReadme ? t("projects.view.openReadme") : t("projects.view.openFolder")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1.5"
-                  onClick={() => onNavigate("tasks", current.slug)}
-                >
-                  <ListTodo className="size-3.5" />
-                  {t("projects.view.tasksButton")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1.5"
-                  onClick={() => onNavigate("diagrams", current.slug)}
-                >
-                  <Shapes className="size-3.5" />
-                  {t("projects.view.diagramsButton")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1.5"
-                  disabled={!defaultRepo}
-                  onClick={() => defaultRepo && onNavigate("repos", defaultRepo.path)}
-                >
-                  <GitBranch className="size-3.5" />
-                  {t("projects.view.repoButton")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={current.archived ? "outline" : "ghost"}
-                  className="ml-auto h-7 gap-1.5"
-                  onClick={() => setArchiveOpen(true)}
-                >
-                  {current.archived ? (
-                    <>
-                      <ArchiveRestore className="size-3.5" />
-                      {t("projects.view.restore")}
-                    </>
-                  ) : (
-                    <>
-                      <Archive className="size-3.5" />
-                      {t("projects.view.archive")}
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {/* Overview / Documents / Backlog (T-0714, backlog in T-0715).
-                The switcher stays above the pane, so a reader with a document
-                open gets back to the overview with one click. */}
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant={pane === "overview" ? "secondary" : "ghost"}
-                  className="h-7"
-                  onClick={() => setPane("overview")}
-                >
-                  {t("projects.view.overviewTab")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={pane === "documents" ? "secondary" : "ghost"}
-                  className="h-7"
-                  onClick={() => setPane("documents")}
-                >
-                  {t("projects.view.documentsTab")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant={pane === "backlog" ? "secondary" : "ghost"}
-                  className="h-7"
-                  onClick={() => setPane("backlog")}
-                >
-                  {t("projects.view.backlogTab")}
-                </Button>
-              </div>
-
-              {pane === "documents" ? (
-                <ProjectDocuments
-                  key={current.slug}
-                  vaultPath={vaultPath}
-                  slug={current.slug}
-                />
-              ) : pane === "backlog" ? (
-                <ProjectBacklog
-                  key={current.slug}
-                  vaultPath={vaultPath}
-                  slug={current.slug}
-                  fallbackDir={current.path}
-                  tasks={tasks}
-                  onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
-                />
-              ) : (
-                <>
               <section className="space-y-1.5">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground">
                   {t("projects.view.repositoriesHeading")}
@@ -977,8 +996,9 @@ export function ProjectsView({
                   </>
                 )}
               </section>
-                </>
+                  </div>
               )}
+            </div>
             </div>
           )}
         </ResizablePanel>
