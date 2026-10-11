@@ -8,13 +8,14 @@ import { parseFlow } from "../flow/parse";
 import { encodePayload } from "./encode";
 import { algorithmToMiro } from "./adapters/algorithm";
 import { architectureFrameKey, architectureToMiro } from "./adapters/architecture";
-import { flowFrameKey, flowToMiro } from "./adapters/flow";
+import { flowLaneKey, flowLaneLabelKey, flowToMiro } from "./adapters/flow";
 import { filterMiroSceneForSelection } from "./selection";
 
 /**
  * The selection filter on real sample models (T-0725 part B): only selected
  * shapes survive, connectors need both ends selected, layout stickies are
- * left out, frames survive only with a selected member, and the survivor is
+ * left out, frames survive only with a selected member, flow lane rectangles
+ * survive only with a selected step (with their labels), and the survivor is
  * recentred. The whole-diagram adapters are untouched.
  */
 
@@ -135,21 +136,67 @@ describe("filterMiroSceneForSelection", () => {
     expect(filterMiroSceneForSelection(scene, [])).toBe(scene);
   });
 
-  it("keeps flow frames with a selected member and drops the rest", () => {
+  it("keeps flow lanes with a selected member and drops the rest", () => {
     const layout = layoutFlow(flowDoc, flowDoc.stickies, { unassignedLabel: "Unassigned" });
     const scene = flowToMiro(layout);
+    const laneBefore = scene.shapes.find((s) => s.key === flowLaneKey("L-001"))!;
+    const stepBefore = scene.shapes.find((s) => s.key === "F-001")!;
     const filtered = filterMiroSceneForSelection(scene, ["F-001", "F-002"]);
-    expect(filtered.shapes.map((s) => s.key)).toEqual(["F-001", "F-002"]);
-    expect(filtered.frames.map((f) => f.key)).toEqual([flowFrameKey("L-001")]);
+    // The steps stay top-level, and their lane rectangle comes first (behind
+    // them), with its label; the other lane is gone, and no frame is ever
+    // involved.
+    expect(filtered.frames).toEqual([]);
+    expect(filtered.shapes.map((s) => s.key)).toEqual([flowLaneKey("L-001"), "F-001", "F-002"]);
+    expect(filtered.texts.map((t) => t.key)).toEqual([flowLaneLabelKey("L-001")]);
+    expect(filtered.texts[0].text).toBe("Sales");
     // The surviving arrow stays inside the selection; the lane-crossing one drops.
     expect(filtered.connectors.map((c) => c.key)).toEqual(["F-001->F-002"]);
     for (const shape of filtered.shapes) {
-      expect(shape.frame).toBe(flowFrameKey("L-001"));
+      expect(shape.frame).toBeUndefined();
     }
-    // The linkage survives encoding: the child points at its frame.
+    expect(
+      filtered.shapes.filter((s) => s.key.startsWith("F-")).map((s) => s.lane),
+    ).toEqual([flowLaneKey("L-001"), flowLaneKey("L-001")]);
+    // The lane keeps its full geometry (not shrunk to the selection) and the
+    // steps keep their offsets from it: everything shifts by one delta.
+    const laneAfter = filtered.shapes[0];
+    const stepAfter = filtered.shapes.find((s) => s.key === "F-001")!;
+    expect(laneAfter.width).toBeCloseTo(laneBefore.width, 9);
+    expect(laneAfter.height).toBeCloseTo(laneBefore.height, 9);
+    expect(stepAfter.cx - laneAfter.cx).toBeCloseTo(stepBefore.cx - laneBefore.cx, 9);
+    expect(stepAfter.cy - laneAfter.cy).toBeCloseTo(stepBefore.cy - laneBefore.cy, 9);
+    // The independence survives encoding: rectangles then steps, all
+    // top-level, then the label as a text.
     const payload = encodePayload(filtered);
-    const frames = payload.data.objects.filter((o) => o.widgetData.type === "frame");
-    expect(frames).toHaveLength(1);
+    expect(payload.data.objects.map((o) => o.widgetData.type)).toEqual([
+      "shape",
+      "shape",
+      "shape",
+      "text",
+      "line",
+    ]);
+    for (const object of payload.data.objects.filter((o) => o.widgetData.type === "shape")) {
+      const json = object.widgetData.json as { _parent: null; _position: { schema: string } };
+      expect(json._parent).toBeNull();
+      expect(json._position.schema).toBe("canvasOffsetPx");
+    }
+  });
+
+  it("keeps every lane holding a selected step, with only their labels", () => {
+    const layout = layoutFlow(flowDoc, flowDoc.stickies, { unassignedLabel: "Unassigned" });
+    const scene = flowToMiro(layout);
+    const filtered = filterMiroSceneForSelection(scene, ["F-002", "F-003"]);
+    expect(filtered.shapes.map((s) => s.key)).toEqual([
+      flowLaneKey("L-001"),
+      flowLaneKey("L-002"),
+      "F-002",
+      "F-003",
+    ]);
+    expect(filtered.texts.map((t) => t.key).sort()).toEqual(
+      [flowLaneLabelKey("L-001"), flowLaneLabelKey("L-002")].sort(),
+    );
+    // The lane-crossing arrow survives: both ends are selected.
+    expect(filtered.connectors.map((c) => c.key)).toEqual(["F-002->F-003"]);
   });
 
   it("keeps architecture frames with a selected member and drops empty ones", () => {

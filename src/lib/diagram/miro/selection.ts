@@ -19,24 +19,38 @@
  *   A 2x2 matrix item with a colour is a Miro sticker keyed by the *item* id,
  *   so a selected coloured item survives exactly like a selected rectangle;
  * - free texts and free-floating lines are diagram chrome (matrix axes, axis
- *   and quadrant labels) rather than nodes, so they are always left out;
+ *   and quadrant labels) rather than nodes, so they are always left out -
+ *   except a flow lane label (`<laneKey>:label`, see `adapters/flow.ts`),
+ *   which survives with its lane so the kept rectangle keeps its name;
  * - frames survive only when at least one kept shape names them (a frame with
  *   no selected member is dropped); a kept shape whose frame was dropped is
  *   defensively lifted to top level so the encoder never sees a dangling
  *   parent, and every kept frame keeps its full geometry (not shrunk to its
- *   selected members).
+ *   selected members);
+ * - flow lane-background rectangles (T-0733) are independent shapes, not
+ *   frames, but get the same keep rule through the step's `lane` link: a lane
+ *   rectangle survives only when at least one kept step names it (a lane with
+ *   no selected step is dropped). Like frames, lanes keep their full geometry
+ *   and stay out of the bounding box: a lane is typically larger than the
+ *   selected steps inside it, and centring on the lane would push the
+ *   selection off-centre. Lanes paste before the steps (behind them), as the
+ *   adapter ordered them.
  *
  * The kept elements are then recentred so their bounding-box centre lands on
  * the origin - the same convention the adapters use for the whole diagram -
- * keeping every relative offset (including shape-to-frame offsets) intact.
- * Frames are shifted with the selection but excluded from the bounding box:
- * a lane is typically larger than the selected steps inside it, and centring
- * on the lane would push the selection off-centre.
+ * keeping every relative offset intact. Frames and lanes are shifted with the
+ * selection but excluded from the bounding box, as documented above.
  *
  * An empty selection is a no-op: the input scene is returned unchanged.
  */
 
 import type { MiroScene } from "./model";
+
+/** Suffix of a flow lane label's scene key on its lane's key: `<laneKey>`
+ * plus this names the free text at the lane's top-left (`adapters/flow.ts`
+ * owns the convention; it is mirrored here so the shared helper needs no
+ * adapter import). */
+const FLOW_LANE_LABEL_SUFFIX = ":label";
 
 /** A Miro scene holding nothing, for selections that keep no node. */
 function emptyFilteredScene(): MiroScene {
@@ -51,7 +65,17 @@ export function filterMiroSceneForSelection(
   // An empty selection copies nothing in particular: leave the scene alone.
   if (sel.size === 0) return scene;
 
-  const shapes = scene.shapes.filter((s) => sel.has(s.key));
+  const selectedShapes = scene.shapes.filter((s) => sel.has(s.key));
+  // Lane rectangles their steps name, even though the rectangles themselves
+  // are never selected (only diagram nodes are). A selected shape that shares
+  // a lane rectangle's key counts as background, not as a node.
+  const keptLaneKeys = new Set<string>();
+  for (const shape of selectedShapes) {
+    if (shape.lane !== undefined) keptLaneKeys.add(shape.lane);
+  }
+  const lanes = scene.shapes.filter((s) => keptLaneKeys.has(s.key));
+  const laneKeys = new Set(lanes.map((l) => l.key));
+  const shapes = selectedShapes.filter((s) => !laneKeys.has(s.key));
   const stickers = scene.stickers.filter((s) => sel.has(s.key));
   const connectors = scene.connectors.filter((c) => sel.has(c.from.key) && sel.has(c.to.key));
 
@@ -68,12 +92,19 @@ export function filterMiroSceneForSelection(
       ? { ...shape, frame: undefined }
       : shape,
   );
+  // A surviving lane's label goes with it; every other free text stays
+  // dropped, as before.
+  const texts = scene.texts.filter(
+    (t) =>
+      t.key.endsWith(FLOW_LANE_LABEL_SUFFIX) &&
+      keptLaneKeys.has(t.key.slice(0, -FLOW_LANE_LABEL_SUFFIX.length)),
+  );
 
   if (relinked.length === 0 && stickers.length === 0) return emptyFilteredScene();
 
   // Bounding box of the selection: shape extents plus sticker centres (a
   // sticker's Miro size is fixed, while its layout size is gone - its centre
-  // is the honest remainder). Frames stay out, as documented above.
+  // is the honest remainder). Frames and lanes stay out, as documented above.
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -93,14 +124,17 @@ export function filterMiroSceneForSelection(
   const centreX = (minX + maxX) / 2;
   const centreY = (minY + maxY) / 2;
   if (!Number.isFinite(centreX) || !Number.isFinite(centreY)) {
-    return { shapes: relinked, stickers, texts: [], frames, connectors };
+    return { shapes: [...lanes, ...relinked], stickers, texts, frames, connectors };
   }
 
+  const shiftX = (x: number) => x - centreX;
+  const shiftY = (y: number) => y - centreY;
   return {
-    shapes: relinked.map((s) => ({ ...s, cx: s.cx - centreX, cy: s.cy - centreY })),
-    stickers: stickers.map((s) => ({ ...s, cx: s.cx - centreX, cy: s.cy - centreY })),
-    texts: [],
-    frames: frames.map((f) => ({ ...f, cx: f.cx - centreX, cy: f.cy - centreY })),
+    // Lanes first, so they paste behind the steps, as the adapter ordered them.
+    shapes: [...lanes, ...relinked].map((s) => ({ ...s, cx: shiftX(s.cx), cy: shiftY(s.cy) })),
+    stickers: stickers.map((s) => ({ ...s, cx: shiftX(s.cx), cy: shiftY(s.cy) })),
+    texts: texts.map((t) => ({ ...t, cx: shiftX(t.cx), cy: shiftY(t.cy) })),
+    frames: frames.map((f) => ({ ...f, cx: shiftX(f.cx), cy: shiftY(f.cy) })),
     connectors: connectors.map((c) => ({ ...c })),
   };
 }

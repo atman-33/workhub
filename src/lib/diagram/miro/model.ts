@@ -68,12 +68,22 @@ export interface MiroShapeNode {
    * adapter sets it for a system, whose outline is thick on the canvas. */
   borderWidth?: number;
   /**
-   * Key of the frame that owns this figure (a lane or an architecture frame);
-   * absent means a top-level figure. The encoder writes `_parent` and a
+   * Key of the frame that owns this figure (an architecture frame); absent
+   * means a top-level figure. The encoder writes `_parent` and a
    * `parentOffsetPx` position for it, so the child moves with its frame on the
    * board. Stickies and free texts never carry one: they stay independent.
    */
   frame?: string;
+  /**
+   * Key of the flow lane-background rectangle this step belongs to (a scene
+   * key from `adapters/flow.ts`); absent means the step is in no lane. This
+   * is selection grouping only, never parenting: the encoder ignores it, so
+   * the step pastes as a top-level figure with a `canvasOffsetPx` position
+   * and stays freely movable on the board, while the right-click selection
+   * copy keeps the lane rectangles that hold a selected step (T-0733). An
+   * architecture member uses `frame` instead, never this.
+   */
+  lane?: string;
 }
 
 /** A sticky note. Miro draws it at its own fixed size; `cx`/`cy` is where its centre lands. */
