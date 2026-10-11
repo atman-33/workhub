@@ -154,6 +154,73 @@ describe("layoutArchitecture", () => {
   });
 });
 
+describe("empty frame positions (T-0734)", () => {
+  const EMPTY = `---
+type: architecture
+title: t
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+- G-001 Store
+- G-002 Pinned @500,200
+
+## Nodes
+
+- C-001 Box
+
+## Edges
+
+## Stickies
+`;
+
+  it("draws an empty frame with @ at its centre, in the minimal box", () => {
+    const doc = parseArchitecture(EMPTY);
+    const frame = layoutArchitecture(doc).frameById.get("G-002")!;
+    expect(frame.width).toBe(160);
+    expect(frame.height).toBe(96);
+    expect(frame.x + frame.width / 2).toBe(500);
+    expect(frame.y + frame.height / 2).toBe(200);
+  });
+
+  it("leaves every other box where it was when only an empty frame gains a @", () => {
+    const doc = parseArchitecture(EMPTY);
+    const pinned = layoutArchitecture(doc);
+    const unpinned = layoutArchitecture({
+      ...doc,
+      frames: doc.frames.map((f) => {
+        if (f.id !== "G-002") return f;
+        const { x: _x, y: _y, ...rest } = f;
+        return rest;
+      }),
+    });
+    // Only G-002 moves; the ungrouped block and the other empty frame keep
+    // their automatic boxes.
+    expect(pinned.byId.get("C-001")).toEqual(unpinned.byId.get("C-001"));
+    expect(pinned.frameById.get("G-001")).toEqual(unpinned.frameById.get("G-001"));
+    expect(pinned.frameById.get("G-002")).not.toEqual(unpinned.frameById.get("G-002"));
+  });
+
+  it("ignores the @ of a frame with members", () => {
+    const doc = parseArchitecture(EMPTY);
+    const membered = {
+      ...doc,
+      nodes: [{ id: "C-001", title: "Box", kind: "block", frame: "G-001" } as const],
+    };
+    const without = layoutArchitecture(membered);
+    const withAt = layoutArchitecture({
+      ...membered,
+      frames: membered.frames.map((f) => (f.id === "G-001" ? { ...f, x: 5000, y: 5000 } : f)),
+    });
+    // The frame is drawn around its member either way: the far-away `@`
+    // moves nothing.
+    expect(withAt.frameById.get("G-001")).toEqual(without.frameById.get("G-001"));
+    expect(withAt.byId.get("C-001")).toEqual(without.byId.get("C-001"));
+  });
+});
+
 describe("architecture clipboard", () => {
   it("copies blocks with their frames, and pastes them under fresh ids", () => {
     const placed = {

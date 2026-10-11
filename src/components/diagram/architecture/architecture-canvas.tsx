@@ -48,7 +48,8 @@ import { cn } from "@/lib/utils";
  *
  * - **frames are background**: a frame is drawn under the arrows, clicked to
  *   select, double-clicked on its header to rename. Dragging a frame's header
- *   moves every member; a frame is never a marquee node - the marquee tests
+  *   moves every member; an empty frame moves itself (its own `@x,y`); a frame
+  *   is never a marquee node - the marquee tests
  *   block boxes only, and a press on a frame never arms it (frames answer the
  *   pointer with selection and stop the press there);
  * - **left-drag on a block moves it**, alone or with the rest of the selection
@@ -305,6 +306,30 @@ export function ArchitectureCanvas({
       );
     }
     if (frameDragging) {
+      // An empty frame has no members to pin: it travels on its own `@`
+      // instead, so the layout is recomputed with the frame's centre at the
+      // pointer (a frame with members pins them, as before).
+      if (!doc.nodes.some((n) => n.frame === frameDragging.id)) {
+        const laid = base.frameById.get(frameDragging.id);
+        if (laid) {
+          return layoutArchitecture(
+            {
+              ...doc,
+              frames: doc.frames.map((f) =>
+                f.id === frameDragging.id
+                  ? {
+                      ...f,
+                      x: Math.round(laid.x + laid.width / 2 + frameDragging.dx),
+                      y: Math.round(laid.y + laid.height / 2 + frameDragging.dy),
+                    }
+                  : f,
+              ),
+            },
+            stickies,
+          );
+        }
+        return base;
+      }
       const pins: { id: string; cx: number; cy: number }[] = [];
       for (const n of doc.nodes) {
         if (n.frame !== frameDragging.id) continue;

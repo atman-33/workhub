@@ -231,6 +231,10 @@ export function nudgeNode(
 export function autoAlign(doc: ArchitectureDocModel): ArchitectureDocModel {
   return {
     ...doc,
+    frames: doc.frames.map((f) => {
+      const { x: _x, y: _y, ...rest } = f;
+      return rest;
+    }),
     nodes: doc.nodes.map((n) => {
       const { x: _x, y: _y, ...rest } = n;
       return rest;
@@ -238,17 +242,24 @@ export function autoAlign(doc: ArchitectureDocModel): ArchitectureDocModel {
   };
 }
 
-/** True when at least one block carries a position. */
+/** True when at least one block - or one empty frame - carries a position. */
 export function hasManualPositions(doc: ArchitectureDocModel): boolean {
-  return doc.nodes.some((n) => n.x !== undefined);
+  return (
+    doc.nodes.some((n) => n.x !== undefined) || doc.frames.some((f) => f.x !== undefined)
+  );
 }
 
 // ---- frames, by hand ------------------------------------------------------------
 
 /**
- * Moves a frame by (`dx`, `dy`): every member's centre moves the same distance
- * and every member gets a `@`. The frame's own line never changes - a frame
- * has no position, so it follows its members. One call is one undo entry.
+ * Moves a frame by (`dx`, `dy`).
+ *
+ * A frame with members has no position of its own, so every member's centre
+ * moves the same distance and every member gets a `@` - the frame follows its
+ * members. An empty frame has no members to move, so the frame's own line
+ * gets the `@` instead: its centre, as drawn, travels by (`dx`, `dy`). One
+ * call changes only the members' lines (or only the frame's own line when
+ * empty): one undo entry. Moving an unknown frame changes nothing.
  */
 export function moveFrame(
   doc: ArchitectureDocModel,
@@ -257,10 +268,19 @@ export function moveFrame(
   dx: number,
   dy: number,
 ): ArchitectureDocModel {
+  const frame = findFrame(doc.frames, frameId);
+  if (!frame) return doc;
   const moved = new Set(
     doc.nodes.filter((n) => n.frame === frameId).map((n) => n.id),
   );
-  if (moved.size === 0) return doc;
+  if (moved.size === 0) {
+    const laid = layout.frameById.get(frameId);
+    if (!laid) return doc;
+    return patchFrame(doc, frameId, {
+      x: Math.round(laid.x + laid.width / 2 + dx),
+      y: Math.round(laid.y + laid.height / 2 + dy),
+    });
+  }
   return {
     ...doc,
     nodes: doc.nodes.map((n) => {

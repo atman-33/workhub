@@ -677,12 +677,15 @@ updated: 2026-10-10
 - **Frontmatter**: as for every diagram; `stickies: hidden` is the only other
   key. **Sections** in this order: `## Frames`, `## Nodes`, `## Edges`, then the
   optional `## Stickies` and `## Memo`.
-- **Frame**: `- G-NNN <title> [#color]`, then optional indented lines (a memo
-  shown on hover). A frame has no position and no size of its own: it is drawn
-  around its members, with a margin and a header band carrying its title. An
-  empty frame keeps a fixed minimal box. Deleting a frame leaves its members
-  where they are, outside every frame. A frame's own `frame:G-NNN` is reserved
-  for nested frames: keep it and write it back, but do not draw nesting.
+- **Frame**: `- G-NNN <title> [#color] [@x,y]`, then optional indented lines (a memo
+  shown on hover). A frame with members has no position and no size of its own:
+  it is drawn around its members, with a margin and a header band carrying its
+  title, and its `@x,y` (when its line has one) is kept but ignored. An empty
+  frame keeps a fixed minimal box: at its own `@x,y` centre when its line names
+  one, else where the groups put it (after the blocks outside every frame, left
+  to right). Deleting a frame leaves its members where they are, outside every
+  frame. A frame's own `frame:G-NNN` is reserved for nested frames: keep it and
+  write it back, but do not draw nesting.
 - **Node**: `- C-NNN <title> [frame:G-NNN] [^round|^db|^user|^cloud|^block]
   [icon:<name>] [task:<id>] [#color] [@x,y]`, then optional indented lines (a
   memo shown on hover). Tokens may come in any order; the title is what is
@@ -722,11 +725,14 @@ updated: 2026-10-10
   block. So **write the frames in a meaningful order** (client side, then
   server side) and the blocks in flow order. Do not invent positions.
 - **`@x,y`** pins a block by hand: its centre in absolute diagram pixels, whole
-  numbers, negatives allowed, y growing downward - never relative to a frame,
-  which has no position. **No `@` means "placed by the groups"**: when you add
+  numbers, negatives allowed, y growing downward - never relative to a frame.
+  The same `@x,y` on a frame's own line is the centre of the frame's box, but
+  it only places an empty frame: a frame with members keeps it in the file and
+  ignores it when drawn. **No `@` means "placed by the groups"**: when you add
   a block leave the `@` off, and never rewrite another block's position. The
-  app writes `@` only on the block the user dragged (dragging a frame writes it
-  on every member); removing every `@` is its "auto-align".
+  app writes `@` only on the block the user dragged (dragging a frame with
+  members writes it on every member; dragging an empty frame writes it on the
+  frame's own line); removing every `@` is its "auto-align".
 - **`## Stickies`** pins a note to a block or a frame: `node:C-NNN` or
   `node:G-NNN` (the key is `node:` in every kind). Not to arrows. Delete a
   block and delete its arrows and stickies; delete a frame and delete only the

@@ -14,7 +14,7 @@
  * The grammar:
  *
  *   ## Frames
- *   - G-001 <title> [#<color>]
+ *   - G-001 <title> [#<color>] [@<x>,<y>]
  *     <optional continuation lines, indented: the frame's hover memo>
  *   ## Nodes
  *   - C-001 <title> [frame:G-001] [^round|^db|^user|^cloud|^block] [icon:<name>]
@@ -30,7 +30,9 @@
  * frame; a block with none, or one naming a frame that is not there, sits
  * outside every frame. A frame's own `frame:G-NNN` and a block's `icon:<name>`
  * are reserved for later (nesting, icons): they are kept and written back but
- * change nothing drawn.
+ * change nothing drawn. A frame's `@x,y` is the centre of its own box, but
+ * only an empty frame is drawn there: a frame with members is drawn around
+ * them and its `@x,y` is kept but ignored.
  *
  * **An edge's identity**: `->` is the ordered pair `(from, to)`, so `A -> B`
  * and `B -> A` are two lines; `<->` is the unordered pair, so a second line
@@ -73,6 +75,14 @@ export interface ArchitectureFrame {
    * frames: kept and written back, ignored when drawn.
    */
   parent?: string;
+  /**
+   * Centre of the frame's own box, absolute pixels. Only an empty frame is
+   * drawn there (see `layoutArchitecture`); a frame with members keeps its
+   * `@x,y` in the file but is drawn around its members. Absent until an
+   * empty frame is dragged.
+   */
+  x?: number;
+  y?: number;
 }
 
 export interface ArchitectureNode {
@@ -179,7 +189,8 @@ function isColor(tok: string): boolean {
   return tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1));
 }
 
-/** `- G-001 Client side #blue`, with an optional reserved `frame:G-NNN` parent. */
+/** `- G-001 Client side #blue`, with an optional reserved `frame:G-NNN` parent
+ * and an optional `@x,y` of its own (drawn only while the frame is empty). */
 function parseFrameLine(line: string): { frame: ArchitectureFrame; hadId: boolean } | null {
   const m = /^\s*-\s+(.*)$/.exec(line);
   if (!m) return null;
@@ -196,11 +207,18 @@ function parseFrameLine(line: string): { frame: ArchitectureFrame; hadId: boolea
   }
   let color: Color | undefined;
   let parent: string | undefined;
+  let x: number | undefined;
+  let y: number | undefined;
   const title: string[] = [];
-  // Modifiers may appear in any order; anything left over is the title.
+  // Modifiers may appear in any order; anything left over is the title, so a
+  // malformed `@` stays part of it (as on a block's line).
   for (const tok of rest) {
+    const pos = POSITION_RE.exec(tok);
     const frameRef = FRAME_REF_RE.exec(tok);
-    if (isColor(tok) && !color) {
+    if (pos && x === undefined) {
+      x = Math.round(Number(pos[1]));
+      y = Math.round(Number(pos[2]));
+    } else if (isColor(tok) && !color) {
       color = tok.slice(1) as Color;
     } else if (frameRef && frameRef[1] && !parent) {
       parent = frameRef[1];
@@ -215,6 +233,7 @@ function parseFrameLine(line: string): { frame: ArchitectureFrame; hadId: boolea
       title: title.join(" "),
       ...(color ? { color } : {}),
       ...(parent ? { parent } : {}),
+      ...(x !== undefined && y !== undefined ? { x, y } : {}),
     },
   };
 }
@@ -470,6 +489,9 @@ export function formatFrame(frame: ArchitectureFrame): string[] {
   if (title) parts.push(title);
   if (frame.parent) parts.push(`frame:${frame.parent}`);
   if (frame.color) parts.push(`#${frame.color}`);
+  if (frame.x !== undefined && frame.y !== undefined) {
+    parts.push(`@${Math.round(frame.x)},${Math.round(frame.y)}`);
+  }
   const out = [`- ${parts.join(" ")}`];
   const note = (frame.note ?? "").replace(/\s+$/, "");
   if (note) {

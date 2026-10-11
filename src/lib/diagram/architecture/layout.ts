@@ -7,7 +7,9 @@
  * 1600px). Inside a frame the blocks stand in rank columns from the arrows
  * whose both ends sit in the frame; an arrow leaving the frame never moves a
  * block. A frame's rectangle is drawn around its members (margin plus a header
- * band); an empty frame keeps a fixed minimal box. A block with `@x,y` sits at
+ * band); an empty frame keeps a fixed minimal box - at its own `@x,y` centre
+ * when the frame's line names one, else where the groups put it. A frame with
+ * members ignores its `@x,y` (kept in the file, never drawn from). A block with `@x,y` sits at
  * that absolute centre; every block still takes part in its group, so pinning
  * one never moves another. Everything is computed here with fixed text
  * metrics, so an export rendered on another machine puts every box where the
@@ -279,8 +281,22 @@ export function layoutArchitecture(
     const members = nodes.filter((n) => n.frame === frame.id);
     const rect = frameRectOf(members);
     if (!rect) {
-      // An empty frame keeps the minimal box the group layout gave it.
+      // An empty frame keeps the minimal box the group layout gave it - at
+      // its own `@x,y` centre when the frame's line names one (a frame with
+      // members never reaches this branch, so its `@x,y` stays ignored).
       const box = grouped.groups.find((g) => g.key === frame.id)!;
+      if (frame.x !== undefined && frame.y !== undefined) {
+        return {
+          id: frame.id,
+          title: frame.title,
+          ...(frame.color ? { color: frame.color } : {}),
+          ...(frame.note ? { note: frame.note } : {}),
+          x: frame.x - box.width / 2,
+          y: frame.y - box.height / 2,
+          width: box.width,
+          height: box.height,
+        };
+      }
       return {
         id: frame.id,
         title: frame.title,

@@ -277,6 +277,30 @@ updated: 2026-10-10
 ## Stickies
 `;
 
+const EMPTY_FRAMED = `---
+type: architecture
+title: t
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+- G-001 Left
+- G-002 Right
+- G-003 Empty
+
+## Nodes
+
+- C-001 A frame:G-001
+- C-002 B frame:G-001
+- C-003 C frame:G-002
+
+## Edges
+
+## Stickies
+`;
+
 describe("moveFrame (T-0711)", () => {
   it("moves every member by the same distance, and nothing else", () => {
     const doc = parseArchitecture(FRAMED);
@@ -298,6 +322,47 @@ describe("moveFrame (T-0711)", () => {
   it("changes nothing for a frame with no members", () => {
     const doc = parseArchitecture(FRAMED);
     expect(moveFrame(doc, layoutArchitecture(doc), "G-009", 10, 10)).toBe(doc);
+  });
+
+  it("writes @ on the frame's own line for an empty frame (T-0734)", () => {
+    const doc = parseArchitecture(EMPTY_FRAMED);
+    const layout = layoutArchitecture(doc);
+    const laid = layout.frameById.get("G-003")!;
+    const moved = moveFrame(doc, layout, "G-003", 10, -20);
+    // The frame's centre travels; no block is touched.
+    expect(moved.frames.find((f) => f.id === "G-003")).toMatchObject({
+      title: "Empty",
+      x: Math.round(laid.x + laid.width / 2 + 10),
+      y: Math.round(laid.y + laid.height / 2 - 20),
+    });
+    expect(moved.nodes).toBe(doc.nodes);
+    expect(moved.edges).toBe(doc.edges);
+    // One drag is one undo entry: the new layout draws the frame there.
+    const relaid = layoutArchitecture(moved);
+    const frame = relaid.frameById.get("G-003")!;
+    expect(frame.x + frame.width / 2).toBe(
+      Math.round(laid.x + laid.width / 2 + 10),
+    );
+    expect(frame.y + frame.height / 2).toBe(
+      Math.round(laid.y + laid.height / 2 - 20),
+    );
+    const out = serializeArchitecture(EMPTY_FRAMED, moved, "2026-10-11");
+    expect(out).toContain(
+      `- G-003 Empty @${Math.round(laid.x + laid.width / 2 + 10)},${Math.round(laid.y + laid.height / 2 - 20)}`,
+    );
+  });
+
+  it("auto-align forgets an empty frame's @ too (T-0734)", () => {
+    const doc = parseArchitecture(EMPTY_FRAMED);
+    const layout = layoutArchitecture(doc);
+    const moved = moveFrame(doc, layout, "G-003", 10, 10);
+    expect(hasManualPositions(moved)).toBe(true);
+    const aligned = autoAlign(moved);
+    expect(hasManualPositions(aligned)).toBe(false);
+    expect(aligned.frames.find((f) => f.id === "G-003")!.x).toBeUndefined();
+    expect(layoutArchitecture(aligned).frameById.get("G-003")).toEqual(
+      layout.frameById.get("G-003"),
+    );
   });
 });
 

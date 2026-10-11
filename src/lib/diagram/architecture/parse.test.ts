@@ -124,8 +124,7 @@ title: t
     expect(out).toContain("- C-005 DB frame:G-002 ^db @640,260");
   });
 
-  it("keeps a frame's parent and a block's icon, and writes them back", () => {
-    const doc = parseArchitecture(`---
+  it("keeps a frame's parent and a block's icon, and writes them back", () => {    const doc = parseArchitecture(`---
 type: architecture
 title: t
 ---
@@ -151,6 +150,64 @@ title: t
     );
     expect(out).toContain("- G-001 Inner frame:G-002 #blue");
     expect(out).toContain("- C-001 Box icon:server");
+  });
+
+  it("reads a frame's own @x,y in any order, and keeps a malformed one in the title", () => {
+    const doc = parseArchitecture(`---
+type: architecture
+title: t
+---
+
+## Frames
+
+- G-001 Store @640,260 #blue
+- G-002 Other #green @10,20
+- G-003 Broken @nowhere
+
+## Nodes
+
+## Edges
+
+## Stickies
+`);
+    expect(doc.frames).toHaveLength(3);
+    expect(doc.frames[0]).toMatchObject({ id: "G-001", title: "Store", color: "blue", x: 640, y: 260 });
+    expect(doc.frames[1]).toMatchObject({ id: "G-002", title: "Other", color: "green", x: 10, y: 20 });
+    expect(doc.frames[2].x).toBeUndefined();
+    expect(doc.frames[2].title).toBe("Broken @nowhere");
+    expect(warningCount(doc)).toBe(0);
+  });
+
+  it("round-trips a frame @x,y, with and without members", () => {
+    const src = `---
+type: architecture
+title: t
+created: 2026-10-10
+updated: 2026-10-10
+---
+
+## Frames
+
+- G-001 Store #blue @640,260
+- G-002 Plain
+
+## Nodes
+
+- C-001 Box frame:G-001
+
+## Edges
+
+## Stickies
+
+- S-001 node:G-002 @40,-30 #amber What stack?
+
+`;
+    const doc = parseArchitecture(src);
+    // The `@x,y` survives on the membered frame too: it is kept, not dropped.
+    expect(doc.frames[0]).toMatchObject({ x: 640, y: 260 });
+    expect(doc.frames[1].x).toBeUndefined();
+    const out = serializeArchitecture(src, doc, "2026-10-10");
+    expect(out).toBe(src);
   });
 
   it("treats A -> B and B -> A as two lines, and a second line for one pair as raw", () => {
@@ -257,9 +314,13 @@ title: t
   });
 });
 
-describe("formatting", () => {  it("writes a frame with its parent and color, and a node with frame before mark", () => {
+describe("formatting", () => {
+  it("writes a frame with its parent and color, and a node with frame before mark", () => {
     expect(formatFrame({ id: "G-001", title: "Client", parent: "G-002", color: "blue" })).toEqual([
       "- G-001 Client frame:G-002 #blue",
+    ]);
+    expect(formatFrame({ id: "G-002", title: "Store", x: 640.4, y: 260 })).toEqual([
+      "- G-002 Store @640,260",
     ]);
     expect(
       formatNode({
