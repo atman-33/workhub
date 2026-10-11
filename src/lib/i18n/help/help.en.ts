@@ -280,6 +280,7 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 
 - **Copy for Miro** (every kind except Schedule) puts the diagram on the clipboard as editable Miro shapes: nodes become shapes, lanes and frames become Miro frames, arrows become connectors bound to their boxes (so an arrow follows when its box is dragged), and quadrant items and sticky notes become independent stickers. Paste it on a Miro board with **Ctrl+V**. Left out on purpose: node memo lines, \`## Memo\` sections and \`task:\` links (they would clutter the board), and symbol variants with no mapping yet, which arrive as plain rectangles. Sticky notes paste as standalone stickers — moving a shape afterwards does not move them along.
 - **Copy image** (every kind including Schedule) puts a PNG of the diagram on the clipboard — the same drawing the PNG file export writes, with hidden stickies left out. Paste it anywhere with **Ctrl+V**: a document, a chat message, an image editor. On the Schedule this is the primary share form: it draws the window on screen, in the mode on screen (calendar or timeline).
+- Right-click a node and choose **Copy to Miro** to copy only the selection: the whole multi-selection when the node belongs to it, otherwise just that node. Only arrows between two selected nodes travel along; arrows to the rest of the diagram and sticky notes are left out.
 - Both buttons only write the clipboard — nothing is sent anywhere. Success says what to press next in the status line; a failure names its reason there instead.`,
   },
   "docs": {

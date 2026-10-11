@@ -19,6 +19,7 @@ import {
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { copyMatrixItems, pasteMatrixItems } from "@/lib/diagram/matrix2x2/clipboard";
 import { matrixToMiro } from "@/lib/diagram/miro/adapters/matrix2x2";
+import { filterMiroSceneForSelection } from "@/lib/diagram/miro/selection";
 import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
@@ -819,6 +820,29 @@ export function MatrixView({ configVersion, embedded }: Props) {
   }, [doc, miroLayout]);
 
   /**
+   * Copies the selection for Miro (T-0725 part B): the right-clicked item when
+   * it stands outside the selection (and it becomes the selection, as Copy
+   * does), otherwise the whole selection - kept to the selected items, then
+   * recentred. Axes, labels and layout stickies stay out.
+   */
+  const copySelectionForMiro = useCallback(
+    async (id: string) => {
+      if (!doc || !miroLayout) return;
+      const ids = selectedIds.includes(id) ? selectedIds : [id];
+      if (!selectedIds.includes(id)) selectItem(id);
+      const result = await copyToMiro(
+        filterMiroSceneForSelection(matrixToMiro(miroLayout), ids),
+      );
+      setStatus(
+        result.ok
+          ? tStatic("diagram.matrix.miroCopied")
+          : tStatic("diagram.matrix.miroCopyFailed", { error: result.error }),
+      );
+    },
+    [doc, miroLayout, selectedIds, selectItem],
+  );
+
+  /**
    * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
    * file export rasterizes - with only the visible stickies - goes on the
    * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
@@ -971,7 +995,7 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   onMoveSticky={(id, dx, dy) => patchSticky(id, { dx, dy })}
                   onMoveItems={moveItems}
                   onAddAt={(x, y) => addItem({ x, y })}
-                  clipboard={{ canPaste, onCopy: (id) => copyItems([id]), onDuplicate: duplicateItem, onPaste: pasteItems }}
+                  clipboard={{ canPaste, onCopy: (id) => copyItems([id]), onDuplicate: duplicateItem, onCopyToMiro: copySelectionForMiro, onPaste: pasteItems }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.matrix.footerHint")}

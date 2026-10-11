@@ -25,6 +25,7 @@ import {
 import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { ifdamToMiro } from "@/lib/diagram/miro/adapters/ifdam";
+import { filterMiroSceneForSelection } from "@/lib/diagram/miro/selection";
 import { renderHtml, renderSvg, type SectionCaptions } from "@/lib/diagram/ifdam/export";
 import { layoutIfdam } from "@/lib/diagram/ifdam/layout";
 import {
@@ -892,6 +893,29 @@ export function IfdamView({ configVersion, embedded }: Props) {
   }, [doc, layout]);
 
   /**
+   * Copies the selection for Miro (T-0725 part B): the right-clicked node when
+   * it stands outside the selection (and it becomes the selection, as Copy
+   * does), otherwise the whole selection - kept to the selected shapes and
+   * the connectors inside them, then recentred. Layout stickies stay out.
+   */
+  const copySelectionForMiro = useCallback(
+    async (id: string) => {
+      if (!doc || !layout) return;
+      const ids = selectedNodeIds.includes(id) ? selectedNodeIds : [id];
+      if (!selectedNodeIds.includes(id)) selectNode(id);
+      const result = await copyToMiro(
+        filterMiroSceneForSelection(ifdamToMiro(layout, { captions: captionsOf(tStatic) }), ids),
+      );
+      setStatus(
+        result.ok
+          ? tStatic("diagram.ifdam.miroCopied")
+          : tStatic("diagram.ifdam.miroCopyFailed", { error: result.error }),
+      );
+    },
+    [doc, layout, selectedNodeIds, selectNode],
+  );
+
+  /**
    * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
    * file export rasterizes - with only the visible stickies - goes on the
    * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
@@ -1070,7 +1094,7 @@ export function IfdamView({ configVersion, embedded }: Props) {
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
-                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onCopyToMiro: copySelectionForMiro, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.ifdam.footerHint")}

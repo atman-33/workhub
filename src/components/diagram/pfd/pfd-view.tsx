@@ -21,6 +21,7 @@ import { copyPfdNodes, pastePfdNodes, type PfdClip } from "@/lib/diagram/pfd/cli
 import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { pfdToMiro } from "@/lib/diagram/miro/adapters/pfd";
+import { filterMiroSceneForSelection } from "@/lib/diagram/miro/selection";
 import { edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { renderHtml, renderSvg } from "@/lib/diagram/pfd/export";
 import { layoutPfd } from "@/lib/diagram/pfd/layout";
@@ -859,6 +860,27 @@ export function PfdView({ configVersion, embedded }: Props) {
   }, [doc, layout]);
 
   /**
+   * Copies the selection for Miro (T-0725 part B): the right-clicked node when
+   * it stands outside the selection (and it becomes the selection, as Copy
+   * does), otherwise the whole selection - kept to the selected shapes and
+   * the connectors inside them, then recentred. Layout stickies stay out.
+   */
+  const copySelectionForMiro = useCallback(
+    async (id: string) => {
+      if (!doc || !layout) return;
+      const ids = selectedNodeIds.includes(id) ? selectedNodeIds : [id];
+      if (!selectedNodeIds.includes(id)) selectNode(id);
+      const result = await copyToMiro(filterMiroSceneForSelection(pfdToMiro(layout), ids));
+      setStatus(
+        result.ok
+          ? tStatic("diagram.pfd.miroCopied")
+          : tStatic("diagram.pfd.miroCopyFailed", { error: result.error }),
+      );
+    },
+    [doc, layout, selectedNodeIds, selectNode],
+  );
+
+  /**
    * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
    * file export rasterizes - with only the visible stickies - goes on the
    * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
@@ -1033,7 +1055,7 @@ export function PfdView({ configVersion, embedded }: Props) {
                   onAddAt={addNodeAt}
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
-                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onCopyToMiro: copySelectionForMiro, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.pfd.footerHint")}

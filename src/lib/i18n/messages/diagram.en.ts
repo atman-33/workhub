@@ -51,6 +51,7 @@ export const diagramEn = {
   "diagram.clipboard.copy": "Copy",
   "diagram.clipboard.paste": "Paste",
   "diagram.clipboard.duplicate": "Duplicate",
+  "diagram.clipboard.copyToMiro": "Copy to Miro",
   // ---- multi-select (T-0716) ----
   "diagram.multi.selectedCount": "{count} selected",
   // ---- 2x2 matrix editor (T-0681) ----

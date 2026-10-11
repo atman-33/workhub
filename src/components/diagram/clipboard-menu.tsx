@@ -18,6 +18,8 @@ export interface ClipboardActions {
   /** Absent where the menu is about empty canvas rather than a node. */
   onCopy?: () => void;
   onDuplicate?: () => void;
+  /** Absent where a selection copy to Miro makes no sense (mindmap, schedule). */
+  onCopyToMiro?: () => void;
   onPaste?: () => void;
   /** False when nothing has been copied from this note: Paste greys out. */
   canPaste: boolean;
@@ -30,6 +32,8 @@ export interface CanvasClipboard {
   canPaste: boolean;
   onCopy: (id: string) => void;
   onDuplicate: (id: string) => void;
+  /** Absent where a selection copy to Miro makes no sense (mindmap, schedule). */
+  onCopyToMiro?: (id: string) => void;
   onPaste: () => void;
 }
 
@@ -37,6 +41,7 @@ export interface CanvasClipboard {
 export function ClipboardMenuItems({
   onCopy,
   onDuplicate,
+  onCopyToMiro,
   onPaste,
   canPaste,
   readOnly,
@@ -53,6 +58,11 @@ export function ClipboardMenuItems({
       {onDuplicate && (
         <ContextMenuItem disabled={readOnly} onSelect={onDuplicate}>
           <span className="flex-1 truncate">{t("diagram.clipboard.duplicate")}</span>
+        </ContextMenuItem>
+      )}
+      {onCopyToMiro && (
+        <ContextMenuItem onSelect={onCopyToMiro}>
+          <span className="flex-1 truncate">{t("diagram.clipboard.copyToMiro")}</span>
         </ContextMenuItem>
       )}
       {onPaste && (

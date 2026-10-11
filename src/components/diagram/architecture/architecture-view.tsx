@@ -66,6 +66,7 @@ import { svgToPngBase64 } from "@/lib/diagram/raster";
 import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { architectureToMiro } from "@/lib/diagram/miro/adapters/architecture";
+import { filterMiroSceneForSelection } from "@/lib/diagram/miro/selection";
 import type { EdgePort } from "@/lib/diagram/node-edge";
 import { newStickyOffset } from "@/lib/diagram/architecture/sticky-spot";
 import {
@@ -1021,6 +1022,30 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
   }, [doc, layout]);
 
   /**
+   * Copies the selection for Miro (T-0725 part B): the right-clicked block when
+   * it stands outside the selection (and it becomes the selection, as Copy
+   * does), otherwise the whole selection - kept to the selected shapes, the
+   * connectors inside them and the frames holding them, then recentred.
+   * Layout stickies stay out.
+   */
+  const copySelectionForMiro = useCallback(
+    async (id: string) => {
+      if (!doc || !layout) return;
+      const ids = selectedNodeIds.includes(id) ? selectedNodeIds : [id];
+      if (!selectedNodeIds.includes(id)) selectNode(id);
+      const result = await copyToMiro(
+        filterMiroSceneForSelection(architectureToMiro(layout), ids),
+      );
+      setStatus(
+        result.ok
+          ? tStatic("diagram.architecture.miroCopied")
+          : tStatic("diagram.architecture.miroCopyFailed", { error: result.error }),
+      );
+    },
+    [doc, layout, selectedNodeIds, selectNode],
+  );
+
+  /**
    * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
    * file export rasterizes - with only the visible stickies - goes on the
    * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
@@ -1206,7 +1231,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                   onConnect={connectNodes}
                   onReattach={reattachEdge}
                   fitToken={fitToken}
-                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onPaste: pasteCopied }}
+                  clipboard={{ canPaste, onCopy: (id) => copyNodes([id]), onDuplicate: duplicate, onCopyToMiro: copySelectionForMiro, onPaste: pasteCopied }}
                 />
                 <div className="shrink-0 border-t px-3 py-1 text-[11px] text-muted-foreground">
                   {t("diagram.architecture.footerHint")}

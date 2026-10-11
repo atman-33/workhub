@@ -53,6 +53,7 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.clipboard.copy": "コピー",
   "diagram.clipboard.paste": "ペースト",
   "diagram.clipboard.duplicate": "複製",
+  "diagram.clipboard.copyToMiro": "Miro にコピー",
   // ---- 複数選択 (T-0716) ----
   "diagram.multi.selectedCount": "{count} 件を選択中",
   // ---- 2x2 マトリクスのエディタ (T-0681) ----

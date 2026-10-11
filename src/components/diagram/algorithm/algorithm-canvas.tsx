@@ -326,6 +326,9 @@ export function AlgorithmCanvas({
             canPaste={clipboard.canPaste}
             onCopy={() => clipboard.onCopy(node.id)}
             onDuplicate={() => clipboard.onDuplicate(node.id)}
+            onCopyToMiro={
+              clipboard.onCopyToMiro ? () => clipboard.onCopyToMiro!(node.id) : undefined
+            }
             onPaste={clipboard.onPaste}
           >
           <g

@@ -430,6 +430,9 @@ export function FlowCanvas({
             canPaste={clipboard.canPaste}
             onCopy={() => clipboard.onCopy(step.id)}
             onDuplicate={() => clipboard.onDuplicate(step.id)}
+            onCopyToMiro={
+              clipboard.onCopyToMiro ? () => clipboard.onCopyToMiro!(step.id) : undefined
+            }
             onPaste={clipboard.onPaste}
           >
           <g

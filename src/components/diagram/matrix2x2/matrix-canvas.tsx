@@ -399,6 +399,9 @@ export function MatrixCanvas({
             readOnly={locked}
             onCopy={() => clipboard.onCopy(item.id)}
             onDuplicate={() => clipboard.onDuplicate(item.id)}
+            onCopyToMiro={
+              clipboard.onCopyToMiro ? () => clipboard.onCopyToMiro!(item.id) : undefined
+            }
             onPaste={clipboard.onPaste}
           >
           <g
