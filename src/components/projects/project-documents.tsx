@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { ArrowLeft, BookOpen, RefreshCw, Shapes } from "lucide-react";
 import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
 import { DiagramEditorHost } from "@/components/projects/diagram-editor-host";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -58,6 +60,8 @@ export function ProjectDocuments({
   onOpenDiagrams: (diagramPath: string) => void;
 }) {
   const t = useT();
+  // The list / preview split survives a restart, like the Docs tab's (T-0279).
+  const docsSplit = useDefaultLayout({ id: "projects-docs-split", storage: localStorage });
   const [dir, setDir] = useState("");
   const [groups, setGroups] = useState<ProjectDocGroup[]>([]);
   const [selected, setSelected] = useState("");
@@ -196,11 +200,13 @@ export function ProjectDocuments({
       {error && <p className="shrink-0 text-xs text-destructive">{error}</p>}
       {/* Fills the detail pane's remaining height (T-0737): the parent body
         gives this section its height, and the list/preview split takes the
-        rest with its own internal scroll. The list keeps a fixed width beside
+        rest with its own internal scroll. The list is resizable (its width is remembered) beside
         the preview; picking another document, or the Overview tab above, is
         how the reader moves on. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
-        <div className="w-60 shrink-0 overflow-y-auto border-r">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+        <ResizablePanelGroup orientation="horizontal" className="h-full" {...docsSplit}>
+        <ResizablePanel id="docs-list" defaultSize="30%" minSize="160px" maxSize="60%" className="min-h-0">
+        <div className="h-full overflow-y-auto border-r">
           {loading && groups.length === 0 ? (
             <p className="p-2 text-xs text-muted-foreground">{t("projects.view.docs.loading")}</p>
           ) : groups.every((g) => g.files.length === 0) ? (
@@ -255,7 +261,10 @@ export function ProjectDocuments({
             )
           )}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col">
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel id="docs-detail" defaultSize="70%" minSize="200px" className="min-h-0">
+        <div className="flex h-full min-w-0 flex-col">
           {!selected ? (
             <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
               {t("projects.view.docs.pickPrompt")}
@@ -379,6 +388,8 @@ export function ProjectDocuments({
             </>
           )}
         </div>
+        </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </section>
   );

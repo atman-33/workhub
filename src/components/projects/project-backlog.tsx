@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { ArrowLeft, BookOpen, RefreshCw, Shapes } from "lucide-react";
 import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
 import { DiagramEditorHost } from "@/components/projects/diagram-editor-host";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Hint } from "@/components/ui/hint";
 import {
   Select,
@@ -86,6 +88,8 @@ interface Props {
  */
 export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, configVersion, onOpenDiagrams }: Props) {
   const t = useT();
+  // The list / preview split survives a restart, like the Docs tab's (T-0279).
+  const backlogSplit = useDefaultLayout({ id: "projects-backlog-split", storage: localStorage });
   const [backlogDir, setBacklogDir] = useState("");
   const [items, setItems] = useState<BacklogListItem[]>([]);
   const [rows, setRows] = useState<BacklogFileRow[]>([]);
@@ -305,8 +309,10 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, configVers
       {/* Same fill-the-height split as the Documents pane (T-0737): the
         parent body gives this section its height, so the preview no longer
         pushes the list off screen. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
-        <div className="w-60 shrink-0 overflow-y-auto border-r">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+        <ResizablePanelGroup orientation="horizontal" className="h-full" {...backlogSplit}>
+        <ResizablePanel id="backlog-list" defaultSize="30%" minSize="160px" maxSize="60%" className="min-h-0">
+        <div className="h-full overflow-y-auto border-r">
           {loading && items.length === 0 ? (
             <p className="p-2 text-xs text-muted-foreground">{t("projects.view.backlog.loading")}</p>
           ) : visible.length === 0 ? (
@@ -395,7 +401,10 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, configVers
             })
           )}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col">
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel id="backlog-detail" defaultSize="70%" minSize="200px" className="min-h-0">
+        <div className="flex h-full min-w-0 flex-col">
           {!selectedFile || !current ? (
             <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
               {t("projects.view.backlog.pickFile")}
@@ -541,6 +550,8 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, configVers
             </>
           )}
         </div>
+        </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </section>
   );

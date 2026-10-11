@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useDefaultLayout } from "react-resizable-panels";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   Archive,
@@ -113,6 +114,8 @@ export function ProjectsView({
   onProjectsChange,
 }: Props) {
   const t = useT();
+  // The list / detail split survives a restart, like the Docs tab's (T-0279).
+  const projectsSplit = useDefaultLayout({ id: "projects-split", storage: localStorage });
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<VaultProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -451,7 +454,7 @@ export function ProjectsView({
         </div>
       )}
 
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" {...projectsSplit}>
         {/* Pixel floors, not percentages: a percentage minimum grows with the
           window and wastes space on wide screens, while these stay put
           (T-0713). The default split is unchanged. */}
