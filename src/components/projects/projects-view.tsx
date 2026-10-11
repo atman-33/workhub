@@ -627,6 +627,8 @@ export function ProjectsView({
                     key={current.slug}
                     vaultPath={vaultPath}
                     slug={current.slug}
+                    configVersion={configVersion}
+                    onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
                   />
                 ) : pane === "backlog" ? (
                   <ProjectBacklog
@@ -635,6 +637,7 @@ export function ProjectsView({
                     slug={current.slug}
                     fallbackDir={current.path}
                     tasks={tasks}
+                    configVersion={configVersion}
                     onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
                   />
                 ) : (

@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, BookOpen, RefreshCw } from "lucide-react";
+import { ArrowLeft, BookOpen, RefreshCw, Shapes } from "lucide-react";
 import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
+import { DiagramEditorHost } from "@/components/projects/diagram-editor-host";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { isWithinRoot } from "@/lib/docs/tree-nav";
+import type { DiagramKind } from "@/lib/diagram-kinds";
+import {
+  diagramKindOfText,
+  parseFrontmatterScalars,
+} from "@/lib/project-backlog";
 import {
   docLabel,
   groupProjectDocEntries,
@@ -23,8 +29,11 @@ import { cn } from "@/lib/utils";
  * the vault itself without a registered document root, so no new commands
  * were needed; `backlog/` is never descended into (T-0715 owns it).
  *
- * Read-only throughout: editing stays in Obsidian, which is why every
- * document carries an "Open in Obsidian" action. Links that leave the project
+ * Read-only throughout, except for diagram notes: those open in place with
+ * the real editor view for their kind (T-0738) — the same view the Diagrams
+ * tab embeds — beside the "Open in Diagrams tab" button. Every other document
+ * is read through the Docs tab's `DocsPreview`, and editing stays in Obsidian,
+ * which is why every document carries an "Open in Obsidian" action. Links that leave the project
  * folder are not followed in the pane — a banner points at Obsidian instead —
  * so an unresolvable link shows a hint rather than a broken view. A
  * `[[wikilink]]` that resolves to one file in the folder is followed like any
@@ -35,7 +44,19 @@ import { cn } from "@/lib/utils";
  * cannot leak across projects: switching project remounts the pane with no
  * selection.
  */
-export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug: string }) {
+export function ProjectDocuments({
+  vaultPath,
+  slug,
+  configVersion,
+  onOpenDiagrams,
+}: {
+  vaultPath: string;
+  slug: string;
+  /** Bumped by the app shell after settings are saved. */
+  configVersion: number;
+  /** Opens the Diagrams tab with this diagram note selected. */
+  onOpenDiagrams: (diagramPath: string) => void;
+}) {
   const t = useT();
   const [dir, setDir] = useState("");
   const [groups, setGroups] = useState<ProjectDocGroup[]>([]);
@@ -47,6 +68,12 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  // The selected file's diagram kind, read off its frontmatter `type` — the
+  // same rule the Backlog pane uses. `path` guards against a read that lands
+  // after the selection moved on.
+  const [diagram, setDiagram] = useState<{ path: string; kind: DiagramKind; title: string } | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +114,33 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
     void load();
   }, [load, refreshToken]);
 
+  useEffect(() => {
+    if (!selected) {
+      setDiagram(null);
+      return;
+    }
+    let live = true;
+    void api
+      .docsReadFile(selected)
+      .then((text) => {
+        if (!live) return;
+        const kind = diagramKindOfText(text);
+        if (!kind) {
+          setDiagram(null);
+          return;
+        }
+        const title =
+          parseFrontmatterScalars(text).title?.trim() || selected.split("/").pop() || selected;
+        setDiagram({ path: selected, kind, title });
+      })
+      .catch(() => {
+        if (live) setDiagram(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [selected, refreshToken]);
+
   const openInObsidian = (path: string) => {
     setError("");
     void api.openInObsidian(path).catch((e) => setError(String(e)));
@@ -111,6 +165,16 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
     setLinkHint("");
     setWikiHint({ target: info.target, count: info.candidates.length });
   };
+
+  const backToList = () => {
+    setLinkHint("");
+    setWikiHint(null);
+    setSelected("");
+  };
+
+  // The selected file is a diagram note of a known kind: it renders with the
+  // embedded editor, not the Markdown preview.
+  const showDiagram = diagram && diagram.path === selected ? diagram : null;
 
   return (
     <section aria-label={t("projects.view.documentsTab")} className="flex h-full min-h-0 flex-col gap-1.5">
@@ -196,6 +260,50 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
             <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
               {t("projects.view.docs.pickPrompt")}
             </div>
+          ) : showDiagram ? (
+            <>
+              <div className="flex items-center gap-1 border-b px-2 py-1">
+                <Hint label={t("projects.view.docs.backToList")}>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t("projects.view.docs.backToList")}
+                    onClick={backToList}
+                  >
+                    <ArrowLeft />
+                  </Button>
+                </Hint>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {dir ? docLabel(dir, selected) : selected}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => onOpenDiagrams(selected)}
+                >
+                  <Shapes className="size-3.5" />
+                  {t("projects.view.backlog.openInDiagrams")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => openInObsidian(selected)}
+                >
+                  <BookOpen className="size-3.5" />
+                  {t("projects.view.docs.openInObsidian")}
+                </Button>
+              </div>
+              <DiagramEditorHost
+                kind={showDiagram.kind}
+                path={selected}
+                title={showDiagram.title}
+                project={slug}
+                configVersion={configVersion}
+                onClose={backToList}
+              />
+            </>
           ) : (
             <>
               <div className="flex items-center gap-1 border-b px-2 py-1">
@@ -204,11 +312,7 @@ export function ProjectDocuments({ vaultPath, slug }: { vaultPath: string; slug:
                     size="icon-sm"
                     variant="ghost"
                     aria-label={t("projects.view.docs.backToList")}
-                    onClick={() => {
-                      setLinkHint("");
-                      setWikiHint(null);
-                      setSelected("");
-                    }}
+                    onClick={backToList}
                   >
                     <ArrowLeft />
                   </Button>

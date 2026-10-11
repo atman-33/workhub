@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, RefreshCw, Shapes } from "lucide-react";
 import { DocsPreview, type UnresolvedWikiLink } from "@/components/docs/docs-preview";
+import { DiagramEditorHost } from "@/components/projects/diagram-editor-host";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import {
@@ -11,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import { KIND_ICON, KIND_LABEL_KEY, isDiagramKind } from "@/lib/diagram-kinds";
+import { KIND_ICON, isDiagramKind } from "@/lib/diagram-kinds";
 import { isPreviewable } from "@/lib/docs/preview-kind";
 import { isWithinRoot, relativeWithin } from "@/lib/docs/tree-nav";
 import { useT } from "@/lib/i18n";
@@ -39,6 +40,8 @@ interface BacklogFileRow {
   kind: BacklogFileKind;
   /** The frontmatter `type` when the file is a diagram note. */
   diagramKind: string;
+  /** The frontmatter `title`, for the embedded editor's dialogs. */
+  title: string;
 }
 
 interface Props {
@@ -52,6 +55,8 @@ interface Props {
   fallbackDir: string;
   /** All vault tasks, for the per-item count of tasks pointing at it. */
   tasks: Task[];
+  /** Bumped by the app shell after settings are saved. */
+  configVersion: number;
   /** Opens the Diagrams tab with this diagram note selected. */
   onOpenDiagrams: (diagramPath: string) => void;
 }
@@ -67,9 +72,10 @@ interface Props {
  * `NNN-T-xxxx-...`, HTML files, diagram notes — the template keeps them flat)
  * or a single `B-NNN-....md` file, the old shape from before folder-first.
  *
- * Read-only throughout: editing stays in Obsidian. Diagram notes are stage 1
- * only — a kind icon in the list and an "Open in Diagrams tab" button, no
- * embedded rendering. Standard Markdown links (`[x](y.md)`) are followed
+ * Read-only throughout: editing stays in Obsidian. Diagram notes open in
+ * place with the real editor view for their kind (T-0738) — the same view the
+ * Diagrams tab embeds — beside the "Open in Diagrams tab" button, which stays
+ * in the bar. Standard Markdown links (`[x](y.md)`) are followed
  * inside the item's folder; anything else gets the Obsidian hint. A
  * `[[wikilink]]` that resolves to one file in the folder is followed the same
  * way (T-0726); one with no single answer gets the Obsidian hint aimed at the
@@ -78,7 +84,7 @@ interface Props {
  * The parent mounts this per project (`key={slug}`), so the selection cannot
  * leak across projects.
  */
-export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiagrams }: Props) {
+export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, configVersion, onOpenDiagrams }: Props) {
   const t = useT();
   const [backlogDir, setBacklogDir] = useState("");
   const [items, setItems] = useState<BacklogListItem[]>([]);
@@ -159,19 +165,24 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
             ).filter((e) => e.path === `${backlogDir}/${item.name}`)
           : await api.docsListDir(itemDir);
         const files = listing.filter(isPreviewable);
-        const types = await Promise.all(
+        const fronts = await Promise.all(
           files.map(async (f) => {
-            if (!f.is_markdown) return "";
+            if (!f.is_markdown) return { type: "", title: "" };
             const text = await api.docsReadFile(f.path).catch(() => "");
-            return parseFrontmatterScalars(text).type?.trim() ?? "";
+            const scalars = parseFrontmatterScalars(text);
+            return {
+              type: scalars.type?.trim() ?? "",
+              title: scalars.title?.trim() ?? "",
+            };
           }),
         );
         const entry = item.isFile ? item.name : entryNoteName(item.name);
         const next = files
           .map((f, i) => ({
             entry: f,
-            kind: classifyBacklogFile(f.name, f.name === entry, types[i], f.is_html),
-            diagramKind: types[i],
+            kind: classifyBacklogFile(f.name, f.name === entry, fronts[i].type, f.is_html),
+            diagramKind: fronts[i].type,
+            title: fronts[i].title,
           }))
           .sort((a, b) =>
             compareBacklogFiles(
@@ -413,29 +424,43 @@ export function ProjectBacklog({ vaultPath, slug, fallbackDir, tasks, onOpenDiag
                   size="sm"
                   variant="ghost"
                   className="h-7 gap-1.5 text-xs"
+                  onClick={() => onOpenDiagrams(current.entry.path)}
+                >
+                  <Shapes className="size-3.5" />
+                  {t("projects.view.backlog.openInDiagrams")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1.5 text-xs"
                   onClick={() => openInObsidian(current.entry.path)}
                 >
                   <BookOpen className="size-3.5" />
                   {t("projects.view.docs.openInObsidian")}
                 </Button>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-                <DiagramIcon className="size-8 text-muted-foreground" />
-                <p className="text-sm font-medium">
-                  {isDiagramKind(current.diagramKind)
-                    ? t(KIND_LABEL_KEY[current.diagramKind])
-                    : current.entry.name}
-                </p>
-                <p className="max-w-80 text-xs text-muted-foreground">
-                  {t("projects.view.backlog.diagramHint")}
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <Button size="sm" className="h-7 gap-1.5" onClick={() => onOpenDiagrams(current.entry.path)}>
-                    <Shapes className="size-3.5" />
-                    {t("projects.view.backlog.openInDiagrams")}
-                  </Button>
+              {isDiagramKind(current.diagramKind) ? (
+                <DiagramEditorHost
+                  kind={current.diagramKind}
+                  path={current.entry.path}
+                  title={current.title || current.entry.name}
+                  project={slug}
+                  configVersion={configVersion}
+                  onClose={() => {
+                    setLinkHint("");
+                    setWikiHint(null);
+                    setSelectedFile("");
+                  }}
+                />
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+                  <DiagramIcon className="size-8 text-muted-foreground" />
+                  <p className="text-sm font-medium">{current.entry.name}</p>
+                  <p className="max-w-80 text-xs text-muted-foreground">
+                    {t("projects.view.backlog.diagramHint")}
+                  </p>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <>

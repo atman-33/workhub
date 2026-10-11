@@ -13,7 +13,7 @@
  * of the component so the discovery, sorting and classification rules can be
  * pinned down by tests instead of by looking at the pane.
  */
-import { isDiagramKind } from "@/lib/diagram-kinds";
+import { isDiagramKind, type DiagramKind } from "@/lib/diagram-kinds";
 import { isPreviewable } from "@/lib/docs/preview-kind";
 import { splitFrontmatter } from "@/lib/docs/markdown";
 import type { DocsEntry } from "@/types";
@@ -241,6 +241,17 @@ export function classifyBacklogFile(
 /** True for a row the pane offers to read: a file the preview can render. */
 export function isListableBacklogFile(entry: DocsEntry): boolean {
   return isPreviewable(entry);
+}
+
+/**
+ * The diagram kind of a note's full text, read off its frontmatter `type` —
+ * the same rule the Diagrams tab uses (the kind decides, not the folder).
+ * `null` when the note is not a diagram note. Shared by the Backlog and
+ * Documents panes so both sides classify a file the same way.
+ */
+export function diagramKindOfText(text: string): DiagramKind | null {
+  const kind = (parseFrontmatterScalars(text).type ?? "").trim();
+  return isDiagramKind(kind) ? kind : null;
 }
 
 /** The entry note first, then by name — the order the pane lists files in. */

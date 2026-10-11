@@ -6,6 +6,7 @@ import {
   classifyBacklogFile,
   compareBacklogFiles,
   compareBacklogIds,
+  diagramKindOfText,
   discoverBacklogItems,
   entryNoteName,
   filterBacklogItems,
@@ -177,5 +178,19 @@ describe("classifyBacklogFile", () => {
       { name: "010-a.md", isEntry: false },
     ].sort(compareBacklogFiles);
     expect(rows.map((r) => r.name)).toEqual(["B-004-search.md", "010-a.md", "020-b.md"]);
+  });
+});
+
+describe("diagramKindOfText", () => {
+  it("reads the diagram kind off the frontmatter type", () => {
+    expect(diagramKindOfText(`---\ntype: matrix2x2\ntitle: Layout\n---\n`)).toBe("matrix2x2");
+    expect(diagramKindOfText(`---\ntype: schedule\n---\n`)).toBe("schedule");
+  });
+
+  it("returns null for notes that are not diagrams", () => {
+    expect(diagramKindOfText(`---\ntype: backlog\n---\n`)).toBeNull();
+    expect(diagramKindOfText(`---\ntitle: Plain\n---\n`)).toBeNull();
+    expect(diagramKindOfText(`no frontmatter here\n`)).toBeNull();
+    expect(diagramKindOfText(``)).toBeNull();
   });
 });
