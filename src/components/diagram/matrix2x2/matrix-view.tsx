@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
 import { MatrixCanvas } from "@/components/diagram/matrix2x2/matrix-canvas";
 import { ItemEditor } from "@/components/diagram/matrix2x2/item-editor";
 import { LabelsEditor } from "@/components/diagram/matrix2x2/labels-editor";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/diagram/clipboard";
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { copyMatrixItems, pasteMatrixItems } from "@/lib/diagram/matrix2x2/clipboard";
+import { matrixToMiro } from "@/lib/diagram/miro/adapters/matrix2x2";
+import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
 import { layoutMatrix } from "@/lib/diagram/matrix2x2/layout";
 import {
@@ -179,6 +181,11 @@ export function MatrixView({ configVersion, embedded }: Props) {
   const visibleStickies = useMemo(
     () => (doc && !doc.stickiesHidden ? doc.stickies : EMPTY_STICKIES),
     [doc],
+  );
+  /** The layout the Miro copy reads: what is on screen, with only the visible stickies. */
+  const miroLayout = useMemo(
+    () => (doc ? layoutMatrix(doc, visibleStickies) : null),
+    [doc, visibleStickies],
   );
 
   // ---- reading and writing ------------------------------------------------
@@ -794,6 +801,22 @@ export function MatrixView({ configVersion, embedded }: Props) {
     }
   }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
+  /**
+   * Copies the diagram for Miro (T-0723): the layout already on screen -
+   * with only the visible stickies - becomes a `miro-data-v1` payload on the
+   * clipboard, ready to paste on a Miro board. Whether the Tauri WebView2
+   * accepts the HTML flavour is unverified; a failure surfaces its reason.
+   */
+  const copyForMiro = useCallback(async () => {
+    if (!doc || !miroLayout) return;
+    const result = await copyToMiro(matrixToMiro(miroLayout));
+    setStatus(
+      result.ok
+        ? tStatic("diagram.matrix.miroCopied")
+        : tStatic("diagram.matrix.miroCopyFailed", { error: result.error }),
+    );
+  }, [doc, miroLayout]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -873,6 +896,16 @@ export function MatrixView({ configVersion, embedded }: Props) {
               <Hint label={t("diagram.matrix.exportPngHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportPng}>
                   <Image className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.matrix.copyToMiroHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyForMiro()}
+                >
+                  <ClipboardCopy className="size-3.5" />
                 </Button>
               </Hint>
             </div>

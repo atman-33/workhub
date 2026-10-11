@@ -109,12 +109,33 @@ export interface MiroConnector {
   arrowEnd?: boolean;
 }
 
+/**
+ * A free-floating straight line (the 2x2 matrix axes): both ends unbound, so
+ * the encoder writes `widgetIndex: -1` with absolute `point` positions and no
+ * arrowheads (`a_start`/`a_end` 0, `lt` 0). Coordinates are scene pixels, like
+ * every other position in this model.
+ */
+export interface MiroFreeLine {
+  kind: "freeLine";
+  key: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export interface MiroScene {
   shapes: MiroShapeNode[];
   stickers: MiroSticker[];
   texts: MiroTextNode[];
   frames: MiroFrameNode[];
   connectors: MiroConnector[];
+  /**
+   * Free-floating lines. Optional so every scene built before them (and
+   * `emptyScene()`) stays exactly as it was; the encoder reads an absent
+   * list as none.
+   */
+  freeLines?: MiroFreeLine[];
 }
 
 /** An empty scene: every adapter starts here and pushes what the layout holds. */

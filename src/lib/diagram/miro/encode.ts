@@ -12,6 +12,7 @@ import {
   resolveMiroShape,
   type MiroConnector,
   type MiroFrameNode,
+  type MiroFreeLine,
   type MiroScene,
   type MiroShapeNode,
   type MiroSticker,
@@ -246,6 +247,43 @@ function captionWidth(label: string): number {
   return 12 * [...label].length + 5;
 }
 
+/**
+ * A free-floating line: both ends unbound (`widgetIndex: -1` with absolute
+ * positions), no arrowheads, `lt: 0` - as in the `connector-free` sample
+ * (which carries an arrowhead; the matrix axes want none, so both ends are
+ * 0 here).
+ */
+function encodeFreeLine(line: MiroFreeLine): Record<string, unknown> {
+  return {
+    points: [],
+    primary: {
+      point: { x: line.x1, y: line.y1 },
+      positionType: 0,
+      widgetIndex: -1,
+    },
+    secondary: {
+      point: { x: line.x2, y: line.y2 },
+      positionType: 0,
+      widgetIndex: -1,
+    },
+    _position: null,
+    _parent: null,
+    style: JSON.stringify({
+      lc: MIRO_LINE,
+      ls: 2,
+      t: 2,
+      lt: 0,
+      a_start: 0,
+      a_end: 0,
+      VER: 2,
+      jump: 0,
+    }),
+    line: {
+      captions: [],
+    },
+  };
+}
+
 function encodeConnector(
   connector: MiroConnector,
   keyToId: Map<string, number>,
@@ -299,11 +337,12 @@ function encodeConnector(
 
 /**
  * A scene to the payload Miro reads. Object order is frames first, then
- * figures, stickies and texts, connectors last: frames own the z-order base
- * and connectors point at the ids above them. A figure naming a frame of
- * this scene becomes that frame's child (its offsets run from the frame's
- * top-left); one naming nothing - or a frame that is not here - stays
- * top-level, exactly as before.
+ * figures, stickies and texts, connectors and free-floating lines last:
+ * frames own the z-order base and connectors point at the ids above them. A
+ * figure naming a frame of this scene becomes that frame's child (its offsets
+ * run from the frame's top-left); one naming nothing - or a frame that is not
+ * here - stays top-level, exactly as before. A scene without `freeLines`
+ * writes exactly what it always wrote.
  */
 export function encodePayload(scene: MiroScene): MiroPayload {
   const objects: MiroObject[] = [];
@@ -334,6 +373,9 @@ export function encodePayload(scene: MiroScene): MiroPayload {
   for (const connector of scene.connectors) {
     const json = encodeConnector(connector, keyToId);
     if (json) push(connector.key, "line", json);
+  }
+  for (const line of scene.freeLines ?? []) {
+    push(line.key, "line", encodeFreeLine(line));
   }
   return {
     isProtected: false,
