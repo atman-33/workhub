@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useDefaultLayout } from "react-resizable-panels";
+import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   Archive,
@@ -19,9 +19,11 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { CopyPromptButton } from "@/components/copy-prompt-button";
 import { ConfirmDialog } from "@/components/graph/confirm-dialog";
+import { PanelToggle } from "@/components/diagram/panel-frame";
 import { ProjectBacklog } from "@/components/projects/project-backlog";
 import { ProjectDocuments } from "@/components/projects/project-documents";
 import { ProjectList } from "@/components/projects/project-list";
+import { readProjectsListOpen, writeProjectsListOpen } from "@/lib/project-list-panel";
 import { ProjectCreateDialog } from "@/components/schedule/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +118,25 @@ export function ProjectsView({
   const t = useT();
   // The list / detail split survives a restart, like the Docs tab's (T-0279).
   const projectsSplit = useDefaultLayout({ id: "projects-split", storage: localStorage });
+  // Show / hide the project list (T-0744). The panel stays mounted and is
+  // collapsed through the group's API, like the Diagrams side panels:
+  // taking a panel away mid-session makes react-resizable-panels recompute
+  // the layout and squash its neighbour. Dragging the divider to nothing
+  // reports back through `onResize`, so the flag and the panel never disagree.
+  const listPanel = usePanelRef();
+  const [listOpen, setListOpen] = useState(() =>
+    readProjectsListOpen(typeof localStorage === "undefined" ? undefined : localStorage),
+  );
+  const changeListOpen = useCallback((open: boolean) => {
+    setListOpen(open);
+    writeProjectsListOpen(typeof localStorage === "undefined" ? undefined : localStorage, open);
+  }, []);
+  useEffect(() => {
+    const p = listPanel.current;
+    if (!p) return;
+    if (listOpen && p.isCollapsed()) p.expand();
+    else if (!listOpen && !p.isCollapsed()) p.collapse();
+  }, [listOpen, listPanel]);
   const [config, setConfig] = useState<Config | null>(null);
   const [projects, setProjects] = useState<VaultProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -397,6 +418,12 @@ export function ProjectsView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <PanelToggle
+          side="left"
+          open={listOpen}
+          onToggle={() => changeListOpen(!listOpen)}
+          labels={{ hide: t("projects.view.hideList"), show: t("projects.view.showList") }}
+        />
         <Input
           value={search}
           placeholder={t("projects.view.searchPlaceholder")}
@@ -458,7 +485,19 @@ export function ProjectsView({
         {/* Pixel floors, not percentages: a percentage minimum grows with the
           window and wastes space on wide screens, while these stay put
           (T-0713). The default split is unchanged. */}
-        <ResizablePanel id="projects-list" defaultSize="34%" minSize="200px" className="min-h-0">
+        <ResizablePanel
+          id="projects-list"
+          panelRef={listPanel}
+          defaultSize={listOpen ? "34%" : "0%"}
+          minSize="200px"
+          collapsible
+          collapsedSize={0}
+          onResize={(size) => {
+            const collapsed = size.asPercentage === 0;
+            if (collapsed === listOpen) changeListOpen(!collapsed);
+          }}
+          className="min-h-0"
+        >
           <div className="h-full overflow-y-auto">
             {visible.length === 0 && (
               <p className="p-4 text-sm text-muted-foreground">
@@ -500,7 +539,7 @@ export function ProjectsView({
           </div>
         </ResizablePanel>
         <ResizableHandle />
-        <ResizablePanel id="projects-detail" defaultSize="66%" minSize="320px" className="min-h-0">
+        <ResizablePanel id="projects-detail" defaultSize={listOpen ? "66%" : "100%"} minSize="320px" className="min-h-0">
           {!current ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {t("projects.view.selectProject")}

@@ -21,6 +21,8 @@ export const projectsEn = {
   "projects.view.sortName": "Name",
   "projects.view.refresh": "Refresh",
   "projects.view.newProject": "New project",
+  "projects.view.hideList": "Hide the project list",
+  "projects.view.showList": "Show the project list",
   "projects.view.emptyList": "No projects yet. “New project” creates projects/<slug>/ from the bundled scaffold.",
   "projects.view.orphansHeading": "Task project values with no folder",
   "projects.view.orphanCountOne": "— {count} task",

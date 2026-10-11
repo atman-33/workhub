@@ -56,17 +56,23 @@ export function PanelToggle({
   open,
   disabled,
   onToggle,
+  labels,
 }: {
   side: "left" | "right";
   open: boolean;
   disabled?: boolean;
   onToggle: () => void;
+  /** Tooltip text for a host whose panel is not a diagram list (T-0744). */
+  labels?: { hide: string; show: string };
 }) {
   const t = useT();
   const Icon =
     side === "left" ? (open ? PanelLeftClose : PanelLeftOpen) : open ? PanelRightClose : PanelRightOpen;
-  const label =
-    side === "left"
+  const label = labels
+    ? open
+      ? labels.hide
+      : labels.show
+    : side === "left"
       ? open
         ? t("diagram.panel.hideLeft")
         : t("diagram.panel.showLeft")

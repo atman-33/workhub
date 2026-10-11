@@ -23,6 +23,8 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.view.sortName": "名前",
   "projects.view.refresh": "更新",
   "projects.view.newProject": "新規プロジェクト",
+  "projects.view.hideList": "プロジェクト一覧を隠す",
+  "projects.view.showList": "プロジェクト一覧を表示",
   "projects.view.emptyList":
     "プロジェクトはまだありません。「新規プロジェクト」はバンドルされたひな形から projects/<slug>/ を作成します。",
   "projects.view.orphansHeading": "対応するフォルダがないタスクのプロジェクト値",
