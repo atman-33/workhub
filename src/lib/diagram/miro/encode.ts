@@ -97,7 +97,7 @@ function shapeStyle(node: MiroShapeNode): string {
     bc: -1,
     bo: 1,
     brc: node.border ?? MIRO_INK,
-    brw: 2,
+    brw: node.borderWidth ?? 2,
     bro: 1,
     brs: 2,
     ffn: "Noto Sans",

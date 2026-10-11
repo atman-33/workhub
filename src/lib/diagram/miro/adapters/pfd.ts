@@ -10,19 +10,17 @@
  * The adapter reads the layout result only - never the file.
  */
 import { edgeKey } from "../../node-edge";
-import type { Box } from "../../sticky-layout";
 import { NODE_FONT_SIZE, type PfdLayout } from "../../pfd/layout";
 import { colorToMiroRgb, stickyToMiroRgb } from "../palette";
 import { emptyScene, type MiroScene, type MiroShapeKind } from "../model";
 import { resolveMiroShape } from "../model";
+import {
+  MIRO_SCALE,
+  relativePoint,
+  type MiroAdapterOptions,
+} from "./shared";
 
-/** Pixel scale of the Miro scene against the layout. 1 keeps layout pixels;
- * tune when the pasted board is seen. */
-export const MIRO_SCALE = 1;
-
-export interface PfdToMiroOptions {
-  scale?: number;
-}
+export interface PfdToMiroOptions extends MiroAdapterOptions {}
 
 /**
  * A PFD shape to a Miro figure: processes (ellipses) stay wide ellipses via
@@ -32,17 +30,6 @@ export interface PfdToMiroOptions {
 export function pfdShapeToMiro(shape: string): MiroShapeKind {
   if (shape === "ellipse") return "circle";
   return resolveMiroShape(shape);
-}
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
-}
-
-/** Where a boundary point sits inside its node's box, as 0..1 Miro `point`. */
-function relativePoint(box: Box, p: { x: number; y: number }): { x: number; y: number } {
-  const x = box.width === 0 ? 0.5 : (p.x - box.x) / box.width;
-  const y = box.height === 0 ? 0.5 : (p.y - box.y) / box.height;
-  return { x: clamp01(x), y: clamp01(y) };
 }
 
 export function pfdToMiro(layout: PfdLayout, options: PfdToMiroOptions = {}): MiroScene {

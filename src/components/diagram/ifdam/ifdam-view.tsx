@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
 import { IfdamCanvas } from "@/components/diagram/ifdam/ifdam-canvas";
 import { EdgeEditor } from "@/components/diagram/ifdam/edge-editor";
 import { NodeEditor } from "@/components/diagram/ifdam/node-editor";
@@ -22,6 +22,8 @@ import {
   pasteIfdamNodes,
   type IfdamClip,
 } from "@/lib/diagram/ifdam/clipboard";
+import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
+import { ifdamToMiro } from "@/lib/diagram/miro/adapters/ifdam";
 import { renderHtml, renderSvg, type SectionCaptions } from "@/lib/diagram/ifdam/export";
 import { layoutIfdam } from "@/lib/diagram/ifdam/layout";
 import {
@@ -872,6 +874,22 @@ export function IfdamView({ configVersion, embedded }: Props) {
     }
   }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
+  /**
+   * Copies the diagram for Miro (T-0721): the layout already on screen -
+   * with only the visible stickies - becomes a `miro-data-v1` payload on the
+   * clipboard, ready to paste on a Miro board. Whether the Tauri WebView2
+   * accepts the HTML flavour is unverified; a failure surfaces its reason.
+   */
+  const copyForMiro = useCallback(async () => {
+    if (!doc || !layout) return;
+    const result = await copyToMiro(ifdamToMiro(layout, { captions: captionsOf(tStatic) }));
+    setStatus(
+      result.ok
+        ? tStatic("diagram.ifdam.miroCopied")
+        : tStatic("diagram.ifdam.miroCopyFailed", { error: result.error }),
+    );
+  }, [doc, layout]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -970,6 +988,16 @@ export function IfdamView({ configVersion, embedded }: Props) {
               <Hint label={t("diagram.ifdam.exportPngHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportPng}>
                   <Image className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.ifdam.copyToMiroHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyForMiro()}
+                >
+                  <ClipboardCopy className="size-3.5" />
                 </Button>
               </Hint>
             </div>

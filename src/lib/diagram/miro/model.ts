@@ -47,6 +47,9 @@ export interface MiroShapeNode {
   text: string;
   border: number | null;
   fontSize: number;
+  /** Outline width (`brw`); absent means the encoder's default. The use case
+   * adapter sets it for a system, whose outline is thick on the canvas. */
+  borderWidth?: number;
 }
 
 /** A sticky note. Miro draws it at its own fixed size; `cx`/`cy` is where its centre lands. */
