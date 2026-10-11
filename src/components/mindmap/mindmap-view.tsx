@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   Check,
+  ClipboardCopy,
   Copy,
   Download,
   FolderPlus,
@@ -48,6 +49,8 @@ import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } 
 import { t as tStatic, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 import { clipboardShortcut, readClip, setClip, useHasClip } from "@/lib/diagram/clipboard";
+import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
+import { mindmapToMiro } from "@/lib/diagram/miro/adapters/mindmap";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
 import { copyMindmapNode, pasteMindmapNode } from "@/lib/mindmap/clipboard";
 import { toHtml, toSvg } from "@/lib/mindmap/export";
@@ -60,6 +63,7 @@ import {
   type ChipAction,
 } from "@/lib/mindmap/attrs";
 import type { PositionedNode } from "@/lib/mindmap/layout";
+import { layoutMindmap } from "@/lib/mindmap/layout";
 import {
   attrKeys as attrKeysOf,
   attrValues,
@@ -1220,6 +1224,40 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   }, [doc]);
 
   /**
+   * The layout the Miro copy reads: what is on screen, with only the visible
+   * stickies. Recomputed here rather than taken from the canvas because the
+   * canvas owns its layout privately.
+   */
+  const miroLayout = useMemo(
+    () =>
+      doc
+        ? layoutMindmap(doc.roots, {
+            nodeWidth: doc.nodeWidth,
+            attrView,
+            showIds: doc.nodeIdsShown,
+            stickies: visibleStickies,
+          })
+        : null,
+    [doc, attrView, visibleStickies],
+  );
+
+  /**
+   * Copies the map for Miro (T-0724): the layout above becomes a `miro-data-v1`
+   * payload on the clipboard, ready to paste on a Miro board. Whether the
+   * Tauri WebView2 accepts the HTML flavour is unverified; a failure surfaces
+   * its reason.
+   */
+  const copyForMiro = useCallback(async () => {
+    if (!doc || !miroLayout) return;
+    const result = await copyToMiro(mindmapToMiro(miroLayout));
+    setStatus(
+      result.ok
+        ? tStatic("mindmap.view.miroCopied")
+        : tStatic("mindmap.view.miroCopyFailed", { error: result.error }),
+    );
+  }, [doc, miroLayout]);
+
+  /**
    * Where an export lands: the project's real `attachments/` folder, which
    * may carry a `NNNN-` sort prefix the slug never includes — resolved
    * rather than guessed as `projects/<slug>/`, or a second, wrong, empty
@@ -1602,6 +1640,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
               onClick={exportPng}
             >
               <Image className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label={t("mindmap.view.copyToMiroHint")} disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={() => void copyForMiro()}
+            >
+              <ClipboardCopy className="size-3.5" />
             </Button>
           </Hint>
           <Hint label={t("mindmap.view.deleteHint")} disabled={!path || aiRunning}>
