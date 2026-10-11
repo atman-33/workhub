@@ -91,8 +91,10 @@ const INDEX_FILE: &str = "_index.md";
 /// cannot turn a list refresh into a full-disk scan.
 const MTIME_DEPTH: usize = 3;
 
-/// Longest README excerpt kept for the list row.
-const SUMMARY_CHARS: usize = 180;
+/// Safety net for the README excerpt: a normal first paragraph is kept in
+/// full (T-0736) and only a paragraph longer than this, counted in chars, is
+/// cut with "…" appended.
+const SUMMARY_CHARS: usize = 1000;
 
 /// Resolves a project's existing folder by slug, in `projects/` or
 /// `archive/projects/`. `Ok(None)` means no folder answers to the slug in
@@ -440,28 +442,78 @@ fn read_note(path: &Path) -> Option<(String, String)> {
     split_frontmatter(&content)
 }
 
-/// First prose paragraph of a README body — headings, blockquotes (the
-/// scaffold's "AI agents: read this first" callout), tables, embeds and list
-/// markers are all skipped, because none of them says what the project *is*.
+/// First prose paragraph of a README body in full (T-0736) — consecutive
+/// prose lines joined, stopping at the first blank line or at a heading,
+/// blockquote (the scaffold's "AI agents: read this first" callout), table,
+/// list marker, embed or fenced code block. Those structural lines are also
+/// skipped while the paragraph has not started yet, because none of them says
+/// what the project *is*; a fenced block before the paragraph is skipped as a
+/// whole so its contents never read as the description.
 fn excerpt(body: &str) -> String {
-    for line in body.lines() {
-        let line = line.trim();
-        if line.is_empty()
-            || line.starts_with('#')
+    let mut paragraph = String::new();
+    let mut in_fence = false;
+    for raw in body.lines() {
+        let line = raw.trim();
+        if in_fence {
+            if line.starts_with("```") {
+                in_fence = false;
+            }
+            continue;
+        }
+        if line.starts_with("```") {
+            // A fence ends the paragraph once started, otherwise opens a block
+            // to skip.
+            if paragraph.is_empty() {
+                in_fence = true;
+                continue;
+            }
+            break;
+        }
+        if line.is_empty() {
+            if !paragraph.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if line.starts_with('#')
             || line.starts_with('>')
             || line.starts_with('|')
             || line.starts_with('-')
             || line.starts_with('!')
         {
+            if !paragraph.is_empty() {
+                break;
+            }
             continue;
         }
-        let mut text: String = line.chars().take(SUMMARY_CHARS).collect();
-        if line.chars().count() > SUMMARY_CHARS {
-            text.push('…');
+        if !paragraph.is_empty() && join_with_space(&paragraph, line) {
+            paragraph.push(' ');
         }
-        return text;
+        paragraph.push_str(line);
     }
-    String::new()
+    if paragraph.chars().count() > SUMMARY_CHARS {
+        paragraph = paragraph.chars().take(SUMMARY_CHARS).collect();
+        paragraph.push('…');
+    }
+    paragraph
+}
+
+/// Whether joining the next hard-wrapped line needs a space: only when the
+/// previous line's last char and the next line's first char are both ASCII
+/// alphanumeric/punctuation. Japanese (wide) text joins with no separator,
+/// while ASCII words keep theirs (T-0736).
+fn join_with_space(current: &str, next: &str) -> bool {
+    match (current.chars().last(), next.chars().next()) {
+        (Some(prev), Some(first)) => is_narrow_word_char(prev) && is_narrow_word_char(first),
+        _ => false,
+    }
+}
+
+/// An ASCII letter, digit or punctuation mark — the "non-wide" half of the
+/// join rule. Anything else (CJK, hiragana, emoji, full-width punctuation)
+/// joins without a separator.
+fn is_narrow_word_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c.is_ascii_punctuation()
 }
 
 /// The shared spaces a project has registered, read from the notes in
@@ -1854,6 +1906,118 @@ id: B-001
             list_projects(&vault, false).unwrap()[0].summary,
             "A demo project."
         );
+    }
+
+    /// The Description field shows the whole first paragraph (T-0736): a
+    /// hard-wrapped Japanese paragraph joins with no separator.
+    #[test]
+    fn excerpt_joins_a_hard_wrapped_japanese_paragraph() {
+        let body = "オーナーが昔遊んでいた PC ゲーム「Spiritual Blade」（通称スピブレ、作者 GeraHa 氏、2007年）を、\nモダンなゲーム開発の技術スタックで作り直すプロジェクト。元は Visual C++ 6.0 + DirectX 8 の\nWindows ネイティブアプリで、公開されたソースコード（C++ 約550ファイル）が手元にある。\n出来が良ければ [[0170-ever-garden|Ever Garden]] のゲームとして紹介することを視野に入れる。\n意図とスコープは [`prd.md`](prd.md)。\n";
+        let expected = "オーナーが昔遊んでいた PC ゲーム「Spiritual Blade」（通称スピブレ、作者 GeraHa 氏、2007年）を、モダンなゲーム開発の技術スタックで作り直すプロジェクト。元は Visual C++ 6.0 + DirectX 8 のWindows ネイティブアプリで、公開されたソースコード（C++ 約550ファイル）が手元にある。出来が良ければ [[0170-ever-garden|Ever Garden]] のゲームとして紹介することを視野に入れる。意図とスコープは [`prd.md`](prd.md)。";
+        assert_eq!(excerpt(body), expected);
+    }
+
+    /// English hard-wrapped lines join with a single space (T-0736).
+    #[test]
+    fn excerpt_joins_english_lines_with_one_space() {
+        assert_eq!(
+            excerpt("Hello world\nthis is a test\nof joining.\n"),
+            "Hello world this is a test of joining."
+        );
+    }
+
+    /// The paragraph ends at the first blank line; later paragraphs are not
+    /// included (T-0736).
+    #[test]
+    fn excerpt_stops_at_a_blank_line() {
+        assert_eq!(
+            excerpt("First line\nsecond line\n\nSecond paragraph here.\n"),
+            "First line second line"
+        );
+    }
+
+    /// Structural lines end the paragraph once it has started: a heading, a
+    /// blockquote, a table, a list item, an embed and a fenced code block
+    /// (T-0736).
+    #[test]
+    fn excerpt_stops_before_structure_following_the_paragraph() {
+        for (body, expected) in [
+            (
+                "First line\nsecond line\n# Heading\n",
+                "First line second line",
+            ),
+            (
+                "First line\nsecond line\n> quoted\n",
+                "First line second line",
+            ),
+            (
+                "First line\nsecond line\n| a | b |\n",
+                "First line second line",
+            ),
+            (
+                "First line\nsecond line\n- item\n",
+                "First line second line",
+            ),
+            (
+                "First line\nsecond line\n![[embed]]\n",
+                "First line second line",
+            ),
+            (
+                "First line\nsecond line\n```\ncode\n```\n",
+                "First line second line",
+            ),
+        ] {
+            assert_eq!(excerpt(body), expected, "body: {body:?}");
+        }
+    }
+
+    /// Leading headings, callouts, tables, embeds and lists are skipped before
+    /// the paragraph starts, exactly as before (T-0736).
+    #[test]
+    fn excerpt_skips_leading_structure_before_the_paragraph() {
+        let body = "# Title\n\n> AI agents read this first\n\n| a | b |\n\n![[embed]]\n\n- item\n\nReal paragraph here.\n";
+        assert_eq!(excerpt(body), "Real paragraph here.");
+    }
+
+    /// A fenced code block before the paragraph is skipped as a whole, so its
+    /// contents never read as the description (T-0736).
+    #[test]
+    fn excerpt_skips_a_leading_fenced_code_block() {
+        let body = "# Title\n\n```\ncode line one\ncode line two\n```\n\nReal paragraph here.\n";
+        assert_eq!(excerpt(body), "Real paragraph here.");
+    }
+
+    /// The cap is a safety net only: a paragraph over it is cut at exactly
+    /// `SUMMARY_CHARS` plus "…" (T-0736).
+    #[test]
+    fn excerpt_cuts_a_long_paragraph_at_the_cap_with_an_ellipsis() {
+        assert_eq!(SUMMARY_CHARS, 1000);
+        let body = "a".repeat(1200);
+        let got = excerpt(&body);
+        assert_eq!(got.chars().count(), SUMMARY_CHARS + 1);
+        assert!(got.ends_with('…'));
+        assert_eq!(got[..SUMMARY_CHARS], body[..SUMMARY_CHARS]);
+        // Wide chars are counted in chars, not bytes.
+        let wide = "あ".repeat(1500);
+        let got = excerpt(&wide);
+        assert_eq!(got.chars().count(), SUMMARY_CHARS + 1);
+        assert!(got.ends_with('…'));
+    }
+
+    /// A frontmatter `description` still wins over the README excerpt (T-0736).
+    #[test]
+    fn frontmatter_description_takes_priority_over_the_excerpt() {
+        let vault = temp_vault("details-priority");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\ndescription: Hand-written blurb.\n---\n\n# Demo\n\nFirst paragraph line one\nline two.\n",
+        );
+        assert_eq!(
+            list_projects(&vault, false).unwrap()[0].summary,
+            "Hand-written blurb."
+        );
+        fs::remove_dir_all(&vault).ok();
     }
 
     #[test]

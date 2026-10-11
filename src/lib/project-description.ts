@@ -2,8 +2,9 @@
  * Helpers for the Projects tab Description field (T-0713).
  *
  * The field shows the README frontmatter `description` when set, otherwise the
- * first README body paragraph cut by `SUMMARY_CHARS` with "…" appended (see
- * `excerpt` in `src-tauri/src/vault_project.rs`). It is never the whole
+ * whole first README body paragraph (see `excerpt` in
+ * `src-tauri/src/vault_project.rs`). Only a paragraph over `SUMMARY_CHARS`
+ * (1000 chars, a safety net) is cut with "…" appended. It is never the whole
  * README, so the textarea auto-grows to fit its content and says so when the
  * text is a cut-off excerpt.
  */
@@ -19,7 +20,8 @@ export const DESCRIPTION_MAX_HEIGHT_PX = 192;
 
 /**
  * Whether the description looks like a README excerpt cut short: the backend
- * appends "…" exactly when the first paragraph exceeds `SUMMARY_CHARS`. A
+ * appends "…" exactly when the first paragraph exceeds `SUMMARY_CHARS`
+ * (1000 chars). A
  * hand-written frontmatter description that happens to end in "…" reads as
  * truncated too, which is acceptable — it is still not the full README.
  */

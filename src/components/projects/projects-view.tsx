@@ -229,9 +229,11 @@ export function ProjectsView({
     setEditName(current.name);
     setEditSummary(current.summary);
   }, [current?.slug, current?.name, current?.summary]);
-  // The Description field holds one line of frontmatter or a cut-off README
-  // excerpt, never the whole README — so it grows with its content up to a
-  // ceiling, past which it scrolls instead (T-0713).
+  // The Description field holds one line of frontmatter or the whole first
+  // README paragraph (cut with "…" only past the backend's SUMMARY_CHARS
+  // safety net), never the whole README — so it grows with its content up to
+  // a ceiling, past which it scrolls instead (T-0713, full paragraph in
+  // T-0736).
   const summaryRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = summaryRef.current;
