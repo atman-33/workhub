@@ -1,0 +1,74 @@
+{
+  "isProtected": false,
+  "boardId": "",
+  "data": {
+    "objects": [
+      {
+        "widgetData": {
+          "json": {
+            "ns:diagrammingNotation": {
+              "element": "flowchart-document",
+              "collection": "flowchart"
+            },
+            "_position": {
+              "offsetPx": {
+                "x": 0,
+                "y": 0
+              },
+              "schema": "canvasOffsetPx"
+            },
+            "scale": {
+              "scale": 1
+            },
+            "relativeScale": 1,
+            "rotation": {
+              "rotation": 0
+            },
+            "relativeRotation": 0,
+            "size": {
+              "width": 160,
+              "height": 120
+            },
+            "_parent": null,
+            "style": "{\"tc\":1710618,\"tsc\":0,\"bc\":-1,\"bo\":1,\"brc\":1710618,\"brw\":2,\"bro\":1,\"brs\":2,\"ffn\":\"Noto Sans\",\"ta\":\"c\",\"tav\":\"m\",\"fs\":14}",
+            "schema": {
+              "id": "flowchart-document",
+              "data": {
+                "formulaValues": {
+                  "width": 160,
+                  "height": 120,
+                  "textPaddingHorizontal": 16,
+                  "borderRadius": 8
+                },
+                "texts": {
+                  "name": {
+                    "text": "<p><span style=\"color: rgb(26, 26, 26);\">Document</span></p>",
+                    "styles": {
+                      "ffn": "Noto Sans",
+                      "ta": "c",
+                      "tav": "m",
+                      "fs": 14
+                    }
+                  }
+                },
+                "resources": {},
+                "iterators": {}
+              }
+            },
+            "matrixLayoutData": null
+          },
+          "type": "stencil"
+        },
+        "type": 14,
+        "id": 0,
+        "initialId": "0",
+        "meta": {}
+      }
+    ],
+    "meta": {}
+  },
+  "version": 2,
+  "host": "miro.com",
+  "asPortalAmount": 0,
+  "copierType": "COPY"
+}

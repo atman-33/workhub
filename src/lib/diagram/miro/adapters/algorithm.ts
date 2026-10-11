@@ -3,12 +3,12 @@
  * (T-0721).
  *
  * The mapping follows the design's algorithm row: start/end become rounded
- * figures, decisions diamonds, and everything else (process, I/O,
- * subroutine, document) a rectangle for now - those shapes have no sampled
- * Miro id. Arrows become bound connectors with their labels; a loop's detour
- * is left to Miro's own routing (only the end points are bound). Sticky notes
- * keep their layout spots as Miro stickies; node memo lines, `## Memo` and
- * `task:` links are left out. The adapter reads the layout result only -
+ * figures, decisions diamonds, documents a flowchart stencil, and everything
+ * else (process, I/O, subroutine) a rectangle for now - those shapes have no
+ * sampled Miro id. Arrows become bound connectors with their labels; a loop's
+ * detour is left to Miro's own routing (only the end points are bound). Sticky
+ * notes keep their layout spots as Miro stickies; node memo lines, `## Memo`
+ * and `task:` links are left out. The adapter reads the layout result only -
  * never the file.
  */
 import { edgeKey } from "../../node-edge";
@@ -21,12 +21,13 @@ export interface AlgorithmToMiroOptions extends MiroAdapterOptions {}
 
 /**
  * An algorithm kind to a Miro figure: start/end stay rounded, decisions stay
- * diamonds, everything else is a rectangle until samples pin down more
- * figure ids.
+ * diamonds, documents stay documents (a flowchart stencil); everything else
+ * is a rectangle until samples pin down more figure ids.
  */
 export function algorithmShapeToMiro(kind: string): MiroShapeKind {
   if (kind === "start" || kind === "end") return "round";
   if (kind === "decision") return "diamond";
+  if (kind === "doc") return "document";
   return "rect";
 }
 

@@ -9,14 +9,17 @@
  * position is the centre of its element.
  */
 
-/** Figure kinds Miro draws, by the name the adapters use. */
-export type MiroShapeKind = "rect" | "circle" | "round" | "diamond" | "cylinder";
+/** Figure kinds Miro draws, by the name the adapters use. `document` is a
+ * stencil (`flowchart-document`), not a `shape` id - the encoder writes
+ * `widgetData.type: "stencil"` for it (T-0732). */
+export type MiroShapeKind = "rect" | "circle" | "round" | "diamond" | "cylinder" | "document";
 
 /**
  * Miro's figure ids, taken from the clipboard samples (`shape` and
- * `style.st` carry the same number).
+ * `style.st` carry the same number). `document` has no entry: it encodes as
+ * a stencil, never as a `shape`.
  */
-export const MIRO_SHAPE_IDS: Record<MiroShapeKind, string> = {
+export const MIRO_SHAPE_IDS: Record<Exclude<MiroShapeKind, "document">, string> = {
   rect: "3",
   circle: "4",
   round: "7",
@@ -24,17 +27,31 @@ export const MIRO_SHAPE_IDS: Record<MiroShapeKind, string> = {
   cylinder: "26",
 };
 
+/** Schema id of the document stencil, from the owner's stencil sample. */
+export const MIRO_DOCUMENT_STENCIL_ID = "flowchart-document";
+/** Collection of the document stencil, from the owner's stencil sample. */
+export const MIRO_DOCUMENT_STENCIL_COLLECTION = "flowchart";
+
+/** True when a figure kind encodes as a stencil rather than a `shape`. */
+export function isMiroStencilShape(shape: MiroShapeKind): shape is "document" {
+  return shape === "document";
+}
+
 /**
- * Maps a figure name to a Miro kind. Unknown figures fall back to a
- * rectangle: the shape is still editable in Miro, only its kind is lost
- * (until a sample pins down its id).
+ * Maps a figure name to a Miro kind. `document` stays a document (a stencil);
+ * unknown figures fall back to a rectangle: the shape is still editable in
+ * Miro, only its kind is lost (until a sample pins down its id).
  */
 export function resolveMiroShape(shape: string): MiroShapeKind {
+  if (shape === "document") return "document";
   const kinds = Object.keys(MIRO_SHAPE_IDS) as MiroShapeKind[];
   return kinds.includes(shape as MiroShapeKind) ? (shape as MiroShapeKind) : "rect";
 }
 
-/** A figure with centred text. `border` is a 24-bit RGB int, or null for Miro's default. */
+/** A figure with centred text. `border` is a 24-bit RGB int, or null for Miro's default.
+ * A `document` figure encodes as a `stencil` (`flowchart-document`), not a
+ * `shape` - the encoder branches on it, so it still lives in `shapes` and
+ * keeps its order, frame parenting, selection and plain-text handling. */
 export interface MiroShapeNode {
   kind: "shape";
   /** Adapter-side identity (e.g. the diagram node id); the encoder maps it to a numeric id. */

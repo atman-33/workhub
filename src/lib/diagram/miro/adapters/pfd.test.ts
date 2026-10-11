@@ -41,11 +41,11 @@ function layoutWithStickies(): PfdLayout {
 }
 
 describe("pfdToMiro", () => {
-  it("maps ellipses to wide circles and documents to rectangles", () => {
+  it("maps ellipses to wide circles and documents to stencils", () => {
     const layout = layoutWithStickies();
     const scene = pfdToMiro(layout);
     expect(scene.shapes.map((s) => s.key)).toEqual(["P-001", "D-001", "P-002", "D-002"]);
-    expect(scene.shapes.map((s) => s.shape)).toEqual(["circle", "rect", "circle", "rect"]);
+    expect(scene.shapes.map((s) => s.shape)).toEqual(["circle", "document", "circle", "document"]);
     // A circle keeps the ellipse's own width and height, so it stays wide.
     const process = scene.shapes[0];
     const laid = layout.byId.get("P-001")!;
@@ -130,9 +130,29 @@ describe("pfdToMiro", () => {
     expect(encodePayload(scene).data.objects).toEqual([]);
   });
 
+  it("encodes deliverables as flowchart stencils", () => {
+    const scene = pfdToMiro(layoutWithStickies());
+    const payload = encodePayload(scene);
+    const stencils = payload.data.objects.filter((o) => o.widgetData.type === "stencil");
+    expect(stencils).toHaveLength(2);
+    for (const stencil of stencils) {
+      const json = stencil.widgetData.json as {
+        schema: { id: string; data: { texts: { name: { text: string } } } };
+      };
+      expect(json.schema.id).toBe("flowchart-document");
+    }
+    const texts = stencils.map(
+      (o) =>
+        (o.widgetData.json as { schema: { data: { texts: { name: { text: string } } } } }).schema
+          .data.texts.name.text,
+    );
+    expect(texts).toContain('<p><span style="color: rgb(26, 26, 26);">要件定義書</span></p>');
+    expect(texts).toContain('<p><span style="color: rgb(26, 26, 26);">設計書</span></p>');
+  });
+
   it("falls back to a rectangle for figure shapes without a Miro id", () => {
     expect(pfdShapeToMiro("ellipse")).toBe("circle");
-    expect(pfdShapeToMiro("document")).toBe("rect");
+    expect(pfdShapeToMiro("document")).toBe("document");
     expect(pfdShapeToMiro("rect")).toBe("rect");
     expect(pfdShapeToMiro("parallelogram")).toBe("rect");
     const node = {

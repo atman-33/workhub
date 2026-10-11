@@ -8,7 +8,10 @@
  * left at the values those payloads used.
  */
 import {
+  MIRO_DOCUMENT_STENCIL_COLLECTION,
+  MIRO_DOCUMENT_STENCIL_ID,
   MIRO_SHAPE_IDS,
+  isMiroStencilShape,
   resolveMiroShape,
   type MiroConnector,
   type MiroFrameNode,
@@ -90,7 +93,10 @@ export interface MiroObject {
 }
 
 function shapeStyle(node: MiroShapeNode): string {
-  const id = MIRO_SHAPE_IDS[resolveMiroShape(node.shape)];
+  const kind = resolveMiroShape(node.shape);
+  // The caller routes stencils to `encodeStencil`; a document here is a bug.
+  if (isMiroStencilShape(kind)) throw new Error(`stencil shape ${node.shape} has no shape id`);
+  const id = MIRO_SHAPE_IDS[kind];
   const style: Record<string, unknown> = {
     st: Number(id),
     ss: 2,
@@ -115,7 +121,7 @@ function shapeStyle(node: MiroShapeNode): string {
     VER: 2.1,
     hl: 0,
     // Miro always writes the corner radius (0 for square figures).
-    brr: resolveMiroShape(node.shape) === "round" ? MIRO_ROUND_RADIUS : 0,
+    brr: kind === "round" ? MIRO_ROUND_RADIUS : 0,
   };
   return JSON.stringify(style);
 }
@@ -124,7 +130,10 @@ function encodeShape(
   node: MiroShapeNode,
   parent: { id: number; left: number; top: number } | null,
 ): Record<string, unknown> {
-  const id = MIRO_SHAPE_IDS[resolveMiroShape(node.shape)];
+  const kind = resolveMiroShape(node.shape);
+  // The caller routes stencils to `encodeStencil`; a document here is a bug.
+  if (isMiroStencilShape(kind)) throw new Error(`stencil shape ${node.shape} has no shape id`);
+  const id = MIRO_SHAPE_IDS[kind];
   return {
     // A child of a frame is positioned from the frame's top-left
     // (`parentOffsetPx`); anything else from the canvas origin. A scene
@@ -145,6 +154,104 @@ function encodeShape(
     text: miroText(node.text),
     style: shapeStyle(node),
     shape: id,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// stencil (document)
+// ---------------------------------------------------------------------------
+
+/** Horizontal text inset of the document stencil, from the stencil sample. */
+const STENCIL_TEXT_PADDING_HORIZONTAL = 16;
+/** Corner radius of the document stencil, from the stencil sample. */
+const STENCIL_BORDER_RADIUS = 8;
+
+/** The `style` blob of a document stencil, in the sample's key order. */
+function stencilStyle(node: MiroShapeNode): string {
+  const style: Record<string, unknown> = {
+    tc: MIRO_INK,
+    tsc: 0,
+    bc: -1,
+    bo: 1,
+    brc: node.border ?? MIRO_INK,
+    brw: node.borderWidth ?? 2,
+    bro: 1,
+    brs: 2,
+    ffn: "Noto Sans",
+    ta: "c",
+    tav: "m",
+    fs: node.fontSize,
+  };
+  return JSON.stringify(style);
+}
+
+/**
+ * A stencil body to the `texts.name.text` HTML of the sample:
+ * `<p><span style="color: rgb(26, 26, 26);">…</span></p>`. Empty stays empty
+ * (as with `shape` text); line breaks become `<br/>`, which is a guess - no
+ * sample showed a multi-line stencil body.
+ */
+export function stencilBodyText(text: string): string {
+  if (!text) return "";
+  const inner = escapeMiroText(text).replace(/\r\n|\r|\n/g, "<br/>");
+  const r = (MIRO_INK >> 16) & 255;
+  const g = (MIRO_INK >> 8) & 255;
+  const b = MIRO_INK & 255;
+  return `<p><span style="color: rgb(${r}, ${g}, ${b});">${inner}</span></p>`;
+}
+
+function encodeStencil(
+  node: MiroShapeNode,
+  parent: { id: number; left: number; top: number } | null,
+): Record<string, unknown> {
+  return {
+    // Field order follows the stencil sample.
+    "ns:diagrammingNotation": {
+      element: MIRO_DOCUMENT_STENCIL_ID,
+      collection: MIRO_DOCUMENT_STENCIL_COLLECTION,
+    },
+    // A child of a frame is positioned from the frame's top-left
+    // (`parentOffsetPx`); anything else from the canvas origin - the same
+    // convention as `encodeShape`.
+    _position: parent
+      ? {
+          offsetPx: { x: node.cx - parent.left, y: node.cy - parent.top },
+          schema: "parentOffsetPx",
+          containerType: "FRAME",
+        }
+      : { offsetPx: { x: node.cx, y: node.cy }, schema: "canvasOffsetPx" },
+    scale: { scale: 1 },
+    relativeScale: 1,
+    rotation: { rotation: 0 },
+    relativeRotation: 0,
+    size: { width: node.width, height: node.height },
+    _parent: parent ? { index: parent.id } : null,
+    style: stencilStyle(node),
+    schema: {
+      id: MIRO_DOCUMENT_STENCIL_ID,
+      data: {
+        formulaValues: {
+          width: node.width,
+          height: node.height,
+          textPaddingHorizontal: STENCIL_TEXT_PADDING_HORIZONTAL,
+          borderRadius: STENCIL_BORDER_RADIUS,
+        },
+        texts: {
+          name: {
+            text: stencilBodyText(node.text),
+            styles: {
+              ffn: "Noto Sans",
+              ta: "c",
+              tav: "m",
+              fs: node.fontSize,
+            },
+          },
+        },
+        resources: {},
+        iterators: {},
+      },
+    },
+    matrixLayoutData: null,
   };
 }
 
@@ -337,12 +444,14 @@ function encodeConnector(
 
 /**
  * A scene to the payload Miro reads. Object order is frames first, then
- * figures, stickies and texts, connectors and free-floating lines last:
+ * figures (shapes and document stencils in scene order), stickies and texts,
+ * connectors and free-floating lines last:
  * frames own the z-order base and connectors point at the ids above them. A
  * figure naming a frame of this scene becomes that frame's child (its offsets
  * run from the frame's top-left); one naming nothing - or a frame that is not
- * here - stays top-level, exactly as before. A scene without `freeLines`
- * writes exactly what it always wrote.
+ * here - stays top-level, exactly as before. A document figure writes a
+ * `stencil` object; anything else writes a `shape`. A scene without documents
+ * or `freeLines` writes exactly what it always wrote.
  */
 export function encodePayload(scene: MiroScene): MiroPayload {
   const objects: MiroObject[] = [];
@@ -366,7 +475,11 @@ export function encodePayload(scene: MiroScene): MiroPayload {
   }
   for (const node of scene.shapes) {
     const parent = node.frame !== undefined ? (frameBox.get(node.frame) ?? null) : null;
-    push(node.key, "shape", encodeShape(node, parent));
+    if (isMiroStencilShape(resolveMiroShape(node.shape))) {
+      push(node.key, "stencil", encodeStencil(node, parent));
+    } else {
+      push(node.key, "shape", encodeShape(node, parent));
+    }
   }
   for (const sticker of scene.stickers) push(sticker.key, "sticker", encodeSticker(sticker));
   for (const node of scene.texts) push(node.key, "text", encodeText(node));

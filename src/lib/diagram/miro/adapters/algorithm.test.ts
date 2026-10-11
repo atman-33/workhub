@@ -48,7 +48,7 @@ function layoutWithStickies(): AlgorithmLayout {
 }
 
 describe("algorithmToMiro", () => {
-  it("maps start/end to rounded, decisions to diamonds, the rest to rectangles", () => {
+  it("maps start/end to rounded, decisions to diamonds, documents to stencils", () => {
     const layout = layoutWithStickies();
     const scene = algorithmToMiro(layout);
     expect(scene.shapes.map((s) => s.key)).toEqual([
@@ -67,7 +67,7 @@ describe("algorithmToMiro", () => {
       "diamond",
       "round",
       "rect",
-      "rect",
+      "document",
     ]);
     expect(scene.frames).toEqual([]);
   });
@@ -147,6 +147,20 @@ describe("algorithmToMiro", () => {
     expect(encodePayload(scene).data.objects).toEqual([]);
   });
 
+  it("encodes documents as flowchart stencils", () => {
+    const scene = algorithmToMiro(layoutWithStickies());
+    const payload = encodePayload(scene);
+    const stencils = payload.data.objects.filter((o) => o.widgetData.type === "stencil");
+    expect(stencils).toHaveLength(1);
+    const json = stencils[0].widgetData.json as {
+      schema: { id: string; data: { texts: { name: { text: string } } } };
+    };
+    expect(json.schema.id).toBe("flowchart-document");
+    expect(json.schema.data.texts.name.text).toBe(
+      '<p><span style="color: rgb(26, 26, 26);">帳票</span></p>',
+    );
+  });
+
   it("falls back to a rectangle for figure shapes without a Miro id", () => {
     expect(algorithmShapeToMiro("start")).toBe("round");
     expect(algorithmShapeToMiro("end")).toBe("round");
@@ -154,7 +168,7 @@ describe("algorithmToMiro", () => {
     expect(algorithmShapeToMiro("process")).toBe("rect");
     expect(algorithmShapeToMiro("io")).toBe("rect");
     expect(algorithmShapeToMiro("sub")).toBe("rect");
-    expect(algorithmShapeToMiro("doc")).toBe("rect");
+    expect(algorithmShapeToMiro("doc")).toBe("document");
     expect(algorithmShapeToMiro("parallelogram")).toBe("rect");
   });
 });

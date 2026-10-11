@@ -3,7 +3,7 @@
  * vertical slice).
  *
  * The mapping follows the design's PFD row: an ellipse (process) becomes a
- * wide circle, a document (deliverable) a rectangle for now, arrows become
+ * wide circle, a document (deliverable) a flowchart stencil, arrows become
  * bound connectors without labels, and there are no frames. Sticky notes
  * keep their layout spots as Miro stickies; node memo lines, `## Memo` and
  * `task:` links are left out (they would only get in the way on the board).
@@ -24,11 +24,12 @@ export interface PfdToMiroOptions extends MiroAdapterOptions {}
 
 /**
  * A PFD shape to a Miro figure: processes (ellipses) stay wide ellipses via
- * a stretched circle, everything else is a rectangle until samples pin down
- * more figure ids.
+ * a stretched circle, documents stay documents (a flowchart stencil); the rest
+ * falls back to a rectangle until samples pin down more figure ids.
  */
 export function pfdShapeToMiro(shape: string): MiroShapeKind {
   if (shape === "ellipse") return "circle";
+  if (shape === "document") return "document";
   return resolveMiroShape(shape);
 }
 
