@@ -134,6 +134,9 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.flow.deleteLaneHint": "このレーンを削除（{count} 個のステップは未割当へ移ります）",
   "diagram.flow.autoAlign": "自動整列",
   "diagram.flow.autoAlignHint": "ドラッグで付けた位置をすべて忘れ、レイアウトに任せ直す",
+  "diagram.flow.copyToMiroHint": "Miro 用にコピー（Miro ボード上で Ctrl+V で貼り付け）",
+  "diagram.flow.miroCopied": "コピーしました。Miro ボード上で Ctrl+V で貼り付けてください",
+  "diagram.flow.miroCopyFailed": "Miro 用のコピーに失敗しました: {error}",
   // ---- PFD editor (T-0683) ----
   "diagram.pfd.footerHint": "何もない所をダブルクリックで選んだ記号を追加、ノードをダブルクリックで名前を編集。ノードをドラッグして動かす。何もない所を左ドラッグすると矩形選択、Shift+クリックで追加・解除。選択中のノードはまとめてドラッグで動き、Delete でまとめて削除します。ノードの丸いハンドルを別のノードへドラッグすると矢印を引け（プロセスから成果物、成果物からプロセスのみ）、選んだ矢印の端のハンドルをドラッグすると付け替えられる。Ctrl+C / Ctrl+V か右クリックでコピー・ペースト。右ドラッグで移動、ホイールでズーム。 丸いハンドルは側ごとに分かれ、ハンドルの側から出て、落とした先の近い側（中央は自動）に入る。出入り口は `P-001:E@0.5` の形で保存される。",
   "diagram.pfd.fitHint": "図を画面に合わせる",
@@ -319,6 +322,9 @@ export const diagramJa: Partial<Record<MessageKey, string>> = {
   "diagram.architecture.deleteFrameHint": "この枠を削除（中のブロックは残ります）",
   "diagram.architecture.frameAdd": "枠を追加",
   "diagram.architecture.frameAddHint": "空の枠を追加",
+  "diagram.architecture.copyToMiroHint": "Miro 用にコピー（Miro ボード上で Ctrl+V で貼り付け）",
+  "diagram.architecture.miroCopied": "コピーしました。Miro ボード上で Ctrl+V で貼り付けてください",
+  "diagram.architecture.miroCopyFailed": "Miro 用のコピーに失敗しました: {error}",
   "diagram.aiPanel.placeholder":
     "例: UI に関するアイデアを新しいブランチにまとめて赤にする、実装フェーズを1週間後ろにずらす",
   "diagram.aiPanel.confirmLabel": "適用前に差分を確認する",

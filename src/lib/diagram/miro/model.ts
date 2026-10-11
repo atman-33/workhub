@@ -50,6 +50,13 @@ export interface MiroShapeNode {
   /** Outline width (`brw`); absent means the encoder's default. The use case
    * adapter sets it for a system, whose outline is thick on the canvas. */
   borderWidth?: number;
+  /**
+   * Key of the frame that owns this figure (a lane or an architecture frame);
+   * absent means a top-level figure. The encoder writes `_parent` and a
+   * `parentOffsetPx` position for it, so the child moves with its frame on the
+   * board. Stickies and free texts never carry one: they stay independent.
+   */
+  frame?: string;
 }
 
 /** A sticky note. Miro draws it at its own fixed size; `cx`/`cy` is where its centre lands. */

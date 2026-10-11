@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
 import { EdgeEditor } from "@/components/diagram/flow/edge-editor";
 import { FlowCanvas } from "@/components/diagram/flow/flow-canvas";
 import { LanesEditor } from "@/components/diagram/flow/lanes-editor";
@@ -47,6 +47,8 @@ import {
 } from "@/lib/diagram/flow/parse";
 import { allowAnyConnection, edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
+import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
+import { flowToMiro } from "@/lib/diagram/miro/adapters/flow";
 import {
   NEW_STICKY_OFFSET,
   NEW_STICKY_STAGGER,
@@ -847,6 +849,22 @@ export function FlowView({ configVersion, embedded }: Props) {
     }
   }, [doc, vaultPath, exportDir, visibleStickies, targetProject]);
 
+  /**
+   * Copies the diagram for Miro (T-0722): the layout already on screen -
+   * with only the visible stickies - becomes a `miro-data-v1` payload on the
+   * clipboard, ready to paste on a Miro board. Whether the Tauri WebView2
+   * accepts the HTML flavour is unverified; a failure surfaces its reason.
+   */
+  const copyForMiro = useCallback(async () => {
+    if (!doc || !layout) return;
+    const result = await copyToMiro(flowToMiro(layout));
+    setStatus(
+      result.ok
+        ? tStatic("diagram.flow.miroCopied")
+        : tStatic("diagram.flow.miroCopyFailed", { error: result.error }),
+    );
+  }, [doc, layout]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -926,6 +944,16 @@ export function FlowView({ configVersion, embedded }: Props) {
               <Hint label={t("diagram.flow.exportPngHint")}>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportPng}>
                   <Image className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.flow.copyToMiroHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyForMiro()}
+                >
+                  <ClipboardCopy className="size-3.5" />
                 </Button>
               </Hint>
             </div>

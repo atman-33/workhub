@@ -119,16 +119,28 @@ function shapeStyle(node: MiroShapeNode): string {
   return JSON.stringify(style);
 }
 
-function encodeShape(node: MiroShapeNode): Record<string, unknown> {
+function encodeShape(
+  node: MiroShapeNode,
+  parent: { id: number; left: number; top: number } | null,
+): Record<string, unknown> {
   const id = MIRO_SHAPE_IDS[resolveMiroShape(node.shape)];
   return {
-    _position: { offsetPx: { x: node.cx, y: node.cy }, schema: "canvasOffsetPx" },
+    // A child of a frame is positioned from the frame's top-left
+    // (`parentOffsetPx`); anything else from the canvas origin. A scene
+    // without `frame` writes exactly what it always wrote.
+    _position: parent
+      ? {
+          offsetPx: { x: node.cx - parent.left, y: node.cy - parent.top },
+          schema: "parentOffsetPx",
+          containerType: "FRAME",
+        }
+      : { offsetPx: { x: node.cx, y: node.cy }, schema: "canvasOffsetPx" },
     scale: { scale: 1 },
     relativeScale: 1,
     rotation: { rotation: 0 },
     relativeRotation: 0,
     size: { width: node.width, height: node.height },
-    _parent: null,
+    _parent: parent ? { index: parent.id } : null,
     text: miroText(node.text),
     style: shapeStyle(node),
     shape: id,
@@ -288,7 +300,10 @@ function encodeConnector(
 /**
  * A scene to the payload Miro reads. Object order is frames first, then
  * figures, stickies and texts, connectors last: frames own the z-order base
- * and connectors point at the ids above them.
+ * and connectors point at the ids above them. A figure naming a frame of
+ * this scene becomes that frame's child (its offsets run from the frame's
+ * top-left); one naming nothing - or a frame that is not here - stays
+ * top-level, exactly as before.
  */
 export function encodePayload(scene: MiroScene): MiroPayload {
   const objects: MiroObject[] = [];
@@ -299,7 +314,21 @@ export function encodePayload(scene: MiroScene): MiroPayload {
     objects.push({ widgetData: { json, type }, type: 14, id, initialId: initialId(id), meta: {} });
   };
   for (const frame of scene.frames) push(frame.key, "frame", encodeFrame(frame));
-  for (const node of scene.shapes) push(node.key, "shape", encodeShape(node));
+  const frameBox = new Map<string, { id: number; left: number; top: number }>();
+  for (const frame of scene.frames) {
+    const id = keyToId.get(frame.key);
+    if (id !== undefined) {
+      frameBox.set(frame.key, {
+        id,
+        left: frame.cx - frame.width / 2,
+        top: frame.cy - frame.height / 2,
+      });
+    }
+  }
+  for (const node of scene.shapes) {
+    const parent = node.frame !== undefined ? (frameBox.get(node.frame) ?? null) : null;
+    push(node.key, "shape", encodeShape(node, parent));
+  }
   for (const sticker of scene.stickers) push(sticker.key, "sticker", encodeSticker(sticker));
   for (const node of scene.texts) push(node.key, "text", encodeText(node));
   for (const connector of scene.connectors) {
