@@ -71,6 +71,7 @@ const SECTION_ICONS: Record<HelpSectionId, LucideIcon> = {
   diagrams: Shapes,
   schedule: CalendarRange,
   mindmap: Network,
+  "diagram-copy": Copy,
   docs: BookOpen,
   inbox: Inbox,
   persona: Drama,

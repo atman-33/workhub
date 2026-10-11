@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { UsecaseCanvas } from "@/components/diagram/usecase/usecase-canvas";
 import { EdgeEditor } from "@/components/diagram/usecase/edge-editor";
 import { NodeEditor } from "@/components/diagram/usecase/node-editor";
@@ -22,6 +22,7 @@ import {
   pasteUsecaseNodes,
   type UsecaseClip,
 } from "@/lib/diagram/usecase/clipboard";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { usecaseToMiro } from "@/lib/diagram/miro/adapters/usecase";
 import { renderHtml, renderSvg } from "@/lib/diagram/usecase/export";
@@ -884,6 +885,29 @@ export function UsecaseView({ configVersion, embedded }: Props) {
     );
   }, [doc, layout]);
 
+  /**
+   * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
+   * file export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = renderSvg(doc, {
+      title: doc.title,
+      stickies: visibleStickies,
+    });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("diagram.usecase.rasterizeFailed"),
+      canvas: tStatic("diagram.usecase.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("diagram.usecase.imageCopied")
+        : tStatic("diagram.usecase.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -992,6 +1016,16 @@ export function UsecaseView({ configVersion, embedded }: Props) {
                   onClick={() => void copyForMiro()}
                 >
                   <ClipboardCopy className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.usecase.copyImageHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyImage()}
+                >
+                  <ImagePlus className="size-3.5" />
                 </Button>
               </Hint>
             </div>

@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Hash,
   Image,
+  ImagePlus,
   Maximize2,
   Pencil,
   Plus,
@@ -49,6 +50,7 @@ import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } 
 import { t as tStatic, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 import { clipboardShortcut, readClip, setClip, useHasClip } from "@/lib/diagram/clipboard";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { mindmapToMiro } from "@/lib/diagram/miro/adapters/mindmap";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
@@ -1258,6 +1260,32 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   }, [doc, miroLayout]);
 
   /**
+   * Copies the map as a PNG image (T-0725): the same export SVG the PNG file
+   * export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = toSvg(doc.roots, {
+      title: doc.title,
+      nodeWidth: doc.nodeWidth,
+      attrView,
+      showIds: doc.nodeIdsShown,
+      stickies: visibleStickies,
+    });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("mindmap.view.rasterizeFailed"),
+      canvas: tStatic("mindmap.view.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("mindmap.view.imageCopied")
+        : tStatic("mindmap.view.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies, attrView]);
+
+  /**
    * Where an export lands: the project's real `attachments/` folder, which
    * may carry a `NNNN-` sort prefix the slug never includes — resolved
    * rather than guessed as `projects/<slug>/`, or a second, wrong, empty
@@ -1651,6 +1679,17 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
               onClick={() => void copyForMiro()}
             >
               <ClipboardCopy className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label={t("mindmap.view.copyImageHint")} disabled={!doc}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              disabled={!doc}
+              onClick={() => void copyImage()}
+            >
+              <ImagePlus className="size-3.5" />
             </Button>
           </Hint>
           <Hint label={t("mindmap.view.deleteHint")} disabled={!path || aiRunning}>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { IfdamCanvas } from "@/components/diagram/ifdam/ifdam-canvas";
 import { EdgeEditor } from "@/components/diagram/ifdam/edge-editor";
 import { NodeEditor } from "@/components/diagram/ifdam/node-editor";
@@ -22,6 +22,7 @@ import {
   pasteIfdamNodes,
   type IfdamClip,
 } from "@/lib/diagram/ifdam/clipboard";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { ifdamToMiro } from "@/lib/diagram/miro/adapters/ifdam";
 import { renderHtml, renderSvg, type SectionCaptions } from "@/lib/diagram/ifdam/export";
@@ -890,6 +891,30 @@ export function IfdamView({ configVersion, embedded }: Props) {
     );
   }, [doc, layout]);
 
+  /**
+   * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
+   * file export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = renderSvg(doc, {
+      title: doc.title,
+      stickies: visibleStickies,
+      captions: captionsOf(tStatic),
+    });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("diagram.ifdam.rasterizeFailed"),
+      canvas: tStatic("diagram.ifdam.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("diagram.ifdam.imageCopied")
+        : tStatic("diagram.ifdam.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -998,6 +1023,16 @@ export function IfdamView({ configVersion, embedded }: Props) {
                   onClick={() => void copyForMiro()}
                 >
                   <ClipboardCopy className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.ifdam.copyImageHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyImage()}
+                >
+                  <ImagePlus className="size-3.5" />
                 </Button>
               </Hint>
             </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { MatrixCanvas } from "@/components/diagram/matrix2x2/matrix-canvas";
 import { ItemEditor } from "@/components/diagram/matrix2x2/item-editor";
 import { LabelsEditor } from "@/components/diagram/matrix2x2/labels-editor";
@@ -19,6 +19,7 @@ import {
 import { exportFileName } from "@/lib/diagram/export-frame";
 import { copyMatrixItems, pasteMatrixItems } from "@/lib/diagram/matrix2x2/clipboard";
 import { matrixToMiro } from "@/lib/diagram/miro/adapters/matrix2x2";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { renderHtml, renderSvg } from "@/lib/diagram/matrix2x2/export";
 import { layoutMatrix } from "@/lib/diagram/matrix2x2/layout";
@@ -817,6 +818,26 @@ export function MatrixView({ configVersion, embedded }: Props) {
     );
   }, [doc, miroLayout]);
 
+  /**
+   * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
+   * file export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = renderSvg(doc, { title: doc.title, stickies: visibleStickies });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("diagram.matrix.rasterizeFailed"),
+      canvas: tStatic("diagram.matrix.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("diagram.matrix.imageCopied")
+        : tStatic("diagram.matrix.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -906,6 +927,16 @@ export function MatrixView({ configVersion, embedded }: Props) {
                   onClick={() => void copyForMiro()}
                 >
                   <ClipboardCopy className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.matrix.copyImageHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyImage()}
+                >
+                  <ImagePlus className="size-3.5" />
                 </Button>
               </Hint>
             </div>

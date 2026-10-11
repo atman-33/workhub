@@ -23,6 +23,7 @@ export const HELP_SECTION_IDS = [
   "diagrams",
   "schedule",
   "mindmap",
+  "diagram-copy",
   "docs",
   "inbox",
   "persona",

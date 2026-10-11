@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { EdgeEditor } from "@/components/diagram/flow/edge-editor";
 import { FlowCanvas } from "@/components/diagram/flow/flow-canvas";
 import { LanesEditor } from "@/components/diagram/flow/lanes-editor";
@@ -47,6 +47,7 @@ import {
 } from "@/lib/diagram/flow/parse";
 import { allowAnyConnection, edgeKey, type EdgePort } from "@/lib/diagram/node-edge";
 import { svgToPngBase64 } from "@/lib/diagram/raster";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { flowToMiro } from "@/lib/diagram/miro/adapters/flow";
 import {
@@ -865,6 +866,30 @@ export function FlowView({ configVersion, embedded }: Props) {
     );
   }, [doc, layout]);
 
+  /**
+   * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
+   * file export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = renderSvg(doc, {
+      title: doc.title,
+      stickies: visibleStickies,
+      unassignedLabel: tStatic("diagram.flow.unassigned"),
+    });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("diagram.flow.rasterizeFailed"),
+      canvas: tStatic("diagram.flow.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("diagram.flow.imageCopied")
+        : tStatic("diagram.flow.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -954,6 +979,16 @@ export function FlowView({ configVersion, embedded }: Props) {
                   onClick={() => void copyForMiro()}
                 >
                   <ClipboardCopy className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.flow.copyImageHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyImage()}
+                >
+                  <ImagePlus className="size-3.5" />
                 </Button>
               </Hint>
             </div>

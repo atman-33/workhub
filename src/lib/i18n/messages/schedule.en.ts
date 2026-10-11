@@ -99,4 +99,9 @@ export const scheduleEn = {
   "schedule.view.movedTo": "Moved to {path}",
   "schedule.view.exportedTo": "Exported to {path}",
   "schedule.view.noProjectFolderError": 'No project folder found for "{project}"',
+  "schedule.view.rasterizeFailed": "The image could not be rendered.",
+  "schedule.view.noCanvasContext": "No canvas is available to draw the image.",
+  "schedule.view.copyImageHint": "Copy as an image (paste anywhere with Ctrl+V)",
+  "schedule.view.imageCopied": "Image copied — paste it with Ctrl+V",
+  "schedule.view.imageCopyFailed": "Could not copy the image: {error}",
 } as const;

@@ -273,6 +273,15 @@ Settings, voice history, and downloaded voice models are stored under \`~/.workh
 - **Delete moves the note to \`_ai/state/mindmap-trash/\`** rather than erasing it, so a mis-click costs a trip to the vault folder and nothing else.
 - Edits save automatically a moment after you stop; the note stays open and editable in Obsidian at the same time, and changes made there appear here immediately. If the file changed underneath an edit, the save is refused and the note reloads rather than overwriting the other change.`,
   },
+  "diagram-copy": {
+    short: "Copying diagrams",
+    title: "Copying diagrams to Miro and as images",
+    body: `Every diagram toolbar carries two clipboard buttons beside the HTML and PNG file exports — the exports write files, these put the diagram on the clipboard.
+
+- **Copy for Miro** (every kind except Schedule) puts the diagram on the clipboard as editable Miro shapes: nodes become shapes, lanes and frames become Miro frames, arrows become connectors bound to their boxes (so an arrow follows when its box is dragged), and quadrant items and sticky notes become independent stickers. Paste it on a Miro board with **Ctrl+V**. Left out on purpose: node memo lines, \`## Memo\` sections and \`task:\` links (they would clutter the board), and symbol variants with no mapping yet, which arrive as plain rectangles. Sticky notes paste as standalone stickers — moving a shape afterwards does not move them along.
+- **Copy image** (every kind including Schedule) puts a PNG of the diagram on the clipboard — the same drawing the PNG file export writes, with hidden stickies left out. Paste it anywhere with **Ctrl+V**: a document, a chat message, an image editor. On the Schedule this is the primary share form: it draws the window on screen, in the mode on screen (calendar or timeline).
+- Both buttons only write the clipboard — nothing is sent anywhere. Success says what to press next in the status line; a failure names its reason there instead.`,
+  },
   "docs": {
     short: "Reading shared Markdown",
     title: "Reading shared Markdown (Docs)",

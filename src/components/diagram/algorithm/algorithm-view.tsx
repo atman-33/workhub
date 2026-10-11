@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardCopy, Download, Image, Maximize2, Plus, StickyNote } from "lucide-react";
+import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { AlgorithmCanvas } from "@/components/diagram/algorithm/algorithm-canvas";
 import { EdgeEditor } from "@/components/diagram/algorithm/edge-editor";
 import { NodeEditor } from "@/components/diagram/algorithm/node-editor";
@@ -22,6 +22,7 @@ import {
   pasteAlgorithmNodes,
   type AlgorithmClip,
 } from "@/lib/diagram/algorithm/clipboard";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { copyToMiro } from "@/lib/diagram/miro/copyToMiro";
 import { algorithmToMiro } from "@/lib/diagram/miro/adapters/algorithm";
 import { renderHtml, renderSvg } from "@/lib/diagram/algorithm/export";
@@ -860,6 +861,26 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
     );
   }, [doc, layout]);
 
+  /**
+   * Copies the diagram as a PNG image (T-0725): the same export SVG the PNG
+   * file export rasterizes - with only the visible stickies - goes on the
+   * clipboard, ready to paste anywhere. Whether the Tauri WebView2 accepts
+   * the image flavour is unverified; a failure surfaces its reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc) return;
+    const svg = renderSvg(doc, { title: doc.title, stickies: visibleStickies });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("diagram.algorithm.rasterizeFailed"),
+      canvas: tStatic("diagram.algorithm.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("diagram.algorithm.imageCopied")
+        : tStatic("diagram.algorithm.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, visibleStickies]);
+
   // ---- render ---------------------------------------------------------------
 
   const stickyCount = doc?.stickies.length ?? 0;
@@ -968,6 +989,16 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
                   onClick={() => void copyForMiro()}
                 >
                   <ClipboardCopy className="size-3.5" />
+                </Button>
+              </Hint>
+              <Hint label={t("diagram.algorithm.copyImageHint")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => void copyImage()}
+                >
+                  <ImagePlus className="size-3.5" />
                 </Button>
               </Hint>
             </div>

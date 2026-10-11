@@ -101,4 +101,9 @@ export const scheduleJa: Partial<Record<MessageKey, string>> = {
   "schedule.view.movedTo": "{path} に移動しました",
   "schedule.view.exportedTo": "{path} にエクスポートしました",
   "schedule.view.noProjectFolderError": "「{project}」のプロジェクトフォルダが見つかりません",
+  "schedule.view.rasterizeFailed": "画像を生成できませんでした。",
+  "schedule.view.noCanvasContext": "画像を描画するキャンバスが使えません。",
+  "schedule.view.copyImageHint": "画像としてコピー（Ctrl+V でどこにでも貼り付け）",
+  "schedule.view.imageCopied": "画像をコピーしました。Ctrl+V で貼り付けてください",
+  "schedule.view.imageCopyFailed": "画像のコピーに失敗しました: {error}",
 };

@@ -6,6 +6,7 @@ import {
   Download,
   FolderPlus,
   GanttChart,
+  ImagePlus,
   Pencil,
   Plus,
   RefreshCw,
@@ -43,6 +44,8 @@ import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
 import { readLastVaultPath, readViewState, writeLastVaultPath, writeViewState } from "@/lib/view-state";
 import { exportScheduleHtml } from "@/lib/schedule/export";
+import { scheduleExportSvg } from "@/lib/schedule/export-image";
+import { copySvgAsPng } from "@/lib/diagram/copy-image";
 import { t as tStatic, useLocale, useT } from "@/lib/i18n";
 import {
   calendarDays,
@@ -715,6 +718,33 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
   }, [doc, window_, vaultPath, targetProject, config, locale, mode]);
 
   /**
+   * Copies the schedule as a PNG image (T-0725): the same export drawing the
+   * HTML file export writes — over the window on screen, in the mode on
+   * screen — goes on the clipboard, ready to paste anywhere. This is the
+   * schedule's primary share form (it has no Miro copy). Whether the Tauri
+   * WebView2 accepts the image flavour is unverified; a failure surfaces its
+   * reason.
+   */
+  const copyImage = useCallback(async () => {
+    if (!doc || !window_) return;
+    const svg = scheduleExportSvg(doc, {
+      ...window_,
+      today: toISO(new Date()),
+      locale,
+      mode,
+    });
+    const result = await copySvgAsPng(svg, {
+      rasterize: tStatic("schedule.view.rasterizeFailed"),
+      canvas: tStatic("schedule.view.noCanvasContext"),
+    });
+    setStatus(
+      result.ok
+        ? tStatic("schedule.view.imageCopied")
+        : tStatic("schedule.view.imageCopyFailed", { error: result.error }),
+    );
+  }, [doc, window_, locale, mode]);
+
+  /**
    * Keyboard editing: undo/redo, plus nudging the selected element.
    *
    * Dragging is for placing something roughly; the arrow keys are for the last
@@ -1175,6 +1205,17 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
               disabled={!doc}
             >
               <Download className="size-3.5" />
+            </Button>
+          </Hint>
+          <Hint label={t("schedule.view.copyImageHint")} disabled={!doc || !window_}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => void copyImage()}
+              disabled={!doc || !window_}
+            >
+              <ImagePlus className="size-3.5" />
             </Button>
           </Hint>
           <ScheduleSettings
