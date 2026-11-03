@@ -1539,7 +1539,7 @@ mod tests {
         assert!(res.path.is_none() && res.matches.is_empty());
         // A `..` climb that would land outside the vault resolves to nothing,
         // not to the outside file — the join guard refuses the escape.
-        let climb = format!("../../../{}/secret", outside.norm().replace('/', "/"));
+        let climb = format!("../../../{}/secret", outside.norm());
         let res = wikilink(&settings, &from, &climb);
         assert!(res.path.is_none() && res.matches.is_empty());
     }
