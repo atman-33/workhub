@@ -1,9 +1,9 @@
 ---
 name: sync-claude-user-plugins
-description: Copy commands, skills, and agents from the enabled harness-set plugins into the global OpenCode directories.
+description: Copy commands, skills, agents, and custom tools from the enabled harness-set plugins into the global OpenCode directories.
 ---
 
-Copy commands, skills, and agents from the harness set — `workhub`,
+Copy commands, skills, agents, and custom tools from the harness set — `workhub`,
 `engineering`, `obsidian`, `persona` (required + recommended) — to the extent
 each is enabled at **user scope**, into the global OpenCode directories.
 
@@ -13,6 +13,9 @@ on the next sync. Anything outside the harness set stays Claude-only: a skill
 syncs mechanically, but a plugin's hooks need a hand-written OpenCode port,
 which exists solely for these four. Agents are rewritten into OpenCode's frontmatter on the way
 (`mode: subagent`, a tools map, no `model:`).
+Custom tools are OpenCode-only (no Claude counterpart): they ship from the
+workhub plugin's `opencode-tools/` dir (`tools/*.ts` + `lib/*`) into the global
+`tools/` + `lib/` directories.
 
 Run:
 
@@ -20,7 +23,7 @@ Run:
 node .opencode/scripts/sync-claude-user-plugins.mjs
 ```
 
-To overwrite commands, skills, or agents that already exist in the OpenCode global directories, run:
+To overwrite commands, skills, agents, or tools that already exist in the OpenCode global directories, run:
 
 ```bash
 node .opencode/scripts/sync-claude-user-plugins.mjs --force
@@ -50,6 +53,7 @@ Notes:
 - Commands are copied into `<OPENCODE_GLOBAL_ROOT>/command`.
 - Skills are copied into `<OPENCODE_GLOBAL_ROOT>/skills`.
 - Agents are copied into `<OPENCODE_GLOBAL_ROOT>/agent`.
+- Custom tools are copied into `<OPENCODE_GLOBAL_ROOT>/tools`, with companion files into `<OPENCODE_GLOBAL_ROOT>/lib`.
 - Example for WSL targeting Windows-installed tools:
 
 ```bash

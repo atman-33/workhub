@@ -1,13 +1,14 @@
 // Type declarations for the .mjs core used by the TypeScript reminder plugin.
 // Kept in sync with the JSDoc/exports in claude-plugin-sync-core.mjs.
 
-export type ArtifactKind = "skill" | "command" | "agent";
+export type ArtifactKind = "skill" | "command" | "agent" | "tool";
 
 export interface ArtifactSource {
   kind: ArtifactKind;
   pluginRef: string;
   name: string;
   sourcePath: string;
+  libDir?: string;
 }
 
 export interface ManifestEntry {
@@ -66,7 +67,14 @@ export interface DiscoverUserScopeResult {
   skillsSources: ArtifactSource[];
   commandsSources: ArtifactSource[];
   agentsSources: ArtifactSource[];
-  targets: { skillsTarget: string; commandsTarget: string; agentsTarget: string };
+  toolsSources: ArtifactSource[];
+  targets: {
+    skillsTarget: string;
+    commandsTarget: string;
+    agentsTarget: string;
+    toolsTarget: string;
+    toolsLibTarget: string;
+  };
   skippedOutsideHarness: string[];
   warnings: string[];
 }
@@ -90,6 +98,11 @@ export const HARNESS_SYNC_PLUGINS: Set<string>;
 export function userSkillsTargetRoot(openCodeGlobalRoot: string): string;
 export function userCommandsTargetRoot(openCodeGlobalRoot: string): string;
 export function userAgentsTargetRoot(openCodeGlobalRoot: string): string;
+export function userToolsTargetRoot(openCodeGlobalRoot: string): string;
+export function userToolsLibTargetRoot(openCodeGlobalRoot: string): string;
+export const OPENCODE_TOOLS_PLUGIN_REF: string;
+export function pluginOpenCodeToolsDir(pluginRoot: string): string;
+export function pluginOpenCodeToolsLibDir(pluginRoot: string): string;
 export function userListCachePath(): string;
 export function userClaudeSettingsPath(): string;
 
@@ -187,7 +200,7 @@ export function detectUserScopeDrift(args: {
   manifestPath?: string;
   listOutput?: string;
   enabledRefs?: Set<string>;
-}): [DriftReportBucket, DriftReportBucket, DriftReportBucket, string[]];
+}): [DriftReportBucket, DriftReportBucket, DriftReportBucket, DriftReportBucket, string[]];
 
 export function detectFullDrift(args?: {
   cwd?: string;
@@ -213,6 +226,28 @@ export function writeAgentToTarget(
   targetDir: string,
   force: boolean,
 ): CopyResult;
+
+export function hashToolSource(toolPath: string, libDir?: string): string;
+
+export function hashToolTarget(
+  toolTargetPath: string,
+  libTargetDir: string,
+  libSourceDir?: string,
+): string;
+
+export function copyToolToTarget(
+  source: ArtifactSource,
+  toolsTargetDir: string,
+  libTargetDir: string,
+  force: boolean,
+): CopyResult;
+
+export function computeToolBucketDrift(args: {
+  sources: ArtifactSource[];
+  toolsTargetDir: string;
+  libTargetDir: string;
+  manifestBucket?: Record<string, ManifestEntry>;
+}): DriftItem[];
 
 export function claudeAgentToOpenCode(text: string): string;
 

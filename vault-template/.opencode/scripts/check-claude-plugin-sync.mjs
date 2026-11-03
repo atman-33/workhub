@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Diagnostic: print the full drift report between Claude Code plugin artifacts
-// and their OpenCode copies, both project scope and user scope.
+// (plus OpenCode-only custom tools) and their OpenCode copies, both project
+// scope and user scope.
 //
 // Exit codes:
 //   0 - no actionable drift (warnings about claude CLI absence are OK)
