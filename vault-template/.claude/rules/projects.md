@@ -22,6 +22,7 @@ assigns the number and fills in `templates/project/`'s placeholders.
 | `prd.md` | Product intent, scope, goals — the single source of product intent |
 | `roadmap.md` | Milestones and schedule |
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
+| `glossary.md` | Glossary — the canonical terms of the project (optional; scaffolded for every new project) |
 | `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
 | `diagrams/` | Diagram notes (`<name>.md`) of the newer kinds, project-wide; the Diagrams tab finds a diagram by its `type`, wherever it sits (see `diagrams.md`). Created with the first diagram |
@@ -32,8 +33,12 @@ assigns the number and fills in `templates/project/`'s placeholders.
 | `_index.md` | Machine-readable index, maintained by `/kb-index` |
 
 - **The project root is a closed set.** Only `README.md`, `prd.md`,
-  `roadmap.md`, `links.md` and `_index.md` live directly under the project
-  folder; every other note goes in a subfolder.
+  `roadmap.md`, `links.md`, `glossary.md` and `_index.md` live directly under
+  the project folder; every other note goes in a subfolder.
+- **Terms live in `glossary.md`.** It is the canonical source of the
+  project's terms: when code, UI, docs or a task disagree with it, fix the
+  other side. Optional — a project without terms to pin down leaves it empty —
+  but when terms exist they live at the root, never in `dev-notes/`.
 - **No standard home fits? Create a subfolder.** The layout is written for
   development projects; an operational one may hold correspondence,
    applications, statements. Make a folder for that kind of document (kebab-case,
@@ -44,8 +49,8 @@ assigns the number and fills in `templates/project/`'s placeholders.
   `backlog/B-NNN-<title>/` (spec, research, and the output of every task it
   spawned, linked from the task's `## Results`); an image, HTML or other
   binary a task produced → the same item folder, never `attachments/`; knowledge that serves the
-  whole project → `dev-notes/`; external links → `links.md` (links to the
-  console, never credentials or tokens).
+  whole project → `dev-notes/`; project-wide terms → `glossary.md`; external links → `links.md`
+  (links to the console, never credentials or tokens).
 - Folder names are kebab-case in any script (Japanese is fine); note file names may be Japanese.
 - **Backlog ≠ tasks.** `backlog/` holds units of work and what they produce;
   `tasks/` (vault root) is the app's executable task list. Details are in the
