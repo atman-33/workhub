@@ -16,7 +16,7 @@ indexes — and proposes tasks for actionable items.
 | Zone | Contents |
 |------|----------|
 | `inbox/` | raw input landing zone — the default ingest source |
-| `projects/NNNN-<name>/` | notes tied to an active project (deliverables, design notes) |
+| `projects/NNNN-<name>/` | notes tied to an active project — file into the owning backlog item's folder (`backlog/B-NNN-*/`, `NNN-` numbering), project-wide knowledge into `dev-notes/` |
 | `knowledge/<topic>/` | durable reference knowledge, organized by topic |
 | `archive/` | completed, historical, or inactive material |
 | `journal/` | daily/weekly notes — **never an ingest target or source** |
@@ -73,8 +73,9 @@ For each document to ingest:
 - Decide the full destination before writing anything:
   - target zone, target container subdirectory, canonical filename
 - Default to **subdirectory-first** placement for `projects/`, `knowledge/`, and `archive/`
-- Topic folders under `knowledge/` are lowercase kebab-case English (e.g.
-  `knowledge/infra/`, `knowledge/counseling/`, `knowledge/cooking/`)
+- Topic folders under `knowledge/` are lowercase kebab-case in any script —
+  Japanese is fine (e.g. `knowledge/infra/`, `knowledge/仕事関連/`) — per the
+  vault layout
 - Reuse an existing folder when there is a strong semantic match
 - If no suitable folder exists, propose a new subdirectory and **ask the user before creating it**
 - Do not place newly ingested files directly in a zone root unless the user
@@ -156,7 +157,7 @@ Append to `_ai/logs/kb-log.md`:
 ## Placement and Naming Rules
 
 ### Container Selection Rules
-- `projects/`: always place documents inside a project folder named after the project
+- `projects/`: always place documents inside a project folder named after the project, and inside it, into the owning backlog item's folder (`backlog/B-NNN-*/`) with `NNN-` numbering in tens (`NNN-T-XXXX-<title>.md` for task outputs) — never loose at the project root. Project-wide knowledge that belongs to no single item goes to `dev-notes/`. The closed root set (`README.md`, `prd.md`, `roadmap.md`, `links.md`, `glossary.md`, `_index.md`) is never an ingest target
 - `knowledge/`: place documents inside a topic folder; topic names describe a
   durable theme, not a one-off document title
 - `archive/`: preserve the source container name when practical; otherwise
@@ -179,7 +180,7 @@ Append to `_ai/logs/kb-log.md`:
   or when the note may already be referenced from elsewhere in the vault
 
 ### Confirmation Summary Format
-Before executing any move that creates a new folder or renames a file, present a short plan:
+Before executing any filing, present the full per-file plan and wait for approval — even when every move targets an existing folder with no rename or new task:
 
 ```text
 Proposed ingest plan
@@ -199,7 +200,7 @@ When processing multiple files (inbox/ or a folder):
 1. Collect all eligible files first, excluding `inbox/**/README.md`
 2. Classify all at once (cross-document decisions are better)
 3. Build one combined placement plan covering new folders, renames, and proposed tasks
-4. Ask once for approval if any new subdirectories, renames, or tasks are proposed
+4. Ask once for approval of the full plan, in every batch — no silent moves
 5. Process moves, links, and backlinks after approval
 6. Update indexes once at end (not per-file)
 7. Single batch log entry
@@ -380,6 +381,7 @@ frontmatter for existing tags/links.
 - **Never create** a new subdirectory or task without explicit user approval
   (sole exception: the single unattended review task described above)
 - **Ask user** before renaming files, unless the filename is clearly temporary or low-information
+- **Verify every destination** before moving: confirm the target folder exists; never move into an assumed path (T-0077)
 - **Ask user** when classification confidence is low or multiple containers are plausible
 - **Do not reorganize** existing notes into folders unless the user asks for cleanup
 - **Never modify** source document content beyond frontmatter and summary
