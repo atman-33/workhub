@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Synchronize the harness-set user-scope Claude plugins (workhub, engineering,
 // obsidian, persona) into the global OpenCode directories
-// (~/.config/opencode/{command,skills,agent}).
+// (~/.config/opencode/{command,skills,agent,tools,lib}).
 //
 // Only set members enabled in the user `~/.claude/settings.json`
 // `enabledPlugins` are synced — a plugin switched off in Claude Code
@@ -12,11 +12,15 @@
 // ignored: syncing them globally would leak one vault's choices onto the whole
 // machine.
 //
+// Custom tools are OpenCode-only (no Claude counterpart): they ship from the
+// workhub plugin's `opencode-tools/` dir (tools/*.ts + lib/*) into the global
+// `tools/` + `lib/` directories under the same enabled gating.
+//
 // Uses the shared core for discovery, hashing, and manifest handling so the drift
 // reminder plugin and the check script agree with this script.
 //
-// Manifest behaviour: same as sync-claude-skills.mjs but split across three buckets
-// (userScope-skills, userScope-commands, userScope-agents) within
+// Manifest behaviour: same as sync-claude-skills.mjs but split across four buckets
+// (userScope-skills, userScope-commands, userScope-agents, userScope-tools) within
 // <OPENCODE_GLOBAL_ROOT>/.claude-plugin-sync-manifest.json. Both are gitignored
 // (the user manifest lives outside the repo by default).
 import fs from "node:fs";
@@ -27,7 +31,10 @@ import {
   fetchUserScopePluginListOutput,
   discoverUserScopeSources,
   copySourceToTarget,
+  copyToolToTarget,
   hashArtifact,
+  hashToolSource,
+  hashToolTarget,
   loadManifest,
   writeManifest,
   manifestSet,
@@ -67,7 +74,8 @@ const discovery = discoverUserScopeSources({
 const userScopePlugins = discovery.skillsSources
   .map((s) => s.pluginRef)
   .concat(discovery.commandsSources.map((s) => s.pluginRef))
-  .concat(discovery.agentsSources.map((s) => s.pluginRef));
+  .concat(discovery.agentsSources.map((s) => s.pluginRef))
+  .concat(discovery.toolsSources.map((s) => s.pluginRef));
 const uniquePluginRefs = [...new Set(userScopePlugins)];
 
 if (uniquePluginRefs.length === 0 && discovery.warnings.length === 0) {
@@ -77,6 +85,10 @@ if (uniquePluginRefs.length === 0 && discovery.warnings.length === 0) {
 
 fs.mkdirSync(discovery.targets.skillsTarget, { recursive: true });
 fs.mkdirSync(discovery.targets.commandsTarget, { recursive: true });
+if (discovery.toolsSources.length > 0) {
+  fs.mkdirSync(discovery.targets.toolsTarget, { recursive: true });
+  fs.mkdirSync(discovery.targets.toolsLibTarget, { recursive: true });
+}
 
 const manifest = loadManifest(manifestPath) || { version: 1, buckets: {} };
 if (!manifest.buckets) manifest.buckets = {};
@@ -125,9 +137,51 @@ if (discovery.agentsSources.length > 0) {
   processBucket("userScope-agents", discovery.agentsSources, discovery.targets.agentsTarget);
 }
 
+// Custom tools land in the global tools directory plus the companion lib dir
+// (see copyToolToTarget in the core). Hashes cover the tool file and the
+// shipped lib files.
+function processToolsBucket(scopeKey, sources, toolsTargetDir, libTargetDir) {
+  for (const source of sources) {
+    const targetPath = path.join(toolsTargetDir, source.name);
+    const existedBefore = fs.existsSync(targetPath);
+
+    if (existedBefore && !FORCE) {
+      skipped.push(`${source.kind}:${source.name} (${source.pluginRef})`);
+      const bucket = manifest.buckets[scopeKey] || (manifest.buckets[scopeKey] = {});
+      if (!bucket[`${source.kind}/${source.name}`]) {
+        const sourceHash = hashToolSource(source.sourcePath, source.libDir);
+        const targetHash = hashToolTarget(targetPath, libTargetDir, source.libDir);
+        manifestSet({ manifest, scopeKey, source, sourceHash, targetHash, copiedAt: timestamp });
+        seeded.push(`${source.kind}:${source.name} (${source.pluginRef})`);
+      }
+      continue;
+    }
+
+    const result = copyToolToTarget(source, toolsTargetDir, libTargetDir, FORCE);
+    if (!result.copied) {
+      skipped.push(`${source.kind}:${source.name} (${source.pluginRef})`);
+      continue;
+    }
+    const sourceHash = hashToolSource(source.sourcePath, source.libDir);
+    const targetHash = hashToolTarget(targetPath, libTargetDir, source.libDir);
+    manifestSet({ manifest, scopeKey, source, sourceHash, targetHash, copiedAt: timestamp });
+    copied.push(`${source.kind}:${source.name} (${source.pluginRef})`);
+  }
+}
+
+if (discovery.toolsSources.length > 0) {
+  processToolsBucket(
+    "userScope-tools",
+    discovery.toolsSources,
+    discovery.targets.toolsTarget,
+    discovery.targets.toolsLibTarget,
+  );
+}
+
 pruneManifestMissingTargets(manifest, "userScope-skills", discovery.targets.skillsTarget);
 pruneManifestMissingTargets(manifest, "userScope-commands", discovery.targets.commandsTarget);
 pruneManifestMissingTargets(manifest, "userScope-agents", discovery.targets.agentsTarget);
+pruneManifestMissingTargets(manifest, "userScope-tools", discovery.targets.toolsTarget);
 
 const pruned = [];
 if (PRUNE) {
@@ -135,10 +189,13 @@ if (PRUNE) {
   // artifact (plugin disabled or removed), but the copy is still on disk.
   // Only entries the manifest knows are eligible; hand-written targets without
   // a manifest entry are never touched.
+  // Note: tool orphans remove the deployed tool file; companion lib files stay
+  // (they are shared and may serve hand-written tools).
   for (const [bucketKey, bucketSources, targetRoot] of [
     ["userScope-skills", discovery.skillsSources, discovery.targets.skillsTarget],
     ["userScope-commands", discovery.commandsSources, discovery.targets.commandsTarget],
     ["userScope-agents", discovery.agentsSources, discovery.targets.agentsTarget],
+    ["userScope-tools", discovery.toolsSources, discovery.targets.toolsTarget],
   ]) {
     const bucket = manifest.buckets[bucketKey] || {};
     const live = new Set(bucketSources.map((source) => `${source.kind}/${source.name}`));

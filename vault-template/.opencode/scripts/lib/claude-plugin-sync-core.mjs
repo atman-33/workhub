@@ -61,15 +61,16 @@ const ENV_USER_CACHE_TTL = "CLAUDE_PLUGIN_SYNC_CACHE_TTL_MS";
 // ---------------------------------------------------------------------------
 
 /**
- * @typedef {"skill" | "command"} ArtifactKind
+ * @typedef {"skill" | "command" | "agent" | "tool"} ArtifactKind
  */
 
 /**
  * @typedef {Object} ArtifactSource
  * @property {ArtifactKind} kind
  * @property {string} pluginRef   e.g. "engineering@workhub-marketplace"
- * @property {string} name        skill/command directory or file name
+ * @property {string} name        skill/command/agent/tool directory or file name
  * @property {string} sourcePath   absolute path on the source side
+ * @property {string} [libDir]   companion lib dir for tools (opencode-tools/lib)
  */
 
 /**
@@ -106,7 +107,7 @@ const ENV_USER_CACHE_TTL = "CLAUDE_PLUGIN_SYNC_CACHE_TTL_MS";
  * @typedef {Object} DriftReport
  * The report is scoped to a single (scope, kind) bucket.
  * @property {"project" | "user"} scope
- * @property {string} [bucket] // for user scope: "skills" | "commands"; for project scope: "skills"
+ * @property {string} [bucket] // for user scope: "skills" | "commands" | "agents" | "tools"; for project scope: "skills"
  * @property {DriftItem[]} items
  * @property {string[]} warnings
  */
@@ -114,7 +115,7 @@ const ENV_USER_CACHE_TTL = "CLAUDE_PLUGIN_SYNC_CACHE_TTL_MS";
 /**
  * @typedef {Object} FullDriftReport
  * @property {DriftReport} projectScope
- * @property {DriftReport[]} userScope // one per bucket (skills, commands)
+ * @property {DriftReport[]} userScope // one per bucket (skills, commands, agents, tools)
  * @property {string[]} warnings
  */
 
@@ -187,6 +188,29 @@ export function userCommandsTargetRoot(openCodeGlobalRoot) {
 /** Global OpenCode agent directory, mirroring the vault-local `.opencode/agent/`. */
 export function userAgentsTargetRoot(openCodeGlobalRoot) {
   return path.join(openCodeGlobalRoot, "agent");
+}
+
+/** Global OpenCode custom-tool directory (`~/.config/opencode/tools/`). */
+export function userToolsTargetRoot(openCodeGlobalRoot) {
+  return path.join(openCodeGlobalRoot, "tools");
+}
+
+/** Companion lib dir deployed next to custom tools (`~/.config/opencode/lib/`). */
+export function userToolsLibTargetRoot(openCodeGlobalRoot) {
+  return path.join(openCodeGlobalRoot, "lib");
+}
+
+/** pluginRef carrying OpenCode custom tools (OpenCode-only, no Claude counterpart). */
+export const OPENCODE_TOOLS_PLUGIN_REF = "workhub@workhub-marketplace";
+
+/** Source dir of custom tools inside a plugin checkout (`opencode-tools/tools`). */
+export function pluginOpenCodeToolsDir(pluginRoot) {
+  return path.join(pluginRoot, "opencode-tools", "tools");
+}
+
+/** Companion lib dir shipped next to custom tools (`opencode-tools/lib`). */
+export function pluginOpenCodeToolsLibDir(pluginRoot) {
+  return path.join(pluginRoot, "opencode-tools", "lib");
 }
 
 export function userListCachePath() {
@@ -480,8 +504,13 @@ function persistUserScopePluginList(output) {
 
 /**
  * Enumerate source artifacts for user-scope plugins. Returns sources split by
- * bucket (skills / commands) plus warnings. Both buckets target the global
- * OpenCode directories under openCodeGlobalRoot.
+ * bucket (skills / commands / agents / tools) plus warnings. All buckets
+ * target the global OpenCode directories under openCodeGlobalRoot.
+ *
+ * Custom tools are OpenCode-only (no Claude counterpart): they ship from the
+ * workhub plugin's `opencode-tools/` dir and ride the same enabled gating as
+ * the harness set. The companion `opencode-tools/lib/` dir deploys next to
+ * them (`~/.config/opencode/lib/`).
  *
  * Pass `listOutput` to skip the claude CLI call (used by sync scripts that have
  * already fetched the list and want deterministic behavior).
@@ -497,6 +526,8 @@ export function discoverUserScopeSources({
   const skillsTarget = userSkillsTargetRoot(ocRoot);
   const commandsTarget = userCommandsTargetRoot(ocRoot);
   const agentsTarget = userAgentsTargetRoot(ocRoot);
+  const toolsTarget = userToolsTargetRoot(ocRoot);
+  const toolsLibTarget = userToolsLibTargetRoot(ocRoot);
 
   const { plugins, warnings } = parseUserScopePluginList(listOutput);
   const userScopePlugins = plugins.filter((p) => p.scope === "user");
@@ -515,6 +546,7 @@ export function discoverUserScopeSources({
   const skillsSources = [];
   const commandsSources = [];
   const agentsSources = [];
+  const toolsSources = [];
   const missing = [];
 
   for (const plugin of userScopePlugins) {
@@ -570,6 +602,25 @@ export function discoverUserScopeSources({
         });
       }
     }
+    // custom tools (files in opencode-tools/tools/ root; workhub plugin only —
+    // the only harness member shipping OpenCode-only tools). The companion
+    // opencode-tools/lib/ dir deploys alongside them.
+    if (pluginRef === OPENCODE_TOOLS_PLUGIN_REF) {
+      const toolsDir = pluginOpenCodeToolsDir(pluginRoot);
+      if (existsSync(toolsDir)) {
+        const libDir = pluginOpenCodeToolsLibDir(pluginRoot);
+        for (const name of listChildNames(toolsDir, false)) {
+          if (!name.endsWith(".ts")) continue;
+          toolsSources.push({
+            kind: "tool",
+            pluginRef,
+            name,
+            sourcePath: path.join(toolsDir, name),
+            libDir: existsSync(libDir) ? libDir : undefined,
+          });
+        }
+      }
+    }
   }
 
   if (skippedDisabled.length > 0) {
@@ -582,7 +633,8 @@ export function discoverUserScopeSources({
     skillsSources,
     commandsSources,
     agentsSources,
-    targets: { skillsTarget, commandsTarget, agentsTarget },
+    toolsSources,
+    targets: { skillsTarget, commandsTarget, agentsTarget, toolsTarget, toolsLibTarget },
     skippedOutsideHarness: skippedOutsideHarness.sort(),
     warnings: warnings.concat(missing.map((m) => `Missing plugin root: ${m}`)),
   };
@@ -979,7 +1031,7 @@ export function detectProjectScopeAgentDrift({ cwd, manifestPath }) {
 }
 
 /**
- * Drift for user scope (skills + commands + agents, targets under ~/.config/opencode).
+ * Drift for user scope (skills + commands + agents + tools, targets under ~/.config/opencode).
  */
 export function detectUserScopeDrift({
   claudePluginsRoot,
@@ -1002,6 +1054,7 @@ export function detectUserScopeDrift({
   const skillsBucket = manifest.buckets?.["userScope-skills"] || {};
   const commandsBucket = manifest.buckets?.["userScope-commands"] || {};
   const agentsBucket = manifest.buckets?.["userScope-agents"] || {};
+  const toolsBucket = manifest.buckets?.["userScope-tools"] || {};
 
   const skillsItems = computeBucketDrift({
     sources: discovery.skillsSources,
@@ -1019,6 +1072,13 @@ export function detectUserScopeDrift({
     sources: discovery.agentsSources,
     targetDir: discovery.targets.agentsTarget,
     manifestBucket: agentsBucket,
+  });
+
+  const toolsItems = computeToolBucketDrift({
+    sources: discovery.toolsSources,
+    toolsTargetDir: discovery.targets.toolsTarget,
+    libTargetDir: discovery.targets.toolsLibTarget,
+    manifestBucket: toolsBucket,
   });
 
   return [
@@ -1041,6 +1101,13 @@ export function detectUserScopeDrift({
       bucket: "agents",
       targetRoot: discovery.targets.agentsTarget,
       items: agentsItems,
+      warnings: [],
+    },
+    {
+      scope: "user",
+      bucket: "tools",
+      targetRoot: discovery.targets.toolsTarget,
+      items: toolsItems,
       warnings: [],
     },
     discovery.warnings,
@@ -1090,7 +1157,7 @@ export async function detectFullDrift({
     enabledRefs: userEnabledRefs,
   });
   const userWarnings = userResult[userResult.length - 1];
-  const userScopeBuckets = userResult.slice(0, 3);
+  const userScopeBuckets = userResult.slice(0, 4);
 
   return {
     projectScope,
@@ -1155,6 +1222,7 @@ export function buildReminderXml(report) {
     commands: "~/.config/opencode/command",
     agents: "~/.config/opencode/agent",
     skills: "~/.config/opencode/skills",
+    tools: "~/.config/opencode/tools (+ lib/)",
   };
   for (const bucket of report.userScope) {
     const dir = userTargetDir[bucket.bucket] ?? "~/.config/opencode/skills";
@@ -1174,7 +1242,7 @@ export function buildReminderXml(report) {
   lines.push("## Recommended action");
   lines.push("Run the harness commands to sync, then re-confirm:");
   lines.push("  - /sync-claude-skills        (vault-local skills + agents)");
-  lines.push("  - /sync-claude-user-plugins  (harness set, enabled only: commands + skills + agents)");
+  lines.push("  - /sync-claude-user-plugins  (harness set, enabled only: commands + skills + agents + tools)");
   lines.push("Add --force to overwrite stale/diverged targets. Note: --force will overwrite local hand-edits.");
   lines.push("");
   lines.push("Or run the diagnostic for full detail:");
@@ -1294,6 +1362,200 @@ export function copySourceToTarget(source, targetDir, force) {
     copyFileSync(source.sourcePath, targetPath);
   }
   return { copied: true };
+}
+
+// ---------------------------------------------------------------------------
+// Custom tools (OpenCode-only, no Claude counterpart)
+// ---------------------------------------------------------------------------
+//
+// A tool is one `.ts` file plus an optional companion lib dir. The source hash
+// therefore covers the tool file and the lib dir; the target hash covers the
+// deployed tool file and the deployed copies of the shipped lib files. Files
+// the user keeps in the global `lib/` for other purposes never count: only
+// relative names present in the source lib are compared on the target side.
+
+function listToolLibRelNames(libDir) {
+  const rels = [];
+  const stack = [""];
+  while (stack.length) {
+    const rel = stack.pop();
+    const abs = rel ? path.join(libDir, rel) : libDir;
+    let entries;
+    try {
+      entries = readdirSync(abs, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) stack.push(entryRel);
+      else if (entry.isFile()) rels.push(entryRel);
+    }
+  }
+  return rels.sort();
+}
+
+function hashMappedLibFile(absPath) {
+  try {
+    return hashFile(absPath);
+  } catch {
+    return "<missing>";
+  }
+}
+
+/** Source-side hash: tool file + shipped lib dir (or "no-lib" when absent). */
+export function hashToolSource(toolPath, libDir) {
+  const fileHash = hashFile(toolPath);
+  const libHash = libDir && existsSync(libDir) ? hashDirectory(libDir) : "no-lib";
+  return `${fileHash}+${libHash}`;
+}
+
+/**
+ * Target-side hash: deployed tool file + deployed copies of the shipped lib
+ * files (by relative name, so unrelated files in the global lib/ are ignored).
+ */
+export function hashToolTarget(toolTargetPath, libTargetDir, libSourceDir) {
+  const fileHash = hashMappedLibFile(toolTargetPath);
+  if (!libSourceDir || !existsSync(libSourceDir)) return `${fileHash}+no-lib`;
+  const parts = [];
+  for (const rel of listToolLibRelNames(libSourceDir)) {
+    parts.push(`${rel}=${hashMappedLibFile(path.join(libTargetDir, rel))}`);
+  }
+  const h = crypto.createHash("sha1");
+  h.update(parts.join("\0"));
+  return `${fileHash}+${h.digest("hex")}`;
+}
+
+/**
+ * Copy a custom tool plus its companion lib files. Same contract as
+ * copySourceToTarget: an existing tool target is left alone unless `force`,
+ * so a hand-edited tool is not silently replaced. Companion lib files follow
+ * the tool: they are written when the tool is copied and left alone otherwise.
+ */
+export function copyToolToTarget(source, toolsTargetDir, libTargetDir, force) {
+  const targetPath = path.join(toolsTargetDir, source.name);
+  if (existsSync(targetPath) && !force) {
+    return { copied: false, reason: "exists" };
+  }
+  mkdirSync(toolsTargetDir, { recursive: true });
+  copyFileSync(source.sourcePath, targetPath);
+  if (source.libDir && existsSync(source.libDir)) {
+    for (const rel of listToolLibRelNames(source.libDir)) {
+      const from = path.join(source.libDir, rel);
+      const to = path.join(libTargetDir, rel);
+      mkdirSync(path.join(to, ".."), { recursive: true });
+      copyFileSync(from, to);
+    }
+  }
+  return { copied: true };
+}
+
+/**
+ * Drift for one tools bucket. Mirrors computeBucketDrift, but each entry's
+ * hash covers the tool file plus its companion lib files (see hashToolSource /
+ * hashToolTarget). Manifest bucket key: "userScope-tools", entry key `tool/<name>`.
+ */
+export function computeToolBucketDrift({ sources, toolsTargetDir, libTargetDir, manifestBucket }) {
+  const items = [];
+  const manifest = manifestBucket || {};
+  const sourceByName = new Map(sources.map((s) => [s.name, s]));
+  const seen = new Set();
+
+  for (const key of Object.keys(manifest)) {
+    const entry = manifest[key];
+    const source = sourceByName.get(entry.name);
+    const targetPath = path.join(toolsTargetDir, entry.name);
+    const targetExists = existsSync(targetPath);
+
+    if (!source) {
+      if (targetExists) {
+        items.push({
+          kind: entry.kind,
+          pluginRef: entry.pluginRef,
+          name: entry.name,
+          status: "orphan",
+          note: "Source artifact no longer present (plugin may be disabled/removed)",
+        });
+      }
+      seen.add(entry.name);
+      continue;
+    }
+
+    if (!targetExists) {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "missing",
+        note: "Target deleted on disk since last sync",
+      });
+      seen.add(source.name);
+      continue;
+    }
+
+    const currentSourceHash = hashToolSource(source.sourcePath, source.libDir);
+    const currentTargetHash = hashToolTarget(targetPath, libTargetDir, source.libDir);
+    const sourceChanged = currentSourceHash !== entry.sourceHash;
+    const targetChanged = currentTargetHash !== entry.targetHash;
+
+    if (sourceChanged && targetChanged && currentSourceHash !== currentTargetHash) {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "diverged",
+        note: "Both source and target changed since last sync; --force will overwrite hand-edits",
+      });
+    } else if (sourceChanged) {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "stale-source",
+        note: "Source content changed since last sync (re-sync with --force)",
+      });
+    } else if (targetChanged) {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "silent-user-edit",
+        note: "Target edited locally; source unchanged (no re-sync needed)",
+      });
+    } else {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "synced",
+      });
+    }
+    seen.add(source.name);
+  }
+
+  for (const source of sources) {
+    if (seen.has(source.name)) continue;
+    const targetPath = path.join(toolsTargetDir, source.name);
+    if (!existsSync(targetPath)) {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "missing",
+        note: "Not yet synced (no manifest entry; copy available from source)",
+      });
+    } else {
+      items.push({
+        kind: source.kind,
+        pluginRef: source.pluginRef,
+        name: source.name,
+        status: "seeded",
+        note: "Target predates manifest; sync --force (or a copy now) will register it",
+      });
+    }
+  }
+
+  return items;
 }
 
 // ---------------------------------------------------------------------------

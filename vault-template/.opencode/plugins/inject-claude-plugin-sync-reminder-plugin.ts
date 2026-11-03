@@ -6,8 +6,9 @@ import {
 } from "../scripts/lib/claude-plugin-sync-core.mjs";
 
 // Injects a one-shot reminder block at the start of the first chat message of
-// each MAIN session when Claude Code plugin artifacts (skills/commands) are out
-// of sync with their OpenCode copies. Sub-agent (task tool) sessions are skipped:
+// each MAIN session when Claude Code plugin artifacts (skills/commands/agents,
+// plus OpenCode-only custom tools) are out of sync with their OpenCode copies.
+// Sub-agent (task tool) sessions are skipped:
 // they carry a parentID on their Session record, while the main session does not.
 //
 // Drift categories reported:

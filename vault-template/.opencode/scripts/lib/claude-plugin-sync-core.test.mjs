@@ -1,10 +1,20 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { hashArtifact, hashDirectory, hashFile, workhubPluginRoot } from "./claude-plugin-sync-core.mjs";
+import {
+  computeToolBucketDrift,
+  copyToolToTarget,
+  discoverUserScopeSources,
+  hashArtifact,
+  hashDirectory,
+  hashFile,
+  hashToolSource,
+  hashToolTarget,
+  workhubPluginRoot,
+} from "./claude-plugin-sync-core.mjs";
 
 /**
  * Drift detection hashes a synced artifact to decide whether the target was
@@ -143,6 +153,129 @@ describe("hashArtifact", () => {
 
   it("returns an empty string for a path that does not exist", () => {
     expect(hashArtifact(join(root, "absent"))).toBe("");
+  });
+});
+
+describe("custom tools", () => {
+  let pluginRoot = "";
+  let ocRoot = "";
+
+  const listOutput = [
+    "> workhub@workhub-marketplace",
+    "  Version: 0.50.10",
+    "  Scope: user",
+    "  Status: enabled",
+    "",
+  ].join("\n");
+
+  function writeTool(rel, content) {
+    const abs = join(pluginRoot, "workhub-marketplace", "plugins", "workhub", "opencode-tools", rel);
+    mkdirSync(join(abs, ".."), { recursive: true });
+    writeFileSync(abs, content, "utf8");
+    return abs;
+  }
+
+  beforeEach(() => {
+    pluginRoot = mkdtempSync(join(tmpdir(), "workhub-plugin-root-"));
+    ocRoot = mkdtempSync(join(tmpdir(), "workhub-oc-root-"));
+    writeTool("tools/show-image.ts", "export default 1;\n");
+    writeTool("lib/img-daemon.ts", "daemon 1\n");
+  });
+
+  afterEach(() => {
+    rmSync(pluginRoot, { recursive: true, force: true });
+    rmSync(ocRoot, { recursive: true, force: true });
+  });
+
+  function discover() {
+    return discoverUserScopeSources({
+      claudePluginsRoot: pluginRoot,
+      openCodeGlobalRoot: ocRoot,
+      listOutput,
+      enabledRefs: new Set(["workhub@workhub-marketplace"]),
+    });
+  }
+
+  it("discovers tools from the workhub plugin only", () => {
+    const { toolsSources, targets } = discover();
+    expect(toolsSources).toHaveLength(1);
+    expect(toolsSources[0]).toMatchObject({ kind: "tool", name: "show-image.ts" });
+    expect(targets.toolsTarget.endsWith("tools")).toBe(true);
+    expect(targets.toolsLibTarget.endsWith("lib")).toBe(true);
+  });
+
+  it("copies the tool file plus companion lib files", () => {
+    const { toolsSources, targets } = discover();
+    const result = copyToolToTarget(toolsSources[0], targets.toolsTarget, targets.toolsLibTarget, false);
+    expect(result.copied).toBe(true);
+    expect(readFileSync(join(targets.toolsTarget, "show-image.ts"), "utf8")).toBe("export default 1;\n");
+    expect(readFileSync(join(targets.toolsLibTarget, "img-daemon.ts"), "utf8")).toBe("daemon 1\n");
+    // Second copy without --force leaves the target alone (hand-edit safe).
+    expect(copyToolToTarget(toolsSources[0], targets.toolsTarget, targets.toolsLibTarget, false)).toEqual({
+      copied: false,
+      reason: "exists",
+    });
+  });
+
+  it("hashes lib companions but ignores unrelated files in the global lib/", () => {
+    const { toolsSources, targets } = discover();
+    copyToolToTarget(toolsSources[0], targets.toolsTarget, targets.toolsLibTarget, false);
+    const before = hashToolTarget(
+      join(targets.toolsTarget, "show-image.ts"),
+      targets.toolsLibTarget,
+      toolsSources[0].libDir,
+    );
+    writeFileSync(join(targets.toolsLibTarget, "other-tool-helper.ts"), "unrelated\n");
+    expect(
+      hashToolTarget(join(targets.toolsTarget, "show-image.ts"), targets.toolsLibTarget, toolsSources[0].libDir),
+    ).toBe(before);
+    // A shipped companion change moves the source hash.
+    const sourceBefore = hashToolSource(toolsSources[0].sourcePath, toolsSources[0].libDir);
+    writeTool("lib/img-daemon.ts", "daemon 2\n");
+    expect(hashToolSource(toolsSources[0].sourcePath, toolsSources[0].libDir)).not.toBe(sourceBefore);
+  });
+
+  it("reports synced then stale-source through computeToolBucketDrift", () => {
+    const { toolsSources, targets } = discover();
+    expect(
+      computeToolBucketDrift({
+        sources: toolsSources,
+        toolsTargetDir: targets.toolsTarget,
+        libTargetDir: targets.toolsLibTarget,
+        manifestBucket: {},
+      })[0].status,
+    ).toBe("missing");
+    copyToolToTarget(toolsSources[0], targets.toolsTarget, targets.toolsLibTarget, false);
+    const source = toolsSources[0];
+    const manifestBucket = {
+      [`${source.kind}/${source.name}`]: {
+        pluginRef: source.pluginRef,
+        kind: source.kind,
+        name: source.name,
+        sourceHash: hashToolSource(source.sourcePath, source.libDir),
+        targetHash: hashToolTarget(
+          join(targets.toolsTarget, source.name),
+          targets.toolsLibTarget,
+          source.libDir,
+        ),
+        copiedAt: "2026-11-03T00:00:00.000Z",
+      },
+    };
+    const synced = computeToolBucketDrift({
+      sources: toolsSources,
+      toolsTargetDir: targets.toolsTarget,
+      libTargetDir: targets.toolsLibTarget,
+      manifestBucket,
+    });
+    expect(synced[0].status).toBe("synced");
+    writeTool("lib/img-daemon.ts", "daemon 2\n");
+    const stale = computeToolBucketDrift({
+      sources: toolsSources,
+      toolsTargetDir: targets.toolsTarget,
+      libTargetDir: targets.toolsLibTarget,
+      manifestBucket,
+    });
+    expect(stale[0].status).toBe("stale-source");
   });
 });
 
