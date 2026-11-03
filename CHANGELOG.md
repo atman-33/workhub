@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.171.1 (2026-11-03)
+
+- **Mermaid diagrams in the Docs tab now follow the color theme** (T-1099). The renderer was pinned to the `dark` theme left over from the dark-only era, so light mode drew light text on a light surface. Diagrams now initialize with `dark` or `default` from the resolved theme and re-render when it flips.
+
 ## 0.171.0 (2026-10-30)
 
 - **Diagram files now render as diagrams in the Docs tab** (T-1000, stacked on T-0998). A Markdown file whose frontmatter `type` names a diagram kind opens in the same editor view the Projects Backlog and Documents panes embed — frozen read-only with the side panel closed and no prompt-copy button, so the tab stays read-only and every other file reads exactly as before. The "AI edit running" hint stays hidden, since no agent holds the file.
