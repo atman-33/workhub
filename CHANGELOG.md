@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.171.2 (2026-11-03)
+
+- **Project glossaries have a formal home** (T-1043). `glossary.md` at the project root is now the documented canonical source of a project's terms, and every new project is scaffolded with one. The Projects tab scan accepts it without findings, and existing root glossaries need no move.
+
 ## 0.171.1 (2026-11-03)
 
 - **Mermaid diagrams in the Docs tab now follow the color theme** (T-1099). The renderer was pinned to the `dark` theme left over from the dark-only era, so light mode drew light text on a light surface. Diagrams now initialize with `dark` or `default` from the resolved theme and re-render when it flips.

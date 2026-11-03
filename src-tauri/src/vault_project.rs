@@ -1349,6 +1349,46 @@ mod tests {
         assert!(!p.folders.iter().find(|f| f.name == "pbl").unwrap().known);
     }
 
+    /// A root-level `glossary.md` is part of the documented layout (T-1043):
+    /// optional, so its absence is never reported, and its presence is
+    /// neither a loose note nor an unknown folder.
+    #[test]
+    fn glossary_at_the_root_is_accepted_and_optional() {
+        let vault = temp_vault("glossary");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\nstatus: active\n---\n\n# Demo\n",
+        );
+        write(
+            dir.join("glossary.md"),
+            "---\ntitle: Demo — Glossary\ntype: note\nproject: demo\n---\n\n# Demo — Glossary\n",
+        );
+
+        let projects = list_projects(&vault, false).unwrap();
+        let p = &projects[0];
+        assert!(!p
+            .issues
+            .iter()
+            .any(|i| i.kind == "loose-task-note" || i.kind == "unknown-folder"));
+        assert!(!p.issues.iter().any(|i| i.target == "glossary.md"));
+
+        fs::remove_dir_all(&vault).ok();
+
+        // Optional: a project without one is not told it is missing.
+        let vault = temp_vault("glossary-absent");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\nstatus: active\n---\n\n# Demo\n",
+        );
+        let projects = list_projects(&vault, false).unwrap();
+        let p = &projects[0];
+        assert!(!p.issues.iter().any(|i| i.target == "glossary.md"));
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
     /// A backlog item is a folder of notes (folder-first since T-0321), and
     /// each folder counts as one item. A folder missing the entry note that
     /// names it has no frontmatter for `_backlog.base` to read, so it is

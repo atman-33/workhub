@@ -33,12 +33,13 @@ Link to the full spec in [`prd.md`](prd.md).
 | [`prd.md`](prd.md) | Product intent, scope, goals (single source) |
 | [`roadmap.md`](roadmap.md) | Milestones and schedule |
 | [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
+| [`glossary.md`](glossary.md) | Glossary — the canonical terms of the project (optional) |
 | `backlog/` | One note or folder per unit of work — its spec, its research, its task outputs. See the Base view below |
 | `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions |
 | `shared/` | Team knowledge bases outside the vault — where each one is and how it is organised |
 | `attachments/` | Manually pasted material that belongs to the project as a whole, not to any backlog item. Anything an item or task produced goes in that item's folder, not here |
 
-Nothing else belongs at the project root. If a document fits none of the
+Nothing else belongs at the project root besides these files. If a document fits none of the
 folders above, add a folder for it (kebab-case, in any script — Japanese is
 fine) and list it in this
 table — don't leave the note loose at the root.
