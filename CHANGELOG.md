@@ -3,6 +3,7 @@
 ## 0.171.2 (2026-11-03)
 
 - **Project glossaries have a formal home** (T-1043). `glossary.md` at the project root is now the documented canonical source of a project's terms, and every new project is scaffolded with one. The Projects tab scan accepts it without findings, and existing root glossaries need no move.
+- **Custom opencode tools now sync into the global dirs** (T-1103). The machine-local show-image tool moved under workhub management: a single source in `plugins/workhub/opencode-tools/`, distributed by the user-scope sync into the global `tools/` and `lib/` folders.
 
 ## 0.171.1 (2026-11-03)
 
