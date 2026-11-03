@@ -10,6 +10,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { calloutKind, colonBlocksToCallouts, rehypeCallouts } from "@/lib/callouts";
 import { rehypeLineNumbers } from "@/lib/docs/rehype-line";
 import { useT } from "@/lib/i18n";
+import { THEME_KEY } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { DocsFigure } from "@/types";
 import { CalloutBody, CalloutBox, CalloutTitle } from "./callout";
@@ -54,31 +55,88 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Loads mermaid and configures it once per session.
+ * Loads mermaid and configures it for the current color theme (T-1099).
  *
  * `initialize` is global state, so calling it per block only repeated the same
- * write. The promise is memoised so concurrent blocks share one import.
+ * write. The promise is memoised so concurrent blocks share one import, and
+ * re-initialized when the theme flips between `dark` and `default`.
  */
 let mermaidReady: Promise<typeof import("mermaid").default> | null = null;
-function loadMermaid() {
-  mermaidReady ??= import("mermaid").then(({ default: mermaid }) => {
-    mermaid.initialize({
-      startOnLoad: false,
-      // The app renders dark-only (see index.html), so the theme is fixed
-      // rather than observed.
-      theme: "dark",
-      securityLevel: "strict",
-      // Without this, a diagram that fails to parse is not just an error we
-      // catch: mermaid draws its "Syntax error in text" bomb into the scratch
-      // element it appended to <body> and only then throws, leaving that
-      // element behind. They accumulate, take full-width layout space, and
-      // cover the app's own tab bar (T-0264). With it, mermaid removes the
-      // scratch element before throwing and we render the fallback ourselves.
-      suppressErrorRendering: true,
-    });
-    return mermaid;
+let mermaidTheme: string | null = null;
+
+/** The mermaid theme for the app theme: dark UI gets `dark`, light gets `default`. */
+export function mermaidThemeFor(isDark: boolean): "dark" | "default" {
+  return isDark ? "dark" : "default";
+}
+
+function configureMermaid(mermaid: typeof import("mermaid").default, theme: string) {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: theme as "dark" | "default",
+    securityLevel: "strict",
+    // Without this, a diagram that fails to parse is not just an error we
+    // catch: mermaid draws its "Syntax error in text" bomb into the scratch
+    // element it appended to <body> and only then throws, leaving that
+    // element behind. They accumulate, take full-width layout space, and
+    // cover the app's own tab bar (T-0264). With it, mermaid removes the
+    // scratch element before throwing and we render the fallback ourselves.
+    suppressErrorRendering: true,
   });
+}
+
+function loadMermaid(isDark: boolean) {
+  const theme = mermaidThemeFor(isDark);
+  if (!mermaidReady) {
+    mermaidReady = import("mermaid").then(({ default: mermaid }) => {
+      configureMermaid(mermaid, theme);
+      mermaidTheme = theme;
+      return mermaid;
+    });
+    return mermaidReady;
+  }
+  if (mermaidTheme !== theme) {
+    return mermaidReady.then((mermaid) => {
+      configureMermaid(mermaid, theme);
+      mermaidTheme = theme;
+      return mermaid;
+    });
+  }
   return mermaidReady;
+}
+
+/** Reads the resolved theme from the `dark` class `applyTheme` paints. */
+function readIsDark(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.documentElement.classList.contains("dark");
+}
+
+/**
+ * Observes the resolved theme (T-1099): the `dark` class on
+ * `documentElement`, kept current by `initTheme` across windows and OS flips.
+ */
+function useIsDark(): boolean {
+  const [isDark, setIsDark] = React.useState(readIsDark);
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const update = () => setIsDark(root.classList.contains("dark"));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === THEME_KEY) update();
+    };
+    window.addEventListener("storage", onStorage);
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const onMedia = () => update();
+    query.addEventListener("change", onMedia);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", onStorage);
+      query.removeEventListener("change", onMedia);
+    };
+  }, []);
+  return isDark;
 }
 
 /**
@@ -163,12 +221,14 @@ function MermaidBlock({
   const [svg, setSvg] = React.useState("");
   const [failed, setFailed] = React.useState(false);
   const id = `mermaid-${React.useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const isDark = useIsDark();
 
   React.useEffect(() => {
     let live = true;
+    setFailed(false);
     void (async () => {
       try {
-        const mermaid = await loadMermaid();
+        const mermaid = await loadMermaid(isDark);
         const rendered = await mermaid.render(id, code);
         if (live) setSvg(rendered.svg);
       } catch {
@@ -181,7 +241,7 @@ function MermaidBlock({
       live = false;
       removeMermaidScratch(id);
     };
-  }, [code, id]);
+  }, [code, id, isDark]);
 
   if (failed) return <CodeBlock>{code}</CodeBlock>;
   if (!svg) {

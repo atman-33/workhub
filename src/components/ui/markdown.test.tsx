@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Markdown } from "./markdown";
+import { Markdown, mermaidThemeFor } from "./markdown";
 
 function render(markdown: string, allowHtml = true): string {
   return renderToStaticMarkup(<Markdown allowHtml={allowHtml}>{markdown}</Markdown>);
@@ -36,6 +36,11 @@ describe("Markdown allowHtml", () => {
 
   it("still marks fences with their language, so mermaid is recognised", () => {
     expect(render("```mermaid\ngraph TD\n```")).toContain('class="language-mermaid"');
+  });
+
+  it("maps the app theme onto a mermaid theme (T-1099)", () => {
+    expect(mermaidThemeFor(true)).toBe("dark");
+    expect(mermaidThemeFor(false)).toBe("default");
   });
 
   it("drops raw HTML entirely when not asked for — the task previews' behaviour", () => {
