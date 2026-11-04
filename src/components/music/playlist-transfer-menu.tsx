@@ -99,7 +99,7 @@ export function PlaylistTransferMenu() {
 
   const applyImport = (text: string) => {
     const imported = parsePlaylistTransfer(text);
-    const { added, skipped } = importPlaylists(imported);
+    const { added } = importPlaylists(imported);
     if (added === 0) {
       setStatus({
         text: tStatic("music.transfer.nothingImported"),
@@ -108,9 +108,7 @@ export function PlaylistTransferMenu() {
       return;
     }
     setStatus({
-      text: skipped
-        ? tStatic("music.transfer.importedWithSkipped", { added, skipped })
-        : tStatic("music.transfer.imported", { added }),
+      text: tStatic("music.transfer.imported", { added }),
       isError: false,
     });
   };

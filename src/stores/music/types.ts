@@ -37,8 +37,6 @@ export interface YouTubePlayerLike {
 
 export interface PlaylistSlice {
   playlists: Playlist[];
-  maxPlaylistCount: number;
-  canCreatePlaylist: boolean;
   activePlaylistId: string;
   addToPlaylist: (item: PlaylistItem, playlistId?: string) => boolean;
   /** Appends several items in a single update (used by the playlist import).
@@ -60,11 +58,10 @@ export interface PlaylistSlice {
     toPlaylistId: string,
   ) => boolean;
   clearPlaylist: (playlistId?: string) => void;
-  /** Appends playlists from an export. Existing playlists are never modified;
-   *  returns how many were added and how many hit the playlist limit. */
-  importPlaylists: (imported: Playlist[]) => { added: number; skipped: number };
+  /** Appends playlists from an export. Existing playlists are never modified. */
+  importPlaylists: (imported: Playlist[]) => { added: number };
   nextPlaylistName: () => string;
-  createPlaylist: () => string | null;
+  createPlaylist: () => string;
   removePlaylist: (playlistId: string) => boolean;
   renamePlaylist: (playlistId: string, newName: string) => void;
   setActivePlaylist: (playlistId: string) => void;

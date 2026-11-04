@@ -15,7 +15,6 @@ const createPersistenceSlice = (
       set({
         playlists: defaultPlaylists,
         activePlaylistId: defaultActivePlaylistId,
-        canCreatePlaylist: true,
         loopMode: "all",
         isShuffle: false,
         currentVideoId: null,

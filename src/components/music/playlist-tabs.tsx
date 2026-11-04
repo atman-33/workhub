@@ -125,7 +125,6 @@ export function PlaylistTabs() {
   const {
     playlists,
     activePlaylistId,
-    canCreatePlaylist,
     setActivePlaylist,
     createPlaylist,
     renamePlaylist,
@@ -188,12 +187,11 @@ export function PlaylistTabs() {
           )}
         </SortableContext>
       </DndContext>
-      <Hint label={t("music.tabs.newPlaylist")} disabled={!canCreatePlaylist}>
+      <Hint label={t("music.tabs.newPlaylist")}>
         <Button
           variant="ghost"
           size="icon"
           className="size-6"
-          disabled={!canCreatePlaylist}
           onClick={() => createPlaylist()}
         >
           <Plus className="size-3.5" />

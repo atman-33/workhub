@@ -68,9 +68,7 @@ export const musicEn = {
   "music.transfer.exportFailed": "Export failed — {error}",
   "music.transfer.copied": "Copied {count} playlist(s) as JSON",
   "music.transfer.copyFailed": "Copy failed — {error}",
-  "music.transfer.nothingImported": "Nothing imported — the playlist limit is already reached",
-  "music.transfer.importedWithSkipped":
-    "Imported {added} playlist(s); skipped {skipped} (playlist limit reached)",
+  "music.transfer.nothingImported": "Nothing imported",
   "music.transfer.imported": "Imported {added} playlist(s)",
   "music.transfer.importFailed": "Import failed — {error}",
   "music.transfer.clipboardEmpty": "The clipboard is empty.",
