@@ -2,7 +2,6 @@ import {
   deriveNextPlaylistName,
   enforcePlaylistBounds,
   generatePlaylistId,
-  MAX_PLAYLIST_COUNT,
 } from "@/lib/music/playlist-helpers";
 import { appendImportedPlaylists } from "@/lib/music/playlist-transfer";
 import { removeQueueForPlaylist, resetQueueForPlaylist } from "@/lib/music/shuffle-queue";
@@ -17,8 +16,6 @@ export const defaultActivePlaylistId = defaultPlaylists[0].id;
 
 export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) => ({
   playlists: defaultPlaylists,
-  maxPlaylistCount: MAX_PLAYLIST_COUNT,
-  canCreatePlaylist: defaultPlaylists.length < MAX_PLAYLIST_COUNT,
   activePlaylistId: defaultActivePlaylistId,
   addToPlaylist: (item, playlistId) => {
     const state = get();
@@ -261,7 +258,7 @@ export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) =>
   importPlaylists: (imported) => {
     const outcome = appendImportedPlaylists(get().playlists, imported);
     if (outcome.added === 0) {
-      return { added: 0, skipped: outcome.skipped };
+      return { added: 0 };
     }
 
     set((currentState) => ({
@@ -270,17 +267,13 @@ export const createPlaylistSlice: MusicStoreSlice<PlaylistSlice> = (set, get) =>
       ...enforcePlaylistBounds(outcome.playlists, currentState.activePlaylistId),
     }));
 
-    return { added: outcome.added, skipped: outcome.skipped };
+    return { added: outcome.added };
   },
   nextPlaylistName: () => {
     const { playlists } = get();
     return deriveNextPlaylistName(playlists);
   },
   createPlaylist: () => {
-    if (!get().canCreatePlaylist) {
-      return null;
-    }
-
     const playlistId = generatePlaylistId();
     const newPlaylist: Playlist = {
       id: playlistId,

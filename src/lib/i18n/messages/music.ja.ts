@@ -70,9 +70,7 @@ export const musicJa: Partial<Record<MessageKey, string>> = {
   "music.transfer.exportFailed": "エクスポートに失敗しました — {error}",
   "music.transfer.copied": "{count} 件のプレイリストを JSON としてコピーしました",
   "music.transfer.copyFailed": "コピーに失敗しました — {error}",
-  "music.transfer.nothingImported": "インポートされませんでした — プレイリストの上限に達しています",
-  "music.transfer.importedWithSkipped":
-    "{added} 件のプレイリストをインポートしました。{skipped} 件はスキップしました（上限に達しています）",
+  "music.transfer.nothingImported": "インポートされませんでした",
   "music.transfer.imported": "{added} 件のプレイリストをインポートしました",
   "music.transfer.importFailed": "インポートに失敗しました — {error}",
   "music.transfer.clipboardEmpty": "クリップボードが空です。",

@@ -1,7 +1,5 @@
 import type { Playlist } from "./types";
 
-export const MAX_PLAYLIST_COUNT = 10;
-
 const PLAYLIST_NAME_PATTERN = /^Playlist (\d+)$/i;
 
 export const deriveNextPlaylistName = (playlists: Playlist[]) => {
@@ -21,29 +19,25 @@ export const deriveNextPlaylistName = (playlists: Playlist[]) => {
     }
   }
 
-  for (let index = 1; index <= MAX_PLAYLIST_COUNT; index += 1) {
+  for (let index = 1; ; index += 1) {
     if (!usedNumbers.has(index)) {
       return `Playlist ${index}`;
     }
   }
-
-  return `Playlist ${highest + 1}`;
 };
 
 export const enforcePlaylistBounds = (playlists: Playlist[], activePlaylistId: string) => {
-  const trimmed = playlists.slice(0, MAX_PLAYLIST_COUNT);
   let nextActiveId = activePlaylistId;
 
-  if (trimmed.length === 0) {
+  if (playlists.length === 0) {
     nextActiveId = "";
-  } else if (!trimmed.some((playlist) => playlist.id === nextActiveId)) {
-    nextActiveId = trimmed[0].id;
+  } else if (!playlists.some((playlist) => playlist.id === nextActiveId)) {
+    nextActiveId = playlists[0].id;
   }
 
   return {
-    playlists: trimmed,
+    playlists,
     activePlaylistId: nextActiveId,
-    canCreatePlaylist: trimmed.length < MAX_PLAYLIST_COUNT,
   };
 };
 

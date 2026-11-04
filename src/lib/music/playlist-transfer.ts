@@ -1,4 +1,4 @@
-import { generatePlaylistId, MAX_PLAYLIST_COUNT } from "./playlist-helpers";
+import { generatePlaylistId } from "./playlist-helpers";
 import type { Playlist, PlaylistItem } from "./types";
 
 /**
@@ -115,25 +115,20 @@ export interface ImportOutcome {
   playlists: Playlist[];
   /** How many imported playlists were appended. */
   added: number;
-  /** How many were dropped because the playlist limit was reached. */
-  skipped: number;
 }
 
 /**
  * Appends imported playlists to the existing ones. Import never replaces or
- * edits what is already there: ids are regenerated so nothing can collide, and
- * anything past `MAX_PLAYLIST_COUNT` is reported as skipped rather than
- * silently evicting an existing playlist.
+ * edits what is already there: ids are regenerated so nothing can collide.
  */
 export const appendImportedPlaylists = (
   existing: Playlist[],
   imported: Playlist[],
 ): ImportOutcome => {
-  const room = Math.max(0, MAX_PLAYLIST_COUNT - existing.length);
   const takenNames = new Set(existing.map((playlist) => playlist.name));
   const takenIds = new Set(existing.map((playlist) => playlist.id));
 
-  const appended = imported.slice(0, room).map((playlist) => {
+  const appended = imported.map((playlist) => {
     let id = generatePlaylistId();
     while (takenIds.has(id)) id = generatePlaylistId();
     takenIds.add(id);
@@ -147,6 +142,5 @@ export const appendImportedPlaylists = (
   return {
     playlists: [...existing, ...appended],
     added: appended.length,
-    skipped: imported.length - appended.length,
   };
 };

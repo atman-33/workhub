@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PLAYLIST_COUNT } from "./playlist-helpers";
 import {
   appendImportedPlaylists,
   parsePlaylistTransfer,
@@ -106,7 +105,6 @@ describe("appendImportedPlaylists", () => {
     const outcome = appendImportedPlaylists(existing, [playlist("x", "Chill", ["bbb"])]);
 
     expect(outcome.added).toBe(1);
-    expect(outcome.skipped).toBe(0);
     expect(outcome.playlists[0]).toEqual(existing[0]);
     expect(outcome.playlists[1].items).toEqual([{ id: "bbb", title: "Title bbb" }]);
   });
@@ -124,25 +122,24 @@ describe("appendImportedPlaylists", () => {
     expect(outcome.playlists.map((p) => p.name)).toEqual(["Focus", "Focus (2)", "Focus (3)"]);
   });
 
-  it("skips playlists past the limit instead of evicting existing ones", () => {
-    const existing = Array.from({ length: MAX_PLAYLIST_COUNT - 1 }, (_, index) =>
+  it("appends all playlists without a count limit", () => {
+    const existing = Array.from({ length: 10 }, (_, index) =>
       playlist(`p${index}`, `Playlist ${index}`),
     );
     const outcome = appendImportedPlaylists(existing, [playlist("x", "A"), playlist("y", "B")]);
 
-    expect(outcome.added).toBe(1);
-    expect(outcome.skipped).toBe(1);
-    expect(outcome.playlists).toHaveLength(MAX_PLAYLIST_COUNT);
+    expect(outcome.added).toBe(2);
+    expect(outcome.playlists).toHaveLength(12);
   });
 
-  it("adds nothing when the limit is already reached", () => {
-    const existing = Array.from({ length: MAX_PLAYLIST_COUNT }, (_, index) =>
+  it("appends to a large library without evicting existing ones", () => {
+    const existing = Array.from({ length: 10 }, (_, index) =>
       playlist(`p${index}`, `Playlist ${index}`),
     );
     const outcome = appendImportedPlaylists(existing, [playlist("x", "A")]);
 
-    expect(outcome.added).toBe(0);
-    expect(outcome.skipped).toBe(1);
-    expect(outcome.playlists).toEqual(existing);
+    expect(outcome.added).toBe(1);
+    expect(outcome.playlists).toHaveLength(11);
+    expect(outcome.playlists.slice(0, 10)).toEqual(existing);
   });
 });
