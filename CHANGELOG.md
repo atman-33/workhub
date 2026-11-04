@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.172.0 (2026-11-04)
+
+- **Music playlists no longer have a count limit** (T-1120). The old cap of 10 playlists is gone, so libraries of any size can be created and imported without trimming; the per-playlist 200-item YouTube limit stays as it is an IFrame constraint.
+
 ## 0.171.2 (2026-11-03)
 
 - **Project glossaries have a formal home** (T-1043). `glossary.md` at the project root is now the documented canonical source of a project's terms, and every new project is scaffolded with one. The Projects tab scan accepts it without findings, and existing root glossaries need no move.
