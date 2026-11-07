@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cappedLaneWidth, computeGraphLayout, PALETTE, splitRefBadges } from "./git-graph";
+import {
+  cappedLaneWidth,
+  computeGraphLayout,
+  findBranchWorktree,
+  PALETTE,
+  splitRefBadges,
+  worktreeBranchMap,
+} from "./git-graph";
 
 describe("computeGraphLayout", () => {
   it("keeps a linear history in a single column with straight edges", () => {
@@ -211,5 +218,24 @@ describe("splitRefBadges", () => {
   it("defaults the cap to 3", () => {
     const refs = ["a", "b", "c", "d"];
     expect(splitRefBadges(refs)).toEqual({ visible: ["a", "b", "c"], overflow: ["d"] });
+  });
+});
+
+describe("worktreeBranchMap", () => {
+  it("indexes worktree-held branches by local name", () => {
+    const map = worktreeBranchMap([
+      { branch: "task/T-0018", path: "C:/repos/.worktrees/T-0018/workhub", task_id: "T-0018" },
+    ]);
+    expect(map.get("task/T-0018")?.task_id).toBe("T-0018");
+    expect(map.get("main")).toBeUndefined();
+  });
+
+  it("resolves a remote-tracking ref to the local branch it would check out", () => {
+    const map = worktreeBranchMap([
+      { branch: "task/T-0018", path: "C:/repos/.worktrees/T-0018/workhub", task_id: "T-0018" },
+    ]);
+    expect(findBranchWorktree(map, "task/T-0018")?.task_id).toBe("T-0018");
+    expect(findBranchWorktree(map, "origin/task/T-0018")?.task_id).toBe("T-0018");
+    expect(findBranchWorktree(map, "origin/main")).toBeUndefined();
   });
 });

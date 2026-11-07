@@ -1094,12 +1094,27 @@ pub struct GitLog {
     pub has_more: bool,
 }
 
+/// A local branch checked out in a linked worktree. Git refuses to check the
+/// same branch out in the main working tree at the same time, so the branch
+/// switcher shows these as unavailable instead of letting the switch fail.
+#[derive(Debug, Clone, Serialize)]
+pub struct BranchWorktree {
+    /// Short branch name.
+    pub branch: String,
+    /// Absolute path of the worktree (forward slashes).
+    pub path: String,
+    /// Task id parsed from a `task/<id>` branch, if any.
+    pub task_id: Option<String>,
+}
+
 /// Local and remote branch names for the graph-view branch switcher.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct BranchList {
     pub local: Vec<String>,
     pub remote: Vec<String>,
     pub current: String,
+    /// Branches unavailable because a linked worktree has them checked out.
+    pub worktrees: Vec<BranchWorktree>,
 }
 
 /// A graph-view git operation. Parameters vary per kind, so this is dispatched

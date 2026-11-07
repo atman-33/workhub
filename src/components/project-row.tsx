@@ -15,6 +15,7 @@ import {
   Sparkles,
   SquareTerminal,
   Star,
+  TreeDeciduous,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -35,9 +36,10 @@ import {
 import { Hint } from "@/components/ui/hint";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, timeAgo } from "@/lib/api";
+import { findBranchWorktree, worktreeBranchMap } from "@/lib/git-graph";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { GitInfo, Project } from "@/types";
+import type { BranchWorktree, GitInfo, Project } from "@/types";
 
 export type RowAction =
   | { kind: "openCode" }
@@ -117,9 +119,14 @@ export const ProjectRow = memo(function ProjectRow({
   onAction,
 }: Props) {
   const t = useT();
-  const [branches, setBranches] = useState<{ local: string[]; remote: string[] }>({
+  const [branches, setBranches] = useState<{
+    local: string[];
+    remote: string[];
+    worktrees: BranchWorktree[];
+  }>({
     local: [],
     remote: [],
+    worktrees: [],
   });
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchFilter, setBranchFilter] = useState("");
@@ -131,10 +138,12 @@ export const ProjectRow = memo(function ProjectRow({
     setBranchesLoading(true);
     void api
       .listBranches(project.path)
-      .then((b) => setBranches({ local: b.local, remote: b.remote }))
-      .catch(() => setBranches({ local: [], remote: [] }))
+      .then((b) => setBranches({ local: b.local, remote: b.remote, worktrees: b.worktrees }))
+      .catch(() => setBranches({ local: [], remote: [], worktrees: [] }))
       .finally(() => setBranchesLoading(false));
   };
+
+  const worktreeMap = worktreeBranchMap(branches.worktrees);
 
   const matchesFilter = (b: string) =>
     b.toLowerCase().includes(branchFilter.trim().toLowerCase());
@@ -409,23 +418,33 @@ export const ProjectRow = memo(function ProjectRow({
                                 <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
                                   {t("projects.row.local")}
                                 </DropdownMenuLabel>
-                                {filteredLocal.map((b) => (
-                                  <DropdownMenuItem
-                                    key={`l:${b}`}
-                                    onSelect={() => {
-                                      if (b !== info.branch)
-                                        onAction({ kind: "switch", branch: b });
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "size-3.5",
-                                        b === info.branch ? "opacity-100" : "opacity-0",
+                                {filteredLocal.map((b) => {
+                                  const wt = worktreeMap.get(b);
+                                  return (
+                                    <DropdownMenuItem
+                                      key={`l:${b}`}
+                                      disabled={!!wt}
+                                      onSelect={() => {
+                                        if (b !== info.branch)
+                                          onAction({ kind: "switch", branch: b });
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "size-3.5",
+                                          b === info.branch ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="truncate">{b}</span>
+                                      {wt && (
+                                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+                                          <TreeDeciduous className="size-3" />
+                                          {wt.task_id ?? t("projects.row.worktree")}
+                                        </span>
                                       )}
-                                    />
-                                    <span className="truncate">{b}</span>
-                                  </DropdownMenuItem>
-                                ))}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
                               </>
                             )}
                             {filteredRemote.length > 0 && (
@@ -433,16 +452,31 @@ export const ProjectRow = memo(function ProjectRow({
                                 <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase text-muted-foreground">
                                   {t("projects.row.remote")}
                                 </DropdownMenuLabel>
-                                {filteredRemote.map((b) => (
-                                  <DropdownMenuItem
-                                    key={`r:${b}`}
-                                    onSelect={() => onAction({ kind: "switch", branch: b })}
-                                  >
-                                    <Check className="size-3.5 opacity-0" />
-                                    <span className="truncate">{b}</span>
-                                  </DropdownMenuItem>
-                                ))}
+                                {filteredRemote.map((b) => {
+                                  const wt = findBranchWorktree(worktreeMap, b);
+                                  return (
+                                    <DropdownMenuItem
+                                      key={`r:${b}`}
+                                      disabled={!!wt}
+                                      onSelect={() => onAction({ kind: "switch", branch: b })}
+                                    >
+                                      <Check className="size-3.5 opacity-0" />
+                                      <span className="truncate">{b}</span>
+                                      {wt && (
+                                        <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+                                          <TreeDeciduous className="size-3" />
+                                          {wt.task_id ?? t("projects.row.worktree")}
+                                        </span>
+                                      )}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
                               </>
+                            )}
+                            {worktreeMap.size > 0 && (
+                              <DropdownMenuLabel className="px-2 py-1.5 text-[10px] leading-snug font-normal text-muted-foreground">
+                                {t("projects.row.worktreeHint")}
+                              </DropdownMenuLabel>
                             )}
                           </>
                         )}

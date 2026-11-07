@@ -7,6 +7,9 @@ export const miscJa: Partial<Record<MessageKey, string>> = {
   "misc.branchCombobox.noBranches": "ブランチがありません。",
   "misc.branchCombobox.local": "ローカル",
   "misc.branchCombobox.remote": "リモート",
+  "misc.branchCombobox.worktree": "worktree",
+  "misc.branchCombobox.worktreeHint":
+    "worktree で使用中のブランチは、その worktree 内で切り替えてください。",
 
   "misc.combobox.selectPlaceholder": "選択…",
   "misc.combobox.noResults": "該当なし。",

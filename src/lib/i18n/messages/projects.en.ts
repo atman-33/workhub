@@ -159,6 +159,9 @@ export const projectsEn = {
   "projects.row.noBranches": "No branches.",
   "projects.row.local": "Local",
   "projects.row.remote": "Remote",
+  "projects.row.worktree": "worktree",
+  "projects.row.worktreeHint":
+    "Branches checked out in a worktree can only be switched inside that worktree.",
   "projects.row.notesAndTags": "Notes & tags…",
   "projects.row.removeFromWorkhub": "Remove from Workhub",
 

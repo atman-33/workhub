@@ -5,6 +5,9 @@ export const miscEn = {
   "misc.branchCombobox.noBranches": "No branches.",
   "misc.branchCombobox.local": "Local",
   "misc.branchCombobox.remote": "Remote",
+  "misc.branchCombobox.worktree": "worktree",
+  "misc.branchCombobox.worktreeHint":
+    "Branches checked out in a worktree can only be switched inside that worktree.",
 
   "misc.combobox.selectPlaceholder": "Select…",
   "misc.combobox.noResults": "No results.",

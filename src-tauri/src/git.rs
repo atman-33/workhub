@@ -1,5 +1,5 @@
 use crate::models::{
-    BranchList, CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp,
+    BranchList, BranchWorktree, CommitEntry, CommitFileChange, CommitRef, GitInfo, GitLog, GraphOp,
 };
 use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
@@ -895,6 +895,9 @@ pub fn list_branches(path: &str) -> BranchList {
             .filter(|l| l.contains('/') && !l.ends_with("/HEAD"))
             .collect();
     }
+    if let Ok(raw) = git(path, &["worktree", "list", "--porcelain"]) {
+        list.worktrees = worktree_branches(&parse_worktrees(&raw));
+    }
     list
 }
 
@@ -949,6 +952,11 @@ pub fn pull(path: &str) -> Result<String, String> {
 /// tracks it, creating it if necessary — this is git's `--guess` (DWIM)
 /// behavior. `git switch` refuses a bare remote ref, so we strip the remote
 /// prefix and let git resolve the local branch.
+///
+/// A branch checked out in a linked worktree cannot be switched to here; git
+/// refuses it (`already used by worktree`). That is reported up front with the
+/// worktree path and task id, so the graph's stale or non-worktree-aware
+/// callers still get a message the user can act on.
 pub fn checkout(path: &str, branch: &str) -> Result<String, String> {
     let remotes = git(path, &["remote"]).unwrap_or_default();
     let remote_names: Vec<&str> = remotes
@@ -957,6 +965,18 @@ pub fn checkout(path: &str, branch: &str) -> Result<String, String> {
         .filter(|r| !r.is_empty())
         .collect();
     let local = strip_remote_prefix(&remote_names, branch).unwrap_or_else(|| branch.to_string());
+    if let Ok(raw) = git(path, &["worktree", "list", "--porcelain"]) {
+        if let Some(wt) = worktree_branches(&parse_worktrees(&raw))
+            .into_iter()
+            .find(|w| w.branch == local)
+        {
+            let task = wt.task_id.map(|t| format!(" ({t})")).unwrap_or_default();
+            return Err(format!(
+                "'{local}' is checked out in the worktree at '{}'{task}; switch branches inside that worktree instead",
+                wt.path
+            ));
+        }
+    }
     git(path, &["switch", "--guess", &local]).map(|_| format!("switched to {local}"))
 }
 
@@ -1107,6 +1127,22 @@ fn parse_worktrees(porcelain: &str) -> Vec<RawWorktree> {
         out.push(w);
     }
     out
+}
+
+/// The linked worktrees that have a branch checked out. The first record is
+/// the repo's own working tree (its branch is already `current`), and
+/// detached or bare worktrees have no branch to report.
+fn worktree_branches(worktrees: &[RawWorktree]) -> Vec<BranchWorktree> {
+    worktrees
+        .iter()
+        .skip(1)
+        .filter(|w| !w.detached && !w.bare && !w.branch.is_empty())
+        .map(|w| BranchWorktree {
+            branch: w.branch.clone(),
+            path: w.path.clone(),
+            task_id: w.branch.strip_prefix("task/").map(str::to_string),
+        })
+        .collect()
 }
 
 /// List the git worktrees of `repo_path`, enriched with the owning repo's
@@ -1498,6 +1534,62 @@ aaa2\x1fbbb2 ccc2\x1fBob\x1f2000\x1f\x1fMerge branch 'feature'\x1e
         assert!(ws[2].branch.is_empty());
         assert!(ws[2].detached);
         assert!(ws[2].locked);
+    }
+
+    #[test]
+    fn maps_worktree_branches_for_the_switcher() {
+        // The main tree's branch is `current`; detached and non-task branches
+        // are still reported, just without a task id.
+        let porcelain = "worktree C:/repos/workhub\nHEAD aaaa\nbranch refs/heads/main\n\nworktree C:/repos/.worktrees/T-0018/workhub\nHEAD bbbb\nbranch refs/heads/task/T-0018\n\nworktree C:/repos/.worktrees/review\nHEAD cccc\nbranch refs/heads/review/wip\n\nworktree C:/repos/.worktrees/detached\nHEAD dddd\ndetached\n";
+        let ws = worktree_branches(&parse_worktrees(porcelain));
+        assert_eq!(ws.len(), 2);
+        assert_eq!(ws[0].branch, "task/T-0018");
+        assert_eq!(ws[0].path, "C:/repos/.worktrees/T-0018/workhub");
+        assert_eq!(ws[0].task_id.as_deref(), Some("T-0018"));
+        assert_eq!(ws[1].branch, "review/wip");
+        assert_eq!(ws[1].task_id, None);
+    }
+
+    /// The switcher must know a branch is taken before it tries to switch, and
+    /// a stale caller gets the worktree path rather than git's bare refusal.
+    #[test]
+    fn checkout_refuses_a_branch_held_by_a_linked_worktree() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("workhub-git-wt-{stamp}"));
+        let wt_dir = std::env::temp_dir().join(format!("workhub-git-wt-{stamp}-linked"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().to_string();
+        let wt_path = wt_dir.to_string_lossy().to_string();
+
+        for args in [
+            vec!["init", "-q", "."],
+            vec!["config", "user.email", "test@example.com"],
+            vec!["config", "user.name", "test"],
+        ] {
+            git(&path, &args).unwrap();
+        }
+        std::fs::write(dir.join("a.txt"), "a\n").unwrap();
+        git(&path, &["add", "-A"]).unwrap();
+        git(&path, &["commit", "-qm", "init"]).unwrap();
+        git(&path, &["branch", "task/T-0001"]).unwrap();
+        git(&path, &["worktree", "add", wt_path.as_str(), "task/T-0001"]).unwrap();
+
+        let list = list_branches(&path);
+        assert_eq!(list.worktrees.len(), 1);
+        assert_eq!(list.worktrees[0].branch, "task/T-0001");
+        assert_eq!(list.worktrees[0].task_id.as_deref(), Some("T-0001"));
+
+        let err = checkout(&path, "task/T-0001").unwrap_err();
+        assert!(err.contains("task/T-0001"), "got {err:?}");
+        assert!(err.contains("worktree at"), "got {err:?}");
+        assert!(err.contains("T-0001"), "got {err:?}");
+
+        git(&path, &["worktree", "remove", "--force", wt_path.as_str()]).ok();
+        std::fs::remove_dir_all(&wt_dir).ok();
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     // ---- T-0408: branch filter + commit-graph auto-write ----

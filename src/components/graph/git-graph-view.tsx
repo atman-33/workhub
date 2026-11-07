@@ -31,10 +31,10 @@ import {
 } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
-import { computeGraphLayout, ROW_H } from "@/lib/git-graph";
+import { computeGraphLayout, ROW_H, worktreeBranchMap } from "@/lib/git-graph";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { CommitEntry, GitLog, GraphOp } from "@/types";
+import type { BranchWorktree, CommitEntry, GitLog, GraphOp } from "@/types";
 
 const PAGE = 500;
 const WORKTREE_HASH = "WORKTREE";
@@ -91,6 +91,8 @@ export function GitGraphView({
   const [autoFetching, setAutoFetching] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(600);
+  /** Branches a linked worktree holds, by short local name. */
+  const [worktrees, setWorktrees] = useState<Map<string, BranchWorktree>>(new Map());
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
@@ -329,6 +331,24 @@ export function GitGraphView({
     };
   }, [path]);
 
+  // Which branches a linked worktree holds. The picker refetches its own copy
+  // whenever it opens; this one lets the commit badges explain the same state,
+  // and the backend guards a stale read on checkout anyway.
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .listBranches(path)
+      .then((b) => {
+        if (!cancelled) setWorktrees(worktreeBranchMap(b.worktrees));
+      })
+      .catch(() => {
+        if (!cancelled) setWorktrees(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
   const copy = useCallback((text: string, what: string) => {
     void writeText(text).then(() => setStatus(tStatic("graph.status.copied", { what })));
   }, []);
@@ -395,6 +415,7 @@ export function GitGraphView({
               isWorktree={entry.hash === WORKTREE_HASH}
               detached={detached}
               currentBranch={log?.current_branch ?? ""}
+              worktrees={worktrees}
               selected={entry.hash === selectedHash}
               opBusy={opBusy}
               onOp={(label, op) => void runOp(label, op)}

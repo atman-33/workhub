@@ -16,6 +16,8 @@
  * curve between the two columns.
  */
 
+import type { BranchWorktree } from "@/types";
+
 export interface Lane {
   /** Hash of the commit this lane is currently waiting to reach. */
   hash: string;
@@ -76,6 +78,26 @@ export function splitRefBadges<T>(
     return { visible: [...refs], overflow: [] };
   }
   return { visible: refs.slice(0, max), overflow: refs.slice(max) };
+}
+
+/** Index the branches a linked worktree holds by their short local name. */
+export function worktreeBranchMap(
+  worktrees: readonly BranchWorktree[],
+): Map<string, BranchWorktree> {
+  return new Map(worktrees.map((w) => [w.branch, w]));
+}
+
+/** Find the worktree holding `name`. A remote-tracking ref
+ *  (`origin/feature/x`) resolves to the local branch after its remote
+ *  segment, which is the name git's DWIM checkout uses. */
+export function findBranchWorktree(
+  worktrees: ReadonlyMap<string, BranchWorktree>,
+  name: string,
+): BranchWorktree | undefined {
+  const exact = worktrees.get(name);
+  if (exact) return exact;
+  const slash = name.indexOf("/");
+  return slash > 0 ? worktrees.get(name.slice(slash + 1)) : undefined;
 }
 
 /** 10 hex colors chosen to read clearly on both dark and light zinc UIs. */

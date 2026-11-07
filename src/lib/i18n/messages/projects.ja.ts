@@ -162,6 +162,9 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
   "projects.row.noBranches": "ブランチがありません。",
   "projects.row.local": "ローカル",
   "projects.row.remote": "リモート",
+  "projects.row.worktree": "worktree",
+  "projects.row.worktreeHint":
+    "worktree で使用中のブランチは、その worktree 内で切り替えてください。",
   "projects.row.notesAndTags": "ノート & タグ…",
   "projects.row.removeFromWorkhub": "Workhub から削除",
 

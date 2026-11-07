@@ -56,6 +56,7 @@ export const graphEn = {
   "graph.op.reset": "Reset",
   "graph.op.copyHash": "Copy hash",
   "graph.op.copyMessage": "Copy message",
+  "graph.op.worktreeInUse": "In use by worktree: {name}",
 
   "graph.mode.soft": "Soft",
   "graph.mode.mixed": "Mixed",
