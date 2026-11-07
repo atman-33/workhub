@@ -15,6 +15,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuLabel,
   ContextMenuPortal,
   ContextMenuSeparator,
   ContextMenuSub,
@@ -26,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   cappedLaneWidth,
   COL_W,
+  findBranchWorktree,
   ROW_H,
   splitRefBadges,
   type Edge,
@@ -35,7 +37,7 @@ import { formatCommitDate, formatCommitDateFull } from "@/lib/commit-format";
 import { timeAgo } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { CommitEntry, CommitRef, GraphOp } from "@/types";
+import type { BranchWorktree, CommitEntry, CommitRef, GraphOp } from "@/types";
 
 export type DialogRequest =
   | {
@@ -61,6 +63,8 @@ interface Props {
   isWorktree: boolean;
   detached: boolean;
   currentBranch: string;
+  /** Branches a linked worktree holds, by short local name. */
+  worktrees: Map<string, BranchWorktree>;
   selected: boolean;
   opBusy: string | null;
   onOp: (label: string, op: GraphOp) => void;
@@ -143,6 +147,7 @@ function RefBadge({
   commitRef,
   currentBranch,
   detached,
+  worktrees,
   opBusy,
   onOp,
   onCopy,
@@ -152,6 +157,7 @@ function RefBadge({
   commitRef: CommitRef;
   currentBranch: string;
   detached: boolean;
+  worktrees: Map<string, BranchWorktree>;
   opBusy: string | null;
   onOp: (label: string, op: GraphOp) => void;
   onCopy: (text: string, what: string) => void;
@@ -159,6 +165,13 @@ function RefBadge({
   onDeleteBranch: (name: string) => void;
 }) {
   const t = useT();
+  const worktree =
+    commitRef.kind === "remote"
+      ? findBranchWorktree(worktrees, commitRef.name)
+      : commitRef.kind === "branch"
+        ? worktrees.get(commitRef.name)
+        : undefined;
+  const worktreeName = worktree ? (worktree.task_id ?? worktree.path) : "";
   const badge = (
     <Badge
       variant="outline"
@@ -197,8 +210,13 @@ function RefBadge({
         )}
         <ContextMenuPortal>
           <ContextMenuContent>
+            {worktree && (
+              <ContextMenuLabel className="px-2 py-1 text-[11px] font-normal text-muted-foreground">
+                {t("graph.op.worktreeInUse", { name: worktreeName })}
+              </ContextMenuLabel>
+            )}
             <ContextMenuItem
-              disabled={!!opBusy}
+              disabled={!!opBusy || !!worktree}
               onClick={() => onOp(t("graph.op.checkout"), { kind: "checkout", branch: commitRef.name })}
             >
               <GitBranch /> {t("graph.op.checkout")}
@@ -238,7 +256,7 @@ function RefBadge({
             <ContextMenuSeparator />
             <ContextMenuItem
               variant="destructive"
-              disabled={!!opBusy}
+              disabled={!!opBusy || !!worktree}
               onClick={() =>
                 onRequestDialog({
                   kind: "confirm",
@@ -270,8 +288,13 @@ function RefBadge({
         )}
         <ContextMenuPortal>
           <ContextMenuContent>
+            {worktree && (
+              <ContextMenuLabel className="px-2 py-1 text-[11px] font-normal text-muted-foreground">
+                {t("graph.op.worktreeInUse", { name: worktreeName })}
+              </ContextMenuLabel>
+            )}
             <ContextMenuItem
-              disabled={!!opBusy}
+              disabled={!!opBusy || !!worktree}
               onClick={() => onOp(t("graph.op.checkout"), { kind: "checkout", branch: commitRef.name })}
             >
               <GitBranch /> {t("graph.op.checkout")}
@@ -325,6 +348,7 @@ export const CommitRow = memo(function CommitRow({
   isWorktree,
   detached,
   currentBranch,
+  worktrees,
   selected,
   opBusy,
   onOp,
@@ -356,6 +380,7 @@ export const CommitRow = memo(function CommitRow({
           commitRef={r}
           currentBranch={currentBranch}
           detached={detached}
+          worktrees={worktrees}
           opBusy={opBusy}
           onOp={onOp}
           onCopy={onCopy}

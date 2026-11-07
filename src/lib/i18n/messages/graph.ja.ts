@@ -58,6 +58,7 @@ export const graphJa: Partial<Record<MessageKey, string>> = {
   "graph.op.reset": "リセット",
   "graph.op.copyHash": "ハッシュをコピー",
   "graph.op.copyMessage": "メッセージをコピー",
+  "graph.op.worktreeInUse": "worktree で使用中: {name}",
 
   "graph.mode.soft": "Soft",
   "graph.mode.mixed": "Mixed",

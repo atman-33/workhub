@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.172.1 (2026-11-07)
+
+- **Worktree branches explain why they cannot be switched to** (T-1127). A branch checked out in a linked worktree is now marked in the graph's branch switcher and in the Repos row menu, and its checkout/delete actions are disabled with the task id that holds it. Checking out one anyway — a stale list, or the row menu — returns the worktree path instead of git's bare `already used by worktree` error.
+
 ## 0.172.0 (2026-11-04)
 
 - **Music playlists no longer have a count limit** (T-1120). The old cap of 10 playlists is gone, so libraries of any size can be created and imported without trimming; the per-playlist 200-item YouTube limit stays as it is an IFrame constraint.

@@ -801,10 +801,19 @@ export interface TemplateDiff {
   removed: TemplateRemoval[];
 }
 
+/** A local branch checked out in a linked worktree; the main tree cannot
+ *  switch to it until that worktree lets go. */
+export interface BranchWorktree {
+  branch: string;
+  path: string;
+  task_id: string | null;
+}
+
 export interface BranchList {
   local: string[];
   remote: string[];
   current: string;
+  worktrees: BranchWorktree[];
 }
 
 export interface CommitRef {
