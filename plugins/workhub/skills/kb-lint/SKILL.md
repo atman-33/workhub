@@ -1,6 +1,6 @@
 ---
 name: kb-lint
-description: Health check for the workhub vault knowledge base. Detects orphan documents, broken links, index drift, tag issues, and stale content across projects/knowledge/archive. Run periodically or as part of weekly review.
+description: Health check for the workhub vault knowledge base. Detects orphan documents, broken links, index drift, garbled (mojibake) text, tag issues, and stale content across projects/knowledge/archive. Run periodically or as part of weekly review.
 argument-hint: "[--fix] [--zone <name>]"
 ---
 
@@ -142,6 +142,38 @@ written to, and an empty memory is worse than an untidy one.
 
 `memory/identity/` is exempt: those notes are read in full, never searched.
 
+### 9. Garbled text (mojibake)
+
+A note rewritten through the wrong encoding (typically PowerShell 5.1
+`Get-Content` / `Set-Content`, whose default is ANSI/CP932) turns unreadable,
+and a backup commit then records it as an ordinary change, so nothing flags it.
+The check is a bundled read-only script over the git-tracked
+`.md .json .yml .yaml .txt .canvas .base` files:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/check-mojibake.mjs" --vault <vault>   # exit 1 when something is suspect
+```
+
+| Issue | Condition |
+|-------|-----------|
+| INVALID_UTF8 | The bytes are not valid UTF-8 (a CP932 file written back) |
+| REPLACEMENT | The text contains U+FFFD |
+| MOJIBAKE | 20+ halfwidth katakana, or CP932-misread kanji (繧 繝 縺 ...), making up more than 5% of the characters |
+
+`.playwright-mcp/`, `node_modules/` and `.git/` are skipped: snapshots and tool
+output there garble on their own and are not notes. The 5% / 20-hit gate keeps
+Japanese notes that legitimately mention halfwidth katakana (font names, quoted
+UI text; a handful per file) out of the report. If a file you know is fine is
+flagged, report it as is and say so; do not loosen the gate silently.
+
+**Report:** one line per file with the issue and detail. Add a restore hint to
+each: find the last good commit with
+`git log --oneline -- <file>`, check it with
+`git show <commit>:<file> | iconv -f UTF-8 -t UTF-8 >/dev/null`, and compare
+`git diff <commit> HEAD -- <file>` to carry over later edits. **Never
+auto-fix, not even with `--fix`:** the file may hold edits made after the
+damage, so the owner decides which version survives.
+
 ## Output Format
 
 ```markdown
@@ -177,7 +209,7 @@ written to, and an empty memory is worse than an untidy one.
 
 | Level | Examples | Auto-fixable |
 |-------|----------|-------------|
-| Error | Broken links, missing files | Some |
+| Error | Broken links, missing files, garbled text (never auto-fixed) | Some |
 | Warning | Missing tags, orphans, stale content, policy over limit | Most (never the policy) |
 | Info | Optimization suggestions, inbox pileup | No |
 
