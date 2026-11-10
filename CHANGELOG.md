@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.173.0 (2026-11-11)
+
+- **Projects have a standard home for their design: `design/`** (T-1209, T-1211). Design material used to end up wherever it was written (`dev-notes/`, `story/`, `enemies/`, `maps/`), and `dev-notes/` mixed what a project builds with how it is developed. `design/` is now an optional standard folder holding the project-wide master of what the project builds and how it behaves (an app's screens and API, a game's systems and maps, office work's flows), with `status: draft | accepted` marking designs still under discussion and `design/references/` for pasted references; `dev-notes/` is narrowed to how the project is developed. The Documents pane lists `design/`, the Projects tab scan accepts it without findings, and the layout rules, the project template, `kb-ingest` and `project-start` route design material there. The decision and its rejected alternatives are in `docs/adr/0001-project-design-folder.md`. Because `vault-template/` changed, existing vaults get the new rules on the next template update.
+- **`project-docs-audit` finds scattered and misfiled project documents** (T-1210). A new skill that reads a project's README and `prd.md` to learn what kind of project it is (app, game, office work), reports numbered candidates (design material in `dev-notes/`, missing area indexes, drafts that never move, an over-long README table, duplicates, one area spread over several folders), and fixes only the ones the owner picks. It is read-only until then, and a separate skill from `kb-lint` because it asks a different question.
+- **`kb-lint` catches garbled notes** (T-1214). A note rewritten through the wrong encoding (PowerShell 5.1's default ANSI) once turned unreadable and went unnoticed for eight days, because the backup commit records it as an ordinary change. `kb-lint` now runs a read-only check for invalid UTF-8, U+FFFD and implausible runs of halfwidth katakana, and points to the last good commit for each hit without ever auto-fixing.
+
 ## 0.172.2 (2026-11-11)
 
 - **The Docs tab's folder picker shows more of long paths** (T-1187). The picker was a fixed 280px wide, so unnamed roots — which display the full path — were cut off beyond recognition. It now grows with the window up to 560px, and hovering reveals the full path, so a shared folder can be told apart at a glance.
