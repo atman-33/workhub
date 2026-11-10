@@ -70,7 +70,11 @@ export function DocsRootsBar({
   return (
     <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
       <Select value={selectedId} onValueChange={onSelect}>
-        <SelectTrigger size="sm" className="w-[280px]">
+        <SelectTrigger
+          size="sm"
+          className="min-w-[280px] max-w-[min(50vw,560px)] flex-1"
+          title={selected ? rootLabel(selected) : undefined}
+        >
           <SelectValue
             placeholder={
               roots.length ? t("docs.rootsBar.pickFolder") : t("docs.rootsBar.noFoldersRegistered")
