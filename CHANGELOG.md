@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.172.2 (2026-11-11)
+
+- **The Docs tab's folder picker shows more of long paths** (T-1187). The picker was a fixed 280px wide, so unnamed roots — which display the full path — were cut off beyond recognition. It now grows with the window up to 560px, and hovering reveals the full path, so a shared folder can be told apart at a glance.
+
 ## 0.172.1 (2026-11-07)
 
 - **Worktree branches explain why they cannot be switched to** (T-1127). A branch checked out in a linked worktree is now marked in the graph's branch switcher and in the Repos row menu, and its checkout/delete actions are disabled with the task id that holds it. Checking out one anyway — a stale list, or the row menu — returns the worktree path instead of git's bare `already used by worktree` error.
