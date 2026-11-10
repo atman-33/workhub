@@ -22,7 +22,8 @@ function entry(name: string, is_dir = false): DocsEntry {
 }
 
 describe("isProjectDocDir", () => {
-  it("lists dev-notes, shared and attachments but never backlog", () => {
+  it("lists design, dev-notes, shared and attachments but never backlog", () => {
+    expect(isProjectDocDir("design")).toBe(true);
     expect(isProjectDocDir("dev-notes")).toBe(true);
     expect(isProjectDocDir("shared")).toBe(true);
     expect(isProjectDocDir("attachments")).toBe(true);

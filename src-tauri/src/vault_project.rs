@@ -56,6 +56,7 @@ const CRITICAL_FILES: &[&str] = &["README.md", "_index.md"];
 const KNOWN_DIRS: &[&str] = &[
     "backlog",
     "dev-notes",
+    "design",
     "schedules",
     "mindmaps",
     "diagrams",
@@ -66,7 +67,8 @@ const KNOWN_DIRS: &[&str] = &[
 /// The subset of [`KNOWN_DIRS`] a project is expected to have. The diagram
 /// folders are recognised but optional (T-0680): a project gets `diagrams/`,
 /// `schedules/` or `mindmaps/` when its first diagram of that kind is made, so
-/// their absence is not a finding.
+/// their absence is not a finding. `design/` is optional the same way: it is
+/// created with the project's first design note.
 const EXPECTED_DIRS: &[&str] = &["backlog", "dev-notes", "shared", "attachments"];
 
 /// Where units of work live. Counted differently from every other folder
@@ -1385,6 +1387,34 @@ mod tests {
         let projects = list_projects(&vault, false).unwrap();
         let p = &projects[0];
         assert!(!p.issues.iter().any(|i| i.target == "glossary.md"));
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// `design/` is a standard but optional project folder (T-1211): having
+    /// it raises no `unknown-folder`, and a project without it is not told it
+    /// is missing.
+    #[test]
+    fn design_folder_is_known_and_optional() {
+        let vault = temp_vault("design");
+        let dir = vault.join("projects").join("demo");
+        write(
+            dir.join("README.md"),
+            "---\ntitle: Demo\nstatus: active\n---\n\n# Demo\n",
+        );
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(!p.issues.iter().any(|i| i.target == "design/"));
+
+        write(
+            dir.join("design").join("battle").join("README.md"),
+            "---\ntitle: Battle\nstatus: draft\n---\n\n# Battle\n",
+        );
+        let p = &list_projects(&vault, false).unwrap()[0];
+        assert!(p.folders.iter().find(|f| f.name == "design").unwrap().known);
+        assert!(!p
+            .issues
+            .iter()
+            .any(|i| i.kind == "unknown-folder" || i.target == "design/"));
 
         fs::remove_dir_all(&vault).ok();
     }

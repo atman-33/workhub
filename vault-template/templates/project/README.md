@@ -35,7 +35,8 @@ Link to the full spec in [`prd.md`](prd.md).
 | [`links.md`](links.md) | Link collection — repos, environments, dashboards, references |
 | [`glossary.md`](glossary.md) | Glossary — the canonical terms of the project (optional) |
 | `backlog/` | One note or folder per unit of work — its spec, its research, its task outputs. See the Base view below |
-| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions |
+| `design/` | What the project builds and how it behaves — the project-wide master and designs under discussion (`status: draft` or `accepted`). Optional; created with the first design note |
+| `dev-notes/` | How the project is developed: environment setup, debugging steps, conventions, code structure |
 | `shared/` | Team knowledge bases outside the vault — where each one is and how it is organised |
 | `attachments/` | Manually pasted material that belongs to the project as a whole, not to any backlog item. Anything an item or task produced goes in that item's folder, not here |
 
@@ -51,7 +52,8 @@ table — don't leave the note loose at the root.
 3. `roadmap.md` — when
 4. The `backlog/` item you are working on — its entry note first (`## Status`
    says where it stands), then the numbered notes inside it
-5. `dev-notes/` — only what the work actually touches
+5. `design/` — the area's README and `accepted` notes before changing behavior
+6. `dev-notes/` — only what the work actually touches
 
 ## Backlog
 

@@ -16,7 +16,7 @@ indexes — and proposes tasks for actionable items.
 | Zone | Contents |
 |------|----------|
 | `inbox/` | raw input landing zone — the default ingest source |
-| `projects/NNNN-<name>/` | notes tied to an active project — file into the owning backlog item's folder (`backlog/B-NNN-*/`, `NNN-` numbering), project-wide knowledge into `dev-notes/` |
+| `projects/NNNN-<name>/` | notes tied to an active project — file into the owning backlog item's folder (`backlog/B-NNN-*/`, `NNN-` numbering), project-wide design (what the project builds and how it behaves) into `design/`, how the project is developed into `dev-notes/` |
 | `knowledge/<topic>/` | durable reference knowledge, organized by topic |
 | `archive/` | completed, historical, or inactive material |
 | `journal/` | daily/weekly notes — **never an ingest target or source** |
@@ -157,7 +157,7 @@ Append to `_ai/logs/kb-log.md`:
 ## Placement and Naming Rules
 
 ### Container Selection Rules
-- `projects/`: always place documents inside a project folder named after the project, and inside it, into the owning backlog item's folder (`backlog/B-NNN-*/`) with `NNN-` numbering in tens (`NNN-T-XXXX-<title>.md` for task outputs) — never loose at the project root. Project-wide knowledge that belongs to no single item goes to `dev-notes/`. The closed root set (`README.md`, `prd.md`, `roadmap.md`, `links.md`, `glossary.md`, `_index.md`) is never an ingest target
+- `projects/`: always place documents inside a project folder named after the project, and inside it, into the owning backlog item's folder (`backlog/B-NNN-*/`) with `NNN-` numbering in tens (`NNN-T-XXXX-<title>.md` for task outputs) — never loose at the project root. Project-wide knowledge that belongs to no single item goes to `design/` when it is about what the project builds and how it behaves (`status: draft` while under discussion), and to `dev-notes/` when it is about how the project is developed. The closed root set (`README.md`, `prd.md`, `roadmap.md`, `links.md`, `glossary.md`, `_index.md`) is never an ingest target
 - `knowledge/`: place documents inside a topic folder; topic names describe a
   durable theme, not a one-off document title
 - `archive/`: preserve the source container name when practical; otherwise

@@ -68,7 +68,7 @@ export const projectsJa: Partial<Record<MessageKey, string>> = {
     "図解はここでは一覧表示のみです — 描画は図解タブで行います。",
   "projects.view.docs.loading": "ドキュメントを読み込み中…",
   "projects.view.docs.noDocuments":
-    "読めるドキュメントはまだありません — README.md、prd.md、dev-notes/ や shared/ 配下のノートがここに表示されます。",
+    "読めるドキュメントはまだありません — README.md、prd.md、design/、dev-notes/、shared/ 配下のノートがここに表示されます。",
   "projects.view.docs.pickPrompt": "ドキュメントを選ぶと読めます。編集は Obsidian で行ってください。",
   "projects.view.docs.openInObsidian": "Obsidian で開く",
   "projects.view.docs.resolveFailed": "このプロジェクトのフォルダが projects/ 配下にありません。",

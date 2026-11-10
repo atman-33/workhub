@@ -110,7 +110,7 @@ way. Disagree with reasons, then follow the owner's decision.
 rediscover, without being asked: decisions and the reasoning behind them,
 options that were rejected and why, and ideas parked for later. Route it as
 described in *Capturing knowledge* below — working notes for a session go to
-`_ai/state/`, design decisions to the project's `dev-notes/`, reusable
+`_ai/state/`, design decisions to the project's `design/`, reusable
 constraints to `.claude/rules/`. When something fails, record the cause and
 what to do differently, so the next session does not repeat it.
 
@@ -206,7 +206,8 @@ assigns the number and fills in `templates/project/`'s placeholders. Layout:
 | `roadmap.md` | Milestones and schedule |
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
 | `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
-| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
+| `design/` | What the project builds and how it behaves: the project-wide master, plus designs still under discussion. Read it per kind of project (an app: screens, API, data; a game: systems, enemies, maps, story; office work: business flows, operating rules). Optional; created with the first design note. See *Design notes* below |
+| `dev-notes/` | How the project is developed: environment setup, debugging steps, conventions, code structure. Not what the project builds (that is `design/`), and nothing that belongs to a single backlog item |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; read and written by the app's Schedule tab |
 | `mindmaps/` | Mindmap notes (`<name>.md`), one per map; read and written by the app's Mindmap tab |
 | `shared/` | Shared-space notes (`<name>.md`), one per team knowledge base that lives outside the vault — where it is and how it is organised |

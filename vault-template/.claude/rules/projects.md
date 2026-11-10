@@ -24,7 +24,8 @@ assigns the number and fills in `templates/project/`'s placeholders.
 | `links.md` | Link collection — repos, environments, dashboards, design files, references. `README.md` keeps only the daily few and points here |
 | `glossary.md` | Glossary — the canonical terms of the project (optional; scaffolded for every new project) |
 | `backlog/` | One note — or one folder — per unit of work: the candidate, the thinking behind it, and everything it produced. `_backlog.base` renders the items by status/priority |
-| `dev-notes/` | Cross-cutting knowledge: architecture, environment, conventions. Nothing that belongs to a single backlog item |
+| `design/` | What the project builds and how it behaves: the project-wide master, plus designs still under discussion. Read it per kind of project (an app: screens, API, data; a game: systems, enemies, maps, story; office work: business flows, operating rules). Optional; created with the first design note. See *Design notes* below |
+| `dev-notes/` | How the project is developed: environment setup, debugging steps, conventions, code structure. Not what the project builds (that is `design/`), and nothing that belongs to a single backlog item |
 | `diagrams/` | Diagram notes (`<name>.md`) of the newer kinds, project-wide; the Diagrams tab finds a diagram by its `type`, wherever it sits (see `diagrams.md`). Created with the first diagram |
 | `schedules/` | Schedule notes (`<name>.md`), one per plan under consideration; edited in the Diagrams tab. Created with the first one |
 | `mindmaps/` | Mindmap notes (`<name>.md`), one per map; edited in the Diagrams tab. Created with the first one |
@@ -48,9 +49,11 @@ assigns the number and fills in `templates/project/`'s placeholders.
   `roadmap.md`; anything belonging to one unit of work → that item's
   `backlog/B-NNN-<title>/` (spec, research, and the output of every task it
   spawned, linked from the task's `## Results`); an image, HTML or other
-  binary a task produced → the same item folder, never `attachments/`; knowledge that serves the
-  whole project → `dev-notes/`; project-wide terms → `glossary.md`; external links → `links.md`
-  (links to the console, never credentials or tokens).
+  binary a task produced → the same item folder, never `attachments/`; what
+  the project builds and how it behaves, as a master that outlives one item →
+  `design/`; how the project is developed → `dev-notes/`; project-wide terms →
+  `glossary.md`; external links → `links.md` (links to the console, never
+  credentials or tokens).
 - Folder names are kebab-case in any script (Japanese is fine); note file names may be Japanese.
 - **Backlog ≠ tasks.** `backlog/` holds units of work and what they produce;
   `tasks/` (vault root) is the app's executable task list. Details are in the
@@ -113,12 +116,50 @@ project's folder from its slug, glob `projects/*-<slug>/` (or
   `B-1000` works as written; widening it would mean renaming ids that are
   promised never to change.
 
+## Design notes
+
+`design/` is the project-wide master of what the project builds and how it
+behaves. It is not a place for one unit of work's spec: that stays in the
+item's `backlog/B-NNN-*/`, so a spec, its research and its outputs are not
+split across folders again. A note that starts in an item and turns out to
+describe the whole project is promoted: move it to `design/` and link the
+item's `## Status` to it.
+
+- **Optional.** Like `diagrams/`, create it with the first design note.
+- **By area.** Group by area in subfolders (`design/battle/`, `design/api/`).
+  Each area has a `README.md` that is its table of contents; the area index
+  ("list of enemies") is that README, not a separate note.
+- **Draft or accepted by frontmatter, not by folder.** Every design note
+  carries `status: draft | accepted`. A design still under discussion is
+  `draft`; confirming it is a one-line edit. There is no `drafts/` folder:
+  moving a file on confirmation breaks every path link to it.
+- **References.** Reference material from other projects, and images or
+  links the owner pastes, go in `design/references/`.
+- **Read before changing behavior.** Check the area's README and `accepted`
+  notes first; treat `draft` notes as proposals, not as settled.
+
+Where a note goes:
+
+| Example | Home | Why |
+|---|---|---|
+| An app's screen flow, API, data model | `design/` | How the whole project is built and behaves |
+| A game's battle system, enemy list, maps, story | `design/<area>/` | Same; each area's README is its table of contents |
+| Office work's business flows, operating rules | `design/` | The project's behavior |
+| One feature's spec, research, a task's output | `backlog/B-NNN-*/` | One unit of work; does not govern the whole project |
+| A design still under discussion | `design/`, `status: draft` | There is no `drafts/` |
+| Reference material from other projects, pasted images or links | `design/references/` | Reference for the design |
+| Environment setup, debugging steps, conventions, code structure | `dev-notes/` | How the project is developed |
+| Material to brief an external AI | `design/` if it is part of the design, `dev-notes/` if it is how to work | Decide by content |
+| Terms | `glossary.md` | Fixed at the root |
+
 ## Why the layout has two axes
 
 The layout has two axes, not one. `backlog/` groups by **unit of work** — one
 feature, one bug, one support case — keeping its spec, its research and its
 task outputs in one place. Everything else groups by **kind**, because it
-serves the project as a whole rather than any single item. Scattering one
+serves the project as a whole rather than any single item. `design/` and
+`dev-notes/` are kinds too: `design/` is what the project builds, `dev-notes/`
+is how it is developed. Scattering one
 piece of work across four kind-named folders is exactly what this replaces:
 once an item holds all of it, a separate `specs/`, `research/` and
 `deliverables/` have nothing left to hold.
