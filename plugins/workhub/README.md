@@ -18,6 +18,7 @@ workhub Obsidian vault.
 | `kb-ingest` | Classify notes from `inbox/` into `projects/`/`knowledge/`/`archive/`, propose tasks for actionable items, link and index |
 | `kb-query` | Search the vault and synthesize answers across notes, citing sources with wikilinks |
 | `kb-lint` | Health check: orphan notes, broken links, index drift, tag issues, stale content |
+| `project-docs-audit` | Audit where one project keeps its documents: misplaced design notes, missing area indexes, stale drafts, overlaps, broken links. Reports numbered candidates, fixes only the ones picked |
 | `kb-index` | Update the zone `_index.md` files (smart diff by default, `--full` rebuild) |
 | `vault-migrate` | Migrate another Obsidian vault into the workhub vault — copy-only, with scripted delta-zero verification (user-invoked only) |
 | `setup-project-context` | Scaffold or show `.claude/project-context.json` — the file the harness hooks below read (user-invoked only) |
