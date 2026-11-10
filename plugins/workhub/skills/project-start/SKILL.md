@@ -55,7 +55,8 @@ plus the session's own title (step 6).
 
    - product intent and scope → `prd.md`
    - dates and milestones → `roadmap.md`
-   - cross-cutting design and architecture → `dev-notes/`
+   - what the project builds and how it behaves → `design/` (the area's README and `accepted` notes first; `draft` notes are proposals)
+   - how the project is developed (environment, conventions, code structure) → `dev-notes/`
    - a named feature, bug or case → its item in `backlog/`. Read the entry
      note first — its `## Status` says where the item stands and which of the
      numbered notes beside it is current — and only then the notes it points at

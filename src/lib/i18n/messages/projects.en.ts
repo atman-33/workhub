@@ -65,7 +65,7 @@ export const projectsEn = {
     "Diagrams are only listed here for now — they render in the Diagrams tab.",
   "projects.view.docs.loading": "Reading documents…",
   "projects.view.docs.noDocuments":
-    "No readable documents yet — README.md, prd.md and the notes under dev-notes/ and shared/ show up here.",
+    "No readable documents yet — README.md, prd.md and the notes under design/, dev-notes/ and shared/ show up here.",
   "projects.view.docs.pickPrompt": "Pick a document to read it. Editing stays in Obsidian.",
   "projects.view.docs.openInObsidian": "Open in Obsidian",
   "projects.view.docs.resolveFailed": "This project has no folder under projects/.",

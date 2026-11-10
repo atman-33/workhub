@@ -3,7 +3,7 @@
  * (T-0714).
  *
  * The pane shows the project's shared documents — the notes at its root
- * (README, prd, roadmap, links, …) plus the notes under `dev-notes/` and
+ * (README, prd, roadmap, links, …) plus the notes under `design/`, `dev-notes/` and
  * `shared/`, and whatever `attachments/` holds that the preview can render.
  * `backlog/` is deliberately absent: backlog items belong to the next task
  * (T-0715) and have a picker of their own.
@@ -21,7 +21,7 @@ import type { DocsEntry } from "@/types";
  * `backlog/`, `schedules/`, `mindmaps/`, `diagrams/` and whatever the layout
  * never named — stays out of the pane.
  */
-export const PROJECT_DOC_DIRS = ["dev-notes", "shared", "attachments"] as const;
+export const PROJECT_DOC_DIRS = ["design", "dev-notes", "shared", "attachments"] as const;
 
 /** True for a subfolder the pane descends into. `backlog/` never qualifies. */
 export function isProjectDocDir(name: string): boolean {

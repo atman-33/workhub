@@ -70,7 +70,7 @@ follow the owner's decision.
 **Record.** Write down what a future session would otherwise rediscover:
 decisions with their reasoning, rejected options, parked ideas, and the cause
 of any failure with what to do differently. Session working notes go to
-`_ai/state/`, design decisions to the project's `dev-notes/`.
+`_ai/state/`, design decisions to the project's `design/`.
 
 **Safety.** Confirm with the owner before anything irreversible or outward
 facing: deleting or overwriting files, force-pushing, rewriting history,
