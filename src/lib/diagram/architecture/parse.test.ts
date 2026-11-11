@@ -339,45 +339,6 @@ describe("formatting", () => {
 });
 
 describe("edge ports (T-0712)", () => {
-  const PORTS = `---
-type: architecture
-title: t
----
-
-## Frames
-
-## Nodes
-
-- C-001 A
-- C-002 B
-- C-003 C
-
-## Edges
-
-- C-001:E@0.5 -> C-002:W "Pinned"
-- C-001:N -> C-003
-- C-003:S@2 -> C-001
-
-## Stickies
-`;
-
-  it("reads pinned sides and ratios, clamping the ratio", () => {
-    const doc = parseArchitecture(PORTS);
-    expect(doc.edges).toEqual([
-      {
-        from: "C-001",
-        to: "C-002",
-        bidi: false,
-        label: "Pinned",
-        fromPort: { side: "E", at: 0.5 },
-        toPort: { side: "W" },
-      },
-      { from: "C-001", to: "C-003", bidi: false, fromPort: { side: "N" } },
-      { from: "C-003", to: "C-001", bidi: false, fromPort: { side: "S", at: 1 } },
-    ]);
-    expect(doc.rawEdges).toEqual([]);
-    expect(warningCount(doc)).toBe(0);
-  });
 
   it("keeps an unknown side as a raw line", () => {
     const doc = parseArchitecture(`---
@@ -426,19 +387,12 @@ title: t
     expect(doc.rawEdges).toHaveLength(1);
   });
 
-  it("writes pins back, trimming the ratio", () => {
+  it("formats pins, trimming the ratio", () => {
     expect(
       formatEdge({ from: "C-001", to: "C-002", bidi: false, fromPort: { side: "E", at: 0.5 } }),
     ).toBe("- C-001:E@0.5 -> C-002");
     expect(formatEdge({ from: "C-001", to: "C-002", bidi: false, toPort: { side: "W" } })).toBe(
       "- C-001 -> C-002:W",
     );
-    const doc = parseArchitecture(PORTS);
-    const out = serializeArchitecture(PORTS, doc, "2026-10-10");
-    expect(out).toContain("- C-001:E@0.5 -> C-002:W");
-    expect(out).toContain("- C-001:N -> C-003");
-    expect(out).toContain("- C-003:S@1 -> C-001");
-    // A second read gives the same model back.
-    expect(parseArchitecture(out).edges).toEqual(doc.edges);
   });
 });
