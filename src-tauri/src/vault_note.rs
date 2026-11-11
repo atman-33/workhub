@@ -14,6 +14,7 @@
 //! schedule's `## Items` and a mindmap's `## Nodes` are interpreted on the
 //! frontend, so the backend only ever handles a note as a whole string.
 
+use crate::frontmatter::{self, unquote};
 use include_dir::Dir;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,41 +35,11 @@ pub fn mtime_secs(p: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// Splits `---\n<frontmatter>\n---\n<body>`; same contract as the task parser.
-/// Returns `None` for a file with no (or an unterminated) frontmatter block —
+/// Splits a note into (frontmatter text, body); see `frontmatter::split_frontmatter`.
+/// Returns `None` for a file with no (or an unterminated) frontmatter block -
 /// such a file is simply not a note of any kind and is skipped by a scan.
 pub fn split_frontmatter(content: &str) -> Option<(String, String)> {
-    let mut lines = content.split_inclusive('\n');
-    let first = lines.next()?;
-    if first.trim_end_matches(['\r', '\n']) != "---" {
-        return None;
-    }
-    let mut consumed = first.len();
-    let mut front = String::new();
-    let mut closed = false;
-    for line in lines {
-        consumed += line.len();
-        if line.trim_end_matches(['\r', '\n']) == "---" {
-            closed = true;
-            break;
-        }
-        front.push_str(line);
-    }
-    if !closed {
-        return None;
-    }
-    Some((front, content[consumed..].to_string()))
-}
-
-fn unquote(s: &str) -> String {
-    let s = s.trim();
-    if s.len() >= 2 {
-        let b = s.as_bytes();
-        if (b[0] == b'"' && b[s.len() - 1] == b'"') || (b[0] == b'\'' && b[s.len() - 1] == b'\'') {
-            return s[1..s.len() - 1].to_string();
-        }
-    }
-    s.to_string()
+    frontmatter::split_frontmatter(content).ok()
 }
 
 /// Reads a flat scalar a picker needs. Unknown keys are ignored (and preserved

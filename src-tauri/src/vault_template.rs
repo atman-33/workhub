@@ -4,7 +4,8 @@
 //!
 //! Moved out of `tasks.rs` (T-1220); the behaviour is unchanged.
 
-use crate::tasks::{norm_path, split_frontmatter};
+use crate::frontmatter::split_frontmatter;
+use crate::tasks::norm_path;
 use serde::Serialize;
 use similar::TextDiff;
 use std::collections::HashMap;

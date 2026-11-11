@@ -8,6 +8,7 @@ mod diagram;
 mod diagram_edit;
 mod docs;
 mod docs_viewer;
+mod frontmatter;
 mod git;
 mod harness;
 mod herdr;
