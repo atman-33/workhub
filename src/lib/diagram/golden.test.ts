@@ -56,4 +56,19 @@ describe("a second @x,y or ^mark on a line", () => {
     };
     expect(marked.steps[0]).toMatchObject({ title: "a ^start", kind: "end" });
   });
+
+  // A bug, pinned so a migration cannot change it by accident: flow looks a
+  // token up with `tok in KIND_MARKS`, which is also true of the names every
+  // object inherits. The word is swallowed as the step's "kind" and the file
+  // is then written with `^function Object() { [native code] }`. Fixing it is
+  // its own change and must update this test on purpose.
+  it("flow: a title word named like an inherited property becomes the kind", () => {
+    const flow = GOLDEN.flow.parse("## Steps\n\n- F-001 constructor\n", "") as {
+      steps: { title: string; kind: unknown }[];
+    };
+    expect(flow.steps[0].title).toBe("");
+    expect(String(flow.steps[0].kind)).toBe("function Object() { [native code] }");
+    const written = GOLDEN.flow.serialize("", flow as never, "2026-01-01");
+    expect(written).toContain("- F-001 ^function Object() { [native code] }");
+  });
 });
