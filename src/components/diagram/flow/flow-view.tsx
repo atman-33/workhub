@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { ClipboardCopy, Download, Image, ImagePlus, Maximize2, Plus, StickyNote } from "lucide-react";
 import { EdgeEditor } from "@/components/diagram/flow/edge-editor";
 import { FlowCanvas } from "@/components/diagram/flow/flow-canvas";
@@ -61,7 +60,9 @@ import {
   type Sticky,
 } from "@/lib/diagram/sticky";
 import { SidePanel } from "@/components/diagram/panel-frame";
+import { useDiagramSession } from "@/components/diagram/use-diagram-session";
 import { useMultiSelect } from "@/components/diagram/use-multi-select";
+import { todayISO, type DiagramAdapter } from "@/lib/diagram/session";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -86,10 +87,6 @@ import type { Config, Task } from "@/types";
  * save before a run, and passes `locked` while the agent holds the file.
  */
 
-/** Quiet period after the last edit before the file is written. */
-const SAVE_DEBOUNCE_MS = 600;
-/** Depth of the in-memory undo stack (Ctrl+Z). */
-const UNDO_LIMIT = 50;
 /** Starting width of the right column, in percent of the view. */
 const SIDEBAR_DEFAULT_PCT = 26;
 /** A stable empty array, so "no stickies" does not re-lay the canvas out on every render. */
@@ -98,11 +95,11 @@ const EMPTY_STICKIES: Sticky[] = [];
 const NUDGE = 4;
 const NUDGE_BIG = 16;
 
-function todayISO(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+/** How a flow note becomes a model and back; the lifecycle itself is the Diagram session's. */
+const flowAdapter: DiagramAdapter<FlowDocModel> = {
+  parse: parseFlow,
+  serialize: serializeFlow,
+};
 
 interface Props {
   /** Bumped by the app shell after settings are saved. */
@@ -114,12 +111,6 @@ interface Props {
 export function FlowView({ configVersion, embedded }: Props) {
   const t = useT();
   const { project, path } = embedded;
-  // The host hands a fresh callback on every render; reading it through a ref
-  // keeps the loaders (and the effects that depend on them) stable.
-  const onPathChange = useRef(embedded.onPathChange);
-  onPathChange.current = embedded.onPathChange;
-  const fallbackTitle = useRef(embedded.title);
-  fallbackTitle.current = embedded.title;
   // While an AI edit runs the agent holds the file (T-0685): every write path
   // goes quiet and the toolbar, canvas and side panel stop answering. Read
   // through a ref so the callbacks below stay stable.
@@ -127,11 +118,9 @@ export function FlowView({ configVersion, embedded }: Props) {
   const readOnly = embedded.readOnly ?? false;
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
-  const registerFlush = useRef(embedded.registerFlush);
-  registerFlush.current = embedded.registerFlush;
+  const { doc, saveError, mutate, undo, redo, loadedToken } = useDiagramSession(flowAdapter, embedded);
   const [config, setConfig] = useState<Config | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [doc, setDoc] = useState<FlowDocModel | null>(null);
   // Multi-select (T-0716): the ordered selection, last entry focused for the
   // side panel. Edge and sticky selection stay single and exclusive.
   const multi = useMultiSelect();
@@ -145,22 +134,10 @@ export function FlowView({ configVersion, embedded }: Props) {
   const [selectedStickyId, setSelectedStickyId] = useState<string | null>(null);
   const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
-  const [fitToken, setFitToken] = useState(0);
 
+  /** Fit-button presses; the camera refits on these and on every note load. */
+  const [fitClicks, setFitClicks] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
-  const undoStack = useRef<FlowDocModel[]>([]);
-  const redoStack = useRef<FlowDocModel[]>([]);
-  // The raw file text and the mtime it was read at: serialization needs the
-  // original bytes to preserve `## Memo` and unmanaged frontmatter, and the
-  // mtime is what makes the next write conflict-safe.
-  const source = useRef<{ content: string; mtime: number }>({ content: "", mtime: 0 });
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** The newest edit not yet written, and the note it belongs to. */
-  const pending = useRef<{ path: string; doc: FlowDocModel } | null>(null);
-  /** The flush of the note just left; the next load waits for it. */
-  const flushing = useRef<Promise<void>>(Promise.resolve());
-  const pathRef = useRef(path);
-  pathRef.current = path;
   /** A step added by a gesture and not named yet: abandoned if left empty. */
   const freshId = useRef<string | null>(null);
 
@@ -202,78 +179,6 @@ export function FlowView({ configVersion, embedded }: Props) {
     [doc, visibleStickies, unassignedLabel],
   );
 
-  // ---- reading and writing ------------------------------------------------
-
-  const loadDoc = useCallback(
-    async (target: string, { fit = false, skipUnchanged = false } = {}) => {
-      if (!target) {
-        setDoc(null);
-        return;
-      }
-      let read: Awaited<ReturnType<typeof api.readDiagram>>;
-      try {
-        read = await api.readDiagram(target);
-      } catch {
-        // The note is no longer where it was (moved, renamed elsewhere, its
-        // project archived). Letting go of the path lets the list re-resolve.
-        setDoc(null);
-        onPathChange.current("");
-        return;
-      }
-      if (target !== pathRef.current) return; // the user moved on while it was read
-      if (skipUnchanged && read.mtime === source.current.mtime) return;
-      source.current = { content: read.content, mtime: read.mtime };
-      // A reload means the file, not the user, decided the current state - the
-      // stack would otherwise let Ctrl+Z "undo" someone else's edit.
-      undoStack.current = [];
-      redoStack.current = [];
-      setDoc(parseFlow(read.content, fallbackTitle.current));
-      if (fit) setFitToken((n) => n + 1);
-    },
-    [],
-  );
-
-  /** Writes the newest pending edit now. Safe to call with nothing pending. */
-  const writePending = useCallback(async () => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    const p = pending.current;
-    pending.current = null;
-    if (!p) return;
-    const content = serializeFlow(source.current.content, p.doc, todayISO());
-    try {
-      const mtime = await api.writeDiagram(p.path, content, source.current.mtime);
-      if (p.path === pathRef.current) source.current = { content, mtime };
-      setStatus("");
-    } catch (e) {
-      // A conflict is not recoverable by retrying: the user has to see the
-      // other edit before deciding, so surface it and reload.
-      setStatus(String(e));
-      if (p.path === pathRef.current) void loadDoc(p.path);
-    }
-  }, [loadDoc]);
-
-  const reloadToken = embedded.reloadToken;
-  const handledReload = useRef(reloadToken);
-  useEffect(() => {
-    if (reloadToken === handledReload.current) return;
-    handledReload.current = reloadToken;
-    if (pathRef.current) void loadDoc(pathRef.current);
-  }, [reloadToken, loadDoc]);
-
-  // The host asks for this before it starts an AI edit, so the file the agent
-  // reads has everything that is on screen.
-  const flush = useCallback(async () => {
-    await flushing.current;
-    await writePending();
-  }, [writePending]);
-  useEffect(() => {
-    registerFlush.current(flush);
-    return () => registerFlush.current(null);
-  }, [flush]);
-
   // Entering the lock closes any inline edit: its box would sit dead under the
   // inert canvas.
   useEffect(() => {
@@ -283,9 +188,7 @@ export function FlowView({ configVersion, embedded }: Props) {
     setEditingStickyId(null);
   }, [locked]);
 
-  // Opening another note: the edit still pending belongs to the one being left
-  // and is written first, so the load below cannot overwrite the mtime that
-  // write is guarded by.
+  // Opening another note drops the view state that belonged to the old one.
   useEffect(() => {
     multi.clear();
     setSelectedEdgeKey(null);
@@ -294,66 +197,7 @@ export function FlowView({ configVersion, embedded }: Props) {
     setSelectedStickyId(null);
     setEditingStickyId(null);
     freshId.current = null;
-    void (async () => {
-      await flushing.current;
-      await loadDoc(path, { fit: true });
-    })();
-    return () => {
-      flushing.current = writePending();
-    };
-  }, [path, loadDoc, writePending]);
-
-  // External edits (Obsidian, an AI agent) arrive as events rather than
-  // polling, so the canvas follows the file without a refresh button.
-  useEffect(() => {
-    const unlisten = listen("diagrams-changed", () => {
-      // A pending local edit is the newer intent; letting the reload win would
-      // throw away what the user typed a moment ago. The event is usually the
-      // echo of our own save, which `skipUnchanged` drops.
-      if (path && !saveTimer.current) void loadDoc(path, { skipUnchanged: true });
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, [path, loadDoc]);
-
-  /** Shows a model and schedules the file write, without touching the undo stacks. */
-  const apply = useCallback(
-    (next: FlowDocModel) => {
-      if (lockedRef.current) return; // the agent holds the file
-      setDoc(next);
-      pending.current = { path, doc: next };
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => void writePending(), SAVE_DEBOUNCE_MS);
-    },
-    [path, writePending],
-  );
-
-  /** Applies a user edit: records the previous state for undo, then writes. */
-  const mutate = useCallback(
-    (next: FlowDocModel) => {
-      if (!doc || next === doc || lockedRef.current) return;
-      undoStack.current.push(doc);
-      if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
-      redoStack.current = [];
-      apply(next);
-    },
-    [doc, apply],
-  );
-
-  const undo = useCallback(() => {
-    const prev = undoStack.current.pop();
-    if (!prev || !doc) return;
-    redoStack.current.push(doc);
-    apply(prev);
-  }, [doc, apply]);
-
-  const redo = useCallback(() => {
-    const next = redoStack.current.pop();
-    if (!next || !doc) return;
-    undoStack.current.push(doc);
-    apply(next);
-  }, [doc, apply]);
+  }, [path]);
 
   // ---- selection ------------------------------------------------------------
 
@@ -939,8 +783,8 @@ export function FlowView({ configVersion, embedded }: Props) {
               {locked && !readOnly && (
                 <span className="text-[11px] text-amber-500">{t("diagram.aiPanel.lockedHint")}</span>
               )}
-              {status && (
-                <span className="max-w-72 truncate text-[11px] text-muted-foreground">{status}</span>
+              {(saveError || status) && (
+                <span className="max-w-72 truncate text-[11px] text-muted-foreground">{saveError || status}</span>
               )}
               {warnings > 0 && (
                 <span className="text-[11px] text-amber-500">
@@ -965,7 +809,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                   size="sm"
                   variant="outline"
                   className="h-6 text-xs"
-                  onClick={() => setFitToken((n) => n + 1)}
+                  onClick={() => setFitClicks((n) => n + 1)}
                 >
                   <Maximize2 className="size-3.5" />
                 </Button>
@@ -1040,7 +884,7 @@ export function FlowView({ configVersion, embedded }: Props) {
                   editingStepId={editingStepId}
                   editingEdgeKey={editingEdgeKey}
                   editingStickyId={editingStickyId}
-                  fitToken={fitToken}
+                  fitToken={loadedToken + fitClicks}
                   onSelectStep={selectStep}
                   onSelectMarquee={selectMarquee}
                   onSelectEdge={selectEdge}
