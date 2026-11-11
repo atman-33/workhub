@@ -12,6 +12,7 @@ use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
 use crate::terminal::{self, TerminalState};
 use crate::vault_note;
 use crate::vault_project;
+use crate::vault_template;
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -1740,14 +1741,14 @@ pub async fn export_mindmap_png(
 }
 
 /// `vault-template/` is embedded into the binary at compile time (see
-/// `tasks::VAULT_TEMPLATE`), so there is no filesystem template path to pass
+/// `vault_template::VAULT_TEMPLATE`), so there is no filesystem template path to pass
 /// in anymore — this works the same in dev and in a packaged single-exe
 /// build.
 #[tauri::command]
 pub async fn init_vault(vault_path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let vault = PathBuf::from(vault_path);
-        tasks::init_vault(&vault)?;
+        vault_template::init_vault(&vault)?;
         // Seed the harness config with the currently registered projects
         // (best-effort — a fresh vault already has the template default).
         let config = storage::load();
@@ -1768,9 +1769,11 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
 /// classifying every non-initial-only template file as added/updatable/
 /// conflicting/up-to-date.
 #[tauri::command]
-pub async fn check_vault_template(vault_path: String) -> Result<tasks::TemplateDiff, String> {
+pub async fn check_vault_template(
+    vault_path: String,
+) -> Result<vault_template::TemplateDiff, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::check_vault_template(&PathBuf::from(vault_path))
+        vault_template::check_vault_template(&PathBuf::from(vault_path))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1783,7 +1786,7 @@ pub async fn check_vault_template(vault_path: String) -> Result<tasks::TemplateD
 /// they are also listed in `overwrite` — the user's explicit choice to
 /// discard local edits for that file, in which case the prior content is
 /// first saved as `<name>.bak` and the template is written in place. See
-/// `tasks::apply_vault_template` for the full policy.
+/// `vault_template::apply_vault_template` for the full policy.
 #[tauri::command]
 pub async fn apply_vault_template(
     vault_path: String,
@@ -1791,7 +1794,7 @@ pub async fn apply_vault_template(
     overwrite: Vec<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::apply_vault_template(&PathBuf::from(vault_path), &paths, &overwrite)
+        vault_template::apply_vault_template(&PathBuf::from(vault_path), &paths, &overwrite)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1808,7 +1811,7 @@ pub async fn remove_template_orphans(
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::remove_template_orphans(&PathBuf::from(vault_path), &paths)
+        vault_template::remove_template_orphans(&PathBuf::from(vault_path), &paths)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1824,7 +1827,7 @@ pub async fn retain_template_orphans(
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::retain_template_orphans(&PathBuf::from(vault_path), &paths)
+        vault_template::retain_template_orphans(&PathBuf::from(vault_path), &paths)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1838,7 +1841,7 @@ pub async fn retain_template_orphans(
 #[tauri::command]
 pub async fn apply_safe_template_updates(vault_path: String) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::apply_safe_template_updates(&PathBuf::from(vault_path))
+        vault_template::apply_safe_template_updates(&PathBuf::from(vault_path))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1853,7 +1856,7 @@ pub async fn preview_vault_template_file(
     path: String,
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        tasks::template_file_diff(&PathBuf::from(vault_path), &path)
+        vault_template::template_file_diff(&PathBuf::from(vault_path), &path)
     })
     .await
     .map_err(|e| e.to_string())?

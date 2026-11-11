@@ -19,7 +19,7 @@ None of that is a deliberate edit, but all of it changes the bytes. Every one
 of the vault's project Bases differed from the rendered template this way
 after T-0263 corrected them **to** the template by hand.
 
-**Consequences for template sync** (`src-tauri/src/tasks.rs`):
+**Consequences for template sync** (`src-tauri/src/vault_template.rs`):
 
 - A `.base` listed in `.template-policy.json`'s `project_sync` normally
   classifies as `Conflict`, not `Updatable`. That is the designed outcome:
