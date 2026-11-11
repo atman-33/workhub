@@ -35,6 +35,7 @@ mod update;
 mod vault_note;
 mod vault_project;
 mod vault_settings;
+mod vault_template;
 mod voice;
 mod voice_chunk;
 mod voice_history;

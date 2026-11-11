@@ -574,9 +574,9 @@ pub fn create_project(vault: &Path, slug: &str, name: &str) -> Result<(), String
     let folder = project_folder_name(next_project_number(vault), slug);
     let dir = projects_dir(vault).join(&folder);
 
-    let template = crate::tasks::project_template()
+    let template = crate::vault_template::project_template()
         .ok_or_else(|| "the project template is missing from this build".to_string())?;
-    let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
+    let prefix = format!("{}/", crate::vault_template::PROJECT_TEMPLATE_DIR);
     let mut files = Vec::new();
     walk_project_template(template, &mut files);
     for file in files {
@@ -628,9 +628,9 @@ pub fn ensure_scaffold_file(
     if dst.exists() {
         return Ok(dst);
     }
-    let template = crate::tasks::project_template()
+    let template = crate::vault_template::project_template()
         .ok_or_else(|| "the project template is missing from this build".to_string())?;
-    let prefix = format!("{}/", crate::tasks::PROJECT_TEMPLATE_DIR);
+    let prefix = format!("{}/", crate::vault_template::PROJECT_TEMPLATE_DIR);
     let mut files = Vec::new();
     walk_project_template(template, &mut files);
     let file = files
