@@ -30,8 +30,6 @@ import {
   type EdgeSpec,
   type ElementSpec,
 } from "./note-grammar";
-import { symbolOfMark, markOfKind, DEFAULT_KIND, type NodeKind } from "./algorithm/symbols";
-import type { AlgorithmEdge, AlgorithmNode } from "./algorithm/parse";
 import { isNodeId, mayConnect, prefixOf, DEFAULT_PREFIX } from "./pfd/symbols";
 import type { PfdEdge, PfdNode } from "./pfd/parse";
 
@@ -296,92 +294,11 @@ describe("bodyLines", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The proof that the toolkit is enough: two Kinds rebuilt from it, compared
-// with the shipped parsers on the golden notes. If this holds, migrating a Kind
-// is moving this code into its `parse.ts`.
+// The proof that the toolkit is enough: a Kind rebuilt from it, compared
+// with the shipped parser on the golden note (removed per Kind once migrated).
 // ---------------------------------------------------------------------------
 
-const TODAY = "2026-11-11";
-
 describe("the toolkit reproduces a Kind", () => {
-  it("algorithm: the same model and the same file as parseAlgorithm / serializeAlgorithm", () => {
-    const g = GOLDEN.algorithm;
-    const env = readEnvelope(g.content, "fallback");
-    const nodes = readElements<AlgorithmNode>(sectionOf(env.note, "Nodes"), {
-      ownId: (t) => /^A-\d+$/.test(t),
-      build: (id, rest) => {
-        const { fields, title } = readModifiers<{
-          pos: { x: number; y: number };
-          kind: NodeKind;
-          task: string;
-          color: AlgorithmNode["color"];
-        }>(rest, {
-          pos: positionModifier,
-          kind: (t) => symbolOfMark(t)?.kind as NodeKind | undefined,
-          task: taskModifier,
-          color: colorModifier,
-        });
-        return {
-          id,
-          title,
-          kind: fields.kind ?? DEFAULT_KIND,
-          ...(fields.task ? { task: fields.task } : {}),
-          ...(fields.color ? { color: fields.color } : {}),
-          ...(fields.pos ?? {}),
-        };
-      },
-      mintPrefix: "A",
-    });
-    const edges = readEdges<AlgorithmEdge>(
-      sectionOf(env.note, "Edges"),
-      new Set(nodes.items.map((n) => n.id)),
-      { parse: (l) => readArrowLine(l, { label: true }), isTwin: sameOrderedPair, onTwin: "merge-label" },
-    );
-    const stickies = readStickies(env.note);
-    const doc = {
-      title: env.title,
-      nodes: nodes.items,
-      edges: edges.edges,
-      rawNodes: nodes.raw,
-      rawEdges: edges.raw,
-      mintedIds: nodes.minted || stickies.minted,
-      stickies: stickies.stickies,
-      rawStickies: stickies.rawStickies,
-      stickiesHidden: env.stickiesHidden,
-    };
-    expect(doc).toEqual(g.parse(g.content, "fallback"));
-
-    const out = writeNote(g.content, TODAY, {
-      stickiesHidden: doc.stickiesHidden,
-      sections: [
-        {
-          name: "Nodes",
-          text: formatSection("Nodes", [
-            ...doc.nodes.flatMap((n) => [
-              formatElementLine(n.id, n.title, [
-                markOfKind(n.kind),
-                n.task ? `task:${n.task}` : undefined,
-                n.color ? `#${n.color}` : undefined,
-                formatPosition(n.x, n.y),
-              ]),
-              ...formatNoteLines(n.note),
-            ]),
-            ...doc.rawNodes,
-          ]),
-        },
-        {
-          name: "Edges",
-          text: formatSection("Edges", [
-            ...uniqueEdges(doc.edges, sameOrderedPair).map((e) => formatArrowLine(e, true)),
-            ...doc.rawEdges,
-          ]),
-        },
-        stickySection(doc.stickies, doc.rawStickies),
-      ],
-    });
-    expect(out).toBe(g.serialize(g.content, g.parse(g.content, "fallback") as never, TODAY));
-  });
-
   it("pfd: ids of several prefixes, no labels, a connection rule", () => {
     const g = GOLDEN.pfd;
     const env = readEnvelope(g.content, "fallback");
