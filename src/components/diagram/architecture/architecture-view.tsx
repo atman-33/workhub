@@ -44,17 +44,16 @@ import {
   reverseEdge,
   setEdgeBidi,
   setNote,
+  setEdgeLabelRaw,
 } from "@/lib/diagram/architecture/ops";
 import {
   edgeKeyOf,
-  findEdge,
   findFrame,
   findNode,
   parseArchitecture,
   serializeArchitecture,
   warningCount,
   type ArchitectureDocModel,
-  type ArchitectureEdge,
   type ArchitectureFrame,
   type ArchitectureNode,
 } from "@/lib/diagram/architecture/parse";
@@ -118,24 +117,6 @@ const EMPTY_STICKIES: Sticky[] = [];
 /** Arrow-key nudge of the selected node, in pixels. */
 const NUDGE = 4;
 const NUDGE_BIG = 16;
-
-/**
- * Sets an arrow's label while it is typed, so unlike `setEdgeLabel` it does not
- * trim (a space typed between two words must survive the next keystroke); the
- * serializer trims what it writes.
- */
-function setLabelRaw(
-  doc: ArchitectureDocModel,
-  edge: { from: string; to: string; bidi: boolean },
-  label: string | undefined,
-): ArchitectureDocModel {
-  const current = findEdge(doc.edges, edge);
-  if (!current) return doc;
-  const next: ArchitectureEdge = { ...current };
-  if (label) next.label = label;
-  else delete next.label;
-  return { ...doc, edges: doc.edges.map((e) => (e === current ? next : e)) };
-}
 
 /** How a note becomes a model and back; the lifecycle itself is the Diagram session's. */
 const architectureAdapter: DiagramAdapter<ArchitectureDocModel> = {
@@ -1126,7 +1107,7 @@ export function ArchitectureView({ configVersion, embedded }: Props) {
                     edge={selectedEdge}
                     from={findNode(doc.nodes, selectedEdge.from)}
                     to={findNode(doc.nodes, selectedEdge.to)}
-                    onChangeLabel={(label) => mutate(setLabelRaw(doc, selectedEdge, label))}
+                    onChangeLabel={(label) => mutate(setEdgeLabelRaw(doc, selectedEdge, label))}
                     onChangeBidi={(bidi) => mutate(setEdgeBidi(doc, selectedEdge, bidi))}
                     onReverse={() => reverseSelectedEdge(selectedEdge)}
                     onDelete={() => removeEdge(edgeKeyOf(selectedEdge))}

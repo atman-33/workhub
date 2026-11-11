@@ -252,6 +252,19 @@ export function setEdgeLabel(
   return patchEdge(doc, edge, { label: text === "" ? undefined : text });
 }
 
+/**
+ * Sets a line's label while it is typed, so unlike `setEdgeLabel` it does not
+ * trim (a space typed between two words must survive the next keystroke); the
+ * serializer trims what it writes.
+ */
+export function setEdgeLabelRaw(
+  doc: UsecaseDocModel,
+  edge: { from: string; to: string },
+  label: string | undefined,
+): UsecaseDocModel {
+  return patchEdge(doc, edge, { label: label || undefined });
+}
+
 /** Turns the arrowhead (`->`) on or off. */
 export function setEdgeArrow(
   doc: UsecaseDocModel,

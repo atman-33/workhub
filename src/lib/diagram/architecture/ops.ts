@@ -454,6 +454,19 @@ export function setEdgeLabel(
   return patchEdge(doc, edge, { label: text === "" ? undefined : text });
 }
 
+/**
+ * Sets an arrow's label while it is typed, so unlike `setEdgeLabel` it does not
+ * trim (a space typed between two words must survive the next keystroke); the
+ * serializer trims what it writes.
+ */
+export function setEdgeLabelRaw(
+  doc: ArchitectureDocModel,
+  edge: { from: string; to: string; bidi: boolean },
+  label: string | undefined,
+): ArchitectureDocModel {
+  return patchEdge(doc, edge, { label: label || undefined });
+}
+
 /** Turns a one-way arrow into a two-way one and back. */
 export function setEdgeBidi(
   doc: ArchitectureDocModel,

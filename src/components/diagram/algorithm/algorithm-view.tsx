@@ -32,13 +32,13 @@ import { layoutAlgorithm } from "@/lib/diagram/algorithm/layout";
 import {
   addNode,
   addNodeAfter as addNodeAfterOp,
-  applyPatch,
   autoAlign,
   connect,
   deleteEdge,
   hasManualPositions,
   patchNode,
   reattach,
+  setEdgeLabelRaw,
 } from "@/lib/diagram/algorithm/ops";
 import {
   findNode,
@@ -46,7 +46,6 @@ import {
   serializeAlgorithm,
   warningCount,
   type AlgorithmDocModel,
-  type AlgorithmEdge,
   type AlgorithmNode,
 } from "@/lib/diagram/algorithm/parse";
 import { DEFAULT_KIND, SYMBOLS, type NodeKind } from "@/lib/diagram/algorithm/symbols";
@@ -96,24 +95,6 @@ const EMPTY_STICKIES: Sticky[] = [];
 /** Arrow-key nudge of the selected node, in pixels. */
 const NUDGE = 4;
 const NUDGE_BIG = 16;
-
-/**
- * Sets an arrow's label while it is typed, so unlike `setEdgeLabel` it does
- * not trim (a space typed between two words must survive the next keystroke);
- * the serializer trims what it writes.
- */
-function setLabel(
-  doc: AlgorithmDocModel,
-  edge: { from: string; to: string },
-  label: string | undefined,
-): AlgorithmDocModel {
-  return {
-    ...doc,
-    edges: doc.edges.map((e: AlgorithmEdge) =>
-      e.from === edge.from && e.to === edge.to ? applyPatch(e, { label: label || undefined }) : e,
-    ),
-  };
-}
 
 /** How a note becomes a model and back; the lifecycle itself is the Diagram session's. */
 const algorithmAdapter: DiagramAdapter<AlgorithmDocModel> = {
@@ -940,7 +921,7 @@ export function AlgorithmView({ configVersion, embedded }: Props) {
                     edge={selectedEdge}
                     from={findNode(doc.nodes, selectedEdge.from)}
                     to={findNode(doc.nodes, selectedEdge.to)}
-                    onChange={(label) => mutate(setLabel(doc, selectedEdge, label))}
+                    onChange={(label) => mutate(setEdgeLabelRaw(doc, selectedEdge, label))}
                     onDelete={() => removeEdge(edgeKey(selectedEdge))}
                   />
                 ) : (

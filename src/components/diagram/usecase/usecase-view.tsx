@@ -44,16 +44,15 @@ import {
   setAction,
   setEdgeArrow,
   setNote,
+  setEdgeLabelRaw,
 } from "@/lib/diagram/usecase/ops";
 import { newStickyOffset } from "@/lib/diagram/usecase/sticky-spot";
 import {
   findNode,
   parseUsecase,
-  samePair,
   serializeUsecase,
   warningCount,
   type UsecaseDocModel,
-  type UsecaseEdge,
   type UsecaseNode,
 } from "@/lib/diagram/usecase/parse";
 import {
@@ -106,24 +105,6 @@ const EMPTY_STICKIES: Sticky[] = [];
 /** Arrow-key nudge of the selected node, in pixels. */
 const NUDGE = 4;
 const NUDGE_BIG = 16;
-
-/**
- * Sets a line's label while it is typed, so unlike `setEdgeLabel` it does not
- * trim (a space typed between two words must survive the next keystroke); the
- * serializer trims what it writes.
- */
-function setLabelRaw(
-  doc: UsecaseDocModel,
-  edge: { from: string; to: string },
-  label: string | undefined,
-): UsecaseDocModel {
-  const current = doc.edges.find((e) => samePair(e, edge));
-  if (!current) return doc;
-  const next: UsecaseEdge = { ...current };
-  if (label) next.label = label;
-  else delete next.label;
-  return { ...doc, edges: doc.edges.map((e) => (e === current ? next : e)) };
-}
 
 /** How a note becomes a model and back; the lifecycle itself is the Diagram session's. */
 const usecaseAdapter: DiagramAdapter<UsecaseDocModel> = {
@@ -968,7 +949,7 @@ export function UsecaseView({ configVersion, embedded }: Props) {
                     edge={selectedEdge}
                     from={findNode(doc.nodes, selectedEdge.from)}
                     to={findNode(doc.nodes, selectedEdge.to)}
-                    onChangeLabel={(label) => mutate(setLabelRaw(doc, selectedEdge, label))}
+                    onChangeLabel={(label) => mutate(setEdgeLabelRaw(doc, selectedEdge, label))}
                     onChangeArrow={(arrow) => mutate(setEdgeArrow(doc, selectedEdge, arrow))}
                     onReverse={() => reverseSelectedEdge(selectedEdge)}
                     onDelete={() => removeEdge(edgeKey(selectedEdge))}

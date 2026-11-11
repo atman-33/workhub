@@ -14,6 +14,8 @@ import {
   patchNode,
   reattach,
   setEdgeLabel,
+
+  setEdgeLabelRaw,
   setNodeKind,
 } from "./ops";
 import { parseAlgorithm, serializeAlgorithm } from "./parse";
@@ -203,6 +205,16 @@ describe("arrows", () => {
     expect(set.edges.find((e) => e.to === "A-009")!.label).toBe("完了");
     const cleared = setEdgeLabel(set, edge, "  ");
     expect("label" in cleared.edges.find((e) => e.to === "A-009")!).toBe(false);
+  });
+
+  it("sets a label raw: no trim, empty clears, only the same ordered pair", () => {
+    const edge = { from: "A-003", to: "A-009" };
+    const set = setEdgeLabelRaw(docOf(), edge, "  a b  ");
+    expect(set.edges.find((e) => e.to === "A-009")!.label).toBe("  a b  ");
+    const cleared = setEdgeLabelRaw(set, edge, "");
+    expect("label" in cleared.edges.find((e) => e.to === "A-009")!).toBe(false);
+    expect(setEdgeLabelRaw(set, edge, undefined).edges).toEqual(cleared.edges);
+    expect(setEdgeLabelRaw(docOf(), { from: "A-009", to: "A-003" }, "x").edges).toEqual(docOf().edges);
   });
 
   it("deletes one arrow", () => {

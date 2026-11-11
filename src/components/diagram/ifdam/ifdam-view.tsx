@@ -33,7 +33,6 @@ import {
   addNode,
   addNodeAfter as addNodeAfterOp,
   addSectionItem,
-  applyPatch,
   autoAlign,
   connect,
   deleteEdge,
@@ -43,6 +42,7 @@ import {
   reattach,
   setMemo,
   setSectionItem,
+  setEdgeLabelRaw,
 } from "@/lib/diagram/ifdam/ops";
 import {
   findNode,
@@ -50,7 +50,6 @@ import {
   serializeIfdam,
   warningCount,
   type IfdamDocModel,
-  type IfdamEdge,
   type IfdamNode,
   type SectionKey,
 } from "@/lib/diagram/ifdam/parse";
@@ -101,24 +100,6 @@ const EMPTY_STICKIES: Sticky[] = [];
 /** Arrow-key nudge of the selected node, in pixels. */
 const NUDGE = 4;
 const NUDGE_BIG = 16;
-
-/**
- * Sets an arrow's label while it is typed, so unlike `setEdgeLabel` it does
- * not trim (a space typed between two words must survive the next keystroke);
- * the serializer trims what it writes.
- */
-function setLabel(
-  doc: IfdamDocModel,
-  edge: { from: string; to: string },
-  label: string | undefined,
-): IfdamDocModel {
-  return {
-    ...doc,
-    edges: doc.edges.map((e: IfdamEdge) =>
-      e.from === edge.from && e.to === edge.to ? applyPatch(e, { label: label || undefined }) : e,
-    ),
-  };
-}
 
 /** The names of a screen's three sections in the display language, for the exports. */
 function captionsOf(translate: (key: MessageKey) => string): SectionCaptions {
@@ -977,7 +958,7 @@ export function IfdamView({ configVersion, embedded }: Props) {
                     edge={selectedEdge}
                     from={findNode(doc.nodes, selectedEdge.from)}
                     to={findNode(doc.nodes, selectedEdge.to)}
-                    onChange={(label) => mutate(setLabel(doc, selectedEdge, label))}
+                    onChange={(label) => mutate(setEdgeLabelRaw(doc, selectedEdge, label))}
                     onDelete={() => removeEdge(edgeKey(selectedEdge))}
                   />
                 ) : (
