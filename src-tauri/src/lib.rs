@@ -36,6 +36,7 @@ mod vault_note;
 mod vault_project;
 mod vault_settings;
 mod vault_template;
+mod vault_watch;
 mod voice;
 mod voice_chunk;
 mod voice_history;
@@ -189,7 +190,7 @@ pub fn run() {
         )
         .manage(quick_capture::QuickCaptureState::default())
         .manage(clips::ClipsState::default())
-        .manage(tasks::WatcherState::default())
+        .manage(vault_watch::WatcherState::default())
         .manage(ink::InkState::default())
         .manage(terminal::TerminalState::default())
         .manage(voice::VoiceState::default())
@@ -243,8 +244,8 @@ pub fn run() {
             if let Some(vault_path) = cfg.settings.vault_path {
                 let path = std::path::PathBuf::from(&vault_path);
                 if path.is_dir() {
-                    let state = app.state::<tasks::WatcherState>();
-                    let _ = tasks::start_watcher(app.handle().clone(), &state.0, path);
+                    let state = app.state::<vault_watch::WatcherState>();
+                    let _ = vault_watch::start_watcher(app.handle().clone(), &state.0, path);
                 }
             }
             // Created hidden regardless of the enabled flag (the flag only
