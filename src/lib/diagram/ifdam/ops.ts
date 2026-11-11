@@ -8,6 +8,7 @@
  * removed one line at a time and never regrouped. Any two different nodes may be
  * joined (`allowAnyConnection`).
  */
+import { applyPatch, deleteNodeWithEdges, deleteOrderedEdge, patchOrderedEdge } from "../ops-common";
 import { allowAnyConnection, connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { IfdamLayout } from "./layout";
 import {
@@ -21,14 +22,7 @@ import {
 } from "./parse";
 import { DEFAULT_KIND, nextKindOf, type NodeKind } from "./symbols";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 function oneLine(text: string): string {
   return text.replace(/\s*\n\s*/g, " ").trim();
@@ -115,12 +109,7 @@ export function setNodeKind(doc: IfdamDocModel, id: string, kind: NodeKind): Ifd
 
 /** Removes a node with the arrows into and out of it and the stickies pinned to it. */
 export function deleteNode(doc: IfdamDocModel, id: string): IfdamDocModel {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((n) => n.id !== id),
-    edges: doc.edges.filter((e) => e.from !== id && e.to !== id),
-    stickies: doc.stickies.filter((s) => s.targetId !== id),
-  };
+  return deleteNodeWithEdges(doc, id);
 }
 
 /** Drops a node at a diagram point (its centre) after a drag. Only this node gets a `@`. */
@@ -331,14 +320,7 @@ export function setEdgeLabel(
   label: string | undefined,
 ): IfdamDocModel {
   const text = (label ?? "").trim();
-  return {
-    ...doc,
-    edges: doc.edges.map((e) =>
-      e.from === edge.from && e.to === edge.to
-        ? applyPatch(e, { label: text === "" ? undefined : text })
-        : e,
-    ),
-  };
+  return patchOrderedEdge(doc, edge, { label: text === "" ? undefined : text });
 }
 
 /**
@@ -351,17 +333,12 @@ export function setEdgeLabelRaw(
   edge: { from: string; to: string },
   label: string | undefined,
 ): IfdamDocModel {
-  return {
-    ...doc,
-    edges: doc.edges.map((e) =>
-      e.from === edge.from && e.to === edge.to ? applyPatch(e, { label: label || undefined }) : e,
-    ),
-  };
+  return patchOrderedEdge(doc, edge, { label: label || undefined });
 }
 
 export function deleteEdge(
   doc: IfdamDocModel,
   edge: { from: string; to: string },
 ): IfdamDocModel {
-  return { ...doc, edges: doc.edges.filter((e) => !(e.from === edge.from && e.to === edge.to)) };
+  return deleteOrderedEdge(doc, edge);
 }

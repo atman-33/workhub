@@ -6,6 +6,7 @@
  * moving a step into another lane rewrites its `lane:`, deleting a step takes
  * its arrows and stickies with it, and so on.
  */
+import { applyPatch, deleteOrderedEdge, patchOrderedEdge } from "../ops-common";
 import {
   connectEdges,
   reattachEdge,
@@ -24,14 +25,7 @@ import {
   type StepKind,
 } from "./parse";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 // ---- steps --------------------------------------------------------------------
 
@@ -247,14 +241,9 @@ export function patchEdge(
   edge: { from: string; to: string },
   patch: Partial<FlowEdge>,
 ): FlowDocModel {
-  return {
-    ...doc,
-    edges: doc.edges.map((e) =>
-      e.from === edge.from && e.to === edge.to ? applyPatch(e, patch) : e,
-    ),
-  };
+  return patchOrderedEdge(doc, edge, patch);
 }
 
 export function deleteEdge(doc: FlowDocModel, edge: { from: string; to: string }): FlowDocModel {
-  return { ...doc, edges: doc.edges.filter((e) => !(e.from === edge.from && e.to === edge.to)) };
+  return deleteOrderedEdge(doc, edge);
 }

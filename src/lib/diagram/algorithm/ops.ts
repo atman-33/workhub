@@ -7,6 +7,7 @@
  * decision makes the new node its next exit, and so on. Any two different nodes
  * may be joined (`allowAnyConnection`), and a decision has no limit on its exits.
  */
+import { applyPatch, deleteNodeWithEdges, deleteOrderedEdge, patchOrderedEdge } from "../ops-common";
 import { allowAnyConnection, connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { AlgorithmLayout } from "./layout";
 import {
@@ -17,14 +18,7 @@ import {
 } from "./parse";
 import { DEFAULT_KIND, type NodeKind } from "./symbols";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 // ---- nodes --------------------------------------------------------------------
 
@@ -86,12 +80,7 @@ export function setNodeKind(doc: AlgorithmDocModel, id: string, kind: NodeKind):
 
 /** Removes a node with the arrows into and out of it and the stickies pinned to it. */
 export function deleteNode(doc: AlgorithmDocModel, id: string): AlgorithmDocModel {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((n) => n.id !== id),
-    edges: doc.edges.filter((e) => e.from !== id && e.to !== id),
-    stickies: doc.stickies.filter((s) => s.targetId !== id),
-  };
+  return deleteNodeWithEdges(doc, id);
 }
 
 /** Drops a node at a diagram point (its centre) after a drag. Only this node gets a `@`. */
@@ -175,14 +164,7 @@ export function setEdgeLabel(
   label: string | undefined,
 ): AlgorithmDocModel {
   const text = (label ?? "").trim();
-  return {
-    ...doc,
-    edges: doc.edges.map((e) =>
-      e.from === edge.from && e.to === edge.to
-        ? applyPatch(e, { label: text === "" ? undefined : text })
-        : e,
-    ),
-  };
+  return patchOrderedEdge(doc, edge, { label: text === "" ? undefined : text });
 }
 
 /**
@@ -195,17 +177,12 @@ export function setEdgeLabelRaw(
   edge: { from: string; to: string },
   label: string | undefined,
 ): AlgorithmDocModel {
-  return {
-    ...doc,
-    edges: doc.edges.map((e) =>
-      e.from === edge.from && e.to === edge.to ? applyPatch(e, { label: label || undefined }) : e,
-    ),
-  };
+  return patchOrderedEdge(doc, edge, { label: label || undefined });
 }
 
 export function deleteEdge(
   doc: AlgorithmDocModel,
   edge: { from: string; to: string },
 ): AlgorithmDocModel {
-  return { ...doc, edges: doc.edges.filter((e) => !(e.from === edge.from && e.to === edge.to)) };
+  return deleteOrderedEdge(doc, edge);
 }
