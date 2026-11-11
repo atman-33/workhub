@@ -1,0 +1,1055 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden algorithm > counts the lines it keeps but cannot show 1`] = `4`;
+
+exports[`golden algorithm > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "from": "A-001",
+      "to": "A-002",
+    },
+    {
+      "from": "A-002",
+      "label": "ok",
+      "to": "A-006",
+    },
+    {
+      "from": "A-001",
+      "fromPort": {
+        "at": 0.25,
+        "side": "S",
+      },
+      "label": "ports",
+      "to": "A-005",
+      "toPort": {
+        "side": "N",
+      },
+    },
+    {
+      "from": "A-006",
+      "to": "A-006",
+    },
+  ],
+  "mintedIds": true,
+  "nodes": [
+    {
+      "id": "A-001",
+      "kind": "start",
+      "title": "開始",
+      "x": 0,
+      "y": 0,
+    },
+    {
+      "color": "blue",
+      "id": "A-002",
+      "kind": "sub",
+      "note": "メモ",
+      "task": "T-0100",
+      "title": "在庫を引き当てる",
+    },
+    {
+      "id": "A-007",
+      "kind": "io",
+      "title": "入力を読む",
+    },
+    {
+      "id": "A-008",
+      "kind": "doc",
+      "title": "duplicate",
+    },
+    {
+      "id": "A-005",
+      "kind": "process",
+      "title": "unknown ^bogus mark @x,y",
+    },
+    {
+      "id": "A-006",
+      "kind": "end",
+      "title": "終了",
+    },
+  ],
+  "rawEdges": [
+    "- A-001 -> A-404",
+    "- nonsense",
+  ],
+  "rawNodes": [
+    "- F-001 flow id kept raw",
+    "stray",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-001",
+      "targetId": "A-002",
+      "text": "memo",
+    },
+  ],
+  "stickiesHidden": false,
+  "title": "在庫引当",
+}
+`;
+
+exports[`golden algorithm > writes the note back as it always has 1`] = `
+"---
+type: algorithm
+title: 在庫引当
+direction: LR
+updated: 2026-11-11
+---
+
+## Nodes
+
+- A-001 開始 ^start @0,0
+- A-002 在庫を引き当てる ^sub task:T-0100 #blue
+  メモ
+- A-007 入力を読む ^io
+- A-008 duplicate ^doc
+- A-005 unknown ^bogus mark @x,y
+- A-006 終了 ^end
+- F-001 flow id kept raw
+stray
+
+## Edges
+
+- A-001 -> A-002
+- A-002 -> A-006 "ok"
+- A-001:S@0.25 -> A-005:N "ports"
+- A-006 -> A-006
+- A-001 -> A-404
+- nonsense
+
+## Stickies
+
+- S-001 node:A-002 @10,10 memo
+
+## Memo
+
+keep
+"
+`;
+
+exports[`golden architecture > counts the lines it keeps but cannot show 1`] = `10`;
+
+exports[`golden architecture > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "bidi": false,
+      "from": "C-001",
+      "label": "call",
+      "to": "C-002",
+    },
+    {
+      "bidi": false,
+      "from": "C-002",
+      "to": "C-001",
+    },
+    {
+      "bidi": true,
+      "from": "C-001",
+      "label": "both",
+      "to": "C-003",
+    },
+    {
+      "bidi": false,
+      "from": "C-001",
+      "to": "C-001",
+    },
+  ],
+  "frames": [
+    {
+      "color": "blue",
+      "id": "G-001",
+      "note": "frame memo",
+      "title": "Client side",
+    },
+    {
+      "id": "G-002",
+      "parent": "G-001",
+      "title": "Server",
+      "x": 10,
+      "y": 20,
+    },
+    {
+      "id": "G-003",
+      "title": "空の枠 #nocolor",
+      "x": 5,
+      "y": 5,
+    },
+    {
+      "id": "G-004",
+      "title": "duplicate frame",
+    },
+  ],
+  "mintedIds": true,
+  "nodes": [
+    {
+      "color": "green",
+      "frame": "G-001",
+      "id": "C-001",
+      "kind": "round",
+      "note": "node memo",
+      "task": "T-0100",
+      "title": "Screen",
+      "x": 640,
+      "y": 260,
+    },
+    {
+      "frame": "G-002",
+      "icon": "server",
+      "id": "C-002",
+      "kind": "block",
+      "title": "API",
+    },
+    {
+      "frame": "G-404",
+      "id": "C-003",
+      "kind": "db",
+      "title": "DB",
+    },
+    {
+      "id": "C-010",
+      "kind": "cloud",
+      "title": "外部",
+    },
+    {
+      "id": "C-011",
+      "kind": "user",
+      "title": "duplicate",
+    },
+    {
+      "id": "C-009",
+      "kind": "block",
+      "title": "mark ^unknown stays icon: frame:",
+    },
+  ],
+  "rawEdges": [
+    "- C-003 <-> C-001",
+    "- C-001 -> C-002",
+    "- C-001:E@0.5 -> C-003:W "ports"",
+    "- C-002 -- C-003",
+    "- C-001 -> C-404",
+  ],
+  "rawFrames": [
+    "- C-001 a node id under Frames",
+    "stray frame line",
+  ],
+  "rawNodes": [
+    "- G-009 another kind",
+    "stray",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-001",
+      "targetId": "G-001",
+      "text": "on a frame",
+    },
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-002",
+      "targetId": "C-002",
+      "text": "on a block",
+    },
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-003",
+      "targetId": "C-404",
+      "text": "gone",
+    },
+  ],
+  "stickiesHidden": false,
+  "title": "構成",
+}
+`;
+
+exports[`golden architecture > writes the note back as it always has 1`] = `
+"---
+type: architecture
+title: 構成
+updated: 2026-11-11
+---
+
+## Frames
+
+- G-001 Client side #blue
+  frame memo
+- G-002 Server frame:G-001 @10,20
+- G-003 空の枠 #nocolor @5,5
+- G-004 duplicate frame
+- C-001 a node id under Frames
+stray frame line
+
+## Nodes
+
+- C-001 Screen frame:G-001 ^round task:T-0100 #green @640,260
+  node memo
+- C-002 API frame:G-002 icon:server
+- C-003 DB frame:G-404 ^db
+- C-010 外部 ^cloud
+- C-011 duplicate ^user
+- C-009 mark ^unknown stays icon: frame:
+- G-009 another kind
+stray
+
+## Edges
+
+- C-001 -> C-002 "call"
+- C-002 -> C-001
+- C-001 <-> C-003 "both"
+- C-001 -> C-001
+- C-003 <-> C-001
+- C-001 -> C-002
+- C-001:E@0.5 -> C-003:W "ports"
+- C-002 -- C-003
+- C-001 -> C-404
+
+## Stickies
+
+- S-001 node:G-001 @10,10 on a frame
+- S-002 node:C-002 @10,10 on a block
+- S-003 node:C-404 @10,10 gone
+
+## Memo
+
+memo
+"
+`;
+
+exports[`golden flow > counts the lines it keeps but cannot show 1`] = `11`;
+
+exports[`golden flow > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "from": "F-001",
+      "fromPort": {
+        "at": 0.5,
+        "side": "E",
+      },
+      "label": "a "quoted" label",
+      "to": "F-004",
+      "toPort": {
+        "side": "W",
+      },
+    },
+  ],
+  "lanes": [
+    {
+      "color": "blue",
+      "id": "L-001",
+      "title": "営業",
+    },
+    {
+      "id": "L-004",
+      "title": "経理",
+    },
+    {
+      "id": "L-003",
+      "title": "開発 #nocolor",
+    },
+  ],
+  "mintedIds": true,
+  "rawEdges": [
+    "- F-001 -> F-002 "承認"",
+    "- F-001 -> F-002 "duplicate"",
+    "- F-002 -> F-002",
+    "- F-001 -> F-777",
+    "- garbage line",
+  ],
+  "rawLanes": [
+    "  indented line under a lane",
+    "a line that is not a list item",
+    "- F-099 a step id under Lanes",
+  ],
+  "rawSteps": [
+    "- X-005 another kind's element",
+    "free text under steps",
+  ],
+  "rawStickies": [
+    "- not a sticky",
+  ],
+  "steps": [
+    {
+      "id": "F-001",
+      "kind": "start",
+      "lane": "L-001",
+      "note": "メモ一行目
+メモ二行目",
+      "title": "受注",
+      "x": 120,
+      "y": 0,
+    },
+    {
+      "color": "green",
+      "id": "F-005",
+      "kind": "process",
+      "lane": "L-001",
+      "task": "T-0100",
+      "title": "見積を作る",
+    },
+    {
+      "id": "F-006",
+      "kind": "decision",
+      "lane": "L-009",
+      "title": "重複した id",
+    },
+    {
+      "id": "F-004",
+      "kind": "end",
+      "title": "完了 @malformed",
+    },
+    {
+      "id": "F-007",
+      "kind": "process",
+      "title": "^unknown mark stays #nocolor",
+      "x": 1,
+      "y": 2,
+    },
+  ],
+  "stickies": [
+    {
+      "color": "amber",
+      "dx": 32,
+      "dy": 24,
+      "id": "S-001",
+      "targetId": "F-001",
+      "text": "要確認
+second line",
+    },
+    {
+      "dx": 1,
+      "dy": 2,
+      "id": "S-002",
+      "targetId": "F-404",
+      "text": "orphan",
+    },
+  ],
+  "stickiesHidden": true,
+  "title": "見積フロー",
+}
+`;
+
+exports[`golden flow > writes the note back as it always has 1`] = `
+"---
+type: flow
+title: 見積フロー
+owner: someone
+stickies: hidden
+created: 2026-10-01
+updated: 2026-11-11
+---
+
+## Lanes
+
+- L-001 営業 #blue
+- L-004 経理
+- L-003 開発 #nocolor
+  indented line under a lane
+a line that is not a list item
+- F-099 a step id under Lanes
+
+## Steps
+
+- F-001 受注 ^start lane:L-001 @120,0
+  メモ一行目
+  メモ二行目
+- F-005 見積を作る lane:L-001 task:T-0100 #green
+- F-006 重複した id ^decision lane:L-009
+- F-004 完了 @malformed ^end
+- F-007 ^unknown mark stays #nocolor @1,2
+- X-005 another kind's element
+free text under steps
+
+## Edges
+
+- F-001:E@0.5 -> F-004:W "a 'quoted' label"
+- F-001 -> F-002 "承認"
+- F-001 -> F-002 "duplicate"
+- F-002 -> F-002
+- F-001 -> F-777
+- garbage line
+
+## Stickies
+
+- S-001 node:F-001 @32,24 #amber 要確認
+  second line
+- S-002 node:F-404 @1,2 orphan
+- not a sticky
+
+## Memo
+
+kept byte for byte
+
+## Unknown
+
+- also kept
+"
+`;
+
+exports[`golden ifdam > counts the lines it keeps but cannot show 1`] = `4`;
+
+exports[`golden ifdam > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "from": "V-001",
+      "label": "押下",
+      "to": "V-002",
+    },
+    {
+      "from": "V-002",
+      "label": "later",
+      "to": "V-003",
+    },
+    {
+      "from": "V-003",
+      "fromPort": {
+        "at": 0.2,
+        "side": "W",
+      },
+      "to": "V-001",
+      "toPort": {
+        "side": "E",
+      },
+    },
+    {
+      "from": "V-002",
+      "to": "V-002",
+    },
+  ],
+  "mintedIds": true,
+  "nodes": [
+    {
+      "id": "V-001",
+      "kind": "screen",
+      "lines": [
+        {
+          "key": "show",
+          "text": "Todo の一覧",
+        },
+        {
+          "key": "input",
+          "text": "検索語",
+        },
+        {
+          "key": "action",
+          "text": "追加を押す",
+        },
+        {
+          "key": null,
+          "text": "show:",
+        },
+        {
+          "key": null,
+          "text": "ただのメモ",
+        },
+        {
+          "key": "action",
+          "text": "削除する",
+        },
+      ],
+      "title": "一覧画面",
+      "x": 0,
+      "y": 0,
+    },
+    {
+      "id": "V-002",
+      "kind": "trigger",
+      "lines": [
+        {
+          "key": null,
+          "text": "show: not an item on a trigger",
+        },
+        {
+          "key": null,
+          "text": "memo line",
+        },
+      ],
+      "task": "T-0100",
+      "title": "登録する",
+    },
+    {
+      "color": "green",
+      "id": "V-003",
+      "kind": "store",
+      "lines": [],
+      "title": "DB",
+    },
+    {
+      "id": "V-010",
+      "kind": "message",
+      "lines": [],
+      "title": "保存済み",
+    },
+    {
+      "id": "V-011",
+      "kind": "screen",
+      "lines": [
+        {
+          "key": "input",
+          "text": "second",
+        },
+      ],
+      "title": "duplicate screen",
+    },
+    {
+      "id": "V-009",
+      "kind": "process",
+      "lines": [],
+      "title": "mark ^unknown stays",
+      "x": 1,
+      "y": 2,
+    },
+  ],
+  "rawEdges": [
+    "- V-001 -> V-404",
+  ],
+  "rawNodes": [
+    "- A-001 another kind",
+    "stray",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-001",
+      "targetId": "V-001",
+      "text": "a",
+    },
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-002",
+      "targetId": "V-404",
+      "text": "gone",
+    },
+  ],
+  "stickiesHidden": false,
+  "title": "Todo 登録",
+}
+`;
+
+exports[`golden ifdam > writes the note back as it always has 1`] = `
+"---
+type: ifdam
+title: Todo 登録
+updated: 2026-11-11
+---
+
+## Nodes
+
+- V-001 一覧画面 ^screen @0,0
+  show: Todo の一覧
+  input: 検索語
+  action: 追加を押す
+  show:
+  ただのメモ
+  action: 削除する
+- V-002 登録する ^trigger task:T-0100
+  show: not an item on a trigger
+  memo line
+- V-003 DB ^store #green
+- V-010 保存済み ^message
+- V-011 duplicate screen ^screen
+  input: second
+- V-009 mark ^unknown stays @1,2
+- A-001 another kind
+stray
+
+## Edges
+
+- V-001 -> V-002 "押下"
+- V-002 -> V-003 "later"
+- V-003:W@0.2 -> V-001:E
+- V-002 -> V-002
+- V-001 -> V-404
+
+## Stickies
+
+- S-001 node:V-001 @10,10 a
+- S-002 node:V-404 @10,10 gone
+
+## Memo
+
+memo
+"
+`;
+
+exports[`golden matrix2x2 > counts the lines it keeps but cannot show 1`] = `5`;
+
+exports[`golden matrix2x2 > parses to a stable model 1`] = `
+{
+  "items": [
+    {
+      "color": "green",
+      "id": "M-001",
+      "note": "メモ",
+      "task": "T-0684",
+      "title": "タブの並び替え",
+      "x": 0.2,
+      "y": 0.85,
+    },
+    {
+      "color": "amber",
+      "id": "M-006",
+      "title": "位置なし",
+    },
+    {
+      "id": "M-007",
+      "title": "duplicate",
+      "x": 1,
+      "y": 0,
+    },
+    {
+      "id": "M-004",
+      "title": "malformed @0.5 #nocolor task:",
+    },
+    {
+      "id": "M-005",
+      "title": "precise",
+      "x": 0.12,
+      "y": 0.99,
+    },
+  ],
+  "mintedIds": true,
+  "qBl": "",
+  "qBr": "やらない",
+  "qTl": "先にやる",
+  "qTr": "",
+  "quadrantNotes": {
+    "bl": "",
+    "br": "",
+    "tl": "左上のメモ
+- nested bullet",
+    "tr": "",
+  },
+  "rawItems": [
+    "- N-001 another kind",
+    "stray",
+  ],
+  "rawQuadrants": [
+    "- q_tl second entry for the same quadrant",
+    "- q_zz unknown key",
+    "loose line",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-001",
+      "targetId": "M-001",
+      "text": "s",
+    },
+  ],
+  "stickiesHidden": true,
+  "title": "施策の優先度",
+  "xAxis": "工数",
+  "xHigh": "大",
+  "xLow": "小",
+  "yAxis": "効果",
+  "yHigh": "大",
+  "yLow": "小",
+}
+`;
+
+exports[`golden matrix2x2 > writes the note back as it always has 1`] = `
+"---
+type: matrix2x2
+title: 施策の優先度
+x_axis: "工数"
+x_low: 小
+x_high: 大
+y_axis: 効果
+y_low: 小
+y_high: 大
+q_tl: 先にやる
+q_br: やらない
+stickies: hidden
+updated: 2026-11-11
+---
+
+## Items
+
+- M-001 タブの並び替え @0.20,0.85 #green task:T-0684
+  メモ
+- M-006 位置なし #amber
+- M-007 duplicate @1.00,0.00
+- M-004 malformed @0.5 #nocolor task:
+- M-005 precise @0.12,0.99
+- N-001 another kind
+stray
+
+## Quadrants
+
+- q_tl 左上のメモ
+  - nested bullet
+- q_tl second entry for the same quadrant
+- q_zz unknown key
+loose line
+
+## Stickies
+
+- S-001 node:M-001 @10,10 s
+
+## Memo
+
+memo
+"
+`;
+
+exports[`golden pfd > counts the lines it keeps but cannot show 1`] = `7`;
+
+exports[`golden pfd > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "from": "P-001",
+      "to": "D-001",
+    },
+    {
+      "from": "D-001",
+      "to": "P-002",
+    },
+    {
+      "from": "P-001",
+      "fromPort": {
+        "at": 0.5,
+        "side": "E",
+      },
+      "to": "D-002",
+      "toPort": {
+        "side": "W",
+      },
+    },
+  ],
+  "mintedIds": true,
+  "nodes": [
+    {
+      "id": "P-001",
+      "note": "定義書の要点。
+二行目。",
+      "title": "要件を整理する",
+      "x": 120,
+      "y": 160,
+    },
+    {
+      "color": "amber",
+      "id": "D-001",
+      "task": "T-0100",
+      "title": "要件定義書",
+      "x": 360,
+      "y": 160,
+    },
+    {
+      "id": "P-002",
+      "title": "設計する",
+    },
+    {
+      "id": "P-003",
+      "title": "duplicate id",
+    },
+    {
+      "id": "D-002",
+      "title": "設計書",
+      "x": -40,
+      "y": -12,
+    },
+  ],
+  "rawEdges": [
+    "- P-001 -> P-001",
+    "- P-001 -> Q-001",
+    "- P-001 -> D-001 "a label this kind cannot read"",
+    "- P-001 -> X-999",
+  ],
+  "rawNodes": [
+    "- Q-001 a prefix that is not a symbol",
+    "- N-001 another kind's id? (kept raw)",
+    "plain text",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 32,
+      "dy": 24,
+      "id": "S-001",
+      "targetId": "D-001",
+      "text": "note",
+    },
+  ],
+  "stickiesHidden": false,
+  "title": "開発の流れ",
+}
+`;
+
+exports[`golden pfd > writes the note back as it always has 1`] = `
+"---
+type: pfd
+title: 開発の流れ
+created: 2026-10-09
+updated: 2026-11-11
+---
+
+## Nodes
+
+- P-001 要件を整理する @120,160
+  定義書の要点。
+  二行目。
+- D-001 要件定義書 task:T-0100 #amber @360,160
+- P-002 設計する
+- P-003 duplicate id
+- D-002 設計書 @-40,-12
+- Q-001 a prefix that is not a symbol
+- N-001 another kind's id? (kept raw)
+plain text
+
+## Edges
+
+- P-001 -> D-001
+- D-001 -> P-002
+- P-001:E@0.5 -> D-002:W
+- P-001 -> P-001
+- P-001 -> Q-001
+- P-001 -> D-001 "a label this kind cannot read"
+- P-001 -> X-999
+
+## Stickies
+
+- S-001 node:D-001 @32,24 note
+
+## Memo
+
+memo
+"
+`;
+
+exports[`golden usecase > counts the lines it keeps but cannot show 1`] = `9`;
+
+exports[`golden usecase > parses to a stable model 1`] = `
+{
+  "edges": [
+    {
+      "arrow": false,
+      "from": "U-001",
+      "label": "利用",
+      "to": "U-002",
+    },
+    {
+      "arrow": false,
+      "from": "U-001",
+      "to": "U-001",
+    },
+  ],
+  "mintedIds": true,
+  "nodes": [
+    {
+      "id": "U-001",
+      "kind": "person",
+      "note": "ログインする
+問い合わせる",
+      "title": "利用者",
+      "x": 0,
+      "y": 0,
+    },
+    {
+      "color": "blue",
+      "id": "U-002",
+      "kind": "system",
+      "note": "hover memo",
+      "task": "T-0100",
+      "title": "窓口システム",
+    },
+    {
+      "id": "U-010",
+      "kind": "ext",
+      "title": "外部メール",
+    },
+    {
+      "id": "U-011",
+      "kind": "person",
+      "title": "duplicate id",
+    },
+    {
+      "id": "U-009",
+      "kind": "person",
+      "title": "mark ^unknown stays",
+    },
+  ],
+  "rawEdges": [
+    "- U-002 -> U-001",
+    "- U-001 -> U-003 "矢印"",
+    "- u-001 -- U-003",
+    "- U-002 -- U-003 "two"",
+    "- U-003 -- U-002 "reverse duplicate"",
+    "- U-001 -- U-404",
+    "- U-001:E -> U-002",
+  ],
+  "rawNodes": [
+    "- V-001 another kind",
+    "stray",
+  ],
+  "rawStickies": [],
+  "stickies": [
+    {
+      "dx": 10,
+      "dy": 10,
+      "id": "S-001",
+      "targetId": "U-001",
+      "text": "hi",
+    },
+  ],
+  "stickiesHidden": false,
+  "title": "問い合わせ",
+}
+`;
+
+exports[`golden usecase > writes the note back as it always has 1`] = `
+"---
+type: usecase
+title: 問い合わせ
+updated: 2026-11-11
+---
+
+## Nodes
+
+- U-001 利用者 @0,0
+  ログインする
+  問い合わせる
+- U-002 窓口システム ^system task:T-0100 #blue
+  hover memo
+- U-010 外部メール ^ext
+- U-011 duplicate id
+- U-009 mark ^unknown stays
+- V-001 another kind
+stray
+
+## Edges
+
+- U-001 -- U-002 "利用"
+- U-001 -- U-001
+- U-002 -> U-001
+- U-001 -> U-003 "矢印"
+- u-001 -- U-003
+- U-002 -- U-003 "two"
+- U-003 -- U-002 "reverse duplicate"
+- U-001 -- U-404
+- U-001:E -> U-002
+
+## Stickies
+
+- S-001 node:U-001 @10,10 hi
+
+## Memo
+
+memo
+"
+`;
