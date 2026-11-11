@@ -8,11 +8,12 @@ use crate::models::{
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
-use crate::tasks::{self, CreateTaskInput, UpdateTaskInput, WatcherState};
+use crate::tasks::{self, CreateTaskInput, UpdateTaskInput};
 use crate::terminal::{self, TerminalState};
 use crate::vault_note;
 use crate::vault_project;
 use crate::vault_template;
+use crate::vault_watch::{self, WatcherState};
 use crate::{actions, git, harness, storage, update};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -1870,7 +1871,7 @@ pub fn watch_vault(
     state: tauri::State<'_, WatcherState>,
     vault_path: String,
 ) -> Result<(), String> {
-    tasks::start_watcher(app, &state.0, PathBuf::from(vault_path))
+    vault_watch::start_watcher(app, &state.0, PathBuf::from(vault_path))
 }
 
 // ---------------------------------------------------------------------
