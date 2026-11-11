@@ -16,6 +16,8 @@ import {
   reattach,
   removeSectionItem,
   setEdgeLabel,
+
+  setEdgeLabelRaw,
   setMemo,
   setNodeKind,
   setSectionItem,
@@ -284,6 +286,15 @@ describe("arrows", () => {
     expect(d.edges).toContainEqual({ from: "V-002", to: "V-004" });
     const same = doc();
     expect(reattach(same, { from: "V-002", to: "V-003" }, "to", "V-003")).toBe(same);
+  });
+
+  it("sets a label raw: no trim, empty clears, only the same ordered pair", () => {
+    const edge = { from: "V-002", to: "V-003" };
+    let d = setEdgeLabelRaw(doc(), edge, " a b ");
+    expect(d.edges[1].label).toBe(" a b ");
+    d = setEdgeLabelRaw(d, edge, "");
+    expect("label" in d.edges[1]).toBe(false);
+    expect(setEdgeLabelRaw(doc(), { from: "V-003", to: "V-002" }, "x").edges).toEqual(doc().edges);
   });
 
   it("sets, clears and deletes", () => {

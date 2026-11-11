@@ -185,6 +185,24 @@ export function setEdgeLabel(
   };
 }
 
+/**
+ * Sets an arrow's label while it is typed, so unlike `setEdgeLabel` it does
+ * not trim (a space typed between two words must survive the next keystroke);
+ * the serializer trims what it writes.
+ */
+export function setEdgeLabelRaw(
+  doc: AlgorithmDocModel,
+  edge: { from: string; to: string },
+  label: string | undefined,
+): AlgorithmDocModel {
+  return {
+    ...doc,
+    edges: doc.edges.map((e) =>
+      e.from === edge.from && e.to === edge.to ? applyPatch(e, { label: label || undefined }) : e,
+    ),
+  };
+}
+
 export function deleteEdge(
   doc: AlgorithmDocModel,
   edge: { from: string; to: string },

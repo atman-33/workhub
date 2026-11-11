@@ -17,6 +17,8 @@ import {
   reverseEdge,
   setEdgeArrow,
   setEdgeLabel,
+
+  setEdgeLabelRaw,
   setNodeKind,
   setNote,
 } from "./ops";
@@ -225,6 +227,14 @@ describe("lines are undirected", () => {
     doc = deleteEdge(doc, { from: "U-002", to: "U-001" });
     expect(doc.edges).toEqual([{ from: "U-001", to: "U-004", arrow: true }]);
     expect(setEdgeLabel(docOf(), { from: "U-009", to: "U-001" }, "x").edges).toEqual(docOf().edges);
+  });
+
+  it("sets a label raw: no trim, empty clears, the pair in either order", () => {
+    let doc = setEdgeLabelRaw(docOf(), { from: "U-002", to: "U-001" }, " a b ");
+    expect(doc.edges[0].label).toBe(" a b ");
+    doc = setEdgeLabelRaw(doc, { from: "U-001", to: "U-002" }, "");
+    expect("label" in doc.edges[0]).toBe(false);
+    expect(setEdgeLabelRaw(docOf(), { from: "U-009", to: "U-001" }, "x").edges).toEqual(docOf().edges);
   });
 
   it("writes an edited model back as a clean note", () => {

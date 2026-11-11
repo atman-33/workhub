@@ -18,6 +18,8 @@ import {
   reverseEdge,
   setEdgeBidi,
   setEdgeLabel,
+
+  setEdgeLabelRaw,
   setNodeFrame,
   setNodeKind,
   setNote,
@@ -234,6 +236,15 @@ title: t
 `);
     const moved = reattach(doc, { from: "C-001", to: "C-003", bidi: false }, "to", "C-002");
     expect(moved.edges).toEqual([{ from: "C-001", to: "C-002", bidi: false, label: "Old" }]);
+  });
+
+  it("sets a label raw: no trim, empty clears, a one-way edge matches the ordered pair only", () => {
+    const edge = { from: "C-001", to: "C-002", bidi: false };
+    const doc = docOf();
+    const set = setEdgeLabelRaw(doc, edge, " a b ");
+    expect(set.edges[0].label).toBe(" a b ");
+    expect("label" in setEdgeLabelRaw(set, edge, "").edges[0]).toBe(false);
+    expect(setEdgeLabelRaw(doc, { from: "C-002", to: "C-001", bidi: false }, "x").edges).toEqual(doc.edges);
   });
 
   it("labels, turns both ways, reverses one way and deletes", () => {    const doc = docOf();
