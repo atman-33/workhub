@@ -413,6 +413,49 @@ created: 2026-08-26\nupdated: 2026-08-26\n---\n\n## Nodes\n\n- N-001 root\n  - N
         fs::remove_dir_all(&vault).ok();
     }
 
+    /// Characterises today's behaviour (T-1221): unlike `write_diagram`, a
+    /// guarded write to a note that has vanished *recreates* it. The views'
+    /// `flushSave` exists to work around this. A later step makes the three
+    /// kinds refuse; this test then changes with it.
+    #[test]
+    fn guarded_write_to_a_vanished_note_recreates_it() {
+        let vault = temp_vault("write-gone");
+        let created = create_mindmap(&vault, "demo", "ideas").unwrap();
+        let path = PathBuf::from(&created.path);
+        let doc = read_mindmap(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+
+        write_mindmap(&path, &doc.content, doc.mtime).unwrap();
+        assert!(path.is_file());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_rejects_an_empty_title_and_a_non_note() {
+        let vault = temp_vault("rename-invalid");
+        let created = create_mindmap(&vault, "demo", "ideas").unwrap();
+        let path = PathBuf::from(&created.path);
+        let err = rename_mindmap(&vault, &path, "  ").unwrap_err();
+        assert!(err.contains("name is required"), "error: {err}");
+
+        let stray = path.with_file_name("stray.md");
+        fs::write(&stray, "just prose\n").unwrap();
+        let err = rename_mindmap(&vault, &stray, "x").unwrap_err();
+        assert!(err.contains("no frontmatter"), "error: {err}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_refuses_a_note_that_is_already_gone() {
+        let vault = temp_vault("delete-gone");
+        let created = create_mindmap(&vault, "demo", "ideas").unwrap();
+        let path = PathBuf::from(&created.path);
+        delete_mindmap(&vault, &path).unwrap();
+        let err = delete_mindmap(&vault, &path).unwrap_err();
+        assert!(err.contains("no longer exists"), "error: {err}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
     #[test]
     fn snapshot_round_trips_one_generation() {
         let vault = temp_vault("snapshot");

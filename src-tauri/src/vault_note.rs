@@ -969,4 +969,101 @@ mod tests {
         let vault = temp_ai_dir_vault("neither");
         assert_eq!(ai_state_dir(&vault), vault.join("_ai").join("state"));
     }
+
+    // -----------------------------------------------------------------
+    // project scaffolding (moved from schedule.rs, T-1221)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn list_projects_finds_folders_without_any_note_yet() {
+        let vault = temp_project_vault("projects");
+        // The deadlock this guards: a project with no `schedules/` folder at
+        // all must still be offered, or the first schedule can never be made.
+        fs::create_dir_all(vault.join("projects").join("alpha")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("beta").join("schedules")).unwrap();
+        fs::create_dir_all(vault.join("projects").join("_wip")).unwrap();
+        fs::write(vault.join("projects").join("_index.md"), "x").unwrap();
+
+        assert_eq!(list_projects(&vault).unwrap(), vec!["alpha", "beta"]);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_scaffolds_the_template() {
+        let vault = temp_project_vault("project-create");
+        create_project(&vault, "demo", "Demo project").unwrap();
+
+        // A fresh vault's first project is numbered 0010 (T-0278).
+        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
+        assert!(readme.contains("title: Demo project"), "README: {readme}");
+        assert!(readme.contains("project: demo"), "README: {readme}");
+        assert!(
+            readme.contains(&format!("updated: {}", today())),
+            "README: {readme}"
+        );
+        assert!(!readme.contains("<Project name>"), "README: {readme}");
+        // Diagram folders are not part of a fresh project (T-0680): the first
+        // diagram creates the folder it lives in.
+        assert!(!vault.join("projects/0010-demo/schedules").exists());
+        assert!(!vault.join("projects/0010-demo/mindmaps").exists());
+        assert!(!vault.join("projects/0010-demo/diagrams").exists());
+        assert!(!vault.join("projects/0010-demo/shared/_example.md").exists());
+        assert!(!vault
+            .join("projects/0010-demo/backlog/B-000-example.md")
+            .exists());
+        // The new project shows up in the picker under its stripped slug —
+        // the number is a folder-name detail, not part of the identity.
+        assert_eq!(list_projects(&vault).unwrap(), vec!["demo"]);
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// The backlog Base filters on `project == "<slug>"`, which only works
+    /// because the scaffold substitutes the slug. A Base that kept the
+    /// placeholder — or the old `file.inFolder("backlog")`, which matches from
+    /// the vault root and so never matched at all — renders zero rows in every
+    /// project, silently.
+    #[test]
+    fn create_project_renders_the_slug_into_the_backlog_base() {
+        let vault = temp_project_vault("project-base");
+        create_project(&vault, "demo", "Demo project").unwrap();
+
+        let base =
+            fs::read_to_string(vault.join("projects/0010-demo/backlog/_backlog.base")).unwrap();
+        assert!(base.contains(r#"project == "demo""#), "base: {base}");
+        assert!(!base.contains("<project-slug>"), "base: {base}");
+        assert!(!base.contains("inFolder"), "base: {base}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_defaults_the_display_name_to_the_slug() {
+        let vault = temp_project_vault("project-noname");
+        create_project(&vault, "demo", "  ").unwrap();
+        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
+        assert!(readme.contains("title: demo"), "README: {readme}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_refuses_an_existing_folder() {
+        let vault = temp_project_vault("project-exists");
+        create_project(&vault, "demo", "").unwrap();
+        let err = create_project(&vault, "demo", "").unwrap_err();
+        assert!(err.contains("already exists"), "error: {err}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn create_project_rejects_unusable_slugs() {
+        let vault = temp_project_vault("project-slug");
+        for slug in ["", "  ", "a/b", "a\\b", "..", "_wip", ".hidden"] {
+            assert!(
+                create_project(&vault, slug, "x").is_err(),
+                "slug {slug:?} was accepted"
+            );
+        }
+        // Nothing was created on disk.
+        assert!(list_projects(&vault).unwrap().is_empty());
+        fs::remove_dir_all(&vault).ok();
+    }
 }
