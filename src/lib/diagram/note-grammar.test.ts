@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GOLDEN } from "./golden-fixtures";
 import { setOrRemoveFrontmatterValue } from "./note";
-import { sectionText } from "./sections";
 import {
   assignMissingIds,
   bodyLines,
@@ -30,8 +28,6 @@ import {
   type EdgeSpec,
   type ElementSpec,
 } from "./note-grammar";
-import { isNodeId, mayConnect, prefixOf, DEFAULT_PREFIX } from "./pfd/symbols";
-import type { PfdEdge, PfdNode } from "./pfd/parse";
 
 describe("readEnvelope", () => {
   it("takes the title from the frontmatter, else the fallback", () => {
@@ -293,56 +289,3 @@ describe("bodyLines", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// The proof that the toolkit is enough: a Kind rebuilt from it, compared
-// with the shipped parser on the golden note (removed per Kind once migrated).
-// ---------------------------------------------------------------------------
-
-describe("the toolkit reproduces a Kind", () => {
-  it("pfd: ids of several prefixes, no labels, a connection rule", () => {
-    const g = GOLDEN.pfd;
-    const env = readEnvelope(g.content, "fallback");
-    const nodes = readElements<PfdNode>(sectionOf(env.note, "Nodes"), {
-      ownId: isNodeId,
-      build: (id, rest) => {
-        const { fields, title } = readModifiers<{
-          pos: { x: number; y: number };
-          task: string;
-          color: PfdNode["color"];
-        }>(rest, { pos: positionModifier, task: taskModifier, color: colorModifier });
-        return {
-          id,
-          title,
-          ...(fields.task ? { task: fields.task } : {}),
-          ...(fields.color ? { color: fields.color } : {}),
-          ...(fields.pos ?? {}),
-        };
-      },
-      mintPrefix: (node) => prefixOf(node.id) || DEFAULT_PREFIX,
-    });
-    const edges = readEdges<PfdEdge>(
-      sectionOf(env.note, "Edges"),
-      new Set(nodes.items.map((n) => n.id)),
-      {
-        parse: (l) => readArrowLine(l, { label: false }),
-        isTwin: sameOrderedPair,
-        onTwin: "merge-label",
-        accepts: (e) => mayConnect(e.from, e.to),
-      },
-    );
-    const parsed = g.parse(g.content, "fallback") as {
-      nodes: PfdNode[];
-      edges: PfdEdge[];
-      rawNodes: string[];
-      rawEdges: string[];
-    };
-    expect(nodes.items).toEqual(parsed.nodes);
-    expect(nodes.raw).toEqual(parsed.rawNodes);
-    expect(edges.edges).toEqual(parsed.edges);
-    expect(edges.raw).toEqual(parsed.rawEdges);
-  });
-});
-
-function sectionOf(note: Parameters<typeof readStickies>[0], name: string): string {
-  return sectionText(note, name);
-}
