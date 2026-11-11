@@ -6,19 +6,13 @@
  * `mayConnect` (the symbol registry's) only keeps an arrow off a node itself and
  * off ids this build has no symbol for; any two nodes may be joined.
  */
+import { applyPatch, deleteNodeWithEdges, deleteOrderedEdge } from "../ops-common";
 import { connectEdges, reattachEdge, type EdgePort } from "../node-edge";
 import type { PfdDocModel, PfdEdge, PfdNode } from "./parse";
 import { nextNodeId } from "./parse";
 import { mayConnect, prefixOf, symbolByPrefix } from "./symbols";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 // ---- nodes --------------------------------------------------------------------
 
@@ -51,12 +45,7 @@ export function patchNode(doc: PfdDocModel, id: string, patch: Partial<PfdNode>)
 
 /** Removes a node with the arrows into and out of it and the stickies pinned to it. */
 export function deleteNode(doc: PfdDocModel, id: string): PfdDocModel {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((n) => n.id !== id),
-    edges: doc.edges.filter((e) => e.from !== id && e.to !== id),
-    stickies: doc.stickies.filter((s) => s.targetId !== id),
-  };
+  return deleteNodeWithEdges(doc, id);
 }
 
 /** Drops a node at a diagram point (its centre) after a drag. Only this node gets a `@`. */
@@ -152,5 +141,5 @@ export function reattach(
 }
 
 export function deleteEdge(doc: PfdDocModel, edge: { from: string; to: string }): PfdDocModel {
-  return { ...doc, edges: doc.edges.filter((e) => !(e.from === edge.from && e.to === edge.to)) };
+  return deleteOrderedEdge(doc, edge);
 }

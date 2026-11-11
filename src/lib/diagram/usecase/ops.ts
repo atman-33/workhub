@@ -10,6 +10,7 @@
  * in both orders first - the shared `connectEdges`/`reattachEdge` are directed
  * and are not used.
  */
+import { applyPatch, deleteNodeWithEdges } from "../ops-common";
 import type { UsecaseLayout } from "./layout";
 import {
   actionsOf,
@@ -22,14 +23,7 @@ import {
 } from "./parse";
 import { DEFAULT_KIND, symbolOfKind, type NodeKind } from "./symbols";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 // ---- nodes --------------------------------------------------------------------
 
@@ -112,12 +106,7 @@ export function setNote(doc: UsecaseDocModel, id: string, text: string): Usecase
 
 /** Removes a node with the lines into and out of it and the stickies pinned to it. */
 export function deleteNode(doc: UsecaseDocModel, id: string): UsecaseDocModel {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((n) => n.id !== id),
-    edges: doc.edges.filter((e) => e.from !== id && e.to !== id),
-    stickies: doc.stickies.filter((s) => s.targetId !== id),
-  };
+  return deleteNodeWithEdges(doc, id);
 }
 
 /** Drops a node at a diagram point (its centre) after a drag. Only this node gets a `@`;

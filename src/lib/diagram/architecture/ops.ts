@@ -9,6 +9,7 @@
  * `findEdge` first - the shared `connectEdges`/`reattachEdge` are directed
  * and are not used.
  */
+import { applyPatch, deleteNodeWithEdges } from "../ops-common";
 import type { ArchitectureLayout } from "./layout";
 import { frameRectOf } from "./layout";
 import type { EdgePort } from "../node-edge";
@@ -25,14 +26,7 @@ import {
 } from "./parse";
 import { DEFAULT_KIND, type NodeKind } from "./symbols";
 
-/** `patch` laid over `base`; a key set to `undefined` is removed. */
-export function applyPatch<T extends object>(base: T, patch: Partial<T>): T {
-  const next = { ...base, ...patch } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete next[key];
-  }
-  return next as T;
-}
+export { applyPatch };
 
 // ---- frames -------------------------------------------------------------------
 
@@ -172,12 +166,7 @@ export function setNote(doc: ArchitectureDocModel, id: string, text: string): Ar
 
 /** Removes a block with the arrows into and out of it and the stickies pinned to it. */
 export function deleteNode(doc: ArchitectureDocModel, id: string): ArchitectureDocModel {
-  return {
-    ...doc,
-    nodes: doc.nodes.filter((n) => n.id !== id),
-    edges: doc.edges.filter((e) => e.from !== id && e.to !== id),
-    stickies: doc.stickies.filter((s) => s.targetId !== id),
-  };
+  return deleteNodeWithEdges(doc, id);
 }
 
 /** Drops a block at a diagram point (its centre) after a drag. Only this block gets a `@`. */
