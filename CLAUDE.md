@@ -31,6 +31,7 @@ Backend (`src-tauri/src/`):
 | `lib.rs` / `main.rs` | Tauri builder, command registration |
 | `commands.rs` | `#[tauri::command]` layer exposed to the frontend |
 | `models.rs` | domain types (`Task`, `Project`, `Settings`, `Config`, ...) |
+| `frontmatter.rs` | the shared `---` fence reader (`split_frontmatter`, `unquote`) for task files and vault notes |
 | `tasks.rs` | task Markdown parsing/writing, `_ai/index/tasks.json` |
 | `vault_watch.rs` | vault-wide file watcher: debounced `*-changed` events for tasks, schedules, mindmaps, diagrams and projects |
 | `vault_template.rs` | vault init and template sync: the embedded `vault-template/`, the `_ai/template-manifest.json` baselines, 3-way diff / apply / orphan handling |

@@ -10,6 +10,7 @@
 //! `---`) is captured verbatim and never touched unless the caller explicitly
 //! supplies a replacement.
 
+use crate::frontmatter::{self, unquote};
 use crate::models::Task;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -45,43 +46,9 @@ pub(crate) fn norm_path(p: &Path) -> String {
 // frontmatter parsing / rendering
 // ---------------------------------------------------------------------
 
-/// Splits `---\n<frontmatter>\n---\n<body>` into (frontmatter text, body).
-/// The body is the exact remainder of the file, byte-for-byte.
-pub(crate) fn split_frontmatter(content: &str) -> Result<(String, String), String> {
-    let mut lines = content.split_inclusive('\n');
-    let first = lines.next().unwrap_or("");
-    if first.trim_end_matches(['\r', '\n']) != "---" {
-        return Err("file does not start with a frontmatter block".into());
-    }
-    let mut consumed = first.len();
-    let mut front = String::new();
-    let mut closed = false;
-    for line in lines {
-        consumed += line.len();
-        if line.trim_end_matches(['\r', '\n']) == "---" {
-            closed = true;
-            break;
-        }
-        front.push_str(line);
-    }
-    if !closed {
-        return Err("frontmatter block is not closed".into());
-    }
-    let body = content[consumed..].to_string();
-    Ok((front, body))
-}
-
-fn unquote(s: &str) -> String {
-    let s = s.trim();
-    if s.len() >= 2 {
-        let bytes = s.as_bytes();
-        if (bytes[0] == b'"' && bytes[s.len() - 1] == b'"')
-            || (bytes[0] == b'\'' && bytes[s.len() - 1] == b'\'')
-        {
-            return s[1..s.len() - 1].to_string();
-        }
-    }
-    s.to_string()
+/// Splits a task file into (frontmatter text, body); see `frontmatter::split_frontmatter`.
+fn split_frontmatter(content: &str) -> Result<(String, String), String> {
+    frontmatter::split_frontmatter(content).map_err(|e| e.to_string())
 }
 
 struct RawFrontmatter {
