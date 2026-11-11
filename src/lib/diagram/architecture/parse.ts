@@ -2,7 +2,8 @@
  * Architecture note <-> document model (`type: architecture`, T-0709).
  *
  * The note is Markdown a human also edits in Obsidian, so reading is forgiving
- * and writing is conservative - the same contract as the other diagram notes:
+ * and writing is conservative - the same contract as the other diagram notes
+ * (the shared grammar is `../note-grammar.ts`):
  *
  * - Anything the grammar does not recognize is **kept, not dropped**. A line
  *   under a managed section that is not readable survives as a raw line and is
@@ -39,29 +40,39 @@
  * for the same pair (in any direction or style) is kept as a raw line and
  * warned about. The first line wins.
  */
-import { detectEol, toLf, withEol } from "../../note-eol";
-import { COLORS, type Color } from "../colors";
-import { formatEdgeEnd, parseEdgeEnd } from "../edge-ports";
+import type { Color } from "../colors";
 import { edgeKey, type EdgePort } from "../node-edge";
+import { nextId } from "../note";
 import {
-  formatId,
-  frontmatterValue,
-  isContinuation,
-  nextId,
-  setFrontmatterValue,
-  setOrRemoveFrontmatterValue,
-} from "../note";
-import { replaceSections, sectionText, splitNote } from "../sections";
-import { formatStickySection, parseStickies, type Sticky } from "../sticky";
+  colorModifier,
+  countWarnings,
+  findById,
+  formatArrowLine,
+  formatColor,
+  formatElementLine,
+  formatNoteLines,
+  formatPosition,
+  formatSection,
+  formatTask,
+  positionModifier,
+  prefixModifier,
+  readEdgeLine,
+  readEdges,
+  readElements,
+  readEnvelope,
+  readModifiers,
+  readStickies,
+  stickySection,
+  taskModifier,
+  uniqueEdges,
+  writeNote,
+} from "../note-grammar";
+import { sectionText } from "../sections";
+import type { Sticky } from "../sticky";
 import { DEFAULT_KIND, markOfKind, symbolOfMark, type NodeKind } from "./symbols";
 
 export const NODE_PREFIX = "C";
 export const FRAME_PREFIX = "G";
-const NODE_ID_RE = /^C-\d+$/;
-const FRAME_ID_RE = /^G-\d+$/;
-/** Any `X-123` shaped id: another kind's element, which this note keeps but does not read. */
-const ANY_ID_RE = /^[A-Z]{1,3}-\d+$/;
-const INDENT = "  ";
 
 export interface ArchitectureFrame {
   /** Stable, file-unique id (`G-001`). Never reassigned and never reused. */
@@ -179,270 +190,103 @@ export function edgeKeyOf(edge: { from: string; to: string; bidi: boolean }): st
 // parsing
 // ---------------------------------------------------------------------------
 
-const NUMBER = String.raw`-?\d+(?:\.\d+)?`;
-const POSITION_RE = new RegExp(`^@(${NUMBER}),(${NUMBER})$`);
-const FRAME_REF_RE = /^frame:(.+)$/;
-const ICON_RE = /^icon:(.+)$/;
-const EDGE_RE = /^\s*-\s+(\S+)\s*(--|->|<->)\s*(\S+)\s*(?:"(.*)")?\s*$/;
-
-function isColor(tok: string): boolean {
-  return tok.startsWith("#") && (COLORS as readonly string[]).includes(tok.slice(1));
+interface FrameFields {
+  pos: { x: number; y: number };
+  color: Color;
+  parent: string;
 }
 
 /** `- G-001 Client side #blue`, with an optional reserved `frame:G-NNN` parent
  * and an optional `@x,y` of its own (drawn only while the frame is empty). */
-function parseFrameLine(line: string): { frame: ArchitectureFrame; hadId: boolean } | null {
-  const m = /^\s*-\s+(.*)$/.exec(line);
-  if (!m) return null;
-  const tokens = m[1].trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return null;
-  let id = "";
-  let rest = tokens;
-  if (FRAME_ID_RE.test(tokens[0])) {
-    id = tokens[0];
-    rest = tokens.slice(1);
-  } else if (ANY_ID_RE.test(tokens[0])) {
-    // Another kind's element: not ours to read.
-    return null;
-  }
-  let color: Color | undefined;
-  let parent: string | undefined;
-  let x: number | undefined;
-  let y: number | undefined;
-  const title: string[] = [];
-  // Modifiers may appear in any order; anything left over is the title, so a
-  // malformed `@` stays part of it (as on a block's line).
-  for (const tok of rest) {
-    const pos = POSITION_RE.exec(tok);
-    const frameRef = FRAME_REF_RE.exec(tok);
-    if (pos && x === undefined) {
-      x = Math.round(Number(pos[1]));
-      y = Math.round(Number(pos[2]));
-    } else if (isColor(tok) && !color) {
-      color = tok.slice(1) as Color;
-    } else if (frameRef && frameRef[1] && !parent) {
-      parent = frameRef[1];
-    } else {
-      title.push(tok);
-    }
-  }
+function buildFrame(id: string, rest: string[]): ArchitectureFrame {
+  const { fields, title } = readModifiers<FrameFields>(rest, {
+    pos: positionModifier,
+    color: colorModifier,
+    parent: prefixModifier("frame:"),
+  });
   return {
-    hadId: id !== "",
-    frame: {
-      id,
-      title: title.join(" "),
-      ...(color ? { color } : {}),
-      ...(parent ? { parent } : {}),
-      ...(x !== undefined && y !== undefined ? { x, y } : {}),
-    },
+    id,
+    title,
+    ...(fields.color ? { color: fields.color } : {}),
+    ...(fields.parent ? { parent: fields.parent } : {}),
+    ...(fields.pos ?? {}),
   };
+}
+
+interface NodeFields {
+  pos: { x: number; y: number };
+  kind: NodeKind;
+  frame: string;
+  icon: string;
+  task: string;
+  color: Color;
 }
 
 /** `- C-002 Screen frame:G-001 ^round task:T-0100 #blue @640,260` */
-function parseNodeLine(line: string): { node: ArchitectureNode; hadId: boolean } | null {
-  const m = /^\s*-\s+(.*)$/.exec(line);
-  if (!m) return null;
-  const tokens = m[1].trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return null;
-  let id = "";
-  let rest = tokens;
-  if (NODE_ID_RE.test(tokens[0])) {
-    id = tokens[0];
-    rest = tokens.slice(1);
-  } else if (ANY_ID_RE.test(tokens[0])) {
-    // Another kind's element: not ours to read.
-    return null;
-  }
-  let kind: NodeKind | undefined;
-  let frame: string | undefined;
-  let icon: string | undefined;
-  let task: string | undefined;
-  let color: Color | undefined;
-  let x: number | undefined;
-  let y: number | undefined;
-  const title: string[] = [];
-  // Modifiers may appear in any order; anything left over is the title, so an
-  // unknown `^word`, an unrecognized `#word`, a malformed `@` or a stray
-  // `frame:` stays part of it.
-  for (const tok of rest) {
-    const pos = POSITION_RE.exec(tok);
-    const frameRef = FRAME_REF_RE.exec(tok);
-    const iconRef = ICON_RE.exec(tok);
-    const symbol = symbolOfMark(tok);
-    if (pos && x === undefined) {
-      x = Math.round(Number(pos[1]));
-      y = Math.round(Number(pos[2]));
-    } else if (symbol && !kind) {
-      kind = symbol.kind as NodeKind;
-    } else if (frameRef && frameRef[1] && !frame) {
-      frame = frameRef[1];
-    } else if (iconRef && iconRef[1] && !icon) {
-      icon = iconRef[1];
-    } else if (tok.startsWith("task:") && tok.length > 5 && !task) {
-      task = tok.slice(5);
-    } else if (isColor(tok) && !color) {
-      color = tok.slice(1) as Color;
-    } else {
-      title.push(tok);
-    }
-  }
+function buildNode(id: string, rest: string[]): ArchitectureNode {
+  const { fields, title } = readModifiers<NodeFields>(rest, {
+    pos: positionModifier,
+    kind: (tok) => symbolOfMark(tok)?.kind as NodeKind | undefined,
+    frame: prefixModifier("frame:"),
+    icon: prefixModifier("icon:"),
+    task: taskModifier,
+    color: colorModifier,
+  });
   return {
-    hadId: id !== "",
-    node: {
-      id,
-      title: title.join(" "),
-      kind: kind ?? DEFAULT_KIND,
-      ...(frame ? { frame } : {}),
-      ...(icon ? { icon } : {}),
-      ...(task ? { task } : {}),
-      ...(color ? { color } : {}),
-      ...(x !== undefined && y !== undefined ? { x, y } : {}),
-    },
+    id,
+    title,
+    kind: fields.kind ?? DEFAULT_KIND,
+    ...(fields.frame ? { frame: fields.frame } : {}),
+    ...(fields.icon ? { icon: fields.icon } : {}),
+    ...(fields.task ? { task: fields.task } : {}),
+    ...(fields.color ? { color: fields.color } : {}),
+    ...(fields.pos ?? {}),
   };
 }
 
+/** `--` is not an edge here: the connector is read, then refused. */
 function parseEdgeLine(line: string): ArchitectureEdge | null {
-  const m = EDGE_RE.exec(line);
-  if (!m || m[2] === "--") return null;
-  const from = parseEdgeEnd(m[1]);
-  const to = parseEdgeEnd(m[3]);
-  if (!from || !to) return null;
-  const label = (m[4] ?? "").trim();
-  return {
-    from: from.id,
-    to: to.id,
-    bidi: m[2] === "<->",
-    ...(label ? { label } : {}),
-    ...(from.port ? { fromPort: from.port } : {}),
-    ...(to.port ? { toPort: to.port } : {}),
-  };
-}
-
-/** Gives every id-less frame or node an id, and repairs duplicates. Returns
- * whether anything was minted. */
-function assignMissingIds(
-  frames: ArchitectureFrame[],
-  nodes: ArchitectureNode[],
-): boolean {
-  let minted = false;
-  const mint = (prefix: string, items: { id: string }[]) => {
-    const seen = new Set<string>();
-    const re = new RegExp(`^${prefix}-(\\d+)$`);
-    let max = 0;
-    for (const item of items) {
-      const n = re.exec(item.id);
-      if (n) max = Math.max(max, Number(n[1]));
-    }
-    for (const item of items) {
-      if (!item.id || seen.has(item.id)) {
-        max += 1;
-        item.id = formatId(prefix, max);
-        minted = true;
-      }
-      seen.add(item.id);
-    }
-  };
-  mint(FRAME_PREFIX, frames);
-  mint(NODE_PREFIX, nodes);
-  return minted;
+  const read = readEdgeLine(line, { label: true, operators: ["--", "->", "<->"] });
+  if (!read || read.operator === "--") return null;
+  return { ...read.shape, bidi: read.operator === "<->" };
 }
 
 /** Parses an architecture note. `fallbackTitle` (usually the file name) stands
  * in when the frontmatter has no `title`. */
 export function parseArchitecture(content: string, fallbackTitle = ""): ArchitectureDocModel {
-  // Line-oriented patterns end in `(.*)$`, which `\r` breaks - so the file's
-  // line ending is dealt with once, here.
-  const note = splitNote(toLf(content));
-  const doc: ArchitectureDocModel = {
-    title: frontmatterValue(note.frontmatter, "title") || fallbackTitle,
-    frames: [],
-    nodes: [],
-    edges: [],
-    rawFrames: [],
-    rawNodes: [],
-    rawEdges: [],
-    mintedIds: false,
-    stickies: [],
-    rawStickies: [],
-    stickiesHidden: frontmatterValue(note.frontmatter, "stickies") === "hidden",
-  };
-
-  const memos = new Map<ArchitectureFrame | ArchitectureNode, string[]>();
-  let openFrame: ArchitectureFrame | null = null;
-  let openNode: ArchitectureNode | null = null;
-  const openNote = (item: ArchitectureFrame | ArchitectureNode) => memos.get(item);
-  for (const line of bodyLines(sectionText(note, "Frames"))) {
-    const parsed = parseFrameLine(line);
-    if (parsed) {
-      doc.frames.push(parsed.frame);
-      if (!parsed.hadId) doc.mintedIds = true;
-      openFrame = parsed.frame;
-      openNode = null;
-      continue;
-    }
-    if (openFrame && isContinuation(line)) {
-      const collected = openNote(openFrame);
-      if (collected) collected.push(line.trim());
-      else memos.set(openFrame, [line.trim()]);
-      continue;
-    }
-    openFrame = null;
-    openNode = null;
-    doc.rawFrames.push(line.trimEnd());
-  }
-  for (const line of bodyLines(sectionText(note, "Nodes"))) {
-    const parsed = parseNodeLine(line);
-    if (parsed) {
-      doc.nodes.push(parsed.node);
-      if (!parsed.hadId) doc.mintedIds = true;
-      openNode = parsed.node;
-      openFrame = null;
-      continue;
-    }
-    if (openNode && isContinuation(line)) {
-      const collected = openNote(openNode);
-      if (collected) collected.push(line.trim());
-      else memos.set(openNode, [line.trim()]);
-      continue;
-    }
-    openFrame = null;
-    openNode = null;
-    doc.rawNodes.push(line.trimEnd());
-  }
-  for (const [item, collected] of memos) item.note = collected.join("\n");
-
-  if (assignMissingIds(doc.frames, doc.nodes)) doc.mintedIds = true;
-
+  const { note, title, stickiesHidden } = readEnvelope(content, fallbackTitle);
+  const frames = readElements<ArchitectureFrame>(sectionText(note, "Frames"), {
+    ownId: (tok) => /^G-\d+$/.test(tok),
+    build: buildFrame,
+    mintPrefix: FRAME_PREFIX,
+  });
+  const nodes = readElements<ArchitectureNode>(sectionText(note, "Nodes"), {
+    ownId: (tok) => /^C-\d+$/.test(tok),
+    build: buildNode,
+    mintPrefix: NODE_PREFIX,
+  });
   // A line is real only between two blocks that exist; any other is kept as the
   // line it was. A second line for an already-joined pair is kept the same way,
   // and warned about.
-  const ids = new Set(doc.nodes.map((n) => n.id));
-  for (const line of bodyLines(sectionText(note, "Edges"))) {
-    const edge = parseEdgeLine(line);
-    if (
-      !edge ||
-      !ids.has(edge.from) ||
-      !ids.has(edge.to) ||
-      findEdge(doc.edges, edge)
-    ) {
-      doc.rawEdges.push(line.trimEnd());
-      continue;
-    }
-    doc.edges.push(edge);
-  }
-
-  const stickies = parseStickies(sectionText(note, "Stickies"));
-  doc.stickies = stickies.stickies;
-  doc.rawStickies = stickies.raw;
-  if (stickies.minted) doc.mintedIds = true;
-  return doc;
-}
-
-/** The non-blank lines of a section, without its heading line. */
-function bodyLines(section: string): string[] {
-  return section
-    .split("\n")
-    .filter((line, i) => !(i === 0 && /^##\s+/.test(line)) && line.trim() !== "");
+  const edges = readEdges<ArchitectureEdge>(
+    sectionText(note, "Edges"),
+    new Set(nodes.items.map((n) => n.id)),
+    { parse: parseEdgeLine, isTwin: sameEdge, onTwin: "keep-raw" },
+  );
+  const stickies = readStickies(note);
+  return {
+    title,
+    frames: frames.items,
+    nodes: nodes.items,
+    edges: edges.edges,
+    rawFrames: frames.raw,
+    rawNodes: nodes.raw,
+    rawEdges: edges.raw,
+    mintedIds: frames.minted || nodes.minted || stickies.minted,
+    stickies: stickies.stickies,
+    rawStickies: stickies.rawStickies,
+    stickiesHidden,
+  };
 }
 
 /** Next free `C-NNN` for this document. Ids are never reused. */
@@ -456,23 +300,21 @@ export function nextFrameId(frames: ArchitectureFrame[]): string {
 }
 
 export function findNode(nodes: ArchitectureNode[], id: string): ArchitectureNode | null {
-  return nodes.find((n) => n.id === id) ?? null;
+  return findById(nodes, id);
 }
 
 export function findFrame(frames: ArchitectureFrame[], id: string): ArchitectureFrame | null {
-  return frames.find((f) => f.id === id) ?? null;
+  return findById(frames, id);
 }
 
 /** How many lines the note keeps but the editor cannot show: unreadable lines
  * in any section (a duplicate pair included), and stickies whose block or
  * frame is gone. */
 export function warningCount(doc: ArchitectureDocModel): number {
-  const ids = new Set([...doc.nodes.map((n) => n.id), ...doc.frames.map((f) => f.id)]);
-  return (
-    doc.rawFrames.length +
-    doc.rawNodes.length +
-    doc.rawEdges.length +
-    doc.stickies.filter((s) => !ids.has(s.targetId)).length
+  return countWarnings(
+    [doc.rawFrames, doc.rawNodes, doc.rawEdges],
+    doc.stickies,
+    new Set([...doc.nodes.map((n) => n.id), ...doc.frames.map((f) => f.id)]),
   );
 }
 
@@ -482,57 +324,33 @@ export function warningCount(doc: ArchitectureDocModel): number {
 
 /** Renders one frame: its grammar line plus any memo lines. */
 export function formatFrame(frame: ArchitectureFrame): string[] {
-  const parts = [frame.id];
-  // Only ever the first line: a stray newline in the title would otherwise
-  // emit a second, unparsable line.
-  const title = frame.title.split("\n")[0].trim();
-  if (title) parts.push(title);
-  if (frame.parent) parts.push(`frame:${frame.parent}`);
-  if (frame.color) parts.push(`#${frame.color}`);
-  if (frame.x !== undefined && frame.y !== undefined) {
-    parts.push(`@${Math.round(frame.x)},${Math.round(frame.y)}`);
-  }
-  const out = [`- ${parts.join(" ")}`];
-  const note = (frame.note ?? "").replace(/\s+$/, "");
-  if (note) {
-    for (const line of note.split("\n")) out.push(`${INDENT}${line}`);
-  }
-  return out;
+  return [
+    formatElementLine(frame.id, frame.title, [
+      frame.parent ? `frame:${frame.parent}` : undefined,
+      formatColor(frame.color),
+      formatPosition(frame.x, frame.y),
+    ]),
+    ...formatNoteLines(frame.note),
+  ];
 }
 
 /** Renders one node: its grammar line plus any memo lines. */
 export function formatNode(node: ArchitectureNode): string[] {
-  const parts = [node.id];
-  // Only ever the first line: a stray newline in the title would otherwise
-  // emit a second, unparsable line.
-  const title = node.title.split("\n")[0].trim();
-  if (title) parts.push(title);
-  if (node.frame) parts.push(`frame:${node.frame}`);
-  const mark = markOfKind(node.kind);
-  if (mark) parts.push(mark);
-  if (node.icon) parts.push(`icon:${node.icon}`);
-  if (node.task) parts.push(`task:${node.task}`);
-  if (node.color) parts.push(`#${node.color}`);
-  if (node.x !== undefined && node.y !== undefined) {
-    parts.push(`@${Math.round(node.x)},${Math.round(node.y)}`);
-  }
-  const out = [`- ${parts.join(" ")}`];
-  const note = (node.note ?? "").replace(/\s+$/, "");
-  if (note) {
-    for (const line of note.split("\n")) out.push(`${INDENT}${line}`);
-  }
-  return out;
+  return [
+    formatElementLine(node.id, node.title, [
+      node.frame ? `frame:${node.frame}` : undefined,
+      markOfKind(node.kind),
+      node.icon ? `icon:${node.icon}` : undefined,
+      formatTask(node.task),
+      formatColor(node.color),
+      formatPosition(node.x, node.y),
+    ]),
+    ...formatNoteLines(node.note),
+  ];
 }
 
 export function formatEdge(edge: ArchitectureEdge): string {
-  // The label sits between quotes; a quote inside it could not be read back.
-  const label = (edge.label ?? "").replace(/\s+/g, " ").replace(/"/g, "'").trim();
-  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} ${edge.bidi ? "<->" : "->"} ${formatEdgeEnd(edge.to, edge.toPort)}${label ? ` "${label}"` : ""}`;
-}
-
-function sectionBody(name: string, lines: string[]): string {
-  const body = lines.join("\n");
-  return body ? `## ${name}\n\n${body}\n\n` : `## ${name}\n\n`;
+  return formatArrowLine(edge, true, edge.bidi ? "<->" : "->");
 }
 
 /**
@@ -545,26 +363,18 @@ export function serializeArchitecture(
   doc: ArchitectureDocModel,
   today: string,
 ): string {
-  const eol = detectEol(content);
-  const note = splitNote(toLf(content));
-  let frontmatter = setFrontmatterValue(note.frontmatter, "updated", today);
-  frontmatter = setOrRemoveFrontmatterValue(frontmatter, "stickies", doc.stickiesHidden ? "hidden" : "");
-
   // An edge is written once per claimed pair, whatever the model holds.
-  const edges: ArchitectureEdge[] = [];
-  for (const e of doc.edges) if (!findEdge(edges, e)) edges.push(e);
-
-  const body = replaceSections({ ...note, frontmatter }, [
-    {
-      name: "Frames",
-      text: sectionBody("Frames", [...doc.frames.flatMap(formatFrame), ...doc.rawFrames]),
-    },
-    {
-      name: "Nodes",
-      text: sectionBody("Nodes", [...doc.nodes.flatMap(formatNode), ...doc.rawNodes]),
-    },
-    { name: "Edges", text: sectionBody("Edges", [...edges.map(formatEdge), ...doc.rawEdges]) },
-    { name: "Stickies", text: formatStickySection(doc.stickies, doc.rawStickies) },
-  ]);
-  return withEol(body, eol);
+  const edges = uniqueEdges(doc.edges, sameEdge);
+  return writeNote(content, today, {
+    stickiesHidden: doc.stickiesHidden,
+    sections: [
+      {
+        name: "Frames",
+        text: formatSection("Frames", [...doc.frames.flatMap(formatFrame), ...doc.rawFrames]),
+      },
+      { name: "Nodes", text: formatSection("Nodes", [...doc.nodes.flatMap(formatNode), ...doc.rawNodes]) },
+      { name: "Edges", text: formatSection("Edges", [...edges.map(formatEdge), ...doc.rawEdges]) },
+      stickySection(doc.stickies, doc.rawStickies),
+    ],
+  });
 }
