@@ -14,6 +14,7 @@ import {
   positionModifier,
   prefixModifier,
   readArrowLine,
+  readEdgeLine,
   readEdges,
   readElements,
   readEnvelope,
@@ -279,6 +280,46 @@ describe("countWarnings", () => {
       { id: "S-002", targetId: "A-404", dx: 0, dy: 0, text: "" },
     ];
     expect(countWarnings([["x"], [], ["y", "z"]], stickies, new Set(["A-001"]))).toBe(4);
+  });
+});
+
+describe("readEdgeLine", () => {
+  const line = { label: true, operators: ["--", "->", "<->"] };
+
+  it("reads whichever connector the Kind lists, and says which it was", () => {
+    expect(readEdgeLine('- A-001 -- A-002 "x"', line)).toEqual({
+      operator: "--",
+      shape: { from: "A-001", to: "A-002", label: "x" },
+    });
+    expect(readEdgeLine("- A-001 <-> A-002", line)?.operator).toBe("<->");
+    expect(readEdgeLine("- A-001 -> A-002", line)?.operator).toBe("->");
+    expect(readEdgeLine("- A-001 <- A-002", line)).toBeNull();
+  });
+
+  it("defaults to a single `->` and pinned ends, as readArrowLine always did", () => {
+    expect(readEdgeLine("- A-001:E -> A-002", { label: false })?.shape).toEqual({
+      from: "A-001",
+      to: "A-002",
+      fromPort: { side: "E" },
+    });
+    expect(readEdgeLine("- A-001 -- A-002", { label: false })).toBeNull();
+  });
+
+  it("without ports an end is a bare id, any letter case, and a pinned end is not an edge", () => {
+    const plain = { label: true, operators: ["--", "->"], ports: false };
+    expect(readEdgeLine("- u-001 -- U-002", plain)?.shape).toEqual({ from: "u-001", to: "U-002" });
+    expect(readEdgeLine("- U-001:E -> U-002", plain)).toBeNull();
+    expect(readEdgeLine("- U-001--U-002", plain)?.operator).toBe("--");
+    expect(readEdgeLine("- U-001 -- U-002 trailing", plain)).toBeNull();
+  });
+
+  it("writes the connector it is given", () => {
+    expect(formatArrowLine({ from: "A-001", to: "A-002", label: "x" }, true, "--")).toBe(
+      '- A-001 -- A-002 "x"',
+    );
+    expect(formatArrowLine({ from: "A-001", to: "A-002", toPort: { side: "W" } }, false, "<->")).toBe(
+      "- A-001 <-> A-002:W",
+    );
   });
 });
 

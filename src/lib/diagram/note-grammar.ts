@@ -267,28 +267,61 @@ export interface ArrowShape {
   toPort?: EdgePort;
 }
 
+export interface EdgeLineOptions {
+  /** A trailing `"label"` may follow; without it a labelled line is not an edge of this Kind. */
+  label: boolean;
+  /**
+   * The connectors the Kind writes between two ends, in the order tried
+   * (default `["->"]`). The caller decides what each one means, and may refuse
+   * one by returning `null` for it.
+   */
+  operators?: readonly string[];
+  /**
+   * Ends may pin a side (`C-004:E@0.5`, default true). Without ports an end is
+   * a bare id (`U-001`), and a pinned one makes the line unreadable.
+   */
+  ports?: boolean;
+}
+
+/** An edge line as read: its ends, the connector written between them, and the label. */
+export interface EdgeLine {
+  shape: ArrowShape;
+  operator: string;
+}
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * Reads `- A-001 -> A-002`, with the pinned ends of `edge-ports.ts` and, when
- * `label` is true, a trailing `"label"`. `null` for anything else (a Kind
- * without labels keeps a labelled line raw).
+ * Reads `- A-001 -> A-002 "label"`: two ends joined by one of the Kind's
+ * connectors, with the pinned ends of `edge-ports.ts` unless `ports` is off.
+ * `null` for anything else.
  */
-export function readArrowLine(line: string, options: { label: boolean }): ArrowShape | null {
-  const re = options.label
-    ? /^\s*-\s+(\S+)\s*->\s*(\S+)\s*(?:"(.*)")?\s*$/
-    : /^\s*-\s+(\S+)\s*->\s*(\S+)\s*$/;
-  const m = re.exec(line);
+export function readEdgeLine(line: string, options: EdgeLineOptions): EdgeLine | null {
+  const ports = options.ports ?? true;
+  const operators = (options.operators ?? ["->"]).map(escapeRegExp).join("|");
+  const end = ports ? String.raw`(\S+)` : String.raw`([A-Za-z]{1,3}-\d+)`;
+  const tail = options.label ? String.raw`\s*(?:"(.*)")?\s*$` : String.raw`\s*$`;
+  const m = new RegExp(String.raw`^\s*-\s+${end}\s*(${operators})\s*${end}${tail}`).exec(line);
   if (!m) return null;
-  const from = parseEdgeEnd(m[1]);
-  const to = parseEdgeEnd(m[2]);
+  const from = ports ? parseEdgeEnd(m[1]) : { id: m[1] };
+  const to = ports ? parseEdgeEnd(m[3]) : { id: m[3] };
   if (!from || !to) return null;
-  const label = (m[3] ?? "").trim();
+  const label = (m[4] ?? "").trim();
   return {
-    from: from.id,
-    to: to.id,
-    ...(label ? { label } : {}),
-    ...(from.port ? { fromPort: from.port } : {}),
-    ...(to.port ? { toPort: to.port } : {}),
+    operator: m[2],
+    shape: {
+      from: from.id,
+      to: to.id,
+      ...(label ? { label } : {}),
+      ...("port" in from && from.port ? { fromPort: from.port } : {}),
+      ...("port" in to && to.port ? { toPort: to.port } : {}),
+    },
   };
+}
+
+/** `- A-001 -> A-002`, the Kind with one connector and pinned ends. */
+export function readArrowLine(line: string, options: { label: boolean }): ArrowShape | null {
+  return readEdgeLine(line, options)?.shape ?? null;
 }
 
 export interface EdgeSpec<E extends { from: string; to: string; label?: string }> {
@@ -416,10 +449,10 @@ export function formatLabel(label: string | undefined): string {
   return text ? ` "${text}"` : "";
 }
 
-/** `- A-001 -> A-002 "label"`, with pinned ends. */
-export function formatArrowLine(edge: ArrowShape, withLabel: boolean): string {
+/** `- A-001 -> A-002 "label"`, with pinned ends; `operator` is the connector (default `->`). */
+export function formatArrowLine(edge: ArrowShape, withLabel: boolean, operator = "->"): string {
   const label = withLabel ? formatLabel(edge.label) : "";
-  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} -> ${formatEdgeEnd(edge.to, edge.toPort)}${label}`;
+  return `- ${formatEdgeEnd(edge.from, edge.fromPort)} ${operator} ${formatEdgeEnd(edge.to, edge.toPort)}${label}`;
 }
 
 /** A managed section as written: its recognized lines, then the raw ones. */
