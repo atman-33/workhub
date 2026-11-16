@@ -546,7 +546,6 @@ export function DocsPreview({
               path={path}
               title={diagramTitle}
               project=""
-              configVersion={0}
               readOnly
             />
           </div>

@@ -742,7 +742,6 @@ export default function App() {
           </TabPanel>
           <TabPanel id="projects" tab={tab}>
             <ProjectsView
-              configVersion={configVersion}
               active={tab === "projects"}
               onNavigate={focusOn}
               onProjectsChange={() => setVaultProjectsVersion((v) => v + 1)}
@@ -757,7 +756,6 @@ export default function App() {
           </TabPanel>
           <TabPanel id="diagrams" tab={tab}>
             <DiagramsView
-              configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("diagrams")}
             />

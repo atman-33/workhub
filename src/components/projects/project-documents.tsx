@@ -52,15 +52,12 @@ import { cn } from "@/lib/utils";
 export function ProjectDocuments({
   vaultPath,
   slug,
-  configVersion,
   refreshToken,
   onLoadingChange,
   onOpenDiagrams,
 }: {
   vaultPath: string;
   slug: string;
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** Bumped by the tab row's Refresh button (T-0813). */
   refreshToken: number;
   /** Reports the document list loading, so the tab row can spin its Refresh icon. */
@@ -305,7 +302,6 @@ export function ProjectDocuments({
                 path={selected}
                 title={showDiagram.title}
                 project={slug}
-                configVersion={configVersion}
                 onClose={backToList}
                 onOpenInDiagrams={() => onOpenDiagrams(selected)}
                 onOpenInObsidian={() => openInObsidian(selected)}

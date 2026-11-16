@@ -47,8 +47,6 @@ interface Props {
   fallbackDir: string;
   /** All vault tasks, for the per-item count of tasks pointing at it. */
   tasks: Task[];
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** Bumped by the tab row's Refresh button (T-0813). */
   refreshToken: number;
   /** Status filter chosen in the tab row; empty = all. */
@@ -87,7 +85,6 @@ export function ProjectBacklog({
   slug,
   fallbackDir,
   tasks,
-  configVersion,
   refreshToken,
   statusFilter,
   onLoadingChange,
@@ -417,7 +414,6 @@ export function ProjectBacklog({
                   path={current.entry.path}
                   title={current.title || current.entry.name}
                   project={slug}
-                  configVersion={configVersion}
                   onClose={() => {
                     setLinkHint("");
                     setWikiHint(null);

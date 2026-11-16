@@ -12,13 +12,8 @@ import { api } from "@/lib/api";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import type { DiagramKind } from "@/lib/diagram-kinds";
 
-/**
- * What every editor view accepts from a host: the Diagrams tab's contract.
- * The Schedule and Mindmap views still read `configVersion` (T-1223); the other
- * seven read the shared Config store and simply do not declare it.
- */
+/** What every editor view accepts from a host: the Diagrams tab's contract. */
 type EditorComponent = ComponentType<{
-  configVersion: number;
   embedded: EmbeddedDiagram;
 }>;
 
@@ -26,7 +21,7 @@ type EditorComponent = ComponentType<{
  * The one editor for a diagram kind (T-0738). Pure, so the kind coverage —
  * all nine kinds map, anything else maps to nothing — is pinned by a test
  * rather than by looking at the pane. Every entry takes the same
- * `{ configVersion, embedded }`, so the host below can render whichever one
+ * `{ embedded }`, so the host below can render whichever one
  * this returns without per-kind branches.
  */
 export function editorComponentFor(kind: string): EditorComponent | null {
@@ -63,8 +58,6 @@ interface Props {
   title: string;
   /** Slug of the project the note belongs to. */
   project: string;
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** True in a read-only host (the Docs tab, T-1000): the editor is frozen
    * through `locked`, the side panel starts closed, and no prompt-copy
    * callback is wired, so nothing here can write. */
@@ -80,7 +73,7 @@ interface Props {
 /**
  * Hosts one diagram editor view inside the Projects tab's Backlog and
  * Documents panes (T-0738): the same real editor the Diagrams tab embeds
- * (T-0680), with the same `{ configVersion, embedded }` props.
+ * (T-0680), with the same `{ embedded }` props.
  *
  * The Docs tab reuses this for diagram files (T-1000) with `readOnly`: the
  * same view, frozen — reading only, no edit UI brought along.
@@ -99,7 +92,7 @@ interface Props {
  * The parent gives this its height (`min-h-0 flex-1`); the view fills it with
  * `h-full`, so no page-level scroll appears.
  */
-export function DiagramEditorHost({ kind, path, title, project, configVersion, readOnly, onClose, onOpenInDiagrams, onOpenInObsidian }: Props) {
+export function DiagramEditorHost({ kind, path, title, project, readOnly, onClose, onOpenInDiagrams, onOpenInObsidian }: Props) {
   const [sidePanelOpen, setSidePanelOpen] = useState(!readOnly);
   // The editor's pending save, flushed before the prompt is copied so the
   // agent reads what is on screen (same as the Diagrams tab's toolbar copy).
@@ -138,7 +131,7 @@ export function DiagramEditorHost({ kind, path, title, project, configVersion, r
   };
   return (
     <div className="min-h-0 flex-1">
-      <View key={path} configVersion={configVersion} embedded={embedded} />
+      <View key={path} embedded={embedded} />
     </div>
   );
 }
