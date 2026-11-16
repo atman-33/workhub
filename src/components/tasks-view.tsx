@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { matchesTaskSearch, searchTerms } from "@/lib/task-search";
 import { ARCHIVE_PAGE_SIZE, limitArchived } from "@/lib/archive-limit";
 import { t as i18nT, useT } from "@/lib/i18n";
@@ -60,7 +61,7 @@ import { isStaleBlock } from "@/lib/task-blocked";
 import { unresolvedDeps } from "@/lib/task-dependencies";
 import { cn } from "@/lib/utils";
 import { NO_PROJECT_FILTER, matchesProjectFilter, taskProjectFilterLabel, projectOptionsOf, unknownTaskProjects } from "@/lib/vault-project";
-import type { Config, Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
+import type { Settings, Task, TaskAssignee, TaskPriority, TaskStatus, UpdateTaskInput, VaultProject } from "@/types";
 
 /** Height the bottom terminal panel snaps to when opened. */
 const TERMINAL_PANEL_SIZE = 35;
@@ -70,8 +71,6 @@ type ViewMode = "list" | "kanban";
 const GROUP_BY_KEY = "workhub.tasks.groupBy";
 
 interface Props {
-  /** Bumped by the app shell after settings are saved; triggers a config reload. */
-  configVersion: number;
   /**
    * Bumped by the app shell when the Repos view changes the registered
    * repositories; triggers a config reload so the Project field's suggestions
@@ -85,13 +84,12 @@ interface Props {
 }
 
 export function TasksView({
-  configVersion,
   projectsVersion = 0,
   onSettingsChange,
   focus,
 }: Props) {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [tasks, setTasks] = useState<Task[]>([]);
   /** Vault projects (`projects/<slug>/`), the only thing a task's `project:`
    *  may name. Not the Repos tab's registered repositories: those are reached
@@ -224,24 +222,39 @@ export function TasksView({
     if (focusN > 0 && focusProject) setProjectFilter(focusProject);
   }, [focusN, focusProject]);
 
+  // A config that cannot be read costs the board, and says why.
   useEffect(() => {
+    configStore.load().catch((e) => {
+      setStatus(i18nT("task.msg.vaultCheckFailed", { error: String(e) }));
+      setVaultExists(false);
+    });
+  }, []);
+
+  // The vault is checked whenever the path itself changes — including when the
+  // vault is chosen below, or in Settings — not on every config write.
+  const configLoaded = config !== null;
+  useEffect(() => {
+    if (!configLoaded) return;
     setVaultExists(null);
-    void (async () => {
-      try {
-        const cfg = await api.getConfig();
-        setConfig(cfg);
-        const path = cfg.settings.vault_path;
-        if (path) {
-          setVaultExists(await api.checkVaultPath(path));
-        } else {
-          setVaultExists(false);
-        }
-      } catch (e) {
+    if (!vaultPath) {
+      setVaultExists(false);
+      return;
+    }
+    let cancelled = false;
+    api
+      .checkVaultPath(vaultPath)
+      .then((ok) => {
+        if (!cancelled) setVaultExists(ok);
+      })
+      .catch((e) => {
+        if (cancelled) return;
         setStatus(i18nT("task.msg.vaultCheckFailed", { error: String(e) }));
         setVaultExists(false);
-      }
-    })();
-  }, [configVersion]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [configLoaded, vaultPath]);
 
   // ---- the Project suggestions: every vault project, reloaded whenever one
   // is created, archived or restored (`projectsVersion`), and again when a
@@ -287,8 +300,7 @@ export function TasksView({
   // changed meanwhile (T-0281).
   const setTerminalEmbed = useCallback(
     async (embed: boolean) => {
-      const next = await api.patchSettings({ terminal_embed: embed });
-      setConfig(next);
+      const next = await configStore.patchSettings({ terminal_embed: embed });
       onSettingsChange?.(next.settings);
     },
     [onSettingsChange],
@@ -296,12 +308,14 @@ export function TasksView({
 
   const saveVaultPath = useCallback(
     async (path: string) => {
+      // Through the store, so every tab that reads the vault path sees the new
+      // one at once; the effect above re-checks the vault.
       const cfg = await api.getConfig();
-      const next: Config = { ...cfg, settings: { ...cfg.settings, vault_path: path } };
-      await api.saveConfig(next);
-      setConfig(next);
-      setVaultExists(true);
-      onSettingsChange?.(next.settings);
+      const saved = await configStore.saveConfig({
+        ...cfg,
+        settings: { ...cfg.settings, vault_path: path },
+      });
+      onSettingsChange?.(saved.settings);
     },
     [onSettingsChange],
   );
@@ -1244,13 +1258,6 @@ export function TasksView({
         onClose={() => setRecurringOpen(false)}
         knownProjects={knownProjects}
         projectFolders={projectFolders}
-        // Keep the toolbar count (and any later config read) in step with what
-        // the dialog just wrote, without a full config reload.
-        onSaved={(recurring) =>
-          setConfig((prev) =>
-            prev ? { ...prev, settings: { ...prev.settings, recurring } } : prev,
-          )
-        }
       />
     </div>
   );

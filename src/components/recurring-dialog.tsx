@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Play } from "lucide-react";
 import { api } from "@/lib/api";
+import { configStore } from "@/lib/use-config";
 import { generateDueTasks } from "@/lib/use-recurring-tasks";
 import { RecurringSettings } from "@/components/recurring-settings";
 import { VaultScopedBadge } from "@/components/vault-scoped-badge";
@@ -20,8 +21,6 @@ import type { RecurringRule } from "@/types";
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Called after the rules were persisted, so the caller can refresh its copy. */
-  onSaved?: (rules: RecurringRule[]) => void;
   /** Vault project slugs a rule's generated task may name (T-0219). */
   knownProjects: string[];
   /** Folder name per slug, passed straight through so the project picker can
@@ -41,7 +40,6 @@ interface Props {
 export function RecurringDialog({
   open,
   onClose,
-  onSaved,
   knownProjects,
   projectFolders,
 }: Props) {
@@ -70,9 +68,8 @@ export function RecurringDialog({
 
   /** Writes the draft rules, leaving the rest of the config as found on disk. */
   const persist = async (next: RecurringRule[]) => {
-    const cfg = await api.getConfig();
-    await api.saveConfig({ ...cfg, settings: { ...cfg.settings, recurring: next } });
-    onSaved?.(next);
+    // Through the store, so the toolbar count and every later config read follow.
+    await configStore.patchSettings({ recurring: next });
   };
 
   const save = async () => {

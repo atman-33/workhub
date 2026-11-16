@@ -734,7 +734,6 @@ export default function App() {
         <div className="min-h-0 flex-1">
           <TabPanel id="tasks" tab={tab}>
             <TasksView
-              configVersion={configVersion}
               projectsVersion={vaultProjectsVersion}
               focus={focusFor("tasks")}
               onSettingsChange={(s) => setSettings(s)}
