@@ -5,8 +5,8 @@
 //! under `projects/<slug>/`, edited from the app, from Obsidian and by agents
 //! at the same time. They used to carry three copies of the same policy; this
 //! module is the one copy. A kind describes itself with a [`NoteKind`] and
-//! brings only what is really its own: the skeleton text and the required
-//! body sections.
+//! brings only what is really its own: the skeleton text, the extra
+//! frontmatter fields it lists, and the required body sections.
 //!
 //! What is deliberately *not* here:
 //!
@@ -48,12 +48,14 @@ pub struct NoteDoc {
     pub mtime: u64,
 }
 
-/// One note as a picker sees it.
+/// One note as a picker sees it. `front` is the unparsed frontmatter block, so
+/// a kind can read the extra keys it lists (a schedule's `range`).
 pub struct NoteListing {
     pub path: String,
     pub project: String,
     pub title: String,
     pub updated: String,
+    pub front: String,
 }
 
 /// A note just created or renamed.
@@ -62,6 +64,9 @@ pub struct NoteHandle {
     pub project: String,
     pub title: String,
     pub updated: String,
+    /// The frontmatter block as it was *before* the operation; empty for a
+    /// note that did not exist yet.
+    pub front: String,
 }
 
 /// Lists the notes of `kind` across the vault, optionally narrowed to one
@@ -84,6 +89,7 @@ pub fn list(
                 project: note.project,
                 title,
                 updated: frontmatter_value(&note.front, "updated"),
+                front: note.front,
             }
         })
         .collect())
@@ -188,6 +194,7 @@ pub fn create(
         project: project.to_string(),
         title: title.to_string(),
         updated: now,
+        front: String::new(),
     })
 }
 
@@ -248,6 +255,7 @@ pub fn rename(
         project,
         title: title.to_string(),
         updated: now,
+        front,
     })
 }
 

@@ -739,16 +739,11 @@ pub struct ScheduleFile {
     pub updated: String,
 }
 
-/// A schedule note's full text. The element notation is interpreted on the
-/// frontend (see `schedule.rs` module docs), so the backend hands over the
-/// whole file and the mtime that guards the next write.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduleDoc {
-    pub path: String,
-    pub content: String,
-    /// Unix seconds; pass back to `write_schedule` for conflict detection.
-    pub mtime: u64,
-}
+/// A schedule note's full text: the shared note document (T-1221). The element
+/// notation is interpreted on the frontend (see `schedule.rs` module docs), so
+/// the backend hands over the whole file and the mtime that guards the next
+/// write.
+pub type ScheduleDoc = crate::vault_note_doc::NoteDoc;
 
 /// One mindmap note as the picker sees it — enough to choose a file without
 /// reading every note's body.
