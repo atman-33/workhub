@@ -9,18 +9,19 @@
 //! Only the head of each file is read (the frontmatter), never the body, so
 //! listing a project with hundreds of notes stays cheap.
 //!
-//! Schedule and Mindmap keep reading, writing, renaming and deleting through
-//! their own modules (`schedule.rs`, `mindmap.rs`: their undo history and trash
-//! live in their own folders). The newer kinds go through the kind-independent
-//! `read_diagram` / `write_diagram` / `rename_diagram` / `delete_diagram` here:
-//! they work on a path, and the path is all the Diagrams tab needs to hand over.
+//! Reading, writing, renaming and deleting are the shared note lifecycle in
+//! `vault_note_doc` (T-1221). Schedule and Mindmap keep their own entry points
+//! (`schedule.rs`, `mindmap.rs`: their trash lives in their own folders); the
+//! other kinds go through the kind-independent `read_diagram` /
+//! `write_diagram` / `rename_diagram` / `delete_diagram` here: they work on a
+//! path, and the path is all the Diagrams tab needs to hand over.
 
 use crate::vault_note::{
-    ai_state_dir, frontmatter_value, has_snapshot as note_has_snapshot, move_snapshot, mtime_secs,
-    norm_path, projects_dir, resolve_project_dir, restore_snapshot as note_restore_snapshot,
-    rewrite_frontmatter, sanitize_filename, save_snapshot as note_save_snapshot, snapshot_path,
-    split_frontmatter, today, unique_note_path,
+    frontmatter_value, has_snapshot as note_has_snapshot, norm_path, projects_dir,
+    restore_snapshot as note_restore_snapshot, sanitize_filename,
+    save_snapshot as note_save_snapshot, split_frontmatter, today, unique_note_path,
 };
+use crate::vault_note_doc::{self as note_doc, NoteKind};
 use crate::vault_project::find_backlog_item;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -53,13 +54,19 @@ const MAX_DEPTH: usize = 3;
 const SKIP_DIRS: &[&str] = &["attachments", "node_modules"];
 
 /// Folder under `_ai/state/` holding the one-generation undo snapshot of every
-/// kind of diagram (T-0685). The older `schedule-snapshots` and
-/// `mindmap-snapshots` folders are not read: a snapshot only matters for the
-/// run right before it, so there is nothing worth carrying over.
-pub const SNAPSHOT_DIR: &str = "diagram-snapshots";
+/// kind of diagram (T-0685); defined with the lifecycle that carries and drops
+/// it.
+pub const SNAPSHOT_DIR: &str = crate::vault_note_doc::SNAPSHOT_DIR;
 
-/// Folder under `_ai/state/` that a deleted diagram is moved into.
-const TRASH_DIR: &str = "diagram-trash";
+/// What a diagram is to the shared note lifecycle. Its validity is its `type`
+/// (checked against [`KINDS`]), not a list of headings, so no sections are
+/// required here.
+const DIAGRAM: NoteKind = NoteKind {
+    name: "diagram",
+    dir: DIAGRAMS_DIR,
+    trash_dir: "diagram-trash",
+    required_sections: &[],
+};
 
 /// Subfolder for kinds that have no older home.
 const DIAGRAMS_DIR: &str = "diagrams";
@@ -292,12 +299,8 @@ pub fn create_diagram(
     backlog: &str,
     range: &str,
 ) -> Result<DiagramFile, String> {
-    let project = project.trim();
-    if project.is_empty() {
-        return Err("a project is required to create a diagram".into());
-    }
-    let project_dir = resolve_project_dir(&projects_dir(vault), project)?
-        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
+    let (project, project_dir) = note_doc::project_folder(vault, DIAGRAM.name, project)?;
+    let project = project.as_str();
     let title = match title.trim() {
         "" => kind,
         t => t,
@@ -339,22 +342,12 @@ pub fn create_diagram(
     })
 }
 
-/// A diagram note's full text plus the mtime that guards the next write.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DiagramDoc {
-    pub path: String,
-    pub content: String,
-    /// Unix seconds; pass back to [`write_diagram`] for conflict detection.
-    pub mtime: u64,
-}
+/// A diagram note's full text plus the mtime that guards the next write: the
+/// shared note document (T-1221).
+pub type DiagramDoc = note_doc::NoteDoc;
 
 pub fn read_diagram(path: &Path) -> Result<DiagramDoc, String> {
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    Ok(DiagramDoc {
-        path: norm_path(path),
-        content,
-        mtime: mtime_secs(path),
-    })
+    note_doc::read(path)
 }
 
 /// Minimal structural check before a write. Deliberately shallow: each kind's
@@ -382,25 +375,7 @@ fn validate(content: &str) -> Result<(), String> {
 /// guarding subsequent writes without a re-read.
 pub fn write_diagram(path: &Path, content: &str, expected_mtime: u64) -> Result<u64, String> {
     validate(content)?;
-    if expected_mtime != 0 {
-        // A guarded write is an edit of a note that was read. If the note has
-        // gone (renamed, moved, deleted), writing would quietly recreate it
-        // under the old name.
-        if !path.exists() {
-            return Err("the diagram file is gone — it was renamed, moved or deleted".into());
-        }
-        if mtime_secs(path) != expected_mtime {
-            return Err(
-                "the diagram file changed on disk since it was loaded — reload before saving"
-                    .into(),
-            );
-        }
-    }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(path, content).map_err(|e| e.to_string())?;
-    Ok(mtime_secs(path))
+    note_doc::write_guarded(DIAGRAM.name, path, content, expected_mtime, true)
 }
 
 /// The listing entry of the diagram at `path`, found by its place under
@@ -428,68 +403,33 @@ fn describe(vault: &Path, path: &Path) -> Result<DiagramFile, String> {
 /// A numbered child of a backlog item (`020-<title>.md`) keeps its number so the
 /// item's ordering survives. The note's own file is never a name collision.
 pub fn rename_diagram(vault: &Path, path: &Path, new_title: &str) -> Result<DiagramFile, String> {
-    let title = new_title.trim();
-    if title.is_empty() {
-        return Err("a diagram name is required".into());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let Some((front, body)) = split_frontmatter(&content) else {
-        return Err("this file is not a diagram note (no frontmatter block)".into());
-    };
-    let kind = frontmatter_value(&front, "type");
-    if !KINDS.contains(&kind.as_str()) {
-        return Err("this file is not a diagram note (no valid `type`)".into());
-    }
-    let dir = path
-        .parent()
-        .ok_or_else(|| "the diagram path has no parent folder".to_string())?;
-
-    let stem = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let digits: String = stem.chars().take_while(|c| c.is_ascii_digit()).collect();
-    let name = if !digits.is_empty() && stem[digits.len()..].starts_with('-') {
-        format!("{digits}-{}", sanitize_filename(title, &kind))
-    } else {
-        title.to_string()
-    };
-    let target = unique_note_path(dir, &name, &kind, Some(path));
-
-    let now = today();
-    let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
-    fs::write(path, format!("---\n{front_out}---\n{body}")).map_err(|e| e.to_string())?;
-    // Compared exactly, not case-insensitively: renaming "ideas" to "Ideas" is
-    // a real rename, even though the two names collide on Windows.
-    if norm_path(&target) != norm_path(path) {
-        fs::rename(path, &target).map_err(|e| e.to_string())?;
-        // The snapshot is keyed by path; left behind, the undo would vanish.
-        move_snapshot(vault, SNAPSHOT_DIR, path, &target)?;
-    }
-    describe(vault, &target)
+    let renamed = note_doc::rename_with(
+        vault,
+        DIAGRAM.name,
+        path,
+        new_title,
+        |front, stem, title| {
+            let kind = frontmatter_value(front, "type");
+            if !KINDS.contains(&kind.as_str()) {
+                return Err("this file is not a diagram note (no valid `type`)".into());
+            }
+            let digits: String = stem.chars().take_while(|c| c.is_ascii_digit()).collect();
+            let name = if !digits.is_empty() && stem[digits.len()..].starts_with('-') {
+                format!("{digits}-{}", sanitize_filename(title, &kind))
+            } else {
+                title.to_string()
+            };
+            Ok((name, kind))
+        },
+    )?;
+    describe(vault, Path::new(&renamed.path))
 }
 
 /// Moves a diagram into `_ai/state/diagram-trash/` rather than unlinking it:
 /// the app is not the only writer of these files, and a mis-click should not
 /// destroy prose someone typed in Obsidian. Returns where it went.
 pub fn delete_diagram(vault: &Path, path: &Path) -> Result<String, String> {
-    if !path.is_file() {
-        return Err("this diagram no longer exists".into());
-    }
-    let dir = ai_state_dir(vault).join(TRASH_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let name = path
-        .file_stem()
-        .and_then(|n| n.to_str())
-        .unwrap_or("diagram")
-        .to_string();
-    // Two projects may hold a note of the same name, and the same note may be
-    // deleted twice; suffix rather than overwrite what is already in the trash.
-    let target = unique_note_path(&dir, &format!("{name} {}", today()), "diagram", None);
-    fs::rename(path, &target).map_err(|e| e.to_string())?;
-    // The snapshot describes a file that is no longer there.
-    let _ = fs::remove_file(snapshot_path(vault, SNAPSHOT_DIR, path));
-    Ok(norm_path(&target))
+    note_doc::delete(vault, &DIAGRAM, path)
 }
 
 /// The frontmatter `type` of the diagram at `path`, or an error when the file
@@ -554,6 +494,7 @@ fn next_child_number(folder: &Path) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vault_note::ai_state_dir;
 
     fn temp_vault(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
