@@ -762,16 +762,11 @@ pub struct MindmapFile {
     pub updated: String,
 }
 
-/// A mindmap note's full text. The node notation is interpreted on the
-/// frontend (see `mindmap.rs` module docs), so the backend hands over the
-/// whole file and the mtime that guards the next write.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MindmapDoc {
-    pub path: String,
-    pub content: String,
-    /// Unix seconds; pass back to `write_mindmap` for conflict detection.
-    pub mtime: u64,
-}
+/// A mindmap note's full text: the shared note document (T-1221). The node
+/// notation is interpreted on the frontend (see `mindmap.rs` module docs), so
+/// the backend hands over the whole file and the mtime that guards the next
+/// write.
+pub type MindmapDoc = crate::vault_note_doc::NoteDoc;
 
 /// One subfolder of a vault project, with how much is in it. Folders the
 /// documented layout does not name are included too — an undocumented folder

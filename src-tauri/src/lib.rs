@@ -34,6 +34,7 @@ mod terminal;
 mod tidy;
 mod update;
 mod vault_note;
+mod vault_note_doc;
 mod vault_project;
 mod vault_settings;
 mod vault_template;
