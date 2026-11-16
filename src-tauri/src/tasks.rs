@@ -576,7 +576,7 @@ fn normalize_deps(deps: Vec<String>) -> Vec<String> {
 
 /// Whether giving `id` the predecessors `deps` would close a loop: true when
 /// `id` is one of `deps`, or is reachable by following `depends_on` from them.
-pub fn would_create_cycle(id: &str, deps: &[String], all: &[Task]) -> bool {
+fn would_create_cycle(id: &str, deps: &[String], all: &[Task]) -> bool {
     let mut stack: Vec<&str> = deps.iter().map(|d| d.as_str()).collect();
     let mut seen: Vec<&str> = Vec::new();
     while let Some(cur) = stack.pop() {
@@ -608,7 +608,7 @@ fn check_no_cycle(id: &str, deps: &[String], all: &[Task]) -> Result<(), String>
 /// Predecessors of `task` that are not finished yet. A predecessor counts as
 /// resolved once its `status` is `done`; an id that matches no task is treated
 /// as resolved too, so a deleted predecessor never pins a task forever.
-pub fn unresolved_deps<'a>(task: &Task, all: &'a [Task]) -> Vec<&'a Task> {
+fn unresolved_deps<'a>(task: &Task, all: &'a [Task]) -> Vec<&'a Task> {
     task.depends_on
         .iter()
         .filter_map(|d| all.iter().find(|t| &t.id == d))

@@ -5,9 +5,13 @@
  * for an external wait, while a dependency is derived. The only thing stored is
  * the list of predecessor ids (`depends_on`); whether a task is waiting is
  * recomputed from the predecessors' `status` every time, so it clears by
- * itself the moment they reach `done`. The Rust side has the same rules
- * (`unresolved_deps` / `would_create_cycle` in tasks.rs) because it also
- * guards the agent launch.
+ * itself the moment they reach `done`.
+ *
+ * The authority is Rust: `check_startable` in tasks.rs decides whether a task
+ * may start (it refuses even a `done` task with an open predecessor) and
+ * `would_create_cycle` guards what is saved. This file only mirrors those rules
+ * for display and for narrowing the predecessor picker, where a synchronous
+ * answer is needed; it never decides a launch.
  */
 
 import type { Task } from "@/types";
