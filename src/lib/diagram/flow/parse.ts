@@ -150,7 +150,7 @@ interface StepFields {
 function buildStep(id: string, rest: string[]): FlowStep {
   const { fields, title } = readModifiers<StepFields>(rest, {
     pos: positionModifier,
-    kind: (tok) => (tok in KIND_MARKS ? KIND_MARKS[tok] : undefined),
+    kind: (tok) => (Object.hasOwn(KIND_MARKS, tok) ? KIND_MARKS[tok] : undefined),
     lane: prefixModifier("lane:"),
     task: taskModifier,
     color: colorModifier,
