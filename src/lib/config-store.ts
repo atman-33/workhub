@@ -38,8 +38,13 @@ export interface ConfigStore {
   subscribe(listener: () => void): () => void;
   /** Reads the config from disk and holds it. Concurrent calls share one request. */
   load(): Promise<Config>;
-  /** Saves a few settings onto a fresh read of the config. */
-  patchSettings(patch: Partial<Settings>): Promise<Config>;
+  /**
+   * Saves a few settings onto a fresh read of the config. With `optimistic`,
+   * the held copy shows the patch at once, for a control that must not wait on
+   * the disk; if the write fails the store re-reads the disk, so it never keeps
+   * showing what was not saved.
+   */
+  patchSettings(patch: Partial<Settings>, options?: { optimistic?: boolean }): Promise<Config>;
   /** Saves a whole config; holds what took effect. */
   saveConfig(config: Config): Promise<Config>;
 }
@@ -96,7 +101,15 @@ export function createConfigStore(api: ConfigApi): ConfigStore {
       return () => void listeners.delete(listener);
     },
     load,
-    patchSettings: (patch) => write(() => api.patchSettings(patch)),
+    patchSettings(patch, options) {
+      const result = write(() => api.patchSettings(patch));
+      if (options?.optimistic) {
+        if (current) hold({ ...current, settings: { ...current.settings, ...patch } });
+        // Resync rather than keep a value the disk never took.
+        result.catch(() => void load().catch(() => {}));
+      }
+      return result;
+    },
     saveConfig: (config) => write(() => api.saveConfig(config)),
   };
 }

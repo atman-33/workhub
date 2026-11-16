@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
@@ -123,19 +124,14 @@ const VIEW_ID = "schedule";
 const SIDEBAR_DEFAULT_PCT = 22;
 
 interface Props {
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
-  /** Bumped by the Projects tab after a project is created, archived or
-   * restored; reloads the project picker (T-0190). */
-  projectsVersion?: number;
   /** A project the Projects tab asked this view to open (T-0190). */
   focus?: TabFocus;
   /** Set when the Diagrams tab hosts this view (T-0680). */
   embedded?: EmbeddedDiagram;
 }
 
-export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedded }: Props) {
-  const [config, setConfig] = useState<Config | null>(null);
+export function ScheduleView({ focus, embedded }: Props) {
+  const config = useConfig();
   const [files, setFiles] = useState<ScheduleFile[]>([]);
   // An empty list before the first scan means "unknown", not "no notes" — the
   // auto-open below must not read it as a reason to drop the restored path.
@@ -215,16 +211,11 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
     if (focusN > 0 && focusProject) setProject(focusProject);
   }, [focusN, focusProject]);
 
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
-
   /** Settings owned by this tab save immediately. The patch goes onto a fresh
    * read of the config, so a setting another tab changed meanwhile is not
    * reverted (T-0281). */
   const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
-    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
-    setConfig(await api.patchSettings(patch));
+    await configStore.patchSettings(patch, { optimistic: true });
   }, []);
 
   // Today is state, not a value read during render: the view re-renders only on
@@ -280,11 +271,8 @@ export function ScheduleView({ configVersion, projectsVersion = 0, focus, embedd
           setProjectsLoaded(true);
         }
       }
-      // `projectsVersion` is not read here — it is a reload trigger, and listing
-      // it as a dependency is what makes the effect below re-run.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [vaultPath, projectsVersion],
+    [vaultPath],
   );
 
   // `onGone` closes the note when the file is no longer there to read. The

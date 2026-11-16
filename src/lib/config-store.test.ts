@@ -124,6 +124,37 @@ describe("createConfigStore", () => {
     expect(store.getSnapshot()).toBe(saved);
   });
 
+  it("shows an optimistic patch at once and settles on what the write returns", async () => {
+    const f = fakeApi(config("/a"));
+    const store = createConfigStore(f.api);
+    const l = store.load();
+    f.resolveGet();
+    await l;
+    const p = store.patchSettings({ terminal_embed: true } as never, { optimistic: true });
+    expect(store.getSnapshot()?.settings).toMatchObject({ vault_path: "/a", terminal_embed: true });
+    await tick();
+    f.resolvePatch();
+    expect(await p).toBe(store.getSnapshot());
+  });
+
+  it("re-reads the disk when an optimistic patch fails to save", async () => {
+    const f = fakeApi(config("/a"));
+    f.api.patchSettings = async () => {
+      throw new Error("disk full");
+    };
+    const store = createConfigStore(f.api);
+    const l = store.load();
+    f.resolveGet(0);
+    await l;
+    const p = store.patchSettings({ terminal_embed: true } as never, { optimistic: true });
+    await expect(p).rejects.toThrow("disk full");
+    await tick();
+    expect(f.getCount()).toBe(2); // the resync read
+    f.resolveGet(1);
+    await tick();
+    expect(store.getSnapshot()?.settings).not.toHaveProperty("terminal_embed");
+  });
+
   it("runs writes one at a time, in order", async () => {
     const f = fakeApi(config("/a"));
     const store = createConfigStore(f.api);

@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, timeAgo } from "@/lib/api";
+import { useConfig } from "@/lib/use-config";
 import { useT } from "@/lib/i18n";
 import { BACKLOG_STATUSES } from "@/lib/project-backlog";
 import {
@@ -64,7 +65,7 @@ import {
   writeViewState,
 } from "@/lib/view-state";
 import { cn } from "@/lib/utils";
-import type { Config, Task, VaultProject } from "@/types";
+import type { Task, VaultProject } from "@/types";
 
 /**
  * The Projects tab (T-0190).
@@ -95,8 +96,6 @@ const NO_REPO = "__none__";
 export type ProjectTarget = "tasks" | "diagrams" | "repos";
 
 interface Props {
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** Whether the Projects tab is the visible one; gates the reload on focus. */
   active: boolean;
   /** Opens another tab focused on this project (or, for `repos`, on the
@@ -117,13 +116,12 @@ const ALL_BACKLOG_STATUSES = "__all__";
 const VIEW_ID = "projects";
 
 export function ProjectsView({
-  configVersion,
   active,
   onNavigate,
   onProjectsChange,
 }: Props) {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [projects, setProjects] = useState<VaultProject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   // The last selected project, remembered per machine and restored on the
@@ -204,10 +202,6 @@ export function ProjectsView({
     setSlug(next);
     writeViewState(VIEW_ID, "project", next);
   }, []);
-
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
 
   useEffect(() => {
     void load();
@@ -716,7 +710,6 @@ export function ProjectsView({
                       key={current.slug}
                       vaultPath={vaultPath}
                       slug={current.slug}
-                      configVersion={configVersion}
                       refreshToken={paneRefresh}
                       onLoadingChange={setPaneLoading}
                       onOpenDiagrams={(diagramPath) => onNavigate("diagrams", current.slug, diagramPath)}
@@ -736,7 +729,6 @@ export function ProjectsView({
                       slug={current.slug}
                       fallbackDir={current.path}
                       tasks={tasks}
-                      configVersion={configVersion}
                       refreshToken={paneRefresh}
                       statusFilter={backlogStatusFilter}
                       onLoadingChange={setPaneLoading}

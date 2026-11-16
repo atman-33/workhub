@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import {
   CREATABLE_KINDS,
   KIND_ICON,
@@ -86,8 +87,6 @@ function readKindFilter(): string {
 }
 
 interface Props {
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** Bumped by the Projects tab after a project is created, archived or restored. */
   projectsVersion?: number;
   /** A project the Projects tab asked this tab to open. */
@@ -102,9 +101,9 @@ interface Props {
  * existing editors for the kinds that have one. Which editor opens is decided
  * by the note's frontmatter `type`, not by the folder it sits in.
  */
-export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Props) {
+export function DiagramsView({ projectsVersion = 0, focus }: Props) {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [projects, setProjects] = useState<string[]>([]);
   const [projectFolders, setProjectFolders] = useState<Record<string, string>>({});
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -126,16 +125,11 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
 
   const vaultPath = config?.settings.vault_path ?? null;
 
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
-
   /** Settings owned by this tab save immediately. The patch goes onto a fresh
    * read of the config, so a setting another tab changed meanwhile is not
    * reverted (T-0281). */
   const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
-    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
-    setConfig(await api.patchSettings(patch));
+    await configStore.patchSettings(patch, { optimistic: true });
   }, []);
 
   // A project handed over by the Projects tab. Keyed on the request counter so
@@ -635,10 +629,10 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
               switch between kinds, and each draws only when its own kind is
               open (the others are handed an empty path). */}
           <div className={cn("h-full", kind === "schedule" ? "" : "hidden")}>
-            <ScheduleView configVersion={configVersion} embedded={editorFor("schedule")} />
+            <ScheduleView embedded={editorFor("schedule")} />
           </div>
           <div className={cn("h-full", kind === "mindmap" ? "" : "hidden")}>
-            <MindmapView configVersion={configVersion} embedded={editorFor("mindmap")} />
+            <MindmapView embedded={editorFor("mindmap")} />
           </div>
           <div className={cn("h-full", kind === "matrix2x2" ? "" : "hidden")}>
             <MatrixView embedded={editorFor("matrix2x2")} />

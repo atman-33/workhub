@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { useConfig } from "@/lib/use-config";
 import { projectNumberedLabel, projectOptionsOf } from "@/lib/vault-project";
 import type { TabFocus } from "@/lib/tab-focus";
 import { resolveOpenNote } from "@/lib/note-picker";
@@ -100,7 +101,7 @@ import {
   type NodeWidth,
   type Sticky,
 } from "@/lib/mindmap/parse";
-import type { Config, MindmapFile, Task } from "@/types";
+import type { MindmapFile, Task } from "@/types";
 
 /**
  * The Mindmap tab (T-0188).
@@ -174,11 +175,6 @@ function todayISO(): string {
 }
 
 interface Props {
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
-  /** Bumped by the Projects tab after a project is created, archived or
-   * restored; reloads the project picker (T-0190). */
-  projectsVersion?: number;
   /** A project the Projects tab asked this view to open (T-0190). */
   focus?: TabFocus;
   /** Set when the Diagrams tab hosts this view (T-0680). */
@@ -196,9 +192,9 @@ interface LoadDocOptions {
   onGone?: () => void;
 }
 
-export function MindmapView({ configVersion, projectsVersion = 0, focus, embedded }: Props) {
+export function MindmapView({ focus, embedded }: Props) {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [projects, setProjects] = useState<string[]>([]);
   // Folder name per slug, for the `NNNN` number drawn beside it (T-0398).
   const [projectFolders, setProjectFolders] = useState<Record<string, string>>({});
@@ -300,10 +296,6 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
     if (focusN > 0 && focusProject) setProject(focusProject);
   }, [focusN, focusProject]);
 
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
-
   // A listing that fails is almost always a folder that moved while it was
   // being read — archiving a project is a move, and the event that triggers
   // the reload arrives while the rename is still settling. One retry lets the
@@ -345,11 +337,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
           setProjectsLoaded(true);
         }
       }
-      // `projectsVersion` is not read here — it is a reload trigger, and listing
-      // it as a dependency is what makes the effect below re-run.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [vaultPath, projectsVersion],
+    [vaultPath],
   );
 
   /**
