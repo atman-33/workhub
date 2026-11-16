@@ -6,8 +6,10 @@
 //! until it says what they mean — so writes are frequent and arrive from the
 //! app, from Obsidian, and from a headless agent.
 //!
-//! The same two rules as `schedule.rs` shape this module, for the same
-//! reasons:
+//! The lifecycle (guarded write, rename, soft delete, export) is the shared
+//! one in `vault_note_doc` (T-1221); this module is the mindmap's kind
+//! description, its skeleton and the thin entry points the commands call.
+//! Two rules shape what the lifecycle does:
 //!
 //! - **The node notation is not parsed here.** Rust only ever handles the file
 //!   as a whole string. The `## Nodes` grammar is interpreted in
@@ -23,97 +25,42 @@
 //! files and a mis-click should not destroy prose someone typed in Obsidian.
 
 use crate::models::{MindmapDoc, MindmapFile};
-use crate::vault_note::{
-    ai_state_dir, ensure_export_dir, frontmatter_value, move_snapshot, mtime_secs, norm_path,
-    projects_dir, resolve_project_dir, rewrite_frontmatter, scan_notes, split_frontmatter, today,
-    unique_note_path,
-};
-use std::fs;
+use crate::vault_note_doc::{self as note_doc, NoteKind};
 use std::path::Path;
 
-/// Subfolder of a project that holds its mindmap notes.
-const MINDMAPS_DIR: &str = "mindmaps";
-
-/// Note kind written into a mindmap note's `type:` frontmatter key.
-const KIND: &str = "mindmap";
-
-/// Folder under `_ai/state/` (see `vault_note::ai_state_dir`) where the AI
-/// edit flow parks a copy of the file before an agent touches it, so the UI
-/// can offer a one-generation undo.
-const SNAPSHOT_DIR: &str = crate::diagram::SNAPSHOT_DIR;
-
-/// Folder under `_ai/state/` that a deleted note is moved into.
-const TRASH_DIR: &str = "mindmap-trash";
+/// What a mindmap is to the shared note lifecycle.
+const KIND: NoteKind = NoteKind {
+    name: "mindmap",
+    dir: "mindmaps",
+    trash_dir: "mindmap-trash",
+    // Deliberately only the node list: the grammar is validated on the
+    // frontend, and the guard exists to catch a buffer that is not a mindmap
+    // at all.
+    required_sections: &["## Nodes"],
+};
 
 /// Lists mindmap notes across the vault, optionally narrowed to one project
 /// slug. See `vault_note::scan_notes` for what a scan skips and why.
 pub fn list_mindmaps(vault: &Path, project: Option<&str>) -> Result<Vec<MindmapFile>, String> {
-    let notes = scan_notes(vault, MINDMAPS_DIR, KIND, project)?;
-    Ok(notes
+    Ok(note_doc::list(vault, &KIND, project)?
         .into_iter()
-        .map(|note| {
-            let title = match frontmatter_value(&note.front, "title") {
-                t if t.is_empty() => note.name.clone(),
-                t => t,
-            };
-            MindmapFile {
-                path: norm_path(&note.path),
-                project: note.project,
-                title,
-                updated: frontmatter_value(&note.front, "updated"),
-            }
+        .map(|n| MindmapFile {
+            path: n.path,
+            project: n.project,
+            title: n.title,
+            updated: n.updated,
         })
         .collect())
 }
 
 pub fn read_mindmap(path: &Path) -> Result<MindmapDoc, String> {
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    Ok(MindmapDoc {
-        path: norm_path(path),
-        content,
-        mtime: mtime_secs(path),
-    })
+    note_doc::read(path)
 }
 
-/// Minimal structural check before a write. Deliberately shallow: the node
-/// grammar is validated on the frontend, and rejecting a file here for a
-/// notation slip would block the user from saving their way out of it. What
-/// this *does* catch is a caller about to write something that is not a
-/// mindmap note at all (a truncated string, an empty buffer from a failed
-/// render), which would silently destroy the file.
-fn validate(content: &str) -> Result<(), String> {
-    let Some((_, body)) = split_frontmatter(content) else {
-        return Err("mindmap content must start with a frontmatter block".into());
-    };
-    if !body.contains("## Nodes") {
-        return Err("mindmap content is missing the `## Nodes` section".into());
-    }
-    Ok(())
-}
-
-/// Writes the file only when its on-disk mtime still matches `expected_mtime`,
-/// so a concurrent Obsidian/agent edit is reported instead of overwritten.
-/// Pass `0` to skip the check (used when creating a file that cannot yet have
-/// been edited elsewhere).
-///
-/// Returns the new mtime so the caller can keep guarding subsequent writes
-/// without a re-read.
+/// Writes the file only when its on-disk mtime still matches `expected_mtime`
+/// (`0` skips the check). Returns the new mtime. See [`note_doc::write`].
 pub fn write_mindmap(path: &Path, content: &str, expected_mtime: u64) -> Result<u64, String> {
-    validate(content)?;
-    if expected_mtime != 0 && path.exists() {
-        let current = mtime_secs(path);
-        if current != expected_mtime {
-            return Err(
-                "the mindmap file changed on disk since it was loaded — reload before saving"
-                    .into(),
-            );
-        }
-    }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(path, content).map_err(|e| e.to_string())?;
-    Ok(mtime_secs(path))
+    note_doc::write(&KIND, path, content, expected_mtime)
 }
 
 /// The text of a new mindmap note.
@@ -131,158 +78,61 @@ pub fn skeleton(title: &str, now: &str) -> String {
 /// note's own title, which is what the user just typed and almost always what
 /// they want at the centre.
 pub fn create_mindmap(vault: &Path, project: &str, title: &str) -> Result<MindmapFile, String> {
-    let project = project.trim();
-    if project.is_empty() {
-        return Err("a project is required to create a mindmap".into());
-    }
-    // Resolved by slug rather than joined directly (T-0278): a project folder
-    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
-    // a second, unnumbered folder beside it instead of writing into the real
-    // one.
-    let project_dir = resolve_project_dir(&projects_dir(vault), project)?
-        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
-    let dir = project_dir.join(MINDMAPS_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let title = if title.trim().is_empty() {
-        KIND
-    } else {
-        title.trim()
-    };
-    // Never clobber an existing note: suffix until the name is free.
-    let path = unique_note_path(&dir, title, KIND, None);
-    let now = today();
-    let content = skeleton(title, &now);
-    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    let made = note_doc::create(vault, &KIND, project, title, skeleton)?;
     Ok(MindmapFile {
-        path: norm_path(&path),
-        project: project.to_string(),
-        title: title.to_string(),
-        updated: now,
+        path: made.path,
+        project: made.project,
+        title: made.title,
+        updated: made.updated,
     })
 }
 
-/// Renames a mindmap note. The frontmatter `title` and the file name move
-/// **together**: `create_mindmap` derives one from the other, so letting them
-/// drift would leave a note whose name in the app and name in Obsidian
-/// disagree.
-///
-/// Everything else about the file is preserved — only `title` and `updated`
-/// are rewritten, and the body (including `## Memo`) is carried over
-/// untouched. The snapshot travels with the note, since it is keyed by path
-/// and an undo left behind at the old key could never be found again.
+/// Renames a mindmap note: title and file name move together, the body
+/// (including `## Memo`) is untouched, and the snapshot follows. See
+/// [`note_doc::rename`].
 pub fn rename_mindmap(vault: &Path, path: &Path, new_title: &str) -> Result<MindmapFile, String> {
-    let title = new_title.trim();
-    if title.is_empty() {
-        return Err("a mindmap name is required".into());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let Some((front, body)) = split_frontmatter(&content) else {
-        return Err("this file is not a mindmap note (no frontmatter block)".into());
-    };
-    let dir = path
-        .parent()
-        .ok_or_else(|| "the mindmap path has no parent folder".to_string())?;
-
-    // Same collision rule as `create_mindmap`, except that the note's own file
-    // is not a collision — renaming "ideas" to "ideas" (or only changing its
-    // case) must not produce "ideas 2".
-    let target = unique_note_path(dir, title, KIND, Some(path));
-
-    let now = today();
-    let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
-    let updated_content = format!("---\n{front_out}---\n{body}");
-    fs::write(path, &updated_content).map_err(|e| e.to_string())?;
-
-    // Compared exactly here, not case-insensitively: renaming "ideas" to
-    // "Ideas" is a real rename the user asked for, even though the two names
-    // collide on Windows.
-    if norm_path(&target) != norm_path(path) {
-        fs::rename(path, &target).map_err(|e| e.to_string())?;
-        move_snapshot(vault, SNAPSHOT_DIR, path, &target)?;
-    }
-
-    let project = dir
-        .parent()
-        .and_then(|p| p.file_name())
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let renamed = note_doc::rename(vault, &KIND, path, new_title)?;
     Ok(MindmapFile {
-        path: norm_path(&target),
-        project,
-        title: title.to_string(),
-        updated: now,
+        path: renamed.path,
+        project: renamed.project,
+        title: renamed.title,
+        updated: renamed.updated,
     })
 }
 
 /// Moves a mindmap note into `_ai/state/mindmap-trash/` and returns where it
-/// went.
-///
-/// Deliberately not an unlink. These files are shared with Obsidian and with
-/// agents, they can hold hand-written prose under `## Memo`, and the app's
-/// delete is one click behind one confirmation — a recoverable move is the
-/// proportionate operation. Anything older than the last delete of a given
-/// note is covered by the vault's git backup.
+/// went. See [`note_doc::delete`].
 pub fn delete_mindmap(vault: &Path, path: &Path) -> Result<String, String> {
-    if !path.is_file() {
-        return Err("this mindmap no longer exists".into());
-    }
-    let dir = ai_state_dir(vault).join(TRASH_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let name = path
-        .file_stem()
-        .and_then(|n| n.to_str())
-        .unwrap_or(KIND)
-        .to_string();
-    // Two projects may hold a note of the same name, and the same note may be
-    // deleted twice; suffix rather than overwrite what is already in the trash.
-    let target = unique_note_path(&dir, &format!("{name} {}", today()), KIND, None);
-    fs::rename(path, &target).map_err(|e| e.to_string())?;
-    // The snapshot describes a file that is no longer there. Leaving it would
-    // make a later note that happens to reuse the path inherit a stranger's
-    // undo.
-    let snapshot = crate::vault_note::snapshot_path(vault, SNAPSHOT_DIR, path);
-    let _ = fs::remove_file(snapshot);
-    Ok(norm_path(&target))
+    note_doc::delete(vault, &KIND, path)
 }
 
-/// Writes a generated export (self-contained HTML, or SVG). Kept in Rust
-/// rather than as a browser download so the default destination can be the
-/// project's `attachments/` folder inside the vault — the export is part of
-/// the project record.
-///
-/// `vault`/`project` are `Some` only when `out_path` is the vault's own
-/// default destination: see [`ensure_export_dir`] for what that guards
-/// against (T-0379).
+/// Writes a generated export (self-contained HTML, or SVG). See
+/// [`note_doc::export_text`].
 pub fn export_file(
     vault: Option<&Path>,
     project: Option<&str>,
     out_path: &Path,
     content: &str,
 ) -> Result<(), String> {
-    ensure_export_dir(vault, project, out_path)?;
-    fs::write(out_path, content).map_err(|e| e.to_string())
+    note_doc::export_text(vault, project, out_path, content)
 }
 
-/// Writes a generated binary export (PNG), given its base64 payload.
-///
-/// `vault`/`project` are `Some` only when `out_path` is the vault's own
-/// default destination: see [`ensure_export_dir`] for what that guards
-/// against (T-0379).
+/// Writes a generated binary export (PNG), given its base64 payload. See
+/// [`note_doc::export_binary`].
 pub fn export_binary(
     vault: Option<&Path>,
     project: Option<&str>,
     out_path: &Path,
     base64_data: &str,
 ) -> Result<(), String> {
-    let bytes = crate::b64::decode(base64_data)?;
-    ensure_export_dir(vault, project, out_path)?;
-    fs::write(out_path, bytes).map_err(|e| e.to_string())
+    note_doc::export_binary(vault, project, out_path, base64_data)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::diagram::{has_snapshot, restore_snapshot, save_snapshot};
+    use std::fs;
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;
 
