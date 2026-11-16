@@ -26,6 +26,7 @@ mod plugins;
 mod quick_capture;
 mod rawkey;
 mod schedule;
+mod settings_save;
 mod storage;
 mod stt;
 mod task_editor;

@@ -8,6 +8,7 @@ use crate::models::{
 };
 use crate::music::{self, MusicData};
 use crate::schedule;
+use crate::settings_save;
 use crate::tasks::{self, CreateTaskInput, UpdateTaskInput};
 use crate::terminal::{self, TerminalState};
 use crate::vault_note;
@@ -90,50 +91,30 @@ pub fn get_config() -> Config {
 pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, String> {
     let before = storage::load().settings;
     let mut config = config;
-    // Switching vaults: the vault-scoped settings belong to the vault being
-    // opened, not to the one being left behind.
-    if config.settings.vault_path != before.vault_path {
-        crate::vault_settings::overlay(&mut config);
-    }
-    // Seed the tidy schedule anchor the first time the routine is enabled so
-    // the interval has a phase to count from (and the UI can show "next check").
-    if config.settings.tidy.enabled && config.settings.tidy.anchor.is_none() {
-        config.settings.tidy.anchor = Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0),
-        );
-    }
+    settings_save::prepare(&before, &mut config, settings_save::now_secs());
     storage::save(&config)?;
+
+    let effects = settings_save::effects(&before, &config.settings);
     // Register/unregister start-with-Windows when the setting is toggled.
-    if config.settings.autostart != before.autostart {
-        crate::apply_autostart(&app, config.settings.autostart);
+    if let Some(on) = effects.autostart {
+        crate::apply_autostart(&app, on);
     }
     // Start/stop the ink keyboard hook when the setting is toggled.
-    if config.settings.ink_enabled != before.ink_enabled {
-        if config.settings.ink_enabled {
-            crate::ink::start(&app);
-        } else {
-            crate::ink::stop(&app);
-        }
+    match effects.ink {
+        Some(true) => crate::ink::start(&app),
+        Some(false) => crate::ink::stop(&app),
+        None => {}
     }
     // Re-register the quick-capture hotkey when its settings change.
-    if config.settings.quick_capture_enabled != before.quick_capture_enabled
-        || config.settings.quick_capture_shortcut != before.quick_capture_shortcut
-    {
+    if effects.quick_capture {
         crate::quick_capture::apply_shortcut(&app);
     }
     // Re-register the voice-input hotkey when its settings change.
-    if config.settings.voice_enabled != before.voice_enabled
-        || config.settings.voice_hotkey != before.voice_hotkey
-    {
+    if effects.voice {
         crate::voice::apply_shortcut(&app);
     }
     // Start/stop/retarget the clips key listener when its settings change.
-    if config.settings.clips_enabled != before.clips_enabled
-        || config.settings.clips_gesture != before.clips_gesture
-    {
+    if effects.clips {
         crate::clips::apply_gesture(&app);
     }
     // Best-effort: keep the vault's harness config (.claude/project-context.json
@@ -141,10 +122,8 @@ pub fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, Stri
     // projects so agent sessions see them (harness contract).
     if let Some(vault) = config.settings.vault_path.as_deref() {
         if !vault.trim().is_empty() {
-            let vault = std::path::Path::new(vault);
-            let _ = harness::sync_project_context(vault, &config.projects);
-            let _ = harness::sync_opencode_permissions(
-                vault,
+            harness::sync_vault(
+                std::path::Path::new(vault),
                 &config.projects,
                 &config.settings.worktree_root,
             );
@@ -1651,12 +1630,7 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
         // Seed the harness config with the currently registered projects
         // (best-effort — a fresh vault already has the template default).
         let config = storage::load();
-        let _ = harness::sync_project_context(&vault, &config.projects);
-        let _ = harness::sync_opencode_permissions(
-            &vault,
-            &config.projects,
-            &config.settings.worktree_root,
-        );
+        harness::sync_vault(&vault, &config.projects, &config.settings.worktree_root);
         Ok(())
     })
     .await
