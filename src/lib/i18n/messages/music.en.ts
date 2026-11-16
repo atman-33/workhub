@@ -51,6 +51,13 @@ export const musicEn = {
   "music.items.moveFailed": "Could not move the item — it already exists in the target playlist.",
   "music.items.emptyPlaylist": "The playlist is empty. Add YouTube URLs above.",
 
+  "music.search.button": "Search tracks (Ctrl+F)",
+  "music.search.title": "Search tracks",
+  "music.search.description": "Search track titles in every playlist and play the one you pick",
+  "music.search.placeholder": "Search track titles in all playlists...",
+  "music.search.empty": "No matching tracks.",
+  "music.search.omitted": "{count} more not shown. Add words to narrow the search.",
+
   "music.tabs.rename": "Rename",
   "music.tabs.clearItems": "Clear items",
   "music.tabs.deletePlaylist": "Delete playlist",

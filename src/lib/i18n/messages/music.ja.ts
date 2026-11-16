@@ -53,6 +53,13 @@ export const musicJa: Partial<Record<MessageKey, string>> = {
   "music.items.moveFailed": "移動できませんでした — この項目は移動先のプレイリストに既に存在します。",
   "music.items.emptyPlaylist": "プレイリストは空です。上部から YouTube の URL を追加してください。",
 
+  "music.search.button": "曲を検索 (Ctrl+F)",
+  "music.search.title": "曲を検索",
+  "music.search.description": "すべてのプレイリストから曲名を検索し、選んだ曲を再生します",
+  "music.search.placeholder": "すべてのプレイリストから曲名を検索...",
+  "music.search.empty": "一致する曲がありません。",
+  "music.search.omitted": "ほか {count} 件は表示していません。語を足して絞ってください。",
+
   "music.tabs.rename": "名前を変更",
   "music.tabs.clearItems": "項目を消去",
   "music.tabs.deletePlaylist": "プレイリストを削除",
