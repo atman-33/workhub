@@ -12,7 +12,11 @@ import { api } from "@/lib/api";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import type { DiagramKind } from "@/lib/diagram-kinds";
 
-/** What every editor view accepts from a host: the Diagrams tab's contract. */
+/**
+ * What every editor view accepts from a host: the Diagrams tab's contract.
+ * The Schedule and Mindmap views still read `configVersion` (T-1223); the other
+ * seven read the shared Config store and simply do not declare it.
+ */
 type EditorComponent = ComponentType<{
   configVersion: number;
   embedded: EmbeddedDiagram;
