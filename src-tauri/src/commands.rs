@@ -20,6 +20,63 @@ use std::path::PathBuf;
 use tauri::{Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+// ---------------------------------------------------------------------
+// blocking adapters
+//
+// Domain functions do blocking I/O (files, git, child processes), so an async
+// command hands them to the blocking pool. These helpers are the one place
+// that does so and turns a failed join (the closure panicked or the runtime
+// shut down) into the command's error. Pick the one that matches what the
+// command returns.
+// ---------------------------------------------------------------------
+
+/// For a closure that already returns `Result<T, String>`: a join failure
+/// becomes `Err(<join error>)`, anything else passes through untouched.
+async fn blocking<T, F>(f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Same as [`blocking`], but the join failure reads `"<what> task failed: ..."`
+/// so the caller can tell which command's task died.
+async fn blocking_named<T, F>(what: &str, f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("{what} task failed: {e}"))?
+}
+
+/// For a closure that returns a plain value: only a join failure is an error.
+async fn blocking_value<T, F>(f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// For a read whose failure is "nothing to show": a join failure yields the
+/// default value instead of an error.
+async fn blocking_or_default<T, F>(f: F) -> T
+where
+    T: Default + Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 pub fn get_config() -> Config {
     storage::load()
@@ -129,7 +186,7 @@ pub fn resume_tidy_session(app: tauri::AppHandle) -> Result<String, String> {
 /// notes than the tidy routine acts on.
 #[tauri::command]
 pub async fn list_inbox_notes(vault_path: String) -> Result<Vec<crate::inbox::InboxNote>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_value(move || {
         let tidy = storage::load().settings.tidy;
         crate::inbox::list_notes(
             &PathBuf::from(vault_path),
@@ -138,36 +195,29 @@ pub async fn list_inbox_notes(vault_path: String) -> Result<Vec<crate::inbox::In
         )
     })
     .await
-    .map_err(|e| e.to_string())
 }
 
 /// Raw Markdown of one inbox note, for the preview pane.
 #[tauri::command]
 pub async fn read_inbox_note(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::inbox::read_note(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::inbox::read_note(&PathBuf::from(path))).await
 }
 
 #[tauri::command]
 pub async fn git_status(path: String) -> GitInfo {
-    tauri::async_runtime::spawn_blocking(move || git::read_status(&path))
-        .await
-        .unwrap_or_default()
+    blocking_or_default(move || git::read_status(&path)).await
 }
 
 /// List local and remote branches for the graph-view branch switcher.
 #[tauri::command]
 pub async fn list_branches(path: String) -> BranchList {
-    tauri::async_runtime::spawn_blocking(move || git::list_branches(&path))
-        .await
-        .unwrap_or_default()
+    blocking_or_default(move || git::list_branches(&path)).await
 }
 
 /// op: "fetch" | "pull" | "switch" (switch requires `branch`)
 #[tauri::command]
 pub async fn git_op(path: String, op: String, branch: Option<String>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || match op.as_str() {
+    blocking(move || match op.as_str() {
         "fetch" => git::fetch(&path),
         "pull" => git::pull(&path),
         // DWIM checkout: a remote-tracking ref (e.g. `origin/foo`) resolves to
@@ -177,7 +227,6 @@ pub async fn git_op(path: String, op: String, branch: Option<String>) -> Result<
         other => Err(format!("unknown git op: {other}")),
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Read a page of commit history for the graph view. `extra_branches` and
@@ -192,11 +241,8 @@ pub async fn git_log(
     show_all: bool,
     request_id: String,
 ) -> Result<GitLog, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        git::read_log(&path, limit, skip, &extra_branches, show_all, &request_id)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || git::read_log(&path, limit, skip, &extra_branches, show_all, &request_id))
+        .await
 }
 
 /// Kill the `git log` child process started under `request_id`, if it is
@@ -212,26 +258,20 @@ pub fn git_log_cancel(request_id: String) {
 /// popover to mark as always shown.
 #[tauri::command]
 pub async fn git_default_log_refs(path: String) -> Vec<String> {
-    tauri::async_runtime::spawn_blocking(move || git::default_log_refs(&path))
-        .await
-        .unwrap_or_default()
+    blocking_or_default(move || git::default_log_refs(&path)).await
 }
 
 /// Run a graph-view git operation (checkout, branch/tag create-delete, merge,
 /// rebase, push/pull/fetch, reset, cherry-pick).
 #[tauri::command]
 pub async fn git_graph_op(path: String, op: GraphOp) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || git::graph_op(&path, op))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || git::graph_op(&path, op)).await
 }
 
 /// List the files changed by a commit (or the uncommitted worktree).
 #[tauri::command]
 pub async fn git_commit_files(path: String, hash: String) -> Result<Vec<CommitFileChange>, String> {
-    tauri::async_runtime::spawn_blocking(move || git::commit_files(&path, &hash))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || git::commit_files(&path, &hash)).await
 }
 
 /// Unified diff of a single file within a commit (or the worktree).
@@ -242,18 +282,12 @@ pub async fn git_commit_file_diff(
     file: String,
     old_file: Option<String>,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        git::commit_file_diff(&path, &hash, &file, old_file.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || git::commit_file_diff(&path, &hash, &file, old_file.as_deref())).await
 }
 
 #[tauri::command]
 pub async fn git_remote_url(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || git::remote_url(&path))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || git::remote_url(&path)).await
 }
 
 /// List the task worktrees across the given repos. Non-repos and errors are
@@ -261,7 +295,7 @@ pub async fn git_remote_url(path: String) -> Result<String, String> {
 /// working tree is included (flagged `is_main`); the frontend filters it out.
 #[tauri::command]
 pub async fn list_worktrees(paths: Vec<String>) -> Vec<Worktree> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_or_default(move || {
         let mut all = Vec::new();
         for p in &paths {
             let name = p.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or(p);
@@ -272,7 +306,6 @@ pub async fn list_worktrees(paths: Vec<String>) -> Vec<Worktree> {
         all
     })
     .await
-    .unwrap_or_default()
 }
 
 /// Remove a linked worktree (`git worktree remove`). `force` is required to
@@ -283,11 +316,7 @@ pub async fn remove_worktree(
     worktree_path: String,
     force: bool,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        git::remove_worktree(&repo_path, &worktree_path, force)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || git::remove_worktree(&repo_path, &worktree_path, force)).await
 }
 
 /// Delete a task branch (`git branch -d/-D`), separate from removing its
@@ -298,9 +327,7 @@ pub async fn delete_worktree_branch(
     branch: String,
     force: bool,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || git::delete_branch(&repo_path, &branch, force))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || git::delete_branch(&repo_path, &branch, force)).await
 }
 
 #[tauri::command]
@@ -415,18 +442,14 @@ pub fn send_task_to_claude_desktop(
 /// `provider/model` ids for the task dialog's suggestions.
 #[tauri::command]
 pub async fn opencode_models() -> Result<Vec<String>, String> {
-    tauri::async_runtime::spawn_blocking(actions::opencode_models)
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(actions::opencode_models).await
 }
 
 /// Off the main thread: revealing a file goes through the shell, which can
 /// stall on a slow or network path (a WSL share, a mapped drive).
 #[tauri::command]
 pub async fn open_explorer(path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || actions::open_explorer(&path.replace('/', "\\")))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || actions::open_explorer(&path.replace('/', "\\"))).await
 }
 
 #[tauri::command]
@@ -510,16 +533,12 @@ pub fn save_ink_crop(
 pub async fn list_ink_captures() -> Result<Vec<crate::ink::store::InkCapture>, String> {
     // Decoding a folder of full-screen PNGs for thumbnails is slow enough to
     // stutter the UI thread.
-    tauri::async_runtime::spawn_blocking(move || crate::ink::store::list(&ink_dir()))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::ink::store::list(&ink_dir())).await
 }
 
 #[tauri::command]
 pub async fn read_ink_capture(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::ink::store::read_full(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::ink::store::read_full(&PathBuf::from(path))).await
 }
 
 #[tauri::command]
@@ -710,9 +729,7 @@ pub async fn check_update() -> Option<UpdateInfo> {
 
 #[tauri::command]
 pub async fn apply_update(url: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || update::apply_update(&url))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || update::apply_update(&url)).await
 }
 
 #[tauri::command]
@@ -771,18 +788,12 @@ pub fn vault_initialized(vault_path: String) -> bool {
 
 #[tauri::command]
 pub async fn list_tasks(vault_path: String) -> Result<Vec<Task>, String> {
-    tauri::async_runtime::spawn_blocking(move || tasks::scan_and_index(&PathBuf::from(vault_path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || tasks::scan_and_index(&PathBuf::from(vault_path))).await
 }
 
 #[tauri::command]
 pub async fn create_task(vault_path: String, input: CreateTaskInput) -> Result<Task, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        tasks::create_task(&PathBuf::from(vault_path), input)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || tasks::create_task(&PathBuf::from(vault_path), input)).await
 }
 
 /// Breaking-change notices that apply to this vault and are still unread.
@@ -793,31 +804,22 @@ pub async fn create_task(vault_path: String, input: CreateTaskInput) -> Result<T
 /// vault's list is a notice nobody ever sees.
 #[tauri::command]
 pub async fn notices(vault_path: String) -> Result<Vec<crate::notices::Notice>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let read = storage::load().settings.notices_read;
         Ok(crate::notices::pending(&PathBuf::from(vault_path), &read))
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn update_task(vault_path: String, input: UpdateTaskInput) -> Result<Task, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        tasks::update_task(&PathBuf::from(vault_path), input)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || tasks::update_task(&PathBuf::from(vault_path), input)).await
 }
 
 /// Moves the task's Markdown file to the OS recycle bin.
 #[tauri::command]
 pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        tasks::delete_task(&PathBuf::from(vault_path), &id)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || tasks::delete_task(&PathBuf::from(vault_path), &id)).await
 }
 
 // ---- schedule notes (T-0088..T-0091) -------------------------------------
@@ -826,11 +828,7 @@ pub async fn delete_task(vault_path: String, id: String) -> Result<(), String> {
 /// schedule picker, including projects that hold no schedule note yet.
 #[tauri::command]
 pub async fn list_schedule_projects(vault_path: String) -> Result<Vec<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_note::list_projects(&PathBuf::from(vault_path))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_note::list_projects(&PathBuf::from(vault_path))).await
 }
 
 /// Resolves a project slug to its real folder under `projects/` — which may
@@ -844,13 +842,12 @@ pub async fn resolve_project_dir(
     vault_path: String,
     slug: String,
 ) -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let vault = PathBuf::from(vault_path);
         let dir = vault_note::resolve_project_dir(&vault_note::projects_dir(&vault), &slug)?;
         Ok(dir.map(|p| vault_note::norm_path(&p)))
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Creates a vault project (`projects/<slug>/`) from the bundled scaffold, so
@@ -861,11 +858,7 @@ pub async fn create_vault_project(
     slug: String,
     name: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_note::create_project(&PathBuf::from(vault_path), &slug, &name)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_note::create_project(&PathBuf::from(vault_path), &slug, &name)).await
 }
 
 /// The folder name `create_vault_project` will give a new project with this
@@ -873,11 +866,7 @@ pub async fn create_vault_project(
 /// now — so the create dialog can show it before the folder exists (T-0278).
 #[tauri::command]
 pub async fn next_project_folder(vault_path: String, slug: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_note::next_project_folder(&PathBuf::from(vault_path), &slug)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_note::next_project_folder(&PathBuf::from(vault_path), &slug)).await
 }
 
 // ---- vault projects (T-0190) --------------------------------------------
@@ -890,11 +879,8 @@ pub async fn list_vault_projects(
     vault_path: String,
     include_archived: bool,
 ) -> Result<Vec<VaultProject>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::list_projects(&PathBuf::from(vault_path), include_archived)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::list_projects(&PathBuf::from(vault_path), include_archived))
+        .await
 }
 
 /// The backlog items of one project, for the task editor's item picker.
@@ -905,11 +891,7 @@ pub async fn list_backlog_items(
     vault_path: String,
     slug: String,
 ) -> Result<Vec<BacklogItem>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::list_backlog_items(&PathBuf::from(vault_path), &slug)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::list_backlog_items(&PathBuf::from(vault_path), &slug)).await
 }
 
 /// Opens a task's backlog item in Obsidian (T-0660). Obsidian's URI cannot
@@ -921,7 +903,7 @@ pub async fn open_backlog_item(
     slug: String,
     backlog: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let found = vault_project::find_backlog_item(&PathBuf::from(vault_path), &slug, &backlog)?
             .ok_or_else(|| format!("backlog item {backlog} not found in {slug}"))?;
         match found.note {
@@ -930,7 +912,6 @@ pub async fn open_backlog_item(
         }
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Creates a backlog item in a project from a title and returns it, so the
@@ -942,32 +923,21 @@ pub async fn create_backlog_item(
     slug: String,
     title: String,
 ) -> Result<BacklogItem, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::create_backlog_item(&PathBuf::from(vault_path), &slug, &title)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::create_backlog_item(&PathBuf::from(vault_path), &slug, &title))
+        .await
 }
 
 /// Moves `projects/<slug>/` to `archive/projects/<slug>/`. Returns the new
 /// path. There is no delete: see the `vault_project` module docs.
 #[tauri::command]
 pub async fn archive_vault_project(vault_path: String, slug: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::archive_project(&PathBuf::from(vault_path), &slug)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::archive_project(&PathBuf::from(vault_path), &slug)).await
 }
 
 /// Moves an archived project back under `projects/`.
 #[tauri::command]
 pub async fn restore_vault_project(vault_path: String, slug: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::restore_project(&PathBuf::from(vault_path), &slug)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::restore_project(&PathBuf::from(vault_path), &slug)).await
 }
 
 /// Links a project to registered repositories by writing `repos:` into its
@@ -979,11 +949,8 @@ pub async fn set_vault_project_repos(
     slug: String,
     repos: Vec<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::set_project_repos(&PathBuf::from(vault_path), &slug, &repos)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::set_project_repos(&PathBuf::from(vault_path), &slug, &repos))
+        .await
 }
 
 /// Pins a project and records its manual sort position in `_index.md`
@@ -996,11 +963,10 @@ pub async fn set_vault_project_order(
     pinned: bool,
     order: Option<f64>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         vault_project::set_project_order(&PathBuf::from(vault_path), &slug, pinned, order)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Sets or clears (empty `alias`) the project's session-name alias in
@@ -1011,11 +977,8 @@ pub async fn set_vault_project_alias(
     slug: String,
     alias: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_project::set_project_alias(&PathBuf::from(vault_path), &slug, &alias)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_project::set_project_alias(&PathBuf::from(vault_path), &slug, &alias))
+        .await
 }
 
 /// Writes the project's display name and description into README.md
@@ -1027,11 +990,10 @@ pub async fn set_vault_project_details(
     name: String,
     summary: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         vault_project::set_project_details(&PathBuf::from(vault_path), &slug, &name, &summary)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Lists schedule notes, optionally narrowed to one project slug (pass an
@@ -1041,19 +1003,16 @@ pub async fn list_schedules(
     vault_path: String,
     project: String,
 ) -> Result<Vec<ScheduleFile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let project = (!project.trim().is_empty()).then_some(project);
         schedule::list_schedules(&PathBuf::from(vault_path), project.as_deref())
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn read_schedule(path: String) -> Result<ScheduleDoc, String> {
-    tauri::async_runtime::spawn_blocking(move || schedule::read_schedule(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || schedule::read_schedule(&PathBuf::from(path))).await
 }
 
 /// Writes a schedule note, refusing when the file changed on disk since the
@@ -1065,11 +1024,7 @@ pub async fn write_schedule(
     content: String,
     expected_mtime: u64,
 ) -> Result<u64, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        schedule::write_schedule(&PathBuf::from(path), &content, expected_mtime)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || schedule::write_schedule(&PathBuf::from(path), &content, expected_mtime)).await
 }
 
 #[tauri::command]
@@ -1079,11 +1034,10 @@ pub async fn create_schedule(
     title: String,
     range: String,
 ) -> Result<ScheduleFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         schedule::create_schedule(&PathBuf::from(vault_path), &project, &title, &range)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Renames a schedule note: its frontmatter `title` and its file name move
@@ -1095,11 +1049,10 @@ pub async fn rename_schedule(
     path: String,
     title: String,
 ) -> Result<ScheduleFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         schedule::rename_schedule(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Writes a frontend-generated, self-contained HTML export to disk (T-0090).
@@ -1115,7 +1068,7 @@ pub async fn export_schedule_html(
     vault_path: Option<String>,
     project: Option<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         schedule::export_html(
             vault_path.as_deref().map(PathBuf::from).as_deref(),
             project.as_deref(),
@@ -1124,7 +1077,6 @@ pub async fn export_schedule_html(
         )
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Launches a headless agent to apply a natural-language edit to a diagram
@@ -1289,22 +1241,14 @@ pub fn update_docs_root(
 /// team share holds - PDFs, spreadsheets, images.
 #[tauri::command]
 pub async fn docs_open_external(path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_open_external(&storage::load().settings, &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_open_external(&storage::load().settings, &path)).await
 }
 
 /// Shows a file or folder inside a registered root in the OS file manager,
 /// selected in its parent folder.
 #[tauri::command]
 pub async fn docs_reveal(path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_reveal(&storage::load().settings, &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_reveal(&storage::load().settings, &path)).await
 }
 
 /// Lists one directory inside a registered root. Never recurses — the tree
@@ -1312,30 +1256,18 @@ pub async fn docs_reveal(path: String) -> Result<(), String> {
 /// touched where the user is actually looking.
 #[tauri::command]
 pub async fn docs_list_dir(path: String) -> Result<Vec<DocsEntry>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_list_dir(&storage::load().settings, &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_list_dir(&storage::load().settings, &path)).await
 }
 
 #[tauri::command]
 pub async fn docs_read_file(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_read_doc(&storage::load().settings, &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_read_doc(&storage::load().settings, &path)).await
 }
 
 /// Reads an image a document embeds and returns it as a `data:` URI.
 #[tauri::command]
 pub async fn docs_read_asset(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_read_asset(&storage::load().settings, &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_read_asset(&storage::load().settings, &path)).await
 }
 
 /// Resolves a pasted absolute path against this machine's roots (T-0362).
@@ -1348,7 +1280,7 @@ pub async fn docs_resolve_open_path(
     pasted: String,
     current_root: Option<String>,
 ) -> Result<docs::OpenPathResolution, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         docs::guarded_resolve_open_path(
             &storage::load().settings,
             &pasted,
@@ -1356,7 +1288,6 @@ pub async fn docs_resolve_open_path(
         )
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Resolves an Obsidian `[[wikilink]]` written in the document `from` (T-0726).
@@ -1372,11 +1303,8 @@ pub async fn docs_resolve_wikilink(
     from: String,
     target: String,
 ) -> Result<docs::WikiLinkResolution, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        docs::guarded_resolve_wikilink(&storage::load().settings, &from, &target)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || docs::guarded_resolve_wikilink(&storage::load().settings, &from, &target))
+        .await
 }
 
 /// The PlantUML server the Docs tab renders diagrams with; "" when rendering
@@ -1458,11 +1386,10 @@ pub fn set_docs_plantuml_server(server: String) -> Result<(), String> {
 /// Fails without contacting anything when no server is set.
 #[tauri::command]
 pub async fn docs_render_plantuml(source: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         crate::plantuml::render(&storage::load().settings.docs_plantuml_server, &source)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Opens a Docs viewer window on `payload` (a document or one figure).
@@ -1497,12 +1424,11 @@ pub async fn list_diagrams(
     vault_path: String,
     project: String,
 ) -> Result<Vec<crate::diagram::DiagramFile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let project = (!project.trim().is_empty()).then_some(project);
         crate::diagram::list_diagrams(&PathBuf::from(vault_path), project.as_deref())
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Creates a diagram note. `backlog` is a `B-NNN` item id to put it inside, or
@@ -1516,7 +1442,7 @@ pub async fn create_diagram(
     backlog: String,
     range: String,
 ) -> Result<crate::diagram::DiagramFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         crate::diagram::create_diagram(
             &PathBuf::from(vault_path),
             &project,
@@ -1527,16 +1453,13 @@ pub async fn create_diagram(
         )
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Reads a diagram note of any kind: the whole text plus the mtime that guards
 /// the next [`write_diagram`].
 #[tauri::command]
 pub async fn read_diagram(path: String) -> Result<crate::diagram::DiagramDoc, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::diagram::read_diagram(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::diagram::read_diagram(&PathBuf::from(path))).await
 }
 
 /// Writes a diagram note, refusing when the file changed on disk since the
@@ -1547,11 +1470,8 @@ pub async fn write_diagram(
     content: String,
     expected_mtime: u64,
 ) -> Result<u64, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::diagram::write_diagram(&PathBuf::from(path), &content, expected_mtime)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || crate::diagram::write_diagram(&PathBuf::from(path), &content, expected_mtime))
+        .await
 }
 
 /// Renames a diagram note: its frontmatter `title` and its file name move
@@ -1562,21 +1482,19 @@ pub async fn rename_diagram(
     path: String,
     title: String,
 ) -> Result<crate::diagram::DiagramFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         crate::diagram::rename_diagram(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Moves a diagram note into `_ai/state/diagram-trash/`. Returns where it went.
 #[tauri::command]
 pub async fn delete_diagram(vault_path: String, path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         crate::diagram::delete_diagram(&PathBuf::from(vault_path), &PathBuf::from(path))
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Writes a frontend-generated HTML or SVG export of any diagram kind. Same
@@ -1612,19 +1530,16 @@ pub async fn list_mindmaps(
     vault_path: String,
     project: String,
 ) -> Result<Vec<MindmapFile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let project = (!project.trim().is_empty()).then_some(project);
         mindmap::list_mindmaps(&PathBuf::from(vault_path), project.as_deref())
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn read_mindmap(path: String) -> Result<MindmapDoc, String> {
-    tauri::async_runtime::spawn_blocking(move || mindmap::read_mindmap(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || mindmap::read_mindmap(&PathBuf::from(path))).await
 }
 
 /// Writes a mindmap note, refusing when the file changed on disk since the
@@ -1636,11 +1551,7 @@ pub async fn write_mindmap(
     content: String,
     expected_mtime: u64,
 ) -> Result<u64, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        mindmap::write_mindmap(&PathBuf::from(path), &content, expected_mtime)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || mindmap::write_mindmap(&PathBuf::from(path), &content, expected_mtime)).await
 }
 
 #[tauri::command]
@@ -1649,11 +1560,7 @@ pub async fn create_mindmap(
     project: String,
     title: String,
 ) -> Result<MindmapFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        mindmap::create_mindmap(&PathBuf::from(vault_path), &project, &title)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || mindmap::create_mindmap(&PathBuf::from(vault_path), &project, &title)).await
 }
 
 /// Renames a mindmap note: its frontmatter `title` and its file name move
@@ -1664,33 +1571,26 @@ pub async fn rename_mindmap(
     path: String,
     title: String,
 ) -> Result<MindmapFile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         mindmap::rename_mindmap(&PathBuf::from(vault_path), &PathBuf::from(path), &title)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Moves a schedule note into `_ai/state/schedule-trash/`. Returns where it
 /// went, so the UI can tell the user where to find it.
 #[tauri::command]
 pub async fn delete_schedule(vault_path: String, path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        schedule::delete_schedule(&PathBuf::from(vault_path), &PathBuf::from(path))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || schedule::delete_schedule(&PathBuf::from(vault_path), &PathBuf::from(path)))
+        .await
 }
 
 /// Moves a mindmap note into `_ai/state/mindmap-trash/`. Returns where it
 /// went, so the UI can tell the user where to find it.
 #[tauri::command]
 pub async fn delete_mindmap(vault_path: String, path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        mindmap::delete_mindmap(&PathBuf::from(vault_path), &PathBuf::from(path))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || mindmap::delete_mindmap(&PathBuf::from(vault_path), &PathBuf::from(path)))
+        .await
 }
 
 /// Writes a frontend-generated, self-contained HTML or SVG export to disk.
@@ -1706,7 +1606,7 @@ pub async fn export_mindmap_file(
     vault_path: Option<String>,
     project: Option<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         mindmap::export_file(
             vault_path.as_deref().map(PathBuf::from).as_deref(),
             project.as_deref(),
@@ -1715,7 +1615,6 @@ pub async fn export_mindmap_file(
         )
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Writes a frontend-rendered PNG (base64, as `canvas.toDataURL` produces it).
@@ -1729,7 +1628,7 @@ pub async fn export_mindmap_png(
     vault_path: Option<String>,
     project: Option<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         mindmap::export_binary(
             vault_path.as_deref().map(PathBuf::from).as_deref(),
             project.as_deref(),
@@ -1738,7 +1637,6 @@ pub async fn export_mindmap_png(
         )
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// `vault-template/` is embedded into the binary at compile time (see
@@ -1747,7 +1645,7 @@ pub async fn export_mindmap_png(
 /// build.
 #[tauri::command]
 pub async fn init_vault(vault_path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let vault = PathBuf::from(vault_path);
         vault_template::init_vault(&vault)?;
         // Seed the harness config with the currently registered projects
@@ -1762,7 +1660,6 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
         Ok(())
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// 3-way compares the embedded template against `vault_path`'s current
@@ -1773,11 +1670,7 @@ pub async fn init_vault(vault_path: String) -> Result<(), String> {
 pub async fn check_vault_template(
     vault_path: String,
 ) -> Result<vault_template::TemplateDiff, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_template::check_vault_template(&PathBuf::from(vault_path))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_template::check_vault_template(&PathBuf::from(vault_path))).await
 }
 
 /// Applies the embedded template content for exactly the given relative
@@ -1794,11 +1687,10 @@ pub async fn apply_vault_template(
     paths: Vec<String>,
     overwrite: Vec<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         vault_template::apply_vault_template(&PathBuf::from(vault_path), &paths, &overwrite)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Removes the listed files that the template no longer ships and whose
@@ -1811,11 +1703,8 @@ pub async fn remove_template_orphans(
     vault_path: String,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_template::remove_template_orphans(&PathBuf::from(vault_path), &paths)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_template::remove_template_orphans(&PathBuf::from(vault_path), &paths))
+        .await
 }
 
 /// Keeps the listed files that the template no longer ships and drops their
@@ -1827,11 +1716,8 @@ pub async fn retain_template_orphans(
     vault_path: String,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_template::retain_template_orphans(&PathBuf::from(vault_path), &paths)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_template::retain_template_orphans(&PathBuf::from(vault_path), &paths))
+        .await
 }
 
 /// Applies only the template updates that cannot destroy user content —
@@ -1841,11 +1727,7 @@ pub async fn retain_template_orphans(
 /// paths that were written.
 #[tauri::command]
 pub async fn apply_safe_template_updates(vault_path: String) -> Result<Vec<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_template::apply_safe_template_updates(&PathBuf::from(vault_path))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_template::apply_safe_template_updates(&PathBuf::from(vault_path))).await
 }
 
 /// Renders the unified diff between the vault's current copy of `path` and
@@ -1856,11 +1738,7 @@ pub async fn preview_vault_template_file(
     vault_path: String,
     path: String,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        vault_template::template_file_diff(&PathBuf::from(vault_path), &path)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || vault_template::template_file_diff(&PathBuf::from(vault_path), &path)).await
 }
 
 /// (Re)starts watching `<vault_path>/tasks` for changes. Call whenever the
@@ -1881,43 +1759,31 @@ pub fn watch_vault(
 /// Returns None until the first save so the frontend can seed defaults.
 #[tauri::command]
 pub async fn load_music_data(vault_path: String) -> Result<Option<MusicData>, String> {
-    tauri::async_runtime::spawn_blocking(move || music::load(&PathBuf::from(vault_path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || music::load(&PathBuf::from(vault_path))).await
 }
 
 #[tauri::command]
 pub async fn save_music_data(vault_path: String, data: MusicData) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || music::save(&PathBuf::from(vault_path), &data))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || music::save(&PathBuf::from(vault_path), &data)).await
 }
 
 /// Writes a playlist export to a path picked in a save dialog.
 #[tauri::command]
 pub async fn export_playlist_file(path: String, contents: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        music::export_playlists(&PathBuf::from(path), &contents)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || music::export_playlists(&PathBuf::from(path), &contents)).await
 }
 
 /// Reads a playlist export picked in an open dialog.
 #[tauri::command]
 pub async fn import_playlist_file(path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || music::import_playlists(&PathBuf::from(path)))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || music::import_playlists(&PathBuf::from(path))).await
 }
 
 /// YouTube oEmbed lookup; runs in Rust because the webview blocks the
 /// cross-origin fetch.
 #[tauri::command]
 pub async fn fetch_youtube_title(video_id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || music::fetch_title(&video_id))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || music::fetch_title(&video_id)).await
 }
 
 #[tauri::command]
@@ -2006,12 +1872,11 @@ pub fn terminal_resize(
 /// (see `terminal::close`), which must not run on the UI thread.
 #[tauri::command]
 pub async fn terminal_close(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking(move || {
         let state = app.state::<TerminalState>();
         terminal::close(&state, &id)
     })
     .await
-    .map_err(|e| e.to_string())?
 }
 
 /// Hide the quick-capture window (Esc / after a successful save), remembering
@@ -2027,20 +1892,14 @@ pub fn quick_capture_hide(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub async fn clips_list() -> Vec<crate::clips::store::Clip> {
-    tauri::async_runtime::spawn_blocking(|| crate::clips::store::load().clips)
-        .await
-        .unwrap_or_default()
+    blocking_or_default(|| crate::clips::store::load().clips).await
 }
 
 /// Replace the whole snippet list (the editor sends it back after any edit or
 /// reorder — list order *is* the display order).
 #[tauri::command]
 pub async fn clips_save(clips: Vec<crate::clips::store::Clip>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::clips::store::save(&crate::clips::store::Clips { clips })
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    blocking(move || crate::clips::store::save(&crate::clips::store::Clips { clips })).await
 }
 
 /// Hide the popup, restore focus to the app that had it, and paste the
@@ -2048,9 +1907,7 @@ pub async fn clips_save(clips: Vec<crate::clips::store::Clip>) -> Result<(), Str
 /// runs off the UI thread.
 #[tauri::command]
 pub async fn clips_paste(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::clips::paste_clip(&app, &id))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::clips::paste_clip(&app, &id)).await
 }
 
 /// Hide the clips popup (Esc), remembering its position and size.
@@ -2066,25 +1923,19 @@ pub fn clips_hide(app: tauri::AppHandle) {
 /// Per-model download/active status for the Settings > Voice tab.
 #[tauri::command]
 pub async fn stt_model_status() -> Vec<crate::stt::ModelStatus> {
-    tauri::async_runtime::spawn_blocking(crate::stt::model_status)
-        .await
-        .unwrap_or_default()
+    blocking_or_default(crate::stt::model_status).await
 }
 
 /// Downloads and checksum-verifies a whisper.cpp ggml model. Progress is
 /// streamed via `stt:download-progress` / `-done` / `-error` events.
 #[tauri::command]
 pub async fn stt_download_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::stt::download_model(&app, &model))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::stt::download_model(&app, &model)).await
 }
 
 #[tauri::command]
 pub async fn stt_delete_model(model: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::stt::delete_model(&model))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::stt::delete_model(&model)).await
 }
 
 /// Stop button on the indicator: same stop path as a second hotkey press
@@ -2114,9 +1965,7 @@ pub fn voice_capture_status(app: tauri::AppHandle) -> crate::voice::CaptureStatu
 
 #[tauri::command]
 pub async fn voice_history_list() -> Vec<crate::voice_history::HistoryEntry> {
-    tauri::async_runtime::spawn_blocking(|| crate::voice_history::load().entries)
-        .await
-        .unwrap_or_default()
+    blocking_or_default(|| crate::voice_history::load().entries).await
 }
 
 #[tauri::command]
@@ -2166,34 +2015,26 @@ pub fn voice_meeting_status(app: tauri::AppHandle) -> Option<crate::voice_meetin
 /// All meetings on disk, newest first.
 #[tauri::command]
 pub async fn voice_meeting_list() -> Vec<crate::voice_meeting::MeetingInfo> {
-    tauri::async_runtime::spawn_blocking(crate::voice_meeting::list)
-        .await
-        .unwrap_or_default()
+    blocking_or_default(crate::voice_meeting::list).await
 }
 
 /// Full Markdown of one meeting.
 #[tauri::command]
 pub async fn voice_meeting_read(id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::read(&id))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::voice_meeting::read(&id)).await
 }
 
 /// Deletes one meeting file.
 #[tauri::command]
 pub async fn voice_meeting_delete(id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::delete(&id))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::voice_meeting::delete(&id)).await
 }
 
 /// The copy-paste prompt that turns a meeting transcript into minutes
 /// (decisions / action items / open questions) in an agent of choice.
 #[tauri::command]
 pub async fn voice_meeting_prompt(id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::voice_meeting::structuring_prompt(&id))
-        .await
-        .map_err(|e| e.to_string())?
+    blocking(move || crate::voice_meeting::structuring_prompt(&id)).await
 }
 
 /// Periodic structuring status for the active meeting, if any (T-0318).
@@ -2213,18 +2054,14 @@ pub fn voice_struct_run_now(app: tauri::AppHandle) -> Result<String, String> {
 /// run has produced any yet (T-0318).
 #[tauri::command]
 pub async fn voice_meeting_minutes(id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::voice_struct::read_minutes(&id))
-        .await
-        .map_err(|e| e.to_string())
+    blocking_value(move || crate::voice_struct::read_minutes(&id)).await
 }
 
 /// Full text of one meeting's struct run log, or empty when no run has
 /// logged anything yet (T-0333).
 #[tauri::command]
 pub async fn voice_struct_log(id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::voice_struct::read_struct_log(&id))
-        .await
-        .map_err(|e| e.to_string())
+    blocking_value(move || crate::voice_struct::read_struct_log(&id)).await
 }
 
 /// Debug repro of the active meeting's struct run in a visible terminal
@@ -2243,9 +2080,7 @@ pub fn voice_struct_repro(app: tauri::AppHandle) -> Result<String, String> {
 /// setup guidance in that case instead of hiding itself (T-0215).
 #[tauri::command]
 pub async fn persona_characters() -> Vec<crate::persona::PersonaCharacter> {
-    tauri::async_runtime::spawn_blocking(crate::persona::discover_characters)
-        .await
-        .unwrap_or_default()
+    blocking_or_default(crate::persona::discover_characters).await
 }
 
 /// True when the standalone `genshijin` plugin is cached alongside `persona`.
@@ -2272,11 +2107,10 @@ pub async fn set_persona_state(
     character: Option<String>,
     level: String,
 ) -> Result<crate::persona::PersonaState, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_named("persona write", move || {
         crate::persona::write_state(enabled, character, level)
     })
     .await
-    .map_err(|e| format!("persona write task failed: {e}"))?
 }
 
 /// Sends a hand-made character to the OS recycle bin. Built-in characters are
@@ -2284,9 +2118,10 @@ pub async fn set_persona_state(
 /// Deleting the character the saved default names also clears that default.
 #[tauri::command]
 pub async fn delete_persona_character(id: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::persona::delete_character(&id))
-        .await
-        .map_err(|e| format!("persona delete task failed: {e}"))?
+    blocking_named("persona delete", move || {
+        crate::persona::delete_character(&id)
+    })
+    .await
 }
 
 // ---------------------------------------------------------------------
@@ -2312,11 +2147,10 @@ pub async fn plugin_details(
     marketplace: String,
     scope: String,
 ) -> crate::plugins::PluginDetails {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_or_default(move || {
         crate::plugins::read_details(&vault_path, &name, &marketplace, &scope)
     })
     .await
-    .unwrap_or_default()
 }
 
 /// Adds or removes one `enabledPlugins` key in the vault's or the user's
@@ -2329,11 +2163,10 @@ pub async fn set_plugin_enabled(
     scope: String,
     enabled: bool,
 ) -> Result<crate::plugins::PluginsState, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_named("plugin settings write", move || {
         crate::plugins::set_enabled(&vault_path, &name, &marketplace, &scope, enabled)
     })
     .await
-    .map_err(|e| format!("plugin settings write task failed: {e}"))?
 }
 
 /// `claude plugin marketplace update <marketplace>` — refreshes the clone every
@@ -2343,11 +2176,10 @@ pub async fn plugins_update_marketplace(
     vault_path: String,
     marketplace: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_named("marketplace update", move || {
         crate::plugins::update_marketplace(&vault_path, &marketplace)
     })
     .await
-    .map_err(|e| format!("marketplace update task failed: {e}"))?
 }
 
 /// `claude plugin marketplace add atman-33/workhub` — first-run registration.
@@ -2358,9 +2190,10 @@ pub async fn plugins_update_marketplace(
 pub async fn plugins_add_marketplace(
     vault_path: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::plugins::add_marketplace(&vault_path))
-        .await
-        .map_err(|e| format!("marketplace add task failed: {e}"))?
+    blocking_named("marketplace add", move || {
+        crate::plugins::add_marketplace(&vault_path)
+    })
+    .await
 }
 
 /// `claude plugin update <name>@<marketplace> --scope <scope>`.
@@ -2371,11 +2204,10 @@ pub async fn plugins_update_plugin(
     marketplace: String,
     scope: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_named("plugin update", move || {
         crate::plugins::update_plugin(&vault_path, &name, &marketplace, &scope)
     })
     .await
-    .map_err(|e| format!("plugin update task failed: {e}"))?
 }
 
 /// `claude plugin install <name>@<marketplace> --scope <scope>`.
@@ -2386,9 +2218,60 @@ pub async fn plugins_install_plugin(
     marketplace: String,
     scope: String,
 ) -> Result<crate::plugins::PluginCommandResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    blocking_named("plugin install", move || {
         crate::plugins::install_plugin(&vault_path, &name, &marketplace, &scope)
     })
     .await
-    .map_err(|e| format!("plugin install task failed: {e}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::async_runtime::block_on;
+
+    #[test]
+    fn blocking_passes_the_closures_result_through() {
+        assert_eq!(block_on(blocking(|| Ok::<_, String>(7))), Ok(7));
+        assert_eq!(
+            block_on(blocking(|| Err::<u8, _>("boom".to_string()))),
+            Err("boom".to_string())
+        );
+    }
+
+    #[test]
+    fn blocking_reports_a_panicked_task_as_the_join_error() {
+        let err = block_on(blocking(|| -> Result<u8, String> { panic!("x") })).unwrap_err();
+        assert!(err.contains("panicked"), "{err}");
+    }
+
+    #[test]
+    fn blocking_named_prefixes_a_panicked_task() {
+        let err = block_on(blocking_named(
+            "plugin install",
+            || -> Result<u8, String> { panic!("x") },
+        ))
+        .unwrap_err();
+        assert!(err.starts_with("plugin install task failed: "), "{err}");
+        assert!(err.contains("panicked"), "{err}");
+        assert_eq!(
+            block_on(blocking_named("plugin install", || Ok::<_, String>(1))),
+            Ok(1)
+        );
+    }
+
+    #[test]
+    fn blocking_value_wraps_the_value_and_reports_a_panic() {
+        assert_eq!(block_on(blocking_value(|| 3)), Ok(3));
+        let err = block_on(blocking_value(|| -> u8 { panic!("x") })).unwrap_err();
+        assert!(err.contains("panicked"), "{err}");
+    }
+
+    #[test]
+    fn blocking_or_default_swallows_a_panic() {
+        assert_eq!(block_on(blocking_or_default(|| 5u8)), 5);
+        assert_eq!(
+            block_on(blocking_or_default(|| -> Vec<u8> { panic!("x") })),
+            Vec::<u8>::new()
+        );
+    }
 }
