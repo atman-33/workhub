@@ -15,6 +15,9 @@ export interface PlaybackSlice {
   playerInstance: YouTubePlayerLike | null;
   setPlayerInstance: (player: YouTubePlayerLike) => void;
   play: (videoId: string) => void;
+  /** Plays a track of any playlist, switching to that playlist first. Unlike
+   *  setActivePlaylist + play it never starts the playlist's first track. */
+  playTrackInPlaylist: (playlistId: string, videoId: string) => void;
   pause: () => void;
   setPlayingStateToFalse: () => void;
   resume: () => void;

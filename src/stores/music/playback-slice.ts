@@ -1,5 +1,6 @@
 import {
   drawFromShuffleQueue,
+  resetQueueForPlaylist,
   sanitizeShuffleQueue,
   withQueueForPlaylist,
 } from "@/lib/music/shuffle-queue";
@@ -69,6 +70,32 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
         ),
       };
     });
+  },
+  playTrackInPlaylist: (playlistId, videoId) => {
+    const state = get();
+    const target = state.playlists.find((playlist) => playlist.id === playlistId);
+    if (!target || !target.items.some((item) => item.id === videoId)) {
+      return;
+    }
+    if (playlistId === state.activePlaylistId) {
+      state.play(videoId);
+      return;
+    }
+    // Switch playlists without going through its first track (what
+    // setActivePlaylist would play), and clear the current track so play()
+    // does not push a track of the old playlist into the new one's history.
+    // Starting from a search result is a fresh start, so the shuffle queue
+    // and history of the new playlist begin empty.
+    set({
+      activePlaylistId: playlistId,
+      currentVideoId: null,
+      currentIndex: null,
+      shuffleQueue: state.isShuffle
+        ? resetQueueForPlaylist(state.shuffleQueue, playlistId)
+        : state.shuffleQueue,
+      playHistory: { ...state.playHistory, [playlistId]: [] },
+    });
+    get().play(videoId);
   },
   pause: () => {
     const { playerInstance } = get();
