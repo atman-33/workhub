@@ -173,6 +173,76 @@ pub fn next_root_id(roots: &[DocsRoot]) -> String {
     format!("D-{:03}", max + 1)
 }
 
+/// A folder path as the Docs settings store it: trimmed, forward slashes,
+/// and no trailing separator, so the same folder typed two ways compares
+/// equal.
+pub fn normalize_root_path(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/");
+    let trimmed = normalized.trim_end_matches('/');
+    // A bare drive root ("G:/") keeps its slash - "G:" alone is not a folder.
+    if trimmed.ends_with(':') {
+        format!("{trimmed}/")
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Registers a folder as a new root. The path is stored as given (normalized);
+/// a duplicate (case-insensitive, as Windows paths are) or an empty path is
+/// refused.
+pub fn add_root(roots: &mut Vec<DocsRoot>, path: &str, name: &str) -> Result<(), String> {
+    let path = normalize_root_path(path);
+    if path.is_empty() {
+        return Err("no folder given".into());
+    }
+    if roots.iter().any(|r| r.path.eq_ignore_ascii_case(&path)) {
+        return Err(format!("{path} is already registered"));
+    }
+    let id = next_root_id(roots);
+    roots.push(DocsRoot {
+        id,
+        name: name.trim().to_string(),
+        path,
+    });
+    Ok(())
+}
+
+/// Updates a root's name and folder together. The folder may not collide with
+/// any *other* root; keeping the root's own path is fine.
+pub fn update_root(roots: &mut [DocsRoot], id: &str, name: &str, path: &str) -> Result<(), String> {
+    let path = normalize_root_path(path);
+    if path.is_empty() {
+        return Err("the shared folder path cannot be empty".into());
+    }
+    if roots
+        .iter()
+        .any(|r| r.id != id && r.path.eq_ignore_ascii_case(&path))
+    {
+        return Err(format!("{path} is already registered"));
+    }
+    let Some(root) = roots.iter_mut().find(|r| r.id == id) else {
+        return Err(format!("no such document root: {id}"));
+    };
+    root.name = name.trim().to_string();
+    root.path = path;
+    Ok(())
+}
+
+/// Forgets a root. Removing an id that is not there is not an error.
+pub fn remove_root(roots: &mut Vec<DocsRoot>, id: &str) {
+    roots.retain(|r| r.id != id);
+}
+
+/// The PlantUML server setting as stored: trimmed, no trailing slash, and an
+/// http(s) URL or empty (rendering off).
+pub fn normalize_plantuml_server(server: &str) -> Result<String, String> {
+    let server = server.trim().trim_end_matches('/').to_string();
+    if !server.is_empty() && !server.starts_with("http://") && !server.starts_with("https://") {
+        return Err("the PlantUML server must be an http:// or https:// URL".into());
+    }
+    Ok(server)
+}
+
 /// Canonicalizes `target` and refuses it unless it sits inside one of `roots`.
 ///
 /// Canonicalization is what makes this a real guard rather than a string
@@ -1005,6 +1075,123 @@ mod tests {
             name: String::new(),
             path: path.into(),
         }
+    }
+
+    fn named(id: &str, name: &str, path: &str) -> DocsRoot {
+        DocsRoot {
+            name: name.into(),
+            ..root(id, path)
+        }
+    }
+
+    #[test]
+    fn root_paths_normalize_to_one_spelling() {
+        assert_eq!(
+            normalize_root_path("  G:\\share\\docs\\  "),
+            "G:/share/docs"
+        );
+        assert_eq!(normalize_root_path("//srv/team/docs///"), "//srv/team/docs");
+        // A bare drive root keeps its slash.
+        assert_eq!(normalize_root_path("G:\\"), "G:/");
+        assert_eq!(normalize_root_path("G:"), "G:/");
+        assert_eq!(normalize_root_path("   "), "");
+    }
+
+    #[test]
+    fn add_root_normalizes_and_assigns_the_next_id() {
+        let mut roots = vec![root("D-001", "G:/a"), root("D-007", "G:/b")];
+        add_root(&mut roots, " G:\\c\\ ", "  Team  ").unwrap();
+        assert_eq!(roots.len(), 3);
+        assert_eq!(roots[2], named("D-008", "Team", "G:/c"));
+    }
+
+    #[test]
+    fn add_root_refuses_an_empty_path() {
+        let mut roots = vec![];
+        assert_eq!(
+            add_root(&mut roots, "  ", "x"),
+            Err("no folder given".into())
+        );
+        assert!(roots.is_empty());
+    }
+
+    #[test]
+    fn add_root_refuses_a_duplicate_ignoring_case_and_spelling() {
+        let mut roots = vec![root("D-001", "G:/Share/Docs")];
+        assert_eq!(
+            add_root(&mut roots, "g:\\share\\docs\\", "again"),
+            Err("g:/share/docs is already registered".into())
+        );
+        assert_eq!(roots.len(), 1);
+    }
+
+    #[test]
+    fn update_root_sets_name_and_path_together() {
+        let mut roots = vec![root("D-001", "G:/a"), root("D-002", "G:/b")];
+        update_root(&mut roots, "D-002", "  New  ", "H:\\x\\").unwrap();
+        assert_eq!(roots[0], root("D-001", "G:/a"));
+        assert_eq!(roots[1], named("D-002", "New", "H:/x"));
+    }
+
+    #[test]
+    fn update_root_may_keep_its_own_path() {
+        let mut roots = vec![root("D-001", "G:/a")];
+        update_root(&mut roots, "D-001", "Renamed", "g:/A/").unwrap();
+        assert_eq!(roots[0], named("D-001", "Renamed", "g:/A"));
+    }
+
+    #[test]
+    fn update_root_refuses_another_roots_path() {
+        let mut roots = vec![root("D-001", "G:/a"), root("D-002", "G:/b")];
+        assert_eq!(
+            update_root(&mut roots, "D-002", "x", "G:/A"),
+            Err("G:/A is already registered".into())
+        );
+        assert_eq!(roots[1], root("D-002", "G:/b"));
+    }
+
+    #[test]
+    fn update_root_refuses_an_empty_path() {
+        let mut roots = vec![root("D-001", "G:/a")];
+        assert_eq!(
+            update_root(&mut roots, "D-001", "x", " / "),
+            Err("the shared folder path cannot be empty".into())
+        );
+        assert_eq!(roots[0], root("D-001", "G:/a"));
+    }
+
+    #[test]
+    fn update_root_refuses_an_unknown_id() {
+        let mut roots = vec![root("D-001", "G:/a")];
+        assert_eq!(
+            update_root(&mut roots, "D-009", "x", "G:/z"),
+            Err("no such document root: D-009".into())
+        );
+        assert_eq!(roots, vec![root("D-001", "G:/a")]);
+    }
+
+    #[test]
+    fn remove_root_drops_only_that_id_and_tolerates_a_missing_one() {
+        let mut roots = vec![root("D-001", "G:/a"), root("D-002", "G:/b")];
+        remove_root(&mut roots, "D-001");
+        assert_eq!(roots, vec![root("D-002", "G:/b")]);
+        remove_root(&mut roots, "D-404");
+        assert_eq!(roots.len(), 1);
+    }
+
+    #[test]
+    fn plantuml_server_is_trimmed_and_must_be_http_or_empty() {
+        assert_eq!(
+            normalize_plantuml_server(" https://uml.example/ "),
+            Ok("https://uml.example".into())
+        );
+        assert_eq!(
+            normalize_plantuml_server("http://h:8080//"),
+            Ok("http://h:8080".into())
+        );
+        assert_eq!(normalize_plantuml_server("  "), Ok(String::new()));
+        assert!(normalize_plantuml_server("ftp://x").is_err());
+        assert!(normalize_plantuml_server("uml.example").is_err());
     }
 
     #[test]
