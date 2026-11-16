@@ -49,6 +49,15 @@ describe("unresolvedDeps", () => {
   it("is empty for a task with no predecessors", () => {
     expect(unresolvedDeps(task("T-1", "todo"), [task("T-2", "doing")])).toEqual([]);
   });
+
+  // The display layer only lists predecessors; whether a `done` task may be
+  // launched is the backend's call (`check_startable` in tasks.rs refuses it).
+  // The call sites skip a `done` task themselves, so this must stay a pure
+  // status check with no special case for the task's own status.
+  it("does not look at the task's own status", () => {
+    const all = [task("T-1", "doing")];
+    expect(unresolvedDeps(task("T-2", "done", ["T-1"]), all).map((t) => t.id)).toEqual(["T-1"]);
+  });
 });
 
 describe("wouldCreateCycle", () => {
@@ -61,6 +70,11 @@ describe("wouldCreateCycle", () => {
   it("refuses a two-step and a three-step loop", () => {
     expect(wouldCreateCycle("T-1", ["T-2"], all)).toBe(true);
     expect(wouldCreateCycle("T-1", ["T-3"], all)).toBe(true);
+  });
+
+  it("treats an id that matches no task as the end of a branch", () => {
+    expect(wouldCreateCycle("T-4", ["T-404"], all)).toBe(false);
+    expect(wouldCreateCycle("T-4", [], all)).toBe(false);
   });
 
   it("allows a chain and a diamond", () => {
