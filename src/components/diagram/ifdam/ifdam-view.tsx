@@ -10,6 +10,7 @@ import { EmbeddedDiagramActions } from "@/components/projects/embedded-diagram-a
 import { EmbeddedCopyPrompt } from "@/components/projects/embedded-copy-prompt";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import { useConfig } from "@/lib/use-config";
 import {
   clipboardShortcut,
   readClip,
@@ -70,7 +71,7 @@ import { todayISO, type DiagramAdapter } from "@/lib/diagram/session";
 import type { EmbeddedDiagram } from "@/lib/embedded-diagram";
 import { t as tStatic, useLocale, useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Config, Task } from "@/types";
+import type { Task } from "@/types";
 
 /**
  * The IFDAM editor (T-0704), copied from the program-flow editor (T-0699), hosted by the Diagrams tab.
@@ -117,13 +118,11 @@ const ifdamAdapter: DiagramAdapter<IfdamDocModel> = {
 };
 
 interface Props {
-  /** Bumped by the app shell after settings are saved. */
-  configVersion: number;
   /** What the Diagrams tab hands over: the open note and a way to let go of it. */
   embedded: EmbeddedDiagram;
 }
 
-export function IfdamView({ configVersion, embedded }: Props) {
+export function IfdamView({ embedded }: Props) {
   const t = useT();
   const locale = useLocale();
   const { project, path } = embedded;
@@ -134,7 +133,7 @@ export function IfdamView({ configVersion, embedded }: Props) {
   const readOnly = embedded.readOnly ?? false;
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [tasks, setTasks] = useState<Task[]>([]);
   const { doc, saveError, mutate, undo, redo, loadedToken } = useDiagramSession(ifdamAdapter, embedded);
   // Multi-select (T-0716): the ordered selection, last entry focused for the
@@ -160,10 +159,6 @@ export function IfdamView({ configVersion, embedded }: Props) {
 
   const vaultPath = config?.settings.vault_path ?? null;
   const targetProject = project;
-
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
 
   useEffect(() => {
     if (!vaultPath) return;

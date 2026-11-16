@@ -641,25 +641,25 @@ export function DiagramsView({ configVersion, projectsVersion = 0, focus }: Prop
             <MindmapView configVersion={configVersion} embedded={editorFor("mindmap")} />
           </div>
           <div className={cn("h-full", kind === "matrix2x2" ? "" : "hidden")}>
-            <MatrixView configVersion={configVersion} embedded={editorFor("matrix2x2")} />
+            <MatrixView embedded={editorFor("matrix2x2")} />
           </div>
           <div className={cn("h-full", kind === "flow" ? "" : "hidden")}>
-            <FlowView configVersion={configVersion} embedded={editorFor("flow")} />
+            <FlowView embedded={editorFor("flow")} />
           </div>
           <div className={cn("h-full", kind === "pfd" ? "" : "hidden")}>
-            <PfdView configVersion={configVersion} embedded={editorFor("pfd")} />
+            <PfdView embedded={editorFor("pfd")} />
           </div>
           <div className={cn("h-full", kind === "algorithm" ? "" : "hidden")}>
-            <AlgorithmView configVersion={configVersion} embedded={editorFor("algorithm")} />
+            <AlgorithmView embedded={editorFor("algorithm")} />
           </div>
           <div className={cn("h-full", kind === "usecase" ? "" : "hidden")}>
-            <UsecaseView configVersion={configVersion} embedded={editorFor("usecase")} />
+            <UsecaseView embedded={editorFor("usecase")} />
           </div>
           <div className={cn("h-full", kind === "architecture" ? "" : "hidden")}>
-            <ArchitectureView configVersion={configVersion} embedded={editorFor("architecture")} />
+            <ArchitectureView embedded={editorFor("architecture")} />
           </div>
           <div className={cn("h-full", kind === "ifdam" ? "" : "hidden")}>
-            <IfdamView configVersion={configVersion} embedded={editorFor("ifdam")} />
+            <IfdamView embedded={editorFor("ifdam")} />
           </div>
           {!hasEditor(kind) && (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">

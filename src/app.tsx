@@ -91,6 +91,7 @@ import {
   parseAppZoom,
 } from "@/lib/app-zoom";
 import { installedVersions, workhubPluginAlert, type PluginAlert } from "@/lib/plugins";
+import { configStore } from "@/lib/use-config";
 import { useRecurringTasks } from "@/lib/use-recurring-tasks";
 import { applyLocale, setWindowTitle, useLocale, useT, type MessageKey } from "@/lib/i18n";
 import { useTidyNotifications } from "@/lib/use-tidy-notifications";
@@ -487,7 +488,8 @@ export default function App() {
     const cfg = await api.getConfig();
     // Render what took effect, not what was sent: switching to a vault that
     // already carries its own settings adopts those (T-0206).
-    const saved = await api.saveConfig({ ...cfg, settings: next });
+    // Through the Config store, so the views that read it follow this save.
+    const saved = await configStore.saveConfig({ ...cfg, settings: next });
     setSettings(saved.settings);
     setConfigVersion((v) => v + 1);
   }, []);
@@ -498,7 +500,7 @@ export default function App() {
   // revert whatever those tabs changed (T-0277).
   const openSettings = useCallback(async () => {
     try {
-      const cfg = await api.getConfig();
+      const cfg = await configStore.load();
       setSettings(cfg.settings);
     } catch {
       // Fall back to the copy already held rather than not opening at all.
