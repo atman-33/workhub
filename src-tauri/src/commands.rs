@@ -2,8 +2,8 @@ use crate::diagram_edit;
 use crate::docs::{self, DocsEntry, DocsRootStatus};
 use crate::mindmap;
 use crate::models::{
-    BacklogItem, BranchList, CommitFileChange, Config, DocsRoot, DocsShortcut, GitInfo, GitLog,
-    GraphOp, InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
+    BacklogItem, BranchList, CommitFileChange, Config, DocsShortcut, GitInfo, GitLog, GraphOp,
+    InputListenerDiagnostics, MindmapDoc, MindmapFile, ScheduleDoc, ScheduleFile, Task,
     VaultProject, Worktree,
 };
 use crate::music::{self, MusicData};
@@ -1125,20 +1125,6 @@ pub fn has_snapshot(path: String) -> bool {
 // is no write command in this section on purpose: the whole point of the tab
 // is that nothing of ours ever lands in a folder the team shares.
 
-/// A folder path as the Docs settings store it: trimmed, forward slashes,
-/// and no trailing separator, so the same folder typed two ways compares
-/// equal.
-fn normalize_docs_path(path: &str) -> String {
-    let normalized = path.trim().replace('\\', "/");
-    let trimmed = normalized.trim_end_matches('/');
-    // A bare drive root ("G:/") keeps its slash - "G:" alone is not a folder.
-    if trimmed.ends_with(':') {
-        format!("{trimmed}/")
-    } else {
-        trimmed.to_string()
-    }
-}
-
 /// The registered roots, each resolved against this machine.
 #[tauri::command]
 pub fn docs_roots() -> Vec<DocsRootStatus> {
@@ -1150,37 +1136,20 @@ pub fn docs_roots() -> Vec<DocsRootStatus> {
 /// mount differs overrides it with `set_docs_root_local_path`.
 #[tauri::command]
 pub fn add_docs_root(path: String, name: String) -> Result<Vec<DocsRootStatus>, String> {
-    let path = normalize_docs_path(&path);
-    if path.is_empty() {
-        return Err("no folder given".into());
-    }
-    let mut cfg = storage::load();
-    if cfg
-        .settings
-        .docs_roots
-        .iter()
-        .any(|r| r.path.eq_ignore_ascii_case(&path))
-    {
-        return Err(format!("{path} is already registered"));
-    }
-    let id = docs::next_root_id(&cfg.settings.docs_roots);
-    cfg.settings.docs_roots.push(DocsRoot {
-        id,
-        name: name.trim().to_string(),
-        path,
-    });
-    storage::save(&cfg)?;
-    Ok(docs::root_statuses(&cfg.settings))
+    storage::update(|cfg| {
+        docs::add_root(&mut cfg.settings.docs_roots, &path, &name)?;
+        Ok(docs::root_statuses(&cfg.settings))
+    })
 }
 
 /// Forgets a root. Only the registration goes — nothing on the share is
 /// touched, here or anywhere else in this module.
 #[tauri::command]
 pub fn remove_docs_root(id: String) -> Result<Vec<DocsRootStatus>, String> {
-    let mut cfg = storage::load();
-    cfg.settings.docs_roots.retain(|r| r.id != id);
-    storage::save(&cfg)?;
-    Ok(docs::root_statuses(&cfg.settings))
+    storage::update(|cfg| {
+        docs::remove_root(&mut cfg.settings.docs_roots, &id);
+        Ok(docs::root_statuses(&cfg.settings))
+    })
 }
 
 /// Updates a root's name and folder together.
@@ -1193,26 +1162,10 @@ pub fn update_docs_root(
     name: String,
     path: String,
 ) -> Result<Vec<DocsRootStatus>, String> {
-    let mut cfg = storage::load();
-    let path = normalize_docs_path(&path);
-    if path.is_empty() {
-        return Err("the shared folder path cannot be empty".into());
-    }
-    if cfg
-        .settings
-        .docs_roots
-        .iter()
-        .any(|r| r.id != id && r.path.eq_ignore_ascii_case(&path))
-    {
-        return Err(format!("{path} is already registered"));
-    }
-    let Some(root) = cfg.settings.docs_roots.iter_mut().find(|r| r.id == id) else {
-        return Err(format!("no such document root: {id}"));
-    };
-    root.name = name.trim().to_string();
-    root.path = path;
-    storage::save(&cfg)?;
-    Ok(docs::root_statuses(&cfg.settings))
+    storage::update(|cfg| {
+        docs::update_root(&mut cfg.settings.docs_roots, &id, &name, &path)?;
+        Ok(docs::root_statuses(&cfg.settings))
+    })
 }
 
 /// Opens a file inside a registered root with whatever the OS associates with
@@ -1300,9 +1253,10 @@ pub fn docs_shortcuts() -> Vec<DocsShortcut> {
 /// carry a position anyway, and two of them could disagree about it.
 #[tauri::command]
 pub fn set_docs_shortcuts(shortcuts: Vec<DocsShortcut>) -> Result<(), String> {
-    let mut cfg = storage::load();
-    cfg.settings.docs_shortcuts = shortcuts;
-    storage::save(&cfg)
+    storage::update(|cfg| {
+        cfg.settings.docs_shortcuts = shortcuts;
+        Ok(())
+    })
 }
 
 /// Whether the sidebar is split into a folder tree and a file list (T-0276).
@@ -1313,9 +1267,10 @@ pub fn docs_list_pane() -> bool {
 
 #[tauri::command]
 pub fn set_docs_list_pane(enabled: bool) -> Result<(), String> {
-    let mut cfg = storage::load();
-    cfg.settings.docs_list_pane = enabled;
-    storage::save(&cfg)
+    storage::update(|cfg| {
+        cfg.settings.docs_list_pane = enabled;
+        Ok(())
+    })
 }
 
 /// Whether the Docs tab loads images from `https:` URLs (T-0329).
@@ -1326,9 +1281,10 @@ pub fn docs_allow_remote_images() -> bool {
 
 #[tauri::command]
 pub fn set_docs_allow_remote_images(enabled: bool) -> Result<(), String> {
-    let mut cfg = storage::load();
-    cfg.settings.docs_allow_remote_images = enabled;
-    storage::save(&cfg)
+    storage::update(|cfg| {
+        cfg.settings.docs_allow_remote_images = enabled;
+        Ok(())
+    })
 }
 
 /// Whether the Docs tab lists dot-folders and dot-files (T-0394).
@@ -1339,9 +1295,10 @@ pub fn docs_show_hidden() -> bool {
 
 #[tauri::command]
 pub fn set_docs_show_hidden(enabled: bool) -> Result<(), String> {
-    let mut cfg = storage::load();
-    cfg.settings.docs_show_hidden = enabled;
-    storage::save(&cfg)
+    storage::update(|cfg| {
+        cfg.settings.docs_show_hidden = enabled;
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -1352,13 +1309,11 @@ pub fn docs_plantuml_server() -> String {
 /// Sets the PlantUML server. An empty string turns rendering off.
 #[tauri::command]
 pub fn set_docs_plantuml_server(server: String) -> Result<(), String> {
-    let server = server.trim().trim_end_matches('/').to_string();
-    if !server.is_empty() && !server.starts_with("http://") && !server.starts_with("https://") {
-        return Err("the PlantUML server must be an http:// or https:// URL".into());
-    }
-    let mut cfg = storage::load();
-    cfg.settings.docs_plantuml_server = server;
-    storage::save(&cfg)
+    let server = docs::normalize_plantuml_server(&server)?;
+    storage::update(|cfg| {
+        cfg.settings.docs_plantuml_server = server;
+        Ok(())
+    })
 }
 
 /// Renders a PlantUML diagram on the configured server and returns the SVG.

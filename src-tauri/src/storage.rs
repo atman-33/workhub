@@ -55,6 +55,17 @@ fn migrate_default_templates(cfg: &mut Config) {
     }
 }
 
+/// Read-modify-write of the saved config: loads it fresh, lets `f` change it,
+/// and saves the result. `f` returning an error leaves the file untouched.
+/// Every command that changes one slice of the config goes through here so it
+/// edits the current state rather than a copy a caller loaded earlier.
+pub fn update<R>(f: impl FnOnce(&mut Config) -> Result<R, String>) -> Result<R, String> {
+    let mut cfg = load();
+    let out = f(&mut cfg)?;
+    save(&cfg)?;
+    Ok(out)
+}
+
 /// Persists `cfg` to `config.json`, returning a descriptive error instead of
 /// silently discarding a write failure (T-0064: on at least one machine
 /// folder-shielding antivirus software blocked every write here for over a
