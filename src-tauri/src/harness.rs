@@ -16,6 +16,15 @@ const OPENCODE_CONFIG_RELATIVE: &str = "opencode.json";
 /// root as a suffix.
 const WORKTREE_ADD_ASK_KEYS: [&str; 2] = ["git worktree add*", "git -C * worktree add*"];
 
+/// Brings both harness files in line with the registered projects. Best-effort:
+/// a failure leaves the file as it was and never blocks the save or the vault
+/// init that asked for it. Shared by `save_config` and `init_vault`, which
+/// each used to spell out the same two calls.
+pub fn sync_vault(vault: &Path, projects: &[Project], worktree_root: &str) {
+    let _ = sync_project_context(vault, projects);
+    let _ = sync_opencode_permissions(vault, projects, worktree_root);
+}
+
 /// Upserts the app's registered projects into the vault's
 /// `.claude/project-context.json`.
 ///
