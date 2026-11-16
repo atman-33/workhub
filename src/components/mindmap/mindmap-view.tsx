@@ -527,9 +527,8 @@ export function MindmapView({ configVersion, projectsVersion = 0, focus, embedde
   /**
    * Writes a pending debounced edit now, so an operation that moves the file
    * out from under the timer cannot lose it. Without this a rename would let
-   * the timer fire against the old path — and since a guarded write skips its
-   * mtime check when the file is gone, that would *recreate* the note under
-   * its old name.
+   * the timer fire against the old path, where a guarded write is refused
+   * because the file is gone — and the edit would be lost.
    */
   const flushSave = useCallback(async () => {
     if (!saveTimer.current) return;

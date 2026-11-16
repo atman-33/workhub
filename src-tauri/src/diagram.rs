@@ -375,7 +375,7 @@ fn validate(content: &str) -> Result<(), String> {
 /// guarding subsequent writes without a re-read.
 pub fn write_diagram(path: &Path, content: &str, expected_mtime: u64) -> Result<u64, String> {
     validate(content)?;
-    note_doc::write_guarded(DIAGRAM.name, path, content, expected_mtime, true)
+    note_doc::write_guarded(DIAGRAM.name, path, content, expected_mtime)
 }
 
 /// The listing entry of the diagram at `path`, found by its place under
