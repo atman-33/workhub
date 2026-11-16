@@ -268,19 +268,22 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         fs::remove_dir_all(&vault).ok();
     }
 
-    /// Characterises today's behaviour (T-1221): unlike `write_diagram`, a
-    /// guarded write to a note that has vanished *recreates* it. The views'
-    /// `flushSave` exists to work around this. A later step makes the three
-    /// kinds refuse; this test then changes with it.
+    /// A guarded write to a note that has vanished is refused, like
+    /// `write_diagram` (T-1221); it used to recreate the note under its old
+    /// name. A write with `0` still creates the file.
     #[test]
-    fn guarded_write_to_a_vanished_note_recreates_it() {
+    fn guarded_write_to_a_vanished_note_is_refused() {
         let vault = temp_vault_with_demo("write-gone");
         let created = create_schedule(&vault, "demo", "plan", "").unwrap();
         let path = PathBuf::from(&created.path);
         let doc = read_schedule(&path).unwrap();
         fs::remove_file(&path).unwrap();
 
-        write_schedule(&path, &doc.content, doc.mtime).unwrap();
+        let err = write_schedule(&path, &doc.content, doc.mtime).unwrap_err();
+        assert!(err.contains("is gone"), "error: {err}");
+        assert!(!path.exists());
+
+        write_schedule(&path, &doc.content, 0).unwrap();
         assert!(path.is_file());
         fs::remove_dir_all(&vault).ok();
     }

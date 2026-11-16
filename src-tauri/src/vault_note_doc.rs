@@ -142,26 +142,25 @@ pub fn write(
     expected_mtime: u64,
 ) -> Result<u64, String> {
     validate(kind, content)?;
-    write_guarded(kind.name, path, content, expected_mtime, false)
+    write_guarded(kind.name, path, content, expected_mtime)
 }
 
 /// The guarded write itself, for a kind whose validity is not a list of
 /// headings (a diagram's is its `type`) and which therefore validates before
 /// calling this.
 ///
-/// `refuse_vanished`: a guarded write is an edit of a note that was read. If
-/// the note has gone (renamed, moved, deleted), writing would quietly recreate
-/// it under the old name. Diagrams refuse; mindmaps and schedules still
-/// recreate it, until the following step makes all three refuse.
+/// A guarded write is an edit of a note that was read. If the note has gone
+/// (renamed, moved, deleted), writing would quietly recreate it under the old
+/// name, so it is refused. Pass `0` to write regardless, which is how a note is
+/// first written.
 pub fn write_guarded(
     name: &str,
     path: &Path,
     content: &str,
     expected_mtime: u64,
-    refuse_vanished: bool,
 ) -> Result<u64, String> {
     if expected_mtime != 0 {
-        if refuse_vanished && !path.exists() {
+        if !path.exists() {
             return Err(format!(
                 "the {name} file is gone — it was renamed, moved or deleted"
             ));
