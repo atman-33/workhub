@@ -1,8 +1,16 @@
-import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lucide-react";
+import {
+  ListOrdered,
+  Pause,
+  Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 import { currentTrackTitle } from "@/lib/music/track-title";
-import { cn } from "@/lib/utils";
 import { useMusicStore } from "@/stores/music";
 import { useYouTubePlayer } from "./use-youtube-player";
 
@@ -65,12 +73,13 @@ export function PlayerPane() {
           {loopMode === "all" ? t("music.player.loopAll") : t("music.player.loopOne")}
         </Button>
         <Button
-          variant="outline"
+          variant={isShuffle ? "default" : "outline"}
           size="sm"
           onClick={toggleShuffle}
-          className={cn("gap-1.5", isShuffle && "bg-accent text-accent-foreground")}
+          aria-pressed={isShuffle}
+          className="gap-1.5"
         >
-          <Shuffle className="size-4" />
+          {isShuffle ? <Shuffle className="size-4" /> : <ListOrdered className="size-4" />}
           {isShuffle ? t("music.player.shuffleOn") : t("music.player.shuffleOff")}
         </Button>
       </div>
