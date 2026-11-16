@@ -22,7 +22,7 @@ use crate::vault_note::{
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What a kind of note is, as far as the lifecycle is concerned.
 pub struct NoteKind {
@@ -142,12 +142,33 @@ pub fn write(
     expected_mtime: u64,
 ) -> Result<u64, String> {
     validate(kind, content)?;
-    if expected_mtime != 0 && path.exists() {
-        let current = mtime_secs(path);
-        if current != expected_mtime {
+    write_guarded(kind.name, path, content, expected_mtime, false)
+}
+
+/// The guarded write itself, for a kind whose validity is not a list of
+/// headings (a diagram's is its `type`) and which therefore validates before
+/// calling this.
+///
+/// `refuse_vanished`: a guarded write is an edit of a note that was read. If
+/// the note has gone (renamed, moved, deleted), writing would quietly recreate
+/// it under the old name. Diagrams refuse; mindmaps and schedules still
+/// recreate it, until the following step makes all three refuse.
+pub fn write_guarded(
+    name: &str,
+    path: &Path,
+    content: &str,
+    expected_mtime: u64,
+    refuse_vanished: bool,
+) -> Result<u64, String> {
+    if expected_mtime != 0 {
+        if refuse_vanished && !path.exists() {
             return Err(format!(
-                "the {} file changed on disk since it was loaded — reload before saving",
-                kind.name
+                "the {name} file is gone — it was renamed, moved or deleted"
+            ));
+        }
+        if path.exists() && mtime_secs(path) != expected_mtime {
+            return Err(format!(
+                "the {name} file changed on disk since it was loaded — reload before saving"
             ));
         }
     }
@@ -156,6 +177,26 @@ pub fn write(
     }
     fs::write(path, content).map_err(|e| e.to_string())?;
     Ok(mtime_secs(path))
+}
+
+/// Resolves the folder of `project` (trimmed), refusing a blank or unknown
+/// slug. Shared by every kind's create, whatever folder it then picks inside.
+pub fn project_folder(
+    vault: &Path,
+    kind_name: &str,
+    project: &str,
+) -> Result<(String, PathBuf), String> {
+    let project = project.trim();
+    if project.is_empty() {
+        return Err(format!("a project is required to create a {kind_name}"));
+    }
+    // Resolved by slug rather than joined directly (T-0278): a project folder
+    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
+    // a second, unnumbered folder beside it instead of writing into the real
+    // one.
+    let dir = resolve_project_dir(&projects_dir(vault), project)?
+        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
+    Ok((project.to_string(), dir))
 }
 
 /// Creates `projects/<project>/<kind.dir>/<title>.md` from `skeleton(title,
@@ -168,16 +209,7 @@ pub fn create(
     title: &str,
     skeleton: impl FnOnce(&str, &str) -> String,
 ) -> Result<NoteHandle, String> {
-    let project = project.trim();
-    if project.is_empty() {
-        return Err(format!("a project is required to create a {}", kind.name));
-    }
-    // Resolved by slug rather than joined directly (T-0278): a project folder
-    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
-    // a second, unnumbered folder beside it instead of writing into the real
-    // one.
-    let project_dir = resolve_project_dir(&projects_dir(vault), project)?
-        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
+    let (project, project_dir) = project_folder(vault, kind.name, project)?;
     let dir = project_dir.join(kind.dir);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let title = if title.trim().is_empty() {
@@ -191,7 +223,7 @@ pub fn create(
     fs::write(&path, &content).map_err(|e| e.to_string())?;
     Ok(NoteHandle {
         path: norm_path(&path),
-        project: project.to_string(),
+        project,
         title: title.to_string(),
         updated: now,
         front: String::new(),
@@ -212,25 +244,47 @@ pub fn rename(
     path: &Path,
     new_title: &str,
 ) -> Result<NoteHandle, String> {
+    rename_with(vault, kind.name, path, new_title, |_, _, title| {
+        Ok((title.to_string(), kind.name.to_string()))
+    })
+}
+
+/// [`rename`] for a kind that decides the new file name itself. `plan` is
+/// given the frontmatter block, the current file stem and the trimmed title,
+/// and returns the file name to ask for plus the fallback used when that name
+/// sanitises to nothing — or an error, which refuses the rename. A diagram uses
+/// it to check its `type` and to keep the `NNN-` number of a backlog child.
+pub fn rename_with(
+    vault: &Path,
+    name: &str,
+    path: &Path,
+    new_title: &str,
+    plan: impl FnOnce(&str, &str, &str) -> Result<(String, String), String>,
+) -> Result<NoteHandle, String> {
     let title = new_title.trim();
     if title.is_empty() {
-        return Err(format!("a {} name is required", kind.name));
+        return Err(format!("a {name} name is required"));
     }
     let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let Some((front, body)) = split_frontmatter(&content) else {
         return Err(format!(
-            "this file is not a {} note (no frontmatter block)",
-            kind.name
+            "this file is not a {name} note (no frontmatter block)"
         ));
     };
     let dir = path
         .parent()
-        .ok_or_else(|| format!("the {} path has no parent folder", kind.name))?;
+        .ok_or_else(|| format!("the {name} path has no parent folder"))?;
+
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let (file_name, fallback) = plan(&front, &stem, title)?;
 
     // Same collision rule as `create`, except that the note's own file is not
     // a collision — renaming "ideas" to "ideas" (or only changing its case)
     // must not produce "ideas 2".
-    let target = unique_note_path(dir, title, kind.name, Some(path));
+    let target = unique_note_path(dir, &file_name, &fallback, Some(path));
 
     let now = today();
     let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
@@ -319,9 +373,11 @@ pub fn export_binary(
     fs::write(out_path, bytes).map_err(|e| e.to_string())
 }
 
-/// The folder every kind keeps its AI-edit undo snapshot in. Owned by
-/// `diagram` for now; the lifecycle only needs to carry or drop it.
-const SNAPSHOT_DIR: &str = crate::diagram::SNAPSHOT_DIR;
+/// Folder under `_ai/state/` holding the one-generation undo snapshot of every
+/// kind of diagram (T-0685). The older `schedule-snapshots` and
+/// `mindmap-snapshots` folders are not read: a snapshot only matters for the
+/// run right before it, so there is nothing worth carrying over.
+pub const SNAPSHOT_DIR: &str = "diagram-snapshots";
 
 #[cfg(test)]
 mod tests {
