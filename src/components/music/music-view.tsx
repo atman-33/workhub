@@ -3,18 +3,23 @@ import { Music } from "lucide-react";
 import { api } from "@/lib/api";
 import { useConfig } from "@/lib/use-config";
 import { t as tStatic, useT } from "@/lib/i18n";
+import { isSearchShortcut } from "@/lib/music/search-shortcut";
 import { toMusicData, useMusicStore } from "@/stores/music";
 import { AddUrlForm } from "./add-url-form";
 import { PlayerPane } from "./player-pane";
 import { PlaylistItems } from "./playlist-items";
 import { PlaylistTabs } from "./playlist-tabs";
+import { TrackSearchDialog } from "./track-search-dialog";
 
 const SAVE_DEBOUNCE_MS = 1000;
 
-export function MusicView() {
+/** `active`: this is the visible tab. Tabs stay mounted while hidden, so the
+ *  search shortcut must only react while Music is the one on screen. */
+export function MusicView({ active }: { active: boolean }) {
   const t = useT();
   const config = useConfig();
   const [status, setStatus] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const hydrated = useMusicStore((state) => state.hydrated);
 
   const vaultPath = config?.settings.vault_path ?? null;
@@ -64,6 +69,19 @@ export function MusicView() {
     };
   }, [vaultPath]);
 
+  // ---- Ctrl+F or "/" opens the track search while this tab is on screen ----
+  useEffect(() => {
+    if (!active || !vaultPath) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isSearchShortcut(e)) return;
+      // Keep the WebView's own find bar (Ctrl+F) and a typed "/" out of it.
+      e.preventDefault();
+      setSearchOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [active, vaultPath]);
+
   if (config && !vaultPath) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -86,7 +104,7 @@ export function MusicView() {
         </div>
         {hydrated && (
           <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
-            <PlaylistTabs />
+            <PlaylistTabs onOpenSearch={() => setSearchOpen(true)} />
             <AddUrlForm />
             <div className="min-h-0 flex-1 overflow-y-auto">
               <PlaylistItems />
@@ -94,6 +112,7 @@ export function MusicView() {
           </div>
         )}
       </div>
+      <TrackSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }

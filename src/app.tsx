@@ -762,7 +762,7 @@ export default function App() {
             <InboxView active={tab === "inbox"} />
           </TabPanel>
           <TabPanel id="music" tab={tab}>
-            <MusicView />
+            <MusicView active={tab === "music"} />
           </TabPanel>
           <TabPanel id="timer" tab={tab}>
             <TimerView />

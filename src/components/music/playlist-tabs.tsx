@@ -10,7 +10,7 @@ import {
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -120,7 +120,7 @@ function SortablePlaylistTab({
   );
 }
 
-export function PlaylistTabs() {
+export function PlaylistTabs({ onOpenSearch }: { onOpenSearch: () => void }) {
   const t = useT();
   const {
     playlists,
@@ -197,7 +197,13 @@ export function PlaylistTabs() {
           <Plus className="size-3.5" />
         </Button>
       </Hint>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1">
+        <Hint label={t("music.search.button")}>
+          <Button variant="ghost" size="icon" className="size-6" onClick={onOpenSearch}>
+            <Search className="size-3.5" />
+            <span className="sr-only">{t("music.search.button")}</span>
+          </Button>
+        </Hint>
         <PlaylistTransferMenu />
       </div>
     </div>
