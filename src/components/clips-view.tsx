@@ -35,6 +35,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Clip, Config } from "@/types";
@@ -120,10 +121,10 @@ function SortableClip({
   );
 }
 
-export function ClipsView({ configVersion }: { configVersion: number }) {
+export function ClipsView() {
   const t = useT();
   const [clips, setClips] = useState<Clip[]>([]);
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -132,13 +133,12 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
 
   useEffect(() => {
     void (async () => {
-      const [list, cfg] = await Promise.all([api.clipsList(), api.getConfig()]);
+      const list = await api.clipsList();
       setClips(list);
-      setConfig(cfg);
       setDirty(false);
       setLoading(false);
     })();
-  }, [configVersion]);
+  }, []);
 
   const patch = useCallback((id: string, patch: Partial<Clip>) => {
     setClips((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -185,9 +185,8 @@ export function ClipsView({ configVersion }: { configVersion: number }) {
    * patch goes onto a fresh read of the config, so a setting another tab
    * saved meanwhile is not reverted. */
   const patchSettings = async (patch: Partial<Config["settings"]>) => {
-    setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
     try {
-      setConfig(await api.patchSettings(patch));
+      await configStore.patchSettings(patch, { optimistic: true });
     } catch (e) {
       setError(String(e));
     }

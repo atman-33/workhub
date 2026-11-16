@@ -11,6 +11,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { t as i18nT, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { InboxNote, Settings } from "@/types";
@@ -31,7 +32,6 @@ import type { InboxNote, Settings } from "@/types";
  */
 
 interface Props {
-  configVersion: number;
   active: boolean;
 }
 
@@ -46,30 +46,21 @@ function formatAge(days: number): string {
   return i18nT("inbox.daysAgo", { days });
 }
 
-export function InboxView({ configVersion, active }: Props) {
+export function InboxView({ active }: Props) {
   const t = useT();
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
   // Held whole rather than as the few tidy fields, because the settings popover
   // patches onto it and `patchSettings` merges the patch into a fresh read
   // (T-0281).
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const settings = useConfig()?.settings ?? null;
+  const vaultPath = settings?.vault_path?.trim() || null;
   const [notes, setNotes] = useState<InboxNote[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      const cfg = await api.getConfig();
-      setVaultPath(cfg.settings.vault_path?.trim() || null);
-      setSettings(cfg.settings);
-    })();
-  }, [configVersion]);
-
   const patchSettings = useCallback(async (patch: Partial<Settings>) => {
-    setSettings((s) => (s ? { ...s, ...patch } : s));
-    setSettings((await api.patchSettings(patch)).settings);
+    await configStore.patchSettings(patch, { optimistic: true });
   }, []);
 
   const reload = useCallback(async () => {
