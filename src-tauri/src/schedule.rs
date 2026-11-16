@@ -1,4 +1,7 @@
 //! Schedule notes: scanning, reading/writing, and snapshots (T-0088..T-0091).
+//! The lifecycle itself is the shared one in `vault_note_doc` (T-1221); this
+//! module is the schedule's kind description, its skeleton, and the thin entry
+//! points the commands call.
 //!
 //! A schedule note is one `projects/<slug>/schedules/<name>.md` file. It is a
 //! *thinking* surface, not a record: the user drags bars around until the plan
@@ -22,107 +25,66 @@
 //! so `## Memo` and any unmanaged frontmatter key survive by construction.
 
 use crate::models::{ScheduleDoc, ScheduleFile};
-use crate::vault_note::{
-    ai_state_dir, ensure_export_dir, frontmatter_value, move_snapshot, mtime_secs, norm_path,
-    resolve_project_dir, rewrite_frontmatter, scan_notes, split_frontmatter, today,
-    unique_note_path,
-};
-use std::fs;
+use crate::vault_note::frontmatter_value;
+use crate::vault_note_doc::{self as note_doc, NoteKind};
 use std::path::Path;
 
-/// Subfolder of a project that holds its schedule notes.
-const SCHEDULES_DIR: &str = "schedules";
-
-/// Note kind written into a schedule note's `type:` frontmatter key.
-const KIND: &str = "schedule";
-
-/// Where the AI-edit undo snapshot lives; shared by every kind of diagram
-/// (`diagram::SNAPSHOT_DIR`). Kept here so a rename or delete carries or drops it.
-const SNAPSHOT_DIR: &str = crate::diagram::SNAPSHOT_DIR;
-
-/// Folder under `_ai/state/` that a deleted note is moved into.
-const TRASH_DIR: &str = "schedule-trash";
+/// What a schedule is to the shared note lifecycle.
+const KIND: NoteKind = NoteKind {
+    name: "schedule",
+    dir: "schedules",
+    trash_dir: "schedule-trash",
+    // Deliberately only the two section headings: the element grammar is
+    // validated on the frontend, and the guard exists to catch a buffer that is
+    // not a schedule at all.
+    required_sections: &["## Items", "## Non-working"],
+};
 
 /// Lists schedule notes across the vault, optionally narrowed to one project
 /// slug. See `vault_note::scan_notes` for what a scan skips and why.
 pub fn list_schedules(vault: &Path, project: Option<&str>) -> Result<Vec<ScheduleFile>, String> {
-    let notes = scan_notes(vault, SCHEDULES_DIR, KIND, project)?;
-    Ok(notes
+    Ok(note_doc::list(vault, &KIND, project)?
         .into_iter()
-        .map(|note| {
-            let title = match frontmatter_value(&note.front, "title") {
-                t if t.is_empty() => note.name.clone(),
-                t => t,
-            };
-            ScheduleFile {
-                path: norm_path(&note.path),
-                project: note.project,
-                title,
-                range: frontmatter_value(&note.front, "range"),
-                updated: frontmatter_value(&note.front, "updated"),
-            }
+        .map(|n| ScheduleFile {
+            range: frontmatter_value(&n.front, "range"),
+            path: n.path,
+            project: n.project,
+            title: n.title,
+            updated: n.updated,
         })
         .collect())
 }
 
 pub fn read_schedule(path: &Path) -> Result<ScheduleDoc, String> {
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    Ok(ScheduleDoc {
-        path: norm_path(path),
-        content,
-        mtime: mtime_secs(path),
-    })
+    note_doc::read(path)
 }
 
-/// Minimal structural check before a write. Deliberately shallow: the element
-/// grammar is validated on the frontend, and rejecting a file here for a
-/// notation slip would block the user from saving their way out of it. What
-/// this *does* catch is a caller about to write something that is not a
-/// schedule note at all (a truncated string, an empty buffer from a failed
-/// render), which would silently destroy the file.
-fn validate(content: &str) -> Result<(), String> {
-    let Some((_, body)) = split_frontmatter(content) else {
-        return Err("schedule content must start with a frontmatter block".into());
-    };
-    if !body.contains("## Items") {
-        return Err("schedule content is missing the `## Items` section".into());
-    }
-    if !body.contains("## Non-working") {
-        return Err("schedule content is missing the `## Non-working` section".into());
-    }
-    Ok(())
-}
-
-/// Writes the file only when its on-disk mtime still matches `expected_mtime`,
-/// so a concurrent Obsidian/agent edit is reported instead of overwritten.
-/// Pass `0` to skip the check (used when creating a file that cannot yet have
-/// been edited elsewhere).
-///
-/// Returns the new mtime so the caller can keep guarding subsequent writes
-/// without a re-read.
+/// Writes the file only when its on-disk mtime still matches `expected_mtime`
+/// (`0` skips the check). Returns the new mtime. See [`note_doc::write`].
 pub fn write_schedule(path: &Path, content: &str, expected_mtime: u64) -> Result<u64, String> {
-    validate(content)?;
-    if expected_mtime != 0 && path.exists() {
-        let current = mtime_secs(path);
-        if current != expected_mtime {
-            return Err(
-                "the schedule file changed on disk since it was loaded — reload before saving"
-                    .into(),
-            );
-        }
-    }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(path, content).map_err(|e| e.to_string())?;
-    Ok(mtime_secs(path))
+    note_doc::write(&KIND, path, content, expected_mtime)
 }
 
 /// The text of a new schedule note.
 pub fn skeleton(title: &str, range: &str, now: &str) -> String {
     format!(
-        "---\ntype: schedule\ntitle: {title}\nrange: {range}\ncreated: {now}\nupdated: {now}\n---\n\n\
-## Non-working\n\n- weekly: sat, sun\n\n## Items\n\n## Memo\n\n"
+        "---
+type: schedule
+title: {title}
+range: {range}
+created: {now}
+updated: {now}
+---
+
+## Non-working
+
+- weekly: sat, sun
+
+## Items
+
+## Memo
+
+"
     )
 }
 
@@ -136,145 +98,55 @@ pub fn create_schedule(
     title: &str,
     range: &str,
 ) -> Result<ScheduleFile, String> {
-    let project = project.trim();
-    if project.is_empty() {
-        return Err("a project is required to create a schedule".into());
-    }
-    // Resolved by slug rather than joined directly (T-0278): a project folder
-    // may carry a `NNNN-` sort prefix, and joining the bare slug would create
-    // a second, unnumbered folder beside it instead of writing into the real
-    // one.
-    let project_dir = resolve_project_dir(&crate::vault_note::projects_dir(vault), project)?
-        .ok_or_else(|| format!("no project named '{project}' is in projects/"))?;
-    let dir = project_dir.join(SCHEDULES_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let title = if title.trim().is_empty() {
-        KIND
-    } else {
-        title.trim()
-    };
-    // Never clobber an existing note: suffix until the name is free.
-    let path = unique_note_path(&dir, title, KIND, None);
-    let now = today();
-    let content = skeleton(title, range, &now);
-    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    let made = note_doc::create(vault, &KIND, project, title, |title, now| {
+        skeleton(title, range, now)
+    })?;
     Ok(ScheduleFile {
-        path: norm_path(&path),
-        project: project.to_string(),
-        title: title.to_string(),
+        path: made.path,
+        project: made.project,
+        title: made.title,
         range: range.to_string(),
-        updated: now,
+        updated: made.updated,
     })
 }
 
-/// Renames a schedule note (T-0157). The frontmatter `title` and the file name
-/// move **together**: `create_schedule` derives one from the other, so letting
-/// them drift would leave a note whose name in the app and name in Obsidian
-/// disagree.
-///
-/// Everything else about the file is preserved — only `title` and `updated` are
-/// rewritten, and the body (including `## Memo`) is carried over untouched.
-/// The snapshot travels with the note, since it is keyed by path and an undo
-/// left behind at the old key could never be found again.
+/// Renames a schedule note (T-0157): title and file name move together, the
+/// body (including `## Memo`) is untouched, `range` is kept, and the snapshot
+/// follows. See [`note_doc::rename`].
 pub fn rename_schedule(vault: &Path, path: &Path, new_title: &str) -> Result<ScheduleFile, String> {
-    let title = new_title.trim();
-    if title.is_empty() {
-        return Err("a schedule name is required".into());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let Some((front, body)) = split_frontmatter(&content) else {
-        return Err("this file is not a schedule note (no frontmatter block)".into());
-    };
-    let dir = path
-        .parent()
-        .ok_or_else(|| "the schedule path has no parent folder".to_string())?;
-
-    // Same collision rule as `create_schedule`, except that the note's own file
-    // is not a collision — renaming "plan" to "plan" (or only changing its
-    // case) must not produce "plan 2".
-    let target = unique_note_path(dir, title, KIND, Some(path));
-
-    let now = today();
-    let front_out = rewrite_frontmatter(&front, &[("title", title), ("updated", &now)]);
-    let updated_content = format!("---\n{front_out}---\n{body}");
-    fs::write(path, &updated_content).map_err(|e| e.to_string())?;
-
-    // Compared exactly here, not case-insensitively: renaming "plan" to "Plan"
-    // is a real rename the user asked for, even though the two names collide on
-    // Windows.
-    if norm_path(&target) != norm_path(path) {
-        fs::rename(path, &target).map_err(|e| e.to_string())?;
-        move_snapshot(vault, SNAPSHOT_DIR, path, &target)?;
-    }
-
-    let project = dir
-        .parent()
-        .and_then(|p| p.file_name())
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let renamed = note_doc::rename(vault, &KIND, path, new_title)?;
     Ok(ScheduleFile {
-        path: norm_path(&target),
-        project,
-        title: title.to_string(),
-        range: frontmatter_value(&front, "range"),
-        updated: now,
+        range: frontmatter_value(&renamed.front, "range"),
+        path: renamed.path,
+        project: renamed.project,
+        title: renamed.title,
+        updated: renamed.updated,
     })
 }
 
 /// Moves a schedule note into `_ai/state/schedule-trash/` and returns where
-/// it went.
-///
-/// Deliberately not an unlink, for the same reasons as the mindmap's delete:
-/// these files are shared with Obsidian and with agents, they can hold
-/// hand-written prose under `## Memo`, and the app's delete is one click behind
-/// one confirmation — a recoverable move is the proportionate operation.
-/// Anything older than the last delete of a given note is covered by the
-/// vault's git backup.
+/// it went. See [`note_doc::delete`].
 pub fn delete_schedule(vault: &Path, path: &Path) -> Result<String, String> {
-    if !path.is_file() {
-        return Err("this schedule no longer exists".into());
-    }
-    let dir = ai_state_dir(vault).join(TRASH_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let name = path
-        .file_stem()
-        .and_then(|n| n.to_str())
-        .unwrap_or(KIND)
-        .to_string();
-    // Two projects may hold a note of the same name, and the same note may be
-    // deleted twice; suffix rather than overwrite what is already in the trash.
-    let target = unique_note_path(&dir, &format!("{name} {}", today()), KIND, None);
-    fs::rename(path, &target).map_err(|e| e.to_string())?;
-    // The snapshot describes a file that is no longer there. Leaving it would
-    // make a later note that happens to reuse the path inherit a stranger's
-    // undo.
-    let snapshot = crate::vault_note::snapshot_path(vault, SNAPSHOT_DIR, path);
-    let _ = fs::remove_file(snapshot);
-    Ok(norm_path(&target))
+    note_doc::delete(vault, &KIND, path)
 }
 
-/// Writes a generated HTML export. Kept in Rust (rather than a frontend
-/// download) so the default destination can be the project's `attachments/`
-/// folder inside the vault — the export is part of the project record, not a
-/// browser download.
-///
-/// `vault`/`project` are `Some` only when `out_path` is the vault's own
-/// default destination (as opposed to a user-configured export directory):
-/// see [`ensure_export_dir`] for what that guards against (T-0379).
+/// Writes a generated HTML export. See [`note_doc::export_text`] for the
+/// destination rules (T-0379).
 pub fn export_html(
     vault: Option<&Path>,
     project: Option<&str>,
     out_path: &Path,
     html: &str,
 ) -> Result<(), String> {
-    ensure_export_dir(vault, project, out_path)?;
-    fs::write(out_path, html).map_err(|e| e.to_string())
+    note_doc::export_text(vault, project, out_path, html)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::diagram::{has_snapshot, restore_snapshot, save_snapshot};
+    use crate::vault_note::today;
+    use std::fs;
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;
 
@@ -552,7 +424,7 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
     fn list_skips_non_schedule_notes() {
         let vault = temp_vault_with_demo("list-skip");
         create_schedule(&vault, "demo", "plan", "").unwrap();
-        let dir = vault.join("projects").join("demo").join(SCHEDULES_DIR);
+        let dir = vault.join("projects").join("demo").join("schedules");
         fs::write(dir.join("_example.md"), "---\ntype: schedule\n---\n").unwrap();
         fs::write(dir.join("stray.md"), "just prose, no frontmatter\n").unwrap();
         fs::write(dir.join("other.md"), "---\ntype: note\ntitle: x\n---\n").unwrap();
