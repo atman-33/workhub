@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Music } from "lucide-react";
 import { api } from "@/lib/api";
+import { useConfig } from "@/lib/use-config";
 import { t as tStatic, useT } from "@/lib/i18n";
 import { toMusicData, useMusicStore } from "@/stores/music";
-import type { Config } from "@/types";
 import { AddUrlForm } from "./add-url-form";
 import { PlayerPane } from "./player-pane";
 import { PlaylistItems } from "./playlist-items";
@@ -11,22 +11,13 @@ import { PlaylistTabs } from "./playlist-tabs";
 
 const SAVE_DEBOUNCE_MS = 1000;
 
-interface Props {
-  /** Bumped by the app shell after settings are saved; triggers a config reload. */
-  configVersion: number;
-}
-
-export function MusicView({ configVersion }: Props) {
+export function MusicView() {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [status, setStatus] = useState("");
   const hydrated = useMusicStore((state) => state.hydrated);
 
   const vaultPath = config?.settings.vault_path ?? null;
-
-  useEffect(() => {
-    void api.getConfig().then(setConfig);
-  }, [configVersion]);
 
   // ---- load persisted playlists once a vault is configured ----
   useEffect(() => {

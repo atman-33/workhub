@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { useT } from "@/lib/i18n";
 import type { Config, InkCapture } from "@/types";
 
@@ -85,10 +86,10 @@ function CaptureCard({
   );
 }
 
-export function InkView({ configVersion }: { configVersion: number }) {
+export function InkView() {
   const t = useT();
   const [captures, setCaptures] = useState<InkCapture[]>([]);
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [dir, setDir] = useState("");
   // The resolved folder, which is what the "Open folder" button acts on — the
   // configured value is usually empty (= the vault's attachments/ink/).
@@ -110,14 +111,15 @@ export function InkView({ configVersion }: { configVersion: number }) {
     }
   }, []);
 
+  // The folder field follows the saved value, whoever saved it.
+  const savedDir = config?.settings.ink_dir;
   useEffect(() => {
-    void (async () => {
-      const cfg = await api.getConfig();
-      setConfig(cfg);
-      setDir(cfg.settings.ink_dir);
-      await refresh();
-    })();
-  }, [configVersion, refresh]);
+    if (savedDir !== undefined) setDir(savedDir);
+  }, [savedDir]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   // Captures change outside this window — Alt+C saves in the overlay, crops
   // and their saves in the preview window — and the backend announces every
@@ -134,9 +136,8 @@ export function InkView({ configVersion }: { configVersion: number }) {
    * saved meanwhile is not reverted. */
   const patchSettings = useCallback(
     async (patch: Partial<Config["settings"]>) => {
-      setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
       try {
-        setConfig(await api.patchSettings(patch));
+        await configStore.patchSettings(patch, { optimistic: true });
         await refresh();
       } catch (e) {
         setError(String(e));

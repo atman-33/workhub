@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Config, MeetingStructStatus, SttModelStatus, VoiceCaptureStatus, VoiceHistoryEntry, VoiceMeeting } from "@/types";
@@ -117,9 +118,9 @@ function HistoryRow({
 }
 
 /** The voice-input settings and the local whisper models. */
-function VoiceSettings({ configVersion }: { configVersion: number }) {
+function VoiceSettings() {
   const t = useT();
-  const [config, setConfig] = useState<Config | null>(null);
+  const config = useConfig();
   const [hotkey, setHotkey] = useState("");
   const [modelStatus, setModelStatus] = useState<SttModelStatus[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -130,14 +131,17 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
     setModelStatus(await api.sttModelStatus());
   }, []);
 
+  // The hotkey field follows the saved value; the model badge follows the
+  // selected model.
+  const savedHotkey = config?.settings.voice_hotkey;
   useEffect(() => {
-    void (async () => {
-      const cfg = await api.getConfig();
-      setConfig(cfg);
-      setHotkey(cfg.settings.voice_hotkey);
-      await refreshModelStatus();
-    })();
-  }, [configVersion, refreshModelStatus]);
+    if (savedHotkey !== undefined) setHotkey(savedHotkey);
+  }, [savedHotkey]);
+
+  const selectedModel = config?.settings.voice_model;
+  useEffect(() => {
+    void refreshModelStatus();
+  }, [refreshModelStatus, selectedModel]);
 
   useEffect(() => {
     const unlistenProgress = listen<{ model: string; downloaded: number; total: number }>(
@@ -172,9 +176,8 @@ function VoiceSettings({ configVersion }: { configVersion: number }) {
   const patchSettings = useCallback(
     async (patch: Partial<Config["settings"]>) => {
       setError("");
-      setConfig((c) => (c ? { ...c, settings: { ...c.settings, ...patch } } : c));
       try {
-        setConfig(await api.patchSettings(patch));
+        await configStore.patchSettings(patch, { optimistic: true });
         // The "active" badge follows the selected model.
         if ("voice_model" in patch) await refreshModelStatus();
       } catch (e) {
@@ -418,7 +421,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
       setMeetings(await api.voiceMeetingList());
       setStruct(await api.structStatus());
       setCapture(await api.captureStatus());
-      setStructSettings((await api.getConfig()).settings);
+      setStructSettings((await configStore.load()).settings);
     } catch (e) {
       setError(String(e));
     }
@@ -561,7 +564,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
   const patchStructSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
     setError("");
     try {
-      setStructSettings((await api.patchSettings(patch)).settings);
+      setStructSettings((await configStore.patchSettings(patch)).settings);
     } catch (e) {
       setError(String(e));
     }
@@ -904,7 +907,7 @@ function MeetingPanel({ onActiveChange }: { onActiveChange?: (isActive: boolean)
   );
 }
 
-export function VoiceView({ configVersion }: { configVersion: number }) {
+export function VoiceView() {
   const t = useT();
   const [entries, setEntries] = useState<VoiceHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -973,7 +976,7 @@ export function VoiceView({ configVersion }: { configVersion: number }) {
         </TabsList>
 
         <TabsContent value="dictate" className="min-h-0 flex-1 overflow-y-auto">
-          <VoiceSettings configVersion={configVersion} />
+          <VoiceSettings />
         </TabsContent>
 
         <TabsContent value="meeting" className="min-h-0 flex-1 overflow-y-auto">

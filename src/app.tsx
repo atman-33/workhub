@@ -763,22 +763,22 @@ export default function App() {
             <DocsView />
           </TabPanel>
           <TabPanel id="inbox" tab={tab}>
-            <InboxView configVersion={configVersion} active={tab === "inbox"} />
+            <InboxView active={tab === "inbox"} />
           </TabPanel>
           <TabPanel id="music" tab={tab}>
-            <MusicView configVersion={configVersion} />
+            <MusicView />
           </TabPanel>
           <TabPanel id="timer" tab={tab}>
             <TimerView />
           </TabPanel>
           <TabPanel id="voice" tab={tab}>
-            <VoiceView configVersion={configVersion} />
+            <VoiceView />
           </TabPanel>
           <TabPanel id="clips" tab={tab}>
-            <ClipsView configVersion={configVersion} />
+            <ClipsView />
           </TabPanel>
           <TabPanel id="ink" tab={tab}>
-            <InkView configVersion={configVersion} />
+            <InkView />
           </TabPanel>
           <TabPanel id="persona" tab={tab}>
             <PersonaView active={tab === "persona"} />
