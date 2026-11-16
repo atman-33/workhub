@@ -275,7 +275,6 @@ pub fn export_html(
 mod tests {
     use super::*;
     use crate::diagram::{has_snapshot, restore_snapshot, save_snapshot};
-    use crate::vault_note::{create_project, list_projects};
     use std::path::PathBuf;
     use std::time::UNIX_EPOCH;
 
@@ -397,6 +396,44 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         fs::remove_dir_all(&vault).ok();
     }
 
+    /// Characterises today's behaviour (T-1221): unlike `write_diagram`, a
+    /// guarded write to a note that has vanished *recreates* it. The views'
+    /// `flushSave` exists to work around this. A later step makes the three
+    /// kinds refuse; this test then changes with it.
+    #[test]
+    fn guarded_write_to_a_vanished_note_recreates_it() {
+        let vault = temp_vault_with_demo("write-gone");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+        let doc = read_schedule(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+
+        write_schedule(&path, &doc.content, doc.mtime).unwrap();
+        assert!(path.is_file());
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn rename_keeps_the_range() {
+        let vault = temp_vault_with_demo("rename-range");
+        let created = create_schedule(&vault, "demo", "plan", "2026-07-20..2026-08-31").unwrap();
+        let renamed = rename_schedule(&vault, &PathBuf::from(&created.path), "plan v2").unwrap();
+        assert_eq!(renamed.range, "2026-07-20..2026-08-31");
+        assert_eq!(renamed.project, "demo");
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    fn delete_refuses_a_note_that_is_already_gone() {
+        let vault = temp_vault_with_demo("delete-gone");
+        let created = create_schedule(&vault, "demo", "plan", "").unwrap();
+        let path = PathBuf::from(&created.path);
+        delete_schedule(&vault, &path).unwrap();
+        let err = delete_schedule(&vault, &path).unwrap_err();
+        assert!(err.contains("no longer exists"), "error: {err}");
+        fs::remove_dir_all(&vault).ok();
+    }
+
     #[test]
     fn write_rejects_content_that_is_not_a_schedule() {
         let vault = temp_vault_with_demo("write-invalid");
@@ -508,100 +545,6 @@ created: 2026-07-24\nupdated: 2026-07-24\n---\n\n## Non-working\n\n- weekly: sat
         // One generation only: the snapshot is consumed by the restore.
         assert!(!has_snapshot(&vault, &path));
         assert!(restore_snapshot(&vault, &path).is_err());
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn list_projects_finds_folders_without_any_schedule_yet() {
-        let vault = temp_vault("projects");
-        // The deadlock this guards: a project with no `schedules/` folder at
-        // all must still be offered, or the first schedule can never be made.
-        fs::create_dir_all(vault.join("projects").join("alpha")).unwrap();
-        fs::create_dir_all(vault.join("projects").join("beta").join(SCHEDULES_DIR)).unwrap();
-        fs::create_dir_all(vault.join("projects").join("_wip")).unwrap();
-        fs::write(vault.join("projects").join("_index.md"), "x").unwrap();
-
-        assert_eq!(list_projects(&vault).unwrap(), vec!["alpha", "beta"]);
-        assert!(list_schedules(&vault, None).unwrap().is_empty());
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn create_project_scaffolds_the_template() {
-        let vault = temp_vault("project-create");
-        create_project(&vault, "demo", "Demo project").unwrap();
-
-        // A fresh vault's first project is numbered 0010 (T-0278).
-        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
-        assert!(readme.contains("title: Demo project"), "README: {readme}");
-        assert!(readme.contains("project: demo"), "README: {readme}");
-        assert!(
-            readme.contains(&format!("updated: {}", today())),
-            "README: {readme}"
-        );
-        assert!(!readme.contains("<Project name>"), "README: {readme}");
-        // Diagram folders are not part of a fresh project (T-0680): the first
-        // diagram creates the folder it lives in.
-        assert!(!vault.join("projects/0010-demo/schedules").exists());
-        assert!(!vault.join("projects/0010-demo/mindmaps").exists());
-        assert!(!vault.join("projects/0010-demo/diagrams").exists());
-        assert!(!vault.join("projects/0010-demo/shared/_example.md").exists());
-        assert!(!vault
-            .join("projects/0010-demo/backlog/B-000-example.md")
-            .exists());
-        // The new project shows up in the picker under its stripped slug —
-        // the number is a folder-name detail, not part of the identity.
-        assert_eq!(list_projects(&vault).unwrap(), vec!["demo"]);
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    /// The backlog Base filters on `project == "<slug>"`, which only works
-    /// because the scaffold substitutes the slug. A Base that kept the
-    /// placeholder — or the old `file.inFolder("backlog")`, which matches from
-    /// the vault root and so never matched at all — renders zero rows in every
-    /// project, silently.
-    #[test]
-    fn create_project_renders_the_slug_into_the_backlog_base() {
-        let vault = temp_vault("project-base");
-        create_project(&vault, "demo", "Demo project").unwrap();
-
-        let base =
-            fs::read_to_string(vault.join("projects/0010-demo/backlog/_backlog.base")).unwrap();
-        assert!(base.contains(r#"project == "demo""#), "base: {base}");
-        assert!(!base.contains("<project-slug>"), "base: {base}");
-        assert!(!base.contains("inFolder"), "base: {base}");
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn create_project_defaults_the_display_name_to_the_slug() {
-        let vault = temp_vault("project-noname");
-        create_project(&vault, "demo", "  ").unwrap();
-        let readme = fs::read_to_string(vault.join("projects/0010-demo/README.md")).unwrap();
-        assert!(readme.contains("title: demo"), "README: {readme}");
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn create_project_refuses_an_existing_folder() {
-        let vault = temp_vault("project-exists");
-        create_project(&vault, "demo", "").unwrap();
-        let err = create_project(&vault, "demo", "").unwrap_err();
-        assert!(err.contains("already exists"), "error: {err}");
-        fs::remove_dir_all(&vault).ok();
-    }
-
-    #[test]
-    fn create_project_rejects_unusable_slugs() {
-        let vault = temp_vault("project-slug");
-        for slug in ["", "  ", "a/b", "a\\b", "..", "_wip", ".hidden"] {
-            assert!(
-                create_project(&vault, slug, "x").is_err(),
-                "slug {slug:?} was accepted"
-            );
-        }
-        // Nothing was created on disk.
-        assert!(list_projects(&vault).unwrap().is_empty());
         fs::remove_dir_all(&vault).ok();
     }
 
