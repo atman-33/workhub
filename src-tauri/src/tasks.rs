@@ -1499,6 +1499,79 @@ mod tests {
         fs::remove_dir_all(&vault).ok();
     }
 
+    /// Pins what `check_startable` does with a task that is already `done`:
+    /// it still refuses while a predecessor is open. The UI skips its own guard
+    /// for such a task and shows this refusal as an error (T-1224), so the
+    /// backend answer is the only gate; this must not drift.
+    #[test]
+    fn check_startable_refuses_a_done_task_with_an_open_predecessor() {
+        let vault = temp_vault("dep-startable-done");
+        let open = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "open".into(),
+                status: Some("doing".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let finished = create_task(
+            &vault,
+            CreateTaskInput {
+                title: "finished".into(),
+                status: Some("done".into()),
+                depends_on: Some(vec![open.id.clone()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let err = check_startable(&vault, &finished.id).unwrap_err();
+        assert!(err.contains(&open.id), "error: {err}");
+        assert!(err.contains("depends on unfinished tasks"), "error: {err}");
+        // An id that matches no task is not refused (nothing to wait on).
+        assert!(check_startable(&vault, "T-9999").is_ok());
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
+    /// Pins `would_create_cycle` on in-memory tasks: self reference, a longer
+    /// loop, ids that match no task, and diamonds that are not loops. The TS
+    /// twin (`task-dependencies.test.ts`) asserts the same cases.
+    #[test]
+    fn would_create_cycle_pins_loops_chains_and_unknown_ids() {
+        let vault = temp_vault("dep-cycle-pins");
+        let mk = |deps: Vec<String>| {
+            create_task(
+                &vault,
+                CreateTaskInput {
+                    title: "t".into(),
+                    depends_on: Some(deps),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .id
+        };
+        let t1 = mk(vec![]);
+        let t2 = mk(vec![t1.clone()]);
+        let t3 = mk(vec![t2.clone()]);
+        let all = scan_tasks(&vault).unwrap();
+
+        let one = |x: &String| vec![x.clone()];
+
+        assert!(would_create_cycle(&t1, &one(&t1), &all));
+        assert!(would_create_cycle(&t1, &one(&t2), &all));
+        assert!(would_create_cycle(&t1, &one(&t3), &all));
+        assert!(!would_create_cycle(&t3, &[t1.clone(), t2.clone()], &all));
+        assert!(!would_create_cycle("T-9998", &one(&t3), &all));
+        // An unknown predecessor ends its branch; it is not a loop.
+        assert!(!would_create_cycle("T-9998", &["T-9999".to_string()], &all));
+        assert!(!would_create_cycle("T-9998", &[], &all));
+
+        fs::remove_dir_all(&vault).ok();
+    }
+
     #[test]
     fn blocked_round_trips_and_is_omitted_when_unset() {
         let vault = temp_vault("blocked");
