@@ -53,11 +53,10 @@ import { api, nowUnix } from "@/lib/api";
 import { t as i18nT, useT } from "@/lib/i18n";
 import type { TabFocus } from "@/lib/tab-focus";
 import { cn } from "@/lib/utils";
+import { configStore, useConfig } from "@/lib/use-config";
 import type { Config, GitInfo } from "@/types";
 
 interface Props {
-  /** Bumped by the app shell after settings are saved; triggers a config reload. */
-  configVersion: number;
   /** Whether the Repos tab is the visible one; gates background polling. */
   active: boolean;
   /** A repository the Projects tab asked this view to select (T-0190). */
@@ -67,7 +66,7 @@ interface Props {
 /** How often the visible Repos list re-reads each repo's git status, in ms. */
 const STATUS_POLL_MS = 5000;
 
-export function ReposView({ configVersion, active, focus }: Props) {
+export function ReposView({ active, focus }: Props) {
   const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [graphPath, setGraphPath] = useState<string | null>(null);
@@ -133,7 +132,8 @@ export function ReposView({ configVersion, active, focus }: Props) {
     const ordered = cfg.projects.map((p) => p.path).filter((p) => sel.has(p));
     void (async () => {
       const latest = await api.getConfig();
-      await api.saveConfig({ ...latest, projects: cfg.projects, selected: ordered });
+      // Through the store, so the other tabs read the new repository list too.
+      await configStore.saveConfig({ ...latest, projects: cfg.projects, selected: ordered });
     })();
   }, []);
 
@@ -153,8 +153,8 @@ export function ReposView({ configVersion, active, focus }: Props) {
   // which deliberately writes only the `projects` / `selected` this tab owns
   // (T-0281).
   const patchSettings = useCallback(async (patch: Partial<Config["settings"]>) => {
-    setConfig((prev) => (prev ? { ...prev, settings: { ...prev.settings, ...patch } } : prev));
-    setConfig(await api.patchSettings(patch));
+    // The store shows the patch at once and this tab's copy follows it (below).
+    await configStore.patchSettings(patch, { optimistic: true });
   }, []);
 
   const updateSelection = useCallback(
@@ -194,21 +194,21 @@ export function ReposView({ configVersion, active, focus }: Props) {
   // ---- startup ----
   useEffect(() => {
     void (async () => {
-      const cfg = await api.getConfig();
+      const cfg = await configStore.load();
       setConfig(cfg);
       setSelected(new Set(cfg.selected));
       refreshAll(cfg.projects.map((p) => p.path));
     })();
   }, [refreshAll]);
 
-  // ---- reload config after app-level settings saves ----
+  // ---- follow the settings saved elsewhere (the Settings dialog, another tab) ----
+  // This tab owns `projects`, `presets`, `selected` and `sort`; the settings
+  // come from the store.
+  const storedSettings = useConfig()?.settings;
   useEffect(() => {
-    if (configVersion === 0) return;
-    void api.getConfig().then((cfg) => {
-      setConfig(cfg);
-      setSelected(new Set(cfg.selected));
-    });
-  }, [configVersion]);
+    if (!storedSettings) return;
+    setConfig((prev) => (prev && prev.settings !== storedSettings ? { ...prev, settings: storedSettings } : prev));
+  }, [storedSettings]);
 
   // ---- periodic git-status refresh (only while the Repos tab is visible) ----
   useEffect(() => {
