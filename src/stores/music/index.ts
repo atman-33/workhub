@@ -21,6 +21,7 @@ const createPersistenceSlice = (
         currentIndex: null,
         isPlaying: false,
         shuffleQueue: {},
+        playHistory: {},
         hydrated: true,
       });
       return;
@@ -42,6 +43,7 @@ const createPersistenceSlice = (
       currentVideoId: firstVideo?.id ?? null,
       currentIndex: firstVideo ? 0 : null,
       isPlaying: false,
+      playHistory: {},
       shuffleQueue: isShuffle
         ? rebuildShuffleQueues(
             {},

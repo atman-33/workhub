@@ -5,6 +5,22 @@ import {
 } from "@/lib/music/shuffle-queue";
 import type { MusicStoreSlice, PlaybackSlice } from "./types";
 
+const MAX_PLAY_HISTORY = 100;
+
+/** Appends the track being left to the playlist's history (capped, newest last). */
+const pushHistory = (
+  history: Record<string, string[]>,
+  playlistId: string,
+  leavingId: string | null,
+  nextId: string,
+) => {
+  if (!leavingId || leavingId === nextId) {
+    return history;
+  }
+  const list = [...(history[playlistId] ?? []), leavingId].slice(-MAX_PLAY_HISTORY);
+  return { ...history, [playlistId]: list };
+};
+
 export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) => ({
   isPlaying: false,
   currentVideoId: null,
@@ -12,6 +28,7 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
   loopMode: "all",
   isShuffle: false,
   shuffleQueue: {},
+  playHistory: {},
   playerInstance: null,
   setPlayerInstance: (player) => set({ playerInstance: player }),
   play: (videoId) => {
@@ -44,6 +61,12 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
         currentVideoId: videoId,
         currentIndex: newIndex >= 0 ? newIndex : null,
         shuffleQueue: withQueueForPlaylist(state.shuffleQueue, activePlaylist.id, queue),
+        playHistory: pushHistory(
+          state.playHistory,
+          activePlaylist.id,
+          state.currentVideoId,
+          videoId,
+        ),
       };
     });
   },
@@ -72,7 +95,7 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
     set((state) => {
       const isShuffleEnabled = !state.isShuffle;
       if (!isShuffleEnabled) {
-        return { isShuffle: isShuffleEnabled, shuffleQueue: {} };
+        return { isShuffle: isShuffleEnabled, shuffleQueue: {}, playHistory: {} };
       }
 
       const activePlaylist = state.playlists.find(
@@ -95,8 +118,15 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
     }),
   playNext: () => {
     const activePlaylist = get().getActivePlaylist();
-    const { currentIndex, loopMode, isShuffle, playerInstance, shuffleQueue, currentVideoId } =
-      get();
+    const {
+      currentIndex,
+      loopMode,
+      isShuffle,
+      playerInstance,
+      shuffleQueue,
+      currentVideoId,
+      playHistory,
+    } = get();
 
     if (!activePlaylist || activePlaylist.items.length === 0) {
       set({ isPlaying: false });
@@ -124,6 +154,7 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
         currentVideoId: videoId,
         isPlaying: true,
         shuffleQueue: withQueueForPlaylist(shuffleQueue, activePlaylist.id, queue),
+        playHistory: pushHistory(playHistory, activePlaylist.id, currentVideoId, videoId),
       });
       return;
     }
@@ -151,7 +182,7 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
   },
   playPrevious: () => {
     const activePlaylist = get().getActivePlaylist();
-    const { currentIndex, loopMode, isShuffle, playerInstance, shuffleQueue, currentVideoId } =
+    const { currentIndex, loopMode, isShuffle, playerInstance, currentVideoId, playHistory } =
       get();
 
     if (!activePlaylist || activePlaylist.items.length === 0) {
@@ -159,14 +190,20 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
     }
 
     if (isShuffle) {
-      const { nextId, queue } = drawFromShuffleQueue(
-        shuffleQueue[activePlaylist.id],
-        activePlaylist,
-        currentVideoId,
-      );
-      const videoId = nextId ?? activePlaylist.items[0]?.id;
+      // Go back to what actually played, skipping tracks removed since.
+      const ids = new Set(activePlaylist.items.map((item) => item.id));
+      const history = [...(playHistory[activePlaylist.id] ?? [])];
+      let videoId: string | undefined;
+      while (history.length > 0) {
+        const candidate = history.pop();
+        if (candidate && ids.has(candidate)) {
+          videoId = candidate;
+          break;
+        }
+      }
+      // Nothing to go back to: restart the current track.
+      videoId ??= currentVideoId ?? undefined;
       if (!videoId) {
-        set({ isPlaying: false });
         return;
       }
       if (playerInstance) {
@@ -178,7 +215,7 @@ export const createPlaybackSlice: MusicStoreSlice<PlaybackSlice> = (set, get) =>
         currentIndex: previousShuffleIndex >= 0 ? previousShuffleIndex : null,
         currentVideoId: videoId,
         isPlaying: true,
-        shuffleQueue: withQueueForPlaylist(shuffleQueue, activePlaylist.id, queue),
+        playHistory: { ...playHistory, [activePlaylist.id]: history },
       });
       return;
     }

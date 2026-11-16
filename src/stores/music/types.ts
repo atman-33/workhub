@@ -9,6 +9,9 @@ export interface PlaybackSlice {
   loopMode: LoopMode;
   isShuffle: boolean;
   shuffleQueue: ShuffleQueueMap;
+  /** Tracks played before the current one while shuffling, per playlist, newest last.
+   *  Lets "previous" go back to what actually played. Never persisted. */
+  playHistory: Record<string, string[]>;
   playerInstance: YouTubePlayerLike | null;
   setPlayerInstance: (player: YouTubePlayerLike) => void;
   play: (videoId: string) => void;
