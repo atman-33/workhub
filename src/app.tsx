@@ -299,8 +299,6 @@ export default function App() {
   // Installed plugin versions, so a notice can hold its action back when the
   // skill it names is not on this machine yet.
   const [pluginVersions, setPluginVersions] = useState<Record<string, string>>({});
-  // Bumped after every settings save; views reload their config when it changes.
-  const [configVersion, setConfigVersion] = useState(0);
   // Bumped when the Projects view creates, archives or restores a vault
   // project. The `projects-changed` watcher event covers the same ground for
   // writers outside the app (Obsidian, an agent), but the app's own actions
@@ -402,7 +400,7 @@ export default function App() {
   useTidyNotifications();
   // Recurring task rules (T-0110): checked on start and every few minutes, so a
   // machine booted after a rule's time still gets that occurrence's task.
-  useRecurringTasks(configVersion);
+  useRecurringTasks();
 
   const checkTemplate = useCallback(async (vaultPath: string, autoApply = false) => {
     try {
@@ -491,7 +489,6 @@ export default function App() {
     // Through the Config store, so the views that read it follow this save.
     const saved = await configStore.saveConfig({ ...cfg, settings: next });
     setSettings(saved.settings);
-    setConfigVersion((v) => v + 1);
   }, []);
 
   // Re-read the config before opening Settings: the Voice, Ink, Clips and
@@ -748,7 +745,6 @@ export default function App() {
           </TabPanel>
           <TabPanel id="repos" tab={tab}>
             <ReposView
-              configVersion={configVersion}
               active={tab === "repos"}
               focus={focusFor("repos")}
             />

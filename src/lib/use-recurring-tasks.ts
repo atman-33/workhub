@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { configStore, useConfig } from "@/lib/use-config";
 import { dueOccurrence, hasOpenTaskForRule, taskInputFromRule } from "@/lib/recurring";
 import type { Task } from "@/types";
 
@@ -66,7 +67,8 @@ export async function generateDueTasks(now: Date = new Date()): Promise<Recurrin
     const merged = (latest.settings.recurring ?? []).map((r) =>
       fired.has(r.id) ? { ...r, last_generated: fired.get(r.id) as number } : r,
     );
-    await api.saveConfig({
+    // Through the store, so every view that reads the config sees the new slots.
+    await configStore.saveConfig({
       ...latest,
       settings: { ...latest.settings, recurring: merged },
     });
@@ -76,10 +78,17 @@ export async function generateDueTasks(now: Date = new Date()): Promise<Recurrin
 
 /**
  * Mounts the recurring-task generator at the app root: once on start, once per
- * tick, and again whenever the settings are saved (a re-enabled or newly added
- * rule should not wait out a whole tick).
+ * tick, and again whenever the rules or the vault change (a re-enabled or newly
+ * added rule should not wait out a whole tick).
  */
-export function useRecurringTasks(configVersion: number) {
+export function useRecurringTasks() {
+  const settings = useConfig()?.settings;
+  const vaultPath = settings?.vault_path ?? "";
+  // The rules as the user wrote them. `last_generated` is left out: the run
+  // itself advances it, and that must not start another run.
+  const rulesKey = JSON.stringify(
+    (settings?.recurring ?? []).map(({ last_generated: _slot, ...rule }) => rule),
+  );
   const running = useRef(false);
   useEffect(() => {
     let cancelled = false;
@@ -100,5 +109,5 @@ export function useRecurringTasks(configVersion: number) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [configVersion]);
+  }, [rulesKey, vaultPath]);
 }
