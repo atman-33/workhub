@@ -147,10 +147,28 @@ export function PlaylistTransferMenu() {
   return (
     <div className="flex items-center gap-1">
       <DropdownMenu>
-        <Hint label={t("music.transfer.export")}>
+        <Hint label={t("music.transfer.import")}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-6">
               <Download className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+        </Hint>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => void importFromFile()}>
+            {t("music.transfer.importFromFile")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void importFromClipboard()}>
+            {t("music.transfer.pasteClipboard")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <Hint label={t("music.transfer.export")}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-6">
+              <Upload className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
         </Hint>
@@ -176,24 +194,6 @@ export function PlaylistTransferMenu() {
               {t("music.transfer.copyOne", { name: activePlaylist.name })}
             </DropdownMenuItem>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu>
-        <Hint label={t("music.transfer.import")}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-6">
-              <Upload className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-        </Hint>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => void importFromFile()}>
-            {t("music.transfer.importFromFile")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void importFromClipboard()}>
-            {t("music.transfer.pasteClipboard")}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
