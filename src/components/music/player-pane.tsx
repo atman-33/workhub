@@ -72,8 +72,10 @@ export function PlayerPane() {
           {loopMode === "one" ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
           {loopMode === "all" ? t("music.player.loopAll") : t("music.player.loopOne")}
         </Button>
+        {/* The state is told by the icon and the label; the button keeps the same
+            outline as the loop button next to it rather than changing colour. */}
         <Button
-          variant={isShuffle ? "default" : "outline"}
+          variant="outline"
           size="sm"
           onClick={toggleShuffle}
           aria-pressed={isShuffle}
