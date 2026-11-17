@@ -39,26 +39,70 @@ fn agent() -> ureq::Agent {
         .build()
 }
 
-/// Returns (tag, download url of the workhub.exe asset) of the latest release,
-/// or None if the check fails for any reason (offline, rate limit, no release).
-pub fn check_latest() -> Option<(String, String)> {
-    let resp = agent()
-        .get(&format!(
-            "https://api.github.com/repos/{REPO}/releases/latest"
-        ))
+/// Strict `vX.Y.Z` check — the release tag scheme the release workflow
+/// guarantees. Stricter than `parse`, which tolerates a missing `v` and
+/// trailing components.
+fn is_release_tag(tag: &str) -> bool {
+    let Some(rest) = tag.strip_prefix('v') else {
+        return false;
+    };
+    let parts: Vec<&str> = rest.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Reads the release tag out of the `Location` of
+/// `/releases/latest` (`…/releases/tag/vX.Y.Z`). Pure so it is unit-testable.
+/// Returns None for anything that is not a tag URL of this repository —
+/// a login redirect, a proxy page, a malformed tag.
+fn tag_from_location(location: &str) -> Option<String> {
+    let absolute = format!("https://github.com/{REPO}/releases/tag/");
+    let relative = format!("/{REPO}/releases/tag/");
+    let rest = location
+        .strip_prefix(&absolute)
+        .or_else(|| location.strip_prefix(&relative))?;
+    let tag = rest.split(['?', '#']).next()?.trim_end_matches('/');
+    is_release_tag(tag).then(|| tag.to_string())
+}
+
+/// Download URL of the `workhub.exe` asset of release `tag`. Built from the
+/// tag rather than read from the REST API, which rate-limits anonymous
+/// clients (60/h per IP) — see the module contract above.
+fn download_url(tag: &str) -> String {
+    format!("https://github.com/{REPO}/releases/download/{tag}/workhub.exe")
+}
+
+/// Returns (tag, download url of the workhub.exe asset) of the latest release.
+///
+/// Reads the redirect of `github.com/<repo>/releases/latest` instead of the
+/// REST API, so the check is not subject to the API's anonymous rate limit.
+/// Every failure is an `Err` with a short reason: a failed check must never
+/// look like "you are up to date".
+pub fn check_latest() -> Result<(String, String), String> {
+    let agent = ureq::AgentBuilder::new()
+        .redirects(0)
+        .timeout(Duration::from_secs(30))
+        .user_agent(concat!("workhub/", env!("CARGO_PKG_VERSION")))
+        .build();
+    let resp = agent
+        .get(&format!("https://github.com/{REPO}/releases/latest"))
         .call()
-        .ok()?;
-    let json: serde_json::Value = resp.into_json().ok()?;
-    let tag = json.get("tag_name")?.as_str()?.to_string();
-    let url = json
-        .get("assets")?
-        .as_array()?
-        .iter()
-        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some("workhub.exe"))?
-        .get("browser_download_url")?
-        .as_str()?
-        .to_string();
-    Some((tag, url))
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => format!("unexpected response HTTP {code}"),
+            ureq::Error::Transport(t) => format!("offline or network error: {t}"),
+        })?;
+    let status = resp.status();
+    if !(300..400).contains(&status) {
+        return Err(format!("unexpected response HTTP {status}"));
+    }
+    let tag = resp
+        .header("location")
+        .and_then(tag_from_location)
+        .ok_or_else(|| "could not read the latest release tag".to_string())?;
+    let url = download_url(&tag);
+    Ok((tag, url))
 }
 
 /// Builds the fallback "aside" path used when the fixed `<exe>.old` name is
@@ -198,6 +242,68 @@ mod tests {
         assert!(!is_newer("v0.1.0", "0.1.0"));
         assert!(!is_newer("v0.1.0", "0.2.0"));
         assert!(!is_newer("not-a-version", "0.1.0"));
+    }
+
+    #[test]
+    fn compares_across_digit_boundaries_and_rejects_noise() {
+        assert!(is_newer("v0.174.0", "0.173.0"));
+        assert!(is_newer("v0.10.0", "0.9.0"));
+        assert!(!is_newer("v0.9.0", "0.10.0"));
+        assert!(!is_newer("v0.174.0", "0.174.0"));
+        assert!(!is_newer("v0.174.0", "garbage"));
+        assert!(!is_newer("", "0.1.0"));
+    }
+
+    #[test]
+    fn reads_the_tag_from_an_absolute_location() {
+        let loc = "https://github.com/atman-33/workhub/releases/tag/v0.174.0";
+        assert_eq!(tag_from_location(loc), Some("v0.174.0".to_string()));
+    }
+
+    #[test]
+    fn reads_the_tag_from_a_relative_location() {
+        let loc = "/atman-33/workhub/releases/tag/v1.2.3";
+        assert_eq!(tag_from_location(loc), Some("v1.2.3".to_string()));
+    }
+
+    #[test]
+    fn ignores_trailing_slash_query_and_fragment() {
+        let base = "https://github.com/atman-33/workhub/releases/tag/v0.1.0";
+        for suffix in ["/", "?foo=1", "#frag", "/?a=b"] {
+            assert_eq!(
+                tag_from_location(&format!("{base}{suffix}")),
+                Some("v0.1.0".to_string()),
+                "suffix {suffix:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_locations_that_are_not_a_release_tag() {
+        for loc in [
+            "",
+            "https://github.com/atman-33/workhub/releases",
+            "https://github.com/atman-33/workhub/releases/latest",
+            "https://github.com/atman-33/workhub/releases/tag/",
+            "https://github.com/atman-33/workhub/releases/tag/0.174.0",
+            "https://github.com/atman-33/workhub/releases/tag/v0.174",
+            "https://github.com/atman-33/workhub/releases/tag/v0.174.0.1",
+            "https://github.com/atman-33/workhub/releases/tag/vNEXT",
+            "https://github.com/atman-33/workhub/releases/tag/v0.174.0/extra",
+            "https://github.com/other/repo/releases/tag/v0.174.0",
+            "https://evil.example/atman-33/workhub/releases/tag/v0.174.0",
+            "https://github.com/login?return_to=%2Fatman-33%2Fworkhub",
+        ] {
+            assert_eq!(tag_from_location(loc), None, "location {loc:?}");
+        }
+    }
+
+    #[test]
+    fn builds_the_download_url_from_the_tag() {
+        assert_eq!(
+            download_url("v0.174.0"),
+            "https://github.com/atman-33/workhub/releases/download/v0.174.0/workhub.exe"
+        );
     }
 
     #[test]

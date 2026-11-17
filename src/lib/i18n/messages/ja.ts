@@ -391,6 +391,7 @@ export const ja: Partial<Record<MessageKey, string>> = {
   "settings.general.appUpdate.downloadInstall": "ダウンロードしてインストール",
   "settings.general.appUpdate.upToDate": "最新の状態です。",
   "settings.general.appUpdate.failed": "更新に失敗しました: {error}",
+  "settings.general.appUpdate.checkFailed": "更新を確認できませんでした: {error}",
 
   "settings.agents.introPrefix":
     "workhub がタスクのためにエージェントをどう起動し、何を渡すか。コマンドテンプレートはプロジェクトパスの代わりに",

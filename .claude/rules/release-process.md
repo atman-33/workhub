@@ -41,8 +41,8 @@ requires a version bump and release, even when nothing under `src-tauri/` or
 
 - **Tag format is `vX.Y.Z`** and must equal the Cargo.toml version.
 - **Every release must carry a bare `workhub.exe` asset with exactly that
-  name.** `src-tauri/src/update.rs` finds the download URL by matching the
-  asset name `workhub.exe`; the README install command uses
+  name.** `src-tauri/src/update.rs` reads the latest tag from the redirect of
+  `releases/latest` and builds `releases/download/<tag>/workhub.exe`; the README install command uses
   `releases/latest/download/workhub.exe`. Renaming or dropping this asset
   silently disables self-update for every installed copy.
 - The zip asset is `workhub-windows-x86_64.zip` (referenced by README).
