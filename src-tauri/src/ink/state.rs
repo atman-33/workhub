@@ -21,6 +21,8 @@ pub enum KeyInput {
     SUp,
     CDown,
     CUp,
+    EscDown,
+    EscUp,
     /// Any other key press — poisons the current gesture attempt.
     OtherDown,
 }
@@ -39,6 +41,11 @@ pub enum InkEvent {
     /// Drawing continues — the gesture is not a way out of draw mode, so a
     /// single session can save several shots.
     Save,
+    /// Esc pressed while in temporary draw mode: leave the region-select mode
+    /// that follows a save. Meaningless to the state machine itself (the page
+    /// knows whether it is selecting); outside draw mode Esc is just another
+    /// key and never reaches here.
+    Cancel,
 }
 
 /// A gap this long between two Alt presses with no release in between cannot
@@ -67,6 +74,7 @@ pub struct AltStateMachine {
     poisoned: bool,
     is_s_held: bool,
     is_c_held: bool,
+    is_esc_held: bool,
     /// Timestamp of the last Alt transition, for desync detection.
     last_alt_event: u64,
 }
@@ -82,6 +90,7 @@ impl AltStateMachine {
             poisoned: false,
             is_s_held: false,
             is_c_held: false,
+            is_esc_held: false,
             last_alt_event: 0,
         }
     }
@@ -104,6 +113,14 @@ impl AltStateMachine {
             }
             KeyInput::CUp => {
                 self.is_c_held = false;
+                None
+            }
+            KeyInput::EscDown => {
+                let was_held = std::mem::replace(&mut self.is_esc_held, true);
+                self.on_draw_key(was_held, InkEvent::Cancel)
+            }
+            KeyInput::EscUp => {
+                self.is_esc_held = false;
                 None
             }
             KeyInput::OtherDown => {
@@ -193,6 +210,7 @@ impl AltStateMachine {
         self.poisoned = false;
         self.is_s_held = false;
         self.is_c_held = false;
+        self.is_esc_held = false;
     }
 }
 
@@ -285,6 +303,35 @@ mod tests {
         m.on_key(CUp, 460);
         assert_eq!(m.on_key(AltUp, 500), Some(Deactivate));
         assert_eq!(m.on_key(CDown, 600), None);
+    }
+
+    #[test]
+    fn esc_cancels_only_while_active_and_edge_triggered() {
+        let mut m = machine();
+        // Outside temp mode: no-op.
+        assert_eq!(m.on_key(EscDown, 0), None);
+        assert_eq!(m.on_key(EscUp, 10), None);
+        m.on_key(AltDown, 100);
+        m.on_key(AltUp, 150);
+        m.on_key(AltDown, 200);
+        assert_eq!(m.on_key(EscDown, 300), Some(Cancel));
+        assert_eq!(m.on_key(EscDown, 350), None);
+        assert_eq!(m.on_key(EscUp, 400), None);
+        assert_eq!(m.on_key(EscDown, 450), Some(Cancel));
+        m.on_key(EscUp, 460);
+        // Cancelling does not end the drawing session.
+        assert_eq!(m.on_key(AltUp, 500), Some(Deactivate));
+        assert_eq!(m.on_key(EscDown, 600), None);
+    }
+
+    #[test]
+    fn alt_esc_in_another_app_does_not_arm_the_gesture() {
+        let mut m = machine();
+        m.on_key(AltDown, 0);
+        assert_eq!(m.on_key(EscDown, 20), None);
+        m.on_key(EscUp, 40);
+        assert_eq!(m.on_key(AltUp, 50), None);
+        assert_eq!(m.on_key(AltDown, 100), None);
     }
 
     #[test]

@@ -73,6 +73,7 @@ fn dispatch(app: &AppHandle, event: state::InkEvent) {
         state::InkEvent::Deactivate => overlay::deactivate(app),
         state::InkEvent::CycleColor => overlay::cycle_color(app),
         state::InkEvent::Save => overlay::request_save(app),
+        state::InkEvent::Cancel => overlay::request_cancel(app),
     }
 }
 
@@ -153,6 +154,15 @@ pub mod store {
     }
 
     pub fn copy_png(_app: &AppHandle, _b64: &str) -> Result<(), String> {
+        Err(UNSUPPORTED.into())
+    }
+
+    pub fn copy_region(
+        _app: &AppHandle,
+        _strokes_png_b64: &str,
+        _canvas: (u32, u32),
+        _rect: (f64, f64, f64, f64),
+    ) -> Result<(u32, u32), String> {
         Err(UNSUPPORTED.into())
     }
 

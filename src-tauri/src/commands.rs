@@ -494,6 +494,29 @@ pub fn save_ink_capture(app: tauri::AppHandle, base64_data: String) -> Result<St
     result
 }
 
+/// Copies one region of the annotated screen (strokes over the grab) to the
+/// clipboard without saving a file. The rectangle and canvas size are in the
+/// overlay canvas's pixels; returns the size of the copied image.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn copy_ink_region(
+    app: tauri::AppHandle,
+    base64_data: String,
+    canvas_width: u32,
+    canvas_height: u32,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(u32, u32), String> {
+    crate::ink::store::copy_region(
+        &app,
+        &base64_data,
+        (canvas_width, canvas_height),
+        (x, y, width, height),
+    )
+}
+
 /// Saves a cropped region of an existing capture beside it, and copies it.
 #[tauri::command]
 pub fn save_ink_crop(

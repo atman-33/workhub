@@ -80,31 +80,7 @@ pub struct InkCapture {
 /// Composes the session's screen grab with the strokes the overlay drew,
 /// writes it into `dir`, and puts the same image on the clipboard.
 pub fn save_capture(app: &AppHandle, dir: &Path, strokes_png_b64: &str) -> Result<String, String> {
-    let composed = {
-        let guard = background();
-        let bg = guard
-            .as_ref()
-            .ok_or_else(|| "no screen capture is available for this drawing session".to_string())?;
-        let mut canvas = RgbaImage::from_raw(bg.width, bg.height, bg.pixels.clone())
-            .ok_or_else(|| "the screen capture is malformed".to_string())?;
-        let strokes = decode_png(&crate::b64::decode(strokes_png_b64)?)?;
-        // The overlay canvas is sized from CSS pixels times the device pixel
-        // ratio, which can land a pixel off the monitor's own size. Scale
-        // rather than refuse: a one-pixel mismatch is not a reason to lose a
-        // capture.
-        let strokes = if strokes.width() == canvas.width() && strokes.height() == canvas.height() {
-            strokes
-        } else {
-            image::imageops::resize(
-                &strokes,
-                canvas.width(),
-                canvas.height(),
-                image::imageops::FilterType::Triangle,
-            )
-        };
-        image::imageops::overlay(&mut canvas, &strokes, 0, 0);
-        canvas
-    };
+    let composed = compose(strokes_png_b64)?;
     let png = capture::encode_png(composed.as_raw(), composed.width(), composed.height())?;
     let path = unique_path(dir, &format!("{}.png", local_stamp()))?;
     write_png(&path, &png)?;
@@ -114,6 +90,52 @@ pub fn save_capture(app: &AppHandle, dir: &Path, strokes_png_b64: &str) -> Resul
         crate::diag!("ink: could not copy the capture to the clipboard: {e}");
     }
     Ok(norm(&path))
+}
+
+/// The session's screen grab with the overlay's strokes laid over it.
+fn compose(strokes_png_b64: &str) -> Result<RgbaImage, String> {
+    let guard = background();
+    let bg = guard
+        .as_ref()
+        .ok_or_else(|| "no screen capture is available for this drawing session".to_string())?;
+    let mut canvas = RgbaImage::from_raw(bg.width, bg.height, bg.pixels.clone())
+        .ok_or_else(|| "the screen capture is malformed".to_string())?;
+    let strokes = decode_png(&crate::b64::decode(strokes_png_b64)?)?;
+    // The overlay canvas is sized from CSS pixels times the device pixel
+    // ratio, which can land a pixel off the monitor's own size. Scale
+    // rather than refuse: a one-pixel mismatch is not a reason to lose a
+    // capture.
+    let strokes = if strokes.width() == canvas.width() && strokes.height() == canvas.height() {
+        strokes
+    } else {
+        image::imageops::resize(
+            &strokes,
+            canvas.width(),
+            canvas.height(),
+            image::imageops::FilterType::Triangle,
+        )
+    };
+    image::imageops::overlay(&mut canvas, &strokes, 0, 0);
+    Ok(canvas)
+}
+
+/// Copies one region of the annotated screen to the clipboard, without
+/// writing a file. `rect` is `(x, y, width, height)` in the overlay canvas's
+/// own pixels and `canvas` its size: the grab can be a pixel off the canvas,
+/// so the rectangle is scaled into the grab's pixels here. Returns the size
+/// of the copied image.
+pub fn copy_region(
+    app: &AppHandle,
+    strokes_png_b64: &str,
+    canvas: (u32, u32),
+    rect: (f64, f64, f64, f64),
+) -> Result<(u32, u32), String> {
+    let composed = compose(strokes_png_b64)?;
+    let (x, y, w, h) = region_in_pixels(rect, canvas, (composed.width(), composed.height()))
+        .ok_or_else(|| "the selected area is empty".to_string())?;
+    let cropped = image::imageops::crop_imm(&composed, x, y, w, h).to_image();
+    write_clipboard(app, &cropped)?;
+    Ok((w, h))
 }
 
 /// Writes a cropped region of an existing capture beside it, as
@@ -211,6 +233,33 @@ pub fn delete(path: &Path) -> Result<(), String> {
 // ---------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------
+
+/// Maps a rectangle in canvas pixels onto the target image: scaled by the
+/// size ratio, rounded, and clamped to the image. `None` when nothing is left
+/// (not finite, outside the image, or zero-sized).
+fn region_in_pixels(
+    rect: (f64, f64, f64, f64),
+    canvas: (u32, u32),
+    target: (u32, u32),
+) -> Option<(u32, u32, u32, u32)> {
+    let (x, y, w, h) = rect;
+    if canvas.0 == 0 || canvas.1 == 0 || ![x, y, w, h].iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    let (sx, sy) = (
+        f64::from(target.0) / f64::from(canvas.0),
+        f64::from(target.1) / f64::from(canvas.1),
+    );
+    let left = (x * sx).round().clamp(0.0, f64::from(target.0));
+    let top = (y * sy).round().clamp(0.0, f64::from(target.1));
+    let right = ((x + w) * sx).round().clamp(0.0, f64::from(target.0));
+    let bottom = ((y + h) * sy).round().clamp(0.0, f64::from(target.1));
+    let (width, height) = (right - left, bottom - top);
+    if width < 1.0 || height < 1.0 {
+        return None;
+    }
+    Some((left as u32, top as u32, width as u32, height as u32))
+}
 
 /// Thumbnail dimensions that fit `THUMB_MAX` on the longest edge and never
 /// collapse to zero on a very lopsided image.
@@ -347,6 +396,51 @@ mod tests {
         );
         assert_eq!(thumb_size(1920, 1080), (360, 203));
         assert_eq!(thumb_size(4000, 3), (360, 1), "a sliver still has a row");
+    }
+
+    #[test]
+    fn a_region_scales_into_the_target_and_stays_inside_it() {
+        // Same size: unchanged.
+        assert_eq!(
+            region_in_pixels((10.0, 20.0, 30.0, 40.0), (100, 100), (100, 100)),
+            Some((10, 20, 30, 40))
+        );
+        // The grab is twice the canvas: everything doubles.
+        assert_eq!(
+            region_in_pixels((10.0, 20.0, 30.0, 40.0), (100, 100), (200, 200)),
+            Some((20, 40, 60, 80))
+        );
+        // Dragged past the edge: clamped to the image.
+        assert_eq!(
+            region_in_pixels((90.0, 90.0, 50.0, 50.0), (100, 100), (100, 100)),
+            Some((90, 90, 10, 10))
+        );
+        // A negative origin: the part inside the image is still returned.
+        assert_eq!(
+            region_in_pixels((-10.0, -10.0, 30.0, 30.0), (100, 100), (100, 100)),
+            Some((0, 0, 20, 20))
+        );
+    }
+
+    #[test]
+    fn an_empty_or_outside_region_is_rejected() {
+        let canvas = (100, 100);
+        assert_eq!(
+            region_in_pixels((0.0, 0.0, 0.0, 10.0), canvas, canvas),
+            None
+        );
+        assert_eq!(
+            region_in_pixels((150.0, 10.0, 10.0, 10.0), canvas, canvas),
+            None
+        );
+        assert_eq!(
+            region_in_pixels((f64::NAN, 0.0, 10.0, 10.0), canvas, canvas),
+            None
+        );
+        assert_eq!(
+            region_in_pixels((0.0, 0.0, 10.0, 10.0), (0, 100), canvas),
+            None
+        );
     }
 
     #[test]
