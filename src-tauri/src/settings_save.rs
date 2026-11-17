@@ -13,6 +13,9 @@ use crate::models::{Config, Settings};
 ///   vault-scoped settings belong to the vault being opened, not to the one
 ///   being left behind (T-0206). Saving into the same vault leaves them as
 ///   sent.
+/// - The main window's saved geometry belongs to the backend, which updates it
+///   as the window moves. The settings dialog only round-trips what it loaded
+///   at startup, so whatever it sends is stale by now; keep the stored one.
 /// - The tidy schedule's anchor is seeded (to `now_secs`) the first time the
 ///   routine is enabled, so the interval has a phase to count from. An anchor
 ///   that is already set is never moved.
@@ -20,6 +23,8 @@ pub fn prepare(before: &Settings, config: &mut Config, now_secs: u64) {
     if config.settings.vault_path != before.vault_path {
         crate::vault_settings::overlay(config);
     }
+    config.settings.main_window_rect = before.main_window_rect;
+    config.settings.main_window_maximized = before.main_window_maximized;
     if config.settings.tidy.enabled && config.settings.tidy.anchor.is_none() {
         config.settings.tidy.anchor = Some(now_secs);
     }
@@ -86,6 +91,29 @@ mod tests {
             },
             ..Config::default()
         }
+    }
+
+    // --- prepare: main window geometry ------------------------------------
+
+    #[test]
+    fn saving_settings_keeps_the_stored_main_window_geometry() {
+        let stored = crate::models::MainWindowRect {
+            x: 10,
+            y: 20,
+            width: 900.0,
+            height: 600.0,
+        };
+        let before = Settings {
+            main_window_rect: Some(stored),
+            main_window_maximized: true,
+            ..Settings::default()
+        };
+        // The dialog sends back what it loaded at startup: nothing.
+        let mut config = Config::default();
+        prepare(&before, &mut config, 100);
+
+        assert_eq!(config.settings.main_window_rect, Some(stored));
+        assert!(config.settings.main_window_maximized);
     }
 
     // --- prepare: vault switch -------------------------------------------

@@ -87,6 +87,8 @@ const DEFAULTS: Settings = {
   ink_preview_rect: null,
   task_editor_rect: null,
   task_editor_maximized: false,
+  main_window_rect: null,
+  main_window_maximized: false,
   // Managed from the Voice tab itself, not from this dialog (T-0277).
   voice_enabled: true,
   voice_hotkey: "Ctrl+Shift+Space",

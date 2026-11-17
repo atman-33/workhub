@@ -75,6 +75,13 @@ export interface Settings {
   /** Whether the task editor window was maximized when last closed (managed
    * by the backend; round-tripped here so saving settings doesn't wipe it). */
   task_editor_maximized: boolean;
+  /** Where the main window was left: position in physical pixels, size in
+   * logical pixels (managed by the backend; round-tripped here so saving
+   * settings doesn't wipe it). */
+  main_window_rect: MainWindowRect | null;
+  /** Whether the main window was maximized when last seen (managed by the
+   * backend; round-tripped here like the rect above). */
+  main_window_maximized: boolean;
   /** Voice input: global hotkey toggles local speech-to-text dictation,
    * pasted into whatever app has focus. */
   voice_enabled: boolean;
@@ -685,6 +692,15 @@ export interface Clip {
 }
 
 export interface WindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The main window's saved geometry: position in physical pixels, size in
+ * logical pixels. */
+export interface MainWindowRect {
   x: number;
   y: number;
   width: number;
