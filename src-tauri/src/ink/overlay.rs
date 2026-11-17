@@ -274,3 +274,10 @@ pub fn cycle_color(app: &AppHandle) {
 pub fn request_save(app: &AppHandle) {
     let _ = app.emit_to(OVERLAY_LABEL, "ink://save", ());
 }
+
+/// Esc while drawing: tell the page to leave region-select mode. The page
+/// owns that mode (and ignores this when it is not in it), so Esc outside
+/// region selection does nothing.
+pub fn request_cancel(app: &AppHandle) {
+    let _ = app.emit_to(OVERLAY_LABEL, "ink://cancel", ());
+}

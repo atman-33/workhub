@@ -350,6 +350,7 @@ pub fn run() {
             commands::read_ink_capture,
             commands::copy_ink_capture,
             commands::copy_ink_png,
+            commands::copy_ink_region,
             commands::delete_ink_capture,
             commands::open_ink_preview,
             commands::ink_preview_hide,
