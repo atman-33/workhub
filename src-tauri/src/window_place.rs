@@ -34,7 +34,7 @@ const MAX_CARET_WIDTH_DIVISOR: i32 = 2;
 /// Nudges `(x, y)` so a `size`-sized window sits fully inside `area`.
 /// Clamping the origin up (rather than down) wins when the window is larger
 /// than the area, which keeps its top-left visible instead of its bottom-right.
-fn clamp_into(
+pub(crate) fn clamp_into(
     pos: (i32, i32),
     size: (i32, i32),
     area_pos: (i32, i32),

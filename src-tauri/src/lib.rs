@@ -15,6 +15,7 @@ mod herdr;
 mod inbox;
 mod ink;
 mod ink_preview;
+mod main_window_state;
 mod media_session;
 mod mindmap;
 mod models;
@@ -220,11 +221,25 @@ pub fn run() {
             // modules), so hiding either of them never exits the app.
             if let Some(main_window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
-                main_window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                main_window.on_window_event(move |event| match event {
+                    tauri::WindowEvent::CloseRequested { .. } => {
+                        // Remember how the window was left (T-1275) before the
+                        // process goes away.
+                        main_window_state::save(&app_handle);
                         app_handle.exit(0);
                     }
+                    // Kept a moment after the last move/resize, so a restart
+                    // that skips CloseRequested (the updater) or a crash
+                    // still finds a recent state.
+                    tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                        main_window_state::schedule_save(&app_handle);
+                    }
+                    _ => {}
                 });
+                // The window is still hidden here (see `reveal_main_window`),
+                // so putting it back where it was never flashes the default
+                // size.
+                main_window_state::restore(app.handle());
             }
             // Resume watching the configured vault (if any) across restarts.
             let cfg = storage::load();

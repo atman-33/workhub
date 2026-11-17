@@ -148,6 +148,16 @@ pub struct Settings {
     /// geometry so un-maximizing lands back where the window used to be.
     #[serde(default)]
     pub task_editor_maximized: bool,
+    /// Where the main window was left (T-1275): position in physical pixels,
+    /// size in logical pixels. When it was maximized this stays at the last
+    /// restored geometry (see `main_window_maximized`). Machine-local, so not
+    /// in `vault_settings::VAULT_SCOPED`. Written by the backend only (see
+    /// main_window_state.rs). Unset until first closed.
+    #[serde(default)]
+    pub main_window_rect: Option<MainWindowRect>,
+    /// Whether the main window was maximized when last seen.
+    #[serde(default)]
+    pub main_window_maximized: bool,
     /// Voice input: global hotkey toggles local speech-to-text dictation,
     /// pasted into whatever app has focus.
     #[serde(default = "default_true")]
@@ -466,6 +476,19 @@ pub struct WindowRect {
     pub height: f64,
 }
 
+/// The main window's saved geometry (T-1275). Unlike [`WindowRect`] the
+/// position is in *physical* pixels: it is only ever compared against the
+/// monitors' physical work areas, and a logical one would mean different
+/// things on monitors with different scale factors. The size is logical, so it
+/// survives a change of display scaling.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MainWindowRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: f64,
+    pub height: f64,
+}
+
 fn default_true() -> bool {
     true
 }
@@ -556,6 +579,8 @@ impl Default for Settings {
             ink_preview_rect: None,
             task_editor_rect: None,
             task_editor_maximized: false,
+            main_window_rect: None,
+            main_window_maximized: false,
             voice_enabled: true,
             voice_hotkey: default_voice_hotkey(),
             voice_model: default_voice_model(),

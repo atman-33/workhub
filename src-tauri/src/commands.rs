@@ -713,6 +713,9 @@ pub async fn apply_update(url: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn restart_app(app: tauri::AppHandle) {
+    // `restart` skips the window's CloseRequested, so save the main window's
+    // geometry here or the update would reopen it where it last settled (T-1275).
+    crate::main_window_state::save(&app);
     app.restart();
 }
 
