@@ -690,20 +690,20 @@ pub struct UpdateInfo {
     pub url: String,
 }
 
-/// Returns Some only when a strictly newer release exists.
+/// `Ok(Some)` only when a strictly newer release exists, `Ok(None)` when the
+/// installed version is current, `Err(reason)` when the check itself failed —
+/// a failure must never read as "up to date".
 #[tauri::command]
-pub async fn check_update() -> Option<UpdateInfo> {
-    tauri::async_runtime::spawn_blocking(|| {
+pub async fn check_update() -> Result<Option<UpdateInfo>, String> {
+    let result = blocking(|| {
         let (tag, url) = update::check_latest()?;
-        if update::is_newer(&tag, update::current_version()) {
-            Some(UpdateInfo { tag, url })
-        } else {
-            None
-        }
+        Ok(update::is_newer(&tag, update::current_version()).then_some(UpdateInfo { tag, url }))
     })
-    .await
-    .ok()
-    .flatten()
+    .await;
+    if let Err(reason) = &result {
+        crate::diag!("update check failed: {reason}");
+    }
+    result
 }
 
 #[tauri::command]

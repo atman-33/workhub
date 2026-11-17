@@ -401,6 +401,7 @@ export const en = {
   "settings.general.appUpdate.downloadInstall": "Download & install",
   "settings.general.appUpdate.upToDate": "You are up to date.",
   "settings.general.appUpdate.failed": "Update failed: {error}",
+  "settings.general.appUpdate.checkFailed": "Could not check for updates: {error}",
 
   "settings.agents.introPrefix":
     "How workhub launches an agent for a task, and what it hands one. Command templates take",

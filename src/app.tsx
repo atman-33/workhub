@@ -453,7 +453,12 @@ export default function App() {
       setSettings(cfg.settings);
       setVersion(await api.appVersion());
       if (cfg.settings.check_updates) {
-        setUpdate(await api.checkUpdate());
+        try {
+          setUpdate(await api.checkUpdate());
+        } catch {
+          // A failed startup check stays silent (no banner); the reason is
+          // already in the diagnostics log from `check_update`.
+        }
       }
       if (cfg.settings.vault_path) {
         await checkPlugin(cfg.settings.vault_path, cfg.settings.check_updates);

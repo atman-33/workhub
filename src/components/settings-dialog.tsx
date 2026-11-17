@@ -155,6 +155,8 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [phase, setPhase] = useState<
     "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "failed"
   >("idle");
+  // What the "failed" phase failed at: the update check or the download.
+  const [failedStep, setFailedStep] = useState<"check" | "download">("check");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -174,13 +176,21 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const check = async () => {
     setPhase("checking");
     setError("");
-    const info = await api.checkUpdate();
-    if (info) {
-      setUpdate(info);
-      setPhase("available");
-    } else {
+    try {
+      const info = await api.checkUpdate();
+      if (info) {
+        setUpdate(info);
+        setPhase("available");
+      } else {
+        setUpdate(null);
+        setPhase("uptodate");
+      }
+    } catch (e) {
+      // A failed check is not "up to date": say why (offline, bad response…).
       setUpdate(null);
-      setPhase("uptodate");
+      setError(String(e));
+      setFailedStep("check");
+      setPhase("failed");
     }
   };
 
@@ -205,6 +215,7 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
       setPhase("ready");
     } catch (e) {
       setError(String(e));
+      setFailedStep("download");
       setPhase("failed");
     }
   };
@@ -467,7 +478,12 @@ export function SettingsDialog({ open, settings, onClose, onSave }: Props) {
                 )}
                 {phase === "failed" && (
                   <p className="text-xs text-destructive">
-                    {t("settings.general.appUpdate.failed", { error })}
+                    {t(
+                      failedStep === "check"
+                        ? "settings.general.appUpdate.checkFailed"
+                        : "settings.general.appUpdate.failed",
+                      { error },
+                    )}
                   </p>
                 )}
               </div>
