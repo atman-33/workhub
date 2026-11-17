@@ -15,6 +15,7 @@ mod herdr;
 mod inbox;
 mod ink;
 mod ink_preview;
+mod media_session;
 mod mindmap;
 mod models;
 mod music;
@@ -152,6 +153,9 @@ pub fn run() {
     // switched on. Recorded here rather than in `setup` so a startup that
     // dies half way still says what it was starting with.
     log_startup_settings(&storage::load());
+    // Before any WebView exists: the system media controls are owned by
+    // `media_session`, not by WebView2 (T-1273).
+    media_session::disable_webview_media_integration();
     tauri::Builder::default()
         // Must be registered first (per tauri-plugin-single-instance docs).
         // Without this, every launch adds another process; combined with the
@@ -191,6 +195,7 @@ pub fn run() {
                 })
                 .build(),
         )
+        .manage(media_session::MediaSession::default())
         .manage(quick_capture::QuickCaptureState::default())
         .manage(clips::ClipsState::default())
         .manage(vault_watch::WatcherState::default())
@@ -428,6 +433,7 @@ pub fn run() {
             commands::launch_agent_for_task,
             commands::load_music_data,
             commands::save_music_data,
+            media_session::update_media_session,
             commands::export_playlist_file,
             commands::import_playlist_file,
             commands::fetch_youtube_title,

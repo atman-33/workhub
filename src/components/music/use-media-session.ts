@@ -1,54 +1,64 @@
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
+import { api } from "@/lib/api";
+import { currentTrackTitle } from "@/lib/music/track-title";
 import { useMusicStore } from "@/stores/music";
 
-type SessionAction = "play" | "pause" | "previoustrack" | "nexttrack";
+/** Event the backend emits when a system media button is pressed. */
+const BUTTON_EVENT = "media-session-button";
+
+const runButton = (button: unknown) => {
+  const store = useMusicStore.getState();
+  switch (button) {
+    case "next":
+      store.playNext();
+      break;
+    case "previous":
+      store.playPrevious();
+      break;
+    case "play":
+      store.resume();
+      break;
+    case "pause":
+      store.pause();
+      break;
+  }
+};
 
 /**
- * Connects the music store to the OS media controls (the Windows flyout that
- * appears on the volume / media keys).
+ * Connects the music store to the system media controls (the Windows flyout
+ * that opens on the volume / media keys).
  *
- * WebView2 already publishes the embedded YouTube player to the system media
- * transport controls, so title and artwork show up on their own, but the
- * previous / next buttons stay disabled until a page registers
- * `previoustrack` / `nexttrack` handlers. The handlers call the store, so
- * shuffle history and loop mode behave exactly as the in-app buttons.
+ * The backend owns the controls (`media_session.rs`): WebView2's own
+ * integration is off, because it exposes the embedded YouTube player under the
+ * iframe's session, whose previous / next buttons nothing in the page can
+ * reach. This hook pushes what is playing to the backend and runs the buttons
+ * it reports through the store, so shuffle history and loop mode behave
+ * exactly as with the in-app buttons.
  *
  * Mount once at the app shell: the player stays alive on every tab, so the
  * controls have to work there too.
  */
 export const useMediaSession = () => {
   const isPlaying = useMusicStore((state) => state.isPlaying);
-  const hasTrack = useMusicStore((state) => state.currentVideoId !== null);
+  const videoId = useMusicStore((state) => state.currentVideoId);
+  const title = useMusicStore((state) =>
+    currentTrackTitle(
+      state.playlists.find((playlist) => playlist.id === state.activePlaylistId),
+      state.currentVideoId,
+    ),
+  );
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    const session = navigator.mediaSession;
-    const handlers: Record<SessionAction, () => void> = {
-      play: () => useMusicStore.getState().resume(),
-      pause: () => useMusicStore.getState().pause(),
-      previoustrack: () => useMusicStore.getState().playPrevious(),
-      nexttrack: () => useMusicStore.getState().playNext(),
-    };
-    for (const [action, handler] of Object.entries(handlers)) {
-      try {
-        session.setActionHandler(action as SessionAction, handler);
-      } catch {
-        // An action this engine does not support: the rest still register.
-      }
-    }
+    const unlisten = listen<string>(BUTTON_EVENT, (event) => runButton(event.payload));
     return () => {
-      for (const action of Object.keys(handlers)) {
-        try {
-          session.setActionHandler(action as SessionAction, null);
-        } catch {
-          // Nothing to undo.
-        }
-      }
+      void unlisten.then((fn) => fn());
     };
   }, []);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    navigator.mediaSession.playbackState = !hasTrack ? "none" : isPlaying ? "playing" : "paused";
-  }, [isPlaying, hasTrack]);
+    api.updateMediaSession({ videoId, title, playing: isPlaying }).catch((error: unknown) => {
+      console.error("media session update failed", error);
+    });
+  }, [videoId, title, isPlaying]);
 };

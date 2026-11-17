@@ -3,35 +3,37 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMusicStore } from "@/stores/music";
+
+const { listeners, updateMediaSession } = vi.hoisted(() => ({
+  listeners: new Map<string, (event: { payload: string }) => void>(),
+  updateMediaSession: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: (name: string, handler: (event: { payload: string }) => void) => {
+    listeners.set(name, handler);
+    return Promise.resolve(() => listeners.delete(name));
+  },
+}));
+vi.mock("@/lib/api", () => ({ api: { updateMediaSession } }));
+
 import { useMediaSession } from "./use-media-session";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-type Handler = (() => void) | null;
 
 const Probe = () => {
   useMediaSession();
   return null;
 };
 
+const press = (button: string) => listeners.get("media-session-button")?.({ payload: button });
+
 describe("useMediaSession", () => {
-  let handlers: Record<string, Handler>;
-  let fakeSession: { playbackState: string; setActionHandler: (a: string, h: Handler) => void };
   let root: Root;
-  let container: HTMLElement;
 
   beforeEach(() => {
-    handlers = {};
-    fakeSession = {
-      playbackState: "none",
-      setActionHandler: (action, handler) => {
-        handlers[action] = handler;
-      },
-    };
-    Object.defineProperty(navigator, "mediaSession", {
-      value: fakeSession,
-      configurable: true,
-    });
+    listeners.clear();
+    updateMediaSession.mockClear();
     useMusicStore.setState({
       playlists: [
         {
@@ -54,50 +56,57 @@ describe("useMediaSession", () => {
       playerInstance: null,
       hydrated: true,
     });
-    container = document.createElement("div");
-    root = createRoot(container);
+    root = createRoot(document.createElement("div"));
     act(() => root.render(<Probe />));
   });
 
   afterEach(() => {
     act(() => root.unmount());
-    Reflect.deleteProperty(navigator, "mediaSession");
   });
 
-  it("registers previous / next handlers that drive the store", () => {
-    handlers.nexttrack?.();
+  it("pushes the current track and play state to the backend", () => {
+    expect(updateMediaSession).toHaveBeenLastCalledWith({
+      videoId: "v1",
+      title: "one",
+      playing: true,
+    });
+    act(() => useMusicStore.setState({ isPlaying: false }));
+    expect(updateMediaSession).toHaveBeenLastCalledWith({
+      videoId: "v1",
+      title: "one",
+      playing: false,
+    });
+    act(() => useMusicStore.setState({ currentVideoId: null }));
+    expect(updateMediaSession).toHaveBeenLastCalledWith({
+      videoId: null,
+      title: null,
+      playing: false,
+    });
+  });
+
+  it("runs the next / previous buttons through the store", () => {
+    press("next");
     expect(useMusicStore.getState().currentVideoId).toBe("v2");
-    handlers.previoustrack?.();
+    press("previous");
     expect(useMusicStore.getState().currentVideoId).toBe("v1");
   });
 
-  it("registers play / pause handlers", () => {
-    handlers.pause?.();
+  it("runs the play / pause buttons through the store", () => {
+    press("pause");
     expect(useMusicStore.getState().isPlaying).toBe(false);
-    handlers.play?.();
+    press("play");
     expect(useMusicStore.getState().isPlaying).toBe(true);
   });
 
-  it("mirrors the store's playing state into playbackState", () => {
-    expect(fakeSession.playbackState).toBe("playing");
-    act(() => useMusicStore.setState({ isPlaying: false }));
-    expect(fakeSession.playbackState).toBe("paused");
-    act(() => useMusicStore.setState({ currentVideoId: null, isPlaying: false }));
-    expect(fakeSession.playbackState).toBe("none");
+  it("ignores a button it does not know", () => {
+    press("stop");
+    expect(useMusicStore.getState().currentVideoId).toBe("v1");
   });
 
-  it("clears the handlers on unmount", () => {
+  it("stops listening on unmount", async () => {
     act(() => root.unmount());
-    expect(handlers.nexttrack).toBeNull();
-    expect(handlers.previoustrack).toBeNull();
-    root = createRoot(container);
-  });
-
-  it("does nothing where the Media Session API is missing", () => {
-    act(() => root.unmount());
-    Reflect.deleteProperty(navigator, "mediaSession");
-    root = createRoot(container);
-    expect(() => act(() => root.render(<Probe />))).not.toThrow();
-    vi.restoreAllMocks();
+    await Promise.resolve();
+    expect(listeners.has("media-session-button")).toBe(false);
+    root = createRoot(document.createElement("div"));
   });
 });
