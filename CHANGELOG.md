@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.175.0 (2026-11-17)
+
+- **Ink can copy just an area right after `Alt + C`** (T-1316). Capturing the screen and then wanting only part of it used to mean going to the app to crop. After a capture is saved the overlay now stays up in an area-select mode: one drag copies that area to the clipboard (no file is written), and `Esc` or a plain click returns to the pen. `Alt + C` also works with nothing drawn, so a bare screenshot can be saved and cropped. The existing save behaviour is unchanged.
+- **The main window remembers its size, position and maximized state** (T-1275). It reopens where it was, is fitted back onto a monitor that still exists if the one it was on was removed, and is restored while hidden so it does not flicker. The state is saved before the app restarts for an update.
+- **Music's media keys and system overlay are driven from the app itself** (T-1273). Previous and next on the keyboard, headset or Windows media overlay now control the Music tab's playlist, handled in Rust so they keep working when the page is in the background. The shuffle button also keeps the same outline in both states and tells them apart by icon and label only.
+- **A failed update check no longer says "up to date"** (T-1315). The check used GitHub's REST API, which a shared office IP can exhaust, and every failure was shown as the latest version. The latest tag is now read from the `releases/latest` redirect, which has no rate limit, and a failure is reported in Settings with its reason. The automatic check on startup stays silent on failure and only logs it.
+
 ## 0.174.0 (2026-11-17)
 
 - **Music has a track search across every playlist** (T-1271). `Ctrl+F`, `/` or the magnifier in the playlist tab row opens a command-palette overlay that searches the title of every track in every playlist, grouped by playlist with the match in bold. Terms are matched all-at-once, ignoring case, full-width versus half-width forms and hiragana versus katakana, so a half-remembered title is enough. `Enter` or a click switches to that playlist and plays the track, without first starting the playlist's opening track, and next/previous and shuffle then follow that playlist's own order. The shortcut only reacts while the Music tab is on screen, and `/` is left alone while typing.
