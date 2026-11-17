@@ -1,8 +1,9 @@
 //! Screen-annotation ("ink") overlay, ported from the Desktop Ink app:
 //! double-press Alt and hold the second press to draw temporary strokes on
 //! the monitor under the cursor; releasing Alt clears them. Alt+S cycles the
-//! pen color; Alt+C saves the annotated screen as a capture (see `store`);
-//! Shift snaps strokes to horizontal/vertical.
+//! pen color; Alt+C saves the annotated screen as a capture (see `store`) and
+//! then lets one drag pick an area to copy to the clipboard (Esc goes back to
+//! the pen); Shift snaps strokes to horizontal/vertical.
 //!
 //! Windows-only (Raw Input keyboard listener); no-op stubs elsewhere.
 
