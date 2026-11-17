@@ -436,6 +436,12 @@ export const api = {
   exportPlaylistFile: (path: string, contents: string) =>
     invoke<void>("export_playlist_file", { path, contents }),
   importPlaylistFile: (path: string) => invoke<string>("import_playlist_file", { path }),
+  /** Pushes what is playing to the system media controls (the volume-key flyout). */
+  updateMediaSession: (update: {
+    videoId: string | null;
+    title: string | null;
+    playing: boolean;
+  }) => invoke<void>("update_media_session", { update }),
   fetchYoutubeTitle: (videoId: string) =>
     invoke<string>("fetch_youtube_title", { videoId }),
 

@@ -114,6 +114,12 @@ windows = { version = "0.61", features = [
     # writes on mapped network drives (see src-tauri/src/git.rs, T-0408).
     "Win32_Storage_FileSystem",
     "Win32_System_WindowsProgramming",
+    # music: system media transport controls (the volume-key flyout) on the
+    # main window — see src-tauri/src/media_session.rs (T-1273).
+    "Media",
+    "Foundation",
+    "Storage_Streams",
+    "Win32_System_WinRT",
 ] }
 
 # whisper-rs-sys 0.13.1 passes the MSVC-only /utf-8 flag to g++ on every

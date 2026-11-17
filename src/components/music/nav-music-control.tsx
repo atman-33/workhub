@@ -3,6 +3,7 @@ import { Hint } from "@/components/ui/hint";
 import { useT } from "@/lib/i18n";
 import { currentTrackTitle } from "@/lib/music/track-title";
 import { useMusicStore } from "@/stores/music";
+import { useMediaSession } from "./use-media-session";
 
 interface Props {
   /** Switches the app shell to the Music tab. */
@@ -19,6 +20,9 @@ interface Props {
  */
 export function NavMusicControl({ onOpenMusic }: Props) {
   const t = useT();
+  // This control is always mounted in the app shell, which is where the OS
+  // media controls need their handlers (even while it renders nothing).
+  useMediaSession();
   const isPlaying = useMusicStore((state) => state.isPlaying);
   const currentVideoId = useMusicStore((state) => state.currentVideoId);
   const pause = useMusicStore((state) => state.pause);
