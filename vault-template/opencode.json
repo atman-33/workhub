@@ -24,14 +24,6 @@
     ]
   },
   "mcp": {
-    "serena": {
-      "type": "local",
-      "command": [
-        "node",
-        ".opencode/mcp/serena-mcp-launcher.mjs"
-      ],
-      "enabled": true
-    },
     "context7": {
       "type": "local",
       "command": [
