@@ -38,8 +38,10 @@ paths:
   `await import()` inside the plugin factory, wrapped in try/catch — a host
   that does not resolve the package must make the plugin degrade, not fail to
   load. `secretary-plugin.ts` is the worked example.
-- The serena MCP launcher must keep `--python 3.11` (3.12+ breaks with an
-  OpenSSL error).
+- serena is not in `vault-template/opencode.json` (T-1359); it is opt-in
+  through the `mcp-serena` plugin. Its launcher
+  (`plugins/mcp-serena/mcp/serena-mcp-launcher.mjs`) must keep `--python 3.11`
+  (3.12+ breaks with an OpenSSL error).
 - Keep the Claude Code hook scripts (`plugins/engineering/hooks/scripts/*.mjs`)
   and their OpenCode mirrors (`vault-template/.opencode/plugins/*.ts` +
   `lib/project-context-core.ts`) behaviorally aligned — a matching-logic
