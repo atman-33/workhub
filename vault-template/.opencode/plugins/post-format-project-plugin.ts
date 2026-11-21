@@ -1,4 +1,4 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import {
   collectTouchedPaths,
   findSiblingTargetProject,
@@ -9,18 +9,28 @@ import {
   runFormatCommands,
 } from "./lib/project-context-core.ts";
 
-const postFormatProjectPlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  const configPath = workspaceRoot + "/.claude/project-context.json";
-  const projectConfig = loadProjectContextConfig(configPath);
+export default Plugin.define({
+  id: "post-format-project",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
 
-  return {
-    "tool.execute.after": async (input) => {
-      if (!isWriteTool(input.tool) || !projectConfig) {
+    await ctx.tool.hook("execute.after", (event) => {
+      if (event.status !== "completed") {
+        return;
+      }
+      if (!isWriteTool(event.tool)) {
         return;
       }
 
-      const touchedPaths = collectTouchedPaths(input.args);
+      // Re-read per call: the config may be (re)generated during the session.
+      const projectConfig = loadProjectContextConfig(
+        workspaceRoot + "/.claude/project-context.json",
+      );
+      if (!projectConfig) {
+        return;
+      }
+
+      const touchedPaths = collectTouchedPaths(event.input);
       for (const touchedPath of touchedPaths) {
         const target = findSiblingTargetProject(
           touchedPath,
@@ -38,9 +48,6 @@ const postFormatProjectPlugin: Plugin = async (ctx, _options) => {
 
         runFormatCommands(target.root, commands);
       }
-    },
-  };
-};
-
-export default postFormatProjectPlugin;
-export { postFormatProjectPlugin as server };
+    });
+  },
+});

@@ -1,39 +1,28 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import {
   buildProjectContext,
-  makeEarlyPartId,
   normalizePath,
 } from "./lib/project-context-core.ts";
 
-const injectProjectContextPlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  const configPath = workspaceRoot + "/.claude/project-context.json";
-  const projectContext = buildProjectContext(configPath);
-  const contextInjectedSessions = new Set<string>();
+export default Plugin.define({
+  id: "inject-project-context",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
+    const configPath = workspaceRoot + "/.claude/project-context.json";
+    const projectContext = buildProjectContext(configPath);
+    if (!projectContext) {
+      return;
+    }
 
-  return {
-    "chat.message": async (input, output) => {
-      if (contextInjectedSessions.has(input.sessionID)) {
+    const injectedSessions = new Set<string>();
+
+    await ctx.session.hook("prompt", (event) => {
+      if (injectedSessions.has(event.sessionID)) {
         return;
       }
-      contextInjectedSessions.add(input.sessionID);
+      injectedSessions.add(event.sessionID);
 
-      if (!projectContext) {
-        return;
-      }
-
-      output.parts.unshift({
-        id: makeEarlyPartId(),
-        sessionID: output.message.sessionID,
-        messageID: output.message.id,
-        type: "text",
-        text: projectContext,
-        // LLM-only: hidden from the TUI user bubble, still sent to the model (T-0342).
-        synthetic: true,
-      });
-    },
-  };
-};
-
-export default injectProjectContextPlugin;
-export { injectProjectContextPlugin as server };
+      event.prompt.text = `${projectContext}\n\n${event.prompt.text}`;
+    });
+  },
+});

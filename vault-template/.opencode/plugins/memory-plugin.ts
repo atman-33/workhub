@@ -1,12 +1,12 @@
-// OpenCode adapter for the workhub long-term memory engine (T-0060).
+// OpenCode adapter for the workhub long-term memory engine.
 //
 // Mirrors the Claude Code hooks shipped in the workhub plugin
 // (plugins/workhub/hooks/memory-capture.mjs / memory-inject.mjs) — keep the
 // two sides behaviorally aligned:
-//   - inject: on each user message, run the engine's `inject` command and
+//   - inject: on each user prompt, run the engine's `inject` command and
 //     prepend the returned context block (time summary + reminder on the
 //     session's first prompt, relevance-gated related memories every prompt).
-//   - capture: on session.idle, fetch the session's messages and hand them
+//   - capture: on session idle, read the session's transcript and hand it
 //     to the engine's `capture-json` command (pairing/noise filtering and
 //     background embedding live engine-side).
 //
@@ -16,8 +16,15 @@
 // with `node`. Everything no-ops silently until that setup has run, and the
 // whole feature can be turned off for OpenCode via the workhub app setting
 // `memory_opencode` (~/.workhub/config.json).
-import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, nodeExecutable, normalizePath, safeReadText } from "./lib/project-context-core.ts";
+import { Plugin } from "@opencode/plugin";
+import {
+  isChildSession,
+  nodeExecutable,
+  normalizePath,
+  readSessionMessages,
+  safeReadText,
+  stripInjectedBlocks,
+} from "./lib/project-context-core.ts";
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -27,7 +34,7 @@ const ENGINE_HOME = join(homedir(), ".workhub", "memory-engine");
 const ENGINE_CLI = join(ENGINE_HOME, "engine", "cli.mjs");
 const MARKER_PATH = join(ENGINE_HOME, ".setup-version");
 // Vector search loads an ONNX model (~2.5 s); leave generous headroom but
-// never let a wedged engine process hang the chat or the idle event.
+// never let a wedged engine process hang the chat or the idle handler.
 const ENGINE_TIMEOUT_MS = 30_000;
 
 function memoryEnabledForOpencode(): boolean {
@@ -57,8 +64,7 @@ function logMemory(cwd: string, line: string): void {
   try {
     const dir = join(cwd, ".opencode", "plugins", "logs");
     mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, "memory.log"), `${new Date().toISOString()} ${line}
-`);
+    appendFileSync(join(dir, "memory.log"), `${new Date().toISOString()} ${line}\n`);
   } catch {
     // nothing else to fall back to
   }
@@ -113,108 +119,114 @@ function runEngine(command: string, payload: unknown, cwd: string): Promise<stri
   });
 }
 
-interface MessageEntry {
-  info?: { role?: string; time?: { created?: number } };
-  parts?: { type?: string; text?: string; synthetic?: boolean }[];
+interface SimpleMessage {
+  role: string;
+  text: string;
+  timestamp: string;
 }
 
-function toSimpleMessages(entries: MessageEntry[]) {
-  return entries
-    .map((entry) => {
-      const role = entry.info?.role ?? "";
-      const text = (entry.parts ?? [])
-        .filter((p) => p.type === "text" && p.text && !p.synthetic)
-        .map((p) => p.text as string)
-        .join("\n")
-        .trim();
-      const created = entry.info?.time?.created;
-      const timestamp = typeof created === "number" ? new Date(created).toISOString() : "";
-      return { role, text, timestamp };
-    })
-    .filter((m) => m.role === "user" || m.role === "assistant");
-}
-
-const memoryPlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  // Session ids confirmed as sub-agent (or confirmed main) sessions.
-  const sessionKind = new Map<string, "main" | "child">();
-  const capturedAt = new Map<string, number>();
-
-  const isChildSession = async (sessionID: string): Promise<boolean> => {
-    const known = sessionKind.get(sessionID);
-    if (known) return known === "child";
-    let kind: "main" | "child" = "main";
-    try {
-      const result = await ctx.client.session.get({ path: { id: sessionID } });
-      const session = (result as { data?: { parentID?: string } | undefined }).data;
-      if (session && typeof session.parentID === "string" && session.parentID) {
-        kind = "child";
-      }
-    } catch {
-      // If the lookup fails, treat as a main session (never block the chat).
+function toSimpleMessages(entries: unknown[]): SimpleMessage[] {
+  const messages: SimpleMessage[] = [];
+  for (const entry of entries) {
+    const msg = entry as {
+      type?: string;
+      text?: unknown;
+      content?: unknown;
+      time?: { created?: unknown };
+    };
+    const timestamp =
+      typeof msg?.time?.created === "number"
+        ? new Date(msg.time.created).toISOString()
+        : "";
+    if (msg?.type === "user" && typeof msg.text === "string") {
+      // Strip harness-injected blocks (memory context, project guidance,
+      // persona ...) so the engine never learns from its own output.
+      const text = stripInjectedBlocks(msg.text).trim();
+      if (!text) continue;
+      messages.push({ role: "user", text, timestamp });
+    } else if (msg?.type === "assistant" && Array.isArray(msg.content)) {
+      const text = stripInjectedBlocks(
+        msg.content
+          .filter(
+            (p): p is { type: string; text: string } =>
+              typeof p === "object" &&
+              p !== null &&
+              (p as { type?: unknown }).type === "text" &&
+              typeof (p as { text?: unknown }).text === "string",
+          )
+          .map((p) => p.text)
+          .join("\n"),
+      ).trim();
+      if (!text) continue;
+      messages.push({ role: "assistant", text, timestamp });
     }
-    sessionKind.set(sessionID, kind);
-    return kind === "child";
-  };
+  }
+  return messages;
+}
 
-  return {
-    "chat.message": async (input, output) => {
-      const sessionID = input.sessionID ?? output.message.sessionID;
+export default Plugin.define({
+  id: "memory",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
+    // Session ids confirmed as sub-agent (or confirmed main) sessions.
+    const sessionKind = new Map<string, boolean>();
+    const capturedAt = new Map<string, number>();
+
+    await ctx.session.hook("prompt", async (event) => {
+      const sessionID = event.sessionID;
       if (!sessionID || !engineReady()) return;
-      if (await isChildSession(sessionID)) return;
+      if (await isChildSession(ctx, sessionID, sessionKind)) return;
 
-      const prompt = (output.parts ?? [])
-        .filter((p) => p.type === "text" && "text" in p && p.text && !p.synthetic)
-        .map((p) => (p as { text: string }).text)
-        .join("\n")
-        .trim();
+      const prompt = event.prompt.text.trim();
+      if (!prompt) return;
 
       const text = await runEngine("inject", { prompt, session_id: sessionID }, workspaceRoot);
       if (!text) return;
 
-      output.parts.unshift({
-        id: makeEarlyPartId(),
-        sessionID: output.message.sessionID,
-        messageID: output.message.id,
-        type: "text",
-        text: `<workhub-memory>\n${text}\n</workhub-memory>`,
-        // LLM-only: hidden from the TUI user bubble, still sent to the model (T-0342).
-        synthetic: true,
-      });
-    },
+      event.prompt.text = `<workhub-memory>\n${text}\n</workhub-memory>\n\n${event.prompt.text}`;
+    });
 
-    event: async ({ event }) => {
-      if (event.type !== "session.idle") return;
-      const sessionID = (event.properties as { sessionID?: string } | undefined)?.sessionID;
-      if (!sessionID || !engineReady()) return;
-      if (await isChildSession(sessionID)) return;
-      // session.idle fires after every turn; captures are deduplicated
-      // engine-side, so a short cooldown just avoids useless process spawns.
-      const last = capturedAt.get(sessionID) ?? 0;
-      if (Date.now() - last < 60_000) return;
-      capturedAt.set(sessionID, Date.now());
+    const controller = new AbortController();
+    void (async () => {
+      for await (const event of ctx.event.subscribe({
+        types: ["session.idle"],
+        signal: controller.signal,
+      })) {
+        // SessionIdle carries the id in `data`; tolerate the legacy V1
+        // `properties` shape so a client skew fails open (skips, never throws).
+        const data = (event as unknown as { data?: unknown; properties?: unknown }).data ??
+          (event as unknown as { properties?: unknown }).properties;
+        const sessionID =
+          typeof data === "object" && data !== null
+            ? (data as { sessionID?: unknown }).sessionID
+            : undefined;
+        if (typeof sessionID !== "string" || !sessionID || !engineReady()) continue;
+        if (await isChildSession(ctx, sessionID, sessionKind)) continue;
+        // session.idle fires after every turn; captures are deduplicated
+        // engine-side, so a short cooldown just avoids useless process spawns.
+        const last = capturedAt.get(sessionID) ?? 0;
+        if (Date.now() - last < 60_000) continue;
+        capturedAt.set(sessionID, Date.now());
 
-      try {
-        const result = await ctx.client.session.messages({ path: { id: sessionID } });
-        const entries = (result as { data?: MessageEntry[] | undefined }).data ?? [];
-        const messages = toSimpleMessages(entries);
-        if (!messages.length) return;
-        // Success is not logged: `memory-doctor` reads any entry in memory.log
-        // as a problem, and the engine already records a successful capture in
-        // its capture health (T-0371). runEngine logs the failures.
-        await runEngine(
-          "capture-json",
-          { session_id: sessionID, project: workspaceRoot, messages },
-          workspaceRoot,
-        );
-      } catch (e) {
-        // Capture is best-effort; never surface an error into the session —
-        // but do leave a trace, or a silent failure stays silent forever.
-        logMemory(workspaceRoot, `capture-json: ${(e as Error).message}`);
+        try {
+          const messages = toSimpleMessages(await readSessionMessages(ctx, sessionID));
+          if (!messages.length) continue;
+          // Success is not logged: `memory-doctor` reads any entry in memory.log
+          // as a problem, and the engine already records a successful capture in
+          // its capture health (T-0371). runEngine logs the failures.
+          await runEngine(
+            "capture-json",
+            { session_id: sessionID, project: workspaceRoot, messages },
+            workspaceRoot,
+          );
+        } catch (e) {
+          // Capture is best-effort; never surface an error into the session —
+          // but do leave a trace, or a silent failure stays silent forever.
+          logMemory(workspaceRoot, `capture-json: ${(e as Error).message}`);
+        }
       }
-    },
-  };
-};
+    })();
 
-export default memoryPlugin;
-export { memoryPlugin as server };
+    return () => controller.abort();
+  },
+});

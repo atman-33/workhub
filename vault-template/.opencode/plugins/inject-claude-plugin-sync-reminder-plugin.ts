@@ -1,5 +1,8 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import { makeEarlyPartId, normalizePath } from "./lib/project-context-core.ts";
+import { Plugin } from "@opencode/plugin";
+import {
+  isChildSession,
+  normalizePath,
+} from "./lib/project-context-core.ts";
 import {
   buildReminderXml,
   detectFullDrift,
@@ -8,8 +11,8 @@ import {
 // Injects a one-shot reminder block at the start of the first chat message of
 // each MAIN session when Claude Code plugin artifacts (skills/commands/agents,
 // plus OpenCode-only custom tools) are out of sync with their OpenCode copies.
-// Sub-agent (task tool) sessions are skipped:
-// they carry a parentID on their Session record, while the main session does not.
+// Sub-agent sessions are skipped: they run as child sessions carrying a
+// parentID, while the main session does not.
 //
 // Drift categories reported:
 //   - missing      : source has it, target doesn't (new artifact, never copied)
@@ -29,27 +32,23 @@ import {
 // invokes `claude plugin list`; an in-memory tmp cache backs it (TTL defaults to
 // 10 minutes, configurable via CLAUDE_PLUGIN_SYNC_CACHE_TTL_MS). If `claude` is
 // unavailable, user-scope drift is skipped with a note.
-const injectClaudePluginSyncReminderPlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  const injected = new Set<string>();
+export default Plugin.define({
+  id: "inject-claude-plugin-sync-reminder",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
+    const injected = new Set<string>();
+    const childCache = new Map<string, boolean>();
 
-  return {
-    "chat.message": async (input, output) => {
-      const sessionID = input.sessionID;
-      if (!sessionID || injected.has(sessionID)) {
+    await ctx.session.hook("prompt", async (event) => {
+      const sessionID = event.sessionID;
+      if (injected.has(sessionID)) {
         return;
       }
 
       // Sub-agent filter: skip child sessions so we don't nag inside task runs.
-      try {
-        const result = await ctx.client.session.get({ path: { id: sessionID } });
-        const session = (result as { data?: { parentID?: string } | undefined }).data;
-        if (session && typeof session.parentID === "string" && session.parentID) {
-          injected.add(sessionID);
-          return;
-        }
-      } catch {
-        // If session lookup fails, treat as main session (don't block the chat).
+      if (await isChildSession(ctx, sessionID, childCache)) {
+        injected.add(sessionID);
+        return;
       }
 
       let report;
@@ -62,8 +61,9 @@ const injectClaudePluginSyncReminderPlugin: Plugin = async (ctx, _options) => {
         return;
       }
 
-      // Mark injected AFTER we've cleared the lookups so a transient error doesn't
-      // repeatedly re-trigger the reminder on every message of this session.
+      // Mark injected AFTER we have cleared the lookups so a transient error
+      // doesn't repeatedly re-trigger the reminder on every message of this
+      // session.
       injected.add(sessionID);
 
       const text = buildReminderXml(report);
@@ -71,18 +71,7 @@ const injectClaudePluginSyncReminderPlugin: Plugin = async (ctx, _options) => {
         return;
       }
 
-      output.parts.unshift({
-        id: makeEarlyPartId(),
-        sessionID: output.message.sessionID,
-        messageID: output.message.id,
-        type: "text",
-        text,
-        // LLM-only: hidden from the TUI user bubble, still sent to the model (T-0342).
-        synthetic: true,
-      });
-    },
-  };
-};
-
-export default injectClaudePluginSyncReminderPlugin;
-export { injectClaudePluginSyncReminderPlugin as server };
+      event.prompt.text = `${text}\n\n${event.prompt.text}`;
+    });
+  },
+});
