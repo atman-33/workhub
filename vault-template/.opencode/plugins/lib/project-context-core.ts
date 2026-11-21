@@ -1,5 +1,6 @@
 // Shared helpers for the OpenCode plugins that mirror the Claude Code
 // engineering hook scripts.
+import type { Plugin } from "@opencode/plugin";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
@@ -781,4 +782,116 @@ function stripQuotes(value: string): string {
 
 function stripFrontMatter(content: string): string {
   return content.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+}
+
+// Blocks this harness injects into the user prompt via V2 `prompt` hooks.
+// Memory capture strips them back out so the engine never learns from its own
+// (or another plugin's) injected context. Tool-result guidance
+// (`injected-project-guidance`, `extended-rules`, ...) never reaches session
+// messages, so it needs no stripping here.
+const INJECTED_BLOCK_TAGS = [
+  "project-context",
+  "owner-identity",
+  "secretary-agent",
+  "workhub-memory",
+  "claude-plugin-sync-drift",
+];
+
+export function stripInjectedBlocks(text: string): string {
+  let output = text;
+  for (const tag of INJECTED_BLOCK_TAGS) {
+    output = output.replace(
+      new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "g"),
+      "",
+    );
+  }
+  return output.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+type ToolTextContent = { type: "text"; text: string };
+
+// Append harness guidance to a V2 tool result's content, preserving whatever
+// shape the tool returned (plain string, structured content parts, or none).
+export function appendTextToToolContent<C>(
+  content: string | readonly C[] | undefined,
+  suffix: string,
+): string | (C | ToolTextContent)[] {
+  if (typeof content === "string") {
+    return content + suffix;
+  }
+  if (Array.isArray(content)) {
+    return [...content, { type: "text", text: suffix }];
+  }
+  return suffix;
+}
+
+export interface SessionIdentity {
+  parentID?: string;
+  agent?: string;
+}
+
+type PluginSession = Pick<Plugin.Context, "session">;
+
+// Session identity for sub-agent filtering. Unwraps defensively: the client
+// returns the info object directly, but a wrapped `{ data }` shape is
+// tolerated so a client/host skew fails open (treated as main session).
+export async function readSessionIdentity(
+  ctx: PluginSession,
+  sessionID: string,
+): Promise<SessionIdentity> {
+  try {
+    const raw = (await ctx.session.get({ sessionID })) as unknown;
+    const info = (
+      typeof raw === "object" &&
+      raw !== null &&
+      "data" in raw &&
+      typeof (raw as { data?: unknown }).data === "object"
+        ? (raw as { data: SessionIdentity }).data
+        : raw
+    ) as SessionIdentity;
+    return {
+      parentID:
+        typeof info?.parentID === "string" && info.parentID
+          ? info.parentID
+          : undefined,
+      agent: typeof info?.agent === "string" ? info.agent : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+export async function isChildSession(
+  ctx: PluginSession,
+  sessionID: string,
+  cache: Map<string, boolean>,
+): Promise<boolean> {
+  const known = cache.get(sessionID);
+  if (known !== undefined) {
+    return known;
+  }
+  const { parentID } = await readSessionIdentity(ctx, sessionID);
+  const child = parentID !== undefined;
+  cache.set(sessionID, child);
+  return child;
+}
+
+// Session transcript for memory capture. Same defensive unwrap as above.
+export async function readSessionMessages(
+  ctx: PluginSession,
+  sessionID: string,
+): Promise<unknown[]> {
+  try {
+    const raw = (await ctx.session.context({ sessionID })) as unknown;
+    if (Array.isArray(raw)) {
+      return raw;
+    }
+    const data =
+      typeof raw === "object" && raw !== null && "data" in raw
+        ? (raw as { data?: unknown }).data
+        : undefined;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }

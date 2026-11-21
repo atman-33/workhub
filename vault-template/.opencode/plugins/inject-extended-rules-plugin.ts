@@ -1,5 +1,6 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import {
+  appendTextToToolContent,
   buildExtendedRuleCandidates,
   collectTouchedPaths,
   createSessionState,
@@ -19,26 +20,23 @@ import {
 // them to files in ANY repo via cwd-relative globs (`paths: ../repo/**`) or
 // project-name globs (`paths: <project-name>/src/**`, resolved against the
 // project roots registered in `.claude/project-context.json`).
-//
-// Like inject-target-rules-plugin.ts, matching rules are appended to the tool
-// result in `tool.execute.after` so they reach the model in the SAME turn the
-// file is touched (see that plugin for why the former
-// `experimental.chat.system.transform` flush arrived one turn late). De-dup is
-// keyed per sessionID (sub-agents run in distinct child sessions), tracked in
-// SessionState.loadedExtendedRules.
-const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  const sessionState = new Map<string, SessionState>();
+export default Plugin.define({
+  id: "inject-extended-rules",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
+    const sessionState = new Map<string, SessionState>();
 
-  return {
-    "tool.execute.after": async (input, output) => {
-      if (!isFileMutationTool(input.tool)) {
+    await ctx.tool.hook("execute.after", (event) => {
+      if (event.status !== "completed") {
+        return;
+      }
+      if (!isFileMutationTool(event.tool)) {
         return;
       }
 
-      const state = getSessionState(sessionState, input.sessionID);
+      const state = getSessionState(sessionState, event.sessionID);
       const blocks: string[] = [];
-      const touchedPaths = collectTouchedPaths(input.args);
+      const touchedPaths = collectTouchedPaths(event.input);
       // Re-read per call: the config may be (re)generated during the session.
       const config = loadProjectContextConfig(
         workspaceRoot + "/.claude/project-context.json",
@@ -60,8 +58,7 @@ const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
         return;
       }
 
-      output.output = [
-        output.output,
+      const suffix = [
         "",
         '<injected-project-guidance source="inject-extended-rules-plugin">',
         "The tool call above touched a file covered by workspace extended rules.",
@@ -70,9 +67,13 @@ const injectExtendedRulesPlugin: Plugin = async (ctx, _options) => {
         blocks.join("\n\n"),
         "</injected-project-guidance>",
       ].join("\n");
-    },
-  };
-};
+      event.result = {
+        ...event.result,
+        content: appendTextToToolContent(event.result.content, suffix),
+      };
+    });
+  },
+});
 
 function getSessionState(
   sessionState: Map<string, SessionState>,
@@ -111,6 +112,3 @@ function collectExtendedRules(
     state.loadedExtendedRules.add(rule.path);
   }
 }
-
-export default injectExtendedRulesPlugin;
-export { injectExtendedRulesPlugin as server };

@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "1.15.10",
+    "@opencode/plugin": "2.3.2",
     "@tailwindcss/vite": "^4",
     "@tauri-apps/cli": "^2",
     "@types/node": "^22.20.0",

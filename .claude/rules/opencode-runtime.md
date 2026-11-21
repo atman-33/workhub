@@ -11,9 +11,25 @@ paths:
   `npm run check:opencode` and confirm it passes. After editing any `.mjs`
   under `.opencode/scripts/` or `.opencode/mcp/`, run `node --check <file>`.
 - These files are deployed into user vaults (copy-if-missing via
-  `init_vault`) and run there with **no node_modules**: plugins may use
-  type-only imports from `@opencode-ai/plugin` (erased at runtime) and Node
-  built-ins, never runtime npm dependencies.
+  `init_vault`) and run there with **no node_modules**: plugins import the
+  `Plugin` value from `@opencode/plugin` (host-resolved at runtime; the root
+  `devDependencies` pin exists so `check:opencode` typechecks) and Node
+  built-ins, never other runtime npm dependencies.
+- Every plugin is `export default Plugin.define({ id, setup })` with a single
+  default export (no `server` alias). Inside `setup`: the workspace root is
+  `ctx.location.directory`; session injection uses
+  `ctx.session.hook("prompt")` (prepend to `event.prompt.text`) and
+  `ctx.session.hook("context")` (push to `event.system`); tool-result guidance
+  uses `ctx.tool.hook("execute.after")` with `appendTextToToolContent()` from
+  `lib/project-context-core.ts`; custom tools use `ctx.tool.transform`;
+  `session.idle` uses `ctx.event.subscribe`; shell env uses
+  `ctx.shell.hook("create.before")`. Session identity and transcripts go
+  through `readSessionIdentity` / `isChildSession` / `readSessionMessages`
+  from the lib — never `ctx.client.session` shapes or `event.properties`.
+- A host without the expected vault state must make the plugin no-op, not fail
+  to load: return early when there is no vault, no decision policy, or no
+  engine. There is no dynamic-`import()` degradation path — opencode
+  1.18.35+ loads only V2, so the API itself is guaranteed.
 - Every relative import in `vault-template/.opencode/` must carry an explicit
   file extension (`.ts` for sibling sources, `.mjs` for the sync scripts).
   The opencode CLI runs plugins under Bun (which resolves extensionless
@@ -33,11 +49,6 @@ paths:
   obsidian, persona — to the extent enabled).
   Agents are rewritten into OpenCode's frontmatter on the way (`claudeAgentToOpenCode` in the sync
   core); the plugin's `agents/*.md` stays the single source.
-- Runtime values from `@opencode-ai/plugin` (the `tool` helper, and the zod
-  re-export on `tool.schema`) may only be reached through a dynamic
-  `await import()` inside the plugin factory, wrapped in try/catch — a host
-  that does not resolve the package must make the plugin degrade, not fail to
-  load. `secretary-plugin.ts` is the worked example.
 - serena is not in `vault-template/opencode.json` (T-1359); it is opt-in
   through the `mcp-serena` plugin. Its launcher
   (`plugins/mcp-serena/mcp/serena-mcp-launcher.mjs`) must keep `--python 3.11`

@@ -1,16 +1,15 @@
-// Re-injects a short "reply in <lang>" reminder into every model turn via
-// experimental.chat.system.transform. Unlike the rule-injection plugins, this
-// is not de-duped: it runs EVERY turn so the instruction can never drift out
+// Re-injects a short "reply in <lang>" reminder into every model turn via the
+// session `context` hook. Unlike the rule-injection plugins, this is not
+// de-duped: it runs EVERY model request so the instruction can never drift out
 // of context in long sessions.
 //
 // Settings come from the workhub app, with the same precedence the Claude
-// Code side uses (plugins/workhub/hooks/response-language.mjs, added
-// alongside this rewrite in T-0388):
+// Code side uses (plugins/workhub/hooks/response-language.mjs):
 //
 //   1. The configured vault's `.workhub/settings.json` (`language` /
 //      `response_language_inject`) — vault resolved the same way
-//      secretary-plugin.ts does: WORKHUB_VAULT, else ctx.directory when it is
-//      itself a vault, else the app config's `vault_path`.
+//      secretary-plugin.ts does: WORKHUB_VAULT, else ctx.location.directory
+//      when it is itself a vault, else the app config's `vault_path`.
 //   2. `~/.workhub/config.json` -> `settings.language`.
 //   3. `~/.workhub/config.json` -> `settings.task_language` (pre-T-0388 key,
 //      in case the app itself has not been updated yet).
@@ -22,15 +21,7 @@
 //
 // A small append-only log (.opencode/plugins/logs/inject-response-language.log)
 // is written so users can visually confirm injection actually happened (tail -f).
-//
-// Scope: previously Claude-Code-side was said not to need a mirror, because
-// AGENTS.md instructed Claude Code natively. That reasoning did not hold up in
-// practice — static instructions alone were not enough to stop a session
-// drifting into English mid-way — so Claude Code now also injects, via the
-// hook above. This file's job is unchanged: do the same for OpenCode, reading
-// straight from the settings files rather than from an intermediate
-// response-language.json (that file is retired by this rewrite).
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import { normalizePath } from "./lib/project-context-core.ts";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -112,43 +103,39 @@ function resolveResponseLanguage(workspaceRoot: string): ResolvedLanguage | null
   return null;
 }
 
-const injectResponseLanguagePlugin: Plugin = async (ctx, _options) => {
-  const workspaceRoot = normalizePath(ctx.directory);
-  const logDir = join(workspaceRoot, ".opencode", "plugins", "logs");
-  const logPath = join(logDir, "inject-response-language.log");
+export default Plugin.define({
+  id: "inject-response-language",
+  async setup(ctx) {
+    const workspaceRoot = normalizePath(ctx.location.directory);
+    const logDir = join(workspaceRoot, ".opencode", "plugins", "logs");
+    const logPath = join(logDir, "inject-response-language.log");
 
-  const turnBySession = new Map<string, number>();
+    const turnBySession = new Map<string, number>();
 
-  return {
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) {
-        return;
-      }
+    await ctx.session.hook("context", (event) => {
       const resolved = resolveResponseLanguage(workspaceRoot);
       if (!resolved || !resolved.inject) {
         return;
       }
 
-      const turn = (turnBySession.get(input.sessionID) ?? 0) + 1;
-      turnBySession.set(input.sessionID, turn);
+      const turn = (turnBySession.get(event.sessionID) ?? 0) + 1;
+      turnBySession.set(event.sessionID, turn);
 
       const name = languageName(resolved.language);
-      output.system.push(
-        `<response-language>Reply to the user in ${name} — every message, short or long. Code, comments, commit messages and repository documents follow their own rules.</response-language>`,
-      );
+      event.system.push({
+        type: "text",
+        text: `<response-language>Reply to the user in ${name} — every message, short or long. Code, comments, commit messages and repository documents follow their own rules.</response-language>`,
+      });
 
       try {
         mkdirSync(logDir, { recursive: true });
         appendFileSync(
           logPath,
-          `${new Date().toISOString()}\tsession=${input.sessionID}\tturn=${turn}\tlang=${resolved.language}\n`,
+          `${new Date().toISOString()}\tsession=${event.sessionID}\tturn=${turn}\tlang=${resolved.language}\n`,
         );
       } catch {
         // Logging is best-effort; never break the turn on a log failure.
       }
-    },
-  };
-};
-
-export default injectResponseLanguagePlugin;
-export { injectResponseLanguagePlugin as server };
+    });
+  },
+});

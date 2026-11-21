@@ -1,7 +1,7 @@
 // Supplies CLAUDE_PLUGIN_ROOT to every shell command OpenCode runs, pointing at
 // the workhub plugin's source tree.
 //
-// Why: the workhub skills call `node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs"`.
+// Why: the workhub skills call `node "${CLAUDE_PLUGIN_ROOT}/scripts/task-cli.mjs`.
 // Claude Code sets that variable; OpenCode does not, and the skill sync copies
 // only `skills/<name>/`, so `scripts/` (and the `lib/` and `hooks/lib.mjs` it
 // imports) never reach OpenCode. Rather than copy a second tree that would go
@@ -11,23 +11,22 @@
 // run. A variable already set (an override, or a Claude Code child process)
 // wins, and a missing tree sets nothing, so a machine without the plugin
 // behaves exactly as before.
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { workhubPluginRoot } from "../scripts/lib/claude-plugin-sync-core.mjs";
 
-const pluginRootEnvPlugin: Plugin = async (_ctx, _options) => {
-  return {
-    "shell.env": async (_input, output) => {
-      if (output.env.CLAUDE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT) {
+export default Plugin.define({
+  id: "plugin-root-env",
+  async setup(ctx) {
+    await ctx.shell.hook("create.before", (event) => {
+      if (event.env.CLAUDE_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT) {
         return;
       }
       const root = workhubPluginRoot();
       if (existsSync(join(root, "scripts", "task-cli.mjs"))) {
-        output.env.CLAUDE_PLUGIN_ROOT = root;
+        event.env.CLAUDE_PLUGIN_ROOT = root;
       }
-    },
-  };
-};
-
-export default pluginRootEnvPlugin;
+    });
+  },
+});
