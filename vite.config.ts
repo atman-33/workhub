@@ -11,6 +11,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    // Mod tests run under `claude plugin test` (they import "claude-code/testing",
+    // which only that runner provides), not under vitest.
+    exclude: ["**/node_modules/**", "**/dist/**", "plugins/workhub-claude-mods/**"],
+  },
   clearScreen: false,
   build: {
     rollupOptions: {
