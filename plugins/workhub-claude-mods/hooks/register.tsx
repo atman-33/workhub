@@ -3,6 +3,7 @@ import type { Register } from 'claude-code'
 const PANE = 'workhub-tasks'
 const REFRESH_MS = 15000
 const FILTER_KEY = 'projectFilter'
+const INBOX_KEY = 'showInbox'
 const ALL = '__all__'
 const NONE = '__none__' // tasks with no `project`
 
@@ -30,6 +31,8 @@ const ICON_BODY: Record<string, string> = {
   review: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   todo: '<circle cx="12" cy="12" r="9"/>',
   done: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  inbox:
+    '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 }
 
@@ -43,11 +46,13 @@ function svg(name: string, color: string): string {
   )
 }
 
-// Sections in display order. inbox is deliberately absent: it holds what is parked.
+// Sections in display order. Inbox holds what is parked, so the pane hides it
+// until the person turns it on.
 const SECTIONS = [
   { status: 'doing', icon: 'doing', color: '#3b82f6', emoji: '🔵', label: 'Doing' },
   { status: 'review', icon: 'review', color: '#a855f7', emoji: '🟣', label: 'Review' },
   { status: 'todo', icon: 'todo', color: GRAY, emoji: '⚪', label: 'ToDo' },
+  { status: 'inbox', icon: 'inbox', color: '#a1a1aa', emoji: '📥', label: 'Inbox' },
   { status: 'done', icon: 'done', color: '#22c55e', emoji: '✅', label: 'Done' },
 ] as const
 
@@ -186,6 +191,81 @@ async function openInObsidian($: any, path: string) {
   }
 }
 
+// ---------------------------------------------------------------- status changes
+// The status is changed by the workhub plugin's own task-cli, which owns the
+// frontmatter rules (the completion stamp, the archive move, the index). Its
+// folder is versioned, so take the newest installed one.
+let cliPath: string | undefined
+
+async function findCli($: any): Promise<string | undefined> {
+  if (cliPath && (await $.fs.exists(cliPath))) return cliPath
+  try {
+    const home = norm(
+      (await $.process.run(['node', '-p', "require('os').homedir()"])).stdout.trim(),
+    )
+    const root = `${home}/.claude/plugins/cache/workhub-marketplace/workhub`
+    const versions = (await $.fs.list(root))
+      .filter((d: any) => d.kind === 'dir')
+      .map((d: any) => d.name)
+      .sort((a: string, b: string) => {
+        const x = a.split('.').map(Number)
+        const y = b.split('.').map(Number)
+        for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0)
+        return 0
+      })
+    for (const v of versions) {
+      const path = `${root}/${v}/scripts/task-cli.mjs`
+      if (await $.fs.exists(path)) return (cliPath = path)
+    }
+  } catch {
+    // fall through: no CLI found
+  }
+  return undefined
+}
+
+type Action = { key: string; label: string; args: (id: string) => string[]; confirm?: boolean }
+
+const ACTIONS: Record<string, Action> = {
+  doing: { key: 'doing', label: 'Doing', args: id => ['update', id, '--status', 'doing'] },
+  todo: { key: 'todo', label: 'ToDo', args: id => ['update', id, '--status', 'todo'] },
+  inbox: { key: 'inbox', label: 'Inbox', args: id => ['update', id, '--status', 'inbox'] },
+  done: {
+    key: 'done',
+    label: 'Done',
+    args: id => ['update', id, '--status', 'done'],
+    confirm: true,
+  },
+  archive: { key: 'archive', label: 'Archive', args: id => ['archive', id], confirm: true },
+}
+
+// What each status can move to. Done and Archive ask for a second press.
+const MOVES: Record<string, string[]> = {
+  inbox: ['todo', 'archive'],
+  todo: ['doing', 'inbox', 'archive'],
+  doing: ['inbox', 'archive'],
+  review: ['done', 'inbox', 'archive'],
+  done: ['archive'],
+}
+
+async function runAction($: any, vault: string, id: string, action: Action): Promise<boolean> {
+  const cli = await findCli($)
+  if (!cli) {
+    $.ui.toast('workhub plugin (task-cli) not found; enable the workhub plugin')
+    return false
+  }
+  try {
+    const r = await $.process.run(['node', cli, ...action.args(id), '--vault', vault])
+    if (r.exitCode !== 0) {
+      $.ui.toast(`${action.label} failed: ${String(r.stderr || r.stdout).trim().split('\n')[0]}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    $.ui.toast(`${action.label} failed: ${String(err)}`)
+    return false
+  }
+}
+
 // ---------------------------------------------------------------- mod
 export const register: Register = on => {
   // True once the person closed the pane; the band below then offers it back.
@@ -194,6 +274,11 @@ export const register: Register = on => {
   let filter: string | undefined
   // The vault the session runs in; undefined means the mod does nothing.
   let vault: string | undefined
+  // Whether the Inbox section is shown; read from $.store on the first draw.
+  let showInbox: boolean | undefined
+  // The row whose action menu is open, and the action awaiting a second press.
+  let openRow: string | undefined
+  let pending: string | undefined // `<id>:<action key>`
 
   on('session.start', async ($, e, next) => {
     vault = await findVault($)
@@ -233,7 +318,7 @@ export const register: Register = on => {
     const { Box, Text, Button, Svg } = $.ui.resolve(e) as any
     const { tasks } = await load($, vault)
     // What is in flight, not what is finished: one icon and count per status.
-    const live = SECTIONS.filter(s => s.status !== 'done')
+    const live = SECTIONS.filter(s => s.status !== 'done' && s.status !== 'inbox')
       .map(s => ({ s, n: tasks.filter(t => t.status === s.status).length }))
       .filter(x => x.n > 0)
 
@@ -274,15 +359,18 @@ export const register: Register = on => {
       const saved = await $.store.get(FILTER_KEY)
       filter = typeof saved === 'string' ? saved : ALL
     }
+    if (showInbox === undefined) showInbox = (await $.store.get(INBOX_KEY)) === true
 
     const byId = (a: Task, b: Task) => a.id.localeCompare(b.id)
-    // What the pane shows at all: inbox never, a done task only when it was
-    // finished today.
+    // What the pane shows at all: inbox only when switched on, a done task only
+    // when it was finished today.
+    const inboxCount = tasks.filter(t => t.status === 'inbox').length
     const shown = tasks.filter(
       t =>
         t.status === 'doing' ||
         t.status === 'review' ||
         t.status === 'todo' ||
+        (t.status === 'inbox' && showInbox) ||
         (t.status === 'done' && t.completed.startsWith(today)),
     )
 
@@ -308,9 +396,10 @@ export const register: Register = on => {
       doing: inScope.filter(t => t.status === 'doing').sort(byId),
       review: inScope.filter(t => t.status === 'review').sort(byId),
       todo: inScope.filter(t => t.status === 'todo').sort(byId),
+      inbox: inScope.filter(t => t.status === 'inbox').sort(byId),
       done: inScope.filter(t => t.status === 'done').sort(byId),
     }
-    const total = inScope.length
+    const total = inScope.filter(t => t.status !== 'inbox').length
 
     // A Button takes only a label or Text, never an Svg, and a Link takes only
     // https. So the openers are plain text buttons: the task id opens the task
@@ -333,9 +422,26 @@ export const register: Register = on => {
             }}
           />
         )}
-        <Text bold>
-          Done {rows.done.length} / {total}
-        </Text>
+        <Box>
+          <Text bold>
+            Done {rows.done.length} / {total}
+          </Text>
+          {(inboxCount > 0 || showInbox) && (
+            <Box marginLeft={2}>
+              <Button
+                key="inbox-toggle"
+                label={`${showInbox ? '▾' : '▸'} Inbox (${inboxCount})`}
+                plain
+                dimColor
+                onPress={async () => {
+                  showInbox = !showInbox
+                  await $.store.set(INBOX_KEY, showInbox)
+                  $.ui.invalidate('ui.render')
+                }}
+              />
+            </Box>
+          )}
+        </Box>
         {SECTIONS.map(s => {
           const list = rows[s.status]
           if (list.length === 0) return null
@@ -353,7 +459,8 @@ export const register: Register = on => {
                 </Text>
               </Box>
               {list.map(t => (
-                <Box key={t.id}>
+                <Box key={t.id} flexDirection="column">
+                <Box>
                   <Box flexShrink={0}>
                     <Text>{'  '}</Text>
                     <Button
@@ -382,6 +489,49 @@ export const register: Register = on => {
                       />
                     </Box>
                   )}
+                  <Box flexShrink={0} marginLeft={1}>
+                    <Button
+                      key={`${t.id}-menu`}
+                      label="⋯"
+                      plain
+                      dimColor
+                      onPress={() => {
+                        openRow = openRow === t.id ? undefined : t.id
+                        pending = undefined
+                        $.ui.invalidate('ui.render')
+                      }}
+                    />
+                  </Box>
+                </Box>
+                {openRow === t.id && (
+                  <Box marginLeft={4}>
+                    <Text dimColor>Move to </Text>
+                    {(MOVES[t.status] ?? []).map(k => {
+                      const a = ACTIONS[k]
+                      const armed = pending === `${t.id}:${a.key}`
+                      return (
+                        <Box key={`${t.id}-${a.key}`} marginRight={2}>
+                          <Button
+                            key={`${t.id}-act-${a.key}`}
+                            label={armed ? `${a.label}? press again` : a.label}
+                            plain
+                            onPress={async () => {
+                              if (a.confirm && !armed) {
+                                pending = `${t.id}:${a.key}`
+                                $.ui.invalidate('ui.render')
+                                return
+                              }
+                              const ok = await runAction($, vault!, t.id, a)
+                              pending = undefined
+                              if (ok) openRow = undefined
+                              $.ui.invalidate('ui.render')
+                            }}
+                          />
+                        </Box>
+                      )
+                    })}
+                  </Box>
+                )}
                 </Box>
               ))}
             </Box>
