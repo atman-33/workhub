@@ -231,13 +231,18 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!vault || !isClosed) return next(e)
     const { Box, Text, Button, Svg } = $.ui.resolve(e) as any
+    const { tasks } = await load($, vault)
+    // What is in flight, not what is finished: one icon and count per status.
+    const live = SECTIONS.filter(s => s.status !== 'done')
+      .map(s => ({ s, n: tasks.filter(t => t.status === s.status).length }))
+      .filter(x => x.n > 0)
 
     return (
-      <Box>
+      <Box flexDirection="row" justifyContent="flex-start" alignItems="center">
         {Svg && <Svg source={svg('list', GRAY)} alt="" width={14} height={14} />}
         <Button
           key="reopen"
-          label="Tasks"
+          label=" Tasks"
           plain
           onPress={async () => {
             await $.ui.open({ id: PANE, title: 'Tasks' })
@@ -245,6 +250,16 @@ export const register: Register = on => {
             $.ui.invalidate('ui.render')
           }}
         />
+        {live.map(({ s, n }) => (
+          <Box key={s.status} marginLeft={2} alignItems="center">
+            {Svg ? (
+              <Svg source={svg(s.icon, s.color)} alt={s.label} width={14} height={14} />
+            ) : (
+              <Text>{s.emoji}</Text>
+            )}
+            <Text dimColor> {n}</Text>
+          </Box>
+        ))}
       </Box>
     )
   })
