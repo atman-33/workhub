@@ -223,26 +223,21 @@ async function findCli($: any): Promise<string | undefined> {
   return undefined
 }
 
-type Action = { key: string; label: string; args: (id: string) => string[]; confirm?: boolean }
+type Action = { key: string; label: string; args: (id: string) => string[] }
 
 const ACTIONS: Record<string, Action> = {
   doing: { key: 'doing', label: 'Doing', args: id => ['update', id, '--status', 'doing'] },
   todo: { key: 'todo', label: 'ToDo', args: id => ['update', id, '--status', 'todo'] },
   inbox: { key: 'inbox', label: 'Inbox', args: id => ['update', id, '--status', 'inbox'] },
-  done: {
-    key: 'done',
-    label: 'Done',
-    args: id => ['update', id, '--status', 'done'],
-    confirm: true,
-  },
-  archive: { key: 'archive', label: 'Archive', args: id => ['archive', id], confirm: true },
+  done: { key: 'done', label: 'Done', args: id => ['update', id, '--status', 'done'] },
+  archive: { key: 'archive', label: 'Archive', args: id => ['archive', id] },
 }
 
-// What each status can move to. Done and Archive ask for a second press.
+// What each status can move to. One press does it: the app moves a task back.
 const MOVES: Record<string, string[]> = {
   inbox: ['todo', 'archive'],
   todo: ['doing', 'inbox', 'archive'],
-  doing: ['inbox', 'archive'],
+  doing: ['todo', 'inbox', 'archive'],
   review: ['done', 'inbox', 'archive'],
   done: ['archive'],
 }
@@ -276,9 +271,8 @@ export const register: Register = on => {
   let vault: string | undefined
   // Whether the Inbox section is shown; read from $.store on the first draw.
   let showInbox: boolean | undefined
-  // The row whose action menu is open, and the action awaiting a second press.
+  // The row whose action menu is open.
   let openRow: string | undefined
-  let pending: string | undefined // `<id>:<action key>`
 
   on('session.start', async ($, e, next) => {
     vault = await findVault($)
@@ -497,7 +491,6 @@ export const register: Register = on => {
                       dimColor
                       onPress={() => {
                         openRow = openRow === t.id ? undefined : t.id
-                        pending = undefined
                         $.ui.invalidate('ui.render')
                       }}
                     />
@@ -508,21 +501,14 @@ export const register: Register = on => {
                     <Text dimColor>Move to </Text>
                     {(MOVES[t.status] ?? []).map(k => {
                       const a = ACTIONS[k]
-                      const armed = pending === `${t.id}:${a.key}`
                       return (
                         <Box key={`${t.id}-${a.key}`} marginRight={2}>
                           <Button
                             key={`${t.id}-act-${a.key}`}
-                            label={armed ? `${a.label}? press again` : a.label}
+                            label={a.label}
                             plain
                             onPress={async () => {
-                              if (a.confirm && !armed) {
-                                pending = `${t.id}:${a.key}`
-                                $.ui.invalidate('ui.render')
-                                return
-                              }
                               const ok = await runAction($, vault!, t.id, a)
-                              pending = undefined
                               if (ok) openRow = undefined
                               $.ui.invalidate('ui.render')
                             }}
