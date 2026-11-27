@@ -7,6 +7,7 @@
   "description": "Claude Code marketplace bundled with the workhub app: the single source of plugins for the workhub vault harness (task board, engineering workflows, authoring and agent-ops tools, and tech-stack helpers). See docs/plugins.md for the required/optional and scope policy.",
   "plugins": [
     { "name": "workhub", "source": "./plugins/workhub" },
+    { "name": "workhub-claude-mods", "source": "./plugins/workhub-claude-mods" },
     { "name": "engineering", "source": "./plugins/engineering" },
     { "name": "mcp-serena", "source": "./plugins/mcp-serena" },
     { "name": "mcp-context7", "source": "./plugins/mcp-context7" },

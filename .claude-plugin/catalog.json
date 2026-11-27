@@ -104,6 +104,12 @@
       "summary": "Switchable response personas over a shared token-reduction engine; the app's Persona tab is the only thing that depends on it, and it explains its own absence."
     },
     {
+      "name": "workhub-claude-mods",
+      "tier": "optional",
+      "scope": "user",
+      "summary": "Claude Code mods for a workhub vault: a sidebar pane listing the vault's tasks by status, with a project filter and Obsidian-open buttons. Does nothing outside a vault."
+    },
+    {
       "name": "stack-cloudflare",
       "tier": "optional",
       "scope": "either",
