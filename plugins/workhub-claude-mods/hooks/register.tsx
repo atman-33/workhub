@@ -284,8 +284,6 @@ export const register: Register = on => {
   let vault: string | undefined
   // Whether the Inbox section is shown; read from $.store on the first draw.
   let showInbox: boolean | undefined
-  // The row whose action menu is open.
-  let openRow: string | undefined
 
   on('session.start', async ($, e, next) => {
     vault = await findVault($)
@@ -496,41 +494,25 @@ export const register: Register = on => {
                       />
                     </Box>
                   )}
-                  <Box flexShrink={0} marginLeft={1}>
-                    <Button
-                      key={`${t.id}-menu`}
-                      label="⋯"
-                      plain
-                      dimColor
-                      onPress={() => {
-                        openRow = openRow === t.id ? undefined : t.id
-                        $.ui.invalidate('ui.render')
-                      }}
-                    />
-                  </Box>
-                </Box>
-                {openRow === t.id && (
-                  <Box marginLeft={4}>
-                    {Select && (
+                  {Select && (
+                    <Box flexShrink={0} marginLeft={1}>
                       <Select
                         key={`${t.id}-move`}
-                        label="Move to "
                         options={[
-                          { value: '', label: '…' },
+                          { value: '', label: '⋯' },
                           ...movesFor(t).map(a => ({ value: a.key, label: a.label })),
                         ]}
                         value=""
                         onSelect={async (value: string) => {
                           const a = ACTIONS[value]
                           if (!a) return
-                          const ok = await runAction($, vault!, t.id, a)
-                          if (ok) openRow = undefined
+                          await runAction($, vault!, t.id, a)
                           $.ui.invalidate('ui.render')
                         }}
                       />
-                    )}
-                  </Box>
-                )}
+                    </Box>
+                  )}
+                </Box>
                 </Box>
               ))}
             </Box>
