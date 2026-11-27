@@ -175,29 +175,45 @@ test('inbox is hidden until the toggle turns it on, and that is remembered', asy
   await ui.unmount()
 })
 
-test('Done runs on one press with the newest installed task-cli', async ($, on) => {
+const moveOf = (calls: string[][], verb: string) => calls.find(a => a.includes(verb))!.slice(2, -2)
+
+test('Done runs on one pick with the newest installed task-cli', async ($, on) => {
   const calls: string[][] = []
   stubActions(on, {}, calls)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.press({ key: 'T-0001-menu' })
-  await ui.press({ key: 'T-0001-act-done' })
+  await ui.select({ key: 'T-0001-move', value: 'done' })
   const run = calls.find(a => a.includes('update'))!
   expect(run.slice(2, 6)).toEqual(['update', 'T-0001', '--status', 'done'])
   expect(run[1].replaceAll(String.fromCharCode(92), '/')).toContain('/workhub/0.54.0/scripts/task-cli.mjs')
   await ui.unmount()
 })
 
-test('every move runs on one press; Doing can go back to ToDo', async ($, on) => {
+test('the dropdown lists the moves for the row, Review can go back to Doing', async ($, on) => {
+  stubActions(on, {}, [])
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'T-0001-menu' })
+  const select: any = await ui.find({ key: 'T-0001-move' })
+  expect(select.props.options.map((o: any) => o.value)).toEqual(['', 'done', 'doing', 'inbox', 'block', 'archive'])
+  await ui.unmount()
+})
+
+test('Doing goes back to ToDo, a blocked task offers Clear blocked, Archive uses archive', async ($, on) => {
   const calls: string[][] = []
   stubActions(on, {}, calls)
-  actionFiles['T-0004 d.md'] = file('T-0004', 'in progress', 'doing')
+  actionFiles['T-0004 d.md'] = file('T-0004', 'in progress', 'doing', 'blocked: true' + String.fromCharCode(10))
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.press({ key: 'T-0004-menu' })
-  await ui.press({ key: 'T-0004-act-todo' })
-  expect(calls.find(a => a.includes('update'))!.slice(2, 6)).toEqual(['update', 'T-0004', '--status', 'todo'])
+  const select: any = await ui.find({ key: 'T-0004-move' })
+  expect(select.props.options.map((o: any) => o.value)).toEqual(['', 'todo', 'inbox', 'unblock', 'archive'])
+  await ui.select({ key: 'T-0004-move', value: 'unblock' })
+  expect(moveOf(calls, 'update')).toEqual(['update', 'T-0004', '--blocked', 'false'])
+  await ui.press({ key: 'T-0004-menu' })
+  await ui.select({ key: 'T-0004-move', value: 'todo' })
+  expect(calls.filter(a => a.includes('update')).at(-1)!.slice(2, 6)).toEqual(['update', 'T-0004', '--status', 'todo'])
   await ui.press({ key: 'T-0003-menu' })
-  await ui.press({ key: 'T-0003-act-archive' })
-  expect(calls.find(a => a.includes('archive'))!.slice(2, 4)).toEqual(['archive', 'T-0003'])
+  await ui.select({ key: 'T-0003-move', value: 'archive' })
+  expect(moveOf(calls, 'archive')).toEqual(['archive', 'T-0003'])
   delete actionFiles['T-0004 d.md']
   await ui.unmount()
 })

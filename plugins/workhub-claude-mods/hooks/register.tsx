@@ -230,7 +230,10 @@ const ACTIONS: Record<string, Action> = {
   todo: { key: 'todo', label: 'ToDo', args: id => ['update', id, '--status', 'todo'] },
   inbox: { key: 'inbox', label: 'Inbox', args: id => ['update', id, '--status', 'inbox'] },
   done: { key: 'done', label: 'Done', args: id => ['update', id, '--status', 'done'] },
+  review: { key: 'review', label: 'Review', args: id => ['update', id, '--status', 'review'] },
   archive: { key: 'archive', label: 'Archive', args: id => ['archive', id] },
+  block: { key: 'block', label: 'Mark blocked', args: id => ['update', id, '--blocked', 'true'] },
+  unblock: { key: 'unblock', label: 'Clear blocked', args: id => ['update', id, '--blocked', 'false'] },
 }
 
 // What each status can move to. One press does it: the app moves a task back.
@@ -238,8 +241,18 @@ const MOVES: Record<string, string[]> = {
   inbox: ['todo', 'archive'],
   todo: ['doing', 'inbox', 'archive'],
   doing: ['todo', 'inbox', 'archive'],
-  review: ['done', 'inbox', 'archive'],
-  done: ['archive'],
+  review: ['done', 'doing', 'inbox', 'archive'],
+  done: ['review', 'archive'],
+}
+
+// A finished or parked task has nothing to block.
+const canBlock = (status: string) => status === 'todo' || status === 'doing' || status === 'review'
+
+// One dropdown per open row, so any number of moves fits the pane's width.
+function movesFor(t: Task): Action[] {
+  const keys = [...(MOVES[t.status] ?? [])]
+  if (canBlock(t.status)) keys.splice(keys.length - 1, 0, t.blocked ? 'unblock' : 'block')
+  return keys.map(k => ACTIONS[k])
 }
 
 async function runAction($: any, vault: string, id: string, action: Action): Promise<boolean> {
@@ -498,24 +511,24 @@ export const register: Register = on => {
                 </Box>
                 {openRow === t.id && (
                   <Box marginLeft={4}>
-                    <Text dimColor>Move to </Text>
-                    {(MOVES[t.status] ?? []).map(k => {
-                      const a = ACTIONS[k]
-                      return (
-                        <Box key={`${t.id}-${a.key}`} marginRight={2}>
-                          <Button
-                            key={`${t.id}-act-${a.key}`}
-                            label={a.label}
-                            plain
-                            onPress={async () => {
-                              const ok = await runAction($, vault!, t.id, a)
-                              if (ok) openRow = undefined
-                              $.ui.invalidate('ui.render')
-                            }}
-                          />
-                        </Box>
-                      )
-                    })}
+                    {Select && (
+                      <Select
+                        key={`${t.id}-move`}
+                        label="Move to "
+                        options={[
+                          { value: '', label: '…' },
+                          ...movesFor(t).map(a => ({ value: a.key, label: a.label })),
+                        ]}
+                        value=""
+                        onSelect={async (value: string) => {
+                          const a = ACTIONS[value]
+                          if (!a) return
+                          const ok = await runAction($, vault!, t.id, a)
+                          if (ok) openRow = undefined
+                          $.ui.invalidate('ui.render')
+                        }}
+                      />
+                    )}
                   </Box>
                 )}
                 </Box>
