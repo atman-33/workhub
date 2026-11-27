@@ -12,3 +12,7 @@ Cargo.lock text eol=lf
 # Tauri regenerates these on every build and writes LF, so expect LF here too -
 # otherwise every build leaves them permanently "modified" on Windows.
 src-tauri/gen/schemas/*.json text eol=lf
+
+# Vitest snapshots hold CR characters inside their strings and are written with LF.
+# Under text=auto Git then reports them modified forever on Windows.
+*.snap -text
