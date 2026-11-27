@@ -21,6 +21,7 @@
 //                                 [--priority p] [--model m] [--due d]
 //                                 [--blocked true|false] [--blocked-note "..."]
 //                                 [--depends-on T-0012,T-0034 | ""] [--force]
+//   node task-cli.mjs archive <id>
 //   node task-cli.mjs report <id>
 //   node task-cli.mjs sessions [--json]
 //   (all commands accept --vault <path>; start/report accept --session <key>)
@@ -758,6 +759,31 @@ function cmdUpdate(vault, id, flags) {
   console.log(`updated ${task.id} — ${task.file}`);
 }
 
+/**
+ * Archive a task the way the app does: `archived: true` in the frontmatter and
+ * the file moved into `tasks/archive/` under the same name. The index is
+ * rebuilt, since it carries archived tasks too. Archiving twice is a no-op.
+ */
+function cmdArchive(vault, id) {
+  const task = findTask(vault, id);
+  const archiveDir = path.join(vault, "tasks", "archive");
+  if (path.basename(path.dirname(task.file)) === "archive") {
+    console.log(`${task.id} is already archived — ${task.file}`);
+    return;
+  }
+  task.archived = true;
+  task.updated = today();
+  const target = path.join(archiveDir, path.basename(task.file));
+  if (fs.existsSync(target)) fail(`${target} already exists — not overwriting`);
+  fs.mkdirSync(archiveDir, { recursive: true });
+  const from = task.file;
+  task.file = target;
+  writeTaskFile(task);
+  fs.rmSync(from);
+  regenerateIndex(vault);
+  console.log(`archived ${task.id} — ${target}`);
+}
+
 function cmdReport(vault, id) {
   const task = findTask(vault, id);
   // Reporting leaves `done` behind, so the completion stamp goes with it.
@@ -875,6 +901,11 @@ switch (command) {
     cmdUpdate(resolveVault(flags), id, flags);
     break;
   }
+  case "archive": {
+    if (!id) fail("usage: task-cli archive <id>");
+    cmdArchive(resolveVault(flags), id);
+    break;
+  }
   case "report": {
     if (!id) fail("usage: task-cli report <id>");
     cmdReport(resolveVault(flags), id);
@@ -886,6 +917,6 @@ switch (command) {
   }
   default:
     fail(
-      "usage: task-cli <list|create|start|update|report|sessions> [args] (see file header for details)",
+      "usage: task-cli <list|create|start|update|archive|report|sessions> [args] (see file header for details)",
     );
 }

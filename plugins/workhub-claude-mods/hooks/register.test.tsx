@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 const PANE = {
-  plugin: 'workhub-tasks',
+  plugin: 'workhub-claude-mods',
   component: 'Pane',
   requestId: 'workhub-tasks',
   props: {
@@ -123,4 +123,83 @@ test('outside a vault the pane passes the draw on and shows nothing', async ($, 
   stub(on, undefined, '/somewhere/else')
   // The hook hands ui.render to next(); with nothing beneath it, mounting fails.
   await expect($.ui.mount({ ...PANE, surface: 'desktop' })).rejects.toThrow('no implementation for ui.render')
+})
+
+// ---- status changes and the Inbox toggle
+const actionFiles: Record<string, string> = {
+  'T-0001 a.md': file('T-0001', 'to review', 'review'),
+  'T-0002 b.md': file('T-0002', 'parked one', 'inbox'),
+  'T-0003 c.md': file('T-0003', 'to start', 'todo'),
+}
+
+const stubActions = (on: any, store: Record<string, unknown>, calls: string[][]) => {
+  const now = new Date(2026, 10, 26, 12, 0).getTime()
+  const slash = (p: unknown) => String(p).replaceAll(String.fromCharCode(92), '/')
+  on('session.cwd', () => ({ value: VAULT }))
+  on('fs.exists', (_: any, e: any) => ({
+    value: ['/vault/tasks', '/vault/_ai', '/scripts/task-cli.mjs'].some(p => slash(e.path).endsWith(p)),
+  }))
+  on('clock.now', () => ({ value: now }))
+  on('store.get', (_: any, e: any) => ({ value: store[e.key] }))
+  on('store.set', (_: any, e: any) => {
+    store[e.key] = e.value
+    return { value: undefined }
+  })
+  on('fs.read', (_: any, e: any) => ({ value: actionFiles[slash(e.path).split('/').pop()!] }))
+  on('fs.list', (_: any, e: any) => ({
+    value: slash(e.path).endsWith('/workhub')
+      ? [
+          { name: '0.9.0', kind: 'dir', size: 0, mtimeMs: 0, isLink: false },
+          { name: '0.54.0', kind: 'dir', size: 0, mtimeMs: 0, isLink: false },
+        ]
+      : Object.keys(actionFiles).map(name => ({ name, kind: 'file', size: 1, mtimeMs: 0, isLink: false })),
+  }))
+  on('process.run', (_: any, e: any) => {
+    calls.push(e.argv)
+    return { value: { exitCode: 0, stdout: '/home/me', stderr: '' } }
+  })
+}
+
+const buttonsOf = async (ui: any) =>
+  (await ui.findAll({ type: 'Button' })).map((b: any) => b.text)
+
+test('inbox is hidden until the toggle turns it on, and that is remembered', async ($, on) => {
+  const store: Record<string, unknown> = {}
+  stubActions(on, store, [])
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await textsOf(ui)).not.toContain('parked one')
+  expect(await buttonsOf(ui)).toContain('▸ Inbox (1)')
+  await ui.press({ key: 'inbox-toggle' })
+  expect(await textsOf(ui)).toContain('parked one')
+  expect(store.showInbox).toBe(true)
+  await ui.unmount()
+})
+
+test('Done needs a second press, then runs the newest installed task-cli', async ($, on) => {
+  const calls: string[][] = []
+  stubActions(on, {}, calls)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'T-0001-menu' })
+  await ui.press({ key: 'T-0001-act-done' })
+  expect(calls.some(a => a.includes('update'))).toBe(false)
+  expect(await buttonsOf(ui)).toContain('Done? press again')
+  await ui.press({ key: 'T-0001-act-done' })
+  const run = calls.find(a => a.includes('update'))!
+  expect(run.slice(2, 6)).toEqual(['update', 'T-0001', '--status', 'done'])
+  expect(run[1].replaceAll(String.fromCharCode(92), '/')).toContain('/workhub/0.54.0/scripts/task-cli.mjs')
+  await ui.unmount()
+})
+
+test('Inbox and Doing run on one press; Archive uses the archive command', async ($, on) => {
+  const calls: string[][] = []
+  stubActions(on, {}, calls)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'T-0003-menu' })
+  await ui.press({ key: 'T-0003-act-doing' })
+  expect(calls.find(a => a.includes('update'))!.slice(2, 6)).toEqual(['update', 'T-0003', '--status', 'doing'])
+  await ui.press({ key: 'T-0003-menu' })
+  await ui.press({ key: 'T-0003-act-archive' })
+  await ui.press({ key: 'T-0003-act-archive' })
+  expect(calls.find(a => a.includes('archive'))!.slice(2, 4)).toEqual(['archive', 'T-0003'])
+  await ui.unmount()
 })
