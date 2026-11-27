@@ -175,14 +175,11 @@ test('inbox is hidden until the toggle turns it on, and that is remembered', asy
   await ui.unmount()
 })
 
-test('Done needs a second press, then runs the newest installed task-cli', async ($, on) => {
+test('Done runs on one press with the newest installed task-cli', async ($, on) => {
   const calls: string[][] = []
   stubActions(on, {}, calls)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.press({ key: 'T-0001-menu' })
-  await ui.press({ key: 'T-0001-act-done' })
-  expect(calls.some(a => a.includes('update'))).toBe(false)
-  expect(await buttonsOf(ui)).toContain('Done? press again')
   await ui.press({ key: 'T-0001-act-done' })
   const run = calls.find(a => a.includes('update'))!
   expect(run.slice(2, 6)).toEqual(['update', 'T-0001', '--status', 'done'])
@@ -190,16 +187,17 @@ test('Done needs a second press, then runs the newest installed task-cli', async
   await ui.unmount()
 })
 
-test('Inbox and Doing run on one press; Archive uses the archive command', async ($, on) => {
+test('every move runs on one press; Doing can go back to ToDo', async ($, on) => {
   const calls: string[][] = []
   stubActions(on, {}, calls)
+  actionFiles['T-0004 d.md'] = file('T-0004', 'in progress', 'doing')
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'T-0004-menu' })
+  await ui.press({ key: 'T-0004-act-todo' })
+  expect(calls.find(a => a.includes('update'))!.slice(2, 6)).toEqual(['update', 'T-0004', '--status', 'todo'])
   await ui.press({ key: 'T-0003-menu' })
-  await ui.press({ key: 'T-0003-act-doing' })
-  expect(calls.find(a => a.includes('update'))!.slice(2, 6)).toEqual(['update', 'T-0003', '--status', 'doing'])
-  await ui.press({ key: 'T-0003-menu' })
-  await ui.press({ key: 'T-0003-act-archive' })
   await ui.press({ key: 'T-0003-act-archive' })
   expect(calls.find(a => a.includes('archive'))!.slice(2, 4)).toEqual(['archive', 'T-0003'])
+  delete actionFiles['T-0004 d.md']
   await ui.unmount()
 })

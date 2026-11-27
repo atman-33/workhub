@@ -16,7 +16,7 @@ A sidebar pane listing the vault's tasks:
 - when the pane is closed, a quiet `Tasks` row above the prompt opens it again;
   `/workhub-tasks` does the same.
 
-- a `⋯` button on each row opens "Move to": Done (Review only), Doing (ToDo only), Inbox, Archive. Done and Archive ask for a second press. The change is made by the `workhub` plugin's `task-cli` (the newest installed copy; Archive needs `workhub` 0.54.0 or later);
+- a `⋯` button on each row opens "Move to": Done (Review only), Doing (ToDo only), ToDo (Doing only), Inbox, Archive. One press does it; the app moves a task back. The change is made by the `workhub` plugin's `task-cli` (the newest installed copy; Archive needs `workhub` 0.54.0 or later);
 - Inbox is hidden by default; the `▸ Inbox (N)` toggle next to the Done count shows it, and the choice is remembered.
 
 The pane refreshes every 15 seconds. Right-click menus and drag and drop are not offered: a mod's API has neither for a pane's rows.
