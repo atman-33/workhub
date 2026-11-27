@@ -451,7 +451,7 @@ export const register: Register = on => {
           const list = rows[s.status]
           if (list.length === 0) return null
           return (
-            <Box flexDirection="column" marginTop={1} gap="xs">
+            <Box flexDirection="column" marginTop={1} gap={0.25}>
               <Box>
                 {Svg ? (
                   <Svg source={svg(s.icon, s.color)} alt={s.label} width={16} height={16} />
