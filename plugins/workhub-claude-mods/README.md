@@ -16,10 +16,17 @@ A sidebar pane listing the vault's tasks:
 - when the pane is closed, a quiet `Tasks` row above the prompt opens it again;
   `/workhub-tasks` does the same.
 
-- a `⋯` dropdown at the end of each row: Done / Doing / ToDo / Review / Inbox / Archive as the row's status allows (Review can go back to Doing, Done back to Review), plus Mark blocked / Clear blocked. One pick does it; the app moves a task back. The change is made by the `workhub` plugin's `task-cli` (the newest installed copy; Archive needs `workhub` 0.54.0 or later);
+- a `⋯` dropdown at the end of each row: Done / Doing / ToDo / Review / Inbox / Archive as the row's status allows (ToDo, Doing and Review can go to Done; Done goes back to Review, Doing or ToDo), plus Mark blocked / Clear blocked. One pick does it; the app moves a task back. The change is made by the `workhub` plugin's `task-cli` (the newest installed copy; Archive needs `workhub` 0.54.0 or later);
 - Inbox is hidden by default; the `▸ Inbox (N)` toggle next to the Done count shows it, and the choice is remembered.
 
 The pane refreshes every 15 seconds. Right-click menus and drag and drop are not offered: a mod's API has neither for a pane's rows.
+
+## Context gauge
+
+A row above the prompt shows how full the context window is, as a bar, a
+percentage and the token counts. It is green below 60%, yellow from 60% and red
+from 80%. It reads `⚪ Context —` until the first response of a session and right
+after a compaction. While the pane is closed it shares the row with `Tasks`.
 
 ## Where it runs
 

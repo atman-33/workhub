@@ -202,7 +202,7 @@ test('Doing goes back to ToDo, a blocked task offers Clear blocked, Archive uses
   actionFiles['T-0004 d.md'] = file('T-0004', 'in progress', 'doing', 'blocked: true' + String.fromCharCode(10))
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   const select: any = await ui.find({ key: 'T-0004-move' })
-  expect(select.props.options.map((o: any) => o.value)).toEqual(['', 'todo', 'inbox', 'unblock', 'archive'])
+  expect(select.props.options.map((o: any) => o.value)).toEqual(['', 'done', 'todo', 'inbox', 'unblock', 'archive'])
   await ui.select({ key: 'T-0004-move', value: 'unblock' })
   expect(moveOf(calls, 'update')).toEqual(['update', 'T-0004', '--blocked', 'false'])
   await ui.select({ key: 'T-0004-move', value: 'todo' })
@@ -210,5 +210,75 @@ test('Doing goes back to ToDo, a blocked task offers Clear blocked, Archive uses
   await ui.select({ key: 'T-0003-move', value: 'archive' })
   expect(moveOf(calls, 'archive')).toEqual(['archive', 'T-0003'])
   delete actionFiles['T-0004 d.md']
+  await ui.unmount()
+})
+
+// ---- Done from any open status
+test('ToDo and Doing offer Done first, and Done can be taken back', async ($, on) => {
+  stubActions(on, {}, [])
+  actionFiles['T-0004 d.md'] = file('T-0004', 'in progress', 'doing')
+  actionFiles['T-0005 e.md'] = file('T-0005', 'finished', 'done', 'completed: 2026-11-26 09:00' + String.fromCharCode(10))
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const values = async (key: string) =>
+    ((await ui.find({ key })) as any).props.options.map((o: any) => o.value)
+  expect(await values('T-0003-move')).toEqual(['', 'done', 'doing', 'inbox', 'block', 'archive'])
+  expect(await values('T-0004-move')).toEqual(['', 'done', 'todo', 'inbox', 'block', 'archive'])
+  expect(await values('T-0005-move')).toEqual(['', 'review', 'doing', 'todo', 'archive'])
+  delete actionFiles['T-0004 d.md']
+  delete actionFiles['T-0005 e.md']
+  await ui.unmount()
+})
+
+// ---- context gauge
+const BAND = {
+  plugin: 'workhub-claude-mods',
+  component: 'AbovePrompt',
+  props: {
+    hasSurvey: false,
+    isCollapsed: false,
+    isWorking: false,
+    maxRows: 10,
+    bodyColumns: 80,
+    scroll: { offset: 0, bodyRows: 9 },
+    view: {},
+  },
+} as const
+
+const mountBand = async ($: any, on: any, context: object, surface: 'terminal' | 'desktop') => {
+  stub(on, undefined)
+  on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: undefined }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('clock.every', () => ({ value: undefined }))
+  on('session.usage', () => ({ value: { context, rateLimits: [], startedAt: 0 } }))
+  await $.session.start({ cwd: VAULT, surface: 'terminal', isInteractive: true })
+  return $.ui.mount({ ...BAND, surface })
+}
+
+const gaugeText = async ($: any, on: any, context: object) => {
+  const ui = await mountBand($, on, context, 'terminal')
+  const text = (await ui.findAll({ type: 'Text' })).map((t: any) => t.text).join('')
+  await ui.unmount()
+  return text
+}
+
+for (const [percent, emoji] of [[59, '🟢'], [60, '🟡'], [79, '🟡'], [80, '🔴']] as const) {
+  test(`the gauge shows ${emoji} at ${percent}%`, async ($, on) => {
+    const text = await gaugeText($, on, { percent, tokens: percent * 2000, window: 200000 })
+    expect(text).toContain(emoji)
+    expect(text).toContain(`${percent}%`)
+    expect(text).toContain('/ 200k')
+  })
+}
+
+test('the gauge has no figure before the first response', async ($, on) => {
+  expect(await gaugeText($, on, { window: 200000 })).toContain('⚪ Context —')
+})
+
+
+test('the desktop gauge draws its bar as an image', async ($, on) => {
+  const ui = await mountBand($, on, { percent: 32, tokens: 64000, window: 200000 }, 'desktop')
+  const bar: any = await ui.find({ type: 'Svg' })
+  expect(bar.props.source).toContain('#22c55e')
   await ui.unmount()
 })
