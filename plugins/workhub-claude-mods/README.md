@@ -19,6 +19,17 @@ A sidebar pane listing the vault's tasks:
 - a `⋯` dropdown at the end of each row: Done / Doing / ToDo / Review / Inbox / Archive as the row's status allows (ToDo, Doing and Review can go to Done; Done goes back to Review, Doing or ToDo), plus Mark blocked / Clear blocked. One pick does it; the app moves a task back. The change is made by the `workhub` plugin's `task-cli` (the newest installed copy; Archive needs `workhub` 0.54.0 or later);
 - Inbox is hidden by default; the `▸ Inbox (N)` toggle next to the Done count shows it, and the choice is remembered.
 
+A row that is held says so on the same line, before its title: a red `ban` icon
+with the days since `blocked_since` (the title then ends with the
+`blocked_note`), and a yellow hourglass with the first predecessor from
+`depends_on` that is not done yet (`T-0010`, or `T-0010+1` for more). The
+dependency mark clears by itself once those tasks are done, as in the app; an id
+that matches no task is ignored. A waiting task's `⋯` menu has no Doing, which
+`task-cli` would refuse. Task titles are drawn one text step smaller than the
+section headings (on Claude Code 2.1.330 or later; an older engine refuses a
+text size and would blank the pane, so it keeps the normal size). The task id stays at full size: a `Button` whose label is a
+`Text` is refused by older Claude Code engines and blanks the whole pane.
+
 The pane refreshes every 15 seconds. Right-click menus and drag and drop are not offered: a mod's API has neither for a pane's rows.
 
 ## Context gauge

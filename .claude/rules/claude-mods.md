@@ -21,6 +21,14 @@ paths:
 - **A mod only reaches a session after the Desktop app is restarted fully.**
   After an install or update, a new session in the old app process can still
   show the previous plugin list.
+- **A `Button` takes a plain `label`, never a `Text` child.** The newer
+  engine (2.1.330) draws `<Button><Text size="footnote">id</Text></Button>`, the
+  older one refuses it ("needs a label") and the whole pane draws nothing. So a
+  Button's size cannot be changed; use `label` only.
+- **`Text size` blanks the pane on an engine older than 2.1.330.** It is refused
+  as "Text prop size is not allowed" and the pane draws nothing. The mod asks for
+  `size` only when `$.session.version()` reads 2.1.330 or later; keep it behind
+  that check.
 - **Mod test mounts must name the real plugin** (`plugin: 'workhub-claude-mods'`),
   or `ui.press` / `ui.select` find no element.
 - **Do not chain test and PR commands with `;`.** A failing test run went on to

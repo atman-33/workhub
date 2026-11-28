@@ -12,6 +12,10 @@ type Task = {
   title: string
   status: string
   blocked: boolean
+  blockedNote: string
+  blockedSince: string // YYYY-MM-DD, empty when unknown
+  dependsOn: string[]
+  waitingOn: string[] // predecessors that are not done yet, filled in by load()
   completed: string
   project: string
   backlog: string
@@ -37,6 +41,9 @@ const ICON_BODY: Record<string, string> = {
     '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   branch:
     '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  hourglass:
+    '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
   list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 }
 
@@ -66,6 +73,26 @@ function field(head: string, key: string): string {
   return m ? m[1].trim().replace(/^["']|["']$/g, '') : ''
 }
 
+const unquote = (v: string) => v.trim().replace(/^["']|["']$/g, '')
+
+// A YAML list written inline (`[T-1, T-2]`) or as a block (`- T-1` lines).
+function listField(head: string, key: string): string[] {
+  const m = head.match(new RegExp(`^${key}:[ \t]*(.*)$`, 'm'))
+  if (!m) return []
+  const inline = m[1].trim()
+  if (inline.startsWith('[')) {
+    return inline.replace(/^\[|\]$/g, '').split(',').map(unquote).filter(Boolean)
+  }
+  if (inline) return [unquote(inline)]
+  const out: string[] = []
+  for (const line of head.slice((m.index ?? 0) + m[0].length).split('\n').slice(1)) {
+    const item = line.match(/^\s*-\s*(.+)$/)
+    if (!item) break
+    out.push(unquote(item[1]))
+  }
+  return out
+}
+
 function parse(text: string, file: string): Task | undefined {
   const m = text.replace(/\r/g, '').match(/^---\n([\s\S]*?)\n---/)
   if (!m) return undefined
@@ -77,6 +104,10 @@ function parse(text: string, file: string): Task | undefined {
     title: field(head, 'title'),
     status: field(head, 'status'),
     blocked: field(head, 'blocked') === 'true',
+    blockedNote: field(head, 'blocked_note'),
+    blockedSince: field(head, 'blocked_since'),
+    dependsOn: listField(head, 'depends_on'),
+    waitingOn: [],
     completed: field(head, 'completed'),
     project: field(head, 'project'),
     backlog: field(head, 'backlog'),
@@ -140,6 +171,15 @@ async function load($: any, vault: string): Promise<{ tasks: Task[]; today: stri
         }),
       )
     ).filter((t): t is Task => t !== undefined)
+    // Waiting is derived, never stored: a predecessor that is not done holds the
+    // task. An id that matches no task (archived, deleted) is ignored.
+    const byId = new Map(tasks.map(t => [t.id, t]))
+    for (const t of tasks) {
+      t.waitingOn = t.dependsOn.filter(id => {
+        const dep = byId.get(id)
+        return dep !== undefined && dep.status !== 'done'
+      })
+    }
     return { tasks, today }
   } catch (err) {
     return { tasks: [], today, error: String(err) }
@@ -254,7 +294,7 @@ const canBlock = (status: string) => status === 'todo' || status === 'doing' || 
 
 // One dropdown per open row, so any number of moves fits the pane's width.
 function movesFor(t: Task): Action[] {
-  const keys = [...(MOVES[t.status] ?? [])]
+  const keys = [...(MOVES[t.status] ?? [])].filter(k => !(k === 'doing' && t.waitingOn.length > 0))
   if (canBlock(t.status)) keys.splice(keys.length - 1, 0, t.blocked ? 'unblock' : 'block')
   return keys.map(k => ACTIONS[k])
 }
@@ -276,6 +316,65 @@ async function runAction($: any, vault: string, id: string, action: Action): Pro
     $.ui.toast(`${action.label} failed: ${String(err)}`)
     return false
   }
+}
+
+// ---------------------------------------------------------------- text size
+// `Text size` is drawn from 2.1.330; an older engine refuses the prop and the
+// whole pane with it, so the size is asked for only where the engine is known to
+// take it. A version that cannot be read counts as too old.
+const SIZE_FROM = [2, 1, 330]
+let smallText = false // only a yes is kept; a no is asked again
+
+async function takesSize($: any): Promise<boolean> {
+  if (smallText) return true
+  try {
+    const m = String((await $.session.version()).version).match(/^(\d+)[.](\d+)[.](\d+)/)
+    const v = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0]
+    smallText = v[0] !== SIZE_FROM[0] ? v[0] > SIZE_FROM[0] : v[1] !== SIZE_FROM[1] ? v[1] > SIZE_FROM[1] : v[2] >= SIZE_FROM[2]
+  } catch {
+    // no readable version: too old
+  }
+  return smallText
+}
+
+// ---------------------------------------------------------------- row marks
+const RED = '#ef4444'
+const YELLOW = '#eab308'
+
+// Whole days since a YYYY-MM-DD date, from the pane's own "today".
+function daysSince(since: string, today: string): number | undefined {
+  const a = since.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const b = today.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!a || !b) return undefined
+  const ms = Date.UTC(+b[1], +b[2] - 1, +b[3]) - Date.UTC(+a[1], +a[2] - 1, +a[3])
+  return Math.max(0, Math.round(ms / 86400000))
+}
+
+// What a row says about being held: red for a wait someone set, yellow for a
+// wait the dependencies make. Both can hold; blocked comes first.
+function marks(t: Task, today: string) {
+  const list: { icon: 'ban' | 'hourglass'; color: string; text: string; glyph: string; label: string }[] = []
+  if (t.blocked && canBlock(t.status)) {
+    const days = t.blockedSince ? daysSince(t.blockedSince, today) : undefined
+    list.push({
+      icon: 'ban',
+      color: RED,
+      text: 'red',
+      glyph: '⊘',
+      label: days === undefined ? 'blocked' : `${days}d`,
+    })
+  }
+  if (t.waitingOn.length > 0 && t.status !== 'done') {
+    const more = t.waitingOn.length > 1 ? `+${t.waitingOn.length - 1}` : ''
+    list.push({
+      icon: 'hourglass',
+      color: YELLOW,
+      text: 'yellow',
+      glyph: '⧖',
+      label: `${t.waitingOn[0]}${more}`,
+    })
+  }
+  return list
 }
 
 // ---------------------------------------------------------------- context gauge
@@ -522,6 +621,8 @@ export const register: Register = on => {
     if (!vault) return next(e)
     const { Box, Text, Button, Svg, Select } = $.ui.resolve(e) as any
     const { tasks, today, error } = await load($, vault)
+    // One step below the section headings, where the engine can draw it.
+    const small: { size?: 'footnote' } = (await takesSize($)) ? { size: 'footnote' } : {}
 
     if (filter === undefined) {
       const saved = await $.store.get(FILTER_KEY)
@@ -639,11 +740,29 @@ export const register: Register = on => {
                       onPress={() => openInObsidian($, t.file)}
                     />
                   </Box>
+                  {marks(t, today).map(m => (
+                    <Box key={`${t.id}-${m.icon}`} flexShrink={0} marginLeft={1} alignItems="center">
+                      {Svg ? (
+                        <Svg source={svg(m.icon, m.color)} alt={m.icon} width={12} height={12} />
+                      ) : (
+                        <Text color={m.text}>{m.glyph}</Text>
+                      )}
+                      <Text {...small} color={m.text}>
+                        {' '}
+                        {m.label}
+                      </Text>
+                    </Box>
+                  ))}
                   <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
-                    <Text wrap="truncate-end" dimColor={s.status === 'done'}>
+                    <Text
+                      wrap="truncate-end"
+                      {...small}
+                      dimColor={s.status === 'done'}
+                      color={marks(t, today)[0]?.text}
+                    >
                       {' '}
                       {t.title}
-                      {t.blocked ? ' [blocked]' : ''}
+                      {t.blocked && canBlock(t.status) && t.blockedNote ? ` — ${t.blockedNote}` : ''}
                     </Text>
                   </Box>
                   {t.backlogFile && (
