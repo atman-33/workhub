@@ -239,10 +239,10 @@ const ACTIONS: Record<string, Action> = {
 // What each status can move to. One press does it: the app moves a task back.
 const MOVES: Record<string, string[]> = {
   inbox: ['todo', 'archive'],
-  todo: ['doing', 'inbox', 'archive'],
-  doing: ['todo', 'inbox', 'archive'],
+  todo: ['done', 'doing', 'inbox', 'archive'],
+  doing: ['done', 'todo', 'inbox', 'archive'],
   review: ['done', 'doing', 'inbox', 'archive'],
-  done: ['review', 'archive'],
+  done: ['review', 'doing', 'todo', 'archive'],
 }
 
 // A finished or parked task has nothing to block.
@@ -272,6 +272,71 @@ async function runAction($: any, vault: string, id: string, action: Action): Pro
     $.ui.toast(`${action.label} failed: ${String(err)}`)
     return false
   }
+}
+
+// ---------------------------------------------------------------- context gauge
+const GAUGE_CELLS = 10
+// Checked top down: the first level the percentage reaches wins.
+const LEVELS = [
+  { from: 80, emoji: '🔴', text: 'red', fill: '#ef4444' },
+  { from: 60, emoji: '🟡', text: 'yellow', fill: '#eab308' },
+  { from: 0, emoji: '🟢', text: 'green', fill: '#22c55e' },
+] as const
+
+type Context = { percent?: number; tokens?: number; window?: number }
+
+async function readContext($: any): Promise<Context> {
+  try {
+    return (await $.session.usage()).context ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function tokenCount(n: number): string {
+  if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1))}M`
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
+}
+
+function barSvg(percent: number, color: string): string {
+  const width = Math.min(100, Math.max(0, percent))
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="10" viewBox="0 0 120 10">' +
+    `<rect width="120" height="10" rx="5" fill="${GRAY}" fill-opacity="0.3"/>` +
+    (width > 0
+      ? `<rect width="${Math.max(10, width * 1.2)}" height="10" rx="5" fill="${color}"/>`
+      : '') +
+    '</svg>'
+  )
+}
+
+function barText(percent: number): string {
+  const filled = Math.min(GAUGE_CELLS, Math.max(0, Math.round(percent / (100 / GAUGE_CELLS))))
+  return '▰'.repeat(filled) + '▱'.repeat(GAUGE_CELLS - filled)
+}
+
+// "🟢 [bar] 32%  64k / 200k". There is no figure before the first response of a
+// session, or right after a compaction.
+function gauge({ Box, Text, Svg }: any, { percent, tokens, window }: Context) {
+  if (percent === undefined) return <Text dimColor>⚪ Context —</Text>
+  const level = LEVELS.find(l => percent >= l.from) ?? LEVELS[2]
+  return (
+    <Box alignItems="center">
+      <Text>{level.emoji} </Text>
+      {Svg ? (
+        <Svg source={barSvg(percent, level.fill)} alt="Context used" width={120} height={10} />
+      ) : (
+        <Text color={level.text}>{barText(percent)}</Text>
+      )}
+      <Text bold> {percent}%</Text>
+      {tokens !== undefined && window !== undefined && (
+        <Text dimColor>
+          {'  '}
+          {tokenCount(tokens)} / {tokenCount(window)}
+        </Text>
+      )}
+    </Box>
+  )
 }
 
 // ---------------------------------------------------------------- mod
@@ -317,10 +382,21 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // One quiet row above the prompt while the pane is closed.
+  // Redraw the gauge as soon as the context fill moves.
+  on('session.measure', ($, e, next) => {
+    if (vault) $.ui.invalidate('ui.render')
+
+    return next(e)
+  })
+
+  // One quiet row above the prompt: the context gauge, preceded by the way back
+  // to the pane while it is closed.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!vault || !isClosed) return next(e)
-    const { Box, Text, Button, Svg } = $.ui.resolve(e) as any
+    if (!vault || e.props.hasSurvey) return next(e)
+    const ui = $.ui.resolve(e) as any
+    const { Box, Text, Button, Svg } = ui
+    const context = await readContext($)
+    if (!isClosed) return <Box>{gauge(ui, context)}</Box>
     const { tasks } = await load($, vault)
     // What is in flight, not what is finished: one icon and count per status.
     const live = SECTIONS.filter(s => s.status !== 'done' && s.status !== 'inbox')
@@ -350,6 +426,7 @@ export const register: Register = on => {
             <Text dimColor> {n}</Text>
           </Box>
         ))}
+        <Box marginLeft={3}>{gauge(ui, context)}</Box>
       </Box>
     )
   })
