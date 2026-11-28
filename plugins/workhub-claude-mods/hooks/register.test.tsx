@@ -244,8 +244,25 @@ const BAND = {
   },
 } as const
 
-const mountBand = async ($: any, on: any, context: object, surface: 'terminal' | 'desktop') => {
-  stub(on, undefined)
+type Git = { branch?: string; sha?: string }
+
+const mountBand = async (
+  $: any,
+  on: any,
+  context: object,
+  surface: 'terminal' | 'desktop',
+  git: Git | 'none' = { branch: 'feature/x' },
+  cwd = VAULT,
+) => {
+  stub(on, undefined, cwd)
+  on('process.run', (_: any, e: any) => {
+    const a: string[] = e.argv
+    const reply = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '' } })
+    if (git === 'none') return reply('', 128)
+    if (a.includes('--show-current')) return reply(git.branch ? git.branch + String.fromCharCode(10) : '')
+    if (a.includes('--short')) return reply(git.sha ? git.sha + String.fromCharCode(10) : '', git.sha ? 0 : 128)
+    return reply('')
+  })
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -262,19 +279,53 @@ const gaugeText = async ($: any, on: any, context: object) => {
   return text
 }
 
-for (const [percent, emoji] of [[59, '🟢'], [60, '🟡'], [79, '🟡'], [80, '🔴']] as const) {
-  test(`the gauge shows ${emoji} at ${percent}%`, async ($, on) => {
-    const text = await gaugeText($, on, { percent, tokens: percent * 2000, window: 200000 })
-    expect(text).toContain(emoji)
-    expect(text).toContain(`${percent}%`)
-    expect(text).toContain('/ 200k')
+const FILL = { green: '#22c55e', yellow: '#eab308', red: '#ef4444' }
+
+for (const [percent, color] of [[59, 'green'], [60, 'yellow'], [79, 'yellow'], [80, 'red']] as const) {
+  test(`the gauge bar is ${color} at ${percent}%`, async ($, on) => {
+    const ui = await mountBand($, on, { percent, tokens: percent * 2000, window: 200000 }, 'desktop')
+    const bars = (await ui.findAll({ type: 'Svg' })).map((b: any) => String(b.props.source))
+    expect(bars.some((src: string) => src.includes(FILL[color]))).toBe(true)
+    await ui.unmount()
   })
 }
 
-test('the gauge has no figure before the first response', async ($, on) => {
-  expect(await gaugeText($, on, { window: 200000 })).toContain('⚪ Context —')
+test('the gauge reads the percentage and the token counts, with no emoji', async ($, on) => {
+  const text = await gaugeText($, on, { percent: 64, tokens: 128000, window: 200000 })
+  expect(text).toContain('64%')
+  expect(text).toContain('128k / 200k')
+  expect(text).not.toMatch(/[🟢🟡🔴⚪]/u)
 })
 
+test('the gauge has no figure before the first response', async ($, on) => {
+  const text = await gaugeText($, on, { window: 200000 })
+  expect(text).toContain('—')
+  expect(text).not.toContain('⚪')
+})
+
+
+test('a row names the folder, its parent and the branch', async ($, on) => {
+  const ui = await mountBand($, on, { percent: 10, tokens: 1, window: 2 }, 'terminal', { branch: 'main' }, 'C:/repos/vault')
+  const text = (await ui.findAll({ type: 'Text' })).map((t: any) => t.text).join('')
+  expect(text).toContain('vault')
+  expect(text).toContain('C:' + String.fromCharCode(92) + 'repos')
+  expect(text).toContain('main')
+  await ui.unmount()
+})
+
+test('a detached HEAD shows the short commit id', async ($, on) => {
+  const ui = await mountBand($, on, { percent: 10, tokens: 1, window: 2 }, 'terminal', { sha: 'abc1234' })
+  expect((await ui.findAll({ type: 'Text' })).map((t: any) => t.text).join('')).toContain('abc1234')
+  await ui.unmount()
+})
+
+test('outside git the folder shows and the branch does not', async ($, on) => {
+  const ui = await mountBand($, on, { percent: 10, tokens: 1, window: 2 }, 'terminal', 'none')
+  const text = (await ui.findAll({ type: 'Text' })).map((t: any) => t.text).join('')
+  expect(text).toContain('vault')
+  expect(text).not.toContain('⑂')
+  await ui.unmount()
+})
 
 test('the desktop gauge draws its bar as an image', async ($, on) => {
   const ui = await mountBand($, on, { percent: 32, tokens: 64000, window: 200000 }, 'desktop')

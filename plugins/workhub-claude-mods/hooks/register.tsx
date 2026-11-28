@@ -33,6 +33,10 @@ const ICON_BODY: Record<string, string> = {
   done: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
   inbox:
     '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  folder:
+    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  branch:
+    '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
   list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 }
 
@@ -278,9 +282,9 @@ async function runAction($: any, vault: string, id: string, action: Action): Pro
 const GAUGE_CELLS = 10
 // Checked top down: the first level the percentage reaches wins.
 const LEVELS = [
-  { from: 80, emoji: '🔴', text: 'red', fill: '#ef4444' },
-  { from: 60, emoji: '🟡', text: 'yellow', fill: '#eab308' },
-  { from: 0, emoji: '🟢', text: 'green', fill: '#22c55e' },
+  { from: 80, text: 'red', fill: '#ef4444' },
+  { from: 60, text: 'yellow', fill: '#eab308' },
+  { from: 0, text: 'green', fill: '#22c55e' },
 ] as const
 
 type Context = { percent?: number; tokens?: number; window?: number }
@@ -315,14 +319,25 @@ function barText(percent: number): string {
   return '▰'.repeat(filled) + '▱'.repeat(GAUGE_CELLS - filled)
 }
 
-// "🟢 [bar] 32%  64k / 200k". There is no figure before the first response of a
-// session, or right after a compaction.
+// "[bar] 32%  64k / 200k", the colour alone saying how full. There is no figure
+// before the first response of a session, or right after a compaction: an empty
+// bar and a dash.
 function gauge({ Box, Text, Svg }: any, { percent, tokens, window }: Context) {
-  if (percent === undefined) return <Text dimColor>⚪ Context —</Text>
+  if (percent === undefined) {
+    return (
+      <Box alignItems="center">
+        {Svg ? (
+          <Svg source={barSvg(0, GRAY)} alt="Context unknown" width={120} height={10} />
+        ) : (
+          <Text dimColor>{barText(0)}</Text>
+        )}
+        <Text dimColor> —</Text>
+      </Box>
+    )
+  }
   const level = LEVELS.find(l => percent >= l.from) ?? LEVELS[2]
   return (
     <Box alignItems="center">
-      <Text>{level.emoji} </Text>
       {Svg ? (
         <Svg source={barSvg(percent, level.fill)} alt="Context used" width={120} height={10} />
       ) : (
@@ -334,6 +349,66 @@ function gauge({ Box, Text, Svg }: any, { percent, tokens, window }: Context) {
           {'  '}
           {tokenCount(tokens)} / {tokenCount(window)}
         </Text>
+      )}
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------- location
+type Location = { name: string; parent: string; branch?: string }
+
+// The session's folder as "name" and its parent, and the checked-out branch. The
+// branch is read on every draw: another session can switch it in a shared tree.
+async function readLocation($: any): Promise<Location | undefined> {
+  try {
+    const cwd = norm(await $.session.cwd())
+    if (!cwd) return undefined
+    const cut = cwd.lastIndexOf('/')
+    const name = cwd.slice(cut + 1) || cwd
+    const windows = /^[A-Za-z]:/.test(cwd)
+    const parentRaw = cut > 0 ? cwd.slice(0, cut) : cut === 0 ? '/' : ''
+    // "C:" alone is a drive-relative path; keep the root's slash.
+    const parent = windows && /^[A-Za-z]:$/.test(parentRaw) ? `${parentRaw}/` : parentRaw
+    const shownParent = windows ? parent.split('/').join(String.fromCharCode(92)) : parent
+    const git = async (args: string[]) => {
+      const r = await $.process.run(['git', ...args], { cwd })
+      return r.exitCode === 0 ? String(r.stdout).trim() : ''
+    }
+    let branch: string | undefined
+    try {
+      branch = (await git(['branch', '--show-current'])) || (await git(['rev-parse', '--short', 'HEAD'])) || undefined
+    } catch {
+      // not a git folder: no branch to show
+    }
+    return { name, parent: shownParent, branch }
+  } catch {
+    return undefined
+  }
+}
+
+// "folder name · parent   branch". The parent is what shortens when the row is
+// too narrow; the name and the branch stay whole.
+function locationRow({ Box, Text, Svg }: any, loc: Location | undefined) {
+  if (!loc) return null
+  return (
+    <Box alignItems="center" overflow="hidden">
+      <Box flexShrink={0} alignItems="center">
+        {Svg ? <Svg source={svg('folder', GRAY)} alt="" width={14} height={14} /> : <Text dimColor>⌂</Text>}
+        <Text bold> {loc.name}</Text>
+      </Box>
+      {loc.parent && (
+        <Box flexShrink={1} minWidth={0} overflow="hidden">
+          <Text wrap="truncate-start" dimColor>
+            {' · '}
+            {loc.parent}
+          </Text>
+        </Box>
+      )}
+      {loc.branch && (
+        <Box flexShrink={0} marginLeft={3} alignItems="center">
+          {Svg ? <Svg source={svg('branch', GRAY)} alt="" width={14} height={14} /> : <Text dimColor>⑂</Text>}
+          <Text> {loc.branch}</Text>
+        </Box>
       )}
     </Box>
   )
@@ -389,14 +464,22 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // One quiet row above the prompt: the context gauge, preceded by the way back
-  // to the pane while it is closed.
+  // Quiet rows above the prompt: the way back to the pane while it is closed,
+  // the context gauge, and the session's folder and branch.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!vault || e.props.hasSurvey) return next(e)
     const ui = $.ui.resolve(e) as any
     const { Box, Text, Button, Svg } = ui
     const context = await readContext($)
-    if (!isClosed) return <Box>{gauge(ui, context)}</Box>
+    const where = locationRow(ui, await readLocation($))
+    if (!isClosed) {
+      return (
+        <Box flexDirection="column">
+          {gauge(ui, context)}
+          {where}
+        </Box>
+      )
+    }
     const { tasks } = await load($, vault)
     // What is in flight, not what is finished: one icon and count per status.
     const live = SECTIONS.filter(s => s.status !== 'done' && s.status !== 'inbox')
@@ -404,6 +487,7 @@ export const register: Register = on => {
       .filter(x => x.n > 0)
 
     return (
+      <Box flexDirection="column">
       <Box flexDirection="row" justifyContent="flex-start" alignItems="center">
         {Svg && <Svg source={svg('list', GRAY)} alt="" width={14} height={14} />}
         <Button
@@ -426,7 +510,9 @@ export const register: Register = on => {
             <Text dimColor> {n}</Text>
           </Box>
         ))}
-        <Box marginLeft={3}>{gauge(ui, context)}</Box>
+      </Box>
+      {gauge(ui, context)}
+      {where}
       </Box>
     )
   })
