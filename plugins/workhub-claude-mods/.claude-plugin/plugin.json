@@ -1,6 +1,6 @@
 {
   "name": "workhub-claude-mods",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Claude Code mods for a workhub vault: a sidebar pane that lists the vault's tasks by status, with a project filter and buttons that open notes in Obsidian, and a context gauge with the session folder and branch above the prompt. Does nothing outside a vault.",
   "author": {
     "name": "atman-33",

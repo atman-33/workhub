@@ -39,10 +39,12 @@ percentage and the token counts. The bar's colour is the signal: green below
 60%, yellow from 60%, red from 80%. Until the first response of a session and
 right after a compaction it is an empty grey bar and a dash.
 
-Under it, one row names the session's folder with its parent, and the checked-out
+On the same row come the session's folder with its parent, and the checked-out
 branch (a short commit id when HEAD is detached; no branch outside a git
-folder). The branch is read on every draw. On a narrow row the parent folder is
-what gets shortened. While the pane is closed the `Tasks` row sits on top.
+folder). The branch is read on every draw. When the row is too narrow it gives up
+the parent folder first, then the token counts, then the bar (the percentage
+stays); the folder name and the branch are kept. While the pane is closed the
+`Tasks` row sits on top, on a line of its own.
 
 ## Where it runs
 

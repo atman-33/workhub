@@ -255,6 +255,7 @@ const mountBand = async (
   surface: 'terminal' | 'desktop',
   git: Git | 'none' = { branch: 'feature/x' },
   cwd = VAULT,
+  columns = 80,
 ) => {
   stub(on, undefined, cwd)
   on('process.run', (_: any, e: any) => {
@@ -271,7 +272,7 @@ const mountBand = async (
   on('clock.every', () => ({ value: undefined }))
   on('session.usage', () => ({ value: { context, rateLimits: [], startedAt: 0 } }))
   await $.session.start({ cwd: VAULT, surface: 'terminal', isInteractive: true })
-  return $.ui.mount({ ...BAND, surface })
+  return $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: columns }, surface })
 }
 
 const gaugeText = async ($: any, on: any, context: object) => {
@@ -417,6 +418,44 @@ test('row text is one step smaller where the engine can draw it', async ($, on) 
   const title: any = (await ui.findAll({ type: 'Text' })).find((t: any) => String(t.text).includes('stuck'))
   expect(title.props.size).toBe('footnote')
   await ui.unmount()
+})
+
+// ---- one row, and what it gives up when it is narrow
+const LONG = 'C:/some/very/long/path/here/vault'
+const rowParts = async ($: any, on: any, columns: number) => {
+  const ui = await mountBand($, on, { percent: 10, tokens: 1, window: 2 }, 'desktop', { branch: 'main' }, LONG, columns)
+  const text = (await ui.findAll({ type: 'Text' })).map((t: any) => t.text).join('')
+  const bar = (await ui.findAll({ type: 'Svg' })).some((b: any) => b.props.alt === 'Context used')
+  await ui.unmount()
+  return { text, bar }
+}
+
+test('a wide row holds the gauge, the folder with its parent and the branch', async ($, on) => {
+  const { text, bar } = await rowParts($, on, 200)
+  expect(bar).toBe(true)
+  for (const part of ['10%', '1 / 2', 'vault', 'some', 'main']) expect(text).toContain(part)
+})
+
+test('a row too narrow for the parent folder drops it first', async ($, on) => {
+  const { text, bar } = await rowParts($, on, 60)
+  expect(bar).toBe(true)
+  expect(text).toContain('1 / 2')
+  expect(text).not.toContain('some')
+  expect(text).toContain('main')
+})
+
+test('a still narrower row drops the token counts, then the bar', async ($, on) => {
+  const noTokens = await rowParts($, on, 38)
+  expect(noTokens.text).not.toContain('1 / 2')
+  expect(noTokens.bar).toBe(true)
+})
+
+test('the narrowest row keeps the percentage, the folder name and the branch', async ($, on) => {
+  const { text, bar } = await rowParts($, on, 24)
+  expect(bar).toBe(false)
+  expect(text).toContain('10%')
+  expect(text).toContain('vault')
+  expect(text).toContain('main')
 })
 
 test('a waiting task cannot be moved to Doing', async ($, on) => {
