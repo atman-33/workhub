@@ -401,13 +401,15 @@ function tokenCount(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
 }
 
+const BAR_PX = 80
+
 function barSvg(percent: number, color: string): string {
   const width = Math.min(100, Math.max(0, percent))
   return (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="10" viewBox="0 0 120 10">' +
-    `<rect width="120" height="10" rx="5" fill="${GRAY}" fill-opacity="0.3"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_PX}" height="10" viewBox="0 0 ${BAR_PX} 10">` +
+    `<rect width="${BAR_PX}" height="10" rx="5" fill="${GRAY}" fill-opacity="0.3"/>` +
     (width > 0
-      ? `<rect width="${Math.max(10, width * 1.2)}" height="10" rx="5" fill="${color}"/>`
+      ? `<rect width="${Math.max(10, (width * BAR_PX) / 100)}" height="10" rx="5" fill="${color}"/>`
       : '') +
     '</svg>'
   )
@@ -421,29 +423,38 @@ function barText(percent: number): string {
 // "[bar] 32%  64k / 200k", the colour alone saying how full. There is no figure
 // before the first response of a session, or right after a compaction: an empty
 // bar and a dash.
-function gauge({ Box, Text, Svg }: any, { percent, tokens, window }: Context) {
+function gauge(
+  { Box, Text, Svg }: any,
+  { percent, tokens, window }: Context,
+  show: { bar: boolean; tokens: boolean } = { bar: true, tokens: true },
+) {
   if (percent === undefined) {
     return (
       <Box alignItems="center">
-        {Svg ? (
-          <Svg source={barSvg(0, GRAY)} alt="Context unknown" width={120} height={10} />
-        ) : (
-          <Text dimColor>{barText(0)}</Text>
-        )}
-        <Text dimColor> —</Text>
+        {show.bar &&
+          (Svg ? (
+            <Svg source={barSvg(0, GRAY)} alt="Context unknown" width={BAR_PX} height={10} />
+          ) : (
+            <Text dimColor>{barText(0)}</Text>
+          ))}
+        <Text dimColor>{show.bar ? ' —' : 'Context —'}</Text>
       </Box>
     )
   }
   const level = LEVELS.find(l => percent >= l.from) ?? LEVELS[2]
   return (
     <Box alignItems="center">
-      {Svg ? (
-        <Svg source={barSvg(percent, level.fill)} alt="Context used" width={120} height={10} />
-      ) : (
-        <Text color={level.text}>{barText(percent)}</Text>
-      )}
-      <Text bold> {percent}%</Text>
-      {tokens !== undefined && window !== undefined && (
+      {show.bar &&
+        (Svg ? (
+          <Svg source={barSvg(percent, level.fill)} alt="Context used" width={BAR_PX} height={10} />
+        ) : (
+          <Text color={level.text}>{barText(percent)}</Text>
+        ))}
+      <Text bold color={show.bar ? undefined : level.text}>
+        {show.bar ? ' ' : ''}
+        {percent}%
+      </Text>
+      {show.tokens && tokens !== undefined && window !== undefined && (
         <Text dimColor>
           {'  '}
           {tokenCount(tokens)} / {tokenCount(window)}
@@ -487,15 +498,18 @@ async function readLocation($: any): Promise<Location | undefined> {
 
 // "folder name · parent   branch". The parent is what shortens when the row is
 // too narrow; the name and the branch stay whole.
-function locationRow({ Box, Text, Svg }: any, loc: Location | undefined) {
+function locationRow({ Box, Text, Svg }: any, loc: Location | undefined, showParent = true) {
   if (!loc) return null
   return (
     <Box alignItems="center" overflow="hidden">
-      <Box flexShrink={0} alignItems="center">
+      <Box flexShrink={1} minWidth={0} overflow="hidden" alignItems="center">
         {Svg ? <Svg source={svg('folder', GRAY)} alt="" width={14} height={14} /> : <Text dimColor>⌂</Text>}
-        <Text bold> {loc.name}</Text>
+        <Text bold wrap="truncate-end">
+          {' '}
+          {loc.name}
+        </Text>
       </Box>
-      {loc.parent && (
+      {showParent && loc.parent && (
         <Box flexShrink={1} minWidth={0} overflow="hidden">
           <Text wrap="truncate-start" dimColor>
             {' · '}
@@ -507,6 +521,45 @@ function locationRow({ Box, Text, Svg }: any, loc: Location | undefined) {
         <Box flexShrink={0} marginLeft={3} alignItems="center">
           {Svg ? <Svg source={svg('branch', GRAY)} alt="" width={14} height={14} /> : <Text dimColor>⑂</Text>}
           <Text> {loc.branch}</Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------- status row
+// The gauge, the folder and the branch share one row. When `columns` cannot hold
+// them all, the parent folder goes first, then the token counts, then the bar
+// (the percentage stays); the folder name and the branch are kept. Widths are
+// cell counts, the bar standing for ten.
+function fitRow(columns: number, ctx: Context, loc: Location | undefined) {
+  const BAR = 10
+  const pct = ctx.percent === undefined ? 2 : `${ctx.percent}%`.length + 1
+  const tok = ctx.tokens !== undefined && ctx.window !== undefined
+    ? 2 + `${tokenCount(ctx.tokens)} / ${tokenCount(ctx.window)}`.length
+    : 0
+  const folder = loc ? 3 + loc.name.length + 2 : 0
+  const parent = loc && loc.parent ? 3 + loc.parent.length : 0
+  const branch = loc && loc.branch ? 3 + 2 + loc.branch.length : 0
+  const show = { bar: true, tokens: true, parent: true }
+  const width = () =>
+    (show.bar ? BAR : 0) + pct + (show.tokens ? tok : 0) + folder + (show.parent ? parent : 0) + branch
+  if (width() > columns) show.parent = false
+  if (width() > columns) show.tokens = false
+  if (width() > columns) show.bar = false
+  return show
+}
+
+function statusRow(ui: any, columns: number, ctx: Context, loc: Location | undefined) {
+  const { Box } = ui
+  const show = fitRow(columns, ctx, loc)
+  const where = locationRow(ui, loc, show.parent)
+  return (
+    <Box alignItems="center" overflow="hidden">
+      <Box flexShrink={0}>{gauge(ui, ctx, show)}</Box>
+      {where && (
+        <Box marginLeft={3} flexShrink={1} minWidth={0} overflow="hidden">
+          {where}
         </Box>
       )}
     </Box>
@@ -564,21 +617,14 @@ export const register: Register = on => {
   })
 
   // Quiet rows above the prompt: the way back to the pane while it is closed,
-  // the context gauge, and the session's folder and branch.
+  // and one row with the context gauge, the session's folder and its branch.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!vault || e.props.hasSurvey) return next(e)
     const ui = $.ui.resolve(e) as any
     const { Box, Text, Button, Svg } = ui
     const context = await readContext($)
-    const where = locationRow(ui, await readLocation($))
-    if (!isClosed) {
-      return (
-        <Box flexDirection="column">
-          {gauge(ui, context)}
-          {where}
-        </Box>
-      )
-    }
+    const status = statusRow(ui, e.props.bodyColumns, context, await readLocation($))
+    if (!isClosed) return status
     const { tasks } = await load($, vault)
     // What is in flight, not what is finished: one icon and count per status.
     const live = SECTIONS.filter(s => s.status !== 'done' && s.status !== 'inbox')
@@ -610,8 +656,7 @@ export const register: Register = on => {
           </Box>
         ))}
       </Box>
-      {gauge(ui, context)}
-      {where}
+      {status}
       </Box>
     )
   })
