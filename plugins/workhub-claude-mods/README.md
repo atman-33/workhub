@@ -24,9 +24,14 @@ The pane refreshes every 15 seconds. Right-click menus and drag and drop are not
 ## Context gauge
 
 A row above the prompt shows how full the context window is, as a bar, a
-percentage and the token counts. It is green below 60%, yellow from 60% and red
-from 80%. It reads `⚪ Context —` until the first response of a session and right
-after a compaction. While the pane is closed it shares the row with `Tasks`.
+percentage and the token counts. The bar's colour is the signal: green below
+60%, yellow from 60%, red from 80%. Until the first response of a session and
+right after a compaction it is an empty grey bar and a dash.
+
+Under it, one row names the session's folder with its parent, and the checked-out
+branch (a short commit id when HEAD is detached; no branch outside a git
+folder). The branch is read on every draw. On a narrow row the parent folder is
+what gets shortened. While the pane is closed the `Tasks` row sits on top.
 
 ## Where it runs
 
